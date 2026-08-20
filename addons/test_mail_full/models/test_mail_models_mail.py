@@ -5,13 +5,13 @@ from odoo import api, fields, models
 
 
 class MailTestPortal(models.Model):
-    """ A model inheriting from mail.thread and portal.mixin with some fields
+    """ A model inheriting from mixin.mail.thread and mixin.portal with some fields
     used for portal sharing, like a partner, ..."""
     _name = 'mail.test.portal'
     _description = 'Chatter Model for Portal'
     _inherit = [
-        'portal.mixin',
-        'mail.thread',
+        'mixin.portal',
+        'mixin.mail.thread',
     ]
 
     name = fields.Char('Name')
@@ -29,8 +29,8 @@ class MailTestPortalNoPartner(models.Model):
     _name = 'mail.test.portal.no.partner'
     _description = 'Chatter Model for Portal (no partner field)'
     _inherit = [
-        'mail.thread',
-        'portal.mixin',
+        'mixin.mail.thread',
+        'mixin.portal',
     ]
 
     name = fields.Char()
@@ -66,17 +66,18 @@ class MailTestPortalPublicAccessAction(models.Model):
 
 
 class MailTestRating(models.Model):
-    """ A model inheriting from rating.mixin (which inherits from mail.thread) with some fields used for SMS
+    """ A model inheriting from mixin.rating (which inherits from mixin.mail.thread) with some fields used for SMS
     gateway, like a partner, a specific mobile phone, ... """
     _name = 'mail.test.rating'
     _description = 'Rating Model (ticket-like)'
     _inherit = [
-        'rating.mixin',
-        'mail.activity.mixin',
-        'portal.mixin',
+        'mixin.rating',
+        'mixin.mail.activity',
+        'mixin.portal',
     ]
     _mailing_enabled = True
     _order = 'id asc'
+    _mail_partner_fields = ('customer_id',)
 
     name = fields.Char('Name')
     subject = fields.Char('Subject')
@@ -102,8 +103,15 @@ class MailTestRating(models.Model):
             elif not rating.phone_nbr:
                 rating.phone_nbr = False
 
-    def _mail_get_partner_fields(self, introspect_fields=False):
-        return ['customer_id']
+    @api.depends('name', 'subject')
+    def _compute_display_name(self):
+        # a display_name built from more than _rec_name, the shape product.template
+        # has (@api.depends("name", "default_code")) and the one the mixins
+        # denormalising it have to follow
+        for record in self:
+            record.display_name = ' - '.join(
+                part for part in (record.name, record.subject) if part
+            ) or False
 
     def _phone_get_number_fields(self):
         return ['phone_nbr']
@@ -120,7 +128,7 @@ class MailTestRating(models.Model):
 
 
 class MailTestRatingThread(models.Model):
-    """A model inheriting from mail.thread with minimal fields for testing
+    """A model inheriting from mixin.mail.thread with minimal fields for testing
      rating submission without the rating mixin but with the same test code:
 
      - partner_id: value returned by the base _rating_get_partner method
@@ -128,15 +136,13 @@ class MailTestRatingThread(models.Model):
      """
     _name = 'mail.test.rating.thread'
     _description = 'Model for testing rating without the rating mixin'
-    _inherit = ['mail.thread']
+    _inherit = ['mixin.mail.thread']
     _order = 'name asc, id asc'
+    _mail_partner_fields = ('customer_id',)
 
     name = fields.Char('Name')
     customer_id = fields.Many2one('res.partner', 'Customer')
     user_id = fields.Many2one('res.users', 'Responsible', tracking=1)
-
-    def _mail_get_partner_fields(self, introspect_fields=False):
-        return ['customer_id']
 
     def _rating_get_partner(self):
         return self.customer_id or super()._rating_get_partner()

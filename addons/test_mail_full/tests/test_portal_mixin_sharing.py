@@ -1,4 +1,4 @@
-"""Tests for portal.mixin token minting and share-URL building."""
+"""Tests for mixin.portal token minting and share-URL building."""
 
 from odoo.exceptions import AccessError
 from odoo.tests import tagged

@@ -93,3 +93,43 @@ class TestServerAction(SMSCommon, TestSMSRecipients):
             'Dear %s this is an SMS.' % self.test_record_2.display_name,
             messages=self.test_record_2.message_ids[-1]
         )
+
+    def test_the_configured_method_survives_a_write_of_the_state(self):
+        """`Note only` reverting to `SMS` starts sending messages for real.
+
+        `_compute_sms_method` assigned its default on every pass, and the ORM
+        marks a dependent modified on any write naming a dependency -- a write
+        of the same value included. So an export and re-import of the action,
+        which is how one is moved between databases and which resends every
+        column whether it changed or not, turned an action configured to log a
+        note into one that sends the SMS: to the customer, at the usual price.
+        """
+        self.action.sms_method = 'note'
+        self.action.write({'state': 'sms'})
+        self.assertEqual(
+            self.action.sms_method, 'note',
+            "a write of the state it already has must not start sending SMS",
+        )
+
+        self.env['ir.model.data']._update_xmlids([
+            {'xml_id': '__test__.sms_round_trip', 'record': self.action, 'noupdate': False},
+        ])
+        fields = ['id', 'name', 'model_id/id', 'state', 'sms_template_id/id']
+        result = self.env['ir.actions.server'].load(
+            fields, self.action.export_data(fields)['datas'],
+        )
+        self.assertFalse([m for m in result['messages'] if m.get('type') == 'error'])
+        self.action.invalidate_recordset()
+        self.assertEqual(self.action.sms_method, 'note')
+
+    def test_leaving_and_re_entering_sms_seeds_the_method_again(self):
+        """Preserving is not the same as never seeding."""
+        action = self.env['ir.actions.server'].create({
+            'name': 'Fresh', 'model_id': self.env['ir.model']._get('mail.test.sms').id,
+            'state': 'sms', 'sms_template_id': self.sms_template.id,
+        })
+        self.assertEqual(action.sms_method, 'sms')
+        action.state = 'code'
+        self.assertFalse(action.sms_method)
+        action.state = 'sms'
+        self.assertEqual(action.sms_method, 'sms')

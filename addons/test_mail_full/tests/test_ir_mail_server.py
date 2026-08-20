@@ -68,15 +68,31 @@ class TestIrMailServerPersonal(MailCommon):
                     partner_ids=test_record.ids,
                 )
 
-            # check raise on invalid server at send (should not happen in normal flow)
+            # check refusal on invalid server at send (should not happen in normal flow)
             mail = self.env['mail.mail'].sudo().create({
                 'body_html': 'hello',
                 'email_from': self.user_employee.email,
                 'author_id': self.user_employee.partner_id.id,
                 'partner_ids': test_record.ids,
             })
+            # a caller that asked to be told still is
             with self.mock_mail_gateway(), self.assertRaisesRegex(UserError, "Unauthorized server for some of the sending mails."):
-                mail._send(self, mail_server=self.mail_server_user)
+                mail._send(mail_server=self.mail_server_user, raise_exception=True)
+
+            # the queue is not: raising for the batch made one misconfigured mail
+            # fatal to every mail queued behind it, so the mail is failed and the
+            # rest of the run goes on
+            mail.write({
+                'failure_reason': False, 'failure_type': False, 'state': 'outgoing',
+            })
+            with self.mock_mail_gateway():
+                mail._send(mail_server=self.mail_server_user)
+            self.assertEqual(
+                len(self._mails), 0,
+                'nothing goes out over a server this mail may not use',
+            )
+            self.assertEqual(mail.state, 'exception')
+            self.assertEqual(mail.failure_type, 'mail_server_unauthorized')
 
     def test_personal_mail_server_find_mail_server(self):
         """Check that _find_mail_server only finds 'public' servers unless otherwise allowed."""

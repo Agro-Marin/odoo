@@ -8,7 +8,7 @@ from odoo.tests import tagged, users
 
 @tagged('mail_thread')
 class TestSMSActionsCommon(SMSCommon, TestSMSRecipients):
-    """ Test mail.thread.phone mixin, its tools and API """
+    """ Test mixin.mail.thread.phone mixin, its tools and API """
 
     @classmethod
     def setUpClass(cls):

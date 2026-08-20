@@ -821,7 +821,7 @@ Web: <a class="moz-txt-link-freetext" href="http://www.odoo.com">http://www.odoo
 
 --------------A6B5FD5F68F4D73ECD739009--"""
 
-MAIL_EML_ATTACHMENT_BOUNCE_HEADERS="""\
+MAIL_EML_ATTACHMENT_BOUNCE_HEADERS = """\
 Date: Tue, 24 Dec 2019 11:32:07 +0100 (CET)
 MIME-Version: 1.0
 Content-Type: multipart/mixed; boundary=16063919151.b32bE0eD.7
@@ -1322,7 +1322,7 @@ Content-Type: multipart/mixed; boundary=3D"=3D=3D=3D=3D=3D=3D=3D=3D=3D=3D=
 
 """
 
-MAIL_NO_BODY = '''\
+MAIL_NO_BODY = """\
 Return-Path: <{email_from}>
 Delivered-To: catchall@xxxx.xxxx
 Received: from in66.mail.ovh.net (unknown [10.101.4.66])
@@ -1356,7 +1356,7 @@ Content-Transfer-Encoding: 7bit
 <html xmlns="http://www.w3.org/1999/xhtml"><head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
  </head><body style="font-family: arial,helvetica,sans-serif; font-size: 13pt"></body></html>
-'''
+"""
 
 MAIL_NO_FINAL_RECIPIENT = """\
 Return-Path: <bounce-md_9656353.6125275c.v1-f28f7746389e45f0bfbf9faefe9e0dc8@mandrillapp.com>
@@ -1435,9 +1435,9 @@ JVBERi0xLjEKJcKlwrHDqwoKMSAwIG9iagogIDw8IC9UeXBlIC9DYXRhbG9nCiAgICAgL1BhZ2VzIDIg
 ------=_Part_4200734_24778174.1344608186754--
 """
 
-PDF_PARSED = b'''%PDF-1.1\n%\xc2\xa5\xc2\xb1\xc3\xab\n\n1 0 obj\n  << /Type /Catalog\n     /Pages 2 0 R\n  >>\nendobj\n\n2 0 obj\n  << /Type /Pages\n     /Kids [3 0 R]\n     /Count 1\n     /MediaBox [0 0 300 144]\n  >>\nendobj\n\n3 0 obj\n  <<  /Type /Page\n      /Parent 2 0 R\n      /Resources\n       << /Font\n           << /F1\n               << /Type /Font\n                  /Subtype /Type1\n                  /BaseFont /Times-Roman\n               >>\n           >>\n       >>\n      /Contents 4 0 R\n  >>\nendobj\n\n4 0 obj\n  << /Length 55 >>\nstream\n  BT\n    /F1 18 Tf\n    0 0 Td\n    (Hello World) Tj\n  ET\nendstream\nendobj\n\nxref\n0 5\n0000000000 65535 f \n0000000018 00000 n \n0000000077 00000 n \n0000000178 00000 n \n0000000457 00000 n \ntrailer\n  <<  /Root 1 0 R\n      /Size 5\n  >>\nstartxref\n565\n%%EOF\n'''
+PDF_PARSED = b"""%PDF-1.1\n%\xc2\xa5\xc2\xb1\xc3\xab\n\n1 0 obj\n  << /Type /Catalog\n     /Pages 2 0 R\n  >>\nendobj\n\n2 0 obj\n  << /Type /Pages\n     /Kids [3 0 R]\n     /Count 1\n     /MediaBox [0 0 300 144]\n  >>\nendobj\n\n3 0 obj\n  <<  /Type /Page\n      /Parent 2 0 R\n      /Resources\n       << /Font\n           << /F1\n               << /Type /Font\n                  /Subtype /Type1\n                  /BaseFont /Times-Roman\n               >>\n           >>\n       >>\n      /Contents 4 0 R\n  >>\nendobj\n\n4 0 obj\n  << /Length 55 >>\nstream\n  BT\n    /F1 18 Tf\n    0 0 Td\n    (Hello World) Tj\n  ET\nendstream\nendobj\n\nxref\n0 5\n0000000000 65535 f \n0000000018 00000 n \n0000000077 00000 n \n0000000178 00000 n \n0000000457 00000 n \ntrailer\n  <<  /Root 1 0 R\n      /Size 5\n  >>\nstartxref\n565\n%%EOF\n"""
 
-THAI_EMAIL_WINDOWS_874 = '''\
+THAI_EMAIL_WINDOWS_874 = """\
 From: Thai Customer <outlook_windows@outlook.com>
 To: "Thai Odoo User" <thai-user@odoo.com>
 Subject: =?windows-874?B?4MPX6M2n?=
@@ -1456,4 +1456,4 @@ Content-Type: text/plain; charset="windows-874"
 Content-Transfer-Encoding: quoted-printable
 MIME-Version: 1.0
 
-=C3=E8=D2=A7=A1=D2=C2='''
+=C3=E8=D2=A7=A1=D2=C2="""

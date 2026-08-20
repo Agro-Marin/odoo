@@ -39,6 +39,41 @@ class TestSMSPost(SMSCommon, MockLinkTracker):
 
         self.assertEqual(self.count, 4)
 
+    def test_sms_send_batch_size_out_of_range(self):
+        """A batch size below one, or not a number, must not take the queue down.
+
+        `_get_send_batch_size` hands its result to an SQL LIMIT in
+        `_process_queue` and to `itertools.batched` in `_split_batch`. It read
+        the parameter with a bare `int(get_param(...))`, so a negative value
+        reached Postgres as `LIMIT -3` and a non-numeric one raised ValueError --
+        both straight out of the queue cron, and both on every run until someone
+        re-read the System Parameters row.
+        """
+        ICP = self.env['ir.config_parameter']
+        for value in ('-3', '0', 'not a number', ''):
+            with self.subTest(value=value):
+                ICP.set_param('sms.session.batch.size', value)
+                self.assertGreater(
+                    self.env['sms.sms']._get_send_batch_size(), 0,
+                    'the batch size is a count, and a count below one has no meaning here',
+                )
+
+        ICP.set_param('sms.session.batch.size', '-3')
+        self.count = 0
+
+        def _send(sms_self, unlink_failed=False, unlink_sent=True, raise_exception=False):
+            self.count += 1
+            return DEFAULT
+
+        with patch.object(SmsModel, '_send', autospec=True, side_effect=_send):
+            self.env['sms.sms'].browse(self.sms_all.ids).send()
+        self.assertEqual(self.count, 1, 'and the whole batch still goes out, in one piece')
+
+        ICP.set_param('sms.session.batch.size', '-3')
+        with patch.object(SmsModel, '_send', autospec=True, side_effect=_send):
+            # the cron path: this is the one that reached SQL
+            self.env['sms.sms']._process_queue()
+
     def test_sms_send_crash_employee(self):
         with self.assertRaises(exceptions.AccessError):
             self.env['sms.sms'].with_user(self.user_employee).browse(self.sms_all.ids).send()

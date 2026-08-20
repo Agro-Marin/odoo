@@ -42,13 +42,13 @@ test("Send message button activation (access rights dependent)", async () => {
         `,
     });
     let userAccess = {};
-    listenStoreFetch("mail.thread", {
+    listenStoreFetch("mixin.mail.thread", {
         async onRpc(request) {
             const { params } = await request.json();
-            if (params.fetch_params.some((fetchParam) => fetchParam[0] === "mail.thread")) {
+            if (params.fetch_params.some((fetchParam) => fetchParam[0] === "mixin.mail.thread")) {
                 const res = await mail_data.bind(MockServer.current)(request);
-                res["mail.thread"][0].hasWriteAccess = userAccess.hasWriteAccess;
-                res["mail.thread"][0].hasReadAccess = userAccess.hasReadAccess;
+                res["mixin.mail.thread"][0].hasWriteAccess = userAccess.hasWriteAccess;
+                res["mixin.mail.thread"][0].hasReadAccess = userAccess.hasReadAccess;
                 return res;
             }
         },
@@ -70,7 +70,7 @@ test("Send message button activation (access rights dependent)", async () => {
         userAccess = { hasReadAccess, hasWriteAccess };
         await openFormView(model, resId);
         if (resId) {
-            await waitStoreFetch("mail.thread");
+            await waitStoreFetch("mixin.mail.thread");
         }
         if (enabled) {
             await contains(".o-mail-Chatter-topbar button:enabled", { text: "Send message" });

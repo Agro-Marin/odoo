@@ -20,7 +20,9 @@ class TestAttachmentController(MailControllerAttachmentCommon):
         """Test access to delete an attachment associated with a thread
         whether or not limited `ownership_token` is sent"""
         thread = self.env["mail.test.simple"].create({"name": "Test"})
-        self._execute_subtests_delete(self.all_users, token=True, allowed=True, thread=thread)
+        self._execute_subtests_delete(
+            self.all_users, token=True, allowed=True, thread=thread
+        )
         self._execute_subtests_delete(
             (self.user_admin, self.user_employee),
             token=False,

@@ -8,7 +8,7 @@ from odoo import http
 from odoo.addons.test_mail_full.tests.common import TestMailFullCommon
 from odoo.addons.test_mail_sms.tests.common import TestSMSRecipients
 from odoo.tests import tagged
-from odoo.tests.common import users, warmup
+from odoo.tests.common import TransactionCase, users, warmup
 from odoo.tools import mute_logger
 
 
@@ -146,6 +146,49 @@ class TestRatingMixin(TestRatingCommon):
 
         self.assertEqual(record_rating.rating_last_value, 5, "The last rating is kept.")
         self.assertEqual(record_rating.rating_avg, 3, "The average should be equal to 3")
+
+
+@tagged("rating")
+class TestRatingResName(TransactionCase):
+    """rating.res_name is a stored copy of the rated record's display_name, so
+    something has to push a rename into it. mixin.rating watched _rec_name,
+    which only answers for the default compute: mail.test.rating, like
+    product.template, builds its display_name from a second field too.
+
+    On TransactionCase and not TestRatingCommon, which reaches HttpCase: every
+    other class in this file skips under --no-http, and this one needs no server.
+    """
+
+    def test_res_name_follows_display_name_not_just_rec_name(self):
+        record = self.env['mail.test.rating'].create({'name': 'ONE'})
+        rating = self.env['rating.rating'].create({
+            'res_model_id': self.env['ir.model']._get_id('mail.test.rating'),
+            'res_id': record.id,
+            'rating': 5,
+            'consumed': True,
+        })
+        self.env.flush_all()
+        self.assertEqual(rating.res_name, 'ONE')
+
+        record.name = 'TWO'
+        self.env.flush_all()
+        self.assertEqual(rating.res_name, 'TWO', 'the record-name field still works')
+
+        # subject is not _rec_name, and display_name depends on it
+        record.subject = 'SUBJ'
+        self.env.flush_all()
+        self.assertEqual(record.display_name, 'TWO - SUBJ')
+        self.assertEqual(
+            rating.res_name,
+            'TWO - SUBJ',
+            'a rename through any display_name dependency must reach res_name',
+        )
+
+        # and a write that cannot move display_name leaves the ratings alone
+        stamp = rating.write_date
+        record.user_id = self.env.ref('base.user_admin').id
+        self.env.flush_all()
+        self.assertEqual(rating.write_date, stamp)
 
 
 @tagged("rating", "rating_portal")

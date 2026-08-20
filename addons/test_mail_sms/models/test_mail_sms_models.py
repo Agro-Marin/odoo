@@ -5,13 +5,14 @@ from odoo import api, fields, models
 
 
 class MailTestSms(models.Model):
-    """ A model inheriting from mail.thread with some fields used for SMS
+    """ A model inheriting from mixin.mail.thread with some fields used for SMS
     gateway, like a partner, a specific mobile phone, ... """
     _name = 'mail.test.sms'
     _description = 'Chatter Model for SMS Gateway'
-    _inherit = ['mail.thread']
+    _inherit = ['mixin.mail.thread']
     _mailing_enabled = True
     _order = 'name asc, id asc'
+    _mail_partner_fields = ('customer_id', 'guest_ids')
 
     name = fields.Char()
     subject = fields.Char()
@@ -25,18 +26,16 @@ class MailTestSms(models.Model):
     def _phone_get_number_fields(self):
         return ['phone_nbr', 'mobile_nbr']
 
-    def _mail_get_partner_fields(self, introspect_fields=False):
-        return ['customer_id', 'guest_ids']
-
 
 class MailTestSmsBl(models.Model):
-    """ A model inheriting from mail.thread.phone allowing to test auto formatting
+    """ A model inheriting from mixin.mail.thread.phone allowing to test auto formatting
     of phone numbers, blacklist, ... """
     _name = 'mail.test.sms.bl'
     _description = 'SMS Mailing Blacklist Enabled'
-    _inherit = ['mail.thread.phone']
+    _inherit = ['mixin.mail.thread.phone']
     _mailing_enabled = True
     _order = 'name asc, id asc'
+    _mail_partner_fields = ('customer_id',)
 
     name = fields.Char()
     subject = fields.Char()
@@ -53,18 +52,15 @@ class MailTestSmsBl(models.Model):
     def _phone_get_number_fields(self):
         return ['phone_nbr', 'mobile_nbr']
 
-    def _mail_get_partner_fields(self, introspect_fields=False):
-        return ['customer_id']
-
 
 class MailTestSmsBlActivity(models.Model):
-    """ A model inheriting from mail.thread.phone allowing to test auto formatting
+    """ A model inheriting from mixin.mail.thread.phone allowing to test auto formatting
     of phone numbers, blacklist, ... as well as activities management. """
     _name = 'mail.test.sms.bl.activity'
     _description = 'SMS Mailing Blacklist Enabled with activities'
     _inherit = [
         'mail.test.sms.bl',
-        'mail.activity.mixin',
+        'mixin.mail.activity',
     ]
     _mailing_enabled = True
     _order = 'name asc, id asc'
@@ -75,9 +71,10 @@ class MailTestSmsBlOptout(models.Model):
     mass mailing features. """
     _name = 'mail.test.sms.bl.optout'
     _description = 'SMS Mailing Blacklist / Optout Enabled'
-    _inherit = ['mail.thread.phone']
+    _inherit = ['mixin.mail.thread.phone']
     _mailing_enabled = True
     _order = 'name asc, id asc'
+    _mail_partner_fields = ('customer_id',)
 
     name = fields.Char()
     subject = fields.Char()
@@ -89,9 +86,6 @@ class MailTestSmsBlOptout(models.Model):
 
     def _phone_get_number_fields(self):
         return ['phone_nbr', 'mobile_nbr']
-
-    def _mail_get_partner_fields(self, introspect_fields=False):
-        return ['customer_id']
 
     def _mailing_get_opt_out_list_sms(self, mailing):
         res_ids = mailing._get_recipients()
@@ -106,15 +100,13 @@ class MailTestSmsPartner(models.Model):
     or mobile fields. """
     _name = 'mail.test.sms.partner'
     _description = 'Chatter Model for SMS Gateway (Partner only)'
-    _inherit = ['mail.thread']
+    _inherit = ['mixin.mail.thread']
     _mailing_enabled = True
+    _mail_partner_fields = ('customer_id',)
 
     name = fields.Char()
     customer_id = fields.Many2one('res.partner', 'Customer')
     opt_out = fields.Boolean()
-
-    def _mail_get_partner_fields(self, introspect_fields=False):
-        return ['customer_id']
 
     def _mailing_get_opt_out_list_sms(self, mailing):
         res_ids = mailing._get_recipients()
@@ -129,15 +121,13 @@ class MailTestSmsPartner2many(models.Model):
     or mobile fields. """
     _description = 'Chatter Model for SMS Gateway (M2M Partners only)'
     _name = 'mail.test.sms.partner.2many'
-    _inherit = ['mail.thread']
+    _inherit = ['mixin.mail.thread']
     _mailing_enabled = True
+    _mail_partner_fields = ('customer_ids',)
 
     name = fields.Char()
     customer_ids = fields.Many2many('res.partner', string='Customers')
     opt_out = fields.Boolean()
-
-    def _mail_get_partner_fields(self, introspect_fields=False):
-        return ['customer_ids']
 
     def _mailing_get_opt_out_list_sms(self, mailing):
         res_ids = mailing._get_recipients()
@@ -151,14 +141,12 @@ class MailTestSmsPartner2many(models.Model):
 # ------------------------------------------------------------
 
 class SMSTestNotMailThread(models.Model):
-    """ Models not inheriting from mail.thread but using some cross models
+    """ Models not inheriting from mixin.mail.thread but using some cross models
     capabilities of mail. """
     _name = 'sms.test.nothread'
     _description = "NoThread Model"
+    _mail_partner_fields = ('customer_id',)
 
     name = fields.Char()
     company_id = fields.Many2one('res.company')
     customer_id = fields.Many2one('res.partner')
-
-    def _mail_get_partner_fields(self, introspect_fields=False):
-        return ['customer_id']

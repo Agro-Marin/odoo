@@ -13,124 +13,151 @@ from odoo.tools import mute_logger
 
 
 class ThreadRecipients(MailCommon, TestRecipients):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.user_portal = cls._create_portal_user()
-        cls.test_partner, cls.test_partner_archived = cls.env['res.partner'].create([
-            {
-                'email': '"Test External" <test.external@example.com>',
-                'phone': '+32455001122',
-                'name': 'Name External',
-            }, {
-                'active': False,
-                'email': '"Test Archived" <test.archived@example.com>',
-                'phone': '+32455221100',
-                'name': 'Name Archived',
-            },
-        ])
+        cls.test_partner, cls.test_partner_archived = cls.env["res.partner"].create(
+            [
+                {
+                    "email": '"Test External" <test.external@example.com>',
+                    "phone": "+32455001122",
+                    "name": "Name External",
+                },
+                {
+                    "active": False,
+                    "email": '"Test Archived" <test.archived@example.com>',
+                    "phone": "+32455221100",
+                    "name": "Name Archived",
+                },
+            ]
+        )
         cls.user_employee_2 = mail_new_test_user(
             cls.env,
-            email='eglantine@example.com',
-            groups='base.group_user',
-            login='employee2',
-            name='Eglantine Employee',
-            notification_type='email',
-            signature='--\nEglantine',
+            email="eglantine@example.com",
+            groups="base.group_user",
+            login="employee2",
+            name="Eglantine Employee",
+            notification_type="email",
+            signature="--\nEglantine",
         )
         cls.partner_employee_2 = cls.user_employee_2.partner_id
         cls.user_employee_archived = mail_new_test_user(
             cls.env,
-            email='albert@example.com',
-            groups='base.group_user',
-            login='albert',
-            name='Albert Alemployee',
-            notification_type='email',
-            signature='--\nAlbert',
+            email="albert@example.com",
+            groups="base.group_user",
+            login="albert",
+            name="Albert Alemployee",
+            notification_type="email",
+            signature="--\nAlbert",
         )
         cls.user_employee_archived.active = False
         cls.partner_employee_archived = cls.user_employee_archived.partner_id
 
-        cls.test_aliases = cls.env['mail.alias'].create([
+        cls.test_aliases = cls.env["mail.alias"].create(
+            [
+                {
+                    "alias_domain_id": cls.mail_alias_domain.id,
+                    "alias_model_id": cls.env["ir.model"]._get_id(
+                        "mail.test.ticket.mc"
+                    ),
+                    "alias_name": "test.alias.free",
+                },
+                {
+                    "alias_domain_id": cls.mail_alias_domain.id,
+                    "alias_model_id": cls.env["ir.model"]._get_id(
+                        "mail.test.ticket.mc"
+                    ),
+                    "alias_name": "test.alias.partner",
+                },
+                {
+                    "alias_domain_id": cls.mail_alias_domain.id,
+                    "alias_incoming_local": True,
+                    "alias_model_id": cls.env["ir.model"]._get_id(
+                        "mail.test.ticket.mc"
+                    ),
+                    "alias_name": "test.alias.free.local",
+                },
+            ]
+        )
+        cls.test_partner_alias = cls.env["res.partner"].create(
             {
-                'alias_domain_id': cls.mail_alias_domain.id,
-                'alias_model_id': cls.env['ir.model']._get_id('mail.test.ticket.mc'),
-                'alias_name': 'test.alias.free',
-            }, {
-                'alias_domain_id': cls.mail_alias_domain.id,
-                'alias_model_id': cls.env['ir.model']._get_id('mail.test.ticket.mc'),
-                'alias_name': 'test.alias.partner',
-            }, {
-                'alias_domain_id': cls.mail_alias_domain.id,
-                'alias_incoming_local': True,
-                'alias_model_id': cls.env['ir.model']._get_id('mail.test.ticket.mc'),
-                'alias_name': 'test.alias.free.local',
+                "email": f'"Do not do this" <{cls.test_aliases[1].alias_full_name}>',
+                "name": "Someone created a partner with email=alias",
             }
-        ])
-        cls.test_partner_alias = cls.env['res.partner'].create({
-            'email': f'"Do not do this" <{cls.test_aliases[1].alias_full_name}>',
-            'name': 'Someone created a partner with email=alias',
-        })
-        cls.test_partner_catchall = cls.env['res.partner'].create({
-            'email': f'"Do not do this neither" <{cls.mail_alias_domain.catchall_email}>',
-            'name': 'Someone created a partner with email=catchall',
-        })
+        )
+        cls.test_partner_catchall = cls.env["res.partner"].create(
+            {
+                "email": f'"Do not do this neither" <{cls.mail_alias_domain.catchall_email}>',
+                "name": "Someone created a partner with email=catchall",
+            }
+        )
 
 
-@tagged('mail_thread', 'mail_thread_api', 'mail_tools')
+@tagged("mail_thread", "mail_thread_api", "mail_tools")
 class TestAPI(ThreadRecipients):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
 
-        cls.ticket_record = cls.env['mail.test.ticket.mc'].create({
-            'company_id': cls.user_employee.company_id.id,
-            'email_from': '"Paulette Vachette" <paulette@test.example.com>',
-            'phone_number': '+32455998877',
-            'name': 'Test',
-            'user_id': cls.user_employee.id,
-        })
-        cls.ticket_records = cls.ticket_record + cls.env['mail.test.ticket.mc'].create([
+        cls.ticket_record = cls.env["mail.test.ticket.mc"].create(
             {
-                'email_from': '"Maybe Paulette" <PAULETTE@test.example.com>',
-                'name': 'Duplicate email',
-            }, {
-                'email_from': '"Multi Customer" <multi@test.example.com>, "Multi 2" <multi.2@test.example.com>',
-                'name': 'Multi Email',
-            }, {
-                'email_from': 'wrong',
-                'phone_number': '+32455000001',
-                'name': 'Wrong email',
-            }, {
-                'email_from': 'wrong',
-                'name': 'Duplicate Wrong email',
-            }, {
-                'email_from': False,
-                'name': 'Falsy email',
-            }, {
-                'email_from': f'"Other Name" <{cls.test_partner.email_normalized}>',
-                'name': 'Test Partner Email',
-            }, {
-                'customer_id': cls.user_public.partner_id.id,
-                'name': 'Publicly Created',
-            },
-        ])
+                "company_id": cls.user_employee.company_id.id,
+                "email_from": '"Paulette Vachette" <paulette@test.example.com>',
+                "phone_number": "+32455998877",
+                "name": "Test",
+                "user_id": cls.user_employee.id,
+            }
+        )
+        cls.ticket_records = cls.ticket_record + cls.env["mail.test.ticket.mc"].create(
+            [
+                {
+                    "email_from": '"Maybe Paulette" <PAULETTE@test.example.com>',
+                    "name": "Duplicate email",
+                },
+                {
+                    "email_from": '"Multi Customer" <multi@test.example.com>, "Multi 2" <multi.2@test.example.com>',
+                    "name": "Multi Email",
+                },
+                {
+                    "email_from": "wrong",
+                    "phone_number": "+32455000001",
+                    "name": "Wrong email",
+                },
+                {
+                    "email_from": "wrong",
+                    "name": "Duplicate Wrong email",
+                },
+                {
+                    "email_from": False,
+                    "name": "Falsy email",
+                },
+                {
+                    "email_from": f'"Other Name" <{cls.test_partner.email_normalized}>',
+                    "name": "Test Partner Email",
+                },
+                {
+                    "customer_id": cls.user_public.partner_id.id,
+                    "name": "Publicly Created",
+                },
+            ]
+        )
 
     def test_assert_initial_values(self):
-        """ Just be sure of what we test """
+        """Just be sure of what we test"""
         self.assertFalse(self.user_employee_archived.active)
         self.assertTrue(self.partner_employee_archived.active)
 
-    @users('employee')
+    @users("employee")
     def test_body_escape(self):
-        """ Test various use cases involving HTML encoding / escaping """
+        """Test various use cases involving HTML encoding / escaping"""
         ticket_record = self.ticket_record.with_env(self.env)
-        attachments = self.env['ir.attachment'].create(
-            self._generate_attachments_data(2, 'mail.compose.message', 0)
+        attachments = self.env["ir.attachment"].create(
+            self._generate_attachments_data(2, "mail.compose.message", 0)
         )
-        self.assertFalse(self.env['ir.attachment'].sudo().search([('name', '=', 'test_image.jpeg')]))
+        self.assertFalse(
+            self.env["ir.attachment"].sudo().search([("name", "=", "test_image.jpeg")])
+        )
 
         # attachments processing through CID, rewrites body (if escaped)
         body = '<div class="ltr"><img src="cid:ii_lps7a8sm0" alt="test_image.jpeg" width="542" height="253">Zboing</div>'
@@ -144,15 +171,21 @@ class TestAPI(ThreadRecipients):
                     message_type="comment",
                     partner_ids=self.partner_1.ids,
                 )
-                new_attachment = self.env['ir.attachment'].sudo().search([('name', '=', 'test_image.jpeg')])
+                new_attachment = (
+                    self.env["ir.attachment"]
+                    .sudo()
+                    .search([("name", "=", "test_image.jpeg")])
+                )
                 self.assertEqual(new_attachment.res_id, ticket_record.id)
                 if with_markup:
                     expected_body = Markup(
                         f'<div class="ltr"><img src="/web/image/{new_attachment.id}?access_token={new_attachment.access_token}" '
-                         'alt="test_image.jpeg" width="542" height="253">Zboing</div>'
+                        'alt="test_image.jpeg" width="542" height="253">Zboing</div>'
                     )
                 else:
-                    expected_body = Markup('<p>&lt;div class="ltr"&gt;&lt;img src="cid:ii_lps7a8sm0" alt="test_image.jpeg" width="542" height="253"&gt;Zboing&lt;/div&gt;</p>')
+                    expected_body = Markup(
+                        '<p>&lt;div class="ltr"&gt;&lt;img src="cid:ii_lps7a8sm0" alt="test_image.jpeg" width="542" height="253"&gt;Zboing&lt;/div&gt;</p>'
+                    )
                 self.assertEqual(message.attachment_ids, attachments + new_attachment)
                 self.assertEqual(message.body, expected_body)
                 new_attachment.unlink()
@@ -161,21 +194,30 @@ class TestAPI(ThreadRecipients):
         for with_markup in [False, True]:
             with self.subTest(with_markup=with_markup):
                 message_values = {
-                    'body': Markup(body) if with_markup else body,
-                    'model': ticket_record._name,
-                    'res_id': ticket_record.id,
+                    "body": Markup(body) if with_markup else body,
+                    "model": ticket_record._name,
+                    "res_id": ticket_record.id,
                 }
-                processed_values = self.env['mail.thread']._process_attachments_for_post(
-                    [("test_image.jpeg", "b", {"cid": "ii_lps7a8sm0"})], attachments.ids, message_values,
+                processed_values = self.env[
+                    "mixin.mail.thread"
+                ]._process_attachments_for_post(
+                    [("test_image.jpeg", "b", {"cid": "ii_lps7a8sm0"})],
+                    attachments.ids,
+                    message_values,
                 )
                 if not with_markup:
-                    self.assertFalse('body' in processed_values, 'Mail: escaped html does not contain tags to handle anymore')
+                    self.assertFalse(
+                        "body" in processed_values,
+                        "Mail: escaped html does not contain tags to handle anymore",
+                    )
                 else:
-                    self.assertTrue(isinstance(processed_values['body'], Markup))
+                    self.assertTrue(isinstance(processed_values["body"], Markup))
 
         # html is escaped in main API methods
         content = 'I am "Robert <robert@poilvache.com>"'
-        expected = Markup('<p>I am "Robert &lt;robert@poilvache.com&gt;"</p>')  # enclosed in p to make valid html
+        expected = Markup(
+            '<p>I am "Robert &lt;robert@poilvache.com&gt;"</p>'
+        )  # enclosed in p to make valid html
         message = ticket_record._message_log(
             body=content,
         )
@@ -192,160 +234,238 @@ class TestAPI(ThreadRecipients):
         )
         self.assertEqual(message.body, expected)
         ticket_record._message_update_content(message, body="Hello <R&D/>")
-        self.assertEqual(message.body, Markup('<p>Hello &lt;R&amp;D/&gt;<span class="o-mail-Message-edited"></span></p>'))
+        self.assertEqual(
+            message.body,
+            Markup(
+                '<p>Hello &lt;R&amp;D/&gt;<span class="o-mail-Message-edited"></span></p>'
+            ),
+        )
 
-    @users('employee')
+    @users("employee")
     def test_mail_partner_find_from_emails(self):
-        """ Test '_partner_find_from_emails'. Multi mode is mainly targeting
+        """Test '_partner_find_from_emails'. Multi mode is mainly targeting
         finding or creating partners based on record information or message
-        history. """
-        existing_partners = self.env['res.partner'].sudo().search([])
+        history."""
+        existing_partners = self.env["res.partner"].sudo().search([])
         tickets = self.ticket_records.with_user(self.env.user)
         self.assertEqual(len(tickets), 8)
-        res = tickets._partner_find_from_emails({ticket: [ticket.email_from] for ticket in tickets}, no_create=False)
+        res = tickets._partner_find_from_emails(
+            {ticket: [ticket.email_from] for ticket in tickets}, no_create=False
+        )
         self.assertEqual(len(tickets), len(res))
 
         # fetch partners that should have been created
-        new = self.env['res.partner'].search([('email_normalized', '=', 'paulette@test.example.com')])
-        self.assertEqual(len(new), 1, 'Should have created once the customer, even if found in various duplicates')
+        new = self.env["res.partner"].search(
+            [("email_normalized", "=", "paulette@test.example.com")]
+        )
+        self.assertEqual(
+            len(new),
+            1,
+            "Should have created once the customer, even if found in various duplicates",
+        )
         self.assertNotIn(new, existing_partners)
-        new_wrong = self.env['res.partner'].search([('email', '=', 'wrong')])
-        self.assertEqual(len(new_wrong), 1, 'Should have created once the wrong email')
+        new_wrong = self.env["res.partner"].search([("email", "=", "wrong")])
+        self.assertEqual(len(new_wrong), 1, "Should have created once the wrong email")
         self.assertNotIn(new, new_wrong)
-        new_multi = self.env['res.partner'].search([('email_normalized', '=', 'multi@test.example.com')])
-        self.assertEqual(len(new_multi), 1, 'Should have created a based for multi email, using the first found email')
+        new_multi = self.env["res.partner"].search(
+            [("email_normalized", "=", "multi@test.example.com")]
+        )
+        self.assertEqual(
+            len(new_multi),
+            1,
+            "Should have created a based for multi email, using the first found email",
+        )
         self.assertNotIn(new, new_multi)
 
         # assert results: found / create partners and their values (if applies)
         record_customer_values = {
-            'company_id': self.user_employee.company_id,
-            'email': 'paulette@test.example.com',
-            'name': 'Paulette Vachette',
-            'phone': '+32455998877',
+            "company_id": self.user_employee.company_id,
+            "email": "paulette@test.example.com",
+            "name": "Paulette Vachette",
+            "phone": "+32455998877",
         }
         expected_all = [
             (new, [record_customer_values]),
             (new, [record_customer_values]),
-            (new_multi, [{  # not the actual record customer hence no mobile / phone, see _get_customer_information
-                'company_id': self.user_employee.company_id,
-                'email': 'multi@test.example.com',
-                'name': 'Multi Customer',
-                'phone': False,
-            }]),
-            (new_wrong, [{  # invalid email but can be fixed afterwards -> matches a potential customer
-                'company_id': self.user_employee.company_id,
-                'email': 'wrong',
-                'name': 'wrong',
-                'phone': '+32455000001',
-            }]),
-            (new_wrong, [{  # invalid email but can be fixed afterwards -> matches a potential customer
-                'company_id': self.user_employee.company_id,
-                'email': 'wrong',
-                'name': 'wrong',
-                'phone': '+32455000001',
-            }]),
-            (self.env['res.partner'], []),
+            (
+                new_multi,
+                [
+                    {  # not the actual record customer hence no mobile / phone, see _mail_get_customer_information
+                        "company_id": self.user_employee.company_id,
+                        "email": "multi@test.example.com",
+                        "name": "Multi Customer",
+                        "phone": False,
+                    }
+                ],
+            ),
+            (
+                new_wrong,
+                [
+                    {  # invalid email but can be fixed afterwards -> matches a potential customer
+                        "company_id": self.user_employee.company_id,
+                        "email": "wrong",
+                        "name": "wrong",
+                        "phone": "+32455000001",
+                    }
+                ],
+            ),
+            (
+                new_wrong,
+                [
+                    {  # invalid email but can be fixed afterwards -> matches a potential customer
+                        "company_id": self.user_employee.company_id,
+                        "email": "wrong",
+                        "name": "wrong",
+                        "phone": "+32455000001",
+                    }
+                ],
+            ),
+            (self.env["res.partner"], []),
             (self.test_partner, [{}]),
-            (self.env['res.partner'], []),
+            (self.env["res.partner"], []),
         ]
         for ticket, (exp_partners, exp_values_list) in zip(tickets, expected_all):
             partners = res[ticket.id]
             with self.subTest(ticket_name=ticket.name):
-                self.assertEqual(partners, exp_partners, f'Found {partners.name} instead of {exp_partners.name}')
+                self.assertEqual(
+                    partners,
+                    exp_partners,
+                    f"Found {partners.name} instead of {exp_partners.name}",
+                )
                 for partner, exp_values in zip(partners, exp_values_list, strict=True):
                     for fname, fvalue in exp_values.items():
                         self.assertEqual(partners[fname], fvalue)
 
-    @users('employee')
+    @users("employee")
     def test_mail_partner_find_from_emails_ordering(self):
-        """ Test '_partner_find_from_emails' on a single record, to test notably
-        ordering and filtering. """
-        self.user_employee.write({'company_ids': [(4, self.company_2.id)]})
+        """Test '_partner_find_from_emails' on a single record, to test notably
+        ordering and filtering."""
+        self.user_employee.write({"company_ids": [(4, self.company_2.id)]})
         # create a mess, mix of portal / internal users + customer, to test ordering
-        portal_user, internal_user = self.env['res.users'].sudo().create([
-            {
-                'company_id': self.env.user.company_id.id,
-                'email': 'test.ordering@test.example.com',
-                'group_ids': [(4, self.env.ref('base.group_portal').id)],
-                'login': 'order_portal',
-                'name': 'Portal Test User for ordering',
-            }, {
-                'company_id': self.env.user.company_id.id,
-                'email': 'test.ordering@test.example.com',
-                'group_ids': [(4, self.env.ref('base.group_user').id)],
-                'login': 'order_internal',
-                'name': 'Zuper Internal Test User for ordering',  # name based: after portal
-            }
-        ])
-        dupe_partners = self.env['res.partner'].create([
-            {
-                'company_id': self.company_2.id,
-                'email': 'test.ordering@test.example.com',
-                'name': 'Dupe Partner (C2)',
-            }, {
-                'company_id': False,
-                'email': 'test.ordering@test.example.com',
-                'name': 'Dupe Partner (NoC)',
-            }, {
-                'company_id': self.env.user.company_id.id,
-                'email': 'test.ordering@test.example.com',
-                'name': 'Dupe Partner (C1)',
-            }, {
-                'company_id': False,
-                'email': '"ID ordering check" <test.ordering@test.example.com>',
-                'name': 'A Dupe Partner (NoC)',  # name based: before other, but newest, check ID order
-            },
-        ])
+        portal_user, internal_user = (
+            self.env["res.users"]
+            .sudo()
+            .create(
+                [
+                    {
+                        "company_id": self.env.user.company_id.id,
+                        "email": "test.ordering@test.example.com",
+                        "group_ids": [(4, self.env.ref("base.group_portal").id)],
+                        "login": "order_portal",
+                        "name": "Portal Test User for ordering",
+                    },
+                    {
+                        "company_id": self.env.user.company_id.id,
+                        "email": "test.ordering@test.example.com",
+                        "group_ids": [(4, self.env.ref("base.group_user").id)],
+                        "login": "order_internal",
+                        "name": "Zuper Internal Test User for ordering",  # name based: after portal
+                    },
+                ]
+            )
+        )
+        dupe_partners = self.env[
+            "res.partner"
+        ].create(
+            [
+                {
+                    "company_id": self.company_2.id,
+                    "email": "test.ordering@test.example.com",
+                    "name": "Dupe Partner (C2)",
+                },
+                {
+                    "company_id": False,
+                    "email": "test.ordering@test.example.com",
+                    "name": "Dupe Partner (NoC)",
+                },
+                {
+                    "company_id": self.env.user.company_id.id,
+                    "email": "test.ordering@test.example.com",
+                    "name": "Dupe Partner (C1)",
+                },
+                {
+                    "company_id": False,
+                    "email": '"ID ordering check" <test.ordering@test.example.com>',
+                    "name": "A Dupe Partner (NoC)",  # name based: before other, but newest, check ID order
+                },
+            ]
+        )
         all_partners = portal_user.partner_id + internal_user.partner_id + dupe_partners
         self.assertTrue(portal_user.partner_id.id < internal_user.partner_id.id)
         self.assertTrue(internal_user.partner_id.id < dupe_partners[0].id)
 
         for active_partners, followers, expected in [
             # nothing to find
-            (self.env['res.partner'], self.env['res.partner'], self.env['res.partner']),
+            (self.env["res.partner"], self.env["res.partner"], self.env["res.partner"]),
             # one result, easy yay
-            (dupe_partners[3], self.env['res.partner'], dupe_partners[3]),
+            (dupe_partners[3], self.env["res.partner"], dupe_partners[3]),
             # various partners: should be id ASC, not name-based
-            (dupe_partners[1] + dupe_partners[3], self.env['res.partner'], dupe_partners[1]),
+            (
+                dupe_partners[1] + dupe_partners[3],
+                self.env["res.partner"],
+                dupe_partners[1],
+            ),
             # involving matching company check: matching company wins
-            (dupe_partners, self.env['res.partner'], dupe_partners[2]),
+            (dupe_partners, self.env["res.partner"], dupe_partners[2]),
             # users > partner
-            (portal_user.partner_id + dupe_partners, self.env['res.partner'], portal_user.partner_id),
+            (
+                portal_user.partner_id + dupe_partners,
+                self.env["res.partner"],
+                portal_user.partner_id,
+            ),
             # internal user > any other user
-            (portal_user.partner_id + internal_user.partner_id + dupe_partners, self.env['res.partner'], internal_user.partner_id),
+            (
+                portal_user.partner_id + internal_user.partner_id + dupe_partners,
+                self.env["res.partner"],
+                internal_user.partner_id,
+            ),
             # follower > any other thing
-            (internal_user.partner_id + dupe_partners, dupe_partners[0], dupe_partners[0]),
+            (
+                internal_user.partner_id + dupe_partners,
+                dupe_partners[0],
+                dupe_partners[0],
+            ),
         ]:
-            with self.subTest(names=active_partners.mapped('name'), followers=followers.mapped('name')):
+            with self.subTest(
+                names=active_partners.mapped("name"), followers=followers.mapped("name")
+            ):
                 # removes (through deactivating) some partners to check ordering
-                (portal_user + internal_user).filtered(lambda u: u.partner_id not in active_partners).active = False
+                (portal_user + internal_user).filtered(
+                    lambda u: u.partner_id not in active_partners
+                ).active = False
                 (all_partners - active_partners).active = False
                 self.ticket_record.message_subscribe(followers.ids)
 
                 ticket = self.ticket_record.with_user(self.env.user)
                 partners = ticket._partner_find_from_emails(
-                    {ticket: [ticket.email_from, 'test.ordering@test.example.com']},
+                    {ticket: [ticket.email_from, "test.ordering@test.example.com"]},
                     no_create=True,
                 )[ticket.id]
 
                 # should find just one partner, the other one is not linked to any partner
-                self.assertEqual(partners, expected, f'Found {partners.name} instead of {expected.name}')
+                self.assertEqual(
+                    partners,
+                    expected,
+                    f"Found {partners.name} instead of {expected.name}",
+                )
 
                 all_partners.active = True
                 (portal_user + internal_user).active = True
                 self.ticket_record.message_unsubscribe(followers.ids)
 
-    @users('employee')
+    @users("employee")
     def test_mail_partner_find_from_emails_record(self):
-        """ On a given record, give several emails and check it is effectively
-        based on record information. """
+        """On a given record, give several emails and check it is effectively
+        based on record information."""
         ticket = self.ticket_record.with_user(self.env.user)
         partners = ticket._partner_find_from_emails(
-            {ticket: [
-                'raoul@test.example.com',
-                ticket.email_from,
-                self.test_partner.email,
-            ]},
+            {
+                ticket: [
+                    "raoul@test.example.com",
+                    ticket.email_from,
+                    self.test_partner.email,
+                ]
+            },
             no_create=False,
         )[ticket.id]
 
@@ -358,175 +478,244 @@ class TestAPI(ThreadRecipients):
         customer = partners[1]
         self.assertEqual(customer.company_id, self.user_employee.company_id)
         self.assertEqual(customer.email, "paulette@test.example.com")
-        self.assertEqual(customer.phone, "+32455998877", "Should come from record, see '_get_customer_information'")
+        self.assertEqual(
+            customer.phone,
+            "+32455998877",
+            "Should come from record, see '_mail_get_customer_information'",
+        )
         self.assertEqual(customer.name, "Paulette Vachette")
         # found
         self.assertEqual(partners[2], self.test_partner)
 
-    @users('employee')
+    @users("employee")
     def test_mail_partner_find_from_emails_tweaks(self):
-        """ Misc tweaks of '_partner_find_from_emails' """
+        """Misc tweaks of '_partner_find_from_emails'"""
         ticket = self.ticket_record.with_user(self.env.user)
         partner = ticket._partner_find_from_emails_single(
             [ticket.email_from],
-            additional_values={'paulette@test.example.com': {'name': 'Forced Name', 'company_id': False}},
-            no_create=False)
-        self.assertFalse(partner.company_id, 'Forced by additional values')
-        self.assertEqual(partner.email, 'paulette@test.example.com')
-        self.assertEqual(partner.name, 'Forced Name', 'Forced by additional values')
-        self.assertEqual(partner.phone, '+32455998877')
+            additional_values={
+                "paulette@test.example.com": {
+                    "name": "Forced Name",
+                    "company_id": False,
+                }
+            },
+            no_create=False,
+        )
+        self.assertFalse(partner.company_id, "Forced by additional values")
+        self.assertEqual(partner.email, "paulette@test.example.com")
+        self.assertEqual(partner.name, "Forced Name", "Forced by additional values")
+        self.assertEqual(partner.phone, "+32455998877")
 
-    @users('employee')
+    @users("employee")
     @warmup
     def test_message_get_default_recipients(self):
-        void_partner = self.env['res.partner'].sudo().create({'name': 'No Email'})
-        test_records = self.env['mail.test.recipients'].create([
-            {
-                'customer_id': self.partner_1.id,
-                'contact_ids': [(4, self.partner_2.id), (4, self.partner_1.id)],
-                'name': 'Lots of partners',
-            }, {
-                'customer_id': self.partner_1.id,
-                'customer_email': '"Forced" <forced@test.example.com>',
-                'email_cc': '"CC" <email.cc@test.example.com>',
-                'name': 'Email Forced + CC',
-            }, {
-                'customer_id': self.partner_1.id,
-                'customer_email': False,
-                'name': 'No email but partner',
-            }, {
-                'customer_email': '"Unknown" <unknown@test.example.com>',
-                'name': 'Email only',
-            }, {
-                'email_cc': '"CC" <email.cc@test.example.com>',
-                'name': 'CC only',
-            }, {
-                'customer_id': void_partner.id,
-                'name': 'No info (void partner)',
-            }, {
-                'name': 'No info at all',
-            }, {
-                'customer_id': self.user_public.partner_id.id,
-            }
-        ])
+        void_partner = self.env["res.partner"].sudo().create({"name": "No Email"})
+        test_records = self.env["mail.test.recipients"].create(
+            [
+                {
+                    "customer_id": self.partner_1.id,
+                    "contact_ids": [(4, self.partner_2.id), (4, self.partner_1.id)],
+                    "name": "Lots of partners",
+                },
+                {
+                    "customer_id": self.partner_1.id,
+                    "customer_email": '"Forced" <forced@test.example.com>',
+                    "email_cc": '"CC" <email.cc@test.example.com>',
+                    "name": "Email Forced + CC",
+                },
+                {
+                    "customer_id": self.partner_1.id,
+                    "customer_email": False,
+                    "name": "No email but partner",
+                },
+                {
+                    "customer_email": '"Unknown" <unknown@test.example.com>',
+                    "name": "Email only",
+                },
+                {
+                    "email_cc": '"CC" <email.cc@test.example.com>',
+                    "name": "CC only",
+                },
+                {
+                    "customer_id": void_partner.id,
+                    "name": "No info (void partner)",
+                },
+                {
+                    "name": "No info at all",
+                },
+                {
+                    "customer_id": self.user_public.partner_id.id,
+                },
+            ]
+        )
         self.assertFalse(test_records[2].customer_email)
         self.flush_tracking()
 
         # test default computation of recipients
         self.env.invalidate_all()
-        with self.assertQueryCount(14):
-            defaults_withcc = test_records.with_context()._message_get_default_recipients(with_cc=True)
-            defaults_withoutcc = test_records.with_context()._message_get_default_recipients()
-        for record, expected in zip(test_records, [
-            {
-                # customer_id first for partner_ids; partner > email
-                'email_cc': '', 'email_to': '',
-                'partner_ids': (self.partner_1 + self.partner_2).ids,
-            }, {
-                # partner > email
-                'email_cc': '"CC" <email.cc@test.example.com>', 'email_to': '', 'partner_ids': self.partner_1.ids,
-            }, {
-                # partner > email
-                'email_cc': '', 'email_to': '', 'partner_ids': self.partner_1.ids,
-            }, {
-                'email_cc': '', 'email_to': '"Unknown" <unknown@test.example.com>', 'partner_ids': [],
-            }, {
-                'email_cc': '"CC" <email.cc@test.example.com>', 'email_to': '', 'partner_ids': [],
-            }, {
-                'email_cc': '', 'email_to': '', 'partner_ids': void_partner.ids,
-            }, {
-                'email_cc': '', 'email_to': '', 'partner_ids': [],
-            }, {  # public user should not be proposed
-                'email_cc': '', 'email_to': '', 'partner_ids': [],
-            },
-        ], strict=True):
+        with self.assertQueryCount(11):
+            defaults_withcc = (
+                test_records.with_context()._message_get_default_recipients(
+                    with_cc=True
+                )
+            )
+            defaults_withoutcc = (
+                test_records.with_context()._message_get_default_recipients()
+            )
+        for record, expected in zip(
+            test_records,
+            [
+                {
+                    # customer_id first for partner_ids; partner > email
+                    "email_cc": "",
+                    "email_to": "",
+                    "partner_ids": (self.partner_1 + self.partner_2).ids,
+                },
+                {
+                    # partner > email
+                    "email_cc": '"CC" <email.cc@test.example.com>',
+                    "email_to": "",
+                    "partner_ids": self.partner_1.ids,
+                },
+                {
+                    # partner > email
+                    "email_cc": "",
+                    "email_to": "",
+                    "partner_ids": self.partner_1.ids,
+                },
+                {
+                    "email_cc": "",
+                    "email_to": '"Unknown" <unknown@test.example.com>',
+                    "partner_ids": [],
+                },
+                {
+                    "email_cc": '"CC" <email.cc@test.example.com>',
+                    "email_to": "",
+                    "partner_ids": [],
+                },
+                {
+                    "email_cc": "",
+                    "email_to": "",
+                    "partner_ids": void_partner.ids,
+                },
+                {
+                    "email_cc": "",
+                    "email_to": "",
+                    "partner_ids": [],
+                },
+                {  # public user should not be proposed
+                    "email_cc": "",
+                    "email_to": "",
+                    "partner_ids": [],
+                },
+            ],
+            strict=True,
+        ):
             with self.subTest(name=record.name):
                 self.assertEqual(defaults_withcc[record.id], expected)
-                self.assertEqual(defaults_withoutcc[record.id], dict(expected, email_cc=''))
+                self.assertEqual(
+                    defaults_withoutcc[record.id], dict(expected, email_cc="")
+                )
 
         # test default computation of recipients with email prioritized
-        with patch.object(type(self.env["mail.test.recipients"]), "_mail_defaults_to_email", True):
+        with patch.object(
+            type(self.env["mail.test.recipients"]), "_mail_defaults_to_email", True
+        ):
             self.assertEqual(
                 test_records[1]._message_get_default_recipients()[test_records[1].id],
-                {'email_cc': '', 'email_to': '"Forced" <forced@test.example.com>', 'partner_ids': []},
-                'Mail: prioritize email should not return partner if email is found'
+                {
+                    "email_cc": "",
+                    "email_to": '"Forced" <forced@test.example.com>',
+                    "partner_ids": [],
+                },
+                "Mail: prioritize email should not return partner if email is found",
             )
             self.assertEqual(
                 test_records[2]._message_get_default_recipients()[test_records[2].id],
-                {'email_cc': '', 'email_to': '', 'partner_ids': self.partner_1.ids},
-                'Mail: prioritize email should not return partner if email is found'
+                {"email_cc": "", "email_to": "", "partner_ids": self.partner_1.ids},
+                "Mail: prioritize email should not return partner if email is found",
             )
 
-    @users('employee')
+    @users("employee")
     def test_message_get_default_recipients_banned(self):
-        """ Test defensive behavior to avoid contacting critical emails like
-        aliases, public users, ... """
-        tickets = self.env['mail.test.ticket.mc'].create([
-            # do not propose public partners
-            {
-                'customer_id': self.user_public.partner_id.id,
-                'name': 'Public',
-            },
-            # do not propose root
-            {
-                'customer_id': self.user_root.partner_id.id,
-                'name': 'Root',
-            },
-            # do not propose alias domain emails
-            {
-                'email_from': self.mail_alias_domain.catchall_email,
-                'name': 'Alias domain email',
-            },
-            # do not propose when partner = alias
-            {
-                'customer_id': self.test_partner_alias.id,
-                'name': 'Partner = Alias',
-            },
-            # do not propose alias email
-            {
-                'email_from': self.test_aliases[0].alias_full_name,
-                'name': 'Alias email',
-            },
-            # do not propose alias email (left-part pre-17 support)
-            {
-                'email_from': f'{self.test_aliases[2].alias_name}@other.domain',
-                'name': 'Alias email (left-part compat)',
-            },
-            # do not propose alias email (even if linked to a partner)
-            {
-                'email_from': self.test_aliases[1].alias_full_name,
-                'name': 'Alias email, existing partner',
-            },
-            # propose archived
-            {
-                'customer_id': self.test_partner_archived.id,
-                'name': 'Archived partner',
-            },
-            # propose active based on archived user
-            {
-                'customer_id': self.partner_employee_archived.id,
-                'name': 'Archived partner',
-            },
-        ])
+        """Test defensive behavior to avoid contacting critical emails like
+        aliases, public users, ..."""
+        tickets = self.env["mail.test.ticket.mc"].create(
+            [
+                # do not propose public partners
+                {
+                    "customer_id": self.user_public.partner_id.id,
+                    "name": "Public",
+                },
+                # do not propose root
+                {
+                    "customer_id": self.user_root.partner_id.id,
+                    "name": "Root",
+                },
+                # do not propose alias domain emails
+                {
+                    "email_from": self.mail_alias_domain.catchall_email,
+                    "name": "Alias domain email",
+                },
+                # do not propose when partner = alias
+                {
+                    "customer_id": self.test_partner_alias.id,
+                    "name": "Partner = Alias",
+                },
+                # do not propose alias email
+                {
+                    "email_from": self.test_aliases[0].alias_full_name,
+                    "name": "Alias email",
+                },
+                # do not propose alias email (left-part pre-17 support)
+                {
+                    "email_from": f"{self.test_aliases[2].alias_name}@other.domain",
+                    "name": "Alias email (left-part compat)",
+                },
+                # do not propose alias email (even if linked to a partner)
+                {
+                    "email_from": self.test_aliases[1].alias_full_name,
+                    "name": "Alias email, existing partner",
+                },
+                # propose archived
+                {
+                    "customer_id": self.test_partner_archived.id,
+                    "name": "Archived partner",
+                },
+                # propose active based on archived user
+                {
+                    "customer_id": self.partner_employee_archived.id,
+                    "name": "Archived partner",
+                },
+            ]
+        )
         expected_all = [
             # nobody to suggest (no public !)
-            {'email_cc': '', 'email_to': '', 'partner_ids': []},
+            {"email_cc": "", "email_to": "", "partner_ids": []},
             # should be nobody to suggest (no root !)
-            {'email_cc': '', 'email_to': '', 'partner_ids': []},
+            {"email_cc": "", "email_to": "", "partner_ids": []},
             # alias domain email is not ok
-            {'email_cc': '', 'email_to': '', 'partner_ids': []},
+            {"email_cc": "", "email_to": "", "partner_ids": []},
             # partner with alias email is not ok
-            {'email_cc': '', 'email_to': '', 'partner_ids': []},
+            {"email_cc": "", "email_to": "", "partner_ids": []},
             # alias email is not ok
-            {'email_cc': '', 'email_to': '', 'partner_ids': []},
+            {"email_cc": "", "email_to": "", "partner_ids": []},
             # left-part compat alias email is not ok
-            {'email_cc': '', 'email_to': '', 'partner_ids': []},
+            {"email_cc": "", "email_to": "", "partner_ids": []},
             # alias email is not ok even if linked to partner
-            {'email_cc': '', 'email_to': '', 'partner_ids': []},
+            {"email_cc": "", "email_to": "", "partner_ids": []},
             # archived is ok, customer
-            {'email_cc': '', 'email_to': '', 'partner_ids': [self.test_partner_archived.id]},
+            {
+                "email_cc": "",
+                "email_to": "",
+                "partner_ids": [self.test_partner_archived.id],
+            },
             # active based on archived user is ok, customer
-            {'email_cc': '', 'email_to': '', 'partner_ids': [self.partner_employee_archived.id]},
+            {
+                "email_cc": "",
+                "email_to": "",
+                "partner_ids": [self.partner_employee_archived.id],
+            },
         ]
         defaults = tickets._message_get_default_recipients()
         for ticket, expected in zip(tickets, expected_all, strict=True):
@@ -535,27 +724,34 @@ class TestAPI(ThreadRecipients):
 
     @users("employee")
     def test_message_get_suggested_recipients(self):
-        """ Test default creation values returned for suggested recipient. """
+        """Test default creation values returned for suggested recipient."""
         ticket = self.ticket_record.with_user(self.env.user)
         # assign to another user so the responsible can be proposed as suggested recipient
         ticket.user_id = self.user_employee_2
         ticket.message_unsubscribe(ticket.user_id.partner_id.ids)
         suggestions = ticket._message_get_suggested_recipients(no_create=True)
         self.assertEqual(len(suggestions), 2)
-        for suggestion, expected in zip(suggestions, [{
-            'create_values': {},
-            'email': self.user_employee_2.email_normalized,
-            'name': self.user_employee_2.name,
-            'partner_id': self.partner_employee_2.id,
-        }, {
-            'create_values': {
-                'company_id': self.env.user.company_id.id,
-                'phone': '+32455998877',
-            },
-            'email': 'paulette@test.example.com',
-            'name': 'Paulette Vachette',
-            'partner_id': False,
-        }], strict=True):
+        for suggestion, expected in zip(
+            suggestions,
+            [
+                {
+                    "create_values": {},
+                    "email": self.user_employee_2.email_normalized,
+                    "name": self.user_employee_2.name,
+                    "partner_id": self.partner_employee_2.id,
+                },
+                {
+                    "create_values": {
+                        "company_id": self.env.user.company_id.id,
+                        "phone": "+32455998877",
+                    },
+                    "email": "paulette@test.example.com",
+                    "name": "Paulette Vachette",
+                    "partner_id": False,
+                },
+            ],
+            strict=True,
+        ):
             self.assertDictEqual(suggestion, expected)
 
         # assigned should not be added if current user
@@ -563,54 +759,79 @@ class TestAPI(ThreadRecipients):
         ticket.message_unsubscribe(ticket.user_id.partner_id.ids)
         suggestions = ticket._message_get_suggested_recipients(no_create=True)
         self.assertEqual(len(suggestions), 1)
-        self.assertDictEqual(suggestions[0], {
-            'create_values': {
-                'company_id': self.env.user.company_id.id,
-                'phone': '+32455998877',
+        self.assertDictEqual(
+            suggestions[0],
+            {
+                "create_values": {
+                    "company_id": self.env.user.company_id.id,
+                    "phone": "+32455998877",
+                },
+                "email": "paulette@test.example.com",
+                "name": "Paulette Vachette",
+                "partner_id": False,
             },
-            'email': 'paulette@test.example.com',
-            'name': 'Paulette Vachette',
-            'partner_id': False,
-        })
+        )
 
         # existing partner not linked -> should propose it
-        ticket_partner_email = self.env['mail.test.ticket.mc'].create({
-            'customer_id': False,
-            'email_from': self.test_partner.email_formatted,
-            'name': 'Partner email',
-            'phone_number': '+33199001015',
-            'user_id': self.env.user.id,  # should not be proposed, already follower
-        })
+        ticket_partner_email = self.env["mail.test.ticket.mc"].create(
+            {
+                "customer_id": False,
+                "email_from": self.test_partner.email_formatted,
+                "name": "Partner email",
+                "phone_number": "+33199001015",
+                "user_id": self.env.user.id,  # should not be proposed, already follower
+            }
+        )
         # existing partner -> should propose it
-        ticket_partner = self.env['mail.test.ticket.mc'].create({
-            'customer_id': self.test_partner.id,
-            'email_from': self.test_partner.email_formatted,
-            'name': 'Partner',
-        })
+        ticket_partner = self.env["mail.test.ticket.mc"].create(
+            {
+                "customer_id": self.test_partner.id,
+                "email_from": self.test_partner.email_formatted,
+                "name": "Partner",
+            }
+        )
         # existing partner in followers -> should not propose it
-        ticket_partner_fol = self.env['mail.test.ticket.mc'].create({
-            'customer_id': self.test_partner.id,
-            'email_from': self.test_partner.email_formatted,
-            'name': 'Partner follower',
-        })
+        ticket_partner_fol = self.env["mail.test.ticket.mc"].create(
+            {
+                "customer_id": self.test_partner.id,
+                "email_from": self.test_partner.email_formatted,
+                "name": "Partner follower",
+            }
+        )
         # existing partner in followers -> should not propose it
-        ticket_partner_fol_user = self.env['mail.test.ticket.mc'].create({
-            'customer_id': self.partner_employee.id,
-            'email_from': self.partner_employee.email_formatted,
-            'name': 'Partner follower (user)',
-        })
+        ticket_partner_fol_user = self.env["mail.test.ticket.mc"].create(
+            {
+                "customer_id": self.partner_employee.id,
+                "email_from": self.partner_employee.email_formatted,
+                "name": "Partner follower (user)",
+            }
+        )
         # existing partner with multiple emails -> should propose only the first one
-        partner_multiemail = self.test_partner.copy({'email': 'test1.external@example.com,test2.external@example.com'})
-        ticket_partner_multiemail = self.env['mail.test.ticket.mc'].create({
-            'customer_id': partner_multiemail.id,
-            'email_from': partner_multiemail.email_formatted,
-            'name': 'Partner Multi-Emails',
-        })
+        partner_multiemail = self.test_partner.copy(
+            {"email": "test1.external@example.com,test2.external@example.com"}
+        )
+        ticket_partner_multiemail = self.env["mail.test.ticket.mc"].create(
+            {
+                "customer_id": partner_multiemail.id,
+                "email_from": partner_multiemail.email_formatted,
+                "name": "Partner Multi-Emails",
+            }
+        )
         ticket_partner_fol.message_subscribe(partner_ids=self.test_partner.ids)
         ticket_partner_fol.message_subscribe(partner_ids=self.partner_employee.ids)
         for ticket, sugg_partner in zip(
-            ticket_partner_email + ticket_partner + ticket_partner_fol + ticket_partner_fol_user + ticket_partner_multiemail,
-            (self.test_partner, self.test_partner, self.test_partner, False, partner_multiemail),
+            ticket_partner_email
+            + ticket_partner
+            + ticket_partner_fol
+            + ticket_partner_fol_user
+            + ticket_partner_multiemail,
+            (
+                self.test_partner,
+                self.test_partner,
+                self.test_partner,
+                False,
+                partner_multiemail,
+            ),
             strict=True,
         ):
             with self.subTest(ticket=ticket.name):
@@ -620,19 +841,19 @@ class TestAPI(ThreadRecipients):
                     self.assertDictEqual(
                         suggestions[0],
                         {
-                            'create_values': {},
-                            'email': sugg_partner.email_normalized,
-                            'name': sugg_partner.name,
-                            'partner_id': sugg_partner.id,
-                        }
+                            "create_values": {},
+                            "email": sugg_partner.email_normalized,
+                            "name": sugg_partner.name,
+                            "partner_id": sugg_partner.id,
+                        },
                     )
                 else:
                     self.assertEqual(len(suggestions), 0)
 
     @users("employee")
     def test_message_get_suggested_recipients_banned(self):
-        """ Ban list: public partners, aliases, alias domains """
-        domains = self.env['mail.alias.domain'].sudo().search([])
+        """Ban list: public partners, aliases, alias domains"""
+        domains = self.env["mail.alias.domain"].sudo().search([])
         domains_cc_list = []
         for domain in domains:
             domains_cc_list += [
@@ -640,316 +861,452 @@ class TestAPI(ThreadRecipients):
                 f'"Catchall {domain.name}" <{domain.catchall_email}>',
                 f'"Default {domain.name}" <{domain.default_from_email}>',
             ]
-        tickets = self.env['mail.test.ticket.mc'].create([
-            # do not propose public partners
-            {
-                'customer_id': self.user_public.partner_id.id,
-                'name': 'Public',
-            },
-            # do not propose root
-            {
-                'customer_id': self.user_root.partner_id.id,
-                'name': 'Root',
-            },
-            # valid, but with message containing alias domain emails
-            {
-                'customer_id': self.test_partner.id,
-                'name': 'Valid partner + invalid domain emails in discussion',
-            },
-            # valid, but with message containing alias emails or partners
-            {
-                'customer_id': self.test_partner_archived.id,
-                'name': 'Valid partner archived + invalid in discussion',
-            },
-        ])
+        tickets = self.env["mail.test.ticket.mc"].create(
+            [
+                # do not propose public partners
+                {
+                    "customer_id": self.user_public.partner_id.id,
+                    "name": "Public",
+                },
+                # do not propose root
+                {
+                    "customer_id": self.user_root.partner_id.id,
+                    "name": "Root",
+                },
+                # valid, but with message containing alias domain emails
+                {
+                    "customer_id": self.test_partner.id,
+                    "name": "Valid partner + invalid domain emails in discussion",
+                },
+                # valid, but with message containing alias emails or partners
+                {
+                    "customer_id": self.test_partner_archived.id,
+                    "name": "Valid partner archived + invalid in discussion",
+                },
+            ]
+        )
         tickets[2].message_post(
             author_id=self.user_root.partner_id.id,
-            body='Message with lots of invalid emails',
-            incoming_email_cc=', '.join(domains_cc_list),
-            message_type='email',
-            subtype_id=self.env.ref('mail.mt_comment').id,
+            body="Message with lots of invalid emails",
+            incoming_email_cc=", ".join(domains_cc_list),
+            message_type="email",
+            subtype_id=self.env.ref("mail.mt_comment").id,
         )
         tickets[3].message_post(
             author_id=False,
             email_from=self.mail_alias_domain.bounce_email,
-            body='Message with alias emails and partners',
-            message_type='email',
+            body="Message with alias emails and partners",
+            message_type="email",
             incoming_email_to=f'"Alias" <{self.test_aliases[0].alias_full_name}>',
             partner_ids=(self.test_partner_alias + self.test_partner_catchall).ids,
-            subtype_id=self.env.ref('mail.mt_comment').id,
+            subtype_id=self.env.ref("mail.mt_comment").id,
         )
         expected_all = [
             # nobody to suggest (no public !)
             [],
-            #nobody to suggest (no root !)
+            # nobody to suggest (no root !)
             [],
             # only valid is the customer
             [
                 {
-                    'create_values': {},
-                    'email': self.test_partner.email_normalized,
-                    'name': self.test_partner.name,
-                    'partner_id': self.test_partner.id,
+                    "create_values": {},
+                    "email": self.test_partner.email_normalized,
+                    "name": self.test_partner.name,
+                    "partner_id": self.test_partner.id,
                 },
             ],
             # only valid is the customer (and not aliases nor partner with alias email)
             [
                 {
-                    'create_values': {},
-                    'email': self.test_partner_archived.email_normalized,
-                    'name': self.test_partner_archived.name,
-                    'partner_id': self.test_partner_archived.id,
+                    "create_values": {},
+                    "email": self.test_partner_archived.email_normalized,
+                    "name": self.test_partner_archived.name,
+                    "partner_id": self.test_partner_archived.id,
                 },
             ],
         ]
-        suggested_all = tickets._message_get_suggested_recipients_batch(no_create=True, reply_discussion=True)
+        suggested_all = tickets._message_get_suggested_recipients_batch(
+            no_create=True, reply_discussion=True
+        )
         for ticket, expected in zip(tickets, expected_all, strict=True):
             with self.subTest(ticket_name=ticket.name):
                 suggested = suggested_all[ticket.id]
                 for suggestion, expected_sugg in zip(suggested, expected, strict=True):
                     self.assertDictEqual(suggestion, expected_sugg)
 
+    def _suggested_recipients_cost_on(self, count):
+        """Query cost of suggesting recipients for `count` records that each
+        carry followers and one incoming message."""
+        partners = self.env["res.partner"].create(
+            [
+                {"email": f"cost.{index}@test.example.com", "name": f"Cost {index}"}
+                for index in range(count + 5)
+            ]
+        )
+        records = self.env["mail.test.ticket"].create(
+            [
+                {
+                    "customer_id": partners[index].id,
+                    "email_from": f'"From {index}" <cost.from.{index}@test.example.com>',
+                    "name": f"Cost {index}",
+                }
+                for index in range(count)
+            ]
+        )
+        for index, record in enumerate(records):
+            record.message_subscribe(partner_ids=partners[index : index + 5].ids)
+            record.message_post(
+                body="Reply to me",
+                email_from=f'"Author {index}" <cost.author.{index}@test.example.com>',
+                message_type="comment",
+                subtype_xmlid="mail.mt_comment",
+            )
+        self.env.flush_all()
+        self.env.invalidate_all()
+        before = self.cr.sql_log_count
+        suggested = records._message_get_suggested_recipients_batch(
+            reply_discussion=True
+        )
+        return self.cr.sql_log_count - before, suggested
+
+    @users("employee")
+    def test_message_get_suggested_recipients_batch_costs_no_query_per_record(self):
+        """`_message_get_suggested_recipients_batch` must not bill per record.
+
+        `_sort_suggested_messages` runs once per record and `filtered` narrows
+        `_prefetch_ids` to what survives it, so without restoring the pool each
+        record's chosen message is read on its own and the five fields
+        `_message_add_suggested_recipients_from_replies` takes off it cost a
+        query apiece. Measured as a marginal cost between N=2 and N=20 -- an
+        absolute count at N=1 cannot see this class of defect at all, and a
+        single N cannot tell a saving from skipped work.
+        """
+        few_queries, few_suggested = self._suggested_recipients_cost_on(2)
+        many_queries, many_suggested = self._suggested_recipients_cost_on(20)
+        self.assertLessEqual(
+            many_queries - few_queries,
+            5,
+            f"18 further records cost {many_queries - few_queries} extra queries "
+            f"(2 records: {few_queries}, 20 records: {many_queries})",
+        )
+        # a query budget alone cannot distinguish cheap from empty: pin that the
+        # batch still suggests somebody for every record it was given
+        self.assertEqual(len(many_suggested), 20)
+        self.assertTrue(all(many_suggested.values()))
+        self.assertEqual(len(few_suggested), 2)
+
     @users("employee")
     def test_message_get_suggested_recipients_conversation(self):
-        """ Test suggested recipients in a conversation based on discussion
-        history: email_{cc/to} of previous messages, ... """
+        """Test suggested recipients in a conversation based on discussion
+        history: email_{cc/to} of previous messages, ..."""
         test_cc_tuples = [
-            ('Test Record Cc', 'test.record.cc@test.example.com'),
-            ('Test Msg Cc', 'test.msg.cc@test.example.com'),
-            ('Test Msg Cc 2', 'test.msg.cc.2@test.example.com'),
+            ("Test Record Cc", "test.record.cc@test.example.com"),
+            ("Test Msg Cc", "test.msg.cc@test.example.com"),
+            ("Test Msg Cc 2", "test.msg.cc.2@test.example.com"),
         ]
         test_to_tuples = [
-            ('Test Msg To', 'test.msg.to@test.example.com'),
-            ('Test Msg To 2', 'test.msg.to.2@test.example.com'),
+            ("Test Msg To", "test.msg.to@test.example.com"),
+            ("Test Msg To 2", "test.msg.to.2@test.example.com"),
         ]
         test_emails = [x[1] for x in test_cc_tuples + test_to_tuples]
-        self.assertFalse(self.env['res.partner'].search([('email_normalized', 'in', test_emails)]))
+        self.assertFalse(
+            self.env["res.partner"].search([("email_normalized", "in", test_emails)])
+        )
 
-        test_record = self.env['mail.test.recipients'].create({
-            'email_cc': tools.mail.formataddr(test_cc_tuples[0]),
-            'name': 'Test Recipients',
-        })
-        messages = self.env['mail.message']
+        test_record = self.env["mail.test.recipients"].create(
+            {
+                "email_cc": tools.mail.formataddr(test_cc_tuples[0]),
+                "name": "Test Recipients",
+            }
+        )
+        messages = self.env["mail.message"]
         for user, post_values in [
-            (self.user_root, {
-                'author_id': self.user_portal.partner_id.id,
-                'body': 'First incoming email',
-                'email_from': self.user_portal.email_formatted,
-                'incoming_email_cc': tools.mail.formataddr(test_cc_tuples[1]),
-                'incoming_email_to': tools.mail.formataddr(test_to_tuples[0]),
-                'message_type': 'email',
-                'subtype_id': self.env.ref('mail.mt_comment').id,
-            }),
-            (self.user_root, {
-                'body': 'Some automated email',
-                'message_type': 'email_outgoing',
-                'partner_ids': self.user_portal.partner_id.ids,
-                'subtype_id': self.env.ref('mail.mt_comment').id,
-            }),
-            (self.user_employee, {
-                'body': 'Salesman reply by email',
-                'incoming_email_cc': tools.mail.formataddr(test_cc_tuples[2]),
-                'incoming_email_to': tools.mail.formataddr(test_to_tuples[1]),
-                'message_type': 'email',
-                'subtype_id': self.env.ref('mail.mt_comment').id,
-            }),
+            (
+                self.user_root,
+                {
+                    "author_id": self.user_portal.partner_id.id,
+                    "body": "First incoming email",
+                    "email_from": self.user_portal.email_formatted,
+                    "incoming_email_cc": tools.mail.formataddr(test_cc_tuples[1]),
+                    "incoming_email_to": tools.mail.formataddr(test_to_tuples[0]),
+                    "message_type": "email",
+                    "subtype_id": self.env.ref("mail.mt_comment").id,
+                },
+            ),
+            (
+                self.user_root,
+                {
+                    "body": "Some automated email",
+                    "message_type": "email_outgoing",
+                    "partner_ids": self.user_portal.partner_id.ids,
+                    "subtype_id": self.env.ref("mail.mt_comment").id,
+                },
+            ),
+            (
+                self.user_employee,
+                {
+                    "body": "Salesman reply by email",
+                    "incoming_email_cc": tools.mail.formataddr(test_cc_tuples[2]),
+                    "incoming_email_to": tools.mail.formataddr(test_to_tuples[1]),
+                    "message_type": "email",
+                    "subtype_id": self.env.ref("mail.mt_comment").id,
+                },
+            ),
         ]:
             messages += test_record.with_user(user).message_post(**post_values)
         self.assertEqual(test_record.message_partner_ids, self.user_employee.partner_id)
 
-        recipients = test_record._message_get_suggested_recipients(reply_message=messages[0], no_create=True)
-        for recipient, expected in zip(recipients, [
-            {  # partner first: author of message
-                'create_values': {},
-                'email': self.user_portal.email_normalized,
-                'name': self.user_portal.name,
-                'partner_id': self.user_portal.partner_id.id,
-            }, {  # override of model for email_cc
-                'create_values': {},
-                'email': test_cc_tuples[0][1],
-                'name': test_cc_tuples[0][0],
-                'partner_id': False,
-            }, {  # replying message to
-                'create_values': {},
-                'email': test_to_tuples[0][1],
-                'name': test_to_tuples[0][0],
-                'partner_id': False,
-            }, {  # replying message  cc
-                'create_values': {},
-                'email': test_cc_tuples[1][1],
-                'name': test_cc_tuples[1][0],
-                'partner_id': False,
-            },
-        ], strict=True):
+        recipients = test_record._message_get_suggested_recipients(
+            reply_message=messages[0], no_create=True
+        )
+        for recipient, expected in zip(
+            recipients,
+            [
+                {  # partner first: author of message
+                    "create_values": {},
+                    "email": self.user_portal.email_normalized,
+                    "name": self.user_portal.name,
+                    "partner_id": self.user_portal.partner_id.id,
+                },
+                {  # override of model for email_cc
+                    "create_values": {},
+                    "email": test_cc_tuples[0][1],
+                    "name": test_cc_tuples[0][0],
+                    "partner_id": False,
+                },
+                {  # replying message to
+                    "create_values": {},
+                    "email": test_to_tuples[0][1],
+                    "name": test_to_tuples[0][0],
+                    "partner_id": False,
+                },
+                {  # replying message  cc
+                    "create_values": {},
+                    "email": test_cc_tuples[1][1],
+                    "name": test_cc_tuples[1][0],
+                    "partner_id": False,
+                },
+            ],
+            strict=True,
+        ):
             with self.subTest():
                 self.assertDictEqual(recipient, expected)
 
-        recipients = test_record._message_get_suggested_recipients(reply_message=messages[1], no_create=True)
-        for recipient, expected in zip(recipients, [
-            {  # partner first: recipient of message
-                'create_values': {},
-                'email': self.user_portal.email_normalized,
-                'name': self.user_portal.name,
-                'partner_id': self.user_portal.partner_id.id,
-            }, {  # override of model for email_cc
-                'create_values': {},
-                'email': test_cc_tuples[0][1],
-                'name': test_cc_tuples[0][0],
-                'partner_id': False,
-            },  # and not author, as it is odoobot's email
-        ], strict=True):
+        recipients = test_record._message_get_suggested_recipients(
+            reply_message=messages[1], no_create=True
+        )
+        for recipient, expected in zip(
+            recipients,
+            [
+                {  # partner first: recipient of message
+                    "create_values": {},
+                    "email": self.user_portal.email_normalized,
+                    "name": self.user_portal.name,
+                    "partner_id": self.user_portal.partner_id.id,
+                },
+                {  # override of model for email_cc
+                    "create_values": {},
+                    "email": test_cc_tuples[0][1],
+                    "name": test_cc_tuples[0][0],
+                    "partner_id": False,
+                },  # and not author, as it is odoobot's email
+            ],
+            strict=True,
+        ):
             with self.subTest():
                 self.assertDictEqual(recipient, expected)
 
         # discussion: should be last message
-        recipients = test_record._message_get_suggested_recipients(reply_discussion=True, no_create=True)
-        for recipient, expected in zip(recipients, [
-            {  # override of model for email_cc
-                'create_values': {},
-                'email': test_cc_tuples[0][1],
-                'name': test_cc_tuples[0][0],
-                'partner_id': False,
-            }, {  # replying message to
-                'create_values': {},
-                'email': test_to_tuples[1][1],
-                'name': test_to_tuples[1][0],
-                'partner_id': False,
-            }, {  # replying message  cc
-                'create_values': {},
-                'email': test_cc_tuples[2][1],
-                'name': test_cc_tuples[2][0],
-                'partner_id': False,
-            },  # and not author as he is already follower
-        ], strict=True):
+        recipients = test_record._message_get_suggested_recipients(
+            reply_discussion=True, no_create=True
+        )
+        for recipient, expected in zip(
+            recipients,
+            [
+                {  # override of model for email_cc
+                    "create_values": {},
+                    "email": test_cc_tuples[0][1],
+                    "name": test_cc_tuples[0][0],
+                    "partner_id": False,
+                },
+                {  # replying message to
+                    "create_values": {},
+                    "email": test_to_tuples[1][1],
+                    "name": test_to_tuples[1][0],
+                    "partner_id": False,
+                },
+                {  # replying message  cc
+                    "create_values": {},
+                    "email": test_cc_tuples[2][1],
+                    "name": test_cc_tuples[2][0],
+                    "partner_id": False,
+                },  # and not author as he is already follower
+            ],
+            strict=True,
+        ):
             with self.subTest():
                 self.assertDictEqual(recipient, expected)
 
         # check with partner creation
-        recipients = test_record._message_get_suggested_recipients(reply_message=messages[0], no_create=False)
-        new_partners = self.env['res.partner'].search([('email_normalized', 'in', test_emails)], order='id ASC')
-        self.assertEqual(len(new_partners), 3, 'Find or create should have created 3 partners, one / email')
+        recipients = test_record._message_get_suggested_recipients(
+            reply_message=messages[0], no_create=False
+        )
+        new_partners = self.env["res.partner"].search(
+            [("email_normalized", "in", test_emails)], order="id ASC"
+        )
+        self.assertEqual(
+            len(new_partners),
+            3,
+            "Find or create should have created 3 partners, one / email",
+        )
         new_to, new_cc_0, new_cc_1 = new_partners
-        for recipient, expected in zip(recipients, [
-            {  # partner first: author of message
-                'create_values': {},
-                'email': self.user_portal.email_normalized,
-                'name': self.user_portal.name,
-                'partner_id': self.user_portal.partner_id.id,
-            }, {  # override of model for email_cc
-                'email': test_cc_tuples[0][1],
-                'name': test_cc_tuples[0][0],
-                'partner_id': new_to.id,
-                'create_values': {},
-            }, {  # replying message to
-                'email': test_to_tuples[0][1],
-                'name': test_to_tuples[0][0],
-                'partner_id': new_cc_0.id,
-                'create_values': {},
-            }, {  # replying message  cc
-                'email': test_cc_tuples[1][1],
-                'name': test_cc_tuples[1][0],
-                'partner_id': new_cc_1.id,
-                'create_values': {},
-            },
-        ], strict=True):
+        for recipient, expected in zip(
+            recipients,
+            [
+                {  # partner first: author of message
+                    "create_values": {},
+                    "email": self.user_portal.email_normalized,
+                    "name": self.user_portal.name,
+                    "partner_id": self.user_portal.partner_id.id,
+                },
+                {  # override of model for email_cc
+                    "email": test_cc_tuples[0][1],
+                    "name": test_cc_tuples[0][0],
+                    "partner_id": new_to.id,
+                    "create_values": {},
+                },
+                {  # replying message to
+                    "email": test_to_tuples[0][1],
+                    "name": test_to_tuples[0][0],
+                    "partner_id": new_cc_0.id,
+                    "create_values": {},
+                },
+                {  # replying message  cc
+                    "email": test_cc_tuples[1][1],
+                    "name": test_cc_tuples[1][0],
+                    "partner_id": new_cc_1.id,
+                    "create_values": {},
+                },
+            ],
+            strict=True,
+        ):
             with self.subTest():
                 self.assertDictEqual(recipient, expected)
 
     @users("employee")
     def test_message_get_suggested_recipients_conversation_filter(self):
-        """ Test sorting of messages when suggested is used in reply-all based
-        on last message. """
-        test_record = self.env['mail.test.recipients'].create({
-            'email_cc': '"Test Cc" <test.cc.1@test.example.com>',
-            'name': 'Test Recipients',
-        })
-        base_expected = [{
-            'create_values': {},
-            'email': 'test.cc.1@test.example.com',
-            'name': 'Test Cc',
-            'partner_id': False,
-        }]
+        """Test sorting of messages when suggested is used in reply-all based
+        on last message."""
+        test_record = self.env["mail.test.recipients"].create(
+            {
+                "email_cc": '"Test Cc" <test.cc.1@test.example.com>',
+                "name": "Test Recipients",
+            }
+        )
+        base_expected = [
+            {
+                "create_values": {},
+                "email": "test.cc.1@test.example.com",
+                "name": "Test Cc",
+                "partner_id": False,
+            }
+        ]
         for user, post_values, expected_add in [
             (
                 self.user_employee,
                 {
-                    'body': 'Note with pings, to ignore',
-                    'message_type': 'comment',
-                    'subtype_id': self.env.ref('mail.mt_note').id,
+                    "body": "Note with pings, to ignore",
+                    "message_type": "comment",
+                    "subtype_id": self.env.ref("mail.mt_note").id,
                 },
-                []
-            ), (
+                [],
+            ),
+            (
                 self.user_root,
                 {
-                    'author_id': False,
-                    'email_from': '"Outdated" <outdated@test.example.com>',
-                    'body': 'Incoming (old) email',
-                    'message_type': 'email',
-                    'subtype_id': self.env.ref('mail.mt_comment').id,
+                    "author_id": False,
+                    "email_from": '"Outdated" <outdated@test.example.com>',
+                    "body": "Incoming (old) email",
+                    "message_type": "email",
+                    "subtype_id": self.env.ref("mail.mt_comment").id,
                 },
-                [{
-                    'create_values': {},
-                    'email': 'outdated@test.example.com',
-                    'name': 'Outdated',
-                    'partner_id': False,
-                }],
-            ), (
+                [
+                    {
+                        "create_values": {},
+                        "email": "outdated@test.example.com",
+                        "name": "Outdated",
+                        "partner_id": False,
+                    }
+                ],
+            ),
+            (
                 self.user_employee,
                 {
-                    'body': 'Some discussion',
-                    'message_type': 'comment',
-                    'partner_ids': self.user_portal.partner_id.ids,
-                    'subtype_id': self.env.ref('mail.mt_comment').id,
+                    "body": "Some discussion",
+                    "message_type": "comment",
+                    "partner_ids": self.user_portal.partner_id.ids,
+                    "subtype_id": self.env.ref("mail.mt_comment").id,
                 },
-                [{
-                    'create_values': {},
-                    'email': self.user_portal.email_normalized,
-                    'name': self.user_portal.name,
-                    'partner_id': self.user_portal.partner_id.id,
-                }, {
-                    'create_values': {},
-                    'email': self.user_employee.email_normalized,
-                    'name': self.user_employee.name,
-                    'partner_id': self.user_employee.partner_id.id,
-                }],
-            ), (
+                [
+                    {
+                        "create_values": {},
+                        "email": self.user_portal.email_normalized,
+                        "name": self.user_portal.name,
+                        "partner_id": self.user_portal.partner_id.id,
+                    },
+                    {
+                        "create_values": {},
+                        "email": self.user_employee.email_normalized,
+                        "name": self.user_employee.name,
+                        "partner_id": self.user_employee.partner_id.id,
+                    },
+                ],
+            ),
+            (
                 self.user_root,
                 {
-                    'author_id': self.partner_employee_2.id,
-                    'body': 'Some marketing email',
-                    'message_type': 'email_outgoing',
-                    'subtype_id': self.env.ref('mail.mt_note').id,
+                    "author_id": self.partner_employee_2.id,
+                    "body": "Some marketing email",
+                    "message_type": "email_outgoing",
+                    "subtype_id": self.env.ref("mail.mt_note").id,
                 },
-                [{
-                    'create_values': {},
-                    'email': self.user_portal.email_normalized,
-                    'name': self.user_portal.name,
-                    'partner_id': self.user_portal.partner_id.id,
-                }, {
-                    'create_values': {},
-                    'email': self.user_employee.email_normalized,
-                    'name': self.user_employee.name,
-                    'partner_id': self.user_employee.partner_id.id,
-                }],
+                [
+                    {
+                        "create_values": {},
+                        "email": self.user_portal.email_normalized,
+                        "name": self.user_portal.name,
+                        "partner_id": self.user_portal.partner_id.id,
+                    },
+                    {
+                        "create_values": {},
+                        "email": self.user_employee.email_normalized,
+                        "name": self.user_employee.name,
+                        "partner_id": self.user_employee.partner_id.id,
+                    },
+                ],
             ),
         ]:
             test_record.with_user(user).message_post(**post_values)
-            test_record.message_unsubscribe(partner_ids=test_record.message_partner_ids.ids)
-            suggested = test_record._message_get_suggested_recipients(reply_discussion=True, no_create=True)
+            test_record.message_unsubscribe(
+                partner_ids=test_record.message_partner_ids.ids
+            )
+            suggested = test_record._message_get_suggested_recipients(
+                reply_discussion=True, no_create=True
+            )
             expected = base_expected + expected_add
             # as we can't use sorted directly, reorder manually, hey
-            expected.sort(key=lambda item: item['partner_id'], reverse=True)
-            with self.subTest(message=post_values['body']):
+            expected.sort(key=lambda item: item["partner_id"], reverse=True)
+            with self.subTest(message=post_values["body"]):
                 for sugg, expected_sugg in zip(suggested, expected, strict=True):
                     self.assertDictEqual(sugg, expected_sugg)
 
-    @mute_logger('odoo.addons.mail.models.mail_mail')
-    @users('employee')
+    @mute_logger("odoo.addons.mail.models.mail_mail")
+    @users("employee")
     def test_message_update_content(self):
-        """ Test updating message content. """
+        """Test updating message content."""
         ticket_record = self.ticket_record.with_env(self.env)
-        attachments = self.env['ir.attachment'].create(
-            self._generate_attachments_data(2, 'mail.compose.message', 0)
+        attachments = self.env["ir.attachment"].create(
+            self._generate_attachments_data(2, "mail.compose.message", 0)
         )
 
         # post a note
@@ -960,18 +1317,24 @@ class TestAPI(ThreadRecipients):
             partner_ids=self.partner_1.ids,
         )
         self.assertEqual(message.attachment_ids, attachments)
-        self.assertEqual(set(message.mapped('attachment_ids.res_id')), set(ticket_record.ids))
-        self.assertEqual(set(message.mapped('attachment_ids.res_model')), set([ticket_record._name]))
+        self.assertEqual(
+            set(message.mapped("attachment_ids.res_id")), set(ticket_record.ids)
+        )
+        self.assertEqual(
+            set(message.mapped("attachment_ids.res_model")), set([ticket_record._name])
+        )
         self.assertEqual(message.body, "<p>Initial Body</p>")
-        self.assertEqual(message.subtype_id, self.env.ref('mail.mt_note'))
+        self.assertEqual(message.subtype_id, self.env.ref("mail.mt_note"))
 
         # clear the content when having attachments should show edit label
         ticket_record._message_update_content(message, body="")
         self.assertEqual(message.attachment_ids, attachments)
-        self.assertEqual(message.body, Markup('<span class="o-mail-Message-edited"></span>'))
+        self.assertEqual(
+            message.body, Markup('<span class="o-mail-Message-edited"></span>')
+        )
         # update the content with new attachments
-        new_attachments = self.env['ir.attachment'].create(
-            self._generate_attachments_data(2, 'mail.compose.message', 0)
+        new_attachments = self.env["ir.attachment"].create(
+            self._generate_attachments_data(2, "mail.compose.message", 0)
         )
         ticket_record._message_update_content(
             message,
@@ -979,9 +1342,16 @@ class TestAPI(ThreadRecipients):
             attachment_ids=new_attachments.ids,
         )
         self.assertEqual(message.attachment_ids, attachments + new_attachments)
-        self.assertEqual(set(message.mapped('attachment_ids.res_id')), set(ticket_record.ids))
-        self.assertEqual(set(message.mapped('attachment_ids.res_model')), set([ticket_record._name]))
-        self.assertEqual(message.body, Markup('<div>New Body <span class="o-mail-Message-edited"></span></div>'))
+        self.assertEqual(
+            set(message.mapped("attachment_ids.res_id")), set(ticket_record.ids)
+        )
+        self.assertEqual(
+            set(message.mapped("attachment_ids.res_model")), set([ticket_record._name])
+        )
+        self.assertEqual(
+            message.body,
+            Markup('<div>New Body <span class="o-mail-Message-edited"></span></div>'),
+        )
 
         # void attachments
         ticket_record._message_update_content(
@@ -991,46 +1361,157 @@ class TestAPI(ThreadRecipients):
         )
         self.assertFalse(message.attachment_ids)
         self.assertFalse((attachments + new_attachments).exists())
-        self.assertEqual(message.body, Markup('<p>Another Body, void attachments <span class="o-mail-Message-edited"></span></p>'))
+        self.assertEqual(
+            message.body,
+            Markup(
+                '<p>Another Body, void attachments <span class="o-mail-Message-edited"></span></p>'
+            ),
+        )
 
         ticket_record._message_update_content(
             message,
             body=Markup("line1<br>edit<br>line2<br>line3"),
         )
-        self.assertEqual(message.body, Markup('<p>line1 <br>edit<br>line2<br>line3<span class="o-mail-Message-edited"></span></p>'))
+        self.assertEqual(
+            message.body,
+            Markup(
+                '<p>line1 <br>edit<br>line2<br>line3<span class="o-mail-Message-edited"></span></p>'
+            ),
+        )
 
-    @mute_logger('odoo.addons.mail.models.mail_mail')
-    @users('employee')
+    @mute_logger("odoo.addons.mail.models.mail_mail")
+    @users("employee")
     def test_message_update_content_check(self):
-        """ Test cases where updating content should be prevented """
+        """Test cases where updating content should be prevented"""
         ticket_record = self.ticket_record.with_env(self.env)
 
         message = ticket_record.message_post(
             body="<p>Initial Body</p>",
             message_type="comment",
-            subtype_id=self.env.ref('mail.mt_comment').id,
+            subtype_id=self.env.ref("mail.mt_comment").id,
         )
         ticket_record._message_update_content(message, body="<p>New Body 1</p>")
 
-        message.sudo().write({'subtype_id': self.env.ref('mail.mt_note')})
+        message.sudo().write({"subtype_id": self.env.ref("mail.mt_note")})
         ticket_record._message_update_content(message, body="<p>New Body 2</p>")
 
         # cannot edit notifications
-        for message_type in ['notification', 'user_notification', 'email', 'email_outgoing', 'auto_comment']:
-            message.sudo().write({'message_type': message_type})
+        for message_type in [
+            "notification",
+            "user_notification",
+            "email",
+            "email_outgoing",
+            "auto_comment",
+        ]:
+            message.sudo().write({"message_type": message_type})
             with self.assertRaises(exceptions.UserError):
                 ticket_record._message_update_content(message, body="<p>New Body</p>")
 
+    @mute_logger("odoo.addons.mail.models.mail_mail")
+    @users("employee")
+    def test_message_update_content_is_idempotent(self):
+        """Editing a message twice must not leave two "(edited)" markers.
 
-@tagged('mail_thread')
+        What a client sends back on a second edit is the **stored** body, marker
+        included -- `Message.enterEditMode` seeds the composer from `this.body`
+        and `getNonEditableMentions` does not strip the span -- so appending
+        unconditionally grew the marker, and the space in front of it, by one on
+        every edit. The body is fed back here for that reason: a test that hands
+        `_message_update_content` a fresh body each time exercises nothing,
+        because a fresh body carries no marker to duplicate.
+
+        The default text composer happens to launder the marker away by
+        rebuilding its HTML from plain text, which is why nothing noticed; the
+        opt-in HTML composer sends `composerHtml` straight through. Nothing
+        covered a second edit at all before this.
+        """
+        ticket_record = self.ticket_record.with_env(self.env)
+        message = ticket_record.message_post(
+            body=Markup("<p>Initial Body</p>"), message_type="comment"
+        )
+        ticket_record._message_update_content(message, body=Markup("<p>Edited</p>"))
+        self.assertEqual(
+            message.body,
+            Markup('<p>Edited <span class="o-mail-Message-edited"></span></p>'),
+        )
+        for _round in range(3):
+            # exactly what a client round-trips: the stored body, marker included
+            ticket_record._message_update_content(message, body=message.body)
+        self.assertEqual(
+            message.body.count("o-mail-Message-edited"),
+            1,
+            f"three further edits left "
+            f"{message.body.count('o-mail-Message-edited')} markers: {message.body}",
+        )
+        self.assertEqual(
+            message.body,
+            Markup('<p>Edited <span class="o-mail-Message-edited"></span></p>'),
+            "and the space in front of the marker does not grow either",
+        )
+
+    @users("employee")
+    def test_has_message_answers_about_the_present(self):
+        """`has_message` must not answer from a cache nothing invalidates.
+
+        It is a non-stored compute reading raw SQL, so without a declared
+        dependency the ORM kept the first answer for the whole transaction:
+        posting on a record and reading the field back returned False. The web
+        client never saw it -- one transaction per RPC -- but a server action, an
+        import or a test does.
+        """
+        ticket = (
+            self.env["mail.test.ticket"]
+            .with_context(mail_create_nolog=True, mail_create_nosubscribe=True)
+            .create({"name": "Fresh"})
+        )
+        self.assertFalse(ticket.has_message, "precondition: nothing posted yet")
+        ticket.message_post(body=Markup("<p>something</p>"), message_type="comment")
+        self.assertTrue(
+            ticket.has_message,
+            "a message posted in this transaction must be visible to has_message",
+        )
+
+    @users("employee")
+    def test_message_attachment_count_answers_about_the_present(self):
+        """Same defect, and it cannot be fixed with `@api.depends`.
+
+        The field counts `ir.attachment` rows by `(res_model, res_id)`, which is
+        no relation the ORM can follow, so the write is announced from the
+        attachment side instead.
+        """
+        ticket = self.env["mail.test.ticket"].create({"name": "Counting"})
+        self.assertEqual(ticket.message_attachment_count, 0)
+        attachment = self.env["ir.attachment"].create(
+            {
+                "name": "counted.txt",
+                "raw": b"x",
+                "res_model": ticket._name,
+                "res_id": ticket.id,
+            }
+        )
+        self.assertEqual(
+            ticket.message_attachment_count,
+            1,
+            "an attachment added in this transaction must be counted",
+        )
+        attachment.unlink()
+        self.assertEqual(
+            ticket.message_attachment_count, 0, "and removing it must uncount it"
+        )
+
+
+@tagged("mail_thread")
 class TestChatterTweaks(ThreadRecipients):
-
     @classmethod
     def setUpClass(cls):
         super(TestChatterTweaks, cls).setUpClass()
-        cls.test_record = cls.env['mail.test.simple'].with_context(cls._test_context).create({'name': 'Test', 'email_from': 'ignasse@example.com'})
+        cls.test_record = (
+            cls.env["mail.test.simple"]
+            .with_context(cls._test_context)
+            .create({"name": "Test", "email_from": "ignasse@example.com"})
+        )
 
-    @users('employee')
+    @users("employee")
     def test_post_headers_recipients_limit(self):
         test_record = self.test_record.with_env(self.env)
 
@@ -1040,240 +1521,415 @@ class TestChatterTweaks(ThreadRecipients):
             (10, True),
         ):
             MailTestSimple._CUSTOMER_HEADERS_LIMIT_COUNT = recipients_limit
-            with self.mock_mail_gateway(mail_unlink_sent=False), \
-                    self.mock_mail_app():
+            with self.mock_mail_gateway(mail_unlink_sent=False), self.mock_mail_app():
                 message = test_record.message_post(
-                    body='With To Headers',
+                    body="With To Headers",
                     partner_ids=(self.test_partner + self.test_partner_catchall).ids,
                 )
 
             headers = {
-                'Return-Path': f'{self.mail_alias_domain.bounce_email}',
-                'X-Custom': 'Done',  # model override
-                'X-Odoo-Objects': f'{test_record._name}-{test_record.id}',
+                "Return-Path": f"{self.mail_alias_domain.bounce_email}",
+                "X-Custom": "Done",  # model override
+                "X-Odoo-Objects": f"{test_record._name}-{test_record.id}",
             }
             if has_header:
-                headers['X-Msg-To-Add'] = f'{self.test_partner.email_formatted},{self.test_partner_catchall.email_formatted}'
+                headers["X-Msg-To-Add"] = (
+                    f"{self.test_partner.email_formatted},{self.test_partner_catchall.email_formatted}"
+                )
             for recipient in self.test_partner + self.test_partner_catchall:
                 self.assertMailMail(
                     recipient,
-                    'sent',
+                    "sent",
                     author=self.partner_employee,
                     mail_message=message,
                     email_values={
-                        'headers': headers,
+                        "headers": headers,
                     },
                     fields_values={
-                        'headers': headers,
+                        "headers": headers,
                     },
                 )
 
     def test_post_no_subscribe_author(self):
         original = self.test_record.message_follower_ids
-        self.test_record.with_user(self.user_employee).with_context({'mail_post_autofollow_author_skip': True}).message_post(
-            body='Test Body', message_type='comment', subtype_xmlid='mail.mt_comment')
-        self.assertEqual(self.test_record.message_follower_ids.mapped('partner_id'), original.mapped('partner_id'))
+        self.test_record.with_user(self.user_employee).with_context(
+            {"mail_post_autofollow_author_skip": True}
+        ).message_post(
+            body="Test Body", message_type="comment", subtype_xmlid="mail.mt_comment"
+        )
+        self.assertEqual(
+            self.test_record.message_follower_ids.mapped("partner_id"),
+            original.mapped("partner_id"),
+        )
 
-    @mute_logger('odoo.addons.mail.models.mail_mail')
+    @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_post_no_subscribe_recipients(self):
         original = self.test_record.message_follower_ids
-        self.test_record.with_user(self.user_employee).with_context({'mail_post_autofollow_author_skip': True}).message_post(
-            body='Test Body', message_type='comment', subtype_xmlid='mail.mt_comment', partner_ids=[self.partner_1.id, self.partner_2.id])
-        self.assertEqual(self.test_record.message_follower_ids.mapped('partner_id'), original.mapped('partner_id'))
+        self.test_record.with_user(self.user_employee).with_context(
+            {"mail_post_autofollow_author_skip": True}
+        ).message_post(
+            body="Test Body",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+            partner_ids=[self.partner_1.id, self.partner_2.id],
+        )
+        self.assertEqual(
+            self.test_record.message_follower_ids.mapped("partner_id"),
+            original.mapped("partner_id"),
+        )
 
-    @mute_logger('odoo.addons.mail.models.mail_mail')
+    @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_post_subscribe_recipients(self):
         original = self.test_record.message_follower_ids
-        self.test_record.with_user(self.user_employee).with_context({'mail_post_autofollow_author_skip': True, 'mail_post_autofollow': True}).message_post(
-            body='Test Body', message_type='comment', subtype_xmlid='mail.mt_comment', partner_ids=[self.partner_1.id, self.partner_2.id])
-        self.assertEqual(self.test_record.message_follower_ids.mapped('partner_id'), original.mapped('partner_id') | self.partner_1 | self.partner_2)
+        self.test_record.with_user(self.user_employee).with_context(
+            {"mail_post_autofollow_author_skip": True, "mail_post_autofollow": True}
+        ).message_post(
+            body="Test Body",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+            partner_ids=[self.partner_1.id, self.partner_2.id],
+        )
+        self.assertEqual(
+            self.test_record.message_follower_ids.mapped("partner_id"),
+            original.mapped("partner_id") | self.partner_1 | self.partner_2,
+        )
 
         # check _mail_thread_customer class attribute
-        new_record = self.env['mail.test.thread.customer'].create({
-            'customer_id': self.partner_1.id,
-        })
+        new_record = self.env["mail.test.thread.customer"].create(
+            {
+                "customer_id": self.partner_1.id,
+            }
+        )
         self.assertFalse(new_record.message_partner_ids)
-        msg = new_record.with_user(self.user_employee).with_context(mail_post_autofollow_author_skip=True).message_post(
-            body='Test Body', message_type='comment',
-            partner_ids=(self.partner_1 + self.partner_2).ids,
-            subtype_id=self.env.ref('mail.mt_comment').id,
+        msg = (
+            new_record.with_user(self.user_employee)
+            .with_context(mail_post_autofollow_author_skip=True)
+            .message_post(
+                body="Test Body",
+                message_type="comment",
+                partner_ids=(self.partner_1 + self.partner_2).ids,
+                subtype_id=self.env.ref("mail.mt_comment").id,
+            )
         )
         self.assertEqual(msg.notified_partner_ids, self.partner_1 + self.partner_2)
-        self.assertEqual(new_record.message_partner_ids, self.partner_1,
-                         'Customer was found and added as follower automatically when pinged')
+        self.assertEqual(
+            new_record.message_partner_ids,
+            self.partner_1,
+            "Customer was found and added as follower automatically when pinged",
+        )
 
-    @mute_logger('odoo.addons.mail.models.mail_mail')
+    @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_chatter_context_cleaning(self):
-        """ Test default keys are not propagated to message creation as it may
-        induce wrong values for some fields, like parent_id. """
-        parent = self.env['res.partner'].create({'name': 'Parent'})
-        partner = self.env['res.partner'].with_context(default_parent_id=parent.id).create({'name': 'Contact'})
+        """Test default keys are not propagated to message creation as it may
+        induce wrong values for some fields, like parent_id."""
+        parent = self.env["res.partner"].create({"name": "Parent"})
+        partner = (
+            self.env["res.partner"]
+            .with_context(default_parent_id=parent.id)
+            .create({"name": "Contact"})
+        )
         self.assertFalse(partner.message_ids[-1].parent_id)
 
     def test_chatter_mail_create_nolog(self):
-        """ Test disable of automatic chatter message at create """
-        rec = self.env['mail.test.simple'].with_user(self.user_employee).with_context({'mail_create_nolog': True}).create({'name': 'Test'})
+        """Test disable of automatic chatter message at create"""
+        rec = (
+            self.env["mail.test.simple"]
+            .with_user(self.user_employee)
+            .with_context({"mail_create_nolog": True})
+            .create({"name": "Test"})
+        )
         self.flush_tracking()
-        self.assertEqual(rec.message_ids, self.env['mail.message'])
+        self.assertEqual(rec.message_ids, self.env["mail.message"])
 
-        rec = self.env['mail.test.simple'].with_user(self.user_employee).with_context({'mail_create_nolog': False}).create({'name': 'Test'})
+        rec = (
+            self.env["mail.test.simple"]
+            .with_user(self.user_employee)
+            .with_context({"mail_create_nolog": False})
+            .create({"name": "Test"})
+        )
         self.flush_tracking()
         self.assertEqual(len(rec.message_ids), 1)
 
     def test_chatter_mail_notrack(self):
-        """ Test disable of automatic value tracking at create and write """
-        rec = self.env['mail.test.track'].with_user(self.user_employee).create({'name': 'Test', 'user_id': self.user_employee.id})
+        """Test disable of automatic value tracking at create and write"""
+        rec = (
+            self.env["mail.test.track"]
+            .with_user(self.user_employee)
+            .create({"name": "Test", "user_id": self.user_employee.id})
+        )
         self.flush_tracking()
-        self.assertEqual(len(rec.message_ids), 1,
-                         "A creation message without tracking values should have been posted")
-        self.assertEqual(len(rec.message_ids.sudo().tracking_value_ids), 0,
-                         "A creation message without tracking values should have been posted")
+        self.assertEqual(
+            len(rec.message_ids),
+            1,
+            "A creation message without tracking values should have been posted",
+        )
+        self.assertEqual(
+            len(rec.message_ids.sudo().tracking_value_ids),
+            0,
+            "A creation message without tracking values should have been posted",
+        )
 
-        rec.with_context({'mail_notrack': True}).write({'user_id': self.user_admin.id})
+        rec.with_context({"mail_notrack": True}).write({"user_id": self.user_admin.id})
         self.flush_tracking()
-        self.assertEqual(len(rec.message_ids), 1,
-                         "No new message should have been posted with mail_notrack key")
+        self.assertEqual(
+            len(rec.message_ids),
+            1,
+            "No new message should have been posted with mail_notrack key",
+        )
 
-        rec.with_context({'mail_notrack': False}).write({'user_id': self.user_employee.id})
+        rec.with_context({"mail_notrack": False}).write(
+            {"user_id": self.user_employee.id}
+        )
         self.flush_tracking()
-        self.assertEqual(len(rec.message_ids), 2,
-                         "A tracking message should have been posted")
-        self.assertEqual(len(rec.message_ids.sudo().mapped('tracking_value_ids')), 1,
-                         "New tracking message should have tracking values")
+        self.assertEqual(
+            len(rec.message_ids), 2, "A tracking message should have been posted"
+        )
+        self.assertEqual(
+            len(rec.message_ids.sudo().mapped("tracking_value_ids")),
+            1,
+            "New tracking message should have tracking values",
+        )
 
     def test_chatter_tracking_disable(self):
-        """ Test disable of all chatter features at create and write """
-        rec = self.env['mail.test.track'].with_user(self.user_employee).with_context({'tracking_disable': True}).create({'name': 'Test', 'user_id': self.user_employee.id})
+        """Test disable of all chatter features at create and write"""
+        rec = (
+            self.env["mail.test.track"]
+            .with_user(self.user_employee)
+            .with_context({"tracking_disable": True})
+            .create({"name": "Test", "user_id": self.user_employee.id})
+        )
         self.flush_tracking()
-        self.assertEqual(rec.sudo().message_ids, self.env['mail.message'])
-        self.assertEqual(rec.sudo().mapped('message_ids.tracking_value_ids'), self.env['mail.tracking.value'])
+        self.assertEqual(rec.sudo().message_ids, self.env["mail.message"])
+        self.assertEqual(
+            rec.sudo().mapped("message_ids.tracking_value_ids"),
+            self.env["mail.tracking.value"],
+        )
 
-        rec.write({'user_id': self.user_admin.id})
+        rec.write({"user_id": self.user_admin.id})
         self.flush_tracking()
-        self.assertEqual(rec.sudo().mapped('message_ids.tracking_value_ids'), self.env['mail.tracking.value'])
+        self.assertEqual(
+            rec.sudo().mapped("message_ids.tracking_value_ids"),
+            self.env["mail.tracking.value"],
+        )
 
-        rec.with_context({'tracking_disable': False}).write({'user_id': self.user_employee.id})
+        rec.with_context({"tracking_disable": False}).write(
+            {"user_id": self.user_employee.id}
+        )
         self.flush_tracking()
-        self.assertEqual(len(rec.sudo().mapped('message_ids.tracking_value_ids')), 1)
+        self.assertEqual(len(rec.sudo().mapped("message_ids.tracking_value_ids")), 1)
 
-        rec = self.env['mail.test.track'].with_user(self.user_employee).with_context({'tracking_disable': False}).create({'name': 'Test', 'user_id': self.user_employee.id})
+        rec = (
+            self.env["mail.test.track"]
+            .with_user(self.user_employee)
+            .with_context({"tracking_disable": False})
+            .create({"name": "Test", "user_id": self.user_employee.id})
+        )
         self.flush_tracking()
-        self.assertEqual(len(rec.sudo().message_ids), 1,
-                         "Creation message without tracking values should have been posted")
-        self.assertEqual(len(rec.sudo().mapped('message_ids.tracking_value_ids')), 0,
-                         "Creation message without tracking values should have been posted")
+        self.assertEqual(
+            len(rec.sudo().message_ids),
+            1,
+            "Creation message without tracking values should have been posted",
+        )
+        self.assertEqual(
+            len(rec.sudo().mapped("message_ids.tracking_value_ids")),
+            0,
+            "Creation message without tracking values should have been posted",
+        )
 
     def test_cache_invalidation(self):
-        """ Test that creating a mail-thread record does not invalidate the whole cache. """
+        """Test that creating a mail-thread record does not invalidate the whole cache."""
         # make a new record in cache
-        record = self.env['res.partner'].new({'name': 'Brave New Partner'})
+        record = self.env["res.partner"].new({"name": "Brave New Partner"})
         self.assertTrue(record.name)
 
         # creating a mail-thread record should not invalidate the whole cache
-        self.env['res.partner'].create({'name': 'Actual Partner'})
+        self.env["res.partner"].create({"name": "Actual Partner"})
         self.assertTrue(record.name)
 
 
-@tagged('mail_thread')
+@tagged("mail_thread")
 class TestDiscuss(MailCommon, TestRecipients):
-
     @classmethod
     def setUpClass(cls):
         super(TestDiscuss, cls).setUpClass()
-        cls.test_record = cls.env['mail.test.simple'].with_context(cls._test_context).create({
-            'name': 'Test',
-            'email_from': 'ignasse@example.com'
-        })
+        cls.test_record = (
+            cls.env["mail.test.simple"]
+            .with_context(cls._test_context)
+            .create({"name": "Test", "email_from": "ignasse@example.com"})
+        )
 
-    @mute_logger('odoo.addons.mail.models.mail_mail')
+    @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_mark_all_as_read(self):
         def _employee_crash(recordset, operation):
-            """ If employee is test employee, consider they have no access on document """
+            """If employee is test employee, consider they have no access on document"""
             if recordset.env.uid == self.user_employee.id and not recordset.env.su:
-                return recordset, lambda: exceptions.AccessError('Hop hop hop Ernest, please step back.')
+                return recordset, lambda: exceptions.AccessError(
+                    "Hop hop hop Ernest, please step back."
+                )
             return DEFAULT
 
-        with patch.object(MailTestSimple, '_check_access', autospec=True, side_effect=_employee_crash):
+        with patch.object(
+            MailTestSimple, "_check_access", autospec=True, side_effect=_employee_crash
+        ):
             with self.assertRaises(exceptions.AccessError):
-                self.env['mail.test.simple'].with_user(self.user_employee).browse(self.test_record.ids).read(['name'])
+                self.env["mail.test.simple"].with_user(self.user_employee).browse(
+                    self.test_record.ids
+                ).read(["name"])
 
-            employee_partner = self.env['res.partner'].with_user(self.user_employee).browse(self.partner_employee.ids)
+            employee_partner = (
+                self.env["res.partner"]
+                .with_user(self.user_employee)
+                .browse(self.partner_employee.ids)
+            )
 
             # mark all as read clear needactions
-            msg1 = self.test_record.message_post(body='Test', message_type='comment', subtype_xmlid='mail.mt_comment', partner_ids=[employee_partner.id])
+            msg1 = self.test_record.message_post(
+                body="Test",
+                message_type="comment",
+                subtype_xmlid="mail.mt_comment",
+                partner_ids=[employee_partner.id],
+            )
             with self.assertBus(
-                    [(self.cr.dbname, 'res.partner', employee_partner.id)],
-                    message_items=[{
-                        'type': 'mail.message/mark_as_read',
-                        'payload': {
-                            'message_ids': [msg1.id],
-                            'needaction_inbox_counter': 0,
+                [(self.cr.dbname, "res.partner", employee_partner.id)],
+                message_items=[
+                    {
+                        "type": "mail.message/mark_as_read",
+                        "payload": {
+                            "message_ids": [msg1.id],
+                            "needaction_inbox_counter": 0,
                         },
-                    }]):
-                employee_partner.env['mail.message'].mark_all_as_read(domain=[])
+                    }
+                ],
+            ):
+                employee_partner.env["mail.message"].mark_all_as_read(domain=[])
             na_count = employee_partner._get_needaction_count()
-            self.assertEqual(na_count, 0, "mark all as read should conclude all needactions")
+            self.assertEqual(
+                na_count, 0, "mark all as read should conclude all needactions"
+            )
 
             # mark all as read also clear inaccessible needactions
-            msg2 = self.test_record.message_post(body='Zest', message_type='comment', subtype_xmlid='mail.mt_comment', partner_ids=[employee_partner.id])
-            needaction_accessible = len(employee_partner.env['mail.message'].search([['needaction', '=', True]]))
-            self.assertEqual(needaction_accessible, 1, "a new message to a partner is readable to that partner")
+            msg2 = self.test_record.message_post(
+                body="Zest",
+                message_type="comment",
+                subtype_xmlid="mail.mt_comment",
+                partner_ids=[employee_partner.id],
+            )
+            needaction_accessible = len(
+                employee_partner.env["mail.message"].search([["needaction", "=", True]])
+            )
+            self.assertEqual(
+                needaction_accessible,
+                1,
+                "a new message to a partner is readable to that partner",
+            )
 
-            msg2.sudo().partner_ids = self.env['res.partner']
-            employee_partner.env['mail.message'].search([['needaction', '=', True]])
-            needaction_length = len(employee_partner.env['mail.message'].search([['needaction', '=', True]]))
-            self.assertEqual(needaction_length, 1, "message should still be readable when notified")
+            msg2.sudo().partner_ids = self.env["res.partner"]
+            employee_partner.env["mail.message"].search([["needaction", "=", True]])
+            needaction_length = len(
+                employee_partner.env["mail.message"].search([["needaction", "=", True]])
+            )
+            self.assertEqual(
+                needaction_length, 1, "message should still be readable when notified"
+            )
 
             na_count = employee_partner._get_needaction_count()
-            self.assertEqual(na_count, 1, "message not accessible is currently still counted")
+            self.assertEqual(
+                na_count, 1, "message not accessible is currently still counted"
+            )
 
             with self.assertBus(
-                    [(self.cr.dbname, 'res.partner', employee_partner.id)],
-                    message_items=[{
-                        'type': 'mail.message/mark_as_read',
-                        'payload': {
-                            'message_ids': [msg2.id],
-                            'needaction_inbox_counter': 0,
+                [(self.cr.dbname, "res.partner", employee_partner.id)],
+                message_items=[
+                    {
+                        "type": "mail.message/mark_as_read",
+                        "payload": {
+                            "message_ids": [msg2.id],
+                            "needaction_inbox_counter": 0,
                         },
-                    }]):
-                employee_partner.env['mail.message'].mark_all_as_read(domain=[])
+                    }
+                ],
+            ):
+                employee_partner.env["mail.message"].mark_all_as_read(domain=[])
             na_count = employee_partner._get_needaction_count()
-            self.assertEqual(na_count, 0, "mark all read should conclude all needactions even inacessible ones")
+            self.assertEqual(
+                na_count,
+                0,
+                "mark all read should conclude all needactions even inacessible ones",
+            )
 
     def test_set_message_done_user(self):
-        with self.assertSinglePostNotifications([{'partner': self.partner_employee, 'type': 'inbox'}], message_info={'content': 'Test'}):
+        with self.assertSinglePostNotifications(
+            [{"partner": self.partner_employee, "type": "inbox"}],
+            message_info={"content": "Test"},
+        ):
             message = self.test_record.message_post(
-                body='Test', message_type='comment', subtype_xmlid='mail.mt_comment',
-                partner_ids=[self.user_employee.partner_id.id])
+                body="Test",
+                message_type="comment",
+                subtype_xmlid="mail.mt_comment",
+                partner_ids=[self.user_employee.partner_id.id],
+            )
         message.with_user(self.user_employee).set_message_done()
-        self.assertMailNotifications(message, [{'notif': [{'partner': self.partner_employee, 'type': 'inbox', 'is_read': True}]}])
+        self.assertMailNotifications(
+            message,
+            [
+                {
+                    "notif": [
+                        {
+                            "partner": self.partner_employee,
+                            "type": "inbox",
+                            "is_read": True,
+                        }
+                    ]
+                }
+            ],
+        )
 
     def test_message_fetch_needaction(self):
-        user1 = self.env['res.users'].create({'login': 'user1', 'name': 'User 1'})
-        user1.notification_type = 'inbox'
-        user2 = self.env['res.users'].create({'login': 'user2', 'name': 'User 2'})
-        user2.notification_type = 'inbox'
-        message1 = self.test_record.with_user(self.user_admin).message_post(body='Message 1', partner_ids=[user1.partner_id.id, user2.partner_id.id])
-        message2 = self.test_record.with_user(self.user_admin).message_post(body='Message 2', partner_ids=[user1.partner_id.id, user2.partner_id.id])
+        user1 = self.env["res.users"].create({"login": "user1", "name": "User 1"})
+        user1.notification_type = "inbox"
+        user2 = self.env["res.users"].create({"login": "user2", "name": "User 2"})
+        user2.notification_type = "inbox"
+        message1 = self.test_record.with_user(self.user_admin).message_post(
+            body="Message 1", partner_ids=[user1.partner_id.id, user2.partner_id.id]
+        )
+        message2 = self.test_record.with_user(self.user_admin).message_post(
+            body="Message 2", partner_ids=[user1.partner_id.id, user2.partner_id.id]
+        )
 
         # both notified users should have the 2 messages in Inbox initially
-        res = self.env['mail.message'].with_user(user1)._message_fetch(domain=[['needaction', '=', True]])
+        res = (
+            self.env["mail.message"]
+            .with_user(user1)
+            ._message_fetch(domain=[["needaction", "=", True]])
+        )
         self.assertEqual(len(res["messages"]), 2)
-        res = self.env['mail.message'].with_user(user2)._message_fetch(domain=[['needaction', '=', True]])
+        res = (
+            self.env["mail.message"]
+            .with_user(user2)
+            ._message_fetch(domain=[["needaction", "=", True]])
+        )
         self.assertEqual(len(res["messages"]), 2)
 
         # first user is marking one message as done: the other message is still Inbox, while the other user still has the 2 messages in Inbox
         message1.with_user(user1).set_message_done()
-        res = self.env['mail.message'].with_user(user1)._message_fetch(domain=[['needaction', '=', True]])
+        res = (
+            self.env["mail.message"]
+            .with_user(user1)
+            ._message_fetch(domain=[["needaction", "=", True]])
+        )
         self.assertEqual(len(res["messages"]), 1)
         self.assertEqual(res["messages"][0].id, message2.id)
-        res = self.env['mail.message'].with_user(user2)._message_fetch(domain=[['needaction', '=', True]])
+        res = (
+            self.env["mail.message"]
+            .with_user(user2)
+            ._message_fetch(domain=[["needaction", "=", True]])
+        )
         self.assertEqual(len(res["messages"]), 2)
 
     @users("employee")
     def test_unlink_notification_message(self):
         message = self.test_record.with_user(self.user_admin).message_notify(
-            body='test',
+            body="test",
             partner_ids=[self.partner_2.id],
         )
         self.assertEqual(len(message), 1, "Test message should have been posted")
@@ -1288,54 +1944,77 @@ class TestDiscuss(MailCommon, TestRecipients):
         notification with is_read=True. A message the reader was never notified
         about is not needaction and has no notification row at all, so it could
         never match and was silently dropped -- as was every record whose
-        messages are all in that state, through mail.thread's message_needaction.
+        messages are all in that state, through mixin.mail.thread's message_needaction.
         """
-        record = self.env['mail.test.simple'].create({'name': 'needaction search'})
+        record = self.env["mail.test.simple"].create({"name": "needaction search"})
         partner = self.env.user.partner_id
         msg_unread, msg_read, msg_never = (
-            record.message_post(body=body, message_type='comment', subtype_xmlid='mail.mt_comment')
-            for body in ('unread', 'read', 'never notified')
+            record.message_post(
+                body=body, message_type="comment", subtype_xmlid="mail.mt_comment"
+            )
+            for body in ("unread", "read", "never notified")
         )
-        self.env['mail.notification'].sudo().create([
-            {'mail_message_id': msg_unread.id, 'res_partner_id': partner.id,
-             'notification_type': 'inbox', 'notification_status': 'sent', 'is_read': False},
-            {'mail_message_id': msg_read.id, 'res_partner_id': partner.id,
-             'notification_type': 'inbox', 'notification_status': 'sent', 'is_read': True},
-        ])
+        self.env["mail.notification"].sudo().create(
+            [
+                {
+                    "mail_message_id": msg_unread.id,
+                    "res_partner_id": partner.id,
+                    "notification_type": "inbox",
+                    "notification_status": "sent",
+                    "is_read": False,
+                },
+                {
+                    "mail_message_id": msg_read.id,
+                    "res_partner_id": partner.id,
+                    "notification_type": "inbox",
+                    "notification_status": "sent",
+                    "is_read": True,
+                },
+            ]
+        )
         self.env.flush_all()
         self.env.invalidate_all()
 
         messages = msg_unread + msg_read + msg_never
         self.assertEqual(
-            [msg.needaction for msg in messages], [True, False, False],
-            "sanity: only the unread notification makes a message needaction")
+            [msg.needaction for msg in messages],
+            [True, False, False],
+            "sanity: only the unread notification makes a message needaction",
+        )
 
-        scope = [('id', 'in', messages.ids)]
-        Message = self.env['mail.message']
+        scope = [("id", "in", messages.ids)]
+        Message = self.env["mail.message"]
         self.assertEqual(
-            Message.search(scope + [('needaction', 'in', [True])]), msg_unread)
+            Message.search(scope + [("needaction", "in", [True])]), msg_unread
+        )
         self.assertEqual(
-            Message.search(scope + [('needaction', 'not in', [True])]), msg_read + msg_never,
-            "a message with no notification at all is not needaction")
+            Message.search(scope + [("needaction", "not in", [True])]),
+            msg_read + msg_never,
+            "a message with no notification at all is not needaction",
+        )
         self.assertEqual(
-            Message.search(scope + [('needaction', '=', False)]), msg_read + msg_never)
+            Message.search(scope + [("needaction", "=", False)]), msg_read + msg_never
+        )
 
         # and through mail.thread.message_needaction, which forwards to
         # message_ids.needaction: "has a message that is not needaction" is not
         # the negation of "has a needaction message", so the traversal needs its
         # own guard on top of the mail.message fix above.
-        other = self.env['mail.test.simple'].create({'name': 'no needaction'})
+        other = self.env["mail.test.simple"].create({"name": "no needaction"})
         self.env.flush_all()
-        rscope = [('id', 'in', (record + other).ids)]
-        Record = self.env['mail.test.simple']
+        rscope = [("id", "in", (record + other).ids)]
+        Record = self.env["mail.test.simple"]
         self.assertEqual(
-            Record.search(rscope + [('message_needaction', 'in', [True])]), record)
+            Record.search(rscope + [("message_needaction", "in", [True])]), record
+        )
         self.assertEqual(
-            Record.search(rscope + [('message_needaction', 'not in', [True])]), other)
+            Record.search(rscope + [("message_needaction", "not in", [True])]), other
+        )
         self.assertEqual(
-            Record.search(rscope + [('message_needaction', '=', False)]), other,
-            "filtering on 'Action Needed' unset must not return an empty set")
-
+            Record.search(rscope + [("message_needaction", "=", False)]),
+            other,
+            "filtering on 'Action Needed' unset must not return an empty set",
+        )
 
     @users("employee")
     def test_partner_find_company_conflict(self):
@@ -1349,249 +2028,319 @@ class TestDiscuss(MailCommon, TestRecipients):
         self.env.flush_all()
 
         shared = ['"Shared" <shared_company_probe@example.com>']
-        found = (record_a + record_b).sudo()._partner_find_from_emails(
-            {record_a: shared, record_b: shared}, no_create=False)
+        found = (
+            (record_a + record_b)
+            .sudo()
+            ._partner_find_from_emails(
+                {record_a: shared, record_b: shared}, no_create=False
+            )
+        )
         partner_a, partner_b = found[record_a.id], found[record_b.id]
-        self.assertEqual(partner_a, partner_b, 'one address normalises to one partner')
+        self.assertEqual(partner_a, partner_b, "one address normalises to one partner")
         self.assertFalse(
             partner_a.company_id,
-            'a contact shared across companies belongs to neither in particular')
+            "a contact shared across companies belongs to neither in particular",
+        )
 
         # unchanged when the records agree: the company is still applied
         record_c = Model.create({"name": "rc", "company_id": self.env.company.id})
         self.env.flush_all()
         agreed = ['"Agreed" <agreed_company_probe@example.com>']
-        found = (record_a + record_c).sudo()._partner_find_from_emails(
-            {record_a: agreed, record_c: agreed}, no_create=False)
+        found = (
+            (record_a + record_c)
+            .sudo()
+            ._partner_find_from_emails(
+                {record_a: agreed, record_c: agreed}, no_create=False
+            )
+        )
         self.assertEqual(found[record_a.id].company_id, self.env.company)
 
 
-@tagged('mail_thread')
+@tagged("mail_thread")
 class TestNotification(MailCommon):
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.test_record = cls.env['mail.test.simple'].create({
-            'name': 'Test',
-            'email_from': 'ignasse@example.com'
-        })
+        cls.test_record = cls.env["mail.test.simple"].create(
+            {"name": "Test", "email_from": "ignasse@example.com"}
+        )
 
     def test_notification_has_error_filter(self):
         """Ensure message_has_error filter is only returning threads for which
         the current user is author of a failed message."""
         message = self.test_record.with_user(self.user_admin).message_post(
-            body='Test', message_type='comment', subtype_xmlid='mail.mt_comment',
-            partner_ids=[self.user_employee.partner_id.id]
+            body="Test",
+            message_type="comment",
+            subtype_xmlid="mail.mt_comment",
+            partner_ids=[self.user_employee.partner_id.id],
         )
         self.assertFalse(message.has_error)
 
         with self.mock_mail_gateway():
+
             def _connect(*args, **kwargs):
                 raise Exception("Some exception")
+
             self.connect_mocked.side_effect = _connect
 
-            self.user_admin.notification_type = 'email'
+            self.user_admin.notification_type = "email"
             message2 = self.test_record.with_user(self.user_employee).message_post(
-                body='Test', message_type='comment', subtype_xmlid='mail.mt_comment',
-                partner_ids=[self.user_admin.partner_id.id]
+                body="Test",
+                message_type="comment",
+                subtype_xmlid="mail.mt_comment",
+                partner_ids=[self.user_admin.partner_id.id],
             )
             self.assertTrue(message2.has_error)
         # employee is author of message which has a failure
-        threads_employee = self.test_record.with_user(self.user_employee).search([('message_has_error', '=', True)])
+        threads_employee = self.test_record.with_user(self.user_employee).search(
+            [("message_has_error", "=", True)]
+        )
         self.assertEqual(len(threads_employee), 1)
         # admin is also author of a message, but it doesn't have a failure
         # and the failure from employee's message should not be taken into account for admin
-        threads_admin = self.test_record.with_user(self.user_admin).search([('message_has_error', '=', True)])
+        threads_admin = self.test_record.with_user(self.user_admin).search(
+            [("message_has_error", "=", True)]
+        )
         self.assertEqual(len(threads_admin), 0)
 
 
-@tagged('mail_thread', 'mail_nothread')
+@tagged("mail_thread", "mail_nothread")
 class TestNoThread(MailCommon, TestRecipients):
-    """ Specific tests for cross models thread features """
+    """Specific tests for cross models thread features"""
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.test_record_nothread = cls.env['mail.test.nothread'].with_user(cls.user_employee).create({
-            'customer_id': cls.partner_1.id,
-            'name': 'Not A Thread',
-        })
-        cls.test_template = cls.env['mail.template'].create({
-            'body_html': 'Hello <t t-out="object.name"/>',
-            'model_id': cls.env['ir.model']._get_id('mail.test.nothread'),
-            'subject': 'Subject {{ object.name }}',
-            'use_default_to': True,
-        })
-        cls.test_attachment = cls.env['ir.attachment'].with_user(cls.user_employee).create({
-            'name': 'Test Attachment',
-            'datas': base64.b64encode(b'This is test attachment content'),
-            'res_model': cls.test_record_nothread._name,
-            'res_id': cls.test_record_nothread.id,
-            'mimetype': 'text/plain',
-        })
+        cls.test_record_nothread = (
+            cls.env["mail.test.nothread"]
+            .with_user(cls.user_employee)
+            .create(
+                {
+                    "customer_id": cls.partner_1.id,
+                    "name": "Not A Thread",
+                }
+            )
+        )
+        cls.test_template = cls.env["mail.template"].create(
+            {
+                "body_html": 'Hello <t t-out="object.name"/>',
+                "model_id": cls.env["ir.model"]._get_id("mail.test.nothread"),
+                "subject": "Subject {{ object.name }}",
+                "use_default_to": True,
+            }
+        )
+        cls.test_attachment = (
+            cls.env["ir.attachment"]
+            .with_user(cls.user_employee)
+            .create(
+                {
+                    "name": "Test Attachment",
+                    "datas": base64.b64encode(b"This is test attachment content"),
+                    "res_model": cls.test_record_nothread._name,
+                    "res_id": cls.test_record_nothread.id,
+                    "mimetype": "text/plain",
+                }
+            )
+        )
 
-    @users('employee')
+    @users("employee")
     def test_mail_composer_comment_with_template(self):
-        """ This test simulates using a template, opening a composer and posting
+        """This test simulates using a template, opening a composer and posting
         a message to a non-thread record, which transforms into a user notification.
-        Check recipients computation works in non-thread mode. """
+        Check recipients computation works in non-thread mode."""
         record = self.test_record_nothread.with_env(self.env)
         template = self.test_template.with_env(self.env)
-        mail_compose_message = self.env['mail.compose.message'].create({
-            'attachment_ids': [(6, 0, [self.test_attachment.id])],
-            'composition_mode': 'comment',
-            'model': record._name,
-            'template_id': template.id,
-            'res_ids': record.ids,
-        })
+        mail_compose_message = self.env["mail.compose.message"].create(
+            {
+                "attachment_ids": [(6, 0, [self.test_attachment.id])],
+                "composition_mode": "comment",
+                "model": record._name,
+                "template_id": template.id,
+                "res_ids": record.ids,
+            }
+        )
         with self.mock_mail_gateway():
             _mail, message = mail_compose_message._action_send_mail()
         self.assertMailNotifications(
             message,
-            [{
-                'content': f'Hello {record.name}',
-                # not mail.thread -> automatically transformed using message_notify
-                'message_type': 'user_notification',
-                'notif': [{'partner': self.partner_1, 'type': 'email',}],
-            }],
+            [
+                {
+                    "content": f"Hello {record.name}",
+                    # not mixin.mail.thread -> automatically transformed using message_notify
+                    "message_type": "user_notification",
+                    "notif": [
+                        {
+                            "partner": self.partner_1,
+                            "type": "email",
+                        }
+                    ],
+                }
+            ],
         )
 
-    @users('employee')
+    @users("employee")
     def test_mail_composer_mail_with_template(self):
-        """ This test simulates scenarios where a required method called `_process_attachments_for_post` is missing,
-        in such case composer should fallback to the method implementation in mail.thread. """
+        """This test simulates scenarios where a required method called `_process_attachments_for_post` is missing,
+        in such case composer should fallback to the method implementation in mail.thread."""
         record = self.test_record_nothread.with_env(self.env)
         template = self.test_template.with_env(self.env)
-        mail_compose_message = self.env['mail.compose.message'].create({
-            'composition_mode': 'mass_mail',
-            'model': 'mail.test.nothread',
-            'template_id': template.id,
-            'res_ids': record.ids,
-            'attachment_ids': [(6, 0, [self.test_attachment.id])]
-        })
+        mail_compose_message = self.env["mail.compose.message"].create(
+            {
+                "composition_mode": "mass_mail",
+                "model": "mail.test.nothread",
+                "template_id": template.id,
+                "res_ids": record.ids,
+                "attachment_ids": [(6, 0, [self.test_attachment.id])],
+            }
+        )
         with self.mock_mail_gateway():
             mail_compose_message.action_send_mail()
-        self.assertEqual(self._new_mails.attachment_ids['datas'], base64.b64encode(b'This is test attachment content'),
-            "The attachment was not included correctly in the sent message")
+        self.assertEqual(
+            self._new_mails.attachment_ids["datas"],
+            base64.b64encode(b"This is test attachment content"),
+            "The attachment was not included correctly in the sent message",
+        )
 
-    @users('employee')
+    @users("employee")
     def test_mail_template_send_mail(self):
         template = self.test_template.with_env(self.env)
         test_record = self.test_record_nothread.with_env(self.env)
         with self.mock_mail_gateway():
             template.send_mail(
                 test_record.id,
-                email_layout_xmlid='mail.mail_notification_light',
+                email_layout_xmlid="mail.mail_notification_light",
             )
         self.assertMailMail(
             self.partner_1,
-            'outgoing',
+            "outgoing",
         )
 
-    @users('employee')
+    @users("employee")
     def test_message_to_store(self):
-        """ Test formatting of messages when linked to non-thread models.
+        """Test formatting of messages when linked to non-thread models.
         Format could be asked notably if an inbox notification due to a
-        'message_notify' happens. """
+        'message_notify' happens."""
         test_record = self.test_record_nothread.with_env(self.env)
 
-        message = self.env['mail.message'].create({
-            'model': test_record._name,
-            'res_id': test_record.id,
-        })
+        message = self.env["mail.message"].create(
+            {
+                "model": test_record._name,
+                "res_id": test_record.id,
+            }
+        )
         formatted = Store().add(message).get_result()["mail.message"][0]
-        self.assertEqual(formatted['default_subject'], test_record.name)
-        self.assertEqual(formatted['record_name'], test_record.name)
+        self.assertEqual(formatted["default_subject"], test_record.name)
+        self.assertEqual(formatted["record_name"], test_record.name)
 
-        test_record.write({'name': 'Just Test'})
-        message.invalidate_recordset(['record_name'])
+        test_record.write({"name": "Just Test"})
+        message.invalidate_recordset(["record_name"])
         formatted = Store().add(message).get_result()["mail.message"][0]
-        self.assertEqual(formatted['default_subject'], 'Just Test')
-        self.assertEqual(formatted['record_name'], 'Just Test')
+        self.assertEqual(formatted["default_subject"], "Just Test")
+        self.assertEqual(formatted["record_name"], "Just Test")
 
-    @users('employee')
+    @users("employee")
     def test_message_notify(self):
-        """ Test notifying on non-thread models, using MailThread as an abstract
+        """Test notifying on non-thread models, using MixinMailThread as an abstract
         class with model and res_id giving the record used for notification.
 
-        Test default subject computation is also tested. """
+        Test default subject computation is also tested."""
         test_record = self.test_record_nothread.with_env(self.env)
 
         for subject in ["Test Notify", False]:
             with self.subTest():
-                with self.assertPostNotifications([{
-                        'content': 'Hello Paulo',
-                        'email_values': {
-                            'reply_to': tools.mail.formataddr((
-                                self.partner_employee.name,
-                                self.company_admin.catchall_email,
-                            )),
-                        },
-                        'message_type': 'user_notification',
-                        'notif': [{
-                            'check_send': True,
-                            'is_read': True,
-                            'partner': self.partner_2,
-                            'status': 'sent',
-                            'type': 'email',
-                        }],
-                        'subtype': 'mail.mt_note',
-                    }]):
-                    _message = self.env['mail.thread'].message_notify(
-                        body='<p>Hello Paulo</p>',
+                with self.assertPostNotifications(
+                    [
+                        {
+                            "content": "Hello Paulo",
+                            "email_values": {
+                                "reply_to": tools.mail.formataddr(
+                                    (
+                                        self.partner_employee.name,
+                                        self.company_admin.catchall_email,
+                                    )
+                                ),
+                            },
+                            "message_type": "user_notification",
+                            "notif": [
+                                {
+                                    "check_send": True,
+                                    "is_read": True,
+                                    "partner": self.partner_2,
+                                    "status": "sent",
+                                    "type": "email",
+                                }
+                            ],
+                            "subtype": "mail.mt_note",
+                        }
+                    ]
+                ):
+                    _message = self.env["mixin.mail.thread"].message_notify(
+                        body="<p>Hello Paulo</p>",
                         model=test_record._name,
                         partner_ids=self.partner_2.ids,
                         res_id=test_record.id,
                         subject=subject,
                     )
 
-    @users('employee')
+    @users("employee")
     def test_message_notify_composer(self):
-        """ Test comment mode on composer which triggers a notify when model
-        does not inherit from mail thread. """
-        test_records, _test_partners = self._create_records_for_batch('mail.test.nothread', 2)
+        """Test comment mode on composer which triggers a notify when model
+        does not inherit from mail thread."""
+        test_records, _test_partners = self._create_records_for_batch(
+            "mail.test.nothread", 2
+        )
 
-        test_reports = self.env['ir.actions.report'].sudo().create([
+        test_reports = (
+            self.env["ir.actions.report"]
+            .sudo()
+            .create(
+                [
+                    {
+                        "name": "Test Report on Mail Test Ticket",
+                        "model": test_records._name,
+                        "print_report_name": "'TestReport for %s' % object.name",
+                        "report_type": "qweb-pdf",
+                        "report_name": "test_mail.mail_test_ticket_test_template",
+                    },
+                    {
+                        "name": "Test Report 2 on Mail Test Ticket",
+                        "model": test_records._name,
+                        "print_report_name": "'TestReport2 for %s' % object.name",
+                        "report_type": "qweb-pdf",
+                        "report_name": "test_mail.mail_test_ticket_test_template_2",
+                    },
+                ]
+            )
+        )
+        test_template = self.env["mail.template"].create(
             {
-                'name': 'Test Report on Mail Test Ticket',
-                'model': test_records._name,
-                'print_report_name': "'TestReport for %s' % object.name",
-                'report_type': 'qweb-pdf',
-                'report_name': 'test_mail.mail_test_ticket_test_template',
-            }, {
-                'name': 'Test Report 2 on Mail Test Ticket',
-                'model': test_records._name,
-                'print_report_name': "'TestReport2 for %s' % object.name",
-                'report_type': 'qweb-pdf',
-                'report_name': 'test_mail.mail_test_ticket_test_template_2',
+                "auto_delete": True,
+                "body_html": '<p>TemplateBody <t t-esc="object.name"></t></p>',
+                "email_from": "{{ (user.email_formatted) }}",
+                "email_to": "",
+                "mail_server_id": self.mail_server_domain.id,
+                "partner_to": '{{ object.customer_id.id if object.customer_id else "" }}',
+                "name": "TestTemplate",
+                "model_id": self.env["ir.model"]._get(test_records._name).id,
+                "reply_to": '{{ ctx.get("custom_reply_to") or "info@test.example.com" }}',
+                "report_template_ids": [(6, 0, test_reports.ids)],
+                "scheduled_date": "{{ (object.create_date or datetime.datetime(2022, 12, 26, 18, 0, 0)) + datetime.timedelta(days=2) }}",
+                "subject": "TemplateSubject {{ object.name }}",
             }
-        ])
-        test_template = self.env['mail.template'].create({
-            'auto_delete': True,
-            'body_html': '<p>TemplateBody <t t-esc="object.name"></t></p>',
-            'email_from': '{{ (user.email_formatted) }}',
-            'email_to': '',
-            'mail_server_id': self.mail_server_domain.id,
-            'partner_to': '{{ object.customer_id.id if object.customer_id else "" }}',
-            'name': 'TestTemplate',
-            'model_id': self.env['ir.model']._get(test_records._name).id,
-            'reply_to': '{{ ctx.get("custom_reply_to") or "info@test.example.com" }}',
-            'report_template_ids': [(6, 0, test_reports.ids)],
-            'scheduled_date': '{{ (object.create_date or datetime.datetime(2022, 12, 26, 18, 0, 0)) + datetime.timedelta(days=2) }}',
-            'subject': 'TemplateSubject {{ object.name }}',
-        })
-        attachment_data = self._generate_attachments_data(2, test_template._name, test_template.id)
-        test_template.write({'attachment_ids': [(0, 0, a) for a in attachment_data]})
+        )
+        attachment_data = self._generate_attachments_data(
+            2, test_template._name, test_template.id
+        )
+        test_template.write({"attachment_ids": [(0, 0, a) for a in attachment_data]})
 
         ctx = {
-            'default_composition_mode': 'comment',
-            'default_model': test_records._name,
-            'default_res_domain': [('id', 'in', test_records.ids)],
-            'default_template_id': test_template.id,
+            "default_composition_mode": "comment",
+            "default_model": test_records._name,
+            "default_res_domain": [("id", "in", test_records.ids)],
+            "default_template_id": test_template.id,
         }
         # open a composer and run it in comment mode
-        composer_form = Form(self.env['mail.compose.message'].with_context(ctx))
+        composer_form = Form(self.env["mail.compose.message"].with_context(ctx))
         composer = composer_form.save()
 
         with self.mock_mail_gateway(mail_unlink_sent=False), self.mock_mail_app():
@@ -1600,37 +2349,357 @@ class TestNoThread(MailCommon, TestRecipients):
         self.assertEqual(len(messages), 2)
         for record, message in zip(test_records, messages, strict=True):
             self.assertEqual(
-                sorted(message.mapped('attachment_ids.name')),
-                sorted(['AttFileName_00.txt', 'AttFileName_01.txt',
-                        f'TestReport2 for {record.name}.html',
-                        f'TestReport for {record.name}.html'])
+                sorted(message.mapped("attachment_ids.name")),
+                sorted(
+                    [
+                        "AttFileName_00.txt",
+                        "AttFileName_01.txt",
+                        f"TestReport2 for {record.name}.html",
+                        f"TestReport for {record.name}.html",
+                    ]
+                ),
             )
-        self.assertEqual(len(messages.attachment_ids), 8, 'No attachments should be shared')
+        self.assertEqual(
+            len(messages.attachment_ids), 8, "No attachments should be shared"
+        )
 
-    @users('employee')
+    @users("employee")
     def test_message_notify_norecord(self):
-        """ Test notifying on no record, just using the abstract model itself. """
-        with self.assertPostNotifications([{
-                'content': 'Hello Paulo',
-                'email_values': {
-                    'reply_to': tools.mail.formataddr((
-                        self.partner_employee.name,
-                        self.company_admin.catchall_email,
-                    )),
-                    'subject': 'Test Notify',
-                },
-                'message_type': 'user_notification',
-                'notif': [{
-                    'check_send': True,
-                    'is_read': True,
-                    'partner': self.partner_2,
-                    'status': 'sent',
-                    'type': 'email',
-                }],
-                'subtype': 'mail.mt_note',
-            }]):
-            _message = self.env['mail.thread'].message_notify(
-                body=Markup('<p>Hello Paulo</p>'),
+        """Test notifying on no record, just using the abstract model itself."""
+        with self.assertPostNotifications(
+            [
+                {
+                    "content": "Hello Paulo",
+                    "email_values": {
+                        "reply_to": tools.mail.formataddr(
+                            (
+                                self.partner_employee.name,
+                                self.company_admin.catchall_email,
+                            )
+                        ),
+                        "subject": "Test Notify",
+                    },
+                    "message_type": "user_notification",
+                    "notif": [
+                        {
+                            "check_send": True,
+                            "is_read": True,
+                            "partner": self.partner_2,
+                            "status": "sent",
+                            "type": "email",
+                        }
+                    ],
+                    "subtype": "mail.mt_note",
+                }
+            ]
+        ):
+            _message = self.env["mixin.mail.thread"].message_notify(
+                body=Markup("<p>Hello Paulo</p>"),
                 partner_ids=self.partner_2.ids,
-                subject='Test Notify',
+                subject="Test Notify",
             )
+
+
+@tagged("mail_thread", "mail_tools")
+class TestBaseFieldRendering(MailCommon):
+    """`_mail_get_field_path_value` and the helpers under it.
+
+    That cluster -- the path walk, the per-type formatter and the timezone
+    lookup -- is 54 lines of community code with no community caller: only
+    `enterprise/whatsapp` reads it, through `whatsapp.template.variable`. A
+    tracer over the whole `/mail,/test_mail` run executed **none** of it, so
+    every one of its branches could change meaning without anything here
+    noticing. These tests exist to make that false.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.tz_partner = cls.env["res.partner"].create(
+            {
+                "name": "Tokyo Contact",
+                "email": "tokyo@test.example.com",
+                "tz": "Asia/Tokyo",
+            }
+        )
+        cls.record = cls.env["mail.test.track.all"].create(
+            {
+                "boolean_field": True,
+                "char_field": "Some Char",
+                "company_id": cls.env.company.id,
+                "date_field": "2024-06-07",
+                "datetime_field": "2024-06-07 08:00:00",
+                "float_field": 12.3456,
+                "float_field_with_digits": 12.3456,
+                "integer_field": 42,
+                "many2one_field_id": cls.tz_partner.id,
+                "monetary_field": 1234.5,
+                "name": "Track All",
+                "selection_field": "first",
+                "text_field": "Some Text",
+            }
+        )
+
+    def test_mail_get_field_path_value_per_type(self):
+        """One assertion per branch of `_mail_format_field_value`."""
+        record = self.record
+        self.assertEqual(record._mail_get_field_path_value("char_field"), "Some Char")
+        self.assertEqual(record._mail_get_field_path_value("text_field"), "Some Text")
+        self.assertEqual(record._mail_get_field_path_value("integer_field"), "42")
+        self.assertEqual(
+            record._mail_get_field_path_value("selection_field"),
+            "FIRST",
+            "selection renders its label, not its stored key",
+        )
+        self.assertEqual(
+            record._mail_get_field_path_value("boolean_field"),
+            "Yes",
+            "booleans are translated words, and are the one type kept when falsy",
+        )
+        self.assertIn("2024", record._mail_get_field_path_value("date_field"))
+        self.assertIn("2024", record._mail_get_field_path_value("datetime_field"))
+        # float honours the field's digits, monetary its currency
+        self.assertEqual(
+            record._mail_get_field_path_value("float_field_with_digits"),
+            "12.34560000",
+            "digits=(10, 8) means eight decimals",
+        )
+        self.assertNotEqual(
+            record._mail_get_field_path_value("float_field"),
+            record._mail_get_field_path_value("float_field_with_digits"),
+            "the two floats differ only by their digits, so the rendering must too",
+        )
+        self.assertIn("1,234.5", record._mail_get_field_path_value("monetary_field"))
+
+    def test_mail_get_field_path_value_falsy_and_void(self):
+        """Falsy values are dropped, except booleans; a void recordset renders
+        nothing rather than raising."""
+        void = self.env["mail.test.track.all"]
+        blank = self.env["mail.test.track.all"].create({"name": "Blank"})
+        self.assertEqual(blank._mail_get_field_path_value("char_field"), "")
+        self.assertEqual(
+            blank._mail_get_field_path_value("boolean_field"),
+            "No",
+            "a False boolean still renders -- `keep_falsy` exists for this",
+        )
+        self.assertEqual(blank._mail_get_field_path_value(""), "")
+        self.assertEqual(void._mail_get_field_path_value(""), "")
+        self.assertEqual(
+            void._mail_get_field_path_value("char_field"),
+            "",
+            "no record means nothing to join, not a crash",
+        )
+
+    def test_mail_get_field_path_value_relational_and_paths(self):
+        """Relational fields render display names; a dotted path walks first."""
+        self.assertEqual(
+            self.record._mail_get_field_path_value("many2one_field_id"),
+            self.tz_partner.display_name,
+        )
+        self.assertEqual(
+            self.record._mail_get_field_path_value("many2one_field_id.name"),
+            "Tokyo Contact",
+            "a dotted path resolves against the related model",
+        )
+
+    def test_mail_get_field_path_value_invalid_path(self):
+        """Every way of naming a bad path gets the message that names the path.
+
+        A missing field raises KeyError and a path walking *through* a scalar
+        ("char_field.name") raises AttributeError -- two exceptions, one meaning
+        to the caller, so both must produce the specific message rather than
+        only the first one doing so.
+        """
+        for path in (
+            "no_such_field",
+            "many2one_field_id.no_such_field",
+            "no_such_relation.name",
+            "char_field.name",
+            "integer_field.name",
+            "char_field.",
+        ):
+            with self.subTest(field_path=path):
+                with self.assertRaises(exceptions.UserError) as caught:
+                    self.record._mail_get_field_path_value(path)
+                self.assertIn(
+                    "does not seem to be a valid field path", str(caught.exception)
+                )
+                self.assertIn(path, str(caught.exception))
+
+    @mute_logger("odoo.addons.mail.models.base")
+    def test_mail_get_field_path_value_keeps_access_errors(self):
+        """An AccessError must reach the caller as an AccessError.
+
+        It is a UserError subclass carrying a message that already says what
+        went wrong and for whom; re-wrapping it as "we were not able to fetch
+        value of field X" loses that and tells the reader nothing they can act
+        on.
+        """
+        with patch.object(
+            type(self.record),
+            "mapped",
+            side_effect=exceptions.AccessError("nope, not for you"),
+        ):
+            with self.assertRaises(exceptions.AccessError) as caught:
+                self.record._mail_get_field_path_value("many2one_field_id.name")
+        self.assertIn("nope, not for you", str(caught.exception))
+
+    @mute_logger("odoo.addons.mail.models.base")
+    def test_mail_get_field_path_value_wraps_the_unexpected(self):
+        """Anything that is neither a bad path nor a UserError still gets the
+        friendly message -- and leaves its traceback in the log."""
+        with patch.object(
+            type(self.record), "mapped", side_effect=ZeroDivisionError("boom")
+        ):
+            with self.assertRaises(exceptions.UserError) as caught:
+                self.record._mail_get_field_path_value("many2one_field_id.name")
+        self.assertIn("not able to fetch", str(caught.exception))
+
+    def test_mail_get_field_path_value_datetime_timezone(self):
+        """PINS A KNOWN AMBIGUITY, so that changing it has to be deliberate.
+
+        `_mail_format_field_value` receives the record the value belongs to and
+        then reads the timezone off `self`. So the same partner's datetime
+        renders in the partner's timezone when asked directly, and in the
+        reader's when reached through a path from another record. Both readings
+        are defensible; the point of this test is that the code currently picks
+        between them by the *shape of the path*, and nothing said so.
+        """
+        self.env.user.tz = "Europe/Brussels"
+        direct = self.tz_partner._mail_get_field_path_value("create_date")
+        through_path = self.record._mail_get_field_path_value(
+            "many2one_field_id.create_date"
+        )
+        self.assertIn("Asia/Tokyo", direct, "self carries a tz field, so self wins")
+        self.assertIn(
+            "Europe/Brussels",
+            through_path,
+            "the owning record's tz is ignored; the caller's user tz is used",
+        )
+        self.assertNotEqual(direct, through_path)
+
+    def test_mail_get_timezone(self):
+        """The first populated timezone-ish field wins; None when there is none."""
+        self.assertEqual(self.tz_partner._mail_get_timezone(), "Asia/Tokyo")
+        self.assertIsNone(
+            self.record._mail_get_timezone(),
+            "mail.test.track.all carries no tz field at all",
+        )
+        self.assertIsNone(
+            self.env["res.partner"].create({"name": "No TZ"})._mail_get_timezone()
+        )
+
+
+@tagged("mail_thread", "mail_tools")
+class TestBaseMailHooks(MailCommon):
+    """The remaining `base` hooks that no `/mail,/test_mail` test reached."""
+
+    def test_mail_get_message_subtypes(self):
+        """Model-specific subtypes plus the generic ones, never the hidden."""
+        subtypes = self.env["mail.test.simple"]._mail_get_message_subtypes()
+        self.assertTrue(subtypes)
+        self.assertFalse(
+            subtypes.filtered("hidden"), "hidden subtypes are never offered"
+        )
+        self.assertTrue(
+            all(
+                subtype.res_model in (False, "mail.test.simple") for subtype in subtypes
+            ),
+            "another model's subtypes must not leak in",
+        )
+        self.assertIn(self.env.ref("mail.mt_comment"), subtypes)
+
+    def test_mail_get_partner_fields_public(self):
+        """The RPC surface the web client calls: many2one partner fields only."""
+        record_model = self.env["mail.test.ticket"]
+        public = record_model.mail_get_partner_fields()
+        private = record_model._mail_get_partner_fields()
+        self.assertTrue(set(public) <= set(private))
+        self.assertTrue(
+            all(record_model._fields[fname].type == "many2one" for fname in public),
+            "the public variant exists to drop the x2many ones",
+        )
+
+    def test_get_backend_root_menu_ids(self):
+        self.assertEqual(self.env["mail.test.simple"]._get_backend_root_menu_ids(), [])
+
+    def _activity_on(self, record):
+        return self.env["mail.activity"].create(
+            {
+                "activity_type_id": self.env.ref("mail.mail_activity_data_todo").id,
+                "res_id": record.id,
+                "res_model_id": self.env["ir.model"]._get_id(record._name),
+                "user_id": self.env.uid,
+            }
+        )
+
+    def test_unlink_sweeps_activities_on_a_model_without_the_mixin(self):
+        """THE REASON `unlink` CANNOT SKIP MODELS WITHOUT `activity_ids`.
+
+        `mail.activity.res_model` is a related field on `res_model_id`, an
+        `ir.model`, and nothing ties it to `mixin.mail.activity` -- so an
+        activity on a model that never heard of activities is accepted. With no
+        foreign key behind `res_id` (it is a `Many2oneReference`), the sweep in
+        `Base.unlink` is the only thing that ever collects it, and narrowing
+        that sweep to models carrying `activity_ids` would orphan this row.
+        """
+        record = self.env["ir.logging"].create(
+            {
+                "dbname": self.env.cr.dbname,
+                "func": "f",
+                "level": "INFO",
+                "line": "1",
+                "message": "m",
+                "name": "test",
+                "path": "p",
+                "type": "server",
+            }
+        )
+        self.assertNotIn("activity_ids", record._fields)
+        activity = self._activity_on(record)
+        self.env.flush_all()
+        record.unlink()
+        self.assertFalse(activity.exists(), "the orphan must not survive its record")
+
+    def test_unlink_sweeps_activities_repointed_but_not_flushed(self):
+        """An activity repointed by an unflushed write is still swept.
+
+        The sweep probes in SQL, and a raw statement cannot see a pending write
+        to `res_id`. This pins the observable behaviour rather than the
+        mechanism: it passes with `flush_model` removed too, because `unlink`
+        has already flushed by then. Kept because the contract is what matters
+        and the mechanism may not always hold, not because it isolates the
+        flush -- it does not, and no test here does.
+        """
+        first, second = self.env["mail.test.activity"].create(
+            [{"name": "First"}, {"name": "Second"}]
+        )
+        activity = self._activity_on(first)
+        self.env.flush_all()
+        activity.res_id = second.id  # deferred write, deliberately not flushed
+        second.unlink()
+        self.assertFalse(
+            activity.exists(),
+            "the pending res_id must be visible to the sweep's probe",
+        )
+
+    def test_unlink_sweeps_activities_in_batch(self):
+        records = self.env["mail.test.activity"].create(
+            [{"name": f"Batch {index}"} for index in range(5)]
+        )
+        activities = self.env["mail.activity"].union(
+            *(self._activity_on(record) for record in records)
+        )
+        self.env.flush_all()
+        records.unlink()
+        self.assertFalse(activities.exists())
+
+    def test_get_default_activity_view(self):
+        """Reached only through `getattr(self, f'_get_default_{view_type}_view')`
+        in `ir_ui_view_base`, so a rename here fails silently at runtime."""
+        arch = self.env["mail.test.activity"]._get_default_activity_view()
+        self.assertEqual(arch.tag, "activity")
+        self.assertEqual(
+            arch.get("string"), self.env["mail.test.activity"]._description
+        )
+        self.assertTrue(arch.findall(".//templates/div[@t-name='activity-box']/field"))

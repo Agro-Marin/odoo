@@ -38,7 +38,7 @@ class TestSMSComposerComment(SMSCommon, TestSMSRecipients):
 
     def test_composer_comment_not_mail_thread(self):
         with self.with_user('employee'):
-            # any model that is NOT a mail.thread -- 'test_performance.base'
+            # any model that is NOT a mixin.mail.thread -- 'test_performance.base'
             # was used until the test_performance addon was folded into
             # test_orm, leaving this test erroring on an unknown model.
             # test_orm.category is a plain model reachable from our depends.

@@ -13,7 +13,7 @@ from odoo.tests import tagged
 class TestSMSPost(SMSCommon, TestSMSRecipients, CronMixinCase):
     """ TODO
 
-      * add tests for new mail.message and mail.thread fields;
+      * add tests for new mail.message and mixin.mail.thread fields;
     """
 
     @classmethod
@@ -28,6 +28,65 @@ class TestSMSPost(SMSCommon, TestSMSRecipients, CronMixinCase):
             'phone_nbr': cls.test_numbers[1],
         })
         cls.test_record = cls._reset_mail_context(cls.test_record)
+
+    def test_sms_channel_survives_notify_skip_followers(self):
+        """Skipping followers must not turn an SMS into an email.
+
+        ``notify_skip_followers`` used to be expressed by handing
+        ``_get_recipient_data`` the string ``user_notification`` in place of
+        the real message type. That string is what the base method reads to
+        drop followers -- and ``message_type`` is also what this addon reads to
+        pick the delivery channel, so the flag silently rerouted it to email.
+        """
+        for skip_followers in (False, True):
+            with self.subTest(skip_followers=skip_followers):
+                record = self.env['mail.test.sms'].create({
+                    'name': 'Skip %s' % skip_followers,
+                    'customer_id': self.partner_1.id,
+                    'phone_nbr': self.test_numbers[1],
+                })
+                with self.mockSMSGateway():
+                    message = record.message_post(
+                        body='hi', message_type='sms',
+                        subtype_id=self.env.ref('mail.mt_note').id,
+                        partner_ids=self.partner_1.ids,
+                        notify_skip_followers=skip_followers,
+                    )
+                self.assertEqual(
+                    message.sudo().notification_ids.notification_type, 'sms',
+                    'an SMS is delivered by SMS whether or not followers are skipped',
+                )
+
+    def test_message_sms_marks_only_the_addressed_partners(self):
+        """SMS goes to the partners the SMS names, not to whoever follows.
+
+        `mail.followers._get_recipient_data` returns followers and explicit
+        recipients in one dict; the `sms` override is what tells them apart, by
+        setting `notif` to `sms` for the named partners only. It used to branch
+        on `pids is None` vs `pids == []` as well, a distinction the base method
+        erases with `list(pids or [])` before the override ever sees it.
+        """
+        Followers = self.env['mail.followers']
+        test_record = self.env['mail.test.sms'].browse(self.test_record.id)
+        test_record.message_subscribe(partner_ids=self.partner_2.ids)
+        self.env.flush_all()
+        subtype_id = self.env.ref('mail.mt_note').id
+
+        addressed = Followers._get_recipient_data(
+            test_record, 'sms', subtype_id, self.partner_1.ids)[test_record.id]
+        self.assertEqual(addressed[self.partner_1.id]['notif'], 'sms')
+        self.assertNotEqual(
+            addressed[self.partner_2.id]['notif'], 'sms',
+            'a follower who was not addressed does not get a text message')
+
+        # no explicit recipients: nobody is upgraded to sms
+        for pids in ([], None):
+            with self.subTest(pids=pids):
+                data = Followers._get_recipient_data(
+                    test_record, 'sms', subtype_id, pids)[test_record.id]
+                self.assertFalse(
+                    [p for p, d in data.items() if d['notif'] == 'sms'],
+                    'None and [] mean the same thing to the base method')
 
     def test_message_sms_internals_body(self):
         with self.with_user('employee'), self.mockSMSGateway():

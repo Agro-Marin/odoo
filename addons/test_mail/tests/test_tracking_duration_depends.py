@@ -72,11 +72,11 @@ class TestDurationTrackingInvalidates(MailCommon):
     def test_a_model_without_a_tracked_field_still_sets_up(self):
         """The dependency is resolved per model, so it must tolerate absence.
 
-        ``mail.tracking.duration.mixin`` itself declares no
+        ``mixin.mail.tracking.duration`` itself declares no
         ``_track_duration_field``; a callable ``@api.depends`` that assumed one
         would break registry setup rather than this assertion.
         """
-        mixin = self.env["mail.tracking.duration.mixin"]
+        mixin = self.env["mixin.mail.tracking.duration"]
         self.assertEqual(mixin._get_duration_tracking_depends_fields(), [])
         self.assertEqual(
             self.env[

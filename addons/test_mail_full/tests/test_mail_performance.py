@@ -75,7 +75,10 @@ class TestMailPerformance(FullBaseMailPerformance):
         self.push_to_end_point_mocked.reset_mock()  # reset as executed twice
         self.flush_tracking()
 
-        with self.assertQueryCount(employee=108):  # test_mail_full: 106
+        # 108 -> 105: the send batch's pending-notification snapshot now answers
+        # "none" for a mail it does not list, instead of sending _mark_sending and
+        # _postprocess_sent_message back to a per-mail search.
+        with self.assertQueryCount(employee=105):  # test_mail_full: 106
             new_message = record_ticket.message_post(
                 attachment_ids=attachments.ids,
                 body=Markup('<p>Test Content</p>'),
