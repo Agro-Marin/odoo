@@ -1,11 +1,14 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from collections import defaultdict
+from itertools import starmap
+
+from markupsafe import Markup
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
-from odoo.tools import float_compare
+from odoo.tools import float_compare, formatLang
 from odoo.tools.misc import OrderedSet, clean_context
 
 
@@ -1207,6 +1210,126 @@ class MrpBomLine(models.Model):
                     self.env["product.product"].browse(values["product_id"]).uom_id.id
                 )
         return super().create(vals_list)
+
+    # Component changes worth an entry in the parent BoM chatter. `sequence` is
+    # deliberately out: reordering the components rewrites it on every line at once
+    # and would bury the real edits. So are the stored related fields
+    # (`product_tmpl_id`, `company_id`), which the ORM rewrites by itself.
+    CHATTER_TRACKED_FIELDS = (
+        "product_id",
+        "product_qty",
+        "product_uom_id",
+        "operation_id",
+        "bom_product_template_attribute_value_ids",
+    )
+
+    def write(self, vals):
+        tracked = [name for name in self.CHATTER_TRACKED_FIELDS if name in vals]
+        if not tracked or self._chatter_is_muted():
+            return super().write(vals)
+
+        # Snapshot before the write, since the whole point is the old value. The
+        # component name is captured apart from the tracked values: it heads the
+        # chatter entry even when `product_id` itself is what changed.
+        before = {
+            line.id: (line.product_id.display_name, line._get_chatter_values(tracked))
+            for line in self
+        }
+        result = super().write(vals)
+
+        changes_by_bom = defaultdict(list)
+        for line in self:
+            component, old_values = before[line.id]
+            new_values = line._get_chatter_values(tracked)
+            changes = [
+                (line._get_chatter_label(name), old_values[name], new_values[name])
+                for name in tracked
+                if old_values[name] != new_values[name]
+            ]
+            if changes:
+                changes_by_bom[line.bom_id].append((component, changes))
+
+        for bom, entries in changes_by_bom.items():
+            bom.message_post(
+                body=Markup("{}<ul>{}</ul>").format(
+                    self.env._("Components updated:"),
+                    Markup("").join(
+                        Markup("<li><b>{}</b><ul>{}</ul></li>").format(
+                            component,
+                            Markup("").join(
+                                starmap(Markup("<li>{}: {} → {}</li>").format, changes)
+                            ),
+                        )
+                        for component, changes in entries
+                    ),
+                ),
+                subtype_xmlid="mail.mt_note",
+            )
+        return result
+
+    def unlink(self):
+        # Deleting a whole BoM cascades through `bom_id`'s `ondelete` in SQL, so it
+        # never reaches this override and never posts to a thread on its way out.
+        if self._chatter_is_muted():
+            return super().unlink()
+
+        for bom, lines in self.grouped("bom_id").items():
+            bom.message_post(
+                body=Markup("{}<ul>{}</ul>").format(
+                    self.env._("Components removed:"),
+                    Markup("").join(
+                        Markup("<li><b>{}</b> — {}: {} {}</li>").format(
+                            line.product_id.display_name,
+                            line._get_chatter_label("product_qty"),
+                            formatLang(self.env, line.product_qty, dp="Product Unit"),
+                            line.product_uom_id.display_name,
+                        )
+                        for line in lines
+                    ),
+                ),
+                subtype_xmlid="mail.mt_note",
+            )
+        return super().unlink()
+
+    def _chatter_is_muted(self):
+        """Whether this write should stay out of the parent BoM's chatter.
+
+        An entry that mimics field tracking has no business ignoring the switches
+        `mail.thread` itself obeys (`mail_thread.py:498`): module loading, imports
+        and `copy_data` already set them, and so does any bulk restamp that is not
+        a user editing a component -- `product.product._update_uom` being the one
+        in `mrp`, which would otherwise post to every BoM holding the product.
+        """
+        return bool(
+            self.env.context.get("tracking_disable")
+            or self.env.context.get("mail_notrack")
+        )
+
+    def _get_chatter_label(self, field_name):
+        """Translated label of a field, as the chatter entry should name it."""
+        return self._fields[field_name].get_description(
+            self.env, attributes=["string"]
+        )["string"]
+
+    def _get_chatter_values(self, field_names):
+        """Readable value of `field_names`, keyed by name, for one component line."""
+        self.ensure_one()
+        return {name: self._get_chatter_value(name) for name in field_names}
+
+    def _get_chatter_value(self, field_name):
+        """Render one field the way the chatter should show it, old or new."""
+        self.ensure_one()
+        field = self._fields[field_name]
+        value = self[field_name]
+        if field.relational:
+            return ", ".join(value.mapped("display_name")) or self.env._("(none)")
+        if field.type == "float":
+            # `product_qty` is the only tracked float, and it carries the "Product
+            # Unit" precision -- printing it raw would show its full binary tail.
+            return formatLang(self.env, value, dp="Product Unit")
+        if field.type == "selection":
+            return dict(field._description_selection(self.env)).get(value, value)
+        return str(value)
 
     def _skip_bom_line(self, product, never_attribute_values=False):
         """Control if a BoM line should be produced, can be inherited to add custom control.

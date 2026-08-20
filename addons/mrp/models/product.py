@@ -792,6 +792,15 @@ class ProductProduct(models.Model):
                             uom=template.uom_id.name,
                         )
                     )
+                if model == "mrp.bom.line":
+                    # Restamping the unit is a rename of the unit, not somebody
+                    # editing these BoMs: without `mail_notrack` every BoM holding
+                    # the product collects a "components updated" note from a
+                    # change made on the product form
+                    # (`mrp.bom.line._chatter_is_muted`). Scoped to the lines
+                    # rather than set for all three models, so it cannot silence a
+                    # `tracking=True` a later change puts on the other two.
+                    records = records.with_context(mail_notrack=True)
                 records.product_uom_id = to_uom_id
 
         return super()._update_uom(to_uom_id)

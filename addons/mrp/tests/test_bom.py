@@ -4508,3 +4508,183 @@ class TestTourBoM(HttpCase):
                 ],
             }
         )
+
+
+class TestBoMComponentChatter(TestMrpCommon):
+    """Component edits and removals are logged in the parent BoM chatter."""
+
+    def setUp(self):
+        super().setUp()
+        # The shared test environment arrives pre-muted -- its context carries
+        # `tracking_disable` and `mail_notrack`, the two switches this feature
+        # honours -- so every assertion here would pass without the code ever
+        # running, the silence ones vacuously. Work in an environment shaped
+        # like the user session the feature actually serves.
+        self.env = self.env(
+            context={
+                **self.env.context,
+                "tracking_disable": False,
+                "mail_notrack": False,
+            }
+        )
+        self.bom_1 = self.bom_1.with_env(self.env)
+        self.bom_2 = self.bom_2.with_env(self.env)
+
+    def _get_new_messages(self, bom, before):
+        return bom.message_ids - before
+
+    def test_write_tracked_field_logs_one_note(self):
+        bom = self.bom_1
+        line = bom.bom_line_ids.filtered(lambda l: l.product_id == self.product_2)
+        before = bom.message_ids
+
+        line.product_qty = 5.0
+
+        message = self._get_new_messages(bom, before)
+        self.assertEqual(len(message), 1)
+        self.assertEqual(message.subtype_id, self.env.ref("mail.mt_note"))
+        body = str(message.body)
+        self.assertIn(self.product_2.display_name, body)
+        self.assertIn(
+            "{} → {}".format(
+                float_repr(2.0, self.env["decimal.precision"].precision_get("Product Unit")),
+                float_repr(5.0, self.env["decimal.precision"].precision_get("Product Unit")),
+            ),
+            body,
+        )
+
+    def test_write_reports_every_changed_field(self):
+        bom = self.bom_1
+        line = bom.bom_line_ids.filtered(lambda l: l.product_id == self.product_2)
+        before = bom.message_ids
+
+        line.write({"product_id": self.product_3.id, "product_qty": 7.0})
+
+        body = str(self._get_new_messages(bom, before).body)
+        # The entry is headed by the component as it was, so the line stays
+        # identifiable after its product has been swapped out.
+        self.assertIn(self.product_2.display_name, body)
+        self.assertIn(self.product_3.display_name, body)
+        self.assertIn("Quantity", body)
+
+    def test_write_untracked_field_is_silent(self):
+        bom = self.bom_1
+        before = bom.message_ids
+
+        bom.bom_line_ids[0].sequence = 42
+
+        self.assertFalse(self._get_new_messages(bom, before))
+
+    def test_write_without_a_real_change_is_silent(self):
+        bom = self.bom_1
+        line = bom.bom_line_ids[0]
+        before = bom.message_ids
+
+        line.product_qty = line.product_qty
+
+        self.assertFalse(self._get_new_messages(bom, before))
+
+    def test_write_across_boms_posts_to_each_thread(self):
+        lines = self.bom_1.bom_line_ids[0] | self.bom_2.bom_line_ids[0]
+        before_1, before_2 = self.bom_1.message_ids, self.bom_2.message_ids
+
+        lines.product_qty = 9.0
+
+        self.assertEqual(len(self._get_new_messages(self.bom_1, before_1)), 1)
+        self.assertEqual(len(self._get_new_messages(self.bom_2, before_2)), 1)
+
+    def test_unlink_logs_the_removed_component(self):
+        bom = self.bom_1
+        line = bom.bom_line_ids.filtered(lambda l: l.product_id == self.product_2)
+        before = bom.message_ids
+
+        line.unlink()
+
+        message = self._get_new_messages(bom, before)
+        self.assertEqual(len(message), 1)
+        self.assertEqual(message.subtype_id, self.env.ref("mail.mt_note"))
+        body = str(message.body)
+        self.assertIn(self.product_2.display_name, body)
+        self.assertIn("Components removed", body)
+
+    def test_deleting_the_whole_bom_posts_nothing(self):
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": self.product_4.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "bom_line_ids": [
+                    Command.create({"product_id": self.product_2.id, "product_qty": 1}),
+                ],
+            }
+        )
+        bom_id = bom.id
+        bom.unlink()
+
+        self.assertFalse(
+            self.env["mail.message"].search_count(
+                [("model", "=", "mrp.bom"), ("res_id", "=", bom_id)]
+            )
+        )
+
+    def test_o2m_update_command_posts(self):
+        # The shape the web client actually saves: a write on the BoM carrying
+        # the whole one2many, not a write on the line. It reaches the override
+        # through `One2many.write_real`'s UPDATE branch.
+        bom = self.bom_1
+        line = bom.bom_line_ids.filtered(lambda l: l.product_id == self.product_2)
+        before = bom.message_ids
+
+        bom.write({"bom_line_ids": [Command.update(line.id, {"product_qty": 6.0})]})
+
+        message = self._get_new_messages(bom, before)
+        self.assertEqual(len(message), 1)
+        self.assertIn(self.product_2.display_name, str(message.body))
+
+    def test_o2m_delete_command_posts(self):
+        # Removing a component in the form sends DELETE, which the ORM defers to
+        # `flush()` and turns into a real `unlink()` because `bom_id` cascades.
+        bom = self.bom_1
+        line = bom.bom_line_ids.filtered(lambda l: l.product_id == self.product_2)
+        before = bom.message_ids
+
+        bom.write({"bom_line_ids": [Command.delete(line.id)]})
+
+        body = str(self._get_new_messages(bom, before).body)
+        self.assertIn("Components removed", body)
+        self.assertIn(self.product_2.display_name, body)
+
+    def test_restamping_the_unit_from_the_product_is_silent(self):
+        # `product.product._update_uom` rewrites `product_uom_id` on every line
+        # holding the product. That is the unit being renamed, not somebody
+        # editing these BoMs, so it must not reach their chatter.
+        component = self.env["product.product"].create(
+            {"name": "Restamped component", "uom_id": self.uom_unit.id}
+        )
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": self.product_4.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 3}),
+                ],
+            }
+        )
+        before = bom.message_ids
+
+        component.product_tmpl_id.uom_id = self.uom_dozen
+
+        # The restamp really happened -- the silence is the override standing
+        # down, not the write being refused upstream.
+        self.assertEqual(bom.bom_line_ids.product_uom_id, self.uom_dozen)
+        self.assertFalse(self._get_new_messages(bom, before))
+
+    def test_the_frameworks_tracking_switches_are_honoured(self):
+        bom = self.bom_1
+        line = bom.bom_line_ids[0]
+        before = bom.message_ids
+
+        line.with_context(tracking_disable=True).product_qty = 11.0
+        line.with_context(mail_notrack=True).product_qty = 12.0
+        line.with_context(mail_notrack=True).unlink()
+
+        self.assertFalse(self._get_new_messages(bom, before))
