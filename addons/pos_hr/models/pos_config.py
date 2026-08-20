@@ -6,7 +6,7 @@ from odoo.fields import Domain
 
 class PosConfig(models.Model):
     _name = 'pos.config'
-    _inherit = ['hr.mixin', 'pos.config']
+    _inherit = ['mixin.hr', 'pos.config']
 
     minimal_employee_ids = fields.Many2many(
         'hr.employee', 'pos_hr_minimal_employee_hr_employee', string="Employees with minimal access",

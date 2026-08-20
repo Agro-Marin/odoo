@@ -3,7 +3,7 @@ from odoo import api, fields, models
 
 class ProductAttribute(models.Model):
     _name = "product.attribute"
-    _inherit = ["product.attribute", "pos.load.mixin"]
+    _inherit = ["product.attribute", "mixin.pos.load"]
 
     @api.model
     def _load_pos_data_fields(self, config):
@@ -12,7 +12,7 @@ class ProductAttribute(models.Model):
 
 class ProductAttributeCustomValue(models.Model):
     _name = "product.attribute.custom.value"
-    _inherit = ["product.attribute.custom.value", "pos.load.mixin"]
+    _inherit = ["product.attribute.custom.value", "mixin.pos.load"]
 
     pos_order_line_id = fields.Many2one(
         "pos.order.line",
@@ -39,7 +39,7 @@ class ProductAttributeCustomValue(models.Model):
 
 class ProductTemplateAttributeLine(models.Model):
     _name = "product.template.attribute.line"
-    _inherit = ["product.template.attribute.line", "pos.load.mixin"]
+    _inherit = ["product.template.attribute.line", "mixin.pos.load"]
 
     @api.model
     def _load_pos_data_fields(self, config):
@@ -53,7 +53,7 @@ class ProductTemplateAttributeLine(models.Model):
 
 class ProductTemplateAttributeValue(models.Model):
     _name = "product.template.attribute.value"
-    _inherit = ["product.template.attribute.value", "pos.load.mixin"]
+    _inherit = ["product.template.attribute.value", "mixin.pos.load"]
 
     @api.model
     def _load_pos_data_domain(self, data, config):
@@ -92,7 +92,7 @@ class ProductTemplateAttributeValue(models.Model):
 
 class ProductTemplateAttributeExclusion(models.Model):
     _name = "product.template.attribute.exclusion"
-    _inherit = ["product.template.attribute.exclusion", "pos.load.mixin"]
+    _inherit = ["product.template.attribute.exclusion", "mixin.pos.load"]
 
     @api.model
     def _load_pos_data_domain(self, data, config):

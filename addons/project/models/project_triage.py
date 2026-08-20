@@ -22,7 +22,7 @@ class ProjectTriage(models.Model):
 
     _name = "project.triage"
     _description = "Personal Task Triage Bucket"
-    _inherit = ["project.pm.mixin"]
+    _inherit = ["mixin.project.pm"]
     _order = "sequence, id"
 
     active = fields.Boolean("Active", default=True, export_string_translation=False)

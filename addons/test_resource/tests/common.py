@@ -115,7 +115,7 @@ class TestResourceCommon(TransactionCase):
             "Europe/Brussels",
         )
 
-        # Employee is linked to a resource.resource via resource.mixin
+        # Employee is linked to a resource.resource via mixin.resource
         cls.jean = cls.env["resource.test"].create(
             {
                 "name": "Jean",

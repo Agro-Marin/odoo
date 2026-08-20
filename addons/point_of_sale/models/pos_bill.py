@@ -6,7 +6,7 @@ class PosBill(models.Model):
     _name = "pos.bill"
     _order = "value"
     _description = "Coins/Bills"
-    _inherit = ["pos.load.mixin"]
+    _inherit = ["mixin.pos.load"]
 
     name = fields.Char("Name")
     value = fields.Float("Value", required=True, digits=(16, 4))

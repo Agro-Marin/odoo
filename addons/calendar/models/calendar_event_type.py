@@ -12,4 +12,4 @@ class CalendarEventType(models.Model):
     # translation documents and enforces nothing once a second language is
     # active. The mixin indexes the source term instead, and identity moves to
     # `code`.
-    _inherit = ['tag.mixin']
+    _inherit = ['mixin.tag']

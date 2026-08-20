@@ -589,7 +589,7 @@ class TestProductAuditFixes(ProductCommon):
         """The catalog action forwarded the order form's whole context, so a
         product created from it inherited `default_*` keys belonging to a
         sale/purchase order."""
-        order = self.env["product.catalog.mixin"]
+        order = self.env["mixin.product.catalog"]
         context = {
             "default_partner_id": 42,
             "default_name": "SO0001",
@@ -1172,7 +1172,7 @@ class TestProductAuditFixes(ProductCommon):
         ), catalog.ProductCatalogController
 
     def test_catalog_get_order_rejects_unknown_model(self):
-        """Only models implementing `product.catalog.mixin` are valid targets;
+        """Only models implementing `mixin.product.catalog` are valid targets;
         `res_model` comes straight from the client."""
         request_patch, controller = self._catalog_controller()
         with request_patch, self.assertRaises(UserError):
@@ -1183,7 +1183,7 @@ class TestProductAuditFixes(ProductCommon):
         user error, not a bare ValueError (HTTP 500)."""
         request_patch, controller = self._catalog_controller()
         with request_patch, self.assertRaises(UserError):
-            controller._get_order("product.catalog.mixin", "not-an-int")
+            controller._get_order("mixin.product.catalog", "not-an-int")
 
     # -- multi-variant template cost ------------------------------------------
 
@@ -1462,10 +1462,10 @@ class TestProductAuditFixes(ProductCommon):
 
 @tagged("post_install", "-at_install")
 class TestAttributeNameUniqueness(ProductCommon):
-    """What `catalog.mixin` does and does not enforce on the attribute family.
+    """What `mixin.catalog` does and does not enforce on the attribute family.
 
-    `attribute.value.mixin` re-scopes the inherited rule to `attribute_id`, and
-    `attribute.mixin` declines it outright. Both halves are asserted here
+    `mixin.attribute.value` re-scopes the inherited rule to `attribute_id`, and
+    `mixin.attribute` declines it outright. Both halves are asserted here
     because both are claims about product data rather than about the mixin:
     values of one attribute are a closed vocabulary, attributes themselves are
     not.
@@ -1504,15 +1504,15 @@ class TestAttributeNameUniqueness(ProductCommon):
         self.assertNotEqual(first.id, second.id)
 
     def test_the_opt_out_stays_on_the_concrete_model(self):
-        """attribute.mixin must not decline the rule on everyone's behalf.
+        """mixin.attribute must not decline the rule on everyone's behalf.
 
         An opt-out is a real definition rather than an absence, so declaring it
-        on the shared mixin wins the MRO over `catalog.mixin`'s rule for *every*
+        on the shared mixin wins the MRO over `mixin.catalog`'s rule for *every*
         consumer -- and because `Index.apply_to_database` drops before it
         creates, it would delete the unique index of consumers whose attribute
         vocabulary is flat, on their next upgrade, with nothing logged.
         """
-        mixin = self.env.registry["attribute.mixin"]
+        mixin = self.env.registry["mixin.attribute"]
         declared = [
             obj
             for cls in mixin._model_classes__
@@ -1521,5 +1521,5 @@ class TestAttributeNameUniqueness(ProductCommon):
         ]
         self.assertFalse(
             [obj for obj in declared if obj.get_definition(self.env.registry) == ""],
-            "attribute.mixin declares an opt-out; it belongs on the concrete model",
+            "mixin.attribute declares an opt-out; it belongs on the concrete model",
         )

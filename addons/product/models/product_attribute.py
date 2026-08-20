@@ -1,32 +1,32 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
-from odoo.addons.base.models.catalog_mixin import no_name_uniq_index
+from odoo.addons.base.models.mixin_catalog import no_name_uniq_index
 
 
 class ProductAttribute(models.Model):
     _name = "product.attribute"
-    _inherit = "attribute.mixin"
+    _inherit = "mixin.attribute"
     _description = "Product Attribute"
     # if you change this _order, keep it in sync with the method
     # `_sort_key_attribute_value`, which extends `product.template` from
     # `website_sale` (not from this module, despite where this comment sat).
     _order = "sequence, id"
-    # Lets attribute.mixin re-validate existing lines when value_type moves.
+    # Lets mixin.attribute re-validate existing lines when value_type moves.
     _attribute_line_model = "product.template.attribute.line"
 
     _check_multi_checkbox_no_variant = models.Constraint(
         "CHECK(display_type != 'multi' OR create_variant = 'no_variant')",
         "Multi-checkbox display type is not compatible with the creation of variants",
     )
-    # Product attribute names repeat legitimately, so catalog.mixin's rule is
-    # declined here rather than on attribute.mixin -- other subjects' attribute
+    # Product attribute names repeat legitimately, so mixin.catalog's rule is
+    # declined here rather than on mixin.attribute -- other subjects' attribute
     # vocabularies are flat and want it. A second "Size" holding shoe sizes is
     # a different dimension from the "Size" holding shirt sizes, and this module
     # already ships eight attributes a database is free to extend alongside.
     _name_src_uniq = no_name_uniq_index()
 
-    # name and active come from catalog.mixin through attribute.mixin; only the
+    # name and active come from mixin.catalog through mixin.attribute; only the
     # labels are product-specific.
     name = fields.Char(string="Attribute")
     active = fields.Boolean(
@@ -52,12 +52,12 @@ class ProductAttribute(models.Model):
         - Never: Variants are never created for the attribute.
         Note: this cannot be changed once the attribute is used on a product.""",
     )
-    # Selection, required and default all come from attribute.mixin; only the
+    # Selection, required and default all come from mixin.attribute; only the
     # help is product-specific.
     display_type = fields.Selection(
         help="The display type used in the Product Configurator.",
     )
-    # attribute.mixin defaults this to 'single', which limits a line to one
+    # mixin.attribute defaults this to 'single', which limits a line to one
     # value. That is the wrong reading for a product: a line holds the *menu*
     # of values the template offers (Color: red, blue, green) and the choice of
     # one is made per variant, not on the line. Structurally every product
@@ -131,7 +131,7 @@ class ProductAttribute(models.Model):
             self.env.invalidate_all()
         return res
 
-    # The delete and archive guards live on attribute.mixin; these two hooks
+    # The delete and archive guards live on mixin.attribute; these two hooks
     # narrow "in use" to what it means here. count_product_tmpl only counts
     # lines of *active* templates, so an attribute whose only trace is an
     # archived product stays deletable -- the generic rule would keep it.

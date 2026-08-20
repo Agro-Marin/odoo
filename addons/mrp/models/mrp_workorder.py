@@ -16,10 +16,10 @@ from odoo.tools.date_utils import sum_intervals
 class MrpWorkorder(models.Model):
     _name = "mrp.workorder"
     _description = "Work Order"
-    # Projection only. A work order declines ``resource.allocation.mixin``:
+    # Projection only. A work order declines ``mixin.resource.allocation``:
     # its time is workcenter capacity in minutes, set by the routing, not a
     # share of a person's day.
-    _inherit = ["resource.scheduling.mixin"]
+    _inherit = ["mixin.resource.scheduling"]
     # ``reservation_id`` used to sit between ``sequence`` and ``date_start``,
     # ordering planned work by the creation order of its bookings. It is no
     # longer a column -- the ledger link is the reverse One2many -- and

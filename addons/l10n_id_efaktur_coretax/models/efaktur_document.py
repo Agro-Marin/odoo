@@ -9,7 +9,7 @@ from odoo.tools import cleanup_xml_node
 class EfakturDocument(models.Model):
     _name = "l10n_id_efaktur_coretax.document"
     _description = "E-Faktur Document"
-    _inherit = ["mail.thread.main.attachment", "mail.activity.mixin"]
+    _inherit = ["mixin.mail.thread.main.attachment", "mixin.mail.activity"]
 
     name = fields.Char(compute="_compute_name", store=True)
     company_id = fields.Many2one('res.company', required=True, readonly=True, default=lambda self: self.env.company)

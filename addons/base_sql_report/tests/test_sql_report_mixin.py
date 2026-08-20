@@ -33,19 +33,19 @@ class _Harness:
         self._cte = cte
 
     def __call__(self):
-        m = self._env["sql.report.mixin"]
+        m = self._env["mixin.sql.report"]
         # Patch the registry hooks in-place for this instance's method resolution
         return m, self
 
 
 def _build_with_registries(env, **registries):
-    """Call _build_table_query on sql.report.mixin with patched registry hooks.
+    """Call _build_table_query on mixin.sql.report with patched registry hooks.
 
     Pass registry return values directly (dicts, lists, SQL objects).  The
     helper wraps them into bound methods on the class for the duration of the
     call, then restores the originals.
     """
-    mixin = env["sql.report.mixin"]
+    mixin = env["mixin.sql.report"]
     cls = type(mixin)
     original = {name: getattr(cls, name) for name in registries}
     try:
@@ -166,13 +166,13 @@ class TestMaterializedMarkerInteraction(TransactionCase):
     """The _materialized marker flips _table_query's return value.
 
     Regression fence for the C1 bug: without this behaviour, models that
-    inherit both ``sql.report.mixin`` and ``materialized.view.mixin`` have a
+    inherit both ``mixin.sql.report`` and ``mixin.materialized.view`` have a
     physical MV that the ORM never reads.
     """
 
     def _with_hooks(self, materialized):
         """Return the _table_query value for a harness with given marker."""
-        mixin = self.env["sql.report.mixin"]
+        mixin = self.env["mixin.sql.report"]
         cls = type(mixin)
         orig_select = cls._get_select_fields
         orig_from = cls._get_from_tables

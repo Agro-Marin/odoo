@@ -30,7 +30,7 @@ class TestAnalyticMixin(TransactionCase):
         )
 
     def test_filtered_domain(self):
-        """Test the `filtered_domain` override on `analytic.mixin` for every supported operator."""
+        """Test the `filtered_domain` override on `mixin.analytic` for every supported operator."""
         # `=`, `!=`, `ilike` and `not ilike` compare against an analytic account name;
         # `in` takes a tuple/list of analytic account ids directly.
 
@@ -189,7 +189,7 @@ class TestAnalyticMixin(TransactionCase):
 
     def test_account_ids_from_distribution_is_robust(self):
         """The key parser tolerates the `__update__` marker and malformed segments, and de-duplicates in order."""
-        mixin = self.env["analytic.mixin"]
+        mixin = self.env["mixin.analytic"]
         s, r = self.sales_aa.id, self.rd_aa.id
         self.assertEqual(
             mixin._account_ids_from_distribution(

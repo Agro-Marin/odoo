@@ -591,7 +591,7 @@ class TestDocumentsArchiveAuthorization(TransactionCaseDocuments):
     def test_f7_unlink_mixin_uses_action_archive(self):
         """The mixin's archive path produces the trash chatter.
 
-        No model inheriting ``documents.unlink.mixin`` is installed by the
+        No model inheriting ``mixin.documents.unlink`` is installed by the
         ``documents`` module alone, so this asserts the observable effect the
         mixin now relies on: ``action_archive`` logs the trash message that a
         raw ``write({'active': False})`` never produced.

@@ -2,7 +2,7 @@
 
 from odoo.tests import TransactionCase, tagged
 
-# base_order provides abstract mixins (order.mixin, order.amount.mixin, ...).
+# base_order provides abstract mixins (mixin.order, mixin.order.amount, ...).
 # They are exercised through a concrete consumer; sale.order inherits them, so
 # the amount computation is validated against real sale orders here. This is
 # part 1 of the by-parts greenfield coverage of base_order (amount mixin).

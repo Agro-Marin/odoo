@@ -137,7 +137,7 @@ class IrAttachment(models.Model):
         if (
             model is None
             or not res_id
-            or not issubclass(self.pool[res_model], self.pool["documents.mixin"])
+            or not issubclass(self.pool[res_model], self.pool["mixin.documents"])
         ):
             return False
         # Hoisted out of the loop: whether the model files its attachments at

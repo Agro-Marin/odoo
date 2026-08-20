@@ -23,12 +23,12 @@ from odoo.addons.sale import const
 class SaleOrder(models.Model):
     _name = "sale.order"
     _inherit = [
-        "order.mixin",
-        "order.amount.mixin",
-        "order.invoice.mixin",
-        "order.merge.mixin",
-        "account.document.import.mixin",
-        "utm.mixin",
+        "mixin.order",
+        "mixin.order.amount",
+        "mixin.order.invoice",
+        "mixin.order.merge",
+        "mixin.account.document.import",
+        "mixin.utm",
     ]
     _description = "Sale Order"
     _check_company_auto = True
@@ -225,7 +225,7 @@ class SaleOrder(models.Model):
         bypass_search_access=True,
     )
     # Only ``tracking`` (the chatter sequence) differs from
-    # ``order.amount.mixin``; string/compute/store are inherited.
+    # ``mixin.order.amount``; string/compute/store are inherited.
     amount_untaxed = fields.Monetary(
         tracking=5,
     )
@@ -1054,7 +1054,7 @@ class SaleOrder(models.Model):
         }
 
     # -------------------------------------------------------------------------
-    # Quotation Merge: sale-specific hooks over order.merge.mixin
+    # Quotation Merge: sale-specific hooks over mixin.order.merge
     #
     # action_merge, eligibility, grouping, group-merge, metadata and the result
     # action are all inherited from order.merge.mixin. Only the sale-specific

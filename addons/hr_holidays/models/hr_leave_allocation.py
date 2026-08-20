@@ -21,7 +21,7 @@ class HrLeaveAllocation(models.Model):
     _name = 'hr.leave.allocation'
     _description = "Time Off Allocation"
     _order = "create_date desc"
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mixin.mail.thread', 'mixin.mail.activity']
     _mail_post_access = 'read'
 
     def _default_holiday_status_id(self):

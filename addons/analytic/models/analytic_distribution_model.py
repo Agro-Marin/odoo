@@ -5,7 +5,7 @@ from odoo.tools import SQL
 
 class AccountAnalyticDistributionModel(models.Model):
     _name = "account.analytic.distribution.model"
-    _inherit = ["analytic.mixin"]
+    _inherit = ["mixin.analytic"]
     _description = "Analytic Distribution Model"
     _rec_name = "create_date"
     _order = "sequence, id desc"

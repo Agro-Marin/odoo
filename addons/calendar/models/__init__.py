@@ -1,7 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from . import ir_http
-from . import calendar_privacy_mixin
+from . import mixin_calendar_privacy
 from . import res_partner
 from . import calendar_event
 from . import calendar_alarm
@@ -12,7 +12,7 @@ from . import calendar_event_type
 from . import calendar_recurrence
 from . import discuss_channel
 from . import mail_activity
-from . import mail_activity_mixin
+from . import mixin_mail_activity
 from . import mail_activity_type
 from . import res_users
 from . import res_users_settings

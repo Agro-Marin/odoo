@@ -1,7 +1,7 @@
 """End-to-end tests for the project.task → resource.reservation sync flow.
 
 Exercises the canonical assignment path (``employee_ids`` from this
-module) wired through ``resource.scheduling.mixin``'s sync lifecycle
+module) wired through ``mixin.resource.scheduling``'s sync lifecycle
 and the PMI hours model (planned/allocated/unallocated).  Lives in
 core post-t20171: no enterprise dependency required.
 """
@@ -18,7 +18,7 @@ from odoo.tools import mute_logger
 
 @tagged("post_install", "-at_install")
 class TestReservationSync(TransactionCase):
-    """Verify the CRUD hooks on ``resource.scheduling.mixin`` drive the
+    """Verify the CRUD hooks on ``mixin.resource.scheduling`` drive the
     reservation lifecycle end-to-end for ``project.task``.
     """
 

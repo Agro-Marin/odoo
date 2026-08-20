@@ -161,7 +161,7 @@ class StockPicking(models.Model):
 
 class StockPickingType(models.Model):
     _name = "stock.picking.type"
-    _inherit = ["stock.picking.type", "pos.load.mixin"]
+    _inherit = ["stock.picking.type", "mixin.pos.load"]
 
     @api.depends("warehouse_id")
     def _compute_hide_reservation_method(self):

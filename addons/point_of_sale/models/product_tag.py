@@ -5,7 +5,7 @@ from odoo.tools import is_html_empty
 
 class ProductTag(models.Model):
     _name = "product.tag"
-    _inherit = ["product.tag", "pos.load.mixin"]
+    _inherit = ["product.tag", "mixin.pos.load"]
 
     pos_description = fields.Html(string="Description", translate=True)
     has_image = fields.Boolean(compute="_compute_has_image")

@@ -4,7 +4,7 @@ from odoo import api, fields, models
 
 class ProductPricelist(models.Model):
     _name = "product.pricelist"
-    _inherit = ["product.pricelist", "pos.load.mixin"]
+    _inherit = ["product.pricelist", "mixin.pos.load"]
 
     @api.model
     def _load_pos_data_domain(self, data, config):
@@ -18,7 +18,7 @@ class ProductPricelist(models.Model):
 
 class ProductPricelistItem(models.Model):
     _name = "product.pricelist.item"
-    _inherit = ["product.pricelist.item", "pos.load.mixin"]
+    _inherit = ["product.pricelist.item", "mixin.pos.load"]
 
     @api.model
     def _load_pos_data_domain(self, data, config):

@@ -22,7 +22,7 @@ class UtmMedium(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        new_names = self.env['utm.mixin']._get_unique_names(self._name, [vals.get('name') for vals in vals_list])
+        new_names = self.env['mixin.utm']._get_unique_names(self._name, [vals.get('name') for vals in vals_list])
         for vals, new_name in zip(vals_list, new_names, strict=True):
             vals['name'] = new_name
         return super().create(vals_list)

@@ -39,7 +39,7 @@ class DocumentsDocument(models.Model):
 
     _name = "documents.document"
     _description = "Document"
-    _inherit = ["mail.thread.cc", "mail.activity.mixin", "mail.alias.mixin.optional"]
+    _inherit = ["mixin.mail.thread.cc", "mixin.mail.activity", "mixin.mail.alias.optional"]
     _mail_post_access = "read"
     _order = "sequence, id desc"
     _parent_name = "folder_id"
@@ -727,7 +727,7 @@ class DocumentsDocument(models.Model):
         # `/documents/pdf_split` -- so it could trash a locked document, a folder
         # another app is wired to, or a document the user may not archive.
         # Delegate instead of duplicating the guards, the way
-        # `documents.unlink.mixin` already does. The context flag marks the write
+        # `mixin.documents.unlink` already does. The context flag marks the write
         # issued by `action_archive` itself, which must not re-enter here.
         #
         # `sudo()` keeps the previous direct path, consistent with every other
@@ -990,7 +990,7 @@ class DocumentsDocument(models.Model):
         # ir.attachment (same rule as create(); see _pop_attachment_vals).
         attachment_dict = self._pop_attachment_vals(vals)
 
-        if not is_manager and set(vals) & set(self.env["mail.alias.mixin"]._fields):
+        if not is_manager and set(vals) & set(self.env["mixin.mail.alias"]._fields):
             raise AccessError(_("Only Documents Managers can set aliases."))
 
         write_result = super().write(vals)
@@ -1695,7 +1695,7 @@ class DocumentsDocument(models.Model):
             # value therefore dropped it before it could ever reach a write.
             #
             # Without it, linking a document to a record whose model inherits
-            # `documents.mixin` (hr.employee, project.project, product.template,
+            # `mixin.documents` (hr.employee, project.project, product.template,
             # account.move, ...) re-enters `ir.attachment.write` ->
             # `_create_document`, which creates a *second* document for the same
             # attachment: a duplicate where nothing stops it, and a
@@ -2667,7 +2667,7 @@ class DocumentsDocument(models.Model):
         """Override to add values depending on related model/record."""
         if (
             res_model
-            and issubclass(self.pool[res_model], self.pool["documents.mixin"])
+            and issubclass(self.pool[res_model], self.pool["mixin.documents"])
             and not self.env.context.get("no_document")
         ):
             return self.env[

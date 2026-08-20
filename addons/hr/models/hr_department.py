@@ -10,7 +10,7 @@ from odoo.fields import Domain
 class HrDepartment(models.Model):
     _name = "hr.department"
     _description = "Department"
-    _inherit = ["mail.thread", "mail.activity.mixin"]
+    _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
     _order = "name"
     _rec_name = "complete_name"
     _parent_store = True

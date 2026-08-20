@@ -4,7 +4,7 @@ from odoo import api, fields, models
 
 class EventSlot(models.Model):
     _name = 'event.slot'
-    _inherit = ['event.slot', 'pos.load.mixin']
+    _inherit = ['event.slot', 'mixin.pos.load']
 
     @api.model
     def _load_pos_data_domain(self, data, config):

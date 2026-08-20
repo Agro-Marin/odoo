@@ -162,7 +162,7 @@ class TestCatalogContextContract(TransactionCase):
         docstring got a catalog with no quantities and no error.
         """
         context = self.env[
-            "product.catalog.mixin"
+            "mixin.product.catalog"
         ]._get_action_add_from_catalog_extra_context()
 
         self.assertIn("order_id", context)
@@ -222,7 +222,7 @@ class TestSectionSearchInputValidation(TransactionCase):
         with self.assertRaises(UserError):
             self._search(
                 order_id=1,
-                product_catalog_order_model="product.catalog.mixin",
+                product_catalog_order_model="mixin.product.catalog",
                 child_field="no_such_field",
             )
 

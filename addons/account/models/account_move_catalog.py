@@ -2,7 +2,7 @@
 
 # The catalog is the grid used to add products to a document from a picker
 # rather than line by line. account.move participates in it through the shared
-# `product.catalog.mixin` protocol; these are its answers to that protocol.
+# `mixin.product.catalog` protocol; these are its answers to that protocol.
 # Extracted from account_move.py.
 
 from collections import defaultdict

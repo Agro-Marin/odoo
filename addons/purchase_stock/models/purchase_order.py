@@ -12,7 +12,7 @@ from odoo.tools.translate import _
 
 class PurchaseOrder(models.Model):
     _name = "purchase.order"
-    _inherit = ["purchase.order", "order.stock.mixin"]
+    _inherit = ["purchase.order", "mixin.order.stock"]
 
     # ------------------------------------------------------------
     # FIELDS
@@ -63,7 +63,7 @@ class PurchaseOrder(models.Model):
         string="References",
         copy=False,
     )
-    # Selection, compute and store come from order.stock.mixin; only the
+    # Selection, compute and store come from mixin.order.stock; only the
     # vendor-facing wording is specific to purchases.
     transfer_state = fields.Selection(
         string="Receipt Status",
@@ -131,7 +131,7 @@ class PurchaseOrder(models.Model):
 
     def _filter_effective_pickings(self, pickings):
         # Purchase: any non-supplier-destination receipt sets the effective date.
-        # Overrides order.stock.mixin (base_order_stock).
+        # Overrides mixin.order.stock (base_order_stock).
         return pickings.filtered(
             lambda p: p.state == "done" and p.location_dest_id.usage != "supplier",
         )
@@ -146,7 +146,7 @@ class PurchaseOrder(models.Model):
             else:
                 order.is_shipped = False
 
-    # _compute_transfer_state is inherited from order.stock.mixin (base_order_stock);
+    # _compute_transfer_state is inherited from mixin.order.stock (base_order_stock);
     # the logic is identical between sale_stock and purchase_stock.
 
     # ----------------------------------------------------------------------
@@ -478,7 +478,7 @@ class PurchaseOrder(models.Model):
         )
 
     def _get_action_view_picking_context(self, pickings):
-        # Overrides order.stock.mixin (base_order_stock).
+        # Overrides mixin.order.stock (base_order_stock).
         self.ensure_one()
         return {
             "default_partner_id": self.partner_id.id,
@@ -570,7 +570,7 @@ class PurchaseOrder(models.Model):
             }
             return self.env["ir.qweb"]._render("purchase_stock.exception_on_po", values)
 
-        documents = self.env["stock.activity.mixin"]._log_activity_get_documents(
+        documents = self.env["mixin.stock.activity"]._log_activity_get_documents(
             purchase_order_lines_quantities,
             "move_ids",
             "DOWN",
@@ -583,7 +583,7 @@ class PurchaseOrder(models.Model):
                 if parent.state in ["cancel", "done"]:
                     continue
             filtered_documents[(parent, responsible)] = rendering_context
-        self.env["stock.activity.mixin"]._log_activity(
+        self.env["mixin.stock.activity"]._log_activity(
             _render_note_exception_quantity_po,
             filtered_documents,
         )
@@ -643,7 +643,7 @@ class PurchaseOrder(models.Model):
         return match_fields + (rfq.picking_type_id.id,)
 
     def _prepare_invoice_vals(self):
-        # incoterm_id is declared by order.stock.mixin, but that mixin is last
+        # incoterm_id is declared by mixin.order.stock, but that mixin is last
         # in the MRO and cannot override _prepare_invoice_vals, so each bridge
         # propagates the field itself.
         invoice_vals = super()._prepare_invoice_vals()
@@ -701,6 +701,6 @@ class PurchaseOrder(models.Model):
     # ----------------------------------------------------------------------
 
     def _is_display_stock_in_catalog(self):
-        # Not hoisted into order.stock.mixin: that mixin sits below
+        # Not hoisted into mixin.order.stock: that mixin sits below
         # stock.product_catalog_mixin in the MRO, so its answer never wins.
         return True

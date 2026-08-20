@@ -6,7 +6,7 @@ from odoo import api, fields, models
 class PosNote(models.Model):
     _name = "pos.note"
     _description = "PoS Note"
-    _inherit = ["pos.load.mixin"]
+    _inherit = ["mixin.pos.load"]
     _order = "sequence"
 
     name = fields.Char(required=True)

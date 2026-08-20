@@ -8,7 +8,7 @@ from odoo.tools import float_is_zero, float_round
 class MrpRoutingWorkcenter(models.Model):
     _name = "mrp.routing.workcenter"
     _description = "Work Center Usage"
-    _inherit = ["mail.thread", "mail.activity.mixin"]
+    _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
 
     _order = "bom_id, sequence, id"
     _check_company_auto = True

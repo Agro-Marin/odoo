@@ -1,6 +1,6 @@
 """Pre-migration: rename date_finished -> date_end on mrp models.
 
-Aligns mrp.workorder and mrp.production with resource.scheduling.mixin
+Aligns mrp.workorder and mrp.production with mixin.resource.scheduling
 field naming convention.  If date_end already exists (from mixin), copies
 data from date_finished and drops the old column.
 """

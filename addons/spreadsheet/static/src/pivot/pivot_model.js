@@ -472,7 +472,7 @@ export class OdooPivotModel extends PivotModel {
     _getRelationalDisplayName(resModel, resId) {
         const displayName =
             this._displayNames[resModel]?.[resId] ||
-            this.serverData.batch.get("spreadsheet.mixin", "get_display_names_for_spreadsheet", {
+            this.serverData.batch.get("mixin.spreadsheet", "get_display_names_for_spreadsheet", {
                 model: resModel,
                 id: resId,
             });

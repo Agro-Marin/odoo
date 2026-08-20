@@ -41,7 +41,7 @@ To give a model a Period field in its search view, inherit the mixin::
 
     class AccountMove(models.Model):
         _name = "account.move"
-        _inherit = ["account.move", "date.range.search.mixin"]
+        _inherit = ["account.move", "mixin.date.range.search"]
 
 The mixin filters on the ``date`` field by default. Point it elsewhere with a
 model attribute::

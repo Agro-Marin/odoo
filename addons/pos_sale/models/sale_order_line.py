@@ -5,7 +5,7 @@ from odoo import _, api, fields, models
 
 class SaleOrderLine(models.Model):
     _name = "sale.order.line"
-    _inherit = ["sale.order.line", "pos.load.mixin"]
+    _inherit = ["sale.order.line", "mixin.pos.load"]
 
     pos_order_line_ids = fields.One2many(
         "pos.order.line",

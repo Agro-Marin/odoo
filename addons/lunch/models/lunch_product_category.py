@@ -11,7 +11,7 @@ from odoo.tools.misc import file_open
 class LunchProductCategory(models.Model):
     """ Category of the product such as pizza, sandwich, pasta, chinese, burger... """
     _name = 'lunch.product.category'
-    _inherit = ['image.mixin']
+    _inherit = ['mixin.image']
     _description = 'Lunch Product Category'
 
     @api.model

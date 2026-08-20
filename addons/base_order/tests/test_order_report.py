@@ -3,7 +3,7 @@
 from odoo import Command
 from odoo.tests import TransactionCase, tagged
 
-# Part 6 of base_order's by-parts coverage: order.report.mixin, the analytical
+# Part 6 of base_order's by-parts coverage: mixin.order.report, the analytical
 # report layer shared by sale.report and purchase.report.
 #
 # These are SQL-view models, so a field that exists on the Python class is not
@@ -78,7 +78,7 @@ class TestOrderReportMixin(TransactionCase):
                 bases = {
                     getattr(cls, "_name", None) for cls in type(self.env[report]).mro()
                 }
-                self.assertIn("order.report.mixin", bases)
+                self.assertIn("mixin.order.report", bases)
 
     def test_hoisted_fields_exist(self):
         for report in ("sale.report", "purchase.report"):

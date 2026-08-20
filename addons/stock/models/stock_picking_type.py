@@ -10,7 +10,7 @@ from odoo.tools import SQL
 
 class StockPickingType(models.Model):
     _name = "stock.picking.type"
-    _inherit = ["mail.thread", "date.category.mixin"]
+    _inherit = ["mixin.mail.thread", "mixin.date.category"]
     _description = "Picking Type"
     _order = "is_favorite desc, sequence, id"
     _rec_names_search = ["name", "warehouse_id.name"]

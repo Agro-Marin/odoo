@@ -15,7 +15,7 @@ _logger = logging.getLogger(__name__)
 class EventRegistration(models.Model):
     _name = 'event.registration'
     _description = 'Event Registration'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mixin.mail.thread', 'mixin.mail.activity']
     _order = 'id desc'
     _mail_defaults_to_email = True
 
@@ -115,7 +115,7 @@ class EventRegistration(models.Model):
         utm_fields = ("utm_campaign_id", "utm_medium_id", "utm_source_id")
         if not any(field in utm_fields for field in fields):
             return ret_vals
-        utm_mixin_defaults = self.env['utm.mixin'].default_get(utm_mixin_fields)
+        utm_mixin_defaults = self.env['mixin.utm'].default_get(utm_mixin_fields)
         for (mixin_field, field) in zip(utm_mixin_fields, utm_fields, strict=True):
             if field in fields and utm_mixin_defaults.get(mixin_field):
                 ret_vals[field] = utm_mixin_defaults[mixin_field]

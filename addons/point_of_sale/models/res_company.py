@@ -5,7 +5,7 @@ from odoo.fields import Domain
 
 class ResCompany(models.Model):
     _name = "res.company"
-    _inherit = ["res.company", "pos.load.mixin"]
+    _inherit = ["res.company", "mixin.pos.load"]
 
     point_of_sale_update_stock_quantities = fields.Selection(
         [

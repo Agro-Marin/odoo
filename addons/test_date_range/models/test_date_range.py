@@ -1,4 +1,4 @@
-"""Concrete consumer of ``date.range.search.mixin`` used by the tests.
+"""Concrete consumer of ``mixin.date.range.search`` used by the tests.
 
 The mixin contributes a virtual ``date_range_search_id`` field and rewrites the
 search view of whatever model inherits it, so exercising it needs a real model
@@ -18,7 +18,7 @@ from odoo import fields, models
 class DateRangeSearchTest(models.Model):
     _name = "date.range.search.test"
     _description = "Date Range Search Mixin Test Model"
-    _inherit = ["date.range.search.mixin"]
+    _inherit = ["mixin.date.range.search"]
     _date_range_search_field = "test_date"
 
     name = fields.Char()

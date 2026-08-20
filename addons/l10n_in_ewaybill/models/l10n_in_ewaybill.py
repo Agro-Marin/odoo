@@ -19,7 +19,7 @@ class L10nInEwaybill(models.Model):
 
     _name = 'l10n.in.ewaybill'
     _description = "e-Waybill"
-    _inherit = ['portal.mixin', 'mail.thread', 'mail.activity.mixin']
+    _inherit = ['mixin.portal', 'mixin.mail.thread', 'mixin.mail.activity']
     _check_company_auto = True
 
     # Ewaybill details generated from the API

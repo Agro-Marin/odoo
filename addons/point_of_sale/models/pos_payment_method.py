@@ -6,7 +6,7 @@ class PosPaymentMethod(models.Model):
     _name = "pos.payment.method"
     _description = "Point of Sale Payment Methods"
     _order = "sequence, id"
-    _inherit = ["pos.load.mixin"]
+    _inherit = ["mixin.pos.load"]
 
     def _get_payment_terminal_selection(self):
         return []

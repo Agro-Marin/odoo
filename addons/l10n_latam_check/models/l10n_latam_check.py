@@ -15,7 +15,7 @@ class L10n_LatamCheck(models.Model):
     _name = "l10n_latam.check"
     _description = "Account payment check"
     _check_company_auto = True
-    _inherit = ["mail.thread", "mail.activity.mixin"]
+    _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
 
     payment_id = fields.Many2one(
         "account.payment",

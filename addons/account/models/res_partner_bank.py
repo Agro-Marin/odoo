@@ -22,7 +22,7 @@ MONEY_TRANSFER_SERVICES = {
 
 class ResPartnerBank(models.Model):
     _name = "res.partner.bank"
-    _inherit = ["res.partner.bank", "mail.thread", "mail.activity.mixin"]
+    _inherit = ["res.partner.bank", "mixin.mail.thread", "mixin.mail.activity"]
 
     journal_id = fields.One2many(
         "account.journal",

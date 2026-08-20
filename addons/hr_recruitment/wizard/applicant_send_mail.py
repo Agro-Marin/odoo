@@ -4,7 +4,7 @@ from odoo import _, api, fields, models
 
 class ApplicantSendMail(models.TransientModel):
     _name = 'applicant.send.mail'
-    _inherit = ['mail.composer.mixin']
+    _inherit = ['mixin.mail.composer']
     _description = 'Send mails to applicants'
 
     applicant_ids = fields.Many2many('hr.applicant', string='Applications', required=True, context={'active_test': False})

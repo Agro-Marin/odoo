@@ -360,8 +360,8 @@ class AccountAnalyticPlan(models.Model):
 
     def _sync_all_plan_column(self):
         model_names = self.env.registry.descendants(
-            ["analytic.plan.fields.mixin"], "_inherit"
-        ) - {"analytic.plan.fields.mixin"}
+            ["mixin.analytic.plan.fields"], "_inherit"
+        ) - {"mixin.analytic.plan.fields"}
         for model in model_names:
             self._sync_plan_column(model)
 

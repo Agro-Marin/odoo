@@ -14,7 +14,7 @@ class GamificationKarmaRank(models.Model):
 
     _name = "gamification.karma.rank"
     _description = "Gamification Rank / Level"
-    _inherit = ["image.mixin"]
+    _inherit = ["mixin.image"]
     _order = "karma_min"
 
     name = fields.Text(string="Rank Name", translate=True, required=True)

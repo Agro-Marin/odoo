@@ -40,7 +40,7 @@ class HrExpense(models.Model):
         =================================================================================
     """
     _name = 'hr.expense'
-    _inherit = ['mail.thread.main.attachment', 'mail.activity.mixin', 'analytic.mixin']
+    _inherit = ['mixin.mail.thread.main.attachment', 'mixin.mail.activity', 'mixin.analytic']
     _description = "Expense"
     _order = "date desc, id desc"
     _check_company_auto = True
@@ -939,7 +939,7 @@ class HrExpense(models.Model):
         else:
             mail_template_id = 'hr_expense.hr_expense_template_register_no_user'
         rendered_body = self.env['ir.qweb']._render(mail_template_id, {'expense': expense})
-        body = self.env['mail.render.mixin']._replace_local_links(rendered_body)
+        body = self.env['mixin.mail.render']._replace_local_links(rendered_body)
         if expense.employee_id.user_id.partner_id:
             expense.message_post(
                 body=body,

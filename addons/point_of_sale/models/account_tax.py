@@ -4,7 +4,7 @@ from odoo.exceptions import UserError
 
 class AccountTax(models.Model):
     _name = "account.tax"
-    _inherit = ["account.tax", "pos.load.mixin"]
+    _inherit = ["account.tax", "mixin.pos.load"]
 
     def write(self, vals):
         forbidden_fields = {

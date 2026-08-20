@@ -19,7 +19,7 @@ DEFAULT_LIMIT_LOAD_PARTNER = 100
 
 class PosConfig(models.Model):
     _name = "pos.config"
-    _inherit = ["pos.bus.mixin", "pos.load.mixin"]
+    _inherit = ["mixin.pos.bus", "mixin.pos.load"]
     _description = "Point of Sale Configuration"
     _check_company_auto = True
 

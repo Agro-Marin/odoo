@@ -4,7 +4,7 @@ from odoo import api, fields, models
 
 class EventEventTicket(models.Model):
     _name = 'event.event.ticket'
-    _inherit = ['event.event.ticket', 'pos.load.mixin']
+    _inherit = ['event.event.ticket', 'mixin.pos.load']
 
     @api.model
     def _load_pos_data_domain(self, data, config):

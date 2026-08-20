@@ -12,7 +12,7 @@ class ProjectTags(models.Model):
     # `name` (translated, unique on the source term), `active`, `color` and
     # `code` come from the mixin, which already carried the hand-rolled index
     # this model declared. Flat: project tags do not nest.
-    _inherit = ["tag.mixin"]
+    _inherit = ["mixin.tag"]
 
     is_strategic = fields.Boolean(
         "Strategic Objective",

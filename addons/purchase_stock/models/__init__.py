@@ -12,7 +12,7 @@ from . import (
     stock_move_line,
     stock_picking,
     stock_reference,
-    stock_replenish_mixin,
+    mixin_stock_replenish,
     stock_return_picking,
     stock_rule,
     stock_route,

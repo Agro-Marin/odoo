@@ -48,7 +48,7 @@
              nothing, and being attached to base.group_portal, whose ACL on
              this model is 0,0,0,0, it never restricted anybody either. Made to
              mean what it says. The real gate for internal users is
-             `calendar.privacy.mixin`, which delegates to the event; an ir.rule
+             `mixin.calendar.privacy`, which delegates to the event; an ir.rule
              cannot express it, because the default-privacy branch has to read
              res.users.settings through sudo(). -->
         <record id="calendar_attendee_rule_my" model="ir.rule">

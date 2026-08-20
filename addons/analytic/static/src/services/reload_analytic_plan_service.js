@@ -8,7 +8,7 @@ import { onModelMutation } from "@web/core/network";
 import { registry } from "@web/core/registry";
 
 // The views need to include the newly created field on `account.analytic.line`
-// and other models inheriting `analytic.plan.fields.mixin`.
+// and other models inheriting `mixin.analytic.plan.fields`.
 // This is based on the same service for `res.company`: `reloadCompany`.
 
 export const reloadAnalyticPlanService = {

@@ -3,7 +3,7 @@
 from odoo.tests import TransactionCase, tagged
 
 # Part 2 of base_order's by-parts coverage: the line-level amount mixin
-# (order.line.amount.mixin), exercised through sale.order.line.
+# (mixin.order.line.amount), exercised through sale.order.line.
 
 
 @tagged("post_install", "-at_install")

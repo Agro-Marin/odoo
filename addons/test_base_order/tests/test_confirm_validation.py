@@ -3,7 +3,7 @@ from odoo.tests import tagged
 
 from .common import BaseOrderTestCase
 
-# order.mixin guards confirmation through a registry: _can_confirm walks the
+# mixin.order guards confirmation through a registry: _can_confirm walks the
 # names _get_can_confirm_validation_methods returns. Nothing exercised any of
 # it — the validators are all-or-nothing error paths, so a broken one is silent
 # until an order that should have been refused goes through.

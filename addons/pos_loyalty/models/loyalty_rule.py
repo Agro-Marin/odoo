@@ -6,7 +6,7 @@ from odoo.fields import Domain
 
 class LoyaltyRule(models.Model):
     _name = 'loyalty.rule'
-    _inherit = ['loyalty.rule', 'pos.load.mixin']
+    _inherit = ['loyalty.rule', 'mixin.pos.load']
 
     valid_product_ids = fields.Many2many(
         'product.product', "Valid Products", compute='_compute_valid_product_ids',

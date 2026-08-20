@@ -53,7 +53,7 @@ class TestUTM(common.TestMassMailCommon):
     @users("employee")
     def test_utm_source_mixin_name_cross_model(self):
         """ Uniqueness of source should be ensured cross models. For this purpose
-        we use two models using the utm.source.mixin, allowing to check conflict
+        we use two models using the mixin.utm.source, allowing to check conflict
         management between models. """
         source_1 = self.env["utm.test.source.mixin"].create({
             "name": "Test",

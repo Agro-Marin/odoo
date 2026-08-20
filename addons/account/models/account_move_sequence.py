@@ -1,6 +1,6 @@
 """Sequence and payment-reference logic for account.move."""
 
-# The entry name is a sequence.mixin sequence, not a plain ir.sequence: the
+# The entry name is a mixin.sequence sequence, not a plain ir.sequence: the
 # prefix/number split, the reset period, the gap bookkeeping and the structured
 # payment reference all hang off it. Extracted from account_move.py, which is
 # where the rest of the model lives; no method here is overridden by another
@@ -23,12 +23,12 @@ class AccountMove(models.Model):
     _inherit = "account.move"
 
     def _must_check_constrains_date_sequence(self):
-        # OVERRIDES sequence.mixin
+        # OVERRIDES mixin.sequence
         return self.state == "posted" and not self.quick_edit_mode
 
     def _get_last_sequence_domain(self, relaxed=False):
         # pylint: disable=sql-injection
-        # EXTENDS account sequence.mixin
+        # EXTENDS account mixin.sequence
         self.ensure_one()
         if not self.date or not self.journal_id:
             return "WHERE FALSE", {}
@@ -141,7 +141,7 @@ class AccountMove(models.Model):
         return where_string, param
 
     def _get_starting_sequence(self):
-        # EXTENDS account sequence.mixin
+        # EXTENDS account mixin.sequence
         self.ensure_one()
         move_date = self.date or self.invoice_date or fields.Date.context_today(self)
         year_part = "%04d" % move_date.year

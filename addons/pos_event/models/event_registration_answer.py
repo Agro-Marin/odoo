@@ -5,7 +5,7 @@ from odoo import api, models
 
 class EventRegistrationAnswer(models.Model):
     _name = 'event.registration.answer'
-    _inherit = ['event.registration.answer', 'pos.load.mixin']
+    _inherit = ['event.registration.answer', 'mixin.pos.load']
 
     @api.model
     def _load_pos_data_fields(self, config):

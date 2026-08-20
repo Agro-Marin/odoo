@@ -19,7 +19,7 @@ class ProductProduct(models.Model):
     _name = "product.product"
     _description = "Product Variant"
     _inherits = {"product.template": "product_tmpl_id"}
-    _inherit = ["mail.thread", "mail.activity.mixin"]
+    _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
     _order = "default_code, name, id"
     _check_company_domain = models.check_company_domain_parent_of
 
@@ -962,7 +962,7 @@ class ProductProduct(models.Model):
         # model or field name would otherwise leave the ORM raising a bare
         # KeyError out of a plain `search()` -- an HTTP 500 on user input.
         if order_model not in self.env.registry or not isinstance(
-            self.env[order_model], self.env.registry["product.catalog.mixin"]
+            self.env[order_model], self.env.registry["mixin.product.catalog"]
         ):
             raise UserError(
                 self.env._("The product catalog cannot be used on this model."),

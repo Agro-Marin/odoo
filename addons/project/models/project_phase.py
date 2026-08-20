@@ -21,7 +21,7 @@ class ProjectPhase(models.Model):
 
     _name = "project.phase"
     _description = "Project Phase"
-    _inherit = ["project.pm.mixin"]
+    _inherit = ["mixin.project.pm"]
     _order = "sequence, id"
 
     active = fields.Boolean(default=True, export_string_translation=False)

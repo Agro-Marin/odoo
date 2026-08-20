@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
 
-MIXIN_MODULE = "odoo.addons.microsoft_outlook.models.microsoft_outlook_mixin"
+MIXIN_MODULE = "odoo.addons.microsoft_outlook.models.mixin_microsoft_outlook"
 
 
 @tagged("post_install", "-at_install")
@@ -14,7 +14,7 @@ class TestOutlookTokenFlow(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.Mixin = cls.env["microsoft.outlook.mixin"]
+        cls.Mixin = cls.env["mixin.microsoft.outlook"]
         cls.env["ir.config_parameter"].sudo().set_param(
             "microsoft_outlook_client_id", "test-client-id"
         )

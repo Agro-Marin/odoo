@@ -209,7 +209,7 @@ class AccountMove(models.Model):
         """
         Extract the fiscal numbering triple (ex. 1/1/1) from the document name.
         Only applies for Croatian sales invoices/credit notes. Expected name
-        pattern is produced by the overridden `sequence.mixin` logic.
+        pattern is produced by the overridden `mixin.sequence` logic.
         """
         name_regex = r".*?(?P<seq>\d+)/(?P<premises_label>\d+)/(?P<device_label>\d+)"
         if match := re.match(name_regex, name):

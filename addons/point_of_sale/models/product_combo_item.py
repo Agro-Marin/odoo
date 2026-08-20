@@ -5,7 +5,7 @@ from odoo import api, models
 
 class ProductComboItem(models.Model):
     _name = "product.combo.item"
-    _inherit = ["product.combo.item", "pos.load.mixin"]
+    _inherit = ["product.combo.item", "mixin.pos.load"]
 
     @api.model
     def _load_pos_data_domain(self, data, config):

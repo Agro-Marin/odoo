@@ -5,7 +5,7 @@ import psycopg
 from odoo.libs.sql import SQL
 from odoo.tests.common import TransactionCase
 
-from odoo.addons.base_sql_report.models import sql_materialized_mixin
+from odoo.addons.base_sql_report.models import mixin_materialized_view
 
 
 class TestIntrospection(TransactionCase):
@@ -13,7 +13,7 @@ class TestIntrospection(TransactionCase):
 
     def setUp(self):
         super().setUp()
-        self.mixin = self.env["materialized.view.mixin"]
+        self.mixin = self.env["mixin.materialized.view"]
         self.env.cr.execute("CREATE SCHEMA IF NOT EXISTS test_bsr_schema")
         self.env.cr.execute("""
             DROP MATERIALIZED VIEW IF EXISTS test_bsr_schema.test_bsr_mv CASCADE
@@ -48,7 +48,7 @@ class TestRefreshGuards(TransactionCase):
 
     def setUp(self):
         super().setUp()
-        self.mixin = self.env["materialized.view.mixin"]
+        self.mixin = self.env["mixin.materialized.view"]
         self.env.cr.execute("DROP MATERIALIZED VIEW IF EXISTS test_bsr_refresh CASCADE")
         self.env.cr.execute(
             "CREATE MATERIALIZED VIEW test_bsr_refresh AS SELECT 1 AS id"
@@ -96,7 +96,7 @@ class TestRefreshGuards(TransactionCase):
         with (
             patch.object(cls, "_table", "test_bsr_noidx", create=True),
             patch.object(
-                sql_materialized_mixin, "_TRANSIENT_REFRESH_ERRORS", transient
+                mixin_materialized_view, "_TRANSIENT_REFRESH_ERRORS", transient
             ),
         ):
             self.assertFalse(self.mixin.refresh())
@@ -110,7 +110,7 @@ class TestDependentHandling(TransactionCase):
 
     def setUp(self):
         super().setUp()
-        self.mixin = self.env["materialized.view.mixin"]
+        self.mixin = self.env["mixin.materialized.view"]
         self.env.cr.execute("DROP TABLE IF EXISTS test_bsr_collision CASCADE")
         self.env.cr.execute("CREATE TABLE test_bsr_collision (id integer, name text)")
         self.addCleanup(
@@ -150,7 +150,7 @@ class TestCreation(TransactionCase):
 
     def setUp(self):
         super().setUp()
-        self.mixin = self.env["materialized.view.mixin"]
+        self.mixin = self.env["mixin.materialized.view"]
         self.env.cr.execute("DROP MATERIALIZED VIEW IF EXISTS test_bsr_create CASCADE")
         self.addCleanup(
             lambda: self.env.cr.execute(
@@ -236,7 +236,7 @@ class TestRebuildSkipAndDeferral(TransactionCase):
 
     def setUp(self):
         super().setUp()
-        self.mixin = self.env["materialized.view.mixin"]
+        self.mixin = self.env["mixin.materialized.view"]
         self.env.cr.execute(f"DROP MATERIALIZED VIEW IF EXISTS {self.TABLE} CASCADE")
         self.addCleanup(
             lambda: self.env.cr.execute(
@@ -343,7 +343,7 @@ class TestQueryBridge(TransactionCase):
     """_query() resolution order (C2 + stand-alone regression fence)."""
 
     def test_query_falls_back_to_table_query_attribute(self):
-        mixin = self.env["materialized.view.mixin"]
+        mixin = self.env["mixin.materialized.view"]
         cls = type(mixin)
         with patch.object(cls, "_table_query", SQL("SELECT 1 AS id"), create=True):
             # Ensure no _build_table_query is visible
@@ -353,7 +353,7 @@ class TestQueryBridge(TransactionCase):
                 self.assertEqual(q.code, "SELECT 1 AS id")
 
     def test_query_accepts_str_table_query(self):
-        mixin = self.env["materialized.view.mixin"]
+        mixin = self.env["mixin.materialized.view"]
         cls = type(mixin)
         with patch.object(cls, "_table_query", "SELECT 1 AS id", create=True):
             with patch.object(cls, "_build_table_query", None, create=True):
@@ -362,7 +362,7 @@ class TestQueryBridge(TransactionCase):
                 self.assertEqual(q.code, "SELECT 1 AS id")
 
     def test_query_raises_when_no_source(self):
-        mixin = self.env["materialized.view.mixin"]
+        mixin = self.env["mixin.materialized.view"]
         cls = type(mixin)
         with patch.object(cls, "_table_query", None, create=True):
             with patch.object(cls, "_build_table_query", None, create=True):

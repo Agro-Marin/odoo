@@ -23,7 +23,7 @@ class ProjectUpdate(models.Model):
     _name = "project.update"
     _description = "Project Update"
     _order = "id desc"
-    _inherit = ["mail.thread.cc", "mail.activity.mixin"]
+    _inherit = ["mixin.mail.thread.cc", "mixin.mail.activity"]
 
     @api.model
     def default_get(self, fields: list[str]) -> dict:

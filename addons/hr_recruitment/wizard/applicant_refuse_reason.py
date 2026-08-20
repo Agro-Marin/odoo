@@ -8,7 +8,7 @@ from odoo.fields import Domain
 
 class ApplicantGetRefuseReason(models.TransientModel):
     _name = 'applicant.get.refuse.reason'
-    _inherit = ['mail.composer.mixin']
+    _inherit = ['mixin.mail.composer']
     _description = 'Get Refuse Reason'
 
     def _default_refuse_reason_id(self):
@@ -78,7 +78,7 @@ class ApplicantGetRefuseReason(models.TransientModel):
         else:
             self.duplicate_applicant_ids = self.env['hr.applicant']
 
-    # Overrides of mail.composer.mixin
+    # Overrides of mixin.mail.composer
     @api.depends('refuse_reason_id')  # fake trigger otherwise not computed in new mode
     def _compute_render_model(self):
         self.render_model = 'hr.applicant'

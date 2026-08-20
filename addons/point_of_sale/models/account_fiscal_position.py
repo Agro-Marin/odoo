@@ -3,7 +3,7 @@ from odoo import api, models
 
 class AccountFiscalPosition(models.Model):
     _name = "account.fiscal.position"
-    _inherit = ["account.fiscal.position", "pos.load.mixin"]
+    _inherit = ["account.fiscal.position", "mixin.pos.load"]
 
     @api.model
     def _load_pos_data_domain(self, data, config):

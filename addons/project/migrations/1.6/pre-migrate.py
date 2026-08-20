@@ -2,7 +2,7 @@
 
 Renames:
     date_end      -> date_closed   (actual completion date)
-    date_deadline -> date_end      (scheduled end date, matching resource.scheduling.mixin)
+    date_deadline -> date_end      (scheduled end date, matching mixin.resource.scheduling)
 
 Idempotent: safe to re-run on partially migrated databases.
 """

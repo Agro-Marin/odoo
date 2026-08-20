@@ -69,8 +69,8 @@ class MicrosoftOutlookController(http.Controller):
         """Return the given record after checking the CSRF token."""
         model = request.env[model_name]
 
-        if not isinstance(model, request.env.registry['microsoft.outlook.mixin']):
-            # The model must inherit from the "microsoft.outlook.mixin" mixin
+        if not isinstance(model, request.env.registry['mixin.microsoft.outlook']):
+            # The model must inherit from the "mixin.microsoft.outlook" mixin
             _logger.error('Microsoft Outlook: Wrong model %r.', model_name)
             raise Forbidden
 

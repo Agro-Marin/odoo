@@ -63,7 +63,7 @@ class ChangeProductionQty(models.TransientModel):
 
     def change_prod_qty(self):
         precision = self.env["decimal.precision"].precision_get("Product Unit")
-        activity_mixin = self.env["stock.activity.mixin"]
+        activity_mixin = self.env["mixin.stock.activity"]
         for wizard in self:
             production = wizard.mo_id
             old_production_qty = production.product_qty

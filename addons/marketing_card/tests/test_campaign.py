@@ -349,7 +349,7 @@ class TestMarketingCardRouting(HttpCase, MarketingCardCommon):
 class TestMarketingCardSecurity(MarketingCardCommon):
 
     @users('marketing_card_manager')
-    @mute_logger('odoo.addons.mail.models.mail_render_mixin')
+    @mute_logger('odoo.addons.mail.models.mixin_mail_render')
     def test_campaign_field_paths(self):
         """Check that card updates are performed as the current user."""
         # restrict reading from partner states (flush to apply new rule)

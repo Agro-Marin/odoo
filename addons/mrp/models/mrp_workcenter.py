@@ -20,7 +20,7 @@ class MrpWorkcenter(models.Model):
     _name = "mrp.workcenter"
     _description = "Work Center"
     _order = "sequence, id"
-    _inherit = ["mail.thread", "resource.mixin"]
+    _inherit = ["mixin.mail.thread", "mixin.resource"]
     _check_company_auto = True
 
     # resource
@@ -792,7 +792,7 @@ class MrpWorkcenterTag(models.Model):
     # compares whole translation documents and enforces nothing once a second
     # language is active. The mixin indexes the source term instead, and
     # identity moves to `code`.
-    _inherit = ["tag.mixin"]
+    _inherit = ["mixin.tag"]
 
 
 class MrpWorkcenterProductivityLossType(models.Model):

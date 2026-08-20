@@ -7,7 +7,7 @@ from odoo.fields import Domain
 
 class ProductPricelist(models.Model):
     _name = "product.pricelist"
-    _inherit = ["mail.thread", "mail.activity.mixin"]
+    _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
     _description = "Pricelist"
     _rec_names_search = ["name", "currency_id"]  # TODO check if should be removed
     _order = "sequence, id, name"

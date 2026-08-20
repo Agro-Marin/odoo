@@ -11,7 +11,7 @@ from odoo.addons.stock.const import PY_OPERATORS
 
 class StockLot(models.Model):
     _name = "stock.lot"
-    _inherit = ["mail.thread", "mail.activity.mixin"]
+    _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
     _description = "Lot/Serial"
     _check_company_auto = True
     _order = "name, id"

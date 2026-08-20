@@ -24,7 +24,7 @@ class SurveyUser_Input(models.Model):
     _description = "Survey User Input"
     _rec_name = "survey_id"
     _order = "create_date desc"
-    _inherit = ["mail.thread", "mail.activity.mixin"]
+    _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
 
     # answer description
     survey_id = fields.Many2one(

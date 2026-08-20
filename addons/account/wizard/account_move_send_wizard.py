@@ -9,7 +9,7 @@ class AccountMoveSendWizard(models.TransientModel):
     """Wizard that handles the sending a single invoice."""
 
     _name = "account.move.send.wizard"
-    _inherit = ["account.move.send", "mail.composer.mixin"]
+    _inherit = ["mixin.account.move.send", "mixin.mail.composer"]
     _description = "Account Move Send Wizard"
 
     move_id = fields.Many2one(comodel_name="account.move", required=True)
@@ -63,7 +63,7 @@ class AccountMoveSendWizard(models.TransientModel):
     display_pdf_report_id = fields.Boolean(compute="_compute_display_pdf_report_id")
 
     # MAIL
-    # Template: override mail.composer.mixin field
+    # Template: override mixin.mail.composer field
     template_id = fields.Many2one(
         domain="[('model', '=', 'account.move')]",
         compute="_compute_template_id",
@@ -71,7 +71,7 @@ class AccountMoveSendWizard(models.TransientModel):
         readonly=False,
         store=True,
     )
-    # Language: override mail.composer.mixin field
+    # Language: override mixin.mail.composer field
     lang = fields.Char(compute="_compute_lang", precompute=False, compute_sudo=True)
     mail_partner_ids = fields.Many2many(
         comodel_name="res.partner",
@@ -244,7 +244,7 @@ class AccountMoveSendWizard(models.TransientModel):
 
     @api.depends("template_id")
     def _compute_lang(self):
-        # OVERRIDE 'mail.composer.mixin'
+        # OVERRIDE 'mixin.mail.composer'
         for wizard in self:
             wizard.lang = (
                 self._get_default_mail_lang(wizard.move_id, wizard.template_id)
@@ -267,7 +267,7 @@ class AccountMoveSendWizard(models.TransientModel):
 
     @api.depends("template_id", "lang")
     def _compute_subject(self):
-        # OVERRIDE 'mail.composer.mixin'
+        # OVERRIDE 'mixin.mail.composer'
         for wizard in self:
             wizard.subject = None
 
@@ -278,7 +278,7 @@ class AccountMoveSendWizard(models.TransientModel):
 
     @api.depends("template_id", "lang")
     def _compute_body(self):
-        # OVERRIDE 'mail.composer.mixin'
+        # OVERRIDE 'mixin.mail.composer'
         for wizard in self:
             wizard.body = None
 
@@ -328,7 +328,7 @@ class AccountMoveSendWizard(models.TransientModel):
 
     @api.depends("model")  # Fake trigger otherwise not computed in new mode
     def _compute_render_model(self):
-        # OVERRIDE 'mail.composer.mixin'
+        # OVERRIDE 'mixin.mail.composer'
         self.render_model = "account.move"
 
     # Similar of mail.compose.message

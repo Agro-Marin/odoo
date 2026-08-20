@@ -15,7 +15,7 @@ PRICE_CONTEXT_KEYS = ["pricelist", "quantity", "uom", "date"]
 
 class ProductTemplate(models.Model):
     _name = "product.template"
-    _inherit = ["mail.thread", "mail.activity.mixin", "image.mixin"]
+    _inherit = ["mixin.mail.thread", "mixin.mail.activity", "mixin.image"]
     _description = "Product"
     _order = "is_favorite desc, name"
     _check_company_auto = True

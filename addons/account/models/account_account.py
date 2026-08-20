@@ -11,7 +11,7 @@ class AccountAccount(models.Model):
     """Accounting extensions to the base chart of accounts."""
 
     _name = "account.account"
-    _inherit = ["account.account", "mail.thread", "mail.activity.mixin"]
+    _inherit = ["account.account", "mixin.mail.thread", "mixin.mail.activity"]
 
     # ------------------------------------------------------------------
     # Additional fields (accounting-specific)

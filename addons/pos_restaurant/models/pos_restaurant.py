@@ -10,7 +10,7 @@ class RestaurantFloor(models.Model):
 
     _description = 'Restaurant Floor'
     _order = "sequence, name"
-    _inherit = ['pos.load.mixin']
+    _inherit = ['mixin.pos.load']
 
     name = fields.Char('Floor Name', required=True)
     pos_config_ids = fields.Many2many('pos.config', string='Point of Sales', domain="[('module_pos_restaurant', '=', True)]")
@@ -91,7 +91,7 @@ class RestaurantTable(models.Model):
     _name = 'restaurant.table'
 
     _description = 'Restaurant Table'
-    _inherit = ['pos.load.mixin']
+    _inherit = ['mixin.pos.load']
 
     floor_id = fields.Many2one('restaurant.floor', string='Floor', index='btree_not_null')
     table_number = fields.Integer('Table Number', required=True, help='The number of the table as displayed on the floor plan', default=0)

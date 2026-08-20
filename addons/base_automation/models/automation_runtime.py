@@ -19,7 +19,7 @@ class AutomationRuntime(models.Model):
 
     _name = "automation.runtime"
     _description = "Automation Workflow Runtime Instance"
-    _inherit = ["mail.thread", "mail.activity.mixin"]
+    _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
     _check_company_auto = True
     _order = "create_date desc, id desc"
 

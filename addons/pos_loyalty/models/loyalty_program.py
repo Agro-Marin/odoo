@@ -6,7 +6,7 @@ from odoo.exceptions import UserError
 
 class LoyaltyProgram(models.Model):
     _name = 'loyalty.program'
-    _inherit = ['loyalty.program', 'pos.load.mixin']
+    _inherit = ['loyalty.program', 'mixin.pos.load']
 
     # NOTE: `pos_config_ids` satisfies an excpeptional use case: when no PoS is specified, the loyalty program is
     # applied to every PoS. You can access the loyalty programs of a PoS using _get_program_ids() of pos.config

@@ -71,7 +71,7 @@ class CalendarEvent(models.Model):
     _name = "calendar.event"
     _description = "Calendar Event"
     _order = "start desc"
-    _inherit = ["mail.thread", "resource.scheduling.mixin"]
+    _inherit = ["mixin.mail.thread", "mixin.resource.scheduling"]
     _systray_view = "calendar"
 
     # ``write`` below keeps working long after ``super()`` returns: it applies
@@ -1120,7 +1120,7 @@ class CalendarEvent(models.Model):
         return events
 
     # ------------------------------------------------------------------
-    # Resource reservation integration (contracts from resource.scheduling.mixin)
+    # Resource reservation integration (contracts from mixin.resource.scheduling)
     # ------------------------------------------------------------------
 
     def _get_reservation_date_fields(self):

@@ -13,10 +13,10 @@ from odoo.tools.translate import _
 class SaleOrderLine(models.Model):
     _name = "sale.order.line"
     _inherit = [
-        "order.line.fields.mixin",
-        "order.line.amount.mixin",
-        "order.line.invoice.mixin",
-        "analytic.mixin",
+        "mixin.order.line.fields",
+        "mixin.order.line.amount",
+        "mixin.order.line.invoice",
+        "mixin.analytic",
     ]
     _description = "Sales Order Line"
     _check_company_auto = True
@@ -31,7 +31,7 @@ class SaleOrderLine(models.Model):
     # ------------------------------------------------------------
 
     # Only ``comodel_name`` and the customer-facing labels differ from
-    # ``order.line.fields.mixin``; the rest of these definitions is inherited.
+    # ``mixin.order.line.fields``; the rest of these definitions is inherited.
     order_id = fields.Many2one(comodel_name="sale.order")
     partner_id = fields.Many2one(string="Customer")
     user_id = fields.Many2one(string="Salesperson")
@@ -140,7 +140,7 @@ class SaleOrderLine(models.Model):
         # Sale keeps this as a plain stored field set imperatively inside
         # ``_compute_price_and_discount`` (unlike purchase, which computes it).
         # ``compute``/``precompute`` are cleared explicitly so they are not
-        # inherited from ``order.line.amount.mixin``: otherwise the shared
+        # inherited from ``mixin.order.line.amount``: otherwise the shared
         # compute would fire during create precompute and transiently reset a
         # manually-provided ``discount`` before the amounts are computed.
         compute=False,
@@ -457,7 +457,7 @@ class SaleOrderLine(models.Model):
         "order_id.partner_id.category_id",
     )
     def _compute_analytic_distribution(self):
-        # The cached body lives in order.line.amount.mixin; sale only extends
+        # The cached body lives in mixin.order.line.amount; sale only extends
         # the dependency set above (product_categ_id + partner categories).
         super()._compute_analytic_distribution()
 
@@ -994,7 +994,7 @@ class SaleOrderLine(models.Model):
         "amount_taxexc_to_invoice",
     )
     def _compute_invoice_state(self):
-        # Shared logic in order.line.invoice.mixin, keyed on invoice_policy via
+        # Shared logic in mixin.order.line.invoice, keyed on invoice_policy via
         # _get_invoice_policy_field(). This override only carries the
         # sale-specific @api.depends above.
         #
@@ -1384,7 +1384,7 @@ class SaleOrderLine(models.Model):
         commercial_partner = self.sudo().partner_id.commercial_partner_id
         return f"({commercial_partner.ref or commercial_partner.name})"
 
-    # _get_price_discounted is inherited from order.line.amount.mixin (base_order).
+    # _get_price_discounted is inherited from mixin.order.line.amount (base_order).
 
     def _get_price_display(self):
         """Compute the displayed unit price for a given line.

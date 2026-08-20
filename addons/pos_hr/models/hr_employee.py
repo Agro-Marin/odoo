@@ -8,7 +8,7 @@ from odoo.exceptions import UserError
 
 class HrEmployee(models.Model):
     _name = 'hr.employee'
-    _inherit = ['hr.employee', 'pos.load.mixin']
+    _inherit = ['hr.employee', 'mixin.pos.load']
 
     @api.model
     def _load_pos_data_domain(self, data, config):

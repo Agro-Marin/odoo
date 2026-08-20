@@ -19,7 +19,7 @@ def adopt_renamed_module(cr) -> int:
     while the module itself no longer exists on disk.
 
     Left alone that is not merely untidy. The orphaned rows own
-    ``ir.model.fields`` records for ``attribute.mixin`` and friends, so the day
+    ``ir.model.fields`` records for ``mixin.attribute`` and friends, so the day
     anyone uninstalls the ghost -- or a module-list refresh decides to reap it
     -- those fields are unlinked and their columns go with them, on models this
     module is now responsible for.

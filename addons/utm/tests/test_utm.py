@@ -2,7 +2,7 @@
 
 from odoo.tests import tagged
 
-from odoo.addons.utm.models.utm_mixin import UtmMixin
+from odoo.addons.utm.models.mixin_utm import MixinUtm
 from odoo.addons.utm.tests.common import TestUTMCommon
 
 
@@ -31,29 +31,29 @@ class TestUtm(TestUTMCommon):
         }])
 
         # Find the record based on the given name
-        source = self.env['utm.mixin']._find_or_create_record('utm.source', 'Source 1')
+        source = self.env['mixin.utm']._find_or_create_record('utm.source', 'Source 1')
         self.assertEqual(source, source_1)
-        source = self.env['utm.mixin']._find_or_create_record('utm.source', 'Source 2')
+        source = self.env['mixin.utm']._find_or_create_record('utm.source', 'Source 2')
         self.assertEqual(source, source_2)
 
         # Create a new record
-        source_3 = self.env['utm.mixin']._find_or_create_record('utm.source', 'Source 3')
+        source_3 = self.env['mixin.utm']._find_or_create_record('utm.source', 'Source 3')
         self.assertNotIn(source_3, source_1 | source_2)
         self.assertEqual(source_3.name, 'Source 3')
 
         # Duplicate mark: valid new record
-        source_3_2 = self.env['utm.mixin']._find_or_create_record('utm.source', 'Source 3 [2]')
+        source_3_2 = self.env['mixin.utm']._find_or_create_record('utm.source', 'Source 3 [2]')
         self.assertNotIn(source_3_2, source_1 | source_2 | source_3)
         self.assertEqual(source_3_2.name, 'Source 3 [2]')
 
         # New source with duplicate mark ...
-        source_4_2 = self.env['utm.mixin']._find_or_create_record('utm.source', 'Source 4 [2]')
+        source_4_2 = self.env['mixin.utm']._find_or_create_record('utm.source', 'Source 4 [2]')
         self.assertNotIn(source_4_2, source_1 | source_2 | source_3 | source_3_2)
         self.assertEqual(source_4_2.name, 'Source 4 [2]')
-        source_4_2_bis = self.env['utm.mixin']._find_or_create_record('utm.source', 'Source 4 [2]')
+        source_4_2_bis = self.env['mixin.utm']._find_or_create_record('utm.source', 'Source 4 [2]')
         self.assertEqual(source_4_2_bis, source_4_2)
         # ... then basic without duplicate mark
-        source_4 = self.env['utm.mixin']._find_or_create_record('utm.source', 'Source 4')
+        source_4 = self.env['mixin.utm']._find_or_create_record('utm.source', 'Source 4')
         self.assertNotIn(source_4, source_1 | source_2 | source_3 | source_3_2 | source_4_2)
         self.assertEqual(source_4.name, 'Source 4')
 
@@ -81,18 +81,18 @@ class TestUtm(TestUTMCommon):
     def test_find_or_create_record_case(self):
         """ Find-or-create should be case insensitive to avoid useless duplication """
         name = "LinkedIn Plus"
-        source = self.env["utm.mixin"]._find_or_create_record("utm.source", name)
+        source = self.env["mixin.utm"]._find_or_create_record("utm.source", name)
         self.assertEqual(source.name, name)
 
         # case insensitive equal (also strip spaces)
         for src in ("linkedin plus", "Linkedin plus", "LINKEDIN PLUS", f"{name} ", f" {name}"):
             with self.subTest(src=src):
-                found = self.env['utm.mixin']._find_or_create_record("utm.source", src)
+                found = self.env['mixin.utm']._find_or_create_record("utm.source", src)
                 self.assertEqual(found, source)
         # not equal, just to be sure we don't do a pure ilike
         for src in ("LinkedIn", "Plus"):
             with self.subTest(src=src):
-                found = self.env['utm.mixin']._find_or_create_record("utm.source", src)
+                found = self.env['mixin.utm']._find_or_create_record("utm.source", src)
                 self.assertNotEqual(found, source)
 
     def test_find_or_create_with_archived_record(self):
@@ -100,7 +100,7 @@ class TestUtm(TestUTMCommon):
             'active': False,
             'name': 'Archived Campaign',
         }])
-        campaign = self.env['utm.mixin']._find_or_create_record('utm.campaign', 'Archived Campaign')
+        campaign = self.env['mixin.utm']._find_or_create_record('utm.campaign', 'Archived Campaign')
         self.assertEqual(archived_campaign, campaign, "An archived record must be found instead of re-created.")
 
     def test_name_generation(self):
@@ -214,4 +214,4 @@ class TestUtm(TestUTMCommon):
             ("medium [0", ("medium [0", 1)),  # unrecognized -> do not crash
         ]:
             with self.subTest(name=name):
-                self.assertEqual(UtmMixin._split_name_and_count(name), (expected_name, expected_count))
+                self.assertEqual(MixinUtm._split_name_and_count(name), (expected_name, expected_count))

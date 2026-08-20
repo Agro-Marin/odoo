@@ -95,7 +95,7 @@ class TestOrderSharedFeatures(TransactionCase):
                 )
 
     # ------------------------------------------------------------------
-    # order.line.amount.mixin — discounted unit price
+    # mixin.order.line.amount — discounted unit price
     # ------------------------------------------------------------------
 
     def test_price_discounted_matches_the_stored_field(self):
@@ -107,7 +107,7 @@ class TestOrderSharedFeatures(TransactionCase):
                 self.assertEqual(line.price_unit_discounted_taxexc, 150.0)
 
     # ------------------------------------------------------------------
-    # order.mixin — send / print tracking
+    # mixin.order — send / print tracking
     # ------------------------------------------------------------------
 
     def test_mark_as_sent_sets_the_flag_and_counts_the_send(self):
@@ -147,7 +147,7 @@ class TestOrderSharedFeatures(TransactionCase):
                 )
 
     # ------------------------------------------------------------------
-    # order.mixin — mail composer action
+    # mixin.order — mail composer action
     # ------------------------------------------------------------------
 
     def test_send_by_email_opens_the_composer_with_the_template(self):

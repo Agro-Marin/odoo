@@ -9,7 +9,7 @@ from odoo.addons.hr_expense.models.hr_expense import EXPENSE_APPROVAL_STATE
 
 class HrExpenseSplit(models.TransientModel):
     _name = 'hr.expense.split'
-    _inherit = ['analytic.mixin']
+    _inherit = ['mixin.analytic']
     _description = 'Expense Split'
     _check_company_auto = True
 

@@ -715,7 +715,7 @@ class StockMove(models.Model):
             documents[
                 move.production_id, move.production_id.user_id or self.env.user
             ] = cancelled_dests
-        return self.env["stock.activity.mixin"]._log_activity(
+        return self.env["mixin.stock.activity"]._log_activity(
             _render_note_exception_cancel_dest, documents
         )
 

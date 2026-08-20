@@ -9,12 +9,12 @@ class ProductCatalogController(Controller):
         """Browse the order targeted by a catalog route, safely.
 
         `res_model`/`order_id` are client-provided: only models implementing
-        `product.catalog.mixin` are valid targets, and the record must exist
+        `mixin.product.catalog` are valid targets, and the record must exist
         (record rules are enforced by the ORM on the later read/write).
         """
         env = request.env
         if res_model not in env.registry or not isinstance(
-            env[res_model], env.registry["product.catalog.mixin"]
+            env[res_model], env.registry["mixin.product.catalog"]
         ):
             raise UserError(_("The product catalog cannot be used on this model."))
         try:

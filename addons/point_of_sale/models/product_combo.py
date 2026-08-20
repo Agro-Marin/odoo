@@ -6,7 +6,7 @@ from odoo.exceptions import ValidationError
 
 class ProductCombo(models.Model):
     _name = "product.combo"
-    _inherit = ["product.combo", "pos.load.mixin"]
+    _inherit = ["product.combo", "mixin.pos.load"]
 
     qty_max = fields.Integer(
         string="Maximum quantity",

@@ -12,7 +12,7 @@ from odoo.tools import SQL, is_html_empty
 
 class ProductTemplate(models.Model):
     _name = "product.template"
-    _inherit = ["product.template", "pos.load.mixin"]
+    _inherit = ["product.template", "mixin.pos.load"]
 
     @api.model
     def _default_pos_sequence(self):

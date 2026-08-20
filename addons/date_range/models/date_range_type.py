@@ -5,7 +5,7 @@ from dateutil.rrule import DAILY, MONTHLY, WEEKLY, YEARLY
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
-from odoo.addons.base.models.catalog_mixin import name_uniq_index
+from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 _logger = logging.getLogger(__name__)
 

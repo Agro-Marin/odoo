@@ -13,10 +13,10 @@ from odoo.tools.translate import _
 class PurchaseOrderLine(models.Model):
     _name = "purchase.order.line"
     _inherit = [
-        "order.line.fields.mixin",
-        "order.line.amount.mixin",
-        "order.line.invoice.mixin",
-        "analytic.mixin",
+        "mixin.order.line.fields",
+        "mixin.order.line.amount",
+        "mixin.order.line.invoice",
+        "mixin.analytic",
     ]
     _description = "Purchase Order Line"
     _check_company_auto = True
@@ -36,7 +36,7 @@ class PurchaseOrderLine(models.Model):
     # ------------------------------------------------------------
 
     # Only ``comodel_name`` and the vendor-facing labels differ from
-    # ``order.line.fields.mixin``; the rest of these definitions is inherited.
+    # ``mixin.order.line.fields``; the rest of these definitions is inherited.
     order_id = fields.Many2one(comodel_name="purchase.order")
     partner_id = fields.Many2one(string="Vendor")
     user_id = fields.Many2one(string="Buyer")
@@ -196,7 +196,7 @@ class PurchaseOrderLine(models.Model):
         "product_id.seller_ids.product_uom_id",
     )
     def _compute_allowed_uom_ids(self):
-        # Shared union lives in order.line.fields.mixin; this override only
+        # Shared union lives in mixin.order.line.fields; this override only
         # carries purchase's extended @api.depends (seller UoM triggers). The
         # seller UoMs themselves are added via _get_extra_allowed_uoms.
         return super()._compute_allowed_uom_ids()
@@ -208,7 +208,7 @@ class PurchaseOrderLine(models.Model):
 
     @api.depends("company_id", "fiscal_position_id", "product_id")
     def _compute_tax_ids(self):
-        # Shared logic in order.line.amount.mixin, routed to supplier_taxes_id
+        # Shared logic in mixin.order.line.amount, routed to supplier_taxes_id
         # via _get_product_tax_field(). This override only carries the
         # purchase-specific @api.depends above (adds fiscal_position_id).
         return super()._compute_tax_ids()
@@ -217,7 +217,7 @@ class PurchaseOrderLine(models.Model):
     def _compute_product_uom_id(self):
         """Set product UOM from seller or product default."""
         # Shared skeleton (same reset condition) lives in
-        # order.line.fields.mixin; this override only carries purchase's
+        # mixin.order.line.fields; this override only carries purchase's
         # extended @api.depends (partner). The default UoM is supplied via
         # _get_default_product_uom.
         return super()._compute_product_uom_id()
@@ -235,7 +235,7 @@ class PurchaseOrderLine(models.Model):
     )
     def _compute_product_qty(self):
         """Set suggested quantity based on vendor's minimum order quantity."""
-        # Shared skeleton lives in order.line.amount.mixin; this override only
+        # Shared skeleton lives in mixin.order.line.amount; this override only
         # carries purchase's extended @api.depends (partner/date/seller min
         # qty). The reset condition and default are supplied via
         # _product_qty_reset_triggered and _get_default_product_qty.
@@ -505,7 +505,7 @@ class PurchaseOrderLine(models.Model):
         "amount_taxexc_to_invoice",
     )
     def _compute_invoice_state(self):
-        # Shared logic in order.line.invoice.mixin, keyed on bill_policy via
+        # Shared logic in mixin.order.line.invoice, keyed on bill_policy via
         # _get_invoice_policy_field(). This override only carries the
         # purchase-specific @api.depends above.
         return super()._compute_invoice_state()

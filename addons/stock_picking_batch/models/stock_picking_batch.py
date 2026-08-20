@@ -8,7 +8,7 @@ from odoo.exceptions import UserError
 
 class StockPickingBatch(models.Model):
     _name = 'stock.picking.batch'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mixin.mail.thread', 'mixin.mail.activity']
     _description = "Batch Transfer"
     _order = "name desc"
 

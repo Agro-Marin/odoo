@@ -12,18 +12,18 @@ tree; ``product`` consumes these mixins rather than duplicating them.
 Mixins
 ======
 
-* ``attribute.mixin`` -- the attribute (dimension): ``name``, ``sequence``,
+* ``mixin.attribute`` -- the attribute (dimension): ``name``, ``sequence``,
   ``active``, ``value_type`` and ``display_type``. Concrete models add their
   own ``value_ids`` One2many pointing at their value model.
-* ``attribute.value.mixin`` -- a value: ``name``, ``sequence``, ``color``
+* ``mixin.attribute.value`` -- a value: ``name``, ``sequence``, ``color``
   (defaulted across the palette by ``_get_default_color``), ``active``, and a
   ``display_name`` qualified with the attribute. Concrete models add
   ``attribute_id``.
-* ``attribute.line.mixin`` -- one attribute plus its chosen values, bound to a
+* ``mixin.attribute.line`` -- one attribute plus its chosen values, bound to a
   subject record: ``sequence``, ``active``, ``value_count``, and the
   ``_check_values`` coherence constraint. Concrete models declare the parent
   Many2one, ``attribute_id``, ``value_ids`` and their own ``_rec_name``.
-* ``band.mixin`` -- a half-open numeric band ``[min_value, max_value)`` over a
+* ``mixin.band`` -- a half-open numeric band ``[min_value, max_value)`` over a
   scale, with bounds validation, overlap rejection and ``_covers(value)``.
 
 Bands
@@ -124,8 +124,8 @@ Deleting an attribute cascades its values away and takes every captured line
 with them; archiving one hides it from the pickers while the lines holding it
 stay live. Both are silent data loss, so the mixins refuse:
 
-* ``attribute.mixin`` -- ``@api.ondelete`` and ``action_archive`` guards.
-* ``attribute.value.mixin`` -- an ``@api.ondelete`` guard, and a ``write``
+* ``mixin.attribute`` -- ``@api.ondelete`` and ``action_archive`` guards.
+* ``mixin.attribute.value`` -- an ``@api.ondelete`` guard, and a ``write``
   guard refusing to re-home a value in use (the lines point at the value, not
   at the attribute/value pair, so moving it leaves every one of them stray --
   a violation ``_check_values`` cannot see, because the write lands on the

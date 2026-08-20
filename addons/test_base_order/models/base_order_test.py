@@ -4,10 +4,10 @@ from odoo import fields, models
 class BaseOrderTest(models.Model):
     _name = "base.order.test"
     _inherit = [
-        "order.mixin",
-        "order.amount.mixin",
-        "order.invoice.mixin",
-        "order.merge.mixin",
+        "mixin.order",
+        "mixin.order.amount",
+        "mixin.order.invoice",
+        "mixin.order.merge",
     ]
     _description = "Base Order Test"
 

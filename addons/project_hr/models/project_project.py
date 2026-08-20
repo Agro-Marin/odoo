@@ -13,7 +13,7 @@ class ProjectProject(models.Model):
     """
 
     _name = 'project.project'
-    _inherit = ["hr.mixin", "project.project"]
+    _inherit = ["mixin.hr", "project.project"]
 
     employee_id = fields.Many2one(
         "hr.employee",

@@ -9,7 +9,7 @@ Base SQL Report
 
 Mixins for building SQL-based analytical reports.
 
-``sql.report.mixin``
+``mixin.sql.report``
 --------------------
 Registry-driven SQL construction for ``_auto = False`` models.  Subclasses
 define SELECT / FROM / WHERE / GROUP BY clauses as dicts and lists rather than
@@ -20,7 +20,7 @@ monolithic strings; inheritance is just dict / list mutation::
         fields["margin"] = "SUM(l.margin)"
         return fields
 
-``materialized.view.mixin``
+``mixin.materialized.view``
 ---------------------------
 Safe (re)creation and refresh of PostgreSQL materialized views.
 
@@ -52,7 +52,7 @@ every search.
 
     class MyReport(models.Model):
         _name = "my.report"
-        _inherit = ["sql.report.mixin", "materialized.view.mixin"]
+        _inherit = ["mixin.sql.report", "mixin.materialized.view"]
         _auto = False
 
         def _get_select_fields(self): ...

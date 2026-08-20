@@ -5,7 +5,7 @@ from odoo.addons.sale import const
 
 class SaleReport(models.Model):
     _name = "sale.report"
-    _inherit = "order.report.mixin"
+    _inherit = "mixin.order.report"
     _description = "Sales Analysis Report"
     _auto = False
     _order = "date_order desc"

@@ -5,8 +5,8 @@ from odoo.tests import tagged
 
 from .common import BaseOrderTestCase
 
-# order.line.fields.mixin guards line writes through _validate_write_vals, which
-# walks the same kind of registry order.mixin uses for confirmation. The two
+# mixin.order.line.fields guards line writes through _validate_write_vals, which
+# walks the same kind of registry mixin.order uses for confirmation. The two
 # validators behind it — the display_type freeze and the locked-order protected
 # fields — had no tests, and neither did _get_line_identifier, which builds the
 # text those refusals show the user.

@@ -9,7 +9,7 @@ from odoo.exceptions import UserError, ValidationError
 class PosCategory(models.Model):
     _name = "pos.category"
     _description = "Point of Sale Category"
-    _inherit = ["pos.load.mixin"]
+    _inherit = ["mixin.pos.load"]
     _order = "sequence, name"
 
     @api.constrains("parent_id")

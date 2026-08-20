@@ -33,7 +33,7 @@ class EventEvent(models.Model):
     """Event"""
     _name = 'event.event'
     _description = 'Event'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mixin.mail.thread', 'mixin.mail.activity']
     _order = 'date_begin, id'
 
     # Maximum number of tickets that can be ordered at one time on a same line

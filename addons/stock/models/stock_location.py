@@ -15,7 +15,7 @@ STOCKED_USAGES = ("internal", "transit")
 
 class StockLocation(models.Model):
     _name = "stock.location"
-    _inherit = ["mail.thread", "mail.activity.mixin"]
+    _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
     _description = "Inventory Locations"
     _parent_name = "location_id"
     _parent_store = True

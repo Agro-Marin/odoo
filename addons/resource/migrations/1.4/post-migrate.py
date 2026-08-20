@@ -3,7 +3,7 @@
 ``pre-migrate`` clamps out-of-range percentages with raw SQL, which cannot
 refresh the stored ``allocated_hours`` derived from them — nor the
 ``allocated_hours`` aggregate the consumer records carry through
-``resource.scheduling.mixin``.  Both are repaired here, from the ids
+``mixin.resource.scheduling``.  Both are repaired here, from the ids
 ``pre-migrate`` parked in its scratch table.
 
 The two halves use different tools on purpose:

@@ -7,7 +7,7 @@ from odoo.exceptions import UserError, ValidationError
 
 class PosPreset(models.Model):
     _name = "pos.preset"
-    _inherit = ["pos.load.mixin"]
+    _inherit = ["mixin.pos.load"]
     _description = "Easily load a set of configuration options"
 
     name = fields.Char(string="Label", required=True, translate=True)

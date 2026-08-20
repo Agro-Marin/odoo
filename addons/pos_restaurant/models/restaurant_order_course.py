@@ -7,7 +7,7 @@ from uuid import uuid4
 class RestaurantOrderCourse(models.Model):
     _name = 'restaurant.order.course'
     _description = 'POS Restaurant Order Course'
-    _inherit = ['pos.load.mixin']
+    _inherit = ['mixin.pos.load']
 
     fired = fields.Boolean(string="Fired", default=False)
     fired_date = fields.Datetime(string="Fired Date")

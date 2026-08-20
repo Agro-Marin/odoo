@@ -255,7 +255,7 @@ class ResUsers(models.Model):
                 else:
                     user_lang = user.lang or self.env.lang or "en_US"
                     body = (
-                        self.env["mail.render.mixin"]
+                        self.env["mixin.mail.render"]
                         .with_context(lang=user_lang)
                         ._render_template(
                             self.env.ref("auth_signup.reset_password_email"),

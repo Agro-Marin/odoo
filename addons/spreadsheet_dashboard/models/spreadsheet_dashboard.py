@@ -7,7 +7,7 @@ from odoo.tools import file_open
 class SpreadsheetDashboard(models.Model):
     _name = 'spreadsheet.dashboard'
     _description = 'Spreadsheet Dashboard'
-    _inherit = ["spreadsheet.mixin"]
+    _inherit = ["mixin.spreadsheet"]
     _order = 'sequence'
 
     name = fields.Char(required=True, translate=True)

@@ -244,7 +244,7 @@ export class ResUsers extends mailModels.ResUsers {
 }
 
 export class SpreadsheetMixin extends models.Model {
-    _name = "spreadsheet.mixin";
+    _name = "mixin.spreadsheet";
 
     spreadsheet_binary_data = fields.Binary({ string: "Spreadsheet file" });
     spreadsheet_data = fields.Text();

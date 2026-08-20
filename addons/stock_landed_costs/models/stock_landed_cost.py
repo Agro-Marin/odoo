@@ -17,7 +17,7 @@ SPLIT_METHOD = [
 class StockLandedCost(models.Model):
     _name = 'stock.landed.cost'
     _description = 'Stock Landed Cost'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mixin.mail.thread', 'mixin.mail.activity']
     _order = 'date desc, id desc'
 
     def _default_account_journal_id(self):

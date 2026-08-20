@@ -1,6 +1,6 @@
 # mixin
-from . import documents_unlink_mixin
-from . import documents_mixin
+from . import mixin_documents_unlink
+from . import mixin_documents
 
 # documents
 from . import documents_access

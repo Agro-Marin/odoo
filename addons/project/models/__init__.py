@@ -1,4 +1,4 @@
-from . import project_pm_mixin
+from . import mixin_project_pm
 from . import account_analytic_account
 from . import mail_message
 from . import project_phase

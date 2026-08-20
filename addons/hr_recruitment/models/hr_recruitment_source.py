@@ -6,7 +6,7 @@ from odoo import fields, models
 class HrRecruitmentSource(models.Model):
     _name = 'hr.recruitment.source'
     _description = "Source of Applicants"
-    _inherit = ['utm.source.mixin']
+    _inherit = ['mixin.utm.source']
 
     email = fields.Char(related='alias_id.display_name', string="Email", readonly=True)
     has_domain = fields.Char(compute='_compute_has_domain')

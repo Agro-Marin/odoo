@@ -1,4 +1,4 @@
-"""Concrete consumer of ``resource.scheduling.mixin`` used by the tests.
+"""Concrete consumer of ``mixin.resource.scheduling`` used by the tests.
 
 The scheduling mixin only provides the reservation linkage and lifecycle; the
 scheduling columns themselves live on the consumer.  Exercising it therefore
@@ -22,7 +22,7 @@ class ResourceSchedulingTest(models.Model):
     # The allocation mixin, so the suite covers both halves: it inherits the
     # scheduling one, and the tests assert on ``allocated_hours`` /
     # ``allocated_percentage`` as well as on the projection lifecycle.
-    _inherit = ["resource.allocation.mixin"]
+    _inherit = ["mixin.resource.allocation"]
 
     name = fields.Char()
     active = fields.Boolean(default=True)

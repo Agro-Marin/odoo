@@ -14,7 +14,7 @@ class ProjectTask(models.Model):
     """
 
     _name = "project.task"
-    _inherit = ["hr.mixin", "project.task"]
+    _inherit = ["mixin.hr", "project.task"]
 
     employee_ids = fields.Many2many(
         "hr.employee",

@@ -3,7 +3,7 @@ from odoo import api, models
 
 class ResCountry(models.Model):
     _name = "res.country"
-    _inherit = ["res.country", "pos.load.mixin"]
+    _inherit = ["res.country", "mixin.pos.load"]
 
     @api.model
     def _load_pos_data_country_ids(self, data, config):

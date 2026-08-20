@@ -160,7 +160,7 @@ class DigestDigest(models.Model):
     def _action_send_to_user(self, user, tips_count=1, consume_tips=True):
         unsubscribe_token = self._get_unsubscribe_token(user.id)
 
-        rendered_body = self.env['mail.render.mixin']._render_template(
+        rendered_body = self.env['mixin.mail.render']._render_template(
             'digest.digest_mail_main',
             'digest.digest',
             self.ids,
@@ -184,7 +184,7 @@ class DigestDigest(models.Model):
                 'post_process': True,
             },
         )[self.id]
-        full_mail = self.env['mail.render.mixin']._render_encapsulate(
+        full_mail = self.env['mixin.mail.render']._render_encapsulate(
             'digest.digest_mail_layout',
             rendered_body,
             add_context={
@@ -314,7 +314,7 @@ class DigestDigest(models.Model):
         ], limit=tips_count)
         tip_descriptions = [
             tools.html_sanitize(
-                self.env['mail.render.mixin'].sudo()._render_template(
+                self.env['mixin.mail.render'].sudo()._render_template(
                     tip.tip_description,
                     'digest.tip',
                     tip.ids,

@@ -10,7 +10,7 @@ from odoo.libs.datetime import timezone
 
 class HrLeaveGenerateMultiWizard(models.TransientModel):
     _name = 'hr.leave.generate.multi.wizard'
-    _inherit = ['hr.mixin']
+    _inherit = ['mixin.hr']
     _description = 'Generate time off for multiple employees'
 
     def _get_employee_domain(self):

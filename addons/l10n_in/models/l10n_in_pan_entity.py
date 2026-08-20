@@ -8,7 +8,7 @@ from odoo.exceptions import ValidationError
 
 class L10nInPanEntity(models.Model):
     _name = 'l10n_in.pan.entity'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mixin.mail.thread', 'mixin.mail.activity']
     _description = 'Indian PAN Entity'
 
     name = fields.Char(string="PAN", tracking=1, required=True)

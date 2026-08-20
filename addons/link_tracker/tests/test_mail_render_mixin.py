@@ -14,7 +14,7 @@ class TestMailRenderMixin(common.HttpCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.base_url = cls.env["mail.render.mixin"].get_base_url()
+        cls.base_url = cls.env["mixin.mail.render"].get_base_url()
 
     @mute_logger("odoo.tests.common.requests")
     def test_shorten_links(self):
@@ -44,7 +44,7 @@ class TestMailRenderMixin(common.HttpCase):
         ]
 
         with self.allow_requests(all_requests=True):  # Creating link will query url to infer title
-            self.env["mail.render.mixin"]._shorten_links("".join(test_links), {})
+            self.env["mixin.mail.render"]._shorten_links("".join(test_links), {})
 
         trackers_to_find = [
             [("url", "=", "https://gitlab.com"), ("label", "=", "test_label")],
@@ -113,7 +113,7 @@ Without alt, filename is used: <a href="{self.base_url}/r/(\w+)+"><img src="http
 And here is the same: <a href="{self.base_url}/r/(\w+)+"><img src="https://www.odoo.com/logo.png"/></a></p>"""
         )
 
-        new_content = self.env["mail.render.mixin"]._shorten_links(content, {})
+        new_content = self.env["mixin.mail.render"]._shorten_links(content, {})
         self.assertRegex(new_content, expected_pattern)
 
         trackers_to_find = [
@@ -178,7 +178,7 @@ And a last, more complex: <a href="{self.base_url}/r/(\w+)">There!</a>
 </p>"""
         )
         with self.allow_requests(all_requests=True):  # shorten_links queries the url
-            new_content = self.env["mail.render.mixin"]._shorten_links(content, {})
+            new_content = self.env["mixin.mail.render"]._shorten_links(content, {})
 
         self.assertRegex(new_content, expected_pattern)
         matches = expected_pattern.search(new_content).groups()
@@ -196,7 +196,7 @@ And a last, more complex: <a href="{self.base_url}/r/(\w+)">There!</a>
     def test_shorten_links_html_markup(self):
         content = Markup('<p>A link: <a href="https://www.worldcommunitygrid.org">Link</a></p>')
 
-        new_content = self.env["mail.render.mixin"]._shorten_links(content, {})
+        new_content = self.env["mixin.mail.render"]._shorten_links(content, {})
         self.assertTrue(isinstance(new_content, Markup))
 
         expected_pattern = re.compile(rf'<p>A link: <a href="{self.base_url}/r/\w+">Link</a></p>')
@@ -204,14 +204,14 @@ And a last, more complex: <a href="{self.base_url}/r/(\w+)">There!</a>
 
     @mute_logger("odoo.tests.common.requests")
     def test_shorten_links_html_skip_shorts(self):
-        old_content = self.env["mail.render.mixin"]._shorten_links(
+        old_content = self.env["mixin.mail.render"]._shorten_links(
             'This is a link: <a href="https://test_542152qsdqsd.com">old</a>', {})
         created_short_url_match = re.search(TEXT_URL_REGEX, old_content)
         self.assertIsNotNone(created_short_url_match)
         created_short_url = created_short_url_match[0]
         self.assertRegex(created_short_url, f"{self.base_url}/r/[\\w]+")
 
-        new_content = self.env["mail.render.mixin"]._shorten_links(
+        new_content = self.env["mixin.mail.render"]._shorten_links(
             f'Reusing this old <a href="{created_short_url}">link</a> with a new <a href="https://odoo.com">one</a>', {}
         )
         expected = re.compile(
@@ -237,7 +237,7 @@ A forth: {self.base_url}/r/(\w+)
 And a last, with question mark: {self.base_url}/r/(\w+)"""
         )
         with self.allow_requests(all_requests=True):  # Creating link will query url to infer title
-            new_content = self.env["mail.render.mixin"]._shorten_links_text(content, {})
+            new_content = self.env["mixin.mail.render"]._shorten_links_text(content, {})
 
         self.assertRegex(new_content, expected_pattern)
         matches = expected_pattern.search(new_content).groups()
@@ -245,14 +245,14 @@ And a last, with question mark: {self.base_url}/r/(\w+)"""
         self.assertEqual(matches[0], matches[1])
 
     def test_shorten_links_text_skip_shorts(self):
-        old_content = self.env["mail.render.mixin"]._shorten_links_text(
+        old_content = self.env["mixin.mail.render"]._shorten_links_text(
             'This is a link: https://test_542152qsdqsd.com', {})
         created_short_url_match = re.search(TEXT_URL_REGEX, old_content)
         self.assertIsNotNone(created_short_url_match)
         created_short_url = created_short_url_match[0]
         self.assertRegex(created_short_url, rf"{self.base_url}/r/\w+")
 
-        new_content = self.env["mail.render.mixin"]._shorten_links_text(
+        new_content = self.env["mixin.mail.render"]._shorten_links_text(
             f'Reusing this old link {created_short_url} with a new one, https://odoo.com</a>', {}
         )
         expected = re.compile(rf'Reusing this old link {created_short_url} with a new one, {self.base_url}/r/\w+')
@@ -270,8 +270,8 @@ And a last, with question mark: {self.base_url}/r/(\w+)"""
 
         for (link, keyword, should_shorten) in test_links:
             with self.subTest(msg=link, link=link):
-                shorten_html = self.env['mail.render.mixin']._shorten_links(link, {}, blacklist=blacklist)
-                shorten_text = self.env['mail.render.mixin']._shorten_links(link, {}, blacklist=blacklist)
+                shorten_html = self.env['mixin.mail.render']._shorten_links(link, {}, blacklist=blacklist)
+                shorten_text = self.env['mixin.mail.render']._shorten_links(link, {}, blacklist=blacklist)
                 if should_shorten:
                     self.assertNotIn(keyword, shorten_html)
                     self.assertNotIn(keyword, shorten_text)

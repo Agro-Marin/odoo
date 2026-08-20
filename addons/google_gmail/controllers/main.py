@@ -11,7 +11,7 @@ from odoo.exceptions import UserError
 from odoo.http import request
 from odoo.tools import consteq, email_normalize
 
-from odoo.addons.google_gmail.models.google_gmail_mixin import (
+from odoo.addons.google_gmail.models.mixin_google_gmail import (
     GMAIL_TOKEN_REQUEST_TIMEOUT,
 )
 
@@ -73,8 +73,8 @@ class GoogleGmailController(http.Controller):
         """Return the record after checking the CSRF token."""
         model = request.env[model_name]
 
-        if not isinstance(model, request.env.registry['google.gmail.mixin']):
-            # The model must inherits from the "google.gmail.mixin" mixin
+        if not isinstance(model, request.env.registry['mixin.google.gmail']):
+            # The model must inherits from the "mixin.google.gmail" mixin
             _logger.error('Google Gmail: Wrong model %r.', model_name)
             raise Forbidden
 

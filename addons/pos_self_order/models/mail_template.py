@@ -2,7 +2,7 @@ from odoo import _, api, models
 
 class MailTemplate(models.Model):
     _name = 'mail.template'
-    _inherit = ['mail.template', 'pos.load.mixin']
+    _inherit = ['mail.template', 'mixin.pos.load']
 
     @api.model
     def _load_pos_data_domain(self, data, config):

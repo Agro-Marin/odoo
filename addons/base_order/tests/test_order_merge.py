@@ -4,7 +4,7 @@ from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
 
 # Part 3 of base_order's by-parts coverage: the merge mixin's validation,
-# grouping, eligibility, and target-selection helpers (order.merge.mixin),
+# grouping, eligibility, and target-selection helpers (mixin.order.merge),
 # exercised through sale.order. The full action_merge line-merge flow is
 # intentionally left for a dedicated review (guard R1).
 

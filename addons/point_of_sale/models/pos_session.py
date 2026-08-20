@@ -21,7 +21,7 @@ class PosSession(models.Model):
     _name = "pos.session"
     _order = "id desc"
     _description = "Point of Sale Session"
-    _inherit = ["mail.thread", "mail.activity.mixin", "pos.bus.mixin", "pos.load.mixin"]
+    _inherit = ["mixin.mail.thread", "mixin.mail.activity", "mixin.pos.bus", "mixin.pos.load"]
 
     POS_SESSION_STATE = [
         ("opening_control", "Opening Control"),  # method action_pos_session_open

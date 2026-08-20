@@ -52,7 +52,7 @@ class MailMessage(models.Model):
         if "record_rating" in fields:
             for records in self._records_by_model_name().values():
                 if (
-                    issubclass(self.pool[records._name], self.pool["rating.mixin"])
+                    issubclass(self.pool[records._name], self.pool["mixin.rating"])
                     and records._has_field_access(records._fields["rating_avg"], 'read')
                 ):
                     all_stats = {}

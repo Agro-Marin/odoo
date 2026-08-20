@@ -7,7 +7,7 @@ from odoo import fields, models
 class HtmlFieldHistoryTest(models.Model):
     _name = 'html.field.history.test'
     _description = "Test html_field_history Model"
-    _inherit = ["html.field.history.mixin"]
+    _inherit = ["mixin.html.field.history"]
 
     def _get_versioned_fields(self):
         return [

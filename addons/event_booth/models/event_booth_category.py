@@ -7,7 +7,7 @@ from odoo import fields, models
 class EventBoothCategory(models.Model):
     _name = 'event.booth.category'
     _description = 'Event Booth Category'
-    _inherit = ['image.mixin']
+    _inherit = ['mixin.image']
     _order = 'sequence ASC'
 
     active = fields.Boolean(default=True)

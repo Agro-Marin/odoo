@@ -16,7 +16,7 @@ according to a destination country.
 It also adds phone blacklist management through a specific model storing
 blacklisted phone numbers.
 
-It adds mail.thread.phone mixin that handles sanitation and blacklist of
+It adds mixin.mail.thread.phone mixin that handles sanitation and blacklist of
 records numbers. """,
     'data': [
         'security/ir.model.access.csv',

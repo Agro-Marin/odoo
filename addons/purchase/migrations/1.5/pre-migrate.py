@@ -4,7 +4,7 @@ The field held the date a human committed to — the arrival date promised by
 the vendor — which is the concept sale already stores as
 ``sale.order.date_commitment``. Under the old name it clashed with a different
 concept: sale's ``date_planned`` is a derived, *unstored* estimate. Sharing one
-name for one concept lets base_order reason about it (``order.mixin``'s
+name for one concept lets base_order reason about it (``mixin.order``'s
 ``is_late`` domain now does) instead of each module meaning its own thing.
 
 Renaming in ``pre`` is what makes this safe. Left to itself the ORM would find

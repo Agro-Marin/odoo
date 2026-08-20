@@ -1,1 +1,1 @@
-from . import sql_materialized_mixin, sql_report_mixin
+from . import mixin_materialized_view, mixin_sql_report

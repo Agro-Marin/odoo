@@ -5,7 +5,7 @@ from odoo.tools import float_is_zero
 
 class EventRegistration(models.Model):
     _name = 'event.registration'
-    _inherit = ['event.registration', 'pos.load.mixin']
+    _inherit = ['event.registration', 'mixin.pos.load']
 
     pos_order_id = fields.Many2one(related='pos_order_line_id.order_id', string='PoS Order')
     pos_order_line_id = fields.Many2one('pos.order.line', string='PoS Order Line', ondelete='cascade', copy=False, index='btree_not_null')

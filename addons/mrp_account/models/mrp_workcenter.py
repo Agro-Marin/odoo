@@ -5,7 +5,7 @@ from odoo import api, fields, models
 
 class MrpWorkcenter(models.Model):
     _name = 'mrp.workcenter'
-    _inherit = ['mrp.workcenter', 'analytic.mixin']
+    _inherit = ['mrp.workcenter', 'mixin.analytic']
 
     costs_hour_account_ids = fields.Many2many('account.analytic.account', compute="_compute_costs_hour_account_ids", store=True)
     expense_account_id = fields.Many2one('account.account', string="Expense Account", check_company=True,

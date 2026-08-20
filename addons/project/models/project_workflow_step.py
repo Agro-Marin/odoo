@@ -26,7 +26,7 @@ class ProjectWorkflowStep(models.Model):
 
     _name = "project.workflow.step"
     _description = "Workflow Step"
-    _inherit = ["project.pm.mixin"]
+    _inherit = ["mixin.project.pm"]
     _order = "sequence, id"
 
     def _get_default_project_ids(self) -> list[int] | None:

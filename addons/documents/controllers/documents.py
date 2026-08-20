@@ -1472,7 +1472,7 @@ class ShareRoute(http.Controller):
             # `_create_document`, which either self-binds the request document
             # early -- so the `is a request` test below sees an attachment and
             # skips the edit-link downgrade -- or, for a document linked to a
-            # `documents.mixin` record, creates a SECOND document for it.
+            # `mixin.documents` record, creates a SECOND document for it.
             attachment_sudo.with_context(no_document=True).write(
                 {
                     "res_model": document_sudo.res_model or "documents.document",

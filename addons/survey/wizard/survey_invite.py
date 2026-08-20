@@ -13,7 +13,7 @@ emails_split = re.compile(r"[;,\n\r]+")
 
 class SurveyInvite(models.TransientModel):
     _name = "survey.invite"
-    _inherit = ["mail.composer.mixin"]
+    _inherit = ["mixin.mail.composer"]
     _description = "Survey Invitation Wizard"
 
     @api.model
@@ -139,7 +139,7 @@ class SurveyInvite(models.TransientModel):
                 else False
             )
 
-    # Overrides of mail.composer.mixin
+    # Overrides of mixin.mail.composer
     @api.depends("survey_id")  # fake trigger otherwise not computed in new mode
     def _compute_render_model(self) -> None:
         self.render_model = "survey.user_input"

@@ -3,7 +3,7 @@ from odoo import api, models
 
 class ResourceCalendarAttendance(models.Model):
     _name = "resource.calendar.attendance"
-    _inherit = ["resource.calendar.attendance", "pos.load.mixin"]
+    _inherit = ["resource.calendar.attendance", "mixin.pos.load"]
 
     @api.model
     def _load_pos_data_domain(self, data, config):

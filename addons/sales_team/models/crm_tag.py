@@ -5,7 +5,7 @@ from odoo import fields, models
 
 class CrmTag(models.Model):
     _name = "crm.tag"
-    _inherit = ["tag.nested.mixin"]
+    _inherit = ["mixin.tag.nested"]
     _description = "CRM Tag"
 
     parent_id = fields.Many2one(

@@ -497,7 +497,7 @@ class TestMailSchedule(EventMailCommon):
         self.assertTrue(before_scheduler.mail_done)
         self.assertFalse(before_scheduler.error_datetime)
 
-    @mute_logger('odoo.addons.event.models.event_mail', 'odoo.addons.mail.models.mail_render_mixin')
+    @mute_logger('odoo.addons.event.models.event_mail', 'odoo.addons.mail.models.mixin_mail_render')
     @users('user_eventmanager')
     def test_event_mail_schedule_fail_global_composer_message(self):
         """ Test message logged depending on issue when trying to send communications """

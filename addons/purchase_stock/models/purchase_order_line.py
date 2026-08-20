@@ -10,7 +10,7 @@ from odoo.tools.translate import _
 
 class PurchaseOrderLine(models.Model):
     _name = "purchase.order.line"
-    _inherit = ["purchase.order.line", "order.line.stock.mixin"]
+    _inherit = ["purchase.order.line", "mixin.order.line.stock"]
 
     # ------------------------------------------------------------
     # FIELDS
@@ -45,7 +45,7 @@ class PurchaseOrderLine(models.Model):
         readonly=True,
         copy=False,
     )
-    # qty_to_transfer is inherited from order.line.stock.mixin (base_order_stock);
+    # qty_to_transfer is inherited from mixin.order.line.stock (base_order_stock);
     # it is populated by this model's _compute_qty_transferred override.
     product_description_variants = fields.Char(
         string="Custom Description",
@@ -342,7 +342,7 @@ class PurchaseOrderLine(models.Model):
     def _get_procurement_moves(self):
         # Receipts procure a purchase line, returns to the vendor hand the
         # goods back — the mirror of sale, hence the swap. Overrides
-        # order.line.stock.mixin (base_order_stock), which owns the arithmetic.
+        # mixin.order.line.stock (base_order_stock), which owns the arithmetic.
         outgoing_moves, incoming_moves = self._get_stock_moves_outgoing_incoming()
         return incoming_moves, outgoing_moves
 

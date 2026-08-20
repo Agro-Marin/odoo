@@ -3,7 +3,7 @@ from odoo import api, fields, models
 
 class UomUom(models.Model):
     _name = "uom.uom"
-    _inherit = ["uom.uom", "pos.load.mixin"]
+    _inherit = ["uom.uom", "mixin.pos.load"]
 
     is_pos_groupable = fields.Boolean(
         string="Group Products in POS",

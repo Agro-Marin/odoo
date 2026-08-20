@@ -13,17 +13,17 @@ tables, no views, no menus.
 
 Mixins:
 -------
-* **order.mixin** — state machine, validation registry, workflow actions,
+* **mixin.order** — state machine, validation registry, workflow actions,
   mail/portal/catalog integration, duplicate detection
-* **order.amount.mixin** — tax computation and credit warning (order-level)
-* **order.line.amount.mixin** — pricing and tax computation (line-level)
-* **order.line.fields.mixin** — common structural fields, CRUD guards,
+* **mixin.order.amount** — tax computation and credit warning (order-level)
+* **mixin.order.line.amount** — pricing and tax computation (line-level)
+* **mixin.order.line.fields** — common structural fields, CRUD guards,
   transfer tracking
-* **order.invoice.mixin** — invoice tracking (order-level)
-* **order.line.invoice.mixin** — invoice tracking (line-level)
-* **order.merge.mixin** — quotation/RFQ merge system
-* **order.report.mixin** — shared analytical-report layer over sql.report.mixin
-* **order.mass.cancel.mixin** — cancel several orders from a list selection
+* **mixin.order.invoice** — invoice tracking (order-level)
+* **mixin.order.line.invoice** — invoice tracking (line-level)
+* **mixin.order.merge** — quotation/RFQ merge system
+* **mixin.order.report** — shared analytical-report layer over mixin.sql.report
+* **mixin.order.mass.cancel** — cancel several orders from a list selection
 
 It also carries the shared ``ir.actions.report`` extension that embeds an
 order's EDI XML into its rendered PDF. Concrete modules only declare which of

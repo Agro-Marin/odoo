@@ -18,7 +18,7 @@ class ProjectBenefit(models.Model):
     _name = "project.benefit"
     _description = "Project Benefit"
     _order = "sequence, id"
-    _inherit = ["mail.thread", "mail.activity.mixin"]
+    _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
 
     name = fields.Char("Benefit", required=True, tracking=True)
     sequence = fields.Integer(default=10)

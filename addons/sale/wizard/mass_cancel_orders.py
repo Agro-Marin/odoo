@@ -3,7 +3,7 @@ from odoo import fields, models
 
 class SaleMassCancelOrders(models.TransientModel):
     _name = "sale.mass.cancel.orders"
-    _inherit = "order.mass.cancel.mixin"
+    _inherit = "mixin.order.mass.cancel"
     _description = "Cancel multiple quotations"
 
     order_ids = fields.Many2many(

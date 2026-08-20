@@ -11,7 +11,7 @@ from odoo.tools.translate import _
 
 class SaleOrderLine(models.Model):
     _name = "sale.order.line"
-    _inherit = ["sale.order.line", "order.line.stock.mixin"]
+    _inherit = ["sale.order.line", "mixin.order.line.stock"]
 
     def _get_merge_date_field(self):
         # EXTENDS base_order: plain sale.order.line has no merge-relevant date,
@@ -69,7 +69,7 @@ class SaleOrderLine(models.Model):
         digits="Product Unit",
         compute="_compute_qty_at_date",
     )
-    # qty_to_transfer is inherited from order.line.stock.mixin (base_order_stock);
+    # qty_to_transfer is inherited from mixin.order.line.stock (base_order_stock);
     # it is populated by this model's _compute_qty_transferred override.
     display_qty_widget = fields.Boolean(
         compute="_compute_display_qty_widget",
@@ -569,7 +569,7 @@ class SaleOrderLine(models.Model):
 
     def _get_procurement_moves(self):
         # Deliveries procure a sale line and customer returns hand the goods
-        # back. Overrides order.line.stock.mixin (base_order_stock); its generic
+        # back. Overrides mixin.order.line.stock (base_order_stock); its generic
         # difference of the two is not the whole answer here, because goods
         # standing in the delivery pipeline procure the line as well and that
         # quantity is a balance rather than a set of moves -- see

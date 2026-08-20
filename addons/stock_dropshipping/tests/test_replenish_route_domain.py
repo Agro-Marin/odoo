@@ -1,4 +1,4 @@
-"""Pins for the drop-shipping exclusion in `stock.replenish.mixin`."""
+"""Pins for the drop-shipping exclusion in `mixin.stock.replenish`."""
 
 from odoo.tests import TransactionCase, tagged
 

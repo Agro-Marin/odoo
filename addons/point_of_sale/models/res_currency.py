@@ -3,7 +3,7 @@ from odoo import api, models
 
 class ResCurrency(models.Model):
     _name = "res.currency"
-    _inherit = ["res.currency", "pos.load.mixin"]
+    _inherit = ["res.currency", "mixin.pos.load"]
 
     @api.model
     def _load_pos_data_domain(self, data, config):

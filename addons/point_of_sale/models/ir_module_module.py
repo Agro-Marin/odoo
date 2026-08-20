@@ -3,7 +3,7 @@ from odoo import api, models
 
 class IrModuleModule(models.Model):
     _name = "ir.module.module"
-    _inherit = ["pos.load.mixin", "ir.module.module"]
+    _inherit = ["mixin.pos.load", "ir.module.module"]
 
     @api.model
     def _load_pos_data_fields(self, config):

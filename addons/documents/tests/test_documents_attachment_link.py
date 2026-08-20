@@ -260,7 +260,7 @@ class TestDocumentsAttachmentFiling(TransactionCase):
     def test_linking_to_a_record_does_not_spawn_a_second_document(self):
         """Re-binding the attachment must not re-enter document auto-creation.
 
-        `documents.mixin` makes `ir.attachment.write` create a document for any
+        `mixin.documents` makes `ir.attachment.write` create a document for any
         attachment landing on a bridged model (hr.employee, project.project,
         product.template, account.move, ...). `_inverse_res_record` guards
         against that with `no_document` -- but set it on a value that a recordset

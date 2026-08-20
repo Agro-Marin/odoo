@@ -16,7 +16,7 @@ class PosPayment(models.Model):
     _name = "pos.payment"
     _description = "Point of Sale Payments"
     _order = "id desc"
-    _inherit = ["pos.load.mixin"]
+    _inherit = ["mixin.pos.load"]
 
     name = fields.Char(string="Label", readonly=True)
     pos_order_id = fields.Many2one(

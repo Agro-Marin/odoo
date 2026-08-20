@@ -1,5 +1,5 @@
-"""Second-pass regressions that need a real ``resource.mixin`` /
-``resource.scheduling.mixin`` consumer, which is why they live here rather than
+"""Second-pass regressions that need a real ``mixin.resource`` /
+``mixin.resource.scheduling`` consumer, which is why they live here rather than
 in ``resource`` itself: that module's tests run before this one is in the
 registry.
 """

@@ -11,7 +11,7 @@ class ProjectTaskRecurrence(models.Model):
     # are the mixin's. A task's recurrence ends on a *day* the user picks, so
     # `repeat_until` stays a Date here and is declared below -- see the mixin
     # for why it does not own that field.
-    _inherit = ["recurrence.rule.mixin"]
+    _inherit = ["mixin.recurrence.rule"]
 
     task_ids = fields.One2many("project.task", "recurrence_id", copy=False)
 

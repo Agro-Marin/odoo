@@ -34,7 +34,7 @@ class TestMailingTest(TestMassMailCommon):
         })
 
     @users('user_marketing')
-    @mute_logger('odoo.addons.mail.models.mail_render_mixin')
+    @mute_logger('odoo.addons.mail.models.mixin_mail_render')
     def test_mailing_test_button(self):
         mailing = self.test_mailing_bl.with_env(self.env)
         mailing_test = self.env['mailing.mailing.test'].create({
@@ -77,7 +77,7 @@ class TestMailingTest(TestMassMailCommon):
             mailing_test.send_mail_test()
 
     @users('user_marketing')
-    @mute_logger('odoo.addons.mail.models.mail_render_mixin')
+    @mute_logger('odoo.addons.mail.models.mixin_mail_render')
     def test_mailing_test_button_links(self):
         """This tests that the link provided by the View in Browser snippet is correctly replaced
         when sending a test mailing while the Unsubscribe button's link isn't, to preserve the testing route

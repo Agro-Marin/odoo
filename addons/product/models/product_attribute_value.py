@@ -5,7 +5,7 @@ class ProductAttributeValue(models.Model):
     # if you change this _order, keep it in sync with the method
     # `_sort_key_variant` in `product.template'
     _name = "product.attribute.value"
-    _inherit = "attribute.value.mixin"
+    _inherit = "mixin.attribute.value"
     _order = "attribute_id, sequence, id"
     _description = "Attribute Value"
 
@@ -18,7 +18,7 @@ class ProductAttributeValue(models.Model):
         help="The attribute cannot be changed once the value is used on at least one product.",
     )
     display_type = fields.Selection(related="attribute_id.display_type")
-    # name, active and color come from attribute.value.mixin; only the labels
+    # name, active and color come from mixin.attribute.value; only the labels
     # and the index are product-specific. `sequence` now carries the mixin's
     # default of 10 -- it had none here, so new values were created with a NULL
     # sequence, which sorts *last* under `_order` and made the display order of
@@ -65,7 +65,7 @@ class ProductAttributeValue(models.Model):
     # === CRUD METHODS === #
 
     # The re-home guard ("cannot change the attribute of a value in use") and
-    # the delete guard both live on attribute.value.mixin now; _used_records
+    # the delete guard both live on mixin.attribute.value now; _used_records
     # and _usage_label below narrow "in use" to active templates.
 
     def _used_records(self):
@@ -151,7 +151,7 @@ class ProductAttributeValue(models.Model):
 
     # _get_default_color and _compute_display_name (qualifying a value with its
     # attribute, suppressed by `show_attribute=False`) now live on
-    # attribute.value.mixin -- neither was product-specific.
+    # mixin.attribute.value -- neither was product-specific.
 
     @api.depends("pav_attribute_line_ids")
     def _compute_is_used_on_products(self):

@@ -288,7 +288,7 @@ class TestMassSMSInternals(TestMassSMSCommon):
 @tagged('mass_mailing', 'mass_mailing_sms', 'mailing_test')
 class TestMassSMSTest(TestMassSMSCommon):
 
-    @mute_logger('odoo.addons.mail.models.mail_render_mixin')
+    @mute_logger('odoo.addons.mail.models.mixin_mail_render')
     def test_mass_sms_test_button(self):
         mailing = self.env['mailing.mailing'].create({
             'name': 'TestButton',

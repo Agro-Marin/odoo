@@ -19,7 +19,7 @@ class TestDocumentsTrashChatterTranslation(TransactionCaseDocuments):
 
         The frame it inspects for a ``self``/``env``/``cr`` is the lambda's,
         which has none, so off any HTTP request -- crons, the mail gateway, the
-        archive cascade of `documents.unlink.mixin`, this test -- it fell back
+        archive cascade of `mixin.documents.unlink`, this test -- it fell back
         to ``("base", "en_US")`` and logged a WARNING with a full stack trace
         for every parent folder it posted to.
 

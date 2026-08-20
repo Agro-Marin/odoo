@@ -1,1 +1,1 @@
-from . import recurrence_rule_mixin
+from . import mixin_recurrence_rule

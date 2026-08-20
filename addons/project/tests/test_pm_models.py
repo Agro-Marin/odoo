@@ -226,7 +226,7 @@ class TestPmModels(TestProjectCommon):
         self.assertEqual(len(r2.action_ids), 1, "only open actions carry forward")
         self.assertEqual(r2.action_ids.name, "Open action")
 
-    # ----- project.pm.mixin -------------------------------------------------
+    # ----- mixin.project.pm -------------------------------------------------
     def test_pm_mixin_copy_appends_copy_suffix(self) -> None:
         """The shared mixin must append '(copy)' on duplicate for every model
         that used to carry its own copy_data override."""

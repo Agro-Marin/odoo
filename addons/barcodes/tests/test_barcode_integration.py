@@ -46,16 +46,16 @@ class TestBarcodeEventsMixin(common.TransactionCase):
         """A model inheriting the mixin without the hook fails loudly, and the
         message names the model rather than being a translated string aimed at
         an end user who will never see it."""
-        scanned = self.env["barcodes.barcode_events_mixin"]
+        scanned = self.env["mixin.barcodes.barcode_events"]
         with self.assertRaises(NotImplementedError) as caught:
             scanned.on_barcode_scanned("12345670")
-        self.assertIn("barcodes.barcode_events_mixin", str(caught.exception))
+        self.assertIn("mixin.barcodes.barcode_events", str(caught.exception))
 
     def test_onchange_clears_the_field_and_forwards_the_barcode(self):
         """The carrier field must be emptied, or the next identical scan is a
         no-op: the onchange would not fire for an unchanged value."""
         seen = []
-        mixin = self.env["barcodes.barcode_events_mixin"]
+        mixin = self.env["mixin.barcodes.barcode_events"]
         record = mixin.new({"_barcode_scanned": "12345670"})
         self.patch(
             type(mixin),
@@ -68,7 +68,7 @@ class TestBarcodeEventsMixin(common.TransactionCase):
 
     def test_onchange_ignores_an_empty_barcode(self):
         seen = []
-        mixin = self.env["barcodes.barcode_events_mixin"]
+        mixin = self.env["mixin.barcodes.barcode_events"]
         record = mixin.new({"_barcode_scanned": ""})
         self.patch(
             type(mixin),

@@ -4,7 +4,7 @@ from odoo.tools import OrderedSet, groupby
 
 class AccountMove(models.Model):
     _name = "account.move"
-    _inherit = ["account.move", "utm.mixin"]
+    _inherit = ["account.move", "mixin.utm"]
 
     # ------------------------------------------------------------
     # FIELDS

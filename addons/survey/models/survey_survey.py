@@ -23,7 +23,7 @@ class SurveySurvey(models.Model):
     _description = "Survey"
     _order = "create_date DESC"
     _rec_name = "title"
-    _inherit = ["mail.thread", "mail.activity.mixin"]
+    _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
 
     @api.model
     def _get_default_access_token(self) -> str:

@@ -1,6 +1,6 @@
 """Post-migration: drop `mrp_workorder.reservation_id`.
 
-Work orders now reach their booking through `resource.scheduling.mixin`'s
+Work orders now reach their booking through `mixin.resource.scheduling`'s
 reverse One2many (`resource_reservation.res_model` / `res_id`), which every
 consumer of the ledger shares. The dedicated `reservation_id` column was a
 *second* pointer at the same row, and the two could disagree: nothing stopped

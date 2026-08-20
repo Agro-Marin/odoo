@@ -8,7 +8,7 @@ class TestUtmMixinHelpers(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.Mixin = cls.env["utm.mixin"]
+        cls.Mixin = cls.env["mixin.utm"]
 
     def test_split_name_without_counter(self):
         """A bare name has an implicit counter of 1."""

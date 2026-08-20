@@ -177,9 +177,9 @@ class TestWebsiteControllerPage(HttpCase):
                 "name": "some_name"
         }
         # Abstract Model
-        self.assertEqual(get_model_meta_params("website.published.mixin"), (True, False, False))
+        self.assertEqual(get_model_meta_params("mixin.website.published"), (True, False, False))
         with self.assertRaises(ValidationError) as cm:
-            self.env["website.controller.page"].create({**default_page_vals, "model": "website.published.mixin"})
+            self.env["website.controller.page"].create({**default_page_vals, "model": "mixin.website.published"})
         self.assertEqual(str(cm.exception), "A page must be set to display a concrete model.")
 
         # Transient Model

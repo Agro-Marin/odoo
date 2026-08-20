@@ -3,7 +3,7 @@ from odoo import api, models
 
 class ResUsers(models.Model):
     _name = "res.users"
-    _inherit = ["res.users", "pos.load.mixin"]
+    _inherit = ["res.users", "mixin.pos.load"]
 
     @api.model
     def _load_pos_data_domain(self, data, config):

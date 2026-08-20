@@ -1,6 +1,6 @@
 """Backfill resource.reservation rows for legacy project.task records (t20171).
 
-When ``resource.scheduling.mixin`` was introduced (t21163), its CRUD
+When ``mixin.resource.scheduling`` was introduced (t21163), its CRUD
 hooks created reservations on every create/write of project.task.
 Pre-existing tasks (with planned dates and assigned employees but no
 edits since the mixin landed) have no reservations, leaving

@@ -10,7 +10,7 @@ from . import (
     product_attribute,
     product_attribute_custom_value,
     product_attribute_value,
-    product_catalog_mixin,
+    mixin_product_catalog,
     product_category,
     product_combo,
     product_combo_item,

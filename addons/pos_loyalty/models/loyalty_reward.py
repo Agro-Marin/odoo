@@ -8,7 +8,7 @@ from odoo.fields import Domain
 
 class LoyaltyReward(models.Model):
     _name = 'loyalty.reward'
-    _inherit = ['loyalty.reward', 'pos.load.mixin']
+    _inherit = ['loyalty.reward', 'mixin.pos.load']
 
     def _get_discount_product_values(self):
         res = super()._get_discount_product_values()

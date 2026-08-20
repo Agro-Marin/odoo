@@ -28,7 +28,7 @@ class LinkTracker(models.Model):
     _rec_name = "short_url"
     _description = "Link Tracker"
     _order = "count DESC"
-    _inherit = ["utm.mixin"]
+    _inherit = ["mixin.utm"]
 
     # URL info
     url = fields.Char(string='Target URL', required=True)
@@ -121,7 +121,7 @@ class LinkTracker(models.Model):
                 continue
 
             query = dict(parse_qsl(parsed.query))
-            for key, field_name, _cook in self.env['utm.mixin'].tracking_fields():
+            for key, field_name, _cook in self.env['mixin.utm'].tracking_fields():
                 field = self._fields[field_name]
                 attr = tracker[field_name]
                 if field.type == 'many2one':
@@ -195,7 +195,7 @@ class LinkTracker(models.Model):
                 vals['title'] = self._get_title_from_url(vals['url'])
 
             # Prevent the UTMs from being set by the values of UTM cookies
-            for (__, fname, __) in self.env['utm.mixin'].tracking_fields():
+            for (__, fname, __) in self.env['mixin.utm'].tracking_fields():
                 if fname not in vals:
                     vals[fname] = False
 
@@ -265,10 +265,10 @@ class LinkTracker(models.Model):
 
     @api.model
     def convert_links(self, html, vals, blacklist=None):
-        raise NotImplementedError('Moved on mail.render.mixin')
+        raise NotImplementedError('Moved on mixin.mail.render')
 
     def _convert_links_text(self, body, vals, blacklist=None):
-        raise NotImplementedError('Moved on mail.render.mixin')
+        raise NotImplementedError('Moved on mixin.mail.render')
 
     def action_view_statistics(self):
         action = self.env['ir.actions.act_window']._for_xml_id('link_tracker.link_tracker_click_action_statistics')

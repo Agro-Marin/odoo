@@ -11,9 +11,9 @@ class ProductTemplateAttributeLine(models.Model):
     """
 
     # _order, active, sequence and value_count all come from
-    # attribute.line.mixin, which carries the same values this model declared.
+    # mixin.attribute.line, which carries the same values this model declared.
     _name = "product.template.attribute.line"
-    _inherit = "attribute.line.mixin"
+    _inherit = "mixin.attribute.line"
     _rec_name = "attribute_id"
     _rec_names_search = ["attribute_id", "value_ids"]
     _description = "Product Template Attribute Line"

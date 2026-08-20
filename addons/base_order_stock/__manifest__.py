@@ -13,8 +13,8 @@ purchase_stock.
 
 Mixins:
 -------
-* **order.stock.mixin** — transfer status, effective date, incoterms
-* **order.line.stock.mixin** — qty_to_transfer, stock move helpers
+* **mixin.order.stock** — transfer status, effective date, incoterms
+* **mixin.order.line.stock** — qty_to_transfer, stock move helpers
 
 The order-level ``_compute_transfer_state`` is IDENTICAL between sale_stock
 and purchase_stock — only ``_compute_date_effective`` differs (customer

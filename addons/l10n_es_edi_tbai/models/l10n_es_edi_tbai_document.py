@@ -784,7 +784,7 @@ class L10n_Es_Edi_TbaiDocument(models.Model):
         sequence_number = int(matching.group())
 
         # NOTE non-decimal characters should not appear in the number
-        seq_length = self.env['sequence.mixin']._get_sequence_format_param(name)[1]['seq_length']
+        seq_length = self.env['mixin.sequence']._get_sequence_format_param(name)[1]['seq_length']
         number = f"{sequence_number:0{seq_length}d}"
 
         sequence = sequence_prefix.rstrip('/')

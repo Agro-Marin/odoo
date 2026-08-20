@@ -18,7 +18,7 @@ class GamificationBadge(models.Model):
 
     _name = "gamification.badge"
     _description = "Gamification Badge"
-    _inherit = ["mail.thread", "image.mixin"]
+    _inherit = ["mixin.mail.thread", "mixin.image"]
 
     name = fields.Char("Badge", required=True, translate=True)
     active = fields.Boolean("Active", default=True)

@@ -187,7 +187,7 @@ class SaleOrderLine(models.Model):
                     allocated_hours = line._convert_qty_company_hours(line.task_id.company_id or self.env.user.company_id)
                     # The sold quantity is the task's *estimate*. allocated_hours
                     # is the committed side, computed from the reservation ledger
-                    # (resource.scheduling.mixin), so writing it here was silently
+                    # (mixin.resource.scheduling), so writing it here was silently
                     # undone on the next assignee or date change.
                     line.task_id.write({'planned_hours': allocated_hours})
         return result

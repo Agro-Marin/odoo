@@ -9,7 +9,7 @@ from odoo.exceptions import UserError, ValidationError
 class PurchaseRequisition(models.Model):
     _name = "purchase.requisition"
     _description = "Purchase Requisition"
-    _inherit = ["mail.thread", "mail.activity.mixin"]
+    _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
     _order = "id desc"
 
     name = fields.Char(
@@ -261,7 +261,7 @@ class PurchaseRequisition(models.Model):
 
 class PurchaseRequisitionLine(models.Model):
     _name = "purchase.requisition.line"
-    _inherit = ["analytic.mixin"]
+    _inherit = ["mixin.analytic"]
     _description = "Purchase Requisition Line"
     _rec_name = "product_id"
 

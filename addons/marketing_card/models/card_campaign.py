@@ -10,7 +10,7 @@ from .card_template import TEMPLATE_DIMENSIONS
 class CardCampaign(models.Model):
     _name = 'card.campaign'
     _description = 'Marketing Card Campaign'
-    _inherit = ['mail.activity.mixin', 'mail.render.mixin', 'mail.thread']
+    _inherit = ['mixin.mail.activity', 'mixin.mail.render', 'mixin.mail.thread']
     _order = 'id DESC'
     _unrestricted_rendering = True
 
@@ -398,7 +398,7 @@ class CardCampaign(models.Model):
 
     @api.depends('res_model')
     def _compute_render_model(self):
-        """ override for mail.render.mixin """
+        """ override for mixin.mail.render """
         for campaign in self:
             campaign.render_model = campaign.res_model
 

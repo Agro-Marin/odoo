@@ -5,7 +5,7 @@ from odoo.exceptions import ValidationError
 
 class ResPartner(models.Model):
     _name = "res.partner"
-    _inherit = ["res.partner", "pos.load.mixin"]
+    _inherit = ["res.partner", "mixin.pos.load"]
 
     pos_order_count = fields.Integer(
         compute="_compute_pos_order",

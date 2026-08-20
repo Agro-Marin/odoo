@@ -18,7 +18,7 @@ class ResourceRole(models.Model):
     notifies, with a unique name and no notion of capacity, colour or order.
 
     Uniqueness is not enforced. Neither predecessor enforced it, and live data
-    is free to hold two roles of the same name; adopting ``catalog.mixin``
+    is free to hold two roles of the same name; adopting ``mixin.catalog``
     (which would supply ``name``/``active`` and a uniqueness index that has to
     be explicitly declined) is a reasonable follow-up, not something to fold
     into a data migration.

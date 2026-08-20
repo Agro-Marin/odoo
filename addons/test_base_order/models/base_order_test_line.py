@@ -4,16 +4,16 @@ from odoo import api, fields, models
 class BaseOrderTestLine(models.Model):
     _name = "base.order.test.line"
     _inherit = [
-        "order.line.fields.mixin",
-        "order.line.amount.mixin",
-        "order.line.invoice.mixin",
-        "analytic.mixin",
+        "mixin.order.line.fields",
+        "mixin.order.line.amount",
+        "mixin.order.line.invoice",
+        "mixin.analytic",
     ]
     _description = "Base Order Test Line"
 
     # FIELDS
 
-    # Only ``comodel_name`` differs from ``order.line.fields.mixin``, which
+    # Only ``comodel_name`` differs from ``mixin.order.line.fields``, which
     # also supplies the bridge fields (company_id, currency_id, state,
     # partner_id, locked, …) — as in the real sale/purchase lines.
     order_id = fields.Many2one(comodel_name="base.order.test", string="Order")

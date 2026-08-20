@@ -1,6 +1,6 @@
 """Invoice-Side Order Bridge
 
-``order.stock.mixin`` owns ``incoterm_location`` on the order, so it owns
+``mixin.order.stock`` owns ``incoterm_location`` on the order, so it owns
 copying it onto the invoice too.  sale_stock and purchase_stock both carried
 the same "first order that has one wins" rule, differing only in the relation
 path they walk, and each declared dependencies that did not cover the value

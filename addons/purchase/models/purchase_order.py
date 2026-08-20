@@ -22,11 +22,11 @@ from odoo.addons.purchase import const
 class PurchaseOrder(models.Model):
     _name = "purchase.order"
     _inherit = [
-        "order.mixin",
-        "order.amount.mixin",
-        "order.invoice.mixin",
-        "order.merge.mixin",
-        "account.document.import.mixin",
+        "mixin.order",
+        "mixin.order.amount",
+        "mixin.order.invoice",
+        "mixin.order.merge",
+        "mixin.account.document.import",
     ]
     _description = "Purchase Order"
     _check_company_auto = True
@@ -185,7 +185,7 @@ class PurchaseOrder(models.Model):
                 )
         return new_orders
 
-    # _unlink_except_draft_or_cancel is inherited from order.mixin (base_order).
+    # _unlink_except_draft_or_cancel is inherited from mixin.order (base_order).
 
     # ------------------------------------------------------------
     # COMPUTE METHODS
@@ -392,7 +392,7 @@ class PurchaseOrder(models.Model):
     # ACTION METHODS
     # ------------------------------------------------------------
 
-    # action_acknowledge is inherited from order.mixin (base_order).
+    # action_acknowledge is inherited from mixin.order (base_order).
 
     def action_bill_matching(self):
         self.ensure_one()
@@ -419,7 +419,7 @@ class PurchaseOrder(models.Model):
             ],
         }
 
-    # action_confirm is inherited from order.mixin (base_order); purchase only
+    # action_confirm is inherited from mixin.order (base_order); purchase only
     # customizes the post-confirmation hook below and _prepare_confirmation_values.
 
     def _action_confirm(self):
@@ -447,7 +447,7 @@ class PurchaseOrder(models.Model):
         self.write({"locked": True, "priority": "0"})
 
     # -------------------------------------------------------------------------
-    # RFQ Merge: purchase-specific hooks into order.merge.mixin (base_order).
+    # RFQ Merge: purchase-specific hooks into mixin.order.merge (base_order).
     # action_merge and the whole merge pipeline (eligibility, grouping, line
     # consolidation, metadata, messages, result action) live in the mixin; PO
     # only customises the wording and the finalize step below.
@@ -908,7 +908,7 @@ class PurchaseOrder(models.Model):
             self.env.ref(xmlid, raise_if_not_found=False) or self.env["mail.template"]
         )
 
-    # _get_mail_composer_lang is inherited from order.mixin (base_order).
+    # _get_mail_composer_lang is inherited from mixin.order (base_order).
 
     @api.model
     def _get_orders_to_remind(self):
@@ -1298,7 +1298,7 @@ class PurchaseOrder(models.Model):
     # ------------------------------------------------------------
 
     # _can_confirm_proper_state, _can_confirm_has_lines and
-    # _can_confirm_lines_have_product are inherited from order.mixin
+    # _can_confirm_lines_have_product are inherited from mixin.order
     # (base_order); purchase only implements the analytic-distribution check.
 
     def _can_confirm_analytic_distribution(self):
@@ -1363,7 +1363,7 @@ class PurchaseOrder(models.Model):
         """Extend the base cancel validators with the posted-bill guard.
 
         ``_can_cancel_check_state`` and ``_can_cancel_except_locked`` come from
-        order.mixin (base_order); purchase adds ``_can_cancel_except_invoiced``.
+        mixin.order (base_order); purchase adds ``_can_cancel_except_invoiced``.
         """
         return [
             *super()._get_can_cancel_validation_methods(),
@@ -1409,6 +1409,6 @@ class PurchaseOrder(models.Model):
         # To be overridden
         return field_name == "line_ids"
 
-    # _should_be_locked is inherited from order.mixin (base_order): it resolves
+    # _should_be_locked is inherited from mixin.order (base_order): it resolves
     # company.order_lock_po and the purchase.group_auto_done_setting group
     # generically via _get_lock_setting_field / _get_order_type.

@@ -246,7 +246,7 @@ class TestResourceSecondPass(TransactionCase):
     def test_allocation_mixin_triggers_on_allocated_percentage(self):
         """The field's owner declares the trigger, and only its owner.
 
-        ``allocated_percentage`` moved to ``resource.allocation.mixin`` when
+        ``allocated_percentage`` moved to ``mixin.resource.allocation`` when
         allocation semantics were split out of the projection: a consumer that
         declines the allocation mixin does not have the field, so the
         projection mixin naming it would be a trigger on something that may not
@@ -255,10 +255,10 @@ class TestResourceSecondPass(TransactionCase):
         declaration -- a consumer left to remember it got a mirror reservation
         stuck at the old percentage with nothing to indicate it.
         """
-        projection = self.env["resource.scheduling.mixin"]._get_sync_trigger_fields()
+        projection = self.env["mixin.resource.scheduling"]._get_sync_trigger_fields()
         self.assertNotIn("allocated_percentage", projection)
 
-        allocation = self.env["resource.allocation.mixin"]._get_sync_trigger_fields()
+        allocation = self.env["mixin.resource.allocation"]._get_sync_trigger_fields()
         self.assertIn("allocated_percentage", allocation)
 
     # ------------------------------------------------------------------

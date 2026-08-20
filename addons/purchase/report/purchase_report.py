@@ -5,7 +5,7 @@ from odoo.addons.purchase import const
 
 class PurchaseReport(models.Model):
     _name = "purchase.report"
-    _inherit = "order.report.mixin"
+    _inherit = "mixin.order.report"
     _description = "Purchase Report"
     _auto = False
     _order = "date_order desc, price_total desc"

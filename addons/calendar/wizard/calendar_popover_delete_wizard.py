@@ -5,7 +5,7 @@ from odoo import api, fields, models
 
 class CalendarPopoverDeleteWizard(models.TransientModel):
     _name = 'calendar.popover.delete.wizard'
-    _inherit = ['mail.composer.mixin']
+    _inherit = ['mixin.mail.composer']
     _description = 'Calendar Popover Delete Wizard'
 
     calendar_event_id = fields.Many2one('calendar.event', 'Calendar Event')

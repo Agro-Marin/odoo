@@ -12,7 +12,7 @@ _logger = logging.getLogger(__name__)
 
 class SaleOrder(models.Model):
     _name = "sale.order"
-    _inherit = ["sale.order", "order.stock.mixin"]
+    _inherit = ["sale.order", "mixin.order.stock"]
 
     # ----------------------------------------------------------------------
     # FIELDS
@@ -55,7 +55,7 @@ class SaleOrder(models.Model):
         string="References",
         copy=False,
     )
-    # Selection, compute and store come from order.stock.mixin; only the
+    # Selection, compute and store come from mixin.order.stock; only the
     # customer-facing wording is specific to sales.
     transfer_state = fields.Selection(
         string="Delivery Status",
@@ -252,7 +252,7 @@ class SaleOrder(models.Model):
                         )
                 if to_log:
                     documents = (
-                        self.env["stock.activity.mixin"]
+                        self.env["mixin.stock.activity"]
                         .sudo()
                         ._log_activity_get_documents(
                             to_log,
@@ -320,7 +320,7 @@ class SaleOrder(models.Model):
 
     def _filter_effective_pickings(self, pickings):
         # Sale: only customer-destination deliveries set the effective date.
-        # Overrides order.stock.mixin (base_order_stock).
+        # Overrides mixin.order.stock (base_order_stock).
         return pickings.filtered(
             lambda p: p.state == "done" and p.location_dest_id.usage == "customer",
         )
@@ -333,7 +333,7 @@ class SaleOrder(models.Model):
                 for picking in order.picking_ids
             )
 
-    # _compute_transfer_state is inherited from order.stock.mixin (base_order_stock);
+    # _compute_transfer_state is inherited from mixin.order.stock (base_order_stock);
     # the logic is identical between sale_stock and purchase_stock.
 
     # ------------------------------------------------------------
@@ -389,7 +389,7 @@ class SaleOrder(models.Model):
                     for order_line in sale_order.line_ids
                 }
                 documents = (
-                    self.env["stock.activity.mixin"]
+                    self.env["mixin.stock.activity"]
                     .with_context(include_draft_documents=True)
                     ._log_activity_get_documents(
                         sale_order_lines_quantities,
@@ -435,7 +435,7 @@ class SaleOrder(models.Model):
 
     def _get_action_view_picking_context(self, pickings):
         # Default to the delivery's operation type, falling back to any other
-        # shown picking. Overrides order.stock.mixin (base_order_stock).
+        # shown picking. Overrides mixin.order.stock (base_order_stock).
         picking = (
             pickings.filtered(lambda p: p.picking_type_id.code == "outgoing")[:1]
             or pickings[:1]
@@ -478,13 +478,13 @@ class SaleOrder(models.Model):
             }
             return self.env["ir.qweb"]._render("sale_stock.exception_on_so", values)
 
-        self.env["stock.activity.mixin"]._log_activity(
+        self.env["mixin.stock.activity"]._log_activity(
             _render_note_exception_quantity_so,
             documents,
         )
 
     def _prepare_invoice_vals(self):
-        # incoterm_id is declared by order.stock.mixin, but that mixin is last
+        # incoterm_id is declared by mixin.order.stock, but that mixin is last
         # in the MRO and cannot override _prepare_invoice_vals, so each bridge
         # propagates the field itself.
         invoice_vals = super()._prepare_invoice_vals()
@@ -506,6 +506,6 @@ class SaleOrder(models.Model):
     # ----------------------------------------------------------------------
 
     def _is_display_stock_in_catalog(self):
-        # Not hoisted into order.stock.mixin: that mixin sits below
+        # Not hoisted into mixin.order.stock: that mixin sits below
         # stock.product_catalog_mixin in the MRO, so its answer never wins.
         return True

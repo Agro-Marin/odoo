@@ -3,7 +3,7 @@
 
 from odoo import api, fields, models
 
-from odoo.addons.base.models.catalog_mixin import name_uniq_index
+from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 
 class CrmIapLeadSeniority(models.Model):

@@ -36,7 +36,7 @@ class TestProjectSharingPortalAccess(TestProjectSharingCommon):
         Task = cls.env["project.task"]
         readable_fields, writeable_fields = Task._portal_accessible_fields()
 
-        # `html.field.history.mixin` drops html_field_history from create/write
+        # `mixin.html.field.history` drops html_field_history from create/write
         # vals for every user, so writing it never raises -- it is protected by
         # being ignored, not by an AccessError. Exclude it from all four groups.
         field_exception = {"html_field_history"}
@@ -147,7 +147,7 @@ class TestProjectSharingPortalAccess(TestProjectSharingCommon):
         """The exception carved out of the field groups, pinned explicitly.
 
         Two independent layers stop a portal collaborator forging another
-        user's revision history: `html.field.history.mixin` drops the key from
+        user's revision history: `mixin.html.field.history` drops the key from
         vals, and behind it the field ACL raises. Because the first layer runs
         first, the write raises nothing -- which is why the field cannot sit in
         `other_fields_task` with the AccessError-expecting fields. Assert the

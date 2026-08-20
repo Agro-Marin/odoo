@@ -1,6 +1,6 @@
 from . import (
-    attribute_mixin,
-    attribute_value_mixin,
-    attribute_line_mixin,
-    band_mixin,
+    mixin_attribute,
+    mixin_attribute_value,
+    mixin_attribute_line,
+    mixin_band,
 )

@@ -5,7 +5,7 @@ from odoo import _, api, fields, models
 
 class AccountMove(models.Model):
     _name = "account.move"
-    _inherit = ["account.move", "pos.load.mixin"]
+    _inherit = ["account.move", "mixin.pos.load"]
 
     pos_order_ids = fields.One2many("pos.order", "account_move")
     pos_payment_ids = fields.One2many("pos.payment", "account_move_id")

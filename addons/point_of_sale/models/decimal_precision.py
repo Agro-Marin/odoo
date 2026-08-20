@@ -3,7 +3,7 @@ from odoo import api, models
 
 class DecimalPrecision(models.Model):
     _name = "decimal.precision"
-    _inherit = ["decimal.precision", "pos.load.mixin"]
+    _inherit = ["decimal.precision", "mixin.pos.load"]
 
     @api.model
     def _load_pos_data_fields(self, config):

@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
 
-MIXIN_MODULE = "odoo.addons.google_gmail.models.google_gmail_mixin"
+MIXIN_MODULE = "odoo.addons.google_gmail.models.mixin_google_gmail"
 
 
 @tagged("post_install", "-at_install")
@@ -14,7 +14,7 @@ class TestGmailTokenFlow(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.Mixin = cls.env["google.gmail.mixin"]
+        cls.Mixin = cls.env["mixin.google.gmail"]
         cls.env["ir.config_parameter"].sudo().set_param(
             "google_gmail_client_id", "test-client-id"
         )
