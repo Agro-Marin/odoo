@@ -34,7 +34,7 @@ import { session } from "@web/session";
 import { MEDIAS_BREAKPOINTS, utils as uiUtils } from "@web/ui/viewport";
 import { WebClient } from "@web/webclient/webclient";
 
-import { click, contains } from "./mail_test_helpers_contains.js";
+import { click, contains, TIMEOUT } from "./mail_test_helpers_contains.js";
 import {
     authenticateGuest,
     DISCUSS_ACTION_ID,
@@ -671,7 +671,7 @@ export async function isInViewportOf(childSelector, parentSelector) {
     await contains(parentSelector);
     await contains(childSelector);
     const inViewportDeferred = new Deferred();
-    const failTimeout = setTimeout(() => check({ crashOnFail: true }), 3000);
+    const failTimeout = setTimeout(() => check({ crashOnFail: true }), TIMEOUT);
     const check = ({ crashOnFail = false } = {}) => {
         const parent = queryFirst(parentSelector);
         const child = queryFirst(childSelector);

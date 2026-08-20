@@ -471,14 +471,30 @@ const EMOJI_STUB_MODULE_SOURCE = `
 const categories = ${JSON.stringify(EMOJI_STUB_CATEGORIES)};
 const emojis = ${JSON.stringify(EMOJI_STUB_EMOJIS)};
 let impl = null;
+// A reset asked for before the real module is wired must not be dropped: the
+// data it would have cleared is a module-level parse of TRANSLATED strings, so
+// a test that patches translations and resets before starting (which is the
+// only order that works -- the reset has to precede the parse) would otherwise
+// keep whatever an earlier test parsed under different translations.
+let resetPending = false;
 export function getCategories() { return impl ? impl.getCategories() : categories; }
 export function getEmojis() { return impl ? impl.getEmojis() : emojis; }
-export function resetEmojiData() { impl?.resetEmojiData?.(); }
+export function resetEmojiData() {
+    if (impl) {
+        impl.resetEmojiData?.();
+    } else {
+        resetPending = true;
+    }
+}
 export async function __setImplUrl(url) {
     if (url === import.meta.url) {
         return;
     }
     impl = await import(url);
+    if (resetPending) {
+        resetPending = false;
+        impl.resetEmojiData?.();
+    }
 }
 `;
 
