@@ -333,3 +333,42 @@ class TestMailUtils(MailCommon):
             [("name", "=", "test.migration.com")]
         )
         self.assertEqual(len(existing), 1, "Should not migrate twice")
+
+
+@tagged("mail_tools")
+class TestMailBannedEmails(MailCommon):
+    """OdooBot's address is only worth banning while it is OdooBot's alone."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.root = cls.env.ref("base.partner_root").sudo()
+        if not cls.root.email_normalized:
+            cls.root.email = "odoobot@test.example.com"
+        cls.root_email = cls.root.email_normalized
+
+    def test_root_email_is_banned_when_only_odoobot_uses_it(self):
+        banned = self.env["res.partner"]._mail_get_banned_emails([self.root_email])
+        self.assertIn(self.root_email, banned)
+
+    def test_root_email_is_not_banned_when_a_real_partner_shares_it(self):
+        self.env["res.partner"].create(
+            {"name": "Shares OdooBot address", "email": self.root_email}
+        )
+        banned = self.env["res.partner"]._mail_get_banned_emails([self.root_email])
+        self.assertNotIn(
+            self.root_email,
+            banned,
+            "an active partner using that address must stay suggestable",
+        )
+
+    def test_archived_partner_does_not_unban_root_email(self):
+        self.env["res.partner"].create(
+            {
+                "name": "Archived sharer",
+                "email": self.root_email,
+                "active": False,
+            }
+        )
+        banned = self.env["res.partner"]._mail_get_banned_emails([self.root_email])
+        self.assertIn(self.root_email, banned)

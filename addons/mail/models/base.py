@@ -506,13 +506,24 @@ class Base(models.AbstractModel):
         return self._mail_first_field_value(fnames, _MAIL_EMAIL_FIELD_TYPES) or False
 
     def _mail_get_banned_emails(self, emails: Iterable[str]) -> set[str]:
-        root_email = self.env.ref("base.partner_root").sudo().email_normalized
-        banned = {root_email} if root_email else set()
+        keys = [email_comparison_key(e) for e in emails if e and e.strip()]
+        root = self.env.ref("base.partner_root").sudo()
+        root_email = root.email_normalized
+        banned = set()
+        if (
+            root_email
+            and root_email in set(keys)
+            and not self.env["res.partner"]
+            .sudo()
+            .search_count(
+                [("email_normalized", "=", root_email), ("id", "!=", root.id)],
+                limit=1,
+            )
+        ):
+            banned.add(root_email)
         banned.update(
             alias
-            for alias in self.env["mail.alias.domain"]
-            .sudo()
-            ._find_aliases([email_comparison_key(e) for e in emails if e and e.strip()])
+            for alias in self.env["mail.alias.domain"].sudo()._find_aliases(keys)
             if alias
         )
         return banned

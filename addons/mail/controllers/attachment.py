@@ -86,6 +86,17 @@ class AttachmentController(ThreadController):
             "res_id": thread.id,
             "res_model": thread_model,
         }
+        if company := thread._mail_get_companies()[thread.id]:
+            vals["company_id"] = company.id
+        elif cids := request.cookies.get("cids"):
+            active_company_ids = [int(cid) for cid in cids.split("-") if cid.isdigit()]
+            if active_company_ids:
+                user_company_id = request.env.user.company_id.id
+                vals["company_id"] = (
+                    user_company_id
+                    if user_company_id in active_company_ids
+                    else active_company_ids[0]
+                )
         if is_pending and str(is_pending).lower() not in ("false", "0", ""):
             vals.update(
                 {

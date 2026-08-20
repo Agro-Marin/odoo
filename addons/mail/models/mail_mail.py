@@ -418,9 +418,13 @@ class MailMail(models.Model):
         batch_size = self.env["ir.config_parameter"]._get_positive_int_param(
             "mail.mail.queue.batch.size", batch_size
         )
-        send_ids = self.search(
-            domain, limit=None if email_ids else batch_size, order="id"
-        ).ids
+        send_limit = None if email_ids else batch_size
+        send_ids = self.search(domain, limit=send_limit, order="id").ids
+        _logger.info(
+            "Processing email queue with send limit of '%s'%s",
+            send_limit,
+            " (with forced 'email_ids')" if email_ids else "",
+        )
         if not email_ids:
             ids_done = set()
             total = (
