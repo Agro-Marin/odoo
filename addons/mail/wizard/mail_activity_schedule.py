@@ -363,15 +363,17 @@ class MailActivitySchedule(models.TransientModel):
         if self.activity_type_id:
             self.plan_id = False
 
-    @api.depends("activity_type_id")
+    @api.depends("activity_type_id", "activity_user_id")
     def _compute_date_deadline(self) -> None:
         for scheduler in self:
             if scheduler.activity_type_id:
-                scheduler.date_deadline = (
-                    scheduler.activity_type_id._get_date_deadline()
+                scheduler.date_deadline = scheduler.activity_type_id._get_date_deadline(
+                    scheduler.activity_user_id
                 )
             elif not scheduler.date_deadline:
-                scheduler.date_deadline = fields.Date.context_today(scheduler)
+                scheduler.date_deadline = self.env["mail.activity"]._today_in_tz(
+                    scheduler.activity_user_id.sudo().tz
+                )
 
     @api.depends("activity_type_id")
     def _compute_summary(self) -> None:

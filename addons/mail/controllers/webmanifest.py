@@ -5,7 +5,9 @@ from odoo.tools import file_open
 
 from odoo.addons.web.controllers import webmanifest
 
-_ESM_EXPORT_RE = re.compile(r"^export\s+", re.MULTILINE)
+_ESM_EXPORT_RE = re.compile(
+    r"^export\s+(?=(?:async\s+)?(?:const|let|var|function|class)\s)", re.MULTILINE
+)
 
 
 class WebManifest(webmanifest.WebManifest):

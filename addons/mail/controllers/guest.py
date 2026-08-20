@@ -3,7 +3,7 @@ from werkzeug.exceptions import NotFound
 from odoo import http
 from odoo.http import request
 
-from odoo.addons.mail.controllers.thread import _to_record_id
+from odoo.addons.mail.controllers.utils import to_record_id
 from odoo.addons.mail.tools.discuss import add_guest_to_context
 
 
@@ -13,9 +13,11 @@ class GuestController(http.Controller):
     )
     @add_guest_to_context
     def mail_guest_update_name(self, guest_id: int, name: str) -> None:
+        if not isinstance(name, str):
+            raise NotFound
         guest = request.env["mail.guest"]._get_guest_from_context()
         guest_to_rename_sudo = (
-            guest.env["mail.guest"].browse(_to_record_id(guest_id)).sudo().exists()
+            guest.env["mail.guest"].browse(to_record_id(guest_id)).sudo().exists()
         )
         if not guest_to_rename_sudo:
             raise NotFound

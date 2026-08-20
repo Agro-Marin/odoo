@@ -32,5 +32,7 @@ class MessageReactionController(ThreadController):
         message.sudo()._message_reaction(content, action, partner, guest, store)
         return store.get_result()
 
-    def _get_reaction_author(self, message: MailMessage, **kwargs) -> models.Model:
+    def _get_reaction_author(
+        self, message: MailMessage, **kwargs
+    ) -> tuple[models.Model, models.Model]:
         return request.env["res.partner"]._get_current_persona()

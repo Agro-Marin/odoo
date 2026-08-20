@@ -1,6 +1,7 @@
 from odoo import http
-from odoo.http import Response, request
-from odoo.tools import file_open
+from odoo.http import Response
+
+from odoo.addons.mail.controllers.utils import javascript_file_response
 
 
 class VoiceController(http.Controller):
@@ -12,15 +13,6 @@ class VoiceController(http.Controller):
         readonly=True,
     )
     def voice_worklet_processor(self) -> Response:
-        with file_open(
-            "mail/static/src/discuss/voice_message/worklets/processor.js", "rb"
-        ) as f:
-            data = f.read()
-        return request.make_response(
-            data,
-            headers=[
-                ("Content-Type", "application/javascript"),
-                ("X-Content-Type-Options", "nosniff"),
-                ("Cache-Control", f"max-age={http.STATIC_CACHE}"),
-            ],
+        return javascript_file_response(
+            "mail/static/src/discuss/voice_message/worklets/processor.js"
         )

@@ -7,21 +7,19 @@ from odoo import http
 from odoo.exceptions import UserError
 from odoo.http import request
 
-from odoo.addons.mail.controllers.thread import _to_record_id, _to_record_ids
+from odoo.addons.mail.controllers.utils import (
+    clamp_limit,
+    get_channel_or_404,
+    get_self_member,
+    get_self_member_or_404,
+    message_fetch_response,
+    to_record_id,
+    to_record_ids,
+)
 from odoo.addons.mail.controllers.webclient import WebclientController
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
 MAX_AVATAR_B64_BYTES = 10 * 1024 * 1024
-
-MAX_FETCH_LIMIT = 100
-
-
-def _clamp_limit(limit: Any, default: int = 30) -> int:
-    try:
-        limit = int(limit)
-    except TypeError, ValueError:
-        return default
-    return max(1, min(limit, MAX_FETCH_LIMIT))
 
 
 class DiscussChannelWebclientController(WebclientController):
@@ -88,29 +86,25 @@ class ChannelController(http.Controller):
     )
     @add_guest_to_context
     def discuss_channel_members(
-        self, channel_id: int, known_member_ids: list[int]
+        self, channel_id: int, known_member_ids: list[int], limit: int = 100
     ) -> dict:
-        channel = request.env["discuss.channel"].search(
-            [("id", "=", _to_record_id(channel_id))]
-        )
-        if not channel:
-            raise NotFound
+        channel = get_channel_or_404(channel_id)
         unknown_members = request.env["discuss.channel.member"].search(
             domain=[
-                ("id", "not in", _to_record_ids(known_member_ids)),
+                ("id", "not in", to_record_ids(known_member_ids)),
                 ("channel_id", "=", channel.id),
             ],
-            limit=100,
+            limit=clamp_limit(limit, default=100),
         )
         store = Store().add(channel, "member_count").add(unknown_members)
         return store.get_result()
 
-    @http.route("/discuss/channel/update_avatar", methods=["POST"], type="jsonrpc")
+    @http.route(
+        "/discuss/channel/update_avatar", methods=["POST"], type="jsonrpc", auth="user"
+    )
     def discuss_channel_avatar_update(self, channel_id: int, data: str) -> None:
-        channel = request.env["discuss.channel"].search(
-            [("id", "=", _to_record_id(channel_id))]
-        )
-        if not channel or not data:
+        channel = get_channel_or_404(channel_id)
+        if not data or not isinstance(data, str):
             raise NotFound
         if len(data) > MAX_AVATAR_B64_BYTES:
             raise UserError(request.env._("The avatar image is too large."))
@@ -123,24 +117,10 @@ class ChannelController(http.Controller):
     def discuss_channel_messages(
         self, channel_id: int, fetch_params: dict | None = None
     ) -> dict:
-        channel = request.env["discuss.channel"].search(
-            [("id", "=", _to_record_id(channel_id))]
+        channel = get_channel_or_404(channel_id)
+        return message_fetch_response(
+            thread=channel, fetch_params=fetch_params, mark_done=True
         )
-        if not channel:
-            raise NotFound
-        res = request.env["mail.message"]._message_fetch(
-            domain=None,
-            thread=channel,
-            **request.env["mail.message"]._sanitize_fetch_params(fetch_params),
-        )
-        messages = res.pop("messages")
-        if not request.env.user._is_public():
-            messages.set_message_done()
-        return {
-            **res,
-            "data": Store().add(messages).get_result(),
-            "messages": messages.ids,
-        }
 
     @http.route(
         "/discuss/channel/pinned_messages",
@@ -151,10 +131,7 @@ class ChannelController(http.Controller):
     )
     @add_guest_to_context
     def discuss_channel_pins(self, channel_id: int) -> dict:
-        channel_id = _to_record_id(channel_id)
-        channel = request.env["discuss.channel"].search([("id", "=", channel_id)])
-        if not channel:
-            raise NotFound
+        channel = get_channel_or_404(channel_id)
         messages = channel.pinned_message_ids.sorted(key="pinned_at", reverse=True)
         return Store().add(messages).get_result()
 
@@ -165,15 +142,10 @@ class ChannelController(http.Controller):
     def discuss_channel_mark_as_read(
         self, channel_id: int, last_message_id: int
     ) -> None:
-        member = request.env["discuss.channel.member"].search(
-            [
-                ("channel_id", "=", _to_record_id(channel_id)),
-                ("is_self", "=", True),
-            ]
-        )
+        member = get_self_member(channel_id)
         if not member:
             return
-        member._mark_as_read(_to_record_id(last_message_id))
+        member._mark_as_read(to_record_id(last_message_id))
 
     @http.route(
         "/discuss/channel/set_new_message_separator",
@@ -185,15 +157,8 @@ class ChannelController(http.Controller):
     def discuss_channel_set_new_message_separator(
         self, channel_id: int, message_id: int
     ) -> None:
-        member = request.env["discuss.channel.member"].search(
-            [
-                ("channel_id", "=", _to_record_id(channel_id)),
-                ("is_self", "=", True),
-            ]
-        )
-        if not member:
-            raise NotFound
-        return member._set_new_message_separator(_to_record_id(message_id))
+        member = get_self_member_or_404(channel_id)
+        return member._set_new_message_separator(to_record_id(message_id))
 
     @http.route(
         "/discuss/channel/notify_typing",
@@ -203,19 +168,12 @@ class ChannelController(http.Controller):
     )
     @add_guest_to_context
     def discuss_channel_notify_typing(self, channel_id: int, is_typing: bool) -> None:
-        channel_id = _to_record_id(channel_id)
-        channel = request.env["discuss.channel"].search([("id", "=", channel_id)])
-        if not channel:
-            raise request.not_found()
+        channel = get_channel_or_404(channel_id)
+        is_typing = bool(is_typing)
         if is_typing:
             member = channel._find_or_create_member_for_self()
         else:
-            member = request.env["discuss.channel.member"].search(
-                [
-                    ("channel_id", "=", channel_id),
-                    ("is_self", "=", True),
-                ]
-            )
+            member = get_self_member(channel.id)
         if member:
             member._notify_typing(is_typing)
 
@@ -230,24 +188,25 @@ class ChannelController(http.Controller):
     def load_attachments(
         self, channel_id: int, limit: int = 30, before: int | None = None
     ) -> dict:
-        channel_id = _to_record_id(channel_id)
-        channel = request.env["discuss.channel"].search([("id", "=", channel_id)])
-        if not channel:
-            raise NotFound
+        channel = get_channel_or_404(channel_id)
         domain = [
-            ["res_id", "=", channel_id],
+            ["res_id", "=", channel.id],
             ["res_model", "=", "discuss.channel"],
         ]
         if before:
-            domain.append(["id", "<", _to_record_id(before)])
+            domain.append(["id", "<", to_record_id(before)])
+        page_size = clamp_limit(limit)
         attachments = (
             request.env["ir.attachment"]
             .sudo()
-            .search(domain, limit=_clamp_limit(limit), order="id DESC")
+            .search(domain, limit=page_size + 1, order="id DESC")
         )
+        has_more = len(attachments) > page_size
+        attachments = attachments[:page_size]
         return {
             "store_data": Store().add(attachments).get_result(),
             "count": len(attachments),
+            "has_more": has_more,
         }
 
     @http.route(
@@ -255,11 +214,7 @@ class ChannelController(http.Controller):
     )
     @add_guest_to_context
     def discuss_channel_join(self, channel_id: int) -> dict:
-        channel = request.env["discuss.channel"].search(
-            [("id", "=", _to_record_id(channel_id))]
-        )
-        if not channel:
-            raise NotFound
+        channel = get_channel_or_404(channel_id)
         channel._find_or_create_member_for_self()
         return Store().add(channel).get_result()
 
@@ -276,13 +231,9 @@ class ChannelController(http.Controller):
         from_message_id: int | None = None,
         name: str | None = None,
     ) -> dict:
-        channel = request.env["discuss.channel"].search(
-            [("id", "=", _to_record_id(parent_channel_id))]
-        )
-        if not channel:
-            raise NotFound
+        channel = get_channel_or_404(parent_channel_id)
         sub_channel = channel._create_sub_channel(
-            _to_record_id(from_message_id) if from_message_id else None, name
+            to_record_id(from_message_id) if from_message_id else None, name
         )
         return {
             "store_data": Store().add(sub_channel).get_result(),
@@ -303,18 +254,14 @@ class ChannelController(http.Controller):
         before: int | None = None,
         limit: int = 30,
     ) -> dict:
-        channel = request.env["discuss.channel"].search(
-            [("id", "=", _to_record_id(parent_channel_id))]
-        )
-        if not channel:
-            raise NotFound
+        channel = get_channel_or_404(parent_channel_id)
         domain = [("parent_channel_id", "=", channel.id)]
         if before:
-            domain.append(("id", "<", _to_record_id(before)))
+            domain.append(("id", "<", to_record_id(before)))
         if search_term:
             domain.append(("name", "ilike", search_term))
         sub_channels = request.env["discuss.channel"].search(
-            domain, order="id desc", limit=_clamp_limit(limit)
+            domain, order="id desc", limit=clamp_limit(limit)
         )
         return {
             "store_data": Store()
@@ -332,7 +279,7 @@ class ChannelController(http.Controller):
     )
     def discuss_delete_sub_channel(self, sub_channel_id: int) -> None:
         channel = request.env["discuss.channel"].search_fetch(
-            [("id", "=", _to_record_id(sub_channel_id))]
+            [("id", "=", to_record_id(sub_channel_id))]
         )
         if (
             not channel

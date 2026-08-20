@@ -1,7 +1,7 @@
 from odoo import http
 from odoo.http import request
 
-from odoo.addons.mail.controllers.thread import _to_record_id, _to_record_ids
+from odoo.addons.mail.controllers.utils import to_record_id, to_record_ids
 from odoo.addons.mail.tools.discuss import add_guest_to_context
 
 
@@ -13,7 +13,7 @@ class LinkPreviewController(http.Controller):
             return
         guest = request.env["mail.guest"]._get_guest_from_context()
         message = guest.env["mail.message"].search(
-            [("id", "=", _to_record_id(message_id))]
+            [("id", "=", to_record_id(message_id))]
         )
         if not message:
             return
@@ -35,7 +35,7 @@ class LinkPreviewController(http.Controller):
         link_preview_sudo = (
             guest.env["mail.message.link.preview"]
             .sudo()
-            .search([("id", "in", _to_record_ids(message_link_preview_ids))])
+            .search([("id", "in", to_record_ids(message_link_preview_ids))])
         )
         if not guest.env.user._is_admin() and any(
             not link_preview.message_id.is_current_user_or_guest_author

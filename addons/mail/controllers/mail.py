@@ -1,12 +1,13 @@
 import io
 import logging
+from functools import lru_cache
 from urllib.parse import parse_qsl, urlencode, urlparse
 
 from PIL import Image, ImageColor, ImageDraw, ImageFont
 from werkzeug.exceptions import NotFound
 from werkzeug.utils import send_file
 
-from odoo import _, http
+from odoo import http
 from odoo.exceptions import AccessError
 from odoo.http import STATIC_CACHE, Response, request
 from odoo.tools import consteq
@@ -16,10 +17,16 @@ from odoo.addons.mail.tools.discuss import add_guest_to_context
 
 _logger = logging.getLogger(__name__)
 
+MAX_ICON_GLYPHS = 8
+
+
+@lru_cache(maxsize=4)
+def _read_font(path: str) -> bytes:
+    with file_open(path, "rb") as font_file:
+        return font_file.read()
+
 
 class MailController(http.Controller):
-    _cp_path = "/mail"
-
     _OI_FONT_CHAR_CODES = {
         "61569": "59464",
         "61593": "59418",
@@ -63,7 +70,7 @@ class MailController(http.Controller):
         **kwargs,
     ) -> Response:
         url_base = "/mail/view"
-        url_params = request.env["mail.thread"]._get_action_link_params(
+        url_params = request.env["mixin.mail.thread"]._get_action_link_params(
             "view",
             **{
                 "model": model,
@@ -78,10 +85,22 @@ class MailController(http.Controller):
     @classmethod
     def _check_token(cls, token: str) -> bool:
         base_link = request.httprequest.path
-        params = dict(request.params)
-        params.pop("token", "")
-        valid_token = request.env["mail.thread"]._encode_link(base_link, params)
-        return consteq(valid_token, str(token))
+        MailThread = request.env["mixin.mail.thread"]
+        params = {
+            key: value
+            for key, value in request.params.items()
+            if key in MailThread._ACTION_LINK_SIGNED_PARAMS
+        }
+        token = str(token)
+        if consteq(MailThread._encode_link(base_link, params), token):
+            return True
+        if consteq(MailThread._encode_link_legacy_sha1(base_link, params), token):
+            _logger.info(
+                "Accepted a legacy SHA-1 action link token on route %s",
+                request.httprequest.path,
+            )
+            return True
+        return False
 
     @classmethod
     def _check_token_and_record_or_redirect(
@@ -152,7 +171,7 @@ class MailController(http.Controller):
                 except AccessError:
                     if not suggested_company:
                         raise AccessError(
-                            _(
+                            request.env._(
                                 "There is no candidate company that has read access to the record."
                             )
                         ) from None
@@ -270,7 +289,9 @@ class MailController(http.Controller):
             model, res_id, token
         )
         if not comparison or not record:
-            raise AccessError(_("Non existing record or wrong token."))
+            raise AccessError(request.env._("Non existing record or wrong token."))
+        if not isinstance(record, request.env.registry["mixin.mail.thread"]):
+            raise NotFound
 
         record_sudo = record.sudo()
         record_sudo.message_unsubscribe([pid])
@@ -343,6 +364,9 @@ class MailController(http.Controller):
         width: int | None = None,
         height: int | None = None,
     ) -> Response:
+        if len(icon) > MAX_ICON_GLYPHS:
+            raise NotFound
+
         font = "/web/static/src/libs/fontawesome7/webfonts/fa-solid-900.woff2"
         if icon.isdigit() and icon in self._OI_FONT_CHAR_CODES:
             icon = self._OI_FONT_CHAR_CODES[icon]
@@ -353,13 +377,14 @@ class MailController(http.Controller):
         height = height or size
         width = max(1, min(width, 512))
         height = max(1, min(height, 512))
-        font = font.removeprefix("/")
-        font_obj = ImageFont.truetype(file_open(font, "rb"), height)
+        font_obj = ImageFont.truetype(
+            io.BytesIO(_read_font(font.removeprefix("/"))), height
+        )
 
         if icon.isdigit():
             code = int(icon)
             if code > 0x10FFFF:
-                raise request.not_found()
+                raise NotFound
             icon = chr(code)
 
         if bg is not None and bg.startswith("rgba"):
@@ -375,7 +400,9 @@ class MailController(http.Controller):
                 try:
                     ImageColor.getrgb(_color)
                 except ValueError:
-                    raise request.not_found() from None
+                    raise NotFound from None
+
+        alpha = max(0, min(alpha, 255))
 
         dummy = Image.new("RGBA", (1, 1))
         draw = ImageDraw.Draw(dummy)
@@ -383,8 +410,14 @@ class MailController(http.Controller):
         boxw = max(1, min(bbox[2] - bbox[0], 512))
 
         outimage = Image.new("RGBA", (boxw, height), bg or (0, 0, 0, 0))
-        draw = ImageDraw.Draw(outimage)
-        draw.text((0, 0), icon, font=font_obj, fill=color)
+        if alpha == 255:
+            draw = ImageDraw.Draw(outimage)
+            draw.text((0, 0), icon, font=font_obj, fill=color)
+        else:
+            glyph = Image.new("RGBA", outimage.size, (0, 0, 0, 0))
+            ImageDraw.Draw(glyph).text((0, 0), icon, font=font_obj, fill=color)
+            glyph.putalpha(glyph.getchannel("A").point(lambda a: a * alpha // 255))
+            outimage = Image.alpha_composite(outimage, glyph)
 
         output = io.BytesIO()
         outimage.save(output, format="PNG")

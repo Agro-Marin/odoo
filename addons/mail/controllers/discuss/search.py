@@ -2,6 +2,7 @@ from odoo import http
 from odoo.fields import Domain
 from odoo.http import request
 
+from odoo.addons.mail.controllers.utils import clamp_limit
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
 
@@ -14,13 +15,8 @@ class SearchController(http.Controller):
         readonly=True,
     )
     @add_guest_to_context
-    def search(
-        self, term: str, category_id: int | None = None, limit: int = 10
-    ) -> dict:
-        try:
-            limit = max(1, min(int(limit), 100))
-        except TypeError, ValueError:
-            limit = 10
+    def search(self, term: str, limit: int = 10) -> dict:
+        limit = clamp_limit(limit, default=10)
         store = Store()
         self.get_search_store(store, search_term=term, limit=limit)
         return store.get_result()

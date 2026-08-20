@@ -20,6 +20,7 @@ from odoo.tools.mail import (
 from odoo.tools.misc import clean_context
 
 from odoo.addons.mail.tools.parser import parse_res_ids
+from odoo.addons.mail.tools.recipients import build_recipient_data
 
 if typing.TYPE_CHECKING:
     from ..models.mail_activity_type import MailActivityType
@@ -40,15 +41,6 @@ COMPOSER_FIELD_TO_TEMPLATE_FIELD = {
     "body": "body_html",
     "partner_ids": "partner_to",
 }
-"""Composer field -> the template field that produces it, for asking.
-
-Deliberately not the inverse of ``TEMPLATE_FIELD_TO_COMPOSER_FIELD``: two of these
-three are consumed by the render pipeline rather than renamed by it, so they come back
-already spelled the composer's way. ``partner_to`` is parsed into ``partner_ids`` by
-``_prepare_recipient_vals`` and ``report_template_ids`` is rendered into ``attachments``
-by ``_prepare_attachment_vals``, which leaves ``body_html`` as the only one still
-needing a translation on the way out.
-"""
 
 TEMPLATE_FIELD_TO_COMPOSER_FIELD = {"body_html": "body"}
 
@@ -68,7 +60,7 @@ def _reopen(self, res_id: int, model: str, context: dict | None = None) -> dict:
 
 class MailComposeMessage(models.TransientModel):
     _name = "mail.compose.message"
-    _inherit = ["mail.composer.mixin"]
+    _inherit = ["mixin.mail.composer"]
     _description = "Email composition wizard"
     _log_access = True
     _batch_size = 50
@@ -441,7 +433,7 @@ class MailComposeMessage(models.TransientModel):
         "template_id",
     )
     def _compute_authorship(self) -> None:
-        Thread = self.env["mail.thread"].with_context(active_test=False)
+        Thread = self.env["mixin.mail.thread"].with_context(active_test=False)
         for composer in self:
             rendering_mode = (
                 composer.composition_mode == "comment"
@@ -641,14 +633,10 @@ class MailComposeMessage(models.TransientModel):
             recipients_data = self.env["mail.followers"]._get_recipient_data(
                 record, composer.message_type, composer.subtype_id.id
             )[record.id]
-            partner_ids = [
-                pid
+            composer.notified_bcc_contains_share = any(
+                pdata["share"]
                 for pid, pdata in recipients_data.items()
                 if (pid and pdata["active"] and pid != self.env.user.partner_id.id)
-            ]
-            notified_bcc = self.env["res.partner"].search([("id", "in", partner_ids)])
-            composer.notified_bcc_contains_share = any(
-                notified_bcc.mapped("partner_share")
             )
 
     @api.depends("composition_mode", "template_id")
@@ -851,7 +839,7 @@ class MailComposeMessage(models.TransientModel):
         ActiveModel = (
             self.env[self.model]
             if self.model and hasattr(self.env[self.model], "message_post")
-            else self.env["mail.thread"]
+            else self.env["mixin.mail.thread"]
         )
         if self.composition_batch:
             ActiveModel = ActiveModel.with_context(
@@ -859,7 +847,7 @@ class MailComposeMessage(models.TransientModel):
             )
         messages = self.env["mail.message"]
         for res_id, post_values in post_values_all.items():
-            if ActiveModel._name == "mail.thread":
+            if ActiveModel._name == "mixin.mail.thread":
                 post_values.pop("message_type")
                 post_values.pop("parent_id", False)
                 if self.model:
@@ -878,7 +866,7 @@ class MailComposeMessage(models.TransientModel):
     ) -> MailMail:
         mails_sudo = self.env["mail.mail"].sudo()
 
-        batch_size = self._get_mail_batch_size(self._batch_size or 50)
+        batch_size = self.env["mail.mail"]._get_send_batch_size(self._batch_size or 50)
         counter_mails_done = 0
         for res_ids_iter in itertools.batched(res_ids, batch_size, strict=False):
             prepared_mail_values_filtered = self._manage_mail_values(
@@ -902,6 +890,7 @@ class MailComposeMessage(models.TransientModel):
             if records:
                 records._message_mail_after_hook(iter_mails_sudo)
 
+            sent_in_batch = False
             if self.force_send:
                 iter_mails_sudo_tosend = iter_mails_sudo.filtered(
                     lambda mail: (
@@ -912,14 +901,15 @@ class MailComposeMessage(models.TransientModel):
                 )
                 if iter_mails_sudo_tosend:
                     iter_mails_sudo_tosend.send(auto_commit=auto_commit)
-                    continue
+                    sent_in_batch = True
             if auto_commit is True:
                 batch_done = len(prepared_mail_values_filtered)
                 counter_mails_done += batch_done
                 self.env["ir.cron"]._commit_progress(
                     batch_done, remaining=len(res_ids) - counter_mails_done
                 )
-            self.env.invalidate_all()
+            if not (sent_in_batch and auto_commit):
+                self.env.invalidate_all()
 
         return mails_sudo
 
@@ -1202,7 +1192,7 @@ class MailComposeMessage(models.TransientModel):
                 process_record = (
                     record
                     if hasattr(record, "_process_attachments_for_post")
-                    else record.env["mail.thread"]
+                    else record.env["mixin.mail.thread"]
                 )
                 mail_values["attachment_ids"] = (
                     process_record._process_attachments_for_post(
@@ -1221,7 +1211,7 @@ class MailComposeMessage(models.TransientModel):
                 mail_values["attachment_ids"] = attachment_ids
 
             if email_mode:
-                mail_values["headers"] = repr(record._notify_by_email_get_headers())
+                mail_values["headers"] = record._notify_by_email_get_headers()
 
             if email_mode:
                 recipient_ids_all = set(mail_values.pop("partner_ids", [])) | set(
@@ -1254,20 +1244,7 @@ class MailComposeMessage(models.TransientModel):
                 ) in record._notify_get_classified_recipients_iterator(
                     message_inmem,
                     [
-                        {
-                            "active": True,
-                            "email_normalized": False,
-                            "id": pid,
-                            "is_follower": False,
-                            "lang": lang,
-                            "name": False,
-                            "groups": [],
-                            "notif": "email",
-                            "share": True,
-                            "type": "customer",
-                            "uid": False,
-                            "ushare": False,
-                        }
+                        build_recipient_data(partner_id=pid, lang=lang)
                         for pid in recipient_ids
                     ],
                     msg_vals=msg_vals,
@@ -1426,7 +1403,9 @@ class MailComposeMessage(models.TransientModel):
             blacklist = {x[0] for x in self.env.cr.fetchall()}
             if not blacklist:
                 return blacklisted_rec_ids
-            if isinstance(self.env[self.model], self.pool["mail.thread.blacklist"]):
+            if isinstance(
+                self.env[self.model], self.pool["mixin.mail.thread.blacklist"]
+            ):
                 model = self.env[self.model]
                 primary_email = model._primary_email
                 targets = model.browse(mail_values_dict.keys())

@@ -1,14 +1,20 @@
+import logging
 import typing
 from datetime import timedelta
 
 import babel
 import requests
+from werkzeug.exceptions import NotFound
 
 from odoo import fields
 from odoo.http import Controller, request, route
 
+from odoo.addons.mail.controllers.utils import to_record_id
+
 if typing.TYPE_CHECKING:
     from odoo.addons.mail.models.mail_message import MailMessage
+
+_logger = logging.getLogger(__name__)
 
 TRANSLATION_DAILY_LIMIT_PARAM = "mail.translation.daily_limit"
 TRANSLATION_DAILY_LIMIT_DEFAULT = 1000
@@ -31,14 +37,21 @@ class GoogleTranslateController(Controller):
         )
         return count >= cap
 
-    @route("/mail/message/translate", type="jsonrpc", auth="user")
+    def _target_lang(self) -> str:
+        lang = request.env.user.lang or request.env.lang or "en_US"
+        return lang.split("_")[0]
+
+    @route("/mail/message/translate", methods=["POST"], type="jsonrpc", auth="user")
     def translate(self, message_id: int) -> dict:
-        message = request.env["mail.message"].search([("id", "=", message_id)])
+        message = request.env["mail.message"].search(
+            [("id", "=", to_record_id(message_id))]
+        )
         if not message:
-            raise request.not_found()
+            raise NotFound
+        target_lang = self._target_lang()
         domain = [
             ("message_id", "=", message.id),
-            ("target_lang", "=", request.env.user.lang.split("_")[0]),
+            ("target_lang", "=", target_lang),
         ]
         translation = request.env["mail.message.translation"].sudo().search(domain)
         if not translation:
@@ -50,7 +63,6 @@ class GoogleTranslateController(Controller):
                 }
             try:
                 source_lang = self._detect_source_lang(message)
-                target_lang = request.env.user.lang.split("_")[0]
                 vals = {
                     "body": self._get_translation(
                         str(message.body), source_lang, target_lang
@@ -62,24 +74,42 @@ class GoogleTranslateController(Controller):
                 translation = (
                     request.env["mail.message.translation"].sudo().create(vals)
                 )
-            except requests.exceptions.HTTPError as err:
-                return {"error": err.response.json()["error"]["message"]}
+            except requests.exceptions.RequestException as err:
+                return {"error": self._translation_error_message(err)}
+            except ValueError, KeyError, IndexError, TypeError:
+                _logger.warning(
+                    "Unexpected payload from the translation service", exc_info=True
+                )
+                return {
+                    "error": request.env._("The translation service is unavailable.")
+                }
         try:
             lang_name = babel.Locale(translation.source_lang).get_display_name(
-                request.env.user.lang
+                request.env.user.lang or request.env.lang or "en_US"
             )
-        except babel.UnknownLocaleError:
+        except babel.UnknownLocaleError, ValueError:
             lang_name = translation.source_lang
         return {
             "body": translation.body,
             "lang_name": lang_name,
         }
 
+    def _translation_error_message(
+        self, err: requests.exceptions.RequestException
+    ) -> str:
+        response = getattr(err, "response", None)
+        if response is not None:
+            try:
+                return response.json()["error"]["message"]
+            except ValueError, KeyError, TypeError:
+                pass
+        return request.env._("The translation service is unavailable.")
+
     def _detect_source_lang(self, message: MailMessage) -> str:
         translation = (
             request.env["mail.message.translation"]
             .sudo()
-            .search([("message_id", "=", message.id)], limit=1)
+            .search([("message_id", "=", message.id)], limit=1, order="id")
         )
         if translation:
             return translation.source_lang

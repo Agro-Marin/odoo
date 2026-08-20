@@ -3,30 +3,47 @@ import logging
 from urllib.parse import urlencode
 
 import requests
-from werkzeug.exceptions import BadRequest
+from werkzeug.exceptions import NotFound, ServiceUnavailable
 
 from odoo.http import Controller, request, route
 
 KLIPY_CONTENT_FILTER = "medium"
 KLIPY_GIF_LIMIT = 8
 
+MAX_GIF_ID_LEN = 128
+
+GIF_FAVORITES_PAGE = 20
+
 _logger = logging.getLogger(__name__)
+
+
+def _to_offset(offset: object) -> int:
+    try:
+        return max(0, int(offset))
+    except TypeError, ValueError:
+        return 0
 
 
 class DiscussGifController(Controller):
     def _gif_client_key(self) -> str:
         return hashlib.sha256(request.env.cr.dbname.encode()).hexdigest()[:32]
 
+    def _api_key(self) -> str:
+        return (
+            request.env["ir.config_parameter"].sudo().get_param("discuss.klipy_api_key")
+            or ""
+        )
+
     def _request_gifs(self, endpoint: str) -> requests.Response:
-        response = None
+        if not self._api_key():
+            _logger.debug("Klipy GIF API is not configured; refusing the request.")
+            raise ServiceUnavailable
         try:
             response = requests.get(f"https://api.klipy.com/v2/{endpoint}", timeout=3)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
-            _logger.error("Klipy GIF API request failed: %s", e)
-
-        if not response:
-            raise BadRequest
+            _logger.warning("Klipy GIF API request failed: %s", e)
+            raise ServiceUnavailable from None
         return response
 
     @route("/discuss/gif/search", type="jsonrpc", auth="user", readonly=True)
@@ -37,11 +54,10 @@ class DiscussGifController(Controller):
         country: str = "US",
         position: str | None = None,
     ) -> dict:
-        ir_config = request.env["ir.config_parameter"].sudo()
         query_string = urlencode(
             {
                 "q": search_term,
-                "key": ir_config.get_param("discuss.klipy_api_key"),
+                "key": self._api_key(),
                 "client_key": self._gif_client_key(),
                 "limit": KLIPY_GIF_LIMIT,
                 "contentfilter": KLIPY_CONTENT_FILTER,
@@ -55,10 +71,9 @@ class DiscussGifController(Controller):
 
     @route("/discuss/gif/categories", type="jsonrpc", auth="user", readonly=True)
     def categories(self, locale: str = "en", country: str = "US") -> dict:
-        ir_config = request.env["ir.config_parameter"].sudo()
         query_string = urlencode(
             {
-                "key": ir_config.get_param("discuss.klipy_api_key"),
+                "key": self._api_key(),
                 "client_key": self._gif_client_key(),
                 "limit": KLIPY_GIF_LIMIT,
                 "contentfilter": KLIPY_CONTENT_FILTER,
@@ -68,16 +83,36 @@ class DiscussGifController(Controller):
         )
         return self._request_gifs(f"categories?{query_string}").json()
 
+    @staticmethod
+    def _to_gif_id(tenor_gif_id: object) -> str:
+        if isinstance(tenor_gif_id, int) and not isinstance(tenor_gif_id, bool):
+            tenor_gif_id = str(tenor_gif_id)
+        if (
+            not isinstance(tenor_gif_id, str)
+            or not 0 < len(tenor_gif_id) <= MAX_GIF_ID_LEN
+        ):
+            raise NotFound
+        return tenor_gif_id
+
     @route("/discuss/gif/add_favorite", type="jsonrpc", auth="user")
     def add_favorite(self, tenor_gif_id: str) -> None:
-        request.env["discuss.gif.favorite"].create({"tenor_gif_id": tenor_gif_id})
+        tenor_gif_id = self._to_gif_id(tenor_gif_id)
+        favorites = request.env["discuss.gif.favorite"]
+        if favorites.search_count(
+            [
+                ("create_uid", "=", request.env.user.id),
+                ("tenor_gif_id", "=", tenor_gif_id),
+            ],
+            limit=1,
+        ):
+            return
+        favorites.create({"tenor_gif_id": tenor_gif_id})
 
     def _gif_posts(self, ids: list[str]) -> list:
-        ir_config = request.env["ir.config_parameter"].sudo()
         query_string = urlencode(
             {
                 "ids": ",".join(ids) or None,
-                "key": ir_config.get_param("discuss.klipy_api_key"),
+                "key": self._api_key(),
                 "client_key": self._gif_client_key(),
                 "media_filter": "tinygif",
             }
@@ -86,18 +121,23 @@ class DiscussGifController(Controller):
 
     @route("/discuss/gif/favorites", type="jsonrpc", auth="user", readonly=True)
     def get_favorites(self, offset: int = 0) -> tuple:
-        tenor_gif_ids = request.env["discuss.gif.favorite"].search(
-            [("create_uid", "=", request.env.user.id)], limit=20, offset=offset
+        favorites = request.env["discuss.gif.favorite"].search(
+            [("create_uid", "=", request.env.user.id)],
+            limit=GIF_FAVORITES_PAGE + 1,
+            offset=_to_offset(offset),
+            order="id desc",
         )
-        if not tenor_gif_ids.mapped("tenor_gif_id"):
-            return ([],)
-        return (self._gif_posts(tenor_gif_ids.mapped("tenor_gif_id")) or [],)
+        has_more = len(favorites) > GIF_FAVORITES_PAGE
+        gif_ids = favorites[:GIF_FAVORITES_PAGE].mapped("tenor_gif_id")
+        if not gif_ids:
+            return ([], False)
+        return (self._gif_posts(gif_ids) or [], has_more)
 
     @route("/discuss/gif/remove_favorite", type="jsonrpc", auth="user")
     def remove_favorite(self, tenor_gif_id: str) -> None:
         request.env["discuss.gif.favorite"].search(
             [
                 ("create_uid", "=", request.env.user.id),
-                ("tenor_gif_id", "=", tenor_gif_id),
+                ("tenor_gif_id", "=", self._to_gif_id(tenor_gif_id)),
             ]
         ).unlink()

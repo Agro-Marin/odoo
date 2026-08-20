@@ -1,6 +1,7 @@
 from odoo import http
 from odoo.http import request
 
+from odoo.addons.mail.controllers.utils import message_fetch_response
 from odoo.addons.mail.tools.discuss import Store
 
 
@@ -13,14 +14,10 @@ class MailboxController(http.Controller):
         readonly=True,
     )
     def discuss_inbox_messages(self, fetch_params: dict | None = None) -> dict:
-        domain = [("needaction", "=", True)]
-        res = request.env["mail.message"]._message_fetch(
-            domain, **request.env["mail.message"]._sanitize_fetch_params(fetch_params)
-        )
-        messages = res.pop("messages")
         bus_last_id = request.env["bus.bus"].sudo()._bus_last_id()
-        store = Store().add(
-            messages,
+        return message_fetch_response(
+            domain=[("needaction", "=", True)],
+            fetch_params=fetch_params,
             extra_fields=[
                 Store.One(
                     "thread",
@@ -33,11 +30,6 @@ class MailboxController(http.Controller):
             ],
             add_followers=True,
         )
-        return {
-            **res,
-            "data": store.get_result(),
-            "messages": messages.ids,
-        }
 
     @http.route(
         "/mail/history/messages",
@@ -53,16 +45,10 @@ class MailboxController(http.Controller):
                 ("is_read", "=", True),
             ]
         )
-        domain = [("notification_ids", "in", notification_ids)]
-        res = request.env["mail.message"]._message_fetch(
-            domain, **request.env["mail.message"]._sanitize_fetch_params(fetch_params)
+        return message_fetch_response(
+            domain=[("notification_ids", "in", notification_ids)],
+            fetch_params=fetch_params,
         )
-        messages = res.pop("messages")
-        return {
-            **res,
-            "data": Store().add(messages).get_result(),
-            "messages": messages.ids,
-        }
 
     @http.route(
         "/mail/starred/messages",
@@ -72,13 +58,7 @@ class MailboxController(http.Controller):
         readonly=True,
     )
     def discuss_starred_messages(self, fetch_params: dict | None = None) -> dict:
-        domain = [("starred_partner_ids", "in", [request.env.user.partner_id.id])]
-        res = request.env["mail.message"]._message_fetch(
-            domain, **request.env["mail.message"]._sanitize_fetch_params(fetch_params)
+        return message_fetch_response(
+            domain=[("starred_partner_ids", "in", [request.env.user.partner_id.id])],
+            fetch_params=fetch_params,
         )
-        messages = res.pop("messages")
-        return {
-            **res,
-            "data": Store().add(messages).get_result(),
-            "messages": messages.ids,
-        }

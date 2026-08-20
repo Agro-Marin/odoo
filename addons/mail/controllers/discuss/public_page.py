@@ -1,19 +1,28 @@
+import re
 import typing
 from typing import Literal
 
 import psycopg.errors
 from werkzeug.exceptions import NotFound
 
-from odoo import _, http
+from odoo import http
 from odoo.exceptions import UserError
 from odoo.http import Response, request
 from odoo.tools import consteq, email_normalize, replace_exceptions
 from odoo.tools.misc import verify_hash_signed
 
+from odoo.addons.mail.controllers.utils import get_channel_or_404
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
 if typing.TYPE_CHECKING:
     from odoo.addons.mail.models.discuss.discuss_channel import DiscussChannel
+
+
+_CREATE_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{1,50}$")
+
+
+def _is_plausible_create_token(create_token: str) -> bool:
+    return isinstance(create_token, str) and bool(_CREATE_TOKEN_RE.match(create_token))
 
 
 class PublicPageController(http.Controller):
@@ -81,12 +90,8 @@ class PublicPageController(http.Controller):
         "/discuss/channel/<int:channel_id>", methods=["GET"], type="http", auth="public"
     )
     @add_guest_to_context
-    def discuss_channel(
-        self, channel_id: int, *, highlight_message_id: int | None = None
-    ) -> Response:
-        channel = request.env["discuss.channel"].search([("id", "=", channel_id)])
-        if not channel:
-            raise NotFound
+    def discuss_channel(self, channel_id: int) -> Response:
+        channel = get_channel_or_404(channel_id)
         return self._response_discuss_public_template(Store(), channel)
 
     def _response_discuss_channel_from_token(
@@ -104,6 +109,8 @@ class PublicPageController(http.Controller):
         channel_sudo = (
             request.env["discuss.channel"].sudo().search([("uuid", "=", create_token)])
         )
+        if not channel_sudo and not _is_plausible_create_token(create_token):
+            raise NotFound
         if not channel_sudo:
             try:
                 with request.env.cr.savepoint():
@@ -130,11 +137,11 @@ class PublicPageController(http.Controller):
             channel.group_public_id or channel.parent_channel_id.sudo().group_public_id
         )
         if group_public_id and group_public_id not in request.env.user.all_group_ids:
-            raise request.not_found()
+            raise NotFound
         guest_already_known = channel.env["mail.guest"]._get_guest_from_context()
         with replace_exceptions(UserError, by=NotFound()):
             __, guest = channel.sudo()._find_or_create_persona_for_channel(
-                guest_name=guest_email or _("Guest"),
+                guest_name=guest_email or request.env._("Guest"),
                 country_code=request.geoip.country_code,
                 timezone=request.env["mail.guest"]._get_timezone_from_request(request),
             )

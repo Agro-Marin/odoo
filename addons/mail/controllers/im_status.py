@@ -1,4 +1,4 @@
-from odoo import _, http
+from odoo import http
 from odoo.exceptions import UserError
 from odoo.http import request
 
@@ -8,8 +8,12 @@ class ImStatusController(http.Controller):
         "/mail/set_manual_im_status", methods=["POST"], type="jsonrpc", auth="user"
     )
     def set_manual_im_status(self, status: str) -> None:
-        if status not in ["online", "away", "busy", "offline"]:
-            raise UserError(_("Unexpected IM status %(status)s", status=status))
+        field = request.env["res.users"]._fields["manual_im_status"]
+        valid = {"online", *dict(field._description_selection(request.env))}
+        if status not in valid:
+            raise UserError(
+                request.env._("Unexpected IM status %(status)s", status=status)
+            )
         user = request.env.user
         user.manual_im_status = False if status == "online" else status
         user._bus_send(

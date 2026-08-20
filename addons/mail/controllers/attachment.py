@@ -7,13 +7,14 @@ from typing import Any
 
 from werkzeug.exceptions import NotFound, UnsupportedMediaType
 
-from odoo import _, http
+from odoo import http
 from odoo.exceptions import AccessError, UserError
 from odoo.http import Response, content_disposition, request
 from odoo.tools.misc import file_open
 from odoo.tools.pdf import DependencyError, PdfReadError, extract_page
 
-from odoo.addons.mail.controllers.thread import ThreadController, _to_record_id
+from odoo.addons.mail.controllers.thread import ThreadController
+from odoo.addons.mail.controllers.utils import to_record_id, to_record_ids
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
 if typing.TYPE_CHECKING:
@@ -23,30 +24,43 @@ logger = logging.getLogger(__name__)
 
 MAX_THUMBNAIL_B64_BYTES = 10 * 1024 * 1024
 
+MAX_ZIP_ATTACHMENTS = 200
+
+MAX_ZIP_BYTES = 512 * 1024 * 1024
+
 
 class AttachmentController(ThreadController):
+    def _raise_for_zip_size(self, written: int) -> None:
+        if written > MAX_ZIP_BYTES:
+            raise UserError(
+                request.env._(
+                    "These attachments are too large to download together. "
+                    "Select fewer of them."
+                )
+            )
+
     def _make_zip(self, name: str, attachments: IrAttachment) -> Response:
-        streams = (
-            request.env["ir.binary"]._get_stream_from(record, "raw")
-            for record in attachments
-        )
+        self._raise_for_zip_size(sum(attachments.mapped("file_size")))
         stream = io.BytesIO()
-        try:
-            with zipfile.ZipFile(stream, "w") as attachment_zip:
-                for binary_stream in streams:
-                    if not binary_stream:
-                        continue
-                    attachment_zip.writestr(
-                        binary_stream.download_name,
-                        binary_stream.read(),
-                        compress_type=zipfile.ZIP_DEFLATED,
-                    )
-        except zipfile.BadZipFile:
-            logger.exception("BadZipfile exception")
+        written = 0
+        with zipfile.ZipFile(stream, "w") as attachment_zip:
+            for record in attachments:
+                self._raise_for_zip_size(written + record.file_size)
+                binary_stream = request.env["ir.binary"]._get_stream_from(record, "raw")
+                if not binary_stream:
+                    continue
+                data = binary_stream.read()
+                written += len(data)
+                self._raise_for_zip_size(written)
+                attachment_zip.writestr(
+                    binary_stream.download_name,
+                    data,
+                    compress_type=zipfile.ZIP_DEFLATED,
+                )
 
         content = stream.getvalue()
         headers = [
-            ("Content-Type", "zip"),
+            ("Content-Type", "application/zip"),
             ("X-Content-Type-Options", "nosniff"),
             ("Content-Length", len(content)),
             ("Content-Disposition", content_disposition(name)),
@@ -98,7 +112,11 @@ class AttachmentController(ThreadController):
                 }
             }
         except AccessError:
-            res = {"error": _("You are not allowed to upload an attachment here.")}
+            res = {
+                "error": request.env._(
+                    "You are not allowed to upload an attachment here."
+                )
+            }
         return request.make_json_response(res)
 
     @http.route(
@@ -109,7 +127,7 @@ class AttachmentController(ThreadController):
         self, attachment_id: int, access_token: str | None = None
     ) -> None:
         attachment = (
-            request.env["ir.attachment"].browse(_to_record_id(attachment_id)).exists()
+            request.env["ir.attachment"].browse(to_record_id(attachment_id)).exists()
         )
         if not attachment or not attachment._has_attachments_ownership([access_token]):
             request.env.user._bus_send("ir.attachment/delete", {"id": attachment_id})
@@ -124,12 +142,13 @@ class AttachmentController(ThreadController):
     @http.route(["/mail/attachment/zip"], methods=["POST"], type="http", auth="public")
     @add_guest_to_context
     def mail_attachment_get_zip(self, file_ids: str, zip_name: str, **kw) -> Response:
-        try:
-            ids_list = list(map(int, file_ids.split(",")))
-        except TypeError, ValueError:
-            raise NotFound from None
+        if not isinstance(file_ids, str):
+            raise NotFound
+        ids_list = to_record_ids(file_ids.split(",")) if file_ids else []
+        if not ids_list or len(ids_list) > MAX_ZIP_ATTACHMENTS:
+            raise NotFound
         attachments = request.env["ir.attachment"].browse(ids_list).exists()
-        accessible = attachments.filtered(lambda a: a.has_access("read"))
+        accessible = attachments._filtered_access("read")
         if not accessible:
             raise NotFound
         return self._make_zip(zip_name, accessible.sudo())
@@ -145,12 +164,12 @@ class AttachmentController(ThreadController):
     def mail_attachment_pdf_first_page(
         self, attachment_id: int, access_token: str | None = None
     ) -> Response:
-        attachment = request.env["ir.attachment"].browse(int(attachment_id)).exists()
+        attachment = request.env["ir.attachment"].browse(attachment_id).exists()
         if not attachment or (
             not attachment.has_access("read")
             and not attachment._has_attachments_ownership([access_token])
         ):
-            raise request.not_found()
+            raise NotFound
         return self._get_pdf_first_page_response(attachment.sudo())
 
     @http.route(
@@ -167,21 +186,30 @@ class AttachmentController(ThreadController):
         access_token: str | None = None,
     ) -> None:
         attachment = (
-            request.env["ir.attachment"].browse(_to_record_id(attachment_id)).exists()
+            request.env["ir.attachment"].browse(to_record_id(attachment_id)).exists()
         )
         if not attachment or (
             not attachment.has_access("write")
             and not attachment._has_attachments_ownership([access_token])
         ):
-            raise request.not_found()
+            raise NotFound
         attachment_sudo = attachment.sudo()
         if attachment_sudo.mimetype != "application/pdf":
             raise UserError(request.env._("Only PDF files can have thumbnail."))
         if not thumbnail:
             with file_open("web/static/img/mimetypes/unknown.svg") as unknown_svg:
-                thumbnail = base64.b64encode(unknown_svg.read().encode())
-        elif len(thumbnail) > MAX_THUMBNAIL_B64_BYTES:
-            raise UserError(request.env._("The thumbnail is too large."))
+                thumbnail = base64.b64encode(unknown_svg.read().encode()).decode()
+        else:
+            if not isinstance(thumbnail, str):
+                raise NotFound
+            if len(thumbnail) > MAX_THUMBNAIL_B64_BYTES:
+                raise UserError(request.env._("The thumbnail is too large."))
+            try:
+                base64.b64decode(thumbnail, validate=True)
+            except ValueError:
+                raise UserError(
+                    request.env._("The thumbnail is not valid base64.")
+                ) from None
         attachment_sudo.thumbnail = thumbnail
         Store(bus_channel=attachment_sudo).add(
             attachment_sudo, ["has_thumbnail"]

@@ -1,20 +1,31 @@
+import json
 from collections import defaultdict
 
 from werkzeug.exceptions import NotFound
 
 from odoo import http
 from odoo.http import Response, request
-from odoo.tools import file_open
 
-from odoo.addons.mail.controllers.thread import (
-    _to_record_id,
-    _to_record_ids,
-    _to_record_ids_strict,
+from odoo.addons.mail.controllers.utils import (
+    get_channel_or_404,
+    get_self_member_or_404,
+    javascript_file_response,
+    to_record_id,
+    to_record_ids,
 )
 from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
 _MAX_PEER_NOTIFICATIONS = 100
 _MAX_PEER_CONTENT_LEN = 100_000
+
+
+def _is_within_peer_content_limit(content: object) -> bool:
+    if isinstance(content, str):
+        return len(content) <= _MAX_PEER_CONTENT_LEN
+    try:
+        return len(json.dumps(content)) <= _MAX_PEER_CONTENT_LEN
+    except TypeError, ValueError:
+        return False
 
 
 class RtcController(http.Controller):
@@ -34,12 +45,17 @@ class RtcController(http.Controller):
             if not isinstance(notification, (list, tuple)) or len(notification) != 3:
                 continue
             sender_session_id, target_session_ids, content = notification
-            if isinstance(content, str) and len(content) > _MAX_PEER_CONTENT_LEN:
+            if not _is_within_peer_content_limit(content):
+                continue
+            try:
+                sender_id = to_record_id(sender_session_id)
+                target_ids = to_record_ids(target_session_ids)
+            except NotFound:
                 continue
             session_sudo = (
                 request.env["discuss.channel.rtc.session"]
                 .sudo()
-                .browse(_to_record_id(sender_session_id))
+                .browse(sender_id)
                 .exists()
             )
             if (
@@ -51,9 +67,7 @@ class RtcController(http.Controller):
                 )
             ):
                 continue
-            notifications_by_session[session_sudo].append(
-                (_to_record_ids(target_session_ids), content)
-            )
+            notifications_by_session[session_sudo].append((target_ids, content))
         for session_sudo, notifications in notifications_by_session.items():
             session_sudo._notify_peers(notifications)
 
@@ -71,7 +85,7 @@ class RtcController(http.Controller):
                 session = (
                     guest.env["discuss.channel.rtc.session"]
                     .sudo()
-                    .browse(_to_record_id(session_id))
+                    .browse(to_record_id(session_id))
                     .exists()
                 )
                 if session and session.guest_id == guest:
@@ -81,7 +95,7 @@ class RtcController(http.Controller):
         session = (
             request.env["discuss.channel.rtc.session"]
             .sudo()
-            .browse(_to_record_id(session_id))
+            .browse(to_record_id(session_id))
             .exists()
         )
         if session and session.partner_id == request.env.user.partner_id:
@@ -97,11 +111,7 @@ class RtcController(http.Controller):
         check_rtc_session_ids: list[int] | None = None,
         camera: bool = False,
     ) -> dict:
-        channel = request.env["discuss.channel"].search(
-            [("id", "=", _to_record_id(channel_id))]
-        )
-        if not channel:
-            raise request.not_found()
+        channel = get_channel_or_404(channel_id)
         member = channel._find_or_create_member_for_self()
         if not member:
             raise NotFound
@@ -118,11 +128,7 @@ class RtcController(http.Controller):
     def channel_call_leave(
         self, channel_id: int, session_id: int | None = None
     ) -> None:
-        member = request.env["discuss.channel.member"].search(
-            [("channel_id", "=", _to_record_id(channel_id)), ("is_self", "=", True)]
-        )
-        if not member:
-            raise NotFound
+        member = get_self_member_or_404(channel_id)
         member.sudo()._rtc_leave_call(session_id)
 
     @http.route(
@@ -132,11 +138,7 @@ class RtcController(http.Controller):
         auth="user",
     )
     def channel_upgrade(self, channel_id: int) -> None:
-        member = request.env["discuss.channel.member"].search(
-            [("channel_id", "=", _to_record_id(channel_id)), ("is_self", "=", True)]
-        )
-        if not member:
-            raise NotFound
+        member = get_self_member_or_404(channel_id)
         member.sudo()._join_sfu(force=True)
 
     @http.route(
@@ -149,15 +151,11 @@ class RtcController(http.Controller):
     def channel_call_cancel_invitation(
         self, channel_id: int, member_ids: list[int] | None = None
     ) -> None:
-        channel = request.env["discuss.channel"].search(
-            [("id", "=", _to_record_id(channel_id))]
-        )
-        if not channel:
-            raise NotFound
+        channel = get_channel_or_404(channel_id)
         if not channel.self_member_id:
             raise NotFound
         channel.sudo()._rtc_cancel_invitations(
-            member_ids=_to_record_ids_strict(member_ids) if member_ids else None
+            member_ids=to_record_ids(member_ids) if member_ids else None
         )
 
     @http.route(
@@ -168,16 +166,7 @@ class RtcController(http.Controller):
         readonly=True,
     )
     def audio_worklet_processor(self) -> Response:
-        with file_open("mail/static/src/worklets/audio_processor.js", "rb") as f:
-            data = f.read()
-        return request.make_response(
-            data,
-            headers=[
-                ("Content-Type", "application/javascript"),
-                ("X-Content-Type-Options", "nosniff"),
-                ("Cache-Control", f"max-age={http.STATIC_CACHE}"),
-            ],
-        )
+        return javascript_file_response("mail/static/src/worklets/audio_processor.js")
 
     @http.route(
         "/discuss/channel/ping", methods=["POST"], type="jsonrpc", auth="public"
@@ -189,15 +178,11 @@ class RtcController(http.Controller):
         rtc_session_id: int | None = None,
         check_rtc_session_ids: list[int] | None = None,
     ) -> dict:
-        member = request.env["discuss.channel.member"].search(
-            [("channel_id", "=", _to_record_id(channel_id)), ("is_self", "=", True)]
-        )
-        if not member:
-            raise NotFound
+        member = get_self_member_or_404(channel_id)
         channel_member_sudo = member.sudo()
         if rtc_session_id:
             domain = [
-                ("id", "=", _to_record_id(rtc_session_id)),
+                ("id", "=", to_record_id(rtc_session_id)),
                 ("channel_member_id", "=", member.id),
             ]
             channel_member_sudo.channel_id.rtc_session_ids.filtered_domain(
