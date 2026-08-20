@@ -7,7 +7,7 @@ from . import _py_scan, _suppression
 from .lint_case import LintCase
 
 FLOORS = {
-    "sql-injection": 40,
+    "sql-injection": 37,
     "gettext-variable": 1,
     "gettext-placeholders": 5,
     "gettext-repr": 8,
@@ -16,6 +16,13 @@ FLOORS = {
     "orm-import": 0,
     "noqa-rationale": 72,
     "onchange-domain": 0,
+    # 403 -> 402. The unit was already gone when this was measured: a clean
+    # worktree of HEAD reports 402 against the committed 403, so `test_batch_queries`
+    # had been failing in the falling direction for every commit since whichever
+    # change removed it. Re-floored here without an attribution, because the
+    # scanner records counts and not provenance and guessing one would be worse
+    # than saying so.
+    #
     # 405 -> 403, two units, neither of them a hoisted query.
     # 405 -> 404 was already standing at HEAD when this was measured: the gateway
     # extraction that landed before it moved the count and did not re-floor, so
@@ -29,7 +36,7 @@ FLOORS = {
     # the call inside a `for`. It was never an N+1 to begin with: that loop is
     # over document *models*, of which a message batch has one or two, not over
     # records. A finding removed, not a query.
-    "n-plus-one-query": 403,
+    "n-plus-one-query": 402,
     "gettext-developer-error": 52,
     "config-chainmap-patch": 0,
 }

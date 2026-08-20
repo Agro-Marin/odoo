@@ -125,6 +125,7 @@ external = [
     "E8508",
     "E8509",
     "E8510",
+    "E8511",
 ]
 
 # Legitimate scientific/typographic characters that RUF002/RUF003 would otherwise
