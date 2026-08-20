@@ -971,3 +971,47 @@ test("aborted closing handshake during a reconnect resets the retry delay", asyn
     // INITIAL. Without the reset the base is min(40_000 * 1.5, 60_000).
     expect(worker.connectRetryDelay).toBe(worker.INITIAL_RECONNECT_DELAY);
 });
+
+test("reconnect spread widens with the attempt and never delays the first retry", async () => {
+    const worker = await startWebSocketWorker();
+    const armed = [];
+    // Isolate the delay arithmetic from an actual (re)connection, which would
+    // reset the base on open, and give the worker a production-shaped jitter:
+    // the suite-wide patch pins a tiny one so `runAllTimers` stays cheap.
+    // `_logDebug` already receives the armed delay, so capture it there rather
+    // than intercepting the bare `setTimeout` the worker calls.
+    patchWithCleanup(worker, {
+        _start() {},
+        RECONNECT_JITTER: 30_000,
+        _logDebug(label, value) {
+            if (label === "_retryConnectionWithDelay") {
+                armed.push(value);
+            }
+        },
+    });
+    // Worst-case spread: Math.random() at its ceiling.
+    patchWithCleanup(Math, { random: () => 0.999999 });
+
+    const bases = [];
+    for (let i = 0; i < 8; i++) {
+        bases.push(worker.connectRetryDelay);
+        worker._retryConnectionWithDelay();
+    }
+    expect(armed).toHaveLength(8);
+
+    // The spread is proportional to the base, so it never inflates the first
+    // retry: a lone client whose socket blips reconnects about as fast as it
+    // did before the spread existed. A flat 30s window would put this at ~31s.
+    expect(armed[0]).toBeLessThan(2 * worker.INITIAL_RECONNECT_DELAY);
+    // ...and it widens as attempts accumulate, which is what breaks up a herd
+    // of clients all reconnecting to a bus process that just restarted.
+    const spreads = armed.map((delay, i) => delay - bases[i]);
+    for (let i = 1; i < spreads.length; i++) {
+        expect(spreads[i]).toBeGreaterThan(spreads[i - 1]);
+    }
+    // The armed delay is always the base plus a spread bounded by the base
+    // itself, so it can never exceed twice MAXIMUM_RECONNECT_DELAY.
+    for (const delay of armed) {
+        expect(delay).toBeLessThan(2 * 60_000);
+    }
+});

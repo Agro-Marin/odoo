@@ -75,7 +75,13 @@ class Connection {
  */
 export class WebsocketWorker {
     INITIAL_RECONNECT_DELAY = 1000;
-    RECONNECT_JITTER = 1000;
+    /**
+     * Ceiling on the random spread added to a reconnect delay. The spread
+     * applied is `min(connectRetryDelay, RECONNECT_JITTER)`, so it widens with
+     * the attempt instead of being a flat window -- see
+     * `_retryConnectionWithDelay`.
+     */
+    RECONNECT_JITTER = 30_000;
     CONNECTION_CHECK_DELAY = 60_000;
     // How often dead clients are looked for, and how long a client may stay
     // silent before it is pinged (half the timeout) then evicted (full
@@ -956,8 +962,24 @@ export class WebsocketWorker {
     }
 
     /**
-     * Try to reconnect to the server, an exponential back off is
-     * applied to the reconnect attempts.
+     * Try to reconnect to the server, after an exponential back off plus a
+     * random spread proportional to it.
+     *
+     * The spread exists for the restart case: a bus process going down drops
+     * every client on every database it serves at the same instant, they all
+     * reconnect together, and each database that comes back triggers a registry
+     * recompute server-side, so the recomputes pile up on the process that just
+     * started. A spread of one second was far too narrow to break that wave up.
+     *
+     * It is proportional -- `min(base, RECONNECT_JITTER)` -- rather than a flat
+     * window, because the two goals pull in opposite directions. A flat 30s
+     * window (what upstream took) spreads the herd but also makes the *first*
+     * retry take a median 16s, so one client's transient blip costs it sixteen
+     * seconds of dead notifications instead of one and a half. Scaling the
+     * spread to the attempt keeps the first retry where it was and widens the
+     * window as attempts accumulate, which is when it is actually needed: a
+     * restarting server refuses the early attempts anyway, and the pile-up
+     * happens once clients start succeeding.
      */
     _retryConnectionWithDelay() {
         // Cancel any pending retry first: a failed connection fires both
@@ -977,7 +999,9 @@ export class WebsocketWorker {
         const delay =
             this.connectRetryDelay === 0
                 ? 0
-                : this.connectRetryDelay + this.RECONNECT_JITTER * Math.random();
+                : this.connectRetryDelay +
+                  Math.min(this.connectRetryDelay, this.RECONNECT_JITTER) *
+                      Math.random();
         this.connectRetryDelay =
             this.connectRetryDelay === 0
                 ? this.INITIAL_RECONNECT_DELAY

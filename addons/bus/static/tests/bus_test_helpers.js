@@ -193,9 +193,14 @@ viewsRegistry.category("form").add(
     </form>`,
 );
 
-// should be enough to decide whether or not notifications/channel
-// subscriptions... are received.
-const TIMEOUT = 2000;
+// How long the wait helpers give the client before failing. Every use below is
+// a positive-path wait -- the timer is cleared the moment the condition holds
+// -- so a longer budget costs nothing on a green run and only delays the report
+// of a test that was going to fail. 2s was too tight for a loaded runbot, where
+// the first wait after a mount pays for the whole mount and its first fetches.
+// 10s, matching the tour-step budget, leaves room inside hoot's own 15s
+// per-test ceiling (`_run_hoot` builds the URL with `&timeout=15000`).
+const TIMEOUT = 10_000;
 
 //-----------------------------------------------------------------------------
 // Exports
