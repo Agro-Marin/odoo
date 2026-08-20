@@ -1,10 +1,11 @@
+import itertools
 import logging
 from email.message import EmailMessage
 from typing import NamedTuple
 
 import lxml.html
 from lxml import etree
-from markupsafe import Markup
+from markupsafe import Markup, escape
 
 from odoo.tools.mail import append_content_to_html, html_sanitize
 
@@ -162,13 +163,14 @@ def postprocess_payload(payload: Payload) -> Payload:
     if not body.strip():
         return payload
     try:
-        root = lxml.html.fromstring(body)
+        fragments = lxml.html.fragments_fromstring(body)
     except ValueError:
-        root = lxml.html.fromstring(body.encode("utf-8"))
+        fragments = lxml.html.fragments_fromstring(body.encode("utf-8"))
+    nodes = [f for f in fragments if not isinstance(f, str)]
 
     postprocessed = False
     to_remove = []
-    for node in root.iter():
+    for node in itertools.chain.from_iterable(n.iter() for n in nodes):
         if "o_mail_notification" in (node.get("class") or "") or (
             "o_mail_notification" in (node.get("summary") or "")
         ):
@@ -187,7 +189,15 @@ def postprocess_payload(payload: Payload) -> Payload:
     for node in to_remove:
         node.getparent().remove(node)
     if postprocessed:
-        body = Markup(etree.tostring(root, pretty_print=False, encoding="unicode"))
+        rendered = [
+            str(escape(fragment))
+            if isinstance(fragment, str)
+            else etree.tostring(
+                fragment, pretty_print=False, encoding="unicode", with_tail=True
+            )
+            for fragment in fragments
+        ]
+        body = Markup("".join(rendered))
     return Payload(body, attachments)
 
 

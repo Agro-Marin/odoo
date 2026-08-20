@@ -1,6 +1,7 @@
 from odoo.tests import tagged, users
 
 from odoo.addons.mail.tests.common import MailCommon
+from odoo.addons.mail.tools.mime import Attachment, Payload, postprocess_payload
 
 
 @tagged("mail_tools", "res_partner")
@@ -372,3 +373,54 @@ class TestMailBannedEmails(MailCommon):
         )
         banned = self.env["res.partner"]._mail_get_banned_emails([self.root_email])
         self.assertIn(self.root_email, banned)
+
+
+@tagged("mail_tools")
+class TestPostprocessPayload(MailCommon):
+    """Rewriting cid: images must not invent a wrapper around the body.
+
+    libxml2 2.14 changed which element `lxml.html.fromstring` wraps a bare
+    fragment in -- `<span>` where older builds used `<p>` -- so a body that had
+    no root element came back out with one, and which one depended on the build
+    Odoo happened to link against.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.attachment = Attachment("pic.png", b"x", {"cid": "abc"})
+
+    def _postprocess(self, body):
+        return str(postprocess_payload(Payload(body, [self.attachment]))[0])
+
+    def test_body_shape_is_preserved(self):
+        for body, expected in [
+            (
+                '<img src="cid:abc">Hello',
+                '<img src="cid:abc" data-filename="pic.png"/>Hello',
+            ),
+            (
+                'Hello <img src="cid:abc"> world',
+                'Hello <img src="cid:abc" data-filename="pic.png"/> world',
+            ),
+            (
+                '<p>Hello <img src="cid:abc"></p>',
+                '<p>Hello <img src="cid:abc" data-filename="pic.png"/></p>',
+            ),
+            (
+                '<p>one</p><p>two <img src="cid:abc"></p>',
+                '<p>one</p><p>two <img src="cid:abc" data-filename="pic.png"/></p>',
+            ),
+        ]:
+            with self.subTest(body=body):
+                self.assertEqual(self._postprocess(body), expected)
+
+    def test_untouched_body_is_returned_verbatim(self):
+        body = "plain text only"
+        self.assertEqual(self._postprocess(body), body)
+
+    def test_entities_survive_the_rewrite(self):
+        self.assertEqual(
+            self._postprocess('<p>a &amp; b <img src="cid:abc"></p>'),
+            '<p>a &amp; b <img src="cid:abc" data-filename="pic.png"/></p>',
+        )
