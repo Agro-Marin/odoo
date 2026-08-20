@@ -31,13 +31,13 @@ class TestGoalDefinition(common.TransactionCase):
             defaults.update(vals)
         return self.env["gamification.goal.definition"].create(defaults)
 
-    @patch("odoo.addons.mail.models.mail_thread.MailThread._notify_thread")
+    @patch("odoo.addons.mail.models.mixin_mail_thread.MixinMailThread._notify_thread")
     def test_check_domain_validity_invalid(self, _mock_notify):
         """Verify that an invalid domain string raises UserError on create."""
         with self.assertRaises(UserError):
             self._create_definition({"domain": "not a valid domain"})
 
-    @patch("odoo.addons.mail.models.mail_thread.MailThread._notify_thread")
+    @patch("odoo.addons.mail.models.mixin_mail_thread.MixinMailThread._notify_thread")
     def test_check_domain_validity_valid(self, _mock_notify):
         """Verify that a valid domain does not raise any error."""
         definition = self._create_definition(
@@ -47,7 +47,7 @@ class TestGoalDefinition(common.TransactionCase):
         )
         self.assertTrue(definition.id, "Definition should be created successfully")
 
-    @patch("odoo.addons.mail.models.mail_thread.MailThread._notify_thread")
+    @patch("odoo.addons.mail.models.mixin_mail_thread.MixinMailThread._notify_thread")
     def test_compute_full_suffix_without_monetary(self, _mock_notify):
         """Verify full_suffix equals the plain suffix when monetary is False."""
         definition = self._create_definition(
@@ -59,7 +59,7 @@ class TestGoalDefinition(common.TransactionCase):
         )
         self.assertEqual(definition.full_suffix, "tasks")
 
-    @patch("odoo.addons.mail.models.mail_thread.MailThread._notify_thread")
+    @patch("odoo.addons.mail.models.mixin_mail_thread.MixinMailThread._notify_thread")
     def test_compute_full_suffix_with_monetary(self, _mock_notify):
         """Verify full_suffix includes currency symbol when monetary is True."""
         definition = self._create_definition(

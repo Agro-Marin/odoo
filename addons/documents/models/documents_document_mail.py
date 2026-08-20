@@ -1,6 +1,6 @@
 """A document as a mail thread: alias, incoming mail, chatter, activities.
 
-`documents.document` is a `mail.thread` with an optional alias, so a folder
+`documents.document` is a `mixin.mail.thread` with an optional alias, so a folder
 can be mailed to and turn its attachments into documents. That, the chatter
 it writes on transitions, and the activity scheduling live here.
 """
@@ -43,7 +43,7 @@ class DocumentsDocument(models.Model):
         ``_``: the latter resolves module and language by inspecting its
         *calling frame* for a ``self``/``env``/``cr``, and a lambda frame has
         none. Off any HTTP request — crons, the mail gateway, the archive
-        cascade in ``documents.unlink.mixin``, tests — it therefore found no
+        cascade in ``mixin.documents.unlink``, tests — it therefore found no
         language, fell back to ``("base", "en_US")`` and logged a WARNING with a
         full stack trace for every folder it posted to.
 
@@ -140,7 +140,7 @@ class DocumentsDocument(models.Model):
         values = super()._alias_get_creation_values()
         values["alias_model_id"] = self.env["ir.model"]._get("documents.document").id
         if self.id:
-            values["alias_defaults"] = literal_eval(self.alias_defaults or "{}")
+            values["alias_defaults"] = self._get_alias_defaults()
             values["alias_defaults"] |= {"folder_id": self.id}
         return values
 

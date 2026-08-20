@@ -7,7 +7,7 @@ from odoo.exceptions import LockError
 from odoo.tools import str2bool
 
 from odoo.addons.google_account.models import google_service
-from odoo.addons.google_calendar.models.google_sync import google_calendar_token
+from odoo.addons.google_calendar.models.mixin_google_calendar_sync import google_calendar_token
 from odoo.addons.google_calendar.utils.google_calendar import (
     GoogleCalendarService,
     InvalidSyncToken,

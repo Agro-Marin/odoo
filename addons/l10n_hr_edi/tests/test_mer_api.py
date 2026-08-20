@@ -35,7 +35,7 @@ class TestL10nHrEdiMerApi(TestL10nHrEdiCommon, TestAccountMoveSendCommon):
 
     def _test_mer_api_send(self):
         """
-        Test sending generated invoice through MER, bypassing most of the `account.move.send` flow.
+        Test sending generated invoice through MER, bypassing most of the `mixin.account.move.send` flow.
         WARNING: permanently changes the state of the demo server!
         """
         self.setup_partner_as_hr(self.env.company.partner_id)
@@ -61,8 +61,8 @@ class TestL10nHrEdiMerApi(TestL10nHrEdiCommon, TestAccountMoveSendCommon):
             'fiscalization_number': self.env['account.move']._get_l10n_hr_fiscalization_number(invoice.name),
         })
 
-        moves_data = {move.sudo(): {**self.env['account.move.send']._get_default_sending_settings(move)} for move in [invoice]}
-        self.env['account.move.send']._generate_invoice_documents(moves_data, allow_fallback_pdf=False)
+        moves_data = {move.sudo(): {**self.env['mixin.account.move.send']._get_default_sending_settings(move)} for move in [invoice]}
+        self.env['mixin.account.move.send']._generate_invoice_documents(moves_data, allow_fallback_pdf=False)
 
         self.assertRecordValues(invoice, [{
             'l10n_hr_mer_document_status': '20',
@@ -71,7 +71,7 @@ class TestL10nHrEdiMerApi(TestL10nHrEdiCommon, TestAccountMoveSendCommon):
 
     def _test_mer_flow_send(self):
         """
-        Test sending generated invoice through MER using the normal `account.move.send` flow.
+        Test sending generated invoice through MER using the normal `mixin.account.move.send` flow.
         WARNING: permanently changes the state of the demo server!
         """
         self.setup_partner_as_hr(self.env.company.partner_id)

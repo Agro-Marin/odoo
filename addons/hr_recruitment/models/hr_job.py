@@ -1,6 +1,5 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import ast
 from collections import defaultdict
 
 from odoo import SUPERUSER_ID, Command, _, api, fields, models
@@ -10,7 +9,7 @@ from odoo.tools.convert import convert_file
 
 class HrJob(models.Model):
     _name = 'hr.job'
-    _inherit = ["mail.alias.mixin", "hr.job", "mail.activity.mixin"]
+    _inherit = ["mixin.mail.alias", "hr.job", "mixin.mail.activity"]
     _order = "sequence, name asc"
 
     @api.model
@@ -274,7 +273,7 @@ class HrJob(models.Model):
         values = super()._alias_get_creation_values()
         values['alias_model_id'] = self.env['ir.model']._get('hr.applicant').id
         if self.id:
-            values['alias_defaults'] = defaults = ast.literal_eval(self.alias_defaults or "{}")
+            values['alias_defaults'] = defaults = self._get_alias_defaults()
             defaults.update({
                 'job_id': self.id,
                 'department_id': self.department_id.id,

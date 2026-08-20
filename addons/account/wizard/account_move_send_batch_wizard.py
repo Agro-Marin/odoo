@@ -8,7 +8,7 @@ class AccountMoveSendBatchWizard(models.TransientModel):
     """Wizard that handles the sending of multiple invoices."""
 
     _name = "account.move.send.batch.wizard"
-    _inherit = ["account.move.send"]
+    _inherit = ["mixin.account.move.send"]
     _description = "Account Move Send Batch Wizard"
 
     move_ids = fields.Many2many(comodel_name="account.move", required=True)
@@ -101,7 +101,7 @@ class AccountMoveSendBatchWizard(models.TransientModel):
         if self.alerts:
             self._raise_danger_alerts(self.alerts)
         if force_synchronous:
-            self.env["account.move.send"]._generate_and_send_invoices(
+            self.env["mixin.account.move.send"]._generate_and_send_invoices(
                 self.move_ids, allow_fallback_pdf=allow_fallback_pdf
             )
             return None

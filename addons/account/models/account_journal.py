@@ -1,14 +1,13 @@
 import re
-from ast import literal_eval
 from urllib.parse import urlencode
 
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.libs.web import urls
-from odoo.tools import email_normalize, email_normalize_all, groupby
+from odoo.tools import email_normalize, email_normalize_all, groupby, is_encodable
 from odoo.tools.misc import hash_sign
 
-from odoo.addons.base.models.catalog_mixin import name_uniq_index
+from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 # Default code prefix handed out per journal type (see ``_get_next_journal_default_code``).
 JOURNAL_CODE_PREFIXES = {
@@ -66,10 +65,10 @@ class AccountJournal(models.Model):
     _description = "Journal"
     _order = "sequence, type, code"
     _inherit = [
-        "portal.mixin",
-        "mail.alias.mixin.optional",
-        "mail.thread",
-        "mail.activity.mixin",
+        "mixin.portal",
+        "mixin.mail.alias.optional",
+        "mixin.mail.thread",
+        "mixin.mail.activity",
     ]
     _check_company_auto = True
     _check_company_domain = models.check_company_domain_parent_of
@@ -999,7 +998,7 @@ class AccountJournal(models.Model):
         # for journals, force a readable name instead of a sanitized name e.g. non ascii in journal names
         if vals.get("alias_name") and "type" not in vals:
             # will raise if writing name on more than 1 record, using self[0] is safe
-            if not self.env["mail.alias"]._is_encodable(
+            if not is_encodable(
                 vals["alias_name"]
             ) or not self.env["mail.alias"]._sanitize_alias_name(vals["alias_name"]):
                 vals["alias_name"] = self._alias_prepare_alias_name(
@@ -1123,9 +1122,7 @@ class AccountJournal(models.Model):
             values["alias_name"] = self._alias_prepare_alias_name(
                 self.alias_name, self.name, self.code, self.type, self.company_id
             )
-            values["alias_defaults"] = defaults = literal_eval(
-                self.alias_defaults or "{}"
-            )
+            values["alias_defaults"] = defaults = self._get_alias_defaults()
             defaults["company_id"] = self.company_id.id
             defaults["move_type"] = ALIAS_MOVE_TYPE_BY_JOURNAL.get(self.type, "entry")
             defaults["journal_id"] = self.id
@@ -1144,7 +1141,7 @@ class AccountJournal(models.Model):
                 for string in (alias_name, name, code, jtype)
                 if (
                     string
-                    and self.env["mail.alias"]._is_encodable(string)
+                    and is_encodable(string)
                     and self.env["mail.alias"]._sanitize_alias_name(string)
                 )
             ),
@@ -1153,7 +1150,7 @@ class AccountJournal(models.Model):
         if company != self.env.ref("base.main_company"):
             company_identifier = (
                 self.env["mail.alias"]._sanitize_alias_name(company.name)
-                if self.env["mail.alias"]._is_encodable(company.name)
+                if is_encodable(company.name)
                 else company.id
             )
             if f"-{company_identifier}" not in alias_name:

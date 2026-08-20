@@ -14,7 +14,7 @@ class ProjectRisk(models.Model):
     _name = "project.risk"
     _description = "Project Risk"
     _order = "risk_score desc, id desc"
-    _inherit = ["mail.thread"]
+    _inherit = ["mixin.mail.thread"]
 
     name = fields.Char("Risk", required=True, tracking=True)
     description = fields.Html("Description")

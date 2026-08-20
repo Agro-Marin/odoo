@@ -381,14 +381,11 @@ else:
             },
         )
 
-        send_mail_count = 0
-
-        def _patched_send_mail(*args, **kwargs):
-            nonlocal send_mail_count
-            send_mail_count += 1
-
-        patcher = patch('odoo.addons.mail.models.mail_template.MailTemplate.send_mail', _patched_send_mail)
-        self.startPatcher(patcher)
+        # count the mails the action produces rather than the calls it makes:
+        # `send_mail` is the one-record wrapper, and which of the two entry
+        # points the action uses is not what this test is about
+        Mail = self.env['mail.mail'].sudo()
+        mails_before = Mail.search_count([])
 
         lead = self.env['base.automation.lead.thread.test'].create({
             'name': "Lead Test",
@@ -397,12 +394,12 @@ else:
         self.addCleanup(lead.unlink)
         self.assertEqual(lead.priority, False)
         self.assertEqual(lead.deadline, False)
-        self.assertEqual(send_mail_count, 0)
+        self.assertEqual(Mail.search_count([]) - mails_before, 0)
 
         lead.write({'priority': True})
         self.assertEqual(lead.priority, True)
         self.assertNotEqual(lead.deadline, False)
-        self.assertEqual(send_mail_count, 1)
+        self.assertEqual(Mail.search_count([]) - mails_before, 1)
 
     def test_020_recursive(self):
         """ Check that a rule is executed recursively by a secondary change. """

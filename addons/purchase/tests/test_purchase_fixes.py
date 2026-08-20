@@ -146,7 +146,7 @@ class TestPurchaseMassCancel(AccountTestInvoicingCommon):
 
 @tagged("-at_install", "post_install")
 class TestPurchaseMergeConsolidation(AccountTestInvoicingCommon):
-    """RFQ merge line consolidation is date-sensitive (order.merge.mixin).
+    """RFQ merge line consolidation is date-sensitive (mixin.order.merge).
 
     Guards the behaviour after removing purchase's parallel merge pipeline in
     favour of the base_order mixin: same-product lines consolidate only when
@@ -234,7 +234,7 @@ class TestPurchaseSellerCache(AccountTestInvoicingCommon):
 class TestSrmTag(AccountTestInvoicingCommon):
     """Coverage for the fork's SRM tag model (previously untested).
 
-    ``srm.tag`` builds on ``tag.mixin`` (hierarchical, colored tags) and adds a
+    ``srm.tag`` builds on ``mixin.tag`` (hierarchical, colored tags) and adds a
     many2many to ``purchase.order``.
     """
 
@@ -249,7 +249,7 @@ class TestSrmTag(AccountTestInvoicingCommon):
     def test_recursion_is_rejected(self):
         a = self.env["srm.tag"].create({"name": "A"})
         b = self.env["srm.tag"].create({"name": "B", "parent_id": a.id})
-        # _parent_store raises UserError ("Recursion Detected."); the tag.mixin
+        # _parent_store raises UserError ("Recursion Detected."); the mixin.tag
         # _check_parent_id constraint raises ValidationError (a UserError
         # subclass) — either way it must be rejected.
         with self.assertRaises(UserError):
@@ -932,7 +932,7 @@ class TestPurchaseMailTemplate(AccountTestInvoicingCommon):
 
     ``_get_mail_template`` used to return an id from ``_xmlid_lookup``, while
     account.move, sale.order and l10n_co_dian's override all return a record —
-    and ``account.move.send`` calls the method generically. Its own caller had
+    and ``mixin.account.move.send`` calls the method generically. Its own caller had
     to browse the id back.
 
     The composers also resolved the template's language behind a guard testing
@@ -962,7 +962,7 @@ class TestPurchaseMailTemplate(AccountTestInvoicingCommon):
     def test_matches_the_contract_used_by_sale_and_account(self):
         """The same method name must return the same kind of thing everywhere.
 
-        account.move is the canonical definition — account.move.send calls it
+        account.move is the canonical definition — mixin.account.move.send calls it
         generically via _get_default_mail_template_id — and sale.order follows
         it. sudo() on the sale order only sidesteps this class's accounting-only
         user; the assertion is about the return type, not about access.

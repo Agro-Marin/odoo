@@ -6,7 +6,7 @@ from odoo.exceptions import UserError
 
 class AccountReconcileModelLine(models.Model):
     _name = "account.reconcile.model.line"
-    _inherit = ["analytic.mixin"]
+    _inherit = ["mixin.analytic"]
     _description = "Rules for the reconciliation model"
     _order = "sequence, id"
     _check_company_auto = True
@@ -109,7 +109,7 @@ class AccountReconcileModel(models.Model):
     _description = (
         "Preset to create journal entries during a invoices and payments matching"
     )
-    _inherit = ["mail.thread"]
+    _inherit = ["mixin.mail.thread"]
     _order = "sequence, id"
     _check_company_auto = True
 

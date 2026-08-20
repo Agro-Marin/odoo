@@ -15,7 +15,7 @@ class ProjectGate(models.Model):
     _name = "project.gate"
     _description = "Project Gate Review"
     _order = "sequence, id"
-    _inherit = ["mail.thread"]
+    _inherit = ["mixin.mail.thread"]
 
     name = fields.Char("Gate Name", required=True, tracking=True)
     project_id = fields.Many2one(

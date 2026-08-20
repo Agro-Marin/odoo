@@ -21,10 +21,10 @@ OPEN_PICKING_STATES = frozenset(("waiting", "confirmed", "assigned"))
 class StockPicking(models.Model):
     _name = "stock.picking"
     _inherit = [
-        "mail.thread",
-        "mail.activity.mixin",
-        "stock.activity.mixin",
-        "date.category.mixin",
+        "mixin.mail.thread",
+        "mixin.mail.activity",
+        "mixin.stock.activity",
+        "mixin.date.category",
     ]
     _description = "Transfer"
     _order = "priority desc, date_planned asc, id desc"

@@ -59,10 +59,10 @@ class MrpProduction(models.Model):
     _description = "Manufacturing Order"
     _date_name = "date_start"
     _inherit = [
-        "mail.thread",
-        "mail.activity.mixin",
-        "product.catalog.mixin",
-        "date.category.mixin",
+        "mixin.mail.thread",
+        "mixin.mail.activity",
+        "mixin.product.catalog",
+        "mixin.date.category",
     ]
     _order = "priority desc, date_start asc,id"
 
@@ -3033,7 +3033,7 @@ class MrpProduction(models.Model):
         return True
 
     def _action_cancel(self):
-        activity_mixin = self.env["stock.activity.mixin"]
+        activity_mixin = self.env["mixin.stock.activity"]
         documents_by_production = {}
         for production in self:
             documents = defaultdict(list)
@@ -3949,13 +3949,13 @@ class MrpProduction(models.Model):
             }
             return self.env["ir.qweb"]._render("mrp.exception_on_mo", values)
 
-        documents = self.env["stock.activity.mixin"]._log_activity_get_documents(
+        documents = self.env["mixin.stock.activity"]._log_activity_get_documents(
             moves_modification, "move_dest_ids", "DOWN", _keys_in_groupby
         )
         documents = self.env[
             "stock.picking"
         ]._less_quantities_than_expected_add_documents(moves_modification, documents)
-        self.env["stock.activity.mixin"]._log_activity(
+        self.env["mixin.stock.activity"]._log_activity(
             _render_note_exception_quantity_mo, documents
         )
 
@@ -3986,7 +3986,7 @@ class MrpProduction(models.Model):
             }
             return self.env["ir.qweb"]._render("mrp.exception_on_mo", values)
 
-        self.env["stock.activity.mixin"]._log_activity(
+        self.env["mixin.stock.activity"]._log_activity(
             _render_note_exception_quantity_mo, documents
         )
 

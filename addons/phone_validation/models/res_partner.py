@@ -5,7 +5,7 @@ from odoo import api, models
 
 class ResPartner(models.Model):
     _name = 'res.partner'
-    _inherit = ['mail.thread.phone', 'res.partner']
+    _inherit = ['mixin.mail.thread.phone', 'res.partner']
 
     @api.onchange('phone', 'country_id', 'company_id')
     def _onchange_phone_validation(self):

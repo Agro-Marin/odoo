@@ -5,7 +5,7 @@ from . import res_lang
 from . import res_partner
 from . import survey_category
 from . import survey_followup
-from . import survey_question_statistics
+from . import mixin_survey_question_statistics
 from . import survey_question
 from . import survey_question_answer
 from . import survey_quota

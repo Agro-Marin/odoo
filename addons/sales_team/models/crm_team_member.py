@@ -6,7 +6,7 @@ from odoo.fields import NEGATIVE_CONDITION_OPERATORS, Domain
 
 class CrmTeamMember(models.Model):
     _name = "crm.team.member"
-    _inherit = ["mail.thread"]
+    _inherit = ["mixin.mail.thread"]
     _description = "Sales Team Member"
     _rec_name = "user_id"
     _order = "create_date ASC, id"

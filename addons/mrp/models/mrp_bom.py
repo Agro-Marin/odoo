@@ -17,7 +17,7 @@ class MrpBom(models.Model):
 
     _name = "mrp.bom"
     _description = "Bill of Material"
-    _inherit = ["mail.thread", "product.catalog.mixin"]
+    _inherit = ["mixin.mail.thread", "mixin.product.catalog"]
     _rec_name = "product_tmpl_id"
     _rec_names_search = ["product_tmpl_id", "code"]
     _order = "sequence, id"
@@ -905,7 +905,9 @@ class MrpBom(models.Model):
 
     def _get_mail_thread_data_attachments(self):
         res = super()._get_mail_thread_data_attachments()
-        return res | self._get_extra_attachments()
+        for bom in self:
+            res[bom.id] |= bom._get_extra_attachments()
+        return res
 
     def _get_extra_attachments(self):
         is_byproduct = self.env.user.has_group("mrp.group_mrp_byproducts")

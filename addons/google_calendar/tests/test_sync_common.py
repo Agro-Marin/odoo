@@ -11,8 +11,8 @@ from odoo import fields
 from odoo.tests.common import HttpCase
 
 from odoo.addons.google_account.models.google_service import GoogleService
-from odoo.addons.google_calendar.models.google_sync import (
-    GoogleCalendarSync,
+from odoo.addons.google_calendar.models.mixin_google_calendar_sync import (
+    MixinGoogleCalendarSync,
     google_calendar_token,
 )
 from odoo.addons.google_calendar.models.res_users import ResUsers
@@ -82,9 +82,9 @@ class TestSyncGoogle(HttpCase):
                     self._gsync_patch_values[google_id].append((values, kwargs))
 
         with self.env.cr.savepoint(), \
-             patch.object(GoogleCalendarSync, '_google_insert', autospec=True, wraps=GoogleCalendarSync, side_effect=_mock_insert), \
-             patch.object(GoogleCalendarSync, '_google_delete', autospec=True, wraps=GoogleCalendarSync, side_effect=_mock_delete), \
-             patch.object(GoogleCalendarSync, '_google_patch', autospec=True, wraps=GoogleCalendarSync, side_effect=_mock_patch):
+             patch.object(MixinGoogleCalendarSync, '_google_insert', autospec=True, wraps=MixinGoogleCalendarSync, side_effect=_mock_insert), \
+             patch.object(MixinGoogleCalendarSync, '_google_delete', autospec=True, wraps=MixinGoogleCalendarSync, side_effect=_mock_delete), \
+             patch.object(MixinGoogleCalendarSync, '_google_patch', autospec=True, wraps=MixinGoogleCalendarSync, side_effect=_mock_patch):
             yield
 
     @contextmanager

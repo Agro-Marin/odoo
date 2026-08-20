@@ -453,7 +453,7 @@ class TestAccountPayment(AccountPaymentCommon):
         ) as payment_qr_mock:
             self._assert_does_not_raise(
                 QWebError,
-                self.env['account.move.send']._generate_and_send_invoices(move),
+                self.env['mixin.account.move.send']._generate_and_send_invoices(move),
             )
             self.assertTrue(payment_qr_mock.called)
 

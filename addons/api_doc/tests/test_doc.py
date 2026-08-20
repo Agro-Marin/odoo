@@ -393,7 +393,7 @@ class TestDoc(HttpCaseWithUserDemo):
         """A mixin's prose is not the model's documentation.
 
         Every mixin `res.partner` inherits sits in the same MRO with its own
-        docstring; walking it blindly documents Contact with `mail.thread`'s
+        docstring; walking it blindly documents Contact with `mixin.mail.thread`'s
         "allow sending messages related to the current model".
         """
         from odoo.addons.api_doc.tools.registry import describe_model_doc
@@ -401,7 +401,7 @@ class TestDoc(HttpCaseWithUserDemo):
         Partner = self.env['res.partner']
         doc = describe_model_doc(Partner)
         if doc is not None:
-            for mixin in ('mail.thread', 'avatar.mixin', 'image.mixin'):
+            for mixin in ('mixin.mail.thread', 'mixin.avatar', 'mixin.image'):
                 if mixin in self.env:
                     mixin_doc = type(self.env[mixin]).__doc__
                     if mixin_doc:

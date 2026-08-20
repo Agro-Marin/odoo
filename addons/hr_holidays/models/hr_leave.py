@@ -68,7 +68,7 @@ class HrLeave(models.Model):
     _name = 'hr.leave'
     _description = "Time Off"
     _order = "date_from desc"
-    _inherit = ['mail.thread.main.attachment', 'mail.activity.mixin']
+    _inherit = ['mixin.mail.thread.main.attachment', 'mixin.mail.activity']
     _mail_post_access = 'read'
 
     @api.model
@@ -1536,7 +1536,7 @@ is approved, validated or refused.')
                 recipient = leave.employee_id.work_contact_id.id
 
             if recipient:
-                self.env['mail.thread'].sudo().message_notify(
+                self.env['mixin.mail.thread'].sudo().message_notify(
                     body=message,
                     partner_ids=[recipient],
                     subject=_('Your Time Off'),

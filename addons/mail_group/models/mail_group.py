@@ -3,7 +3,6 @@ import logging
 import lxml
 from itertools import batched
 
-from ast import literal_eval
 from datetime import datetime
 from dateutil import relativedelta
 from markupsafe import Markup
@@ -26,7 +25,7 @@ class MailGroup(models.Model):
 
     _name = 'mail.group'
     _description = 'Mail Group'
-    _inherit = ['mail.alias.mixin']
+    _inherit = ['mixin.mail.alias']
     _order = 'is_closed ASC, create_date DESC, id DESC'
 
     @api.model
@@ -216,7 +215,7 @@ class MailGroup(models.Model):
         values = super(MailGroup, self)._alias_get_creation_values()
         values['alias_model_id'] = self.env['ir.model']._get('mail.group').id
         values['alias_force_thread_id'] = self.id
-        values['alias_defaults'] = literal_eval(self.alias_defaults or '{}')
+        values['alias_defaults'] = self._get_alias_defaults()
         return values
 
     def action_close(self):
@@ -254,11 +253,11 @@ class MailGroup(models.Model):
     def message_post(self, body='', subject=None, email_from=None, author_id=None, **kwargs):
         """Post ``body`` on the group and return the ``mail.message`` it created.
 
-        The group is not a ``mail.thread``, so this drives the whole flow itself:
+        The group is not a ``mixin.mail.thread``, so this drives the whole flow itself:
         the message, the ``mail.group.message`` wrapping it, and the moderation.
         """
         self.ensure_one()
-        Mailthread = self.env['mail.thread']
+        Mailthread = self.env['mixin.mail.thread']
         values = dict((key, val) for key, val in kwargs.items() if key in self.env['mail.message']._fields)
         author_id, email_from = Mailthread._message_compute_author(author_id, email_from)
 
@@ -378,14 +377,16 @@ class MailGroup(models.Model):
             _logger.error('The alias or the catchall domain is missing, group might not work properly.')
 
         base_url = self.get_base_url()
-        body = self.env['mail.render.mixin']._replace_local_links(message.body)
+        body = self.env['mixin.mail.render']._replace_local_links(message.body)
 
         member_emails = {
             email_normalize(member.email): member.email
             for member in self.member_ids
         }
 
-        batch_size = int(self.env['ir.config_parameter'].sudo().get_param('mail.session.batch.size', GROUP_SEND_BATCH_SIZE))
+        # the same parameter mail.mail reads for its own batching, and the same
+        # itertools.batched at the end of it
+        batch_size = self.env['ir.config_parameter']._get_positive_int_param('mail.session.batch.size', GROUP_SEND_BATCH_SIZE)
         for batch_email_member in batched(member_emails.items(), batch_size):
             mail_values = []
             for email_member_normalized, email_member in batch_email_member:
@@ -461,14 +462,14 @@ class MailGroup(models.Model):
 
         for group in groups:
             moderators_to_notify = group.moderator_ids
-            MailThread = self.env['mail.thread']
+            MixinMailThread = self.env['mixin.mail.thread']
             for moderator in moderators_to_notify:
                 body = self.env['ir.qweb']._render('mail_group.mail_group_notify_moderation', {
                     'moderator': moderator,
                     'group': group,
                     }, minimal_qcontext=True)
                 email_from = moderator.company_id.catchall_formatted or moderator.company_id.email_formatted
-                MailThread.message_notify(
+                MixinMailThread.message_notify(
                     partner_ids=moderator.partner_id.ids,
                     subject=_('Messages are pending moderation'),
                     body=body,
@@ -495,14 +496,14 @@ class MailGroup(models.Model):
             body = self.env["ir.qweb"]._render(
                 "mail_group.email_template_mail_group_closed"
             )
-            self.env['mail.thread']._routing_create_bounce_email(
+            self.env['mixin.mail.thread']._routing_create_bounce_email(
                 message_dict["from"],
                 body,
                 message,
                 references=message_dict.get("message_id", ""),
             )
             return ()
-        return self.env['mail.thread']._routing_check_route(message, message_dict, route, raise_exception)
+        return self.env['mixin.mail.thread']._routing_check_route(message, message_dict, route, raise_exception)
 
     def action_join(self):
         self.check_access('read')

@@ -9,9 +9,10 @@ class GamificationBadgeUser(models.Model):
 
     _name = "gamification.badge.user"
     _description = "Gamification User Badge"
-    _inherit = ["mail.thread"]
+    _inherit = ["mixin.mail.thread"]
     _order = "create_date desc"
     _rec_name = "badge_name"
+    _mail_partner_fields = ("user_partner_id",)
 
     user_id = fields.Many2one(
         "res.users", string="User", required=True, ondelete="cascade", index=True
@@ -122,6 +123,3 @@ class GamificationBadgeUser(models.Model):
                 Badge.browse(badge_id).check_granting()
                 checked_badge_ids.add(badge_id)
         return super().create(vals_list)
-
-    def _mail_get_partner_fields(self, introspect_fields: bool = False) -> list[str]:
-        return ["user_partner_id"]

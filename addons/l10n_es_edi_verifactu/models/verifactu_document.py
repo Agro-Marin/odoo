@@ -236,7 +236,7 @@ class L10nEsEdiVerifactuDocument(models.Model):
             'error_title': title,
             'errors': errors,
         }
-        return self.env['account.move.send']._format_error_html(error)
+        return self.env['mixin.account.move.send']._format_error_html(error)
 
     ####################################################################
     # Helpers to be used on the records ('account.move' / 'pos.order') #

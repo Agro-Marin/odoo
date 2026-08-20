@@ -31,6 +31,7 @@ export const DETAIL_PANEL_REQUIRED_FIELDS = [
     "mail_alias_domain_count",
     "alias_name",
     "alias_domain_id",
+    "alias_email",
     "create_activity_type_id",
     "type",
     "name",

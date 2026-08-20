@@ -89,7 +89,7 @@ class MailGroupMessage(models.Model):
                     field: vals.pop(field)
                     for field in self.env['mail.message']._fields
                     if field in vals
-                    and field in self.env['mail.thread']._get_message_create_valid_field_names()
+                    and field in self.env['mixin.mail.thread']._get_message_create_valid_field_names()
                 }).id
         return super().create(vals_list)
 
@@ -218,7 +218,7 @@ class MailGroupMessage(models.Model):
                 continue
 
             body_html = append_content_to_html(Markup('<div>%s</div>') % comment, message.body, plaintext=False)
-            body_html = self.env['mail.render.mixin']._replace_local_links(body_html)
+            body_html = self.env['mixin.mail.render']._replace_local_links(body_html)
             self.env['mail.mail'].sudo().create({
                 'author_id': self.env.user.partner_id.id,
                 'auto_delete': True,

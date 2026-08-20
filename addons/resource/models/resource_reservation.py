@@ -31,7 +31,7 @@ class ResourceReservation(models.Model):
     reference (``res_model`` / ``res_id``) back to the consumer that
     created it (``project.task``, ``room.booking``, ``mrp.workorder``, ...).
 
-    Consumer models own :class:`resource.scheduling.mixin` for the O2M
+    Consumer models own :class:`mixin.resource.scheduling` for the O2M
     linkage and the ``_sync_reservations`` lifecycle; this model stays
     standalone so that all reservations live in one table, enabling
     cross-module conflict detection (e.g. a person double-booked across
@@ -40,7 +40,7 @@ class ResourceReservation(models.Model):
 
     _name = "resource.reservation"
     _description = "Resource Reservation"
-    _inherit = ["resource.scheduling.tools"]
+    _inherit = ["mixin.resource.scheduling.tools"]
     _order = "date_start"
     # ``check_company=True`` on a field is inert on its own — the ORM only runs
     # ``_check_company`` from create/write when the model opts in here.
@@ -113,7 +113,7 @@ class ResourceReservation(models.Model):
     # Python constraint would (making one here dead code), its message is what
     # the web client shows, and it is the only form that also covers rows
     # written by raw SQL.  Consumers get the friendlier field-level error from
-    # ``resource.scheduling.mixin``, which has no table of its own.
+    # ``mixin.resource.scheduling``, which has no table of its own.
     _check_allocated_percentage = models.Constraint(
         "CHECK(allocated_percentage >= 0 AND allocated_percentage <= 100)",
         "Allocation % must be between 0 and 100.",

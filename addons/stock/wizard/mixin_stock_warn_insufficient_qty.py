@@ -1,0 +1,41 @@
+from odoo import api, fields, models
+
+
+class MixinStockWarnInsufficientQty(models.AbstractModel):
+    _name = "mixin.stock.warn.insufficient.qty"
+    _description = "Warn Insufficient Quantity"
+
+    product_id = fields.Many2one(
+        comodel_name="product.product",
+        string="Product",
+        required=True,
+    )
+    location_id = fields.Many2one(
+        comodel_name="stock.location",
+        string="Location",
+        required=True,
+        domain="[('usage', '=', 'internal')]",
+    )
+    quant_ids = fields.Many2many(
+        comodel_name="stock.quant", compute="_compute_quant_ids"
+    )
+    quantity = fields.Float(string="Quantity", required=True)
+    product_uom_name = fields.Char(string="Unit", required=True)
+
+    def _get_reference_document_company_id(self):
+        raise NotImplementedError
+
+    @api.depends("product_id")
+    def _compute_quant_ids(self):
+        for quantity in self:
+            company = quantity._get_reference_document_company_id()
+            quantity.quant_ids = self.env["stock.quant"].search(
+                [
+                    *self.env["stock.quant"]._check_company_domain(company),
+                    ("product_id", "=", quantity.product_id.id),
+                    ("location_id.usage", "=", "internal"),
+                ]
+            )
+
+    def action_done(self):
+        raise NotImplementedError

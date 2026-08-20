@@ -429,23 +429,35 @@ record.write({'state': next_states.get(current, 'cancel')})
             }
         )
 
+        template = self.env["mail.template"].create(
+            {
+                "name": "Webhook Mail Template",
+                "model_id": model_thread.id,
+                "subject": "Webhook on {{ object.name }}",
+                "body_html": "<p>Sent by a webhook</p>",
+            }
+        )
         self.Action.create(
             {
                 "name": "Mail Action",
                 "model_id": model_thread.id,
                 "state": "mail_post",
-                "template_id": False,  # No template, just post message
+                "mail_post_method": "comment",
+                "template_id": template.id,
                 "base_automation_id": automation.id,
                 "usage": "base_automation",
             }
         )
+        messages_before = thread_lead.message_ids
 
         # Execute webhook
         automation._execute_webhook({"subject": "Test notification"})
 
-        # Verify message posted (check message count)
-        messages = thread_lead.message_ids
-        self.assertTrue(len(messages) > 0)
+        # The action must have posted; the record already carried its creation
+        # message, so counting messages at all only ever measured that one.
+        posted = thread_lead.message_ids - messages_before
+        self.assertEqual(len(posted), 1)
+        self.assertEqual(posted.subject, "Webhook on Mail Test Lead")
 
     # =========================================================================
     # Test Webhook Error Handling

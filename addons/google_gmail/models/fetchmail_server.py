@@ -1,12 +1,13 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import _, api, fields, models
+from odoo.api import ValuesType
 from odoo.exceptions import UserError
 
 
 class FetchmailServer(models.Model):
     _name = 'fetchmail.server'
-    _inherit = ['fetchmail.server', 'google.gmail.mixin']
+    _inherit = ['fetchmail.server', 'mixin.google.gmail']
 
     server_type = fields.Selection(selection_add=[('gmail', 'Gmail OAuth Authentication')], ondelete={'gmail': 'set default'})
 
@@ -18,24 +19,47 @@ class FetchmailServer(models.Model):
             'need to accept the permission.')
         super(FetchmailServer, self - gmail_servers)._compute_server_type_info()
 
-    @api.constrains('server_type', 'is_ssl')
+    @api.constrains('server_type', 'encryption', 'password', 'user')
     def _check_use_google_gmail_service(self):
-        for server in self:
-            if server.server_type == 'gmail' and not server.is_ssl:
-                raise UserError(_('SSL is required for server “%s”.', server.name))
+        """Mirror ``ir.mail_server``'s Gmail constraint on the incoming side.
 
-    @api.onchange('server_type', 'is_ssl', 'object_id')
-    def onchange_server_type(self):
-        """Set the default configuration for a IMAP Gmail server."""
+        The outgoing half has checked all three of these for a long time; the incoming
+        half checked only the encryption, so a Gmail server could carry a stored
+        password that the OAuth flow never uses and no username for it to match.
+        """
+        for server in self.filtered(lambda s: s.server_type == 'gmail'):
+            if server.password:
+                raise UserError(_(
+                    'Please leave the password field empty for Gmail mail server “%s”. '
+                    'The OAuth process does not require it.', server.name))
+            if server.encryption not in ('ssl', 'ssl_strict'):
+                raise UserError(_(
+                    'Incorrect Connection Encryption for Gmail mail server “%s”. '
+                    'Please set it to "SSL/TLS".', server.name))
+            if not server.user:
+                raise UserError(_(
+                    'Please fill the "Username" field with your Gmail username (your email address). '
+                    'This should be the same account as the one used for the Gmail '
+                    'OAuthentication Token.'))
+
+    def _prepare_server_type_defaults(self) -> ValuesType:
+        """Gmail is IMAPS on 993, and its tokens belong to no other server type.
+
+        This extends a plain helper rather than overriding ``_onchange_server_type``.
+        Overriding the onchange itself meant restating ``@api.onchange``, and the ORM
+        reads the trigger list off the single MRO winner -- so whichever OAuth addon
+        loaded last silently decided which fields trigger the onchange for everybody.
+        """
+        vals = super()._prepare_server_type_defaults()
         if self.server_type == 'gmail':
-            self.server = 'imap.gmail.com'
-            self.is_ssl = True
-            self.port = 993
+            vals.update(server='imap.gmail.com', encryption='ssl_strict', port=993)
         else:
-            self.google_gmail_refresh_token = False
-            self.google_gmail_access_token = False
-            self.google_gmail_access_token_expiration = False
-            super().onchange_server_type()
+            vals.update(
+                google_gmail_refresh_token=False,
+                google_gmail_access_token=False,
+                google_gmail_access_token_expiration=False,
+            )
+        return vals
 
     def _imap_login__(self, connection):
         """Authenticate the IMAP connection.
@@ -46,7 +70,6 @@ class FetchmailServer(models.Model):
         if self.server_type == 'gmail':
             auth_string = self._generate_oauth2_string(self.user, self.google_gmail_refresh_token)
             connection.authenticate('XOAUTH2', lambda x: auth_string)
-            connection.select('INBOX')
         else:
             super()._imap_login__(connection)
 

@@ -79,7 +79,7 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
 
     def setUp(self) -> None:
         super().setUp()
-        with mute_logger("odoo.addons.mail.models.mail_thread"):
+        with mute_logger("odoo.addons.mail.models.mixin_mail_thread", "odoo.addons.mail.models.mixin_mail_gateway"):
             self.test_task = self.format_and_process(
                 MAIL_TEMPLATE,
                 self.user_portal.email_formatted,
@@ -451,7 +451,7 @@ class TestProjectMailFeatures(TestProjectCommon, MailCommon):
                         }
                     ]
                 expected_all += [
-                    {  # mail.thread.cc: email_cc field
+                    {  # mixin.mail.thread.cc: email_cc field
                         "create_values": {},
                         "email": "new.cc@test.agrolait.com",
                         "name": "New Cc",
@@ -886,12 +886,12 @@ Content-Type: text/html;
 """
 
         with self.mock_mail_gateway():
-            gmail_task_id = self.env["mail.thread"].message_process(
+            gmail_task_id = self.env["mixin.mail.thread"].message_process(
                 model="project.task",
                 message=gmail_email_source,
                 custom_values={"project_id": self.project_followers.id},
             )
-            outlook_task_id = self.env["mail.thread"].message_process(
+            outlook_task_id = self.env["mixin.mail.thread"].message_process(
                 model="project.task",
                 message=outlook_email_source,
                 custom_values={"project_id": self.project_followers.id},
@@ -942,7 +942,10 @@ Content-Type: text/html;
             "The Outlook signature should have been removed.",
         )
 
-    @mute_logger("odoo.addons.mail.models.mail_thread")
+    @mute_logger(
+        "odoo.addons.mail.models.mixin_mail_thread",
+        "odoo.addons.mail.models.mixin_mail_gateway",
+    )
     def test_task_creation_from_mail(self) -> None:
         """This test checks a `default_` key passed in the context with an invalid field doesn't prevent the task
         creation.
@@ -958,7 +961,7 @@ Content-Type: text/html;
             }
         )
         task_id = (
-            self.env["mail.thread"]
+            self.env["mixin.mail.thread"]
             .with_context(default_fetchmail_server_id=server.id)
             .message_process(
                 server.object_id.model,

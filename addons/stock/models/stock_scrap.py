@@ -3,12 +3,12 @@ from odoo.exceptions import UserError
 from odoo.tools import float_compare
 from odoo.tools.misc import clean_context
 
-from odoo.addons.base.models.catalog_mixin import name_uniq_index
+from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 
 class StockScrap(models.Model):
     _name = "stock.scrap"
-    _inherit = ["mail.thread"]
+    _inherit = ["mixin.mail.thread"]
     _order = "id desc"
     _description = "Scrap"
 

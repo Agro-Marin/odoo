@@ -1,6 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import _, api, fields, models
+from odoo.api import ValuesType
 from odoo.exceptions import UserError
 
 
@@ -8,7 +9,7 @@ class FetchmailServer(models.Model):
     """Add the Outlook OAuth authentication on the incoming mail servers."""
 
     _name = 'fetchmail.server'
-    _inherit = ['fetchmail.server', 'microsoft.outlook.mixin']
+    _inherit = ['fetchmail.server', 'mixin.microsoft.outlook']
 
     _OUTLOOK_SCOPE = 'https://outlook.office.com/IMAP.AccessAsUser.All'
 
@@ -22,24 +23,47 @@ class FetchmailServer(models.Model):
             'the permissions.')
         super(FetchmailServer, self - outlook_servers)._compute_server_type_info()
 
-    @api.constrains('server_type', 'is_ssl')
+    @api.constrains('server_type', 'encryption', 'password', 'user')
     def _check_use_microsoft_outlook_service(self):
-        for server in self:
-            if server.server_type == 'outlook' and not server.is_ssl:
-                raise UserError(_('SSL is required for server “%s”.', server.name))
+        """Mirror ``ir.mail_server``'s Outlook constraint on the incoming side.
 
-    @api.onchange('server_type')
-    def onchange_server_type(self):
-        """Set the default configuration for a IMAP Outlook server."""
+        The outgoing half has checked all three of these for a long time; the incoming
+        half checked only the encryption, so an Outlook server could carry a stored
+        password that the OAuth flow never uses and no username for it to match.
+        """
+        for server in self.filtered(lambda s: s.server_type == 'outlook'):
+            if server.password:
+                raise UserError(_(
+                    'Please leave the password field empty for Outlook mail server “%s”. '
+                    'The OAuth process does not require it.', server.name))
+            if server.encryption not in ('ssl', 'ssl_strict'):
+                raise UserError(_(
+                    'Incorrect Connection Encryption for Outlook mail server “%s”. '
+                    'Please set it to "SSL/TLS".', server.name))
+            if not server.user:
+                raise UserError(_(
+                    'Please fill the "Username" field with your Outlook/Office365 username (your email address). '
+                    'This should be the same account as the one used for the Outlook '
+                    'OAuthentication Token.'))
+
+    def _prepare_server_type_defaults(self) -> ValuesType:
+        """Outlook is IMAPS on 993, and its tokens belong to no other server type.
+
+        This extends a plain helper rather than overriding ``_onchange_server_type``.
+        Overriding the onchange itself meant restating ``@api.onchange``, and the ORM
+        reads the trigger list off the single MRO winner -- so this class, loading
+        last, used to disable the ``encryption`` trigger for every server type.
+        """
+        vals = super()._prepare_server_type_defaults()
         if self.server_type == 'outlook':
-            self.server = 'imap.outlook.com'
-            self.is_ssl = True
-            self.port = 993
+            vals.update(server='imap.outlook.com', encryption='ssl_strict', port=993)
         else:
-            self.microsoft_outlook_refresh_token = False
-            self.microsoft_outlook_access_token = False
-            self.microsoft_outlook_access_token_expiration = False
-            super().onchange_server_type()
+            vals.update(
+                microsoft_outlook_refresh_token=False,
+                microsoft_outlook_access_token=False,
+                microsoft_outlook_access_token_expiration=False,
+            )
+        return vals
 
     def _imap_login__(self, connection):
         """Authenticate the IMAP connection.
@@ -50,7 +74,6 @@ class FetchmailServer(models.Model):
         if self.server_type == 'outlook':
             auth_string = self._generate_outlook_oauth2_string(self.user)
             connection.authenticate('XOAUTH2', lambda x: auth_string)
-            connection.select('INBOX')
         else:
             super()._imap_login__(connection)
 

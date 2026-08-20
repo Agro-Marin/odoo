@@ -7,7 +7,7 @@ class AccountPaymentWithholdingLine(models.Model):
     Database-persisted version of the withholding lines; used on the account.payment model.
     """
     _name = 'account.payment.withholding.line'
-    _inherit = "account.withholding.line"
+    _inherit = "mixin.account.withholding.line"
     _description = 'Payment withholding line'
     _check_company_auto = True
 

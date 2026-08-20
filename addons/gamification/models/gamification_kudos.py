@@ -51,15 +51,16 @@ class GamificationKudos(models.Model):
 
     Kudos are lightweight, informal recognition acts. Unlike badges (which
     have granting rules and scarcity), any employee can send kudos to any
-    other employee at any time. Kudos integrate with mail.thread so they
+    other employee at any time. Kudos integrate with mixin.mail.thread so they
     appear in the Discuss social feed.
     """
 
     _name = "gamification.kudos"
     _description = "Peer Recognition"
-    _inherit = ["mail.thread"]
+    _inherit = ["mixin.mail.thread"]
     _order = "create_date desc"
     _rec_name = "summary"
+    _mail_partner_fields = ("recipient_partner_id",)
 
     sender_id = fields.Many2one(
         "res.users",
@@ -175,6 +176,3 @@ class GamificationKudos(models.Model):
             )
 
         return records
-
-    def _mail_get_partner_fields(self, introspect_fields: bool = False) -> list[str]:
-        return ["recipient_partner_id"]

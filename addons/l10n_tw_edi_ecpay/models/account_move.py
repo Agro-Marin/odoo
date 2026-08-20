@@ -262,7 +262,9 @@ class AccountMove(models.Model):
     # ----------------
     def _get_mail_thread_data_attachments(self):
         res = super()._get_mail_thread_data_attachments()
-        return res | self.l10n_tw_edi_file_id
+        for move in self:
+            res[move.id] |= move.l10n_tw_edi_file_id
+        return res
 
     # API methods
     def _l10n_tw_edi_check_tax_type_on_invoice_lines(self):

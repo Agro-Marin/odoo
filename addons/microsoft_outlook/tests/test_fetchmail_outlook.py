@@ -9,7 +9,7 @@ from odoo.tests.common import TransactionCase
 
 class TestFetchmailOutlook(TransactionCase):
 
-    @patch('odoo.addons.mail.models.fetchmail.OdooIMAP4_SSL')
+    @patch('odoo.addons.mail.tools.incoming_mail.OdooIMAP4_SSL')
     def test_connect(self, mock_imap):
         """Test that the connect method will use the right
         authentication method with the right arguments.
@@ -24,7 +24,7 @@ class TestFetchmailOutlook(TransactionCase):
             'microsoft_outlook_access_token': 'test_access_token',
             'microsoft_outlook_access_token_expiration': time.time() + 1000000,
             'password': '',
-            'is_ssl': True,
+            'encryption': 'ssl_strict',
         })
 
         mail_server._connect__()
@@ -35,7 +35,7 @@ class TestFetchmailOutlook(TransactionCase):
         self.assertEqual(args[1](None), 'user=test@example.com\1auth=Bearer test_access_token\1\1',
                          msg='Should use the right access token')
 
-        mock_connection.select.assert_called_once_with('INBOX')
+        mock_connection.select.assert_not_called()
 
     def test_constraints(self):
         """Test the constraints related to the Outlook mail server."""

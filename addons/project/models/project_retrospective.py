@@ -15,7 +15,7 @@ class ProjectRetrospective(models.Model):
     _name = "project.retrospective"
     _description = "Project Retrospective"
     _order = "date desc, id desc"
-    _inherit = ["mail.thread"]
+    _inherit = ["mixin.mail.thread"]
 
     name = fields.Char("Title", required=True, tracking=True)
     project_id = fields.Many2one(

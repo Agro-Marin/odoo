@@ -189,7 +189,10 @@ class TestMailGateway(MailCommon):
             ],
         )
 
-    @mute_logger("odoo.addons.mail.models.mail_thread")
+    @mute_logger(
+        "odoo.addons.mail.models.mixin_mail_thread",
+        "odoo.addons.mail.models.mixin_mail_gateway",
+    )
     def test_set_contact_non_existing_partner(self):
         documents_count = (
             self.env["documents.document"]
@@ -211,7 +214,10 @@ class TestMailGateway(MailCommon):
             "2 attachments in the email, so 2 documents are created, and 1 archived with the default values",
         )
 
-    @mute_logger("odoo.addons.mail.models.mail_thread")
+    @mute_logger(
+        "odoo.addons.mail.models.mixin_mail_thread",
+        "odoo.addons.mail.models.mixin_mail_gateway",
+    )
     def test_set_contact_existing_partner(self):
         documents_count = (
             self.env["documents.document"]
@@ -236,7 +242,10 @@ class TestMailGateway(MailCommon):
             "2 attachments in the email, so 2 documents are created, and 1 archived with the default values",
         )
 
-    @mute_logger("odoo.addons.mail.models.mail_thread")
+    @mute_logger(
+        "odoo.addons.mail.models.mixin_mail_thread",
+        "odoo.addons.mail.models.mixin_mail_gateway",
+    )
     def test_no_attachment(self):
         """Test the behavior when we send an email without attachment on the mail alias."""
         documents_count = (
@@ -264,7 +273,10 @@ class TestMailGateway(MailCommon):
         )
 
     @freeze_time("2022-07-24 08:00:00")
-    @mute_logger("odoo.addons.mail.models.mail_thread")
+    @mute_logger(
+        "odoo.addons.mail.models.mixin_mail_thread",
+        "odoo.addons.mail.models.mixin_mail_gateway",
+    )
     def test_create_activity(self):
         """Test that an activity is created on the document if enabled on the folder."""
         self.folder.write(
@@ -294,7 +306,10 @@ class TestMailGateway(MailCommon):
             )
 
     @freeze_time("2022-07-24 08:00:00")
-    @mute_logger("odoo.addons.mail.models.mail_thread")
+    @mute_logger(
+        "odoo.addons.mail.models.mixin_mail_thread",
+        "odoo.addons.mail.models.mixin_mail_gateway",
+    )
     def test_create_activity_with_alias_defaults(self):
         """Test that alias_defaults activity creation settings has precedence over the folder's ones."""
         defaults = ast.literal_eval(self.folder.alias_id.alias_defaults)
@@ -338,7 +353,10 @@ class TestMailGateway(MailCommon):
                 fields.Date.today() + relativedelta(months=1),
             )
 
-    @mute_logger("odoo.addons.mail.models.mail_thread")
+    @mute_logger(
+        "odoo.addons.mail.models.mixin_mail_thread",
+        "odoo.addons.mail.models.mixin_mail_gateway",
+    )
     def test_create_activity_disabled(self):
         """Test that no activity is created on the document if not enabled on the folder."""
         for document in self.send_test_mail_with_attachment(
@@ -353,7 +371,10 @@ class TestMailGateway(MailCommon):
                 )
             )
 
-    @mute_logger("odoo.addons.mail.models.mail_thread")
+    @mute_logger(
+        "odoo.addons.mail.models.mixin_mail_thread",
+        "odoo.addons.mail.models.mixin_mail_gateway",
+    )
     def test_custom_tags_list(self):
         """Test that the custom tags have the priority over `alias_tag_ids`."""
         defaults = ast.literal_eval(self.folder.alias_id.alias_defaults)
@@ -369,7 +390,10 @@ class TestMailGateway(MailCommon):
             self.assertEqual(document.folder_id, self.folder)
             self.assertEqual(document.tag_ids, self.other_tag)
 
-    @mute_logger("odoo.addons.mail.models.mail_thread")
+    @mute_logger(
+        "odoo.addons.mail.models.mixin_mail_thread",
+        "odoo.addons.mail.models.mixin_mail_gateway",
+    )
     def test_custom_tags_command_1(self):
         defaults = ast.literal_eval(self.folder.alias_id.alias_defaults)
         defaults["tag_ids"] = [
@@ -382,7 +406,10 @@ class TestMailGateway(MailCommon):
         ):
             self.assertEqual(document.tag_ids, self.other_tag)
 
-    @mute_logger("odoo.addons.mail.models.mail_thread")
+    @mute_logger(
+        "odoo.addons.mail.models.mixin_mail_thread",
+        "odoo.addons.mail.models.mixin_mail_gateway",
+    )
     def test_custom_tags_command_2(self):
         defaults = ast.literal_eval(self.folder.alias_id.alias_defaults)
         defaults["tag_ids"] = [
@@ -394,7 +421,10 @@ class TestMailGateway(MailCommon):
         ):
             self.assertEqual(document.tag_ids, self.other_tag)
 
-    @mute_logger("odoo.addons.mail.models.mail_thread")
+    @mute_logger(
+        "odoo.addons.mail.models.mixin_mail_thread",
+        "odoo.addons.mail.models.mixin_mail_gateway",
+    )
     def test_custom_tags_false(self):
         defaults = ast.literal_eval(self.folder.alias_id.alias_defaults)
         defaults["tag_ids"] = False

@@ -181,7 +181,7 @@ def get_webhook_request_payload():
 
 class BaseAutomation(models.Model):
     _name = "base.automation"
-    _inherit = ["mail.thread", "mail.activity.mixin", "inbound.gate.mixin"]
+    _inherit = ["mixin.mail.thread", "mixin.mail.activity", "inbound.gate.mixin"]
     _description = "Automation Rule"
     _order = "sequence, id"
 
@@ -482,7 +482,7 @@ class BaseAutomation(models.Model):
                 raise exceptions.ValidationError(
                     _(
                         "Automation '%(automation)s': Mail event trigger '%(trigger)s' cannot be used on model '%(model)s'.\n\n"
-                        "Mail triggers (%(mail_triggers)s) require the model to inherit from 'mail.thread'.\n\n"
+                        "Mail triggers (%(mail_triggers)s) require the model to inherit from 'mixin.mail.thread'.\n\n"
                         "Solution: Either change the trigger type or select a model that has the discussion feature enabled.",
                         automation=automation.name,
                         trigger=automation.trigger,
@@ -857,10 +857,11 @@ class BaseAutomation(models.Model):
                 },
             }
 
-        # Validation for on_unlink trigger
-        MAIL_STATES = ("mail_post", "followers", "next_activity")
-        mail_actions = self.action_server_ids.filtered(lambda a: a.state in MAIL_STATES)
-        if self.trigger == "on_unlink" and len(mail_actions) > 0:
+        needs_record = self.action_server_ids._get_states_needing_a_live_record()
+        mail_actions = self.action_server_ids.filtered(
+            lambda a: a.state in needs_record
+        )
+        if self.trigger == "on_unlink" and mail_actions:
             return {
                 "warning": {
                     "title": _("Warning"),
@@ -1532,8 +1533,12 @@ class BaseAutomation(models.Model):
         # has been modified, and only mark the automation as done for those
         records = records.filtered(self._check_trigger_fields)
         automation_done[self] = records_done + records
+        if not records:
+            # nothing the rule watches was touched; everything below reads
+            # `records`, and the batch context reads `records[0]`
+            return
 
-        if records and "date_automation_last" in records._fields:
+        if "date_automation_last" in records._fields:
             # Bookkeeping, not a business update: without the flag this write
             # re-enters the patched write() and fires *other* rules on the same
             # model (an on_write rule with no field filter has no reason to be
@@ -1542,7 +1547,18 @@ class BaseAutomation(models.Model):
                 __automation_bookkeeping=True,
             ).date_automation_last = self.env.cr.now()
 
-        # prepare the contexts for server actions
+        # prepare the contexts for server actions. An action whose runner takes
+        # `active_ids` as a set runs once for the whole batch; the rest run once
+        # per record, because their runners -- and the `record` a user writes in
+        # a `code` action -- read `active_id` and mean one record by it. Sending
+        # one mail per record through a runner built to send them together cost
+        # a composer, a template render and a `message_post` each.
+        batch_context = {
+            "active_model": records._name,
+            "active_ids": records.ids,
+            "active_id": records[0].id,
+            "domain_post": domain_post,
+        }
         contexts = [
             {
                 "active_model": record._name,
@@ -1558,7 +1574,8 @@ class BaseAutomation(models.Model):
         # `sorted("sequence")` ignored predecessor_ids entirely, so an action
         # could run before the action it declares it waits for.
         for action in self.sudo().action_server_ids._sorted_by_dependency():
-            for ctx in contexts:
+            action_contexts = [batch_context] if action._is_batchable() else contexts
+            for ctx in action_contexts:
                 try:
                     action.with_context(**ctx).run()
                 except Exception as e:

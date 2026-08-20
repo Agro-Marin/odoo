@@ -279,7 +279,7 @@ class TestAccountInvoiceImportMixin:
                     email_raw = self._get_raw_mail_message_str(
                         attachments_vals, email_to="someone@example.com"
                     )
-                    self.env["mail.thread"].message_process(
+                    self.env["mixin.mail.thread"].message_process(
                         "account.move",
                         email_raw,
                         custom_values=init_vals,
@@ -289,7 +289,7 @@ class TestAccountInvoiceImportMixin:
                     email_raw = self._get_raw_mail_message_str(
                         attachments_vals, email_to=journal.alias_id.display_name
                     )
-                    self.env["mail.thread"].message_process(
+                    self.env["mixin.mail.thread"].message_process(
                         "account.move", email_raw, custom_values=init_vals
                     )
                 case "journal":
@@ -1349,7 +1349,7 @@ class TestAccountIncomingSupplierInvoice(
                 "odoo.addons.account.models.partner.ResPartner.search",
                 side_effect=ValueError("We want to test an unexpected error"),
             ),
-            mute_logger("odoo.addons.account.models.account_document_import_mixin"),
+            mute_logger("odoo.addons.account.models.mixin_account_document_import"),
         ):
             move_id = self.journal.create_document_from_attachment(attachment.ids).get(
                 "res_id"

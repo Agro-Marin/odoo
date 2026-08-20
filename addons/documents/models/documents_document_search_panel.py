@@ -147,6 +147,7 @@ class DocumentsDocument(models.Model):
         if not self.env.user.share:
             search_panel_fields += [
                 "alias_domain_id",
+                "alias_email",
                 "alias_name",
                 "alias_tag_ids",
                 "create_activity_type_id",

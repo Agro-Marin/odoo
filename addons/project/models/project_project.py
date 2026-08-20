@@ -27,19 +27,19 @@ class ProjectProject(models.Model):
     _name = "project.project"
     _description = "Project"
     _inherit = [
-        "analytic.plan.fields.mixin",
-        "mail.activity.mixin",
-        "mail.alias.mixin",
-        "mail.tracking.duration.mixin",
-        "portal.mixin",
-        "rating.parent.mixin",
+        "mixin.analytic.plan.fields",
+        "mixin.mail.activity",
+        "mixin.mail.alias",
+        "mixin.mail.tracking.duration",
+        "mixin.portal",
+        "mixin.rating.parent",
     ]
     _order = "sequence, name, id"
     _rating_satisfaction_days = 30  # takes 30 days by default
     _track_duration_field = "phase_id"
 
-    # Explicit override: both rating.parent.mixin and mail.thread (via rating
-    # module) define rating_ids.  The mail.thread version uses res_id/res_model
+    # Explicit override: both mixin.rating.parent and mixin.mail.thread (via rating
+    # module) define rating_ids.  The mixin.mail.thread version uses res_id/res_model
     # (ratings OF this record), but projects need the parent version that uses
     # parent_res_id/parent_res_model (ratings OF tasks BELONGING to this project).
     rating_ids = fields.One2many(
@@ -2362,9 +2362,7 @@ class ProjectProject(models.Model):
         values = super()._alias_get_creation_values()
         values["alias_model_id"] = self.env["ir.model"]._get("project.task").id
         if self.id:
-            values["alias_defaults"] = defaults = ast.literal_eval(
-                self.alias_defaults or "{}"
-            )
+            values["alias_defaults"] = defaults = self._get_alias_defaults()
             defaults["project_id"] = self.id
         return values
 
@@ -3028,7 +3026,7 @@ class ProjectProject(models.Model):
 
     @api.constrains(lambda self: self._get_plan_fnames())
     def _check_account_id(self) -> None:
-        # Overriden from 'analytic.plan.fields.mixin'
+        # Overriden from 'mixin.analytic.plan.fields'
         pass
 
     def _get_plan_domain(self, plan: Any) -> list:

@@ -94,13 +94,13 @@ class CrmLead(models.Model):
     _name = 'crm.lead'
     _description = "Lead"
     _order = "priority desc, id desc"
-    _inherit = ['mail.thread.cc',
-                'mail.thread.blacklist',
-                'mail.thread.phone',
-                'mail.activity.mixin',
-                'utm.mixin',
-                'format.address.mixin',
-                'mail.tracking.duration.mixin',
+    _inherit = ['mixin.mail.thread.cc',
+                'mixin.mail.thread.blacklist',
+                'mixin.mail.thread.phone',
+                'mixin.mail.activity',
+                'mixin.utm',
+                'mixin.format.address',
+                'mixin.mail.tracking.duration',
                ]
     _primary_email = 'email_from'
     _check_company_auto = True
@@ -192,7 +192,7 @@ class CrmLead(models.Model):
     email_from = fields.Char(
         'Email', tracking=40, index='trigram',
         compute='_compute_email_from', inverse='_inverse_email_from', readonly=False, store=True)
-    email_normalized = fields.Char(index='trigram')  # inherited via mail.thread.blacklist
+    email_normalized = fields.Char(index='trigram')  # inherited via mixin.mail.thread.blacklist
     email_domain_criterion = fields.Char(
         string='Email Domain Criterion',
         compute="_compute_email_domain_criterion",
@@ -202,7 +202,7 @@ class CrmLead(models.Model):
     phone = fields.Char(
         'Phone', tracking=50,
         compute='_compute_phone', inverse='_inverse_phone', readonly=False, store=True)
-    phone_sanitized = fields.Char(index='btree_not_null')  # inherited via mail.thread.phone
+    phone_sanitized = fields.Char(index='btree_not_null')  # inherited via mixin.mail.thread.phone
     phone_state = fields.Selection([
         ('correct', 'Correct'),
         ('incorrect', 'Incorrect')], string='Phone Quality', compute="_compute_phone_state", store=True)
@@ -263,6 +263,18 @@ class CrmLead(models.Model):
     _check_probability = models.Constraint(
         'check(probability >= 0 and probability <= 100)',
         'The probability of closing the deal should be between 0% and 100%!',
+    )
+    # The trigram index above serves `ilike`; it cannot serve `=`, and the
+    # planner falls back to a sequential scan for one. `email_normalized` is
+    # an *exact-match* field -- the blacklist mixin declares it
+    # `index="btree_not_null"` for that reason, and this model's override to
+    # `trigram` silently took the exact-match index away from every consumer:
+    # the gateway's per-message bounce sweep, alias resolution, dedup. Measured
+    # on 300k leads, one `email_normalized = %%s` lookup cost 16.3 ms against
+    # 0.3 ms for `res.partner`, which kept the mixin's index. Both are wanted,
+    # so both exist; this one mirrors what `btree_not_null` would have built.
+    _email_normalized_idx = models.Index(
+        "(email_normalized) WHERE email_normalized IS NOT NULL"
     )
     _user_id_team_id_type_index = models.Index("(user_id, team_id, type)")
     _create_date_team_id_idx = models.Index("(create_date, team_id)")
@@ -898,87 +910,6 @@ class CrmLead(models.Model):
             })
 
         return result
-
-    @api.model
-    def search_fetch(self, domain, field_names=None, offset=0, limit=None, order=None):
-        """ Override to support ordering on my_activity_date_deadline.
-
-        Ordering through web client calls search_read() with an order parameter
-        set. Method search_read() then calls search_fetch(). Here we override
-        search_fetch() to intercept a search with an order on field
-        my_activity_date_deadline. In that case we do the search in two steps.
-
-        First step: fill with deadline-based results
-
-          * Perform a read_group on my activities to get a mapping lead_id / deadline
-            Remember date_deadline is required, we always have a value for it. Only
-            the earliest deadline per lead is kept.
-          * Search leads linked to those activities that also match the asked domain
-            and order from the original search request.
-          * Results of that search will be at the top of returned results. Use limit
-            None because we have to search all leads linked to activities as ordering
-            on deadline is done in post processing.
-          * Reorder them according to deadline asc or desc depending on original
-            search ordering. Finally take only a subset of those leads to fill with
-            results matching asked offset / limit.
-
-        Second step: fill with other results. If first step does not gives results
-        enough to match offset and limit parameters we fill with a search on other
-        leads. We keep the asked domain and ordering while filtering out already
-        scanned leads to keep a coherent results.
-
-        All other search and search_read are left untouched by this override to avoid
-        side effects. Search_count is not affected by this override.
-        """
-        if not order or 'my_activity_date_deadline' not in order:
-            return super().search_fetch(domain, field_names, offset, limit, order)
-        order_items = [order_item.strip().lower() for order_item in (order or self._order).split(',')]
-        domain = Domain(domain)
-
-        # Perform a read_group on my activities to get a mapping lead_id / deadline
-        # Remember date_deadline is required, we always have a value for it. Only
-        # the earliest deadline per lead is kept.
-        activity_asc = any('my_activity_date_deadline asc' in item for item in order_items)
-        my_lead_activities = self.env['mail.activity']._read_group(
-            [('res_model', '=', self._name), ('user_id', '=', self.env.uid)],
-            ['res_id'],
-            ['date_deadline:min'],
-            order='date_deadline:min ASC, res_id',
-        )
-        my_lead_mapping = dict(my_lead_activities)
-        my_lead_ids = list(my_lead_mapping.keys())
-        my_lead_domain = Domain('id', 'in', my_lead_ids) & domain
-        my_lead_order = ', '.join(item for item in order_items if 'my_activity_date_deadline' not in item)
-
-        # Search leads linked to those activities and order them. See docstring
-        # of this method for more details.
-        search_res = super().search_fetch(my_lead_domain, field_names, order=my_lead_order)
-        my_lead_ids_ordered = sorted(search_res.ids, key=lambda lead_id: my_lead_mapping[lead_id], reverse=not activity_asc)
-        # keep only requested window (offset + limit, or offset+)
-        my_lead_ids_keep = my_lead_ids_ordered[offset:(offset + limit)] if limit else my_lead_ids_ordered[offset:]
-        # keep list of already skipped lead ids to exclude them from future search
-        my_lead_ids_skip = my_lead_ids_ordered[:(offset + limit)] if limit else my_lead_ids_ordered
-
-        # do not go further if limit is achieved
-        if limit and len(my_lead_ids_keep) >= limit:
-            return self.browse(my_lead_ids_keep)
-
-        # Fill with remaining leads. If a limit is given, simply remove count of
-        # already fetched. Otherwise keep none. If an offset is set we have to
-        # reduce it by already fetch results hereabove. Order is updated to exclude
-        # my_activity_date_deadline when calling super() .
-        lead_limit = (limit - len(my_lead_ids_keep)) if limit else None
-        if offset:
-            lead_offset = max((offset - len(search_res), 0))
-        else:
-            lead_offset = 0
-        lead_order = ', '.join(item for item in order_items if 'my_activity_date_deadline' not in item)
-
-        other_lead_res = super().search_fetch(
-            Domain('id', 'not in', my_lead_ids_skip) & domain,
-            field_names, lead_offset, lead_limit, lead_order,
-        )
-        return self.browse(my_lead_ids_keep) + other_lead_res
 
     def _handle_won_lost(self, old_status_by_lead, new_status_by_lead):
         """ This method handles all changes of won / lost status of leads on creation / writing,
@@ -2079,8 +2010,8 @@ class CrmLead(models.Model):
             return partner_company
         return Partner.create(self._prepare_customer_values(self.name, is_company=False))
 
-    def _get_customer_information(self):
-        email_keys_to_values = super()._get_customer_information()
+    def _mail_get_customer_information(self):
+        email_keys_to_values = super()._mail_get_customer_information()
 
         for lead in self:
             email_key = lead.email_normalized or lead.email_from
@@ -2171,24 +2102,24 @@ class CrmLead(models.Model):
 
     def _notify_by_email_prepare_rendering_context(self, message, msg_vals=False, model_description=False,
                                                    force_email_company=False, force_email_lang=False,
-                                                   force_record_name=False):
+                                                   force_record_name=False, tracking_values=None):
         render_context = super()._notify_by_email_prepare_rendering_context(
             message, msg_vals=msg_vals, model_description=model_description,
             force_email_company=force_email_company, force_email_lang=force_email_lang,
-            force_record_name=force_record_name,
+            force_record_name=force_record_name, tracking_values=tracking_values,
         )
         if self.date_deadline:
             render_context['subtitles'].append(
                 _('Deadline: %s', self.date_deadline.strftime(get_lang(self.env).date_format)))
         return render_context
 
-    def _notify_get_reply_to(self, default=None, author_id=False):
+    def _notify_get_reply_to_addresses(self):
         # Override to set alias of lead and opportunities to their sales team if any
-        aliases = self.mapped('team_id').sudo()._notify_get_reply_to(default=default, author_id=author_id)
-        res = {lead.id: aliases.get(lead.team_id.id) for lead in self}
+        addresses = self.mapped('team_id').sudo()._notify_get_reply_to_addresses()
+        res = {lead.id: addresses[lead.team_id.id] for lead in self if lead.team_id and lead.team_id.id in addresses}
         leftover = self.filtered(lambda rec: not rec.team_id)
         if leftover:
-            res.update(super(CrmLead, leftover)._notify_get_reply_to(default=default, author_id=author_id))
+            res.update(super(CrmLead, leftover)._notify_get_reply_to_addresses())
         return res
 
     @api.model

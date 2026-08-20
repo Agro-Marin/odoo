@@ -46,7 +46,7 @@ class AccountPayment(models.Model):
             ])
             for payment in self:
                 # To avoid displaying things for nothing, also ensure to only consider withholding taxes matching the payment type.
-                payment_domain = self.env['account.withholding.line']._get_withholding_tax_domain(company=payment.company_id, payment_type=payment.payment_type)
+                payment_domain = self.env['mixin.account.withholding.line']._get_withholding_tax_domain(company=payment.company_id, payment_type=payment.payment_type)
                 payment_withholding_taxes = withholding_taxes.filtered_domain(payment_domain)
 
                 payment.display_withholding = bool(payment_withholding_taxes)

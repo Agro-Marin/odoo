@@ -14,7 +14,7 @@ class GamificationSeason(models.Model):
 
     _name = "gamification.season"
     _description = "Gamification Season"
-    _inherit = ["mail.thread"]
+    _inherit = ["mixin.mail.thread"]
     _order = "start_date desc"
 
     name = fields.Char("Season Name", required=True, translate=True, tracking=True)

@@ -3,11 +3,11 @@ from . import res_users
 from . import resource_calendar
 from . import resource_calendar_attendance
 from . import resource_calendar_leaves
-from . import resource_mixin
+from . import mixin_resource
 from . import resource_resource
 from . import resource_role
-from . import resource_scheduling_tools
-from . import resource_scheduling_mixin
-from . import resource_allocation_mixin
+from . import mixin_resource_scheduling_tools
+from . import mixin_resource_scheduling
+from . import mixin_resource_allocation
 from . import resource_reservation
 from . import utils

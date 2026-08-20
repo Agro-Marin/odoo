@@ -15,9 +15,10 @@ class GamificationGoal(models.Model):
 
     _name = "gamification.goal"
     _description = "Gamification Goal"
-    _inherit = ["mail.thread"]
+    _inherit = ["mixin.mail.thread"]
     _rec_name = "definition_id"
     _order = "start_date desc, end_date desc, definition_id, id"
+    _mail_partner_fields = ("user_partner_id",)
 
     definition_id = fields.Many2one(
         "gamification.goal.definition",
@@ -504,6 +505,3 @@ class GamificationGoal(models.Model):
             }
 
         return False
-
-    def _mail_get_partner_fields(self, introspect_fields: bool = False) -> list[str]:
-        return ["user_partner_id"]

@@ -155,7 +155,7 @@ class TestL10nEsEdiVerifactuCommon(AccountTestInvoicingCommon):
             'error_title': title,
             'errors': errors,
         }
-        return html_sanitize(self.env['account.move.send']._format_error_html(error))
+        return html_sanitize(self.env['mixin.account.move.send']._format_error_html(error))
 
     def _mock_format_document_generic_errors(self, errors):
         title = _("Error")

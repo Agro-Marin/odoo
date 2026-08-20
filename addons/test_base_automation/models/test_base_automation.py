@@ -57,13 +57,6 @@ class BaseAutomationLeadTest(models.Model):
         return result
 
 
-class BaseAutomationLeadThreadTest(models.Model):
-    _name = 'base.automation.lead.thread.test'
-    _description = "Automated Rule Test With Thread"
-    _inherit = ['base.automation.lead.test', 'mail.thread']
-
-    user_id = fields.Many2one("res.users")
-
 class BaseAutomationLineTest(models.Model):
     _name = 'base.automation.line.test'
     _description = "Automated Rule Line Test"
@@ -148,10 +141,9 @@ class Test_Base_AutomationTag(models.Model):
     name = fields.Char()
 
 
-# pylint: disable=E0102
-class BaseAutomationLeadThreadTest(models.Model):  # noqa: F811
+class BaseAutomationLeadThreadTest(models.Model):
     _name = 'base.automation.lead.thread.test'
-    _inherit = ["base.automation.lead.test", "mail.thread"]
+    _inherit = ["base.automation.lead.test", "mixin.mail.thread"]
     _description = "Threaded Lead Test"
 
 

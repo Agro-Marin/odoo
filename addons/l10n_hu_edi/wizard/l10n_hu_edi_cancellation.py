@@ -38,11 +38,11 @@ class L10n_Hu_EdiCancellation(models.TransientModel):
                 time.sleep(2)
                 self.invoice_id._l10n_hu_edi_query_status(connection)
 
-        formatted_message = self.env['account.move.send']._format_error_html(self.invoice_id.l10n_hu_edi_messages)
+        formatted_message = self.env['mixin.account.move.send']._format_error_html(self.invoice_id.l10n_hu_edi_messages)
         self.invoice_id.message_post(body=formatted_message)
 
-        if self.env['account.move.send']._can_commit():
+        if self.env['mixin.account.move.send']._can_commit():
             self.env.cr.commit()
 
         if self.invoice_id.l10n_hu_edi_messages.get('blocking_level') == 'error':
-            raise UserError(self.env['account.move.send']._format_error_text(self.invoice_id.l10n_hu_edi_messages))
+            raise UserError(self.env['mixin.account.move.send']._format_error_text(self.invoice_id.l10n_hu_edi_messages))

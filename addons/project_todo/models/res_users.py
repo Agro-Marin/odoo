@@ -77,12 +77,12 @@ class ResUsers(models.Model):
             is_task, state = state_by_res_id[task_id]
             bucket = buckets.setdefault(is_task, {
                 'res_ids': [],
-                'overdue_count': 0, 'today_count': 0, 'planned_count': 0, 'total_count': 0,
+                'overdue_count': 0, 'today_count': 0, 'planned_count': 0, 'due_count': 0,
             })
             bucket['res_ids'].append(task_id)
             bucket[f'{state}_count'] += 1
             if state in ('overdue', 'today'):
-                bucket['total_count'] += 1
+                bucket['due_count'] += 1
 
         model_id = self.env['ir.model']._get('project.task').id
         view_type = Task._systray_view
@@ -111,7 +111,7 @@ class ResUsers(models.Model):
                     ('active', 'in', [True, False]),
                     ('id', 'in', bucket['res_ids']),
                 ],
-                'total_count': bucket['total_count'],
+                'due_count': bucket['due_count'],
                 'today_count': bucket['today_count'],
                 'overdue_count': bucket['overdue_count'],
                 'planned_count': bucket['planned_count'],

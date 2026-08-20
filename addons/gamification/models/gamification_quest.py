@@ -13,7 +13,7 @@ class GamificationQuest(models.Model):
 
     _name = "gamification.quest"
     _description = "Gamification Quest"
-    _inherit = ["mail.thread"]
+    _inherit = ["mixin.mail.thread"]
     _order = "sequence, name"
 
     name = fields.Char("Quest Name", required=True, translate=True, tracking=True)

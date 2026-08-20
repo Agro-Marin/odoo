@@ -4,7 +4,7 @@ from odoo.exceptions import ValidationError
 
 class ProductCategory(models.Model):
     _name = "product.category"
-    _inherit = ["mail.thread"]
+    _inherit = ["mixin.mail.thread"]
     _description = "Product Category"
     _parent_name = "parent_id"
     _parent_store = True

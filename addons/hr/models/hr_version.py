@@ -25,8 +25,8 @@ class HrVersion(models.Model):
     _name = "hr.version"
     _description = "Version"
     _inherit = [
-        "mail.thread",
-        "mail.activity.mixin",
+        "mixin.mail.thread",
+        "mixin.mail.activity",
     ]  # TODO: remove later ? (see if still needed because contract template)
     _mail_post_access = "read"
     _order = "date_version"

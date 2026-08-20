@@ -1,6 +1,6 @@
 from . import account_edi_proxy_user
 from . import account_move
-from . import account_move_send
+from . import mixin_account_move_send
 from . import account_payment_method_line
 from . import account_tax
 from . import ddt

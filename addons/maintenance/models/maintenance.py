@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 
-import ast
+
 from dateutil.relativedelta import relativedelta
-from odoo.exceptions import ValidationError
-from odoo import api, fields, models, _
-from odoo.exceptions import UserError
+
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError, ValidationError
 
 
 class MaintenanceStage(models.Model):
@@ -66,50 +66,9 @@ class MaintenanceEquipmentCategory(models.Model):
                 raise UserError(_("You can’t delete an equipment category if some equipment or maintenance requests are linked to it."))
 
 
-class MaintenanceMixin(models.AbstractModel):
-    _name = 'maintenance.mixin'
-    _check_company_auto = True
-    _description = 'Maintenance Maintained Item'
-
-    company_id = fields.Many2one('res.company', string='Company',
-        default=lambda self: self.env.company)
-    date_effective = fields.Date('Effective Date', default=fields.Date.context_today, required=True, help="This date will be used to compute the Mean Time Between Failure.")
-    maintenance_team_id = fields.Many2one('maintenance.team', string='Maintenance Team', compute='_compute_maintenance_team_id', store=True, readonly=False, check_company=True, index='btree_not_null')
-    technician_user_id = fields.Many2one('res.users', string='Technician', tracking=True)
-    maintenance_ids = fields.One2many('maintenance.request')  # needs to be extended in order to specify inverse_name !
-    maintenance_count = fields.Integer(compute='_compute_maintenance_count', string="Maintenance Count", store=True)
-    maintenance_open_count = fields.Integer(compute='_compute_maintenance_count', string="Current Maintenance", store=True)
-    expected_mtbf = fields.Integer(string='Expected MTBF', help='Expected Mean Time Between Failure')
-    mtbf = fields.Integer(compute='_compute_maintenance_request', string='MTBF', help='Mean Time Between Failure, computed based on done corrective maintenances.')
-    mttr = fields.Integer(compute='_compute_maintenance_request', string='MTTR', help='Mean Time To Repair')
-    estimated_next_failure = fields.Date(compute='_compute_maintenance_request', string='Estimated time before next failure (in days)', help='Computed as Latest Failure Date + MTBF')
-    latest_failure_date = fields.Date(compute='_compute_maintenance_request', string='Latest Failure Date')
-
-    @api.depends('company_id')
-    def _compute_maintenance_team_id(self):
-        for record in self:
-            if record.maintenance_team_id.company_id and record.maintenance_team_id.company_id.id != record.company_id.id:
-                record.maintenance_team_id = False
-
-    @api.depends('date_effective', 'maintenance_ids.stage_id', 'maintenance_ids.close_date', 'maintenance_ids.request_date')
-    def _compute_maintenance_request(self):
-        for record in self:
-            maintenance_requests = record.maintenance_ids.filtered(lambda mr: mr.maintenance_type == 'corrective' and mr.stage_id.done)
-            record.mttr = len(maintenance_requests) and (sum(int((request.close_date - request.request_date).days) if request.close_date and request.request_date else 0 for request in maintenance_requests) / len(maintenance_requests)) or 0
-            record.latest_failure_date = max((request.request_date for request in maintenance_requests), default=False)
-            record.mtbf = record.latest_failure_date and (record.latest_failure_date - record.date_effective).days / len(maintenance_requests) or 0
-            record.estimated_next_failure = record.mtbf and record.latest_failure_date + relativedelta(days=record.mtbf) or False
-
-    @api.depends('maintenance_ids.stage_id.done', 'maintenance_ids.archive')
-    def _compute_maintenance_count(self):
-        for record in self:
-            record.maintenance_count = len(record.maintenance_ids)
-            record.maintenance_open_count = len(record.maintenance_ids.filtered(lambda mr: not mr.stage_id.done and not mr.archive))
-
-
 class MaintenanceEquipment(models.Model):
     _name = 'maintenance.equipment'
-    _inherit = ['mail.thread', 'mail.activity.mixin', 'maintenance.mixin']
+    _inherit = ['mixin.mail.thread', 'mixin.mail.activity', 'mixin.maintenance']
     _description = 'Maintenance Equipment'
     _check_company_auto = True
 
@@ -180,7 +139,7 @@ class MaintenanceEquipment(models.Model):
 
 class MaintenanceRequest(models.Model):
     _name = 'maintenance.request'
-    _inherit = ['mail.thread.cc', 'mail.activity.mixin']
+    _inherit = ['mixin.mail.thread.cc', 'mixin.mail.activity']
     _description = 'Maintenance Request'
     _order = "id desc"
     _check_company_auto = True
@@ -405,7 +364,7 @@ class MaintenanceRequest(models.Model):
 
 class MaintenanceTeam(models.Model):
     _name = 'maintenance.team'
-    _inherit = ['mail.alias.mixin', 'mail.thread']
+    _inherit = ['mixin.mail.alias', 'mixin.mail.thread']
     _description = 'Maintenance Teams'
 
     name = fields.Char('Team Name', required=True, translate=True)
@@ -452,6 +411,6 @@ class MaintenanceTeam(models.Model):
         values = super()._alias_get_creation_values()
         values['alias_model_id'] = self.env['ir.model']._get('maintenance.request').id
         if self.id:
-            values['alias_defaults'] = defaults = ast.literal_eval(self.alias_defaults or "{}")
+            values['alias_defaults'] = defaults = self._get_alias_defaults()
             defaults['maintenance_team_id'] = self.id
         return values

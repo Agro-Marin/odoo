@@ -1,6 +1,6 @@
-"""mail.thread integration for account.move."""
+"""mixin.mail.thread integration for account.move."""
 
-# An invoice is a mail.thread: it is created from an incoming email, it notifies
+# An invoice is a mixin.mail.thread: it is created from an incoming email, it notifies
 # a customer, and its chatter carries the audit trail. This is the model's half
 # of that contract -- routing, message hooks, recipient groups and the rendering
 # context for the notification email. Extracted from account_move.py.
@@ -63,7 +63,7 @@ class AccountMove(models.Model):
 
     @api.model
     def message_new(self, msg_dict, custom_values=None):
-        # EXTENDS mail mail.thread
+        # EXTENDS mail mixin.mail.thread
         custom_values = custom_values or {}
         # Add custom behavior when receiving a new invoice through the mail's gateway.
         if custom_values.get("move_type", "entry") not in (
@@ -159,7 +159,7 @@ class AccountMove(models.Model):
         Furthermore, in cases (1) and (2), we decide for each attachment whether to add it as an attachment on the invoice,
         based on its mimetype.
         """
-        # EXTENDS mail mail.thread
+        # EXTENDS mail mixin.mail.thread
         attachments = new_message.attachment_ids
 
         if (
@@ -267,14 +267,14 @@ class AccountMove(models.Model):
             return super()._message_post_after_hook(new_message, message_values)
 
     def _creation_subtype(self):
-        # EXTENDS mail mail.thread
+        # EXTENDS mail mixin.mail.thread
         if self.move_type in ("out_invoice", "out_receipt"):
             return self.env.ref("account.mt_invoice_created")
         else:
             return super()._creation_subtype()
 
     def _track_subtype(self, init_values):
-        # EXTENDS mail mail.thread
+        # EXTENDS mail mixin.mail.thread
         # add custom subtype depending of the state.
         self.ensure_one()
 
@@ -296,7 +296,7 @@ class AccountMove(models.Model):
         return super()._track_subtype(init_values)
 
     def _creation_message(self):
-        # EXTENDS mail mail.thread
+        # EXTENDS mail mixin.mail.thread
         if not self.is_invoice(include_receipts=True):
             return super()._creation_message()
         return {
@@ -316,8 +316,9 @@ class AccountMove(models.Model):
         force_email_company=False,
         force_email_lang=False,
         force_record_name=False,
+        tracking_values=None,
     ):
-        # EXTENDS mail mail.thread
+        # EXTENDS mail mixin.mail.thread
         render_context = super()._notify_by_email_prepare_rendering_context(
             message,
             msg_vals=msg_vals,
@@ -325,6 +326,7 @@ class AccountMove(models.Model):
             force_email_company=force_email_company,
             force_email_lang=force_email_lang,
             force_record_name=force_record_name,
+            tracking_values=tracking_values,
         )
         record = render_context["record"]
         subtitles = [
@@ -371,4 +373,7 @@ class AccountMove(models.Model):
     def _get_mail_thread_data_attachments(self):
         res = super()._get_mail_thread_data_attachments()
         # else, attachments with 'res_field' get excluded
-        return res | self.env["account.move.send"]._get_invoice_extra_attachments(self)
+        Send = self.env["mixin.account.move.send"]
+        for move in self:
+            res[move.id] |= Send._get_invoice_extra_attachments(move)
+        return res

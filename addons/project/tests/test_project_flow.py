@@ -135,6 +135,43 @@ class TestProjectFlow(TestProjectCommon, MailCase):
             "When the project changes, the subtask should keep the same partner id even it has a new project.",
         )
 
+    def test_rating_parent_name_follows_the_parent_rename(self) -> None:
+        """rating.parent_res_name is stored and depends only on
+        (parent_res_model, parent_res_id), so nothing recomputed it when the
+        project itself was renamed -- every child rating kept the old project
+        name, which is what the rating list views show."""
+        task = self.env["project.task"].create(
+            {"name": "rated", "project_id": self.project_pigs.id}
+        )
+        rating = self.env["rating.rating"].create(
+            {
+                "res_model_id": self.env["ir.model"]._get("project.task").id,
+                "res_id": task.id,
+                "parent_res_model_id": self.env["ir.model"]._get(
+                    "project.project"
+                ).id,
+                "parent_res_id": self.project_pigs.id,
+                "rating": 5,
+                "consumed": True,
+            }
+        )
+        self.env.flush_all()
+        self.assertEqual(rating.parent_res_name, self.project_pigs.display_name)
+
+        self.project_pigs.name = "Renamed Pigs"
+        self.env.flush_all()
+        self.assertEqual(
+            rating.parent_res_name,
+            "Renamed Pigs",
+            "renaming the parent must reach the name denormalised onto its ratings",
+        )
+
+        # a write that cannot move display_name must not drag the ratings in
+        stamp = rating.write_date
+        self.project_pigs.sequence = 42
+        self.env.flush_all()
+        self.assertEqual(rating.write_date, stamp)
+
     def test_rating(self) -> None:
         """Check if rating works correctly even when task is changed from project A to project B"""
         Task = self.env["project.task"].with_context({"tracking_disable": True})

@@ -2,7 +2,7 @@
 
 import logging
 import requests
-from odoo.addons.microsoft_calendar.models.microsoft_sync import microsoft_calendar_token
+from odoo.addons.microsoft_calendar.models.mixin_microsoft_calendar_sync import microsoft_calendar_token
 from datetime import datetime, timedelta
 
 from odoo import api, fields, models, _, Command

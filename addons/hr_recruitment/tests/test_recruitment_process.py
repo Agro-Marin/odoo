@@ -37,7 +37,7 @@ class TestRecruitmentProcess(TestHrCommon):
         # In Order to test process of Recruitment so giving HR officer's rights
         with file_open('hr_recruitment/tests/resume.eml', 'rb') as request_file:
             request_message = request_file.read()
-        self.env['mail.thread'].with_user(res_users_hr_recruitment_officer).message_process(
+        self.env['mixin.mail.thread'].with_user(res_users_hr_recruitment_officer).message_process(
             'hr.applicant', request_message, custom_values={"job_id": job_developer.id})
 
         # After getting the mail, I check the details of the new applicant.
@@ -136,7 +136,7 @@ class TestRecruitmentProcess(TestHrCommon):
 
         with file_open('hr_recruitment/tests/resume.eml', 'rb') as request_file:
             request_message = request_file.read()
-        self.env['mail.thread'].message_process('hr.applicant', request_message, custom_values={"job_id": job_developer.id})
+        self.env['mixin.mail.thread'].message_process('hr.applicant', request_message, custom_values={"job_id": job_developer.id})
 
         # Make sure the applicant are created in the right company
         applicant = self.env['hr.applicant'].search([('email_from', 'ilike', 'Richard_Anderson@yahoo.com')], limit=1)
@@ -181,7 +181,7 @@ Content-Type: text/plain; charset="UTF-8"
 
 I want to work for you!"""
 
-        applicant_from_email = self.env["mail.thread"].message_process("hr.applicant", email)
+        applicant_from_email = self.env["mixin.mail.thread"].message_process("hr.applicant", email)
         applicant = self.env["hr.applicant"].browse(applicant_from_email)
         self.assertEqual(
             applicant.department_id, mystery_department, "Applicant should be assigned to the right department"

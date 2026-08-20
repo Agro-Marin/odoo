@@ -3,11 +3,11 @@ from . import account_edi_xml_ubl_hr
 from . import account_journal
 from . import account_move
 from . import account_move_line
-from . import account_move_send
+from . import mixin_account_move_send
 from . import account_tax
 from . import l10n_hr_edi_addendum
 from . import product_template
 from . import res_company
 from . import res_config_settings
 from . import res_partner
-from . import sequence_mixin
+from . import mixin_sequence

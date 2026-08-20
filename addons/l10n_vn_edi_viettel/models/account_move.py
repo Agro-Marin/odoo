@@ -848,4 +848,6 @@ class AccountMove(models.Model):
     def _get_mail_thread_data_attachments(self):
         res = super()._get_mail_thread_data_attachments()
         # attachments with 'res_field' are excluded, and we want this in the chatter for audit/... purposes.
-        return res | self.l10n_vn_edi_sinvoice_file_id
+        for move in self:
+            res[move.id] |= move.l10n_vn_edi_sinvoice_file_id
+        return res

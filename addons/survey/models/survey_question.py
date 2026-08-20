@@ -38,7 +38,7 @@ class SurveyQuestion(models.Model):
     """
 
     _name = "survey.question"
-    _inherit = ["survey.question.statistics"]
+    _inherit = ["mixin.survey.question.statistics"]
     _description = "Survey Question"
     _rec_name = "title"
     _order = "sequence,id"

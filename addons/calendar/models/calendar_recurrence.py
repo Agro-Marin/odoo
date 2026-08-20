@@ -92,7 +92,7 @@ def weekday_to_field(weekday_index):
 
 class CalendarRecurrence(models.Model):
     _name = 'calendar.recurrence'
-    _inherit = ['calendar.privacy.mixin']
+    _inherit = ['mixin.calendar.privacy']
     _description = 'Event Recurrence Rule'
 
     _privacy_event_fname = 'calendar_event_ids'
@@ -712,7 +712,7 @@ class CalendarRecurrence(models.Model):
         """Check if all events in this recurrence are in the past.
 
         Shares its name with `calendar.event._is_event_over` on purpose, not by
-        accident: `google.calendar.sync` is mixed into both models and
+        accident: `mixin.google.calendar.sync` is mixed into both models and
         `_google_patch` asks `self._is_event_over()` without knowing which one
         it is holding. Same question, different object -- an event is over when
         it is past, a recurrence when every event in it is. Do not rename either

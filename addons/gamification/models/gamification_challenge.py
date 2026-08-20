@@ -28,7 +28,7 @@ class GamificationChallenge(models.Model):
 
     _name = "gamification.challenge"
     _description = "Gamification Challenge"
-    _inherit = ["mail.thread"]
+    _inherit = ["mixin.mail.thread"]
     _order = "end_date, start_date, name, id"
 
     @api.model

@@ -9,7 +9,7 @@ from odoo.tools import format_amount
 
 class LoyaltyCard(models.Model):
     _name = 'loyalty.card'
-    _inherit = ['mail.thread']
+    _inherit = ['mixin.mail.thread']
     _description = "Loyalty Coupon"
     _rec_name = 'code'
 

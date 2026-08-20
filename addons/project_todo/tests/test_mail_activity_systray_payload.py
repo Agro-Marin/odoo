@@ -98,7 +98,7 @@ class TestActivitySystrayPayload(TransactionCase):
                     if group.get("model") != "project.task":
                         continue
                     self.assertEqual(
-                        group["total_count"],
+                        group["due_count"],
                         Task.search_count(group["domain"]),
                         "the badge must count exactly what clicking it lists",
                     )
@@ -114,7 +114,7 @@ class TestActivitySystrayPayload(TransactionCase):
             "an activity on a task this user cannot read must not raise a badge",
         )
         # and the owner does see it
-        self.assertEqual(self._groups(user=other)["To-Do"]["total_count"], 1)
+        self.assertEqual(self._groups(user=other)["To-Do"]["due_count"], 1)
         self.assertTrue(hidden.exists())
 
     def test_systray_limit_is_honoured(self):
@@ -125,7 +125,7 @@ class TestActivitySystrayPayload(TransactionCase):
         )
         self.env.flush_all()
         self.assertEqual(
-            self._groups()["To-Do"]["total_count"],
+            self._groups()["To-Do"]["due_count"],
             2,
             "an uncapped systray query is a foot-gun on a long activity backlog",
         )
@@ -160,10 +160,10 @@ class TestActivitySystrayPayload(TransactionCase):
                 groups["To-Do"]["overdue_count"],
                 groups["To-Do"]["today_count"],
                 groups["To-Do"]["planned_count"],
-                groups["To-Do"]["total_count"],
+                groups["To-Do"]["due_count"],
             ),
             (1, 1, 1, 2),
-            "total_count is overdue + today; planned is reported but not badged",
+            "due_count is overdue + today; planned is reported but not badged",
         )
         self.assertEqual(groups["Task"]["today_count"], 1)
         self.assertTrue(groups["To-Do"]["is_todo"])

@@ -7,7 +7,7 @@ from odoo.tools.misc import str2bool
 
 class CrmTeam(models.Model):
     _name = "crm.team"
-    _inherit = ["mail.thread"]
+    _inherit = ["mixin.mail.thread"]
     _description = "Sales Team"
     _order = "sequence ASC, create_date DESC, id DESC"
     _check_company_auto = True

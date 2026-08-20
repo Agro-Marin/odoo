@@ -2,7 +2,7 @@
 
 from odoo import fields, models
 
-from odoo.addons.google_calendar.models.google_sync import google_calendar_token
+from odoo.addons.google_calendar.models.mixin_google_calendar_sync import google_calendar_token
 from odoo.addons.google_calendar.utils.google_calendar import GoogleCalendarService
 
 

@@ -56,7 +56,7 @@ class TestMailGroupMessage(TestMailListCommon):
         )
         self.assertIn('The mailing list you are trying to reach has been closed', self._mails[0]['body'])
 
-    @mute_logger('odoo.addons.mail.models.mail_thread', 'odoo.addons.mail_group.models.mail_group_message')
+    @mute_logger('odoo.addons.mail.models.mixin_mail_thread', 'odoo.addons.mail_group.models.mail_group_message')
     def test_email_duplicated(self):
         """ Test gateway does not accept two times same incoming email """
         self.test_group.write({'moderation': False})
@@ -77,7 +77,7 @@ class TestMailGroupMessage(TestMailListCommon):
         new_message = self.env['mail.group.message'].search([('mail_message_id.message_id', '=', '<test.message.id@localhost>')])
         self.assertEqual(new_message, message)
 
-    @mute_logger('odoo.addons.mail.models.mail_thread', 'odoo.addons.mail_group.models.mail_group_message')
+    @mute_logger('odoo.addons.mail.models.mixin_mail_thread', 'odoo.addons.mail_group.models.mail_group_message')
     def test_email_not_sent_to_author(self):
         """Test that when someone sends an email the group process does not send
         it back to the original author."""
@@ -142,7 +142,7 @@ class TestMailGroupMessage(TestMailListCommon):
         self.assertEqual(self.test_group_msg_1_pending.with_user(self.user_admin).moderation_status, 'pending_moderation',
                          msg='Mail Group Administrator should have access to all messages')
 
-    @mute_logger('odoo.addons.mail.models.mail_thread', 'odoo.addons.mail_group.models.mail_group_message')
+    @mute_logger('odoo.addons.mail.models.mixin_mail_thread', 'odoo.addons.mail_group.models.mail_group_message')
     def test_email_empty_from(self):
         """Test that when someone sends an email the group process does not send
         it back to the original author."""

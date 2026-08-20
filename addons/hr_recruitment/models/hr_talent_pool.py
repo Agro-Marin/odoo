@@ -7,7 +7,7 @@ from odoo import fields, models
 class HrTalentPool(models.Model):
     _name = "hr.talent.pool"
     _description = "Talent Pool"
-    _inherit = ["mail.thread"]
+    _inherit = ["mixin.mail.thread"]
 
     def _get_default_color(self):
         return randint(1, 11)

@@ -2,7 +2,7 @@
 
 from . import account_payment
 from . import account_tax
-from . import account_withholding_line
+from . import mixin_account_withholding_line
 from . import account_payment_withholding_line
 from . import product_template
 from . import res_company

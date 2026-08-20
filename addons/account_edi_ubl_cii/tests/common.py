@@ -116,7 +116,7 @@ class TestUblCiiCommon(AccountTestInvoicingCommon):
 
     @classmethod
     def _generate_invoice_ubl_file(cls, invoice):
-        cls.env['account.move.send']._generate_and_send_invoices(invoice, sending_methods=['manual'])
+        cls.env['mixin.account.move.send']._generate_and_send_invoices(invoice, sending_methods=['manual'])
 
     def _assert_invoice_ubl_file(self, invoice, filename):
         self.assertTrue(invoice.ubl_cii_xml_id)

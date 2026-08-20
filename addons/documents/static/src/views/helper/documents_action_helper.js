@@ -68,11 +68,13 @@ export class DocumentsActionHelper extends Component {
         if (
             !selectedFolder ||
             selectedFolder.user_permission === "none" ||
-            !selectedFolder.alias_name ||
-            !selectedFolder.alias_domain_id
+            !selectedFolder.alias_email
         ) {
             return;
         }
-        this.state.mailTo = `${selectedFolder.alias_name}@${selectedFolder.alias_domain_id[1]}`;
+        // The server already stores this joined address (mail.alias.alias_full_name);
+        // rebuilding it here also meant indexing alias_domain_id as an [id, name]
+        // tuple, a shape the record model stopped producing.
+        this.state.mailTo = selectedFolder.alias_email;
     }
 }

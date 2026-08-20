@@ -890,7 +890,7 @@ class TestCRMLead(TestCrmCommon):
                     self.assertNotIn(f"<a href='mailto:{team.alias_email}'>{team.alias_email}</a>", self.env['crm.lead'].sudo().get_empty_list_help(""))
                 team.active = False
 
-    @mute_logger('odoo.addons.mail.models.mail_thread')
+    @mute_logger('odoo.addons.mail.models.mixin_mail_thread')
     def test_mailgateway(self):
         new_lead = self.format_and_process(
             INCOMING_EMAIL,

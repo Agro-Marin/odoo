@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <record id="stock_warn_insufficient_qty_form_view" model="ir.ui.view">
-        <field name="name">stock.warn.insufficient.qty</field>
-        <field name="model">stock.warn.insufficient.qty</field>
+        <field name="name">mixin.stock.warn.insufficient.qty</field>
+        <field name="model">mixin.stock.warn.insufficient.qty</field>
         <field name="arch" type="xml">
             <form>
                 <!-- Invisible field to trigger compute -->

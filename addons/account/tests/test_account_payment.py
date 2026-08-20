@@ -396,7 +396,7 @@ class TestAccountPayment(AccountTestInvoicingCommon, MailCommon):
             saved_form._action_send_mail()
 
         for p in payments:
-            self.assertTrue(p._get_mail_thread_data_attachments())
+            self.assertTrue(p._get_mail_thread_data_attachments()[p.id])
 
     def test_compute_currency_id(self):
         """Check a payment created without a currency falls back to the journal currency."""

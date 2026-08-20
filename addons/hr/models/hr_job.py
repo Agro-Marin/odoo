@@ -2,14 +2,14 @@
 
 from odoo import api, fields, models
 
-from odoo.addons.base.models.catalog_mixin import name_uniq_index
+from odoo.addons.base.models.mixin_catalog import name_uniq_index
 from odoo.addons.html_editor.tools import handle_history_divergence
 
 
 class HrJob(models.Model):
     _name = "hr.job"
     _description = "Job Position"
-    _inherit = ["mail.thread"]
+    _inherit = ["mixin.mail.thread"]
     _order = "sequence"
 
     active = fields.Boolean(default=True)

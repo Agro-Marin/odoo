@@ -12,7 +12,7 @@ from markupsafe import Markup
 from odoo import _, api, fields, models, tools
 from odoo.exceptions import AccessError, RedirectWarning, UserError, ValidationError
 from odoo.fields import Domain
-from odoo.libs.datetime import timezone
+from odoo.libs.datetime import localize_standard, timezone
 from odoo.libs.intervals import Intervals
 from odoo.libs.numbers import float_is_zero
 from odoo.tools import SQL, Query, convert, email_normalize, format_time
@@ -39,13 +39,14 @@ class HrEmployee(models.Model):
     _description = "Employee"
     _order = "name"
     _inherit = [
-        "mail.thread.main.attachment",
-        "mail.activity.mixin",
-        "resource.mixin",
-        "avatar.mixin",
+        "mixin.mail.thread.main.attachment",
+        "mixin.mail.activity",
+        "mixin.resource",
+        "mixin.avatar",
     ]
     _mail_post_access = "read"
     _primary_email = "work_email"
+    _mail_partner_fields = ("work_contact_id", "user_partner_id")
     _inherits = {"hr.version": "version_id"}
 
     # DISCLAIMER: Dirty hack fields (see check_field_access_rights / _has_field_access):
@@ -439,7 +440,7 @@ class HrEmployee(models.Model):
         groups="hr.group_hr_user",
     )
 
-    # mail.activity.mixin
+    # mixin.mail.activity
     activity_ids = fields.One2many(groups="hr.group_hr_user")
     activity_state = fields.Selection(groups="hr.group_hr_user")
     activity_user_id = fields.Many2one(groups="hr.group_hr_user")
@@ -451,7 +452,7 @@ class HrEmployee(models.Model):
     activity_exception_decoration = fields.Selection(groups="hr.group_hr_user")
     activity_exception_icon = fields.Char(groups="hr.group_hr_user")
 
-    # mail.thread mixin
+    # mixin.mail.thread mixin
     message_is_follower = fields.Boolean(groups="hr.group_hr_user")
     message_follower_ids = fields.One2many(groups="hr.group_hr_user")
     message_partner_ids = fields.Many2many(groups="hr.group_hr_user")
@@ -1088,7 +1089,9 @@ class HrEmployee(models.Model):
                 if use_latest_version:
                     if date_effective:
                         correct_versions = contract_versions.filtered(
-                            lambda v, date_effective=date_effective: v.date_version <= date_effective
+                            lambda v, date_effective=date_effective: (
+                                v.date_version <= date_effective
+                            )
                         )
                         contracts_by_employee[employee_id] |= (
                             correct_versions[-1]
@@ -1258,12 +1261,18 @@ class HrEmployee(models.Model):
             resource_calendar_ids = employee_ids.sudo().mapped("resource_calendar_id")
             for calendar_id in resource_calendar_ids:
                 res_employee_ids = employee_ids.sudo().filtered(
-                    lambda e, calendar_id=calendar_id: e.resource_calendar_id.id == calendar_id.id
+                    lambda e, calendar_id=calendar_id: (
+                        e.resource_calendar_id.id == calendar_id.id
+                    )
                 )
                 start_dt = fields.Datetime.now()
                 stop_dt = start_dt + timedelta(hours=1)
-                from_datetime = start_dt.replace(tzinfo=UTC).astimezone(timezone(tz or "UTC"))
-                to_datetime = stop_dt.replace(tzinfo=UTC).astimezone(timezone(tz or "UTC"))
+                from_datetime = start_dt.replace(tzinfo=UTC).astimezone(
+                    timezone(tz or "UTC")
+                )
+                to_datetime = stop_dt.replace(tzinfo=UTC).astimezone(
+                    timezone(tz or "UTC")
+                )
                 # Getting work interval of the first is working. Functions called on resource_calendar_id
                 # are waiting for singleton
                 work_interval = res_employee_ids[
@@ -2215,14 +2224,16 @@ We can redirect you to the public employee list."""
         """Build an aware datetime at ``day``/``moment`` in the IANA zone ``tz``
         (naive if ``tz`` is falsy).
 
-        Uses ``tz.localize(...)`` — NEVER ``datetime(..., tzinfo=tz)`` /
-        ``.replace(tzinfo=tz)`` / ``datetime.combine(..., tzinfo=tz)``, all of
-        which attach the zone's *historical LMT* offset (e.g. +00:09 for
-        Europe/Paris, and America/Mexico_City lands ~37 min off) instead of the
-        correct DST/standard offset, shifting period boundaries.
+        Uses ``localize_standard`` — NEVER a bare ``.replace(tzinfo=tz)``. On the
+        hour a zone repeats when DST ends, that wall time exists twice and a bare
+        ``.replace`` silently takes ``fold=0``, the DST side, putting the instant
+        an hour earlier than the standard side pytz's ``localize`` chose before
+        the zoneinfo migration. ``time.min`` is not safe from this: Cuba,
+        America/Havana and Atlantic/Azores all fold at midnight, so a period
+        boundary for an employee in one of them would move by an hour once a year.
         """
         naive = datetime.combine(day, moment)
-        return naive.replace(tzinfo=tz) if tz else naive
+        return localize_standard(naive, tz) if tz else naive
 
     def _get_version_periods(self, start, stop, field=None, check_contract=False):
         if field and field not in self:
@@ -2527,8 +2538,6 @@ We can redirect you to the public employee list."""
     def _phone_get_number_fields(self):
         return ["mobile_phone"]
 
-    def _mail_get_partner_fields(self, introspect_fields=False):
-        return ["work_contact_id", "user_partner_id"]
 
     def action_open_versions(self):
         self.ensure_one()

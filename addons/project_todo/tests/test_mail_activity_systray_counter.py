@@ -101,10 +101,10 @@ class TestActivitySystrayCounter(TransactionCase):
         self.assertEqual(task_group['overdue_count'], 1)
         self.assertEqual(task_group['today_count'], 1)
         self.assertEqual(task_group['planned_count'], 1)
-        self.assertEqual(task_group['total_count'], 2, "Task total_count should be: overdue + today")
+        self.assertEqual(task_group['due_count'], 2, "Task due_count should be: overdue + today")
 
         # 3. Check counts for the 'To-Do' group
         self.assertEqual(todo_group['overdue_count'], 1)
         self.assertEqual(todo_group['today_count'], 1)
         self.assertEqual(todo_group['planned_count'], 1)
-        self.assertEqual(todo_group['total_count'], 2, "To-Do total_count should be: overdue + today")
+        self.assertEqual(todo_group['due_count'], 2, "To-Do due_count should be: overdue + today")

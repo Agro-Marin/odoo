@@ -10,7 +10,7 @@ from freezegun import freeze_time
 from odoo import Command
 from odoo.exceptions import UserError, ValidationError
 
-from odoo.addons.microsoft_calendar.models.microsoft_sync import MicrosoftCalendarSync
+from odoo.addons.microsoft_calendar.models.mixin_microsoft_calendar_sync import MixinMicrosoftCalendarSync
 from odoo.addons.microsoft_calendar.models.res_users import ResUsers
 from odoo.addons.microsoft_calendar.tests.common import (
     TestCommon,
@@ -1428,7 +1428,7 @@ class TestUpdateEvents(TestCommon):
         self.organizer_user.with_user(self.organizer_user).restart_microsoft_synchronization()
         self.assertTrue(all(ev.need_sync_m for ev in self.recurrent_events))
 
-    @patch.object(MicrosoftCalendarSync, '_write_from_microsoft')
+    @patch.object(MixinMicrosoftCalendarSync, '_write_from_microsoft')
     @patch.object(MicrosoftCalendarService, 'get_events')
     def test_update_old_event_synced_with_outlook(self, mock_get_events, mock_write_from_microsoft):
         """

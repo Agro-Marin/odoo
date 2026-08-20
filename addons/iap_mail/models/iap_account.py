@@ -5,7 +5,7 @@ from odoo import api, fields, models
 
 class IapAccount(models.Model):
     _name = 'iap.account'
-    _inherit = ['iap.account', 'mail.thread']
+    _inherit = ['iap.account', 'mixin.mail.thread']
 
     # Add tracking to the base fields
     company_ids = fields.Many2many('res.company', tracking=True)

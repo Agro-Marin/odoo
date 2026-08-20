@@ -13,7 +13,7 @@ class GamificationTeam(models.Model):
 
     _name = "gamification.team"
     _description = "Gamification Team"
-    _inherit = ["mail.thread"]
+    _inherit = ["mixin.mail.thread"]
     _order = "name"
 
     name = fields.Char("Team Name", required=True, translate=True, tracking=True)

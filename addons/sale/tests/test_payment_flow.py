@@ -390,7 +390,7 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
             mute_logger("odoo.addons.sale.models.payment_transaction"),
             patch(
                 "odoo.addons.base_order.models.order_invoice_mixin"
-                ".OrderInvoiceMixin._create_invoices",
+                ".MixinOrderInvoice._create_invoices",
                 return_value=self.env["account.move"],
             ) as _create_invoices_mock,
         ):
@@ -645,7 +645,7 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         tx._post_process()
 
         with patch.object(
-            self.env.registry["mail.thread"], "message_post", autospec=True
+            self.env.registry["mixin.mail.thread"], "message_post", autospec=True
         ) as message_post_mock:
             tx.action_refund()
             author_id = message_post_mock.call_args[1].get("author_id")

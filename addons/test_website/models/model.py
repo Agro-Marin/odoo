@@ -14,9 +14,9 @@ class Website(models.Model):
 class TestModel(models.Model):
     _name = 'test.model'
     _inherit = [
-        'website.seo.metadata',
-        'website.published.mixin',
-        'website.searchable.mixin',
+        'mixin.website.seo.metadata',
+        'mixin.website.published',
+        'mixin.website.searchable',
     ]
     _description = 'Website Model Test'
 
@@ -71,7 +71,7 @@ class TestTag(models.Model):
 class TestModelMultiWebsite(models.Model):
     _name = 'test.model.multi.website'
     _inherit = [
-        'website.published.multi.mixin',
+        'mixin.website.published.multi',
     ]
     _description = 'Multi Website Model Test'
 
@@ -86,8 +86,8 @@ class TestModelMultiWebsite(models.Model):
 class TestModelExposed(models.Model):
     _name = 'test.model.exposed'
     _inherit = [
-        'website.seo.metadata',
-        'website.published.mixin',
+        'mixin.website.seo.metadata',
+        'mixin.website.published',
     ]
     _description = 'Website Model Test Exposed'
     _rec_name = "name"

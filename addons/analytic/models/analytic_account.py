@@ -7,7 +7,7 @@ from odoo.tools import SQL, groupby
 
 class AccountAnalyticAccount(models.Model):
     _name = "account.analytic.account"
-    _inherit = ["mail.thread"]
+    _inherit = ["mixin.mail.thread"]
     _description = "Analytic Account"
     _order = "plan_id, name asc"
     _check_company_auto = True

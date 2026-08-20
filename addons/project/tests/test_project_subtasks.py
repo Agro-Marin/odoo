@@ -678,8 +678,8 @@ class TestProjectSubtasks(TestProjectCommon):
             child_task_form.project_id = task_form.project_id
         task = task_form.save()
         self.assertEqual(
-            task.message_follower_ids.mapped("email"),
-            task.child_ids[0].message_follower_ids.mapped("email"),
+            task.message_follower_ids.mapped("partner_id.email"),
+            task.child_ids[0].message_follower_ids.mapped("partner_id.email"),
             "The parent and child message_follower_ids should have the same emails",
         )
 

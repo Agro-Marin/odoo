@@ -40,7 +40,7 @@ class TestMassMailing(TestMassMailCommon):
         )
 
     @users('user_marketing')
-    @mute_logger('odoo.addons.mail.models.mail_thread')
+    @mute_logger('odoo.addons.mail.models.mixin_mail_thread')
     def test_mailing_gateway_reply(self):
         customers = self.env['res.partner']
         for x in range(0, 3):
@@ -379,7 +379,7 @@ class TestMassMailing(TestMassMailCommon):
         self.assertMailingStatistics(mailing, expected=5, delivered=5, sent=5, opened=1, replied=1)
 
     @users('user_marketing')
-    @mute_logger('odoo.addons.mail.models.mail_thread')
+    @mute_logger('odoo.addons.mail.models.mixin_mail_thread')
     def test_mailing_trace_utm(self):
         """ Test mailing UTMs are caught on reply"""
         self._create_mailing_list()

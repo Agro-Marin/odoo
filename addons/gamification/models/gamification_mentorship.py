@@ -12,7 +12,7 @@ class GamificationMentorship(models.Model):
 
     _name = "gamification.mentorship"
     _description = "Gamification Mentorship"
-    _inherit = ["mail.thread"]
+    _inherit = ["mixin.mail.thread"]
     _order = "create_date desc"
     _rec_name = "display_name"
 

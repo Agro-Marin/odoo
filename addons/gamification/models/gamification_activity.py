@@ -10,12 +10,12 @@ class GamificationActivity(models.Model):
 
     Activities are auto-created by source models (badges, kudos,
     achievements, streaks, rank-ups) via helper methods — never manually.
-    Inherits mail.thread so users can react to or discuss activities.
+    Inherits mixin.mail.thread so users can react to or discuss activities.
     """
 
     _name = "gamification.activity"
     _description = "Gamification Activity Feed"
-    _inherit = ["mail.thread"]
+    _inherit = ["mixin.mail.thread"]
     _order = "activity_date desc, id desc"
     _rec_name = "summary"
 

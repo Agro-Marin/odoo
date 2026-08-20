@@ -105,7 +105,7 @@ class AccountTaxGroup(models.Model):
 
 class AccountTax(models.Model):
     _name = "account.tax"
-    _inherit = ["mail.thread"]
+    _inherit = ["mixin.mail.thread"]
     _description = "Tax"
     _order = "sequence,id"
     _check_company_auto = True

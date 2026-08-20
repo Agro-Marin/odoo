@@ -153,8 +153,8 @@
                             />
                         </div>
                     </div>
-                    <div t-elif="record.data.alias_name and record.data.alias_domain_id" class="mt-1 d-flex">
-                        <t t-out="record.data.alias_name"/>@<t t-out="record.data.alias_domain_id.display_name"/>
+                    <div t-elif="record.data.alias_email" class="mt-1 d-flex">
+                        <t t-out="record.data.alias_email"/>
                     </div>
                     <div t-else="" class="fw-lighter mt-1 d-flex">
                         Not set

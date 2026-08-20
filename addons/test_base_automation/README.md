@@ -46,9 +46,9 @@ The `test_base_automation` module serves three primary purposes:
 - Multi-action workflows
 
 ### 2. `base.automation.lead.thread.test`
-**Purpose:** Test model with mail.thread functionality
+**Purpose:** Test model with mixin.mail.thread functionality
 
-**Inherits:** `base.automation.lead.test` + `mail.thread`
+**Inherits:** `base.automation.lead.test` + `mixin.mail.thread`
 
 **Additional features:**
 - Message tracking
@@ -527,7 +527,7 @@ env['base.automation.lead.thread.test'].create({
     'name': 'Threaded Lead',
     # ... same as lead.test
 })
-# Additional mail.thread features:
+# Additional mixin.mail.thread features:
 lead.message_post(body="Comment")
 ```
 

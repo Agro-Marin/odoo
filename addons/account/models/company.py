@@ -133,7 +133,7 @@ LOCK_DATE_FIELDS = [
 
 class ResCompany(models.Model):
     _name = "res.company"
-    _inherit = ["res.company", "mail.thread"]
+    _inherit = ["res.company", "mixin.mail.thread"]
 
     fiscalyear_last_day = fields.Integer(default=31, required=True)
     fiscalyear_last_month = fields.Selection(

@@ -30,9 +30,9 @@ class TestItAccountMoveSend(TestItEdi, TestAccountMoveSendCommon):
         ])
 
     def generate_l10n_it_edi_send_attachments(self, invoices, from_cron=False):
-        moves_data = {invoice: self.env['account.move.send']._get_default_sending_settings(invoice, from_cron=from_cron) for invoice in invoices}
-        with patch('odoo.addons.l10n_it_edi.models.account_move_send.AccountMoveSend._call_web_service_after_invoice_pdf_render'):
-            self.env['account.move.send']._generate_invoice_documents(moves_data)
+        moves_data = {invoice: self.env['mixin.account.move.send']._get_default_sending_settings(invoice, from_cron=from_cron) for invoice in invoices}
+        with patch('odoo.addons.l10n_it_edi.models.mixin_account_move_send.MixinAccountMoveSend._call_web_service_after_invoice_pdf_render'):
+            self.env['mixin.account.move.send']._generate_invoice_documents(moves_data)
 
     def test_invoice_multi_without_l10n_it_edi_xml_export(self):
         # Prepare
@@ -44,10 +44,10 @@ class TestItAccountMoveSend(TestItEdi, TestAccountMoveSendCommon):
             return {}
 
         with patch(
-                'odoo.addons.account.models.account_move_send.AccountMoveSend._get_default_extra_edis',
+                'odoo.addons.account.models.mixin_account_move_send.MixinAccountMoveSend._get_default_extra_edis',
                 _get_default_extra_edis
         ):
-            self.env['account.move.send']._generate_and_send_invoices(invoice1 + invoice2)
+            self.env['mixin.account.move.send']._generate_and_send_invoices(invoice1 + invoice2)
 
         # Asserts
         self.assertEqual((invoice1 + invoice2).mapped('sending_data'), [False, False])
@@ -70,10 +70,10 @@ class TestItAccountMoveSend(TestItEdi, TestAccountMoveSendCommon):
             return {}
 
         with patch(
-                'odoo.addons.account.models.account_move_send.AccountMoveSend._get_default_extra_edis',
+                'odoo.addons.account.models.mixin_account_move_send.MixinAccountMoveSend._get_default_extra_edis',
                 _get_default_extra_edis
         ):
-            self.env['account.move.send']._generate_and_send_invoices(invoice1 + invoice2, sending_methods=['email'])
+            self.env['mixin.account.move.send']._generate_and_send_invoices(invoice1 + invoice2, sending_methods=['email'])
 
         # Asserts
         self.assertEqual((invoice1 + invoice2).mapped('sending_data'), [False, False])
@@ -161,7 +161,7 @@ class TestItAccountMoveSend(TestItEdi, TestAccountMoveSendCommon):
         )
 
         with patch('odoo.addons.l10n_it_edi.models.account_move.AccountMove._l10n_it_edi_upload_single', return_value={}, autospec=True) as mock_check:
-            self.env['account.move.send'].with_context(allowed_company_ids=[second_company.id, self.company.id])._generate_and_send_invoices(invoice2 + invoice1, sending_methods=['email'])
+            self.env['mixin.account.move.send'].with_context(allowed_company_ids=[second_company.id, self.company.id])._generate_and_send_invoices(invoice2 + invoice1, sending_methods=['email'])
             self.assertEqual(mock_check.call_count, 2)
             res_call_invoice1, res_call_invoice2 = mock_check.call_args_list
             res_invoice1, res_invoice2 = res_call_invoice2[0][0], res_call_invoice1[0][0]

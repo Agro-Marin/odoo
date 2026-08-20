@@ -6,7 +6,7 @@ import datetime
 from freezegun import freeze_time
 from unittest.mock import patch
 
-from odoo.addons.mass_mailing.models.mail_thread import BLACKLIST_MAX_BOUNCED_LIMIT
+from odoo.addons.mass_mailing.models.mixin_mail_thread import BLACKLIST_MAX_BOUNCED_LIMIT
 from odoo.addons.test_mass_mailing.tests import common
 from odoo.tests import tagged
 from odoo.tests.common import users
@@ -49,7 +49,7 @@ class TestAutoBlacklist(common.TestMassMailCommon):
         })
         self._test_mailing_bounce_w_auto_bl({'bounced_partner': bounced_partners})
 
-    @mute_logger('odoo.addons.mail.models.mail_thread')
+    @mute_logger('odoo.addons.mail.models.mixin_mail_thread')
     def _test_mailing_bounce_w_auto_bl(self, bounce_base_values):
         mailing = self.mailing_bl.with_env(self.env)
         target = self.target_rec.with_env(self.env)

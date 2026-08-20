@@ -138,7 +138,7 @@ class AccountMove(models.Model):
     def _compute_message_html(self):
         for move in self:
             if move.l10n_hu_edi_messages:
-                move.l10n_hu_edi_message_html = self.env['account.move.send']._format_error_html(move.l10n_hu_edi_messages)
+                move.l10n_hu_edi_message_html = self.env['mixin.account.move.send']._format_error_html(move.l10n_hu_edi_messages)
             else:
                 move.l10n_hu_edi_message_html = False
 
@@ -211,19 +211,19 @@ class AccountMove(models.Model):
         # Error handling.
         for invoice in invoices_to_query:
             # Log invoice status in chatter.
-            formatted_message = self.env['account.move.send']._format_error_html(invoice.l10n_hu_edi_messages)
+            formatted_message = self.env['mixin.account.move.send']._format_error_html(invoice.l10n_hu_edi_messages)
             invoice.message_post(body=formatted_message)
 
-        if self.env['account.move.send']._can_commit():
+        if self.env['mixin.account.move.send']._can_commit():
             self.env.cr.commit()
 
         # If blocking errors, raise UserError, or log if we are in a cron.
         for invoice in invoices_to_query:
             if invoice.l10n_hu_edi_messages.get('blocking_level') == 'error' or recover_transactions_error:
                 if invoice.l10n_hu_edi_messages.get('blocking_level') == 'error':
-                    error_text = self.env['account.move.send']._format_error_text(invoice.l10n_hu_edi_messages)
+                    error_text = self.env['mixin.account.move.send']._format_error_text(invoice.l10n_hu_edi_messages)
                 else:
-                    error_text = self.env['account.move.send']._format_error_text(recover_transactions_error)
+                    error_text = self.env['mixin.account.move.send']._format_error_text(recover_transactions_error)
                 if not from_cron:
                     raise UserError(error_text)
                 else:

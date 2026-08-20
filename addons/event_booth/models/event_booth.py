@@ -8,8 +8,8 @@ class EventBooth(models.Model):
     _description = 'Event Booth'
     _inherit = [
         'event.type.booth',
-        'mail.thread',
-        'mail.activity.mixin'
+        'mixin.mail.thread',
+        'mixin.mail.activity'
     ]
 
     # owner

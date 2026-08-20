@@ -44,9 +44,8 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
     #       - search discuss_channel_member
     #       - fetch discuss_channel
     #   1. search discuss_channel (chathub given channel ids)
-    #   2: _get_channels_as_member
-    #       - search discuss_channel (member_domain)
-    #       - search discuss_channel (pinned_member_domain)
+    #   1: _get_channels_as_member
+    #       - search discuss_channel (member and pinned-member domains, one OR)
     #   2: _init_messaging (discuss)
     #       - fetch discuss_channel_member (is_self)
     #       - _compute_message_unread
@@ -81,16 +80,15 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
     #           - _compute_message_needaction
     #           - search discuss_channel_res_groups_rel (group_ids)
     #           - fetch res_groups (group_public_id)
-    _query_count_init_messaging = 35
+    _query_count_init_messaging = 34
     # Queries for _query_count_discuss_channels (in order):
     #   1: insert res_device_log
     #   3: _search_is_member (for current user, first occurence _get_channels_as_member)
     #       - fetch res_users
     #       - search discuss_channel_member
     #       - fetch discuss_channel
-    #   2: _get_channels_as_member
-    #       - search discuss_channel (member_domain)
-    #       - search discuss_channel (pinned_member_domain)
+    #   1: _get_channels_as_member
+    #       - search discuss_channel (member and pinned-member domains, one OR)
     #   36: channel _to_store_defaults:
     #       - read group member (prefetch _compute_self_member_id from _compute_is_member)
     #       - read group member (_compute_invited_member_ids)
@@ -154,7 +152,7 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
     #       - fetch discuss_call_history
     #       - search mail_tracking_value
     #       - _compute_rating_stats
-    _query_count_discuss_channels = 64
+    _query_count_discuss_channels = 63
 
     def setUp(self):
         super().setUp()
@@ -590,7 +588,7 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
                 {"description": False, "id": self.env.ref("mail.mt_note").id},
                 {"description": False, "id": self.env.ref("mail.mt_comment").id},
             ],
-            "mail.thread": self._filter_threads_fields(
+            "mixin.mail.thread": self._filter_threads_fields(
                 self._expected_result_for_thread(self.channel_general),
                 self._expected_result_for_thread(self.channel_channel_public_1),
                 self._expected_result_for_thread(self.channel_channel_public_2),

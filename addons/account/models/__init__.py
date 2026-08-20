@@ -1,5 +1,5 @@
-from . import sequence_mixin
-from . import account_document_import_mixin
+from . import mixin_sequence
+from . import mixin_account_document_import
 from . import partner
 from . import res_partner_bank
 from . import account_account_tag
@@ -20,7 +20,7 @@ from . import account_move_sequence
 from . import account_move_sync
 from . import account_move_line
 from . import account_move_line_tax_details
-from . import account_move_send
+from . import mixin_account_move_send
 from . import account_partial_reconcile
 from . import account_full_reconcile
 from . import account_payment
@@ -34,7 +34,7 @@ from . import account_analytic_plan
 from . import account_analytic_line
 from . import account_journal_dashboard
 from . import product
-from . import product_catalog_mixin
+from . import mixin_product_catalog
 from . import company
 from . import res_config_settings
 from . import res_country_group

@@ -21,7 +21,7 @@ _logger = logging.getLogger(__name__)
 
 class PosOrder(models.Model):
     _name = "pos.order"
-    _inherit = ["portal.mixin", "pos.bus.mixin", "pos.load.mixin", "mail.thread"]
+    _inherit = ["mixin.portal", "mixin.pos.bus", "mixin.pos.load", "mixin.mail.thread"]
     _description = "Point of Sale Orders"
     _order = "date_order desc, name desc, id desc"
     _mailing_enabled = True
@@ -2375,7 +2375,7 @@ class PosOrderLine(models.Model):
     _name = "pos.order.line"
     _description = "Point of Sale Order Lines"
     _rec_name = "product_id"
-    _inherit = ["pos.load.mixin"]
+    _inherit = ["mixin.pos.load"]
 
     company_id = fields.Many2one(
         "res.company", string="Company", related="order_id.company_id", store=True
@@ -2591,7 +2591,7 @@ class PosOrderLine(models.Model):
             digits = self.env["decimal.precision"].precision_get("Product Unit")
             edited = self.browse()
             # One chatter message per order, not per line: a ten-line edit used
-            # to post ten separate messages (and ten mail.thread writes).
+            # to post ten separate messages (and ten mixin.mail.thread writes).
             bodies_per_order = defaultdict(list)
             for line in self:
                 if not line.order_id.config_id.order_edit_tracking:
@@ -2989,7 +2989,7 @@ class PosPackOperationLot(models.Model):
     _name = "pos.pack.operation.lot"
     _description = "Specify product lot/serial number in pos order line"
     _rec_name = "lot_name"
-    _inherit = ["pos.load.mixin"]
+    _inherit = ["mixin.pos.load"]
 
     pos_order_line_id = fields.Many2one("pos.order.line", index="btree_not_null")
     order_id = fields.Many2one(
@@ -3013,7 +3013,7 @@ class PosPackOperationLot(models.Model):
 
 class AccountCashRounding(models.Model):
     _name = "account.cash.rounding"
-    _inherit = ["account.cash.rounding", "pos.load.mixin"]
+    _inherit = ["account.cash.rounding", "mixin.pos.load"]
 
     @api.constrains("rounding", "rounding_method", "strategy")
     def _check_session_state(self):

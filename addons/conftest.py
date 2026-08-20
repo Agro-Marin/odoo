@@ -17,15 +17,20 @@ from odoo._testing_bootstrap import _stub_package
 
 _ADDONS_DIR = Path(__file__).resolve().parent
 
-# Test bodies import the leaf modules as ``addons.account.tools.X`` (rootdir
-# on sys.path via pythonpath = .).
-_stub_package("addons", _ADDONS_DIR)
-_stub_package("addons.account", _ADDONS_DIR / "account")
-_stub_package("addons.account.tools", _ADDONS_DIR / "account" / "tools")
+#: Addons carrying a Tier-1 ``<addon>/tools/tests`` suite. Add the addon name
+#: here and its testpath to pytest.ini; nothing else is needed.
+_TIER1_ADDONS = ("account", "mail")
 
-# Pytest's package collection resolves the addon ancestors relative to the
-# first ancestor without __init__.py (this directory), i.e. as top-level
-# ``account`` / ``account.tools`` — stub those names as well so the Package
-# nodes never execute the real __init__.py.
-_stub_package("account", _ADDONS_DIR / "account")
-_stub_package("account.tools", _ADDONS_DIR / "account" / "tools")
+# Test bodies import the leaf modules as ``addons.<addon>.tools.X`` (rootdir on
+# sys.path via pythonpath = .).
+_stub_package("addons", _ADDONS_DIR)
+for _addon in _TIER1_ADDONS:
+    _stub_package(f"addons.{_addon}", _ADDONS_DIR / _addon)
+    _stub_package(f"addons.{_addon}.tools", _ADDONS_DIR / _addon / "tools")
+
+    # Pytest's package collection resolves the addon ancestors relative to the
+    # first ancestor without __init__.py (this directory), i.e. as top-level
+    # ``<addon>`` / ``<addon>.tools`` — stub those names as well so the Package
+    # nodes never execute the real __init__.py.
+    _stub_package(_addon, _ADDONS_DIR / _addon)
+    _stub_package(f"{_addon}.tools", _ADDONS_DIR / _addon / "tools")

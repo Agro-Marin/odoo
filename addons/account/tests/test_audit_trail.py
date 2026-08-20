@@ -241,7 +241,7 @@ class TestAuditTrailAttachment(AccountTestInvoicingHttpCommon):
 
     def _send_and_print(self, invoice):
         return (
-            self.env["account.move.send"]
+            self.env["mixin.account.move.send"]
             .with_context(
                 force_report_rendering=True,
             )

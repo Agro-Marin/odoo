@@ -6,7 +6,7 @@ from odoo.db.schema import drop_view_if_exists
 class HrLeaveReport(models.Model):
     _name = "hr.leave.report"
     _description = "Time Off Summary / Report"
-    _inherit = ["hr.manager.department.report"]
+    _inherit = ["mixin.hr.manager.department.report"]
     _auto = False
     _order = "date_from DESC, employee_id"
 

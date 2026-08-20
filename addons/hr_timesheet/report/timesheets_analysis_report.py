@@ -8,7 +8,7 @@ from odoo.libs.sql import SQL
 
 class TimesheetsAnalysisReport(models.Model):
     _name = "timesheets.analysis.report"
-    _inherit = ["hr.manager.department.report"]
+    _inherit = ["mixin.hr.manager.department.report"]
     _description = "Timesheets Analysis Report"
     _auto = False
 

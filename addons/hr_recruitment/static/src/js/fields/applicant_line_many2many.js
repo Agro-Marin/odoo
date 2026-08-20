@@ -16,7 +16,8 @@ export class ApplicantLineMany2Many extends Many2ManyTagsField {
     getTagProps(record){
         let applicant_name = record.data.display_name;
         let name = applicant_name;
-        let job_name = record.data.job_id[1];
+        // record.data.<many2one> is {id, display_name}; [1] is the pre-19 tuple shape.
+        let job_name = record.data.job_id?.display_name;
         if (job_name){
             name = `${job_name} - ${applicant_name}`;
         }

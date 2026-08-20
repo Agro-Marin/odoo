@@ -235,7 +235,7 @@ class NewLeadNotification(TestCrmCommon):
                 self.assertEqual(suggestion['name'], suggested_name)
 
                 create_values = suggestion['create_values']
-                customer_information = lead1._get_customer_information().get(email_normalize(email), {})
+                customer_information = lead1._mail_get_customer_information().get(email_normalize(email), {})
                 customer_information.pop('name', False)  # not keps in create_values, as already in name / email info
                 self.assertEqual(create_values, customer_information)
                 for field, value in lead_details_for_contact.items():
@@ -284,7 +284,7 @@ class NewLeadNotification(TestCrmCommon):
         lead_user = lead.with_user(self.user_sales_manager)
         self.assertTrue(lead_user.message_needaction)
 
-    @mute_logger('odoo.addons.mail.models.mail_thread')
+    @mute_logger('odoo.addons.mail.models.mixin_mail_thread')
     def test_new_lead_from_email_multicompany(self):
         company0 = self.env.company
         company1 = self.company_2
@@ -366,8 +366,8 @@ Content-Transfer-Encoding: quoted-printable
 
 --000000000000a47519057e029630--
 """
-        crm_lead0_id = self.env['mail.thread'].message_process('crm.lead', new_message0)
-        crm_lead1_id = self.env['mail.thread'].message_process('crm.lead', new_message1)
+        crm_lead0_id = self.env['mixin.mail.thread'].message_process('crm.lead', new_message0)
+        crm_lead1_id = self.env['mixin.mail.thread'].message_process('crm.lead', new_message1)
 
         crm_lead0 = self.env['crm.lead'].browse(crm_lead0_id)
         crm_lead1 = self.env['crm.lead'].browse(crm_lead1_id)

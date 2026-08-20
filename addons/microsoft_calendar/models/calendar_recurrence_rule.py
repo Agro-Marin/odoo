@@ -6,7 +6,7 @@ from odoo.fields import Domain
 
 class CalendarRecurrence(models.Model):
     _name = 'calendar.recurrence'
-    _inherit = ['calendar.recurrence', 'microsoft.calendar.sync']
+    _inherit = ['calendar.recurrence', 'mixin.microsoft.calendar.sync']
 
 
     # Don't sync by default. Sync only when the recurrence is applied

@@ -62,12 +62,12 @@ BYPASS_LOCK_CHECK = object()
 class AccountMove(models.Model):
     _name = "account.move"
     _inherit = [
-        "portal.mixin",
-        "mail.thread.main.attachment",
-        "mail.activity.mixin",
-        "sequence.mixin",
-        "product.catalog.mixin",
-        "account.document.import.mixin",
+        "mixin.portal",
+        "mixin.mail.thread.main.attachment",
+        "mixin.mail.activity",
+        "mixin.sequence",
+        "mixin.product.catalog",
+        "mixin.account.document.import",
     ]
     _description = "Journal Entry"
     _order = "date desc, name desc, invoice_date desc, id desc"
@@ -2591,7 +2591,7 @@ class AccountMove(models.Model):
                 )
             )
 
-    # EXTENDS portal portal.mixin
+    # EXTENDS portal mixin.portal
     def _compute_access_url(self):
         super()._compute_access_url()
         for move in self.filtered(lambda move: move.is_invoice()):
@@ -6441,7 +6441,7 @@ class AccountMove(models.Model):
         return action
 
     def action_send_and_print(self):
-        self.env["account.move.send"]._check_move_constraints(self)
+        self.env["mixin.account.move.send"]._check_move_constraints(self)
         return {
             "name": _("Send"),
             "type": "ir.actions.act_window",
@@ -6481,7 +6481,7 @@ class AccountMove(models.Model):
 
     def action_print_pdf(self):
         self.ensure_one()
-        invoice_template = self.env["account.move.send"]._get_default_pdf_report_id(
+        invoice_template = self.env["mixin.account.move.send"]._get_default_pdf_report_id(
             self
         )
         report_action = invoice_template.report_action(self.id, config=False)
@@ -6916,7 +6916,7 @@ class AccountMove(models.Model):
         if not to_process:
             return
 
-        self.env["account.move.send"]._generate_and_send_invoices(
+        self.env["mixin.account.move.send"]._generate_and_send_invoices(
             to_process,
             from_cron=True,
         )
@@ -7369,7 +7369,7 @@ class AccountMove(models.Model):
                                     proforma PDF report instead.
         :param custom_settings: custom settings to create the wizard (! only relevant for single sending (one invoice))
         (Since default settings are use for batch sending.
-        If you are looking for something more flexible, directly call env[account.move.send]._generate_and_send_invoices method.)
+        If you are looking for something more flexible, directly call env[mixin.account.move.send]._generate_and_send_invoices method.)
         """
         if not self:
             return None
@@ -7442,7 +7442,7 @@ class AccountMove(models.Model):
         """
         self.ensure_one()
         if self.invoice_pdf_report_id:
-            attachments = self.env["account.move.send"]._get_invoice_extra_attachments(
+            attachments = self.env["mixin.account.move.send"]._get_invoice_extra_attachments(
                 self
             )
             return [

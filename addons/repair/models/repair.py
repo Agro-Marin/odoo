@@ -22,10 +22,10 @@ class RepairOrder(models.Model):
     _name = 'repair.order'
     _description = 'Repair Order'
     _inherit = [
-        'mail.thread',
-        'mail.activity.mixin',
-        'product.catalog.mixin',
-        'date.category.mixin',
+        'mixin.mail.thread',
+        'mixin.mail.activity',
+        'mixin.product.catalog',
+        'mixin.date.category',
     ]
     _order = 'priority desc, create_date desc'
     _check_company_auto = True

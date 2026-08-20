@@ -4,7 +4,7 @@
 Each test pins down a bug found during the audit so it cannot silently return.
 """
 
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
 from dateutil.relativedelta import relativedelta
 
@@ -348,19 +348,36 @@ class TestHrAuditRound2(TestHrCommon):
         self.assertEqual(display, "**3456")
 
     def test_combine_tz_uses_correct_offset(self):
-        """``_combine_tz`` attaches the zone directly (correct DST/standard offset), not
-        the historical LMT offset produced by ``.replace(tzinfo=...)``."""
+        """``_combine_tz`` attaches the zone's real standard/DST offset."""
         mx = timezone("America/Mexico_City")
         dt = self.env["hr.employee"]._combine_tz(date(2026, 7, 1), time.min, mx)
-        # America/Mexico_City is UTC-6 (no DST since 2022); the LMT bug gave ~-6:36.
+        # America/Mexico_City is UTC-6 (no DST since 2022).
         self.assertEqual(dt.utcoffset(), timedelta(hours=-6))
-        # The buggy path would have differed:
-        buggy = datetime.combine(date(2026, 7, 1), time.min).replace(tzinfo=mx)
-        self.assertNotEqual(dt.utcoffset(), buggy.utcoffset())
         # Falsy tz -> naive datetime, unchanged behavior.
         self.assertIsNone(
             self.env["hr.employee"]._combine_tz(date(2026, 7, 1), time.min, None).tzinfo
         )
+
+    def test_combine_tz_picks_the_standard_side_of_a_dst_fold(self):
+        """On the hour a zone repeats when DST ends, ``_combine_tz`` resolves to the
+        standard side.
+
+        A bare ``.replace(tzinfo=tz)`` silently takes ``fold=0``, the DST side, which
+        is an hour earlier in UTC than the side pytz's ``localize`` chose before the
+        zoneinfo migration. ``time.min`` does not escape it: Cuba folds at midnight.
+        """
+        havana = timezone("America/Havana")
+        # 2026-11-01 00:00 in Havana exists twice: CDT (-4) then CST (-5).
+        dt = self.env["hr.employee"]._combine_tz(date(2026, 11, 1), time.min, havana)
+        self.assertEqual(dt.utcoffset(), timedelta(hours=-5))
+        fold_zero = datetime.combine(date(2026, 11, 1), time.min).replace(tzinfo=havana)
+        self.assertEqual(fold_zero.utcoffset(), timedelta(hours=-4))
+        self.assertEqual(
+            dt.astimezone(UTC) - fold_zero.astimezone(UTC), timedelta(hours=1)
+        )
+        # An unambiguous day in the same zone is untouched by the fold handling.
+        plain = self.env["hr.employee"]._combine_tz(date(2026, 7, 1), time.min, havana)
+        self.assertEqual(plain.utcoffset(), timedelta(hours=-4))
 
     # Pinned inside the 2026-01-01 -> 2026-07-31 version window.  The scenario
     # is "a leave on the *current* version's last valid day", and hr resolves a

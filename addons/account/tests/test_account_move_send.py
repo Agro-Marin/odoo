@@ -187,7 +187,7 @@ class TestAccountComposerPerformance(AccountTestInvoicingCommon, MailCommon):
             self.assertFalse(test_move.is_move_sent)
 
         with self.mock_mail_gateway(mail_unlink_sent=False):
-            self.env["account.move.send"]._generate_and_send_invoices(
+            self.env["mixin.account.move.send"]._generate_and_send_invoices(
                 test_moves,
                 sending_methods=["email"],
                 mail_template=move_template,
@@ -754,7 +754,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
             invoice, sending_methods=["email", "manual"]
         )
         with patch(
-            "odoo.addons.account.models.account_move_send.AccountMoveSend._hook_invoice_document_after_pdf_report_render"
+            "odoo.addons.account.models.mixin_account_move_send.MixinAccountMoveSend._hook_invoice_document_after_pdf_report_render"
         ) as mocked_method:
             results = wizard.action_send_and_print()
             mocked_method.assert_not_called()
@@ -966,11 +966,11 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
 
         with (
             patch(
-                "odoo.addons.account.models.account_move_send.AccountMoveSend._get_default_extra_edis",
+                "odoo.addons.account.models.mixin_account_move_send.MixinAccountMoveSend._get_default_extra_edis",
                 get_default_extra_edis,
             ),
             patch(
-                "odoo.addons.account.models.account_move_send.AccountMoveSend._get_all_extra_edis",
+                "odoo.addons.account.models.mixin_account_move_send.MixinAccountMoveSend._get_all_extra_edis",
                 get_all_extra_edis,
             ),
         ):
@@ -1157,7 +1157,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
                 invoice_data["error"] = {"error_title": "turlututu"}
 
         with patch(
-            "odoo.addons.account.models.account_move_send.AccountMoveSend._call_web_service_after_invoice_pdf_render",
+            "odoo.addons.account.models.mixin_account_move_send.MixinAccountMoveSend._call_web_service_after_invoice_pdf_render",
             call_web_service_after_invoice_pdf_render,
         ):
             # Prevent a rollback in case of UserError because we can't commit in this test.
@@ -1179,7 +1179,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
 
         # Process.
         with patch(
-            "odoo.addons.account.models.account_move_send.AccountMoveSend._hook_invoice_document_before_pdf_report_render",
+            "odoo.addons.account.models.mixin_account_move_send.MixinAccountMoveSend._hook_invoice_document_before_pdf_report_render",
             _hook_invoice_document_before_pdf_report_render,
         ):
             results = wizard.action_send_and_print(allow_fallback_pdf=True)
@@ -1205,7 +1205,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
 
         # Process.
         with patch(
-            "odoo.addons.account.models.account_move_send.AccountMoveSend._hook_invoice_document_before_pdf_report_render",
+            "odoo.addons.account.models.mixin_account_move_send.MixinAccountMoveSend._hook_invoice_document_before_pdf_report_render",
             _hook_invoice_document_before_pdf_report_render,
         ):
             results = wizard.action_send_and_print(allow_fallback_pdf=True)
@@ -1278,7 +1278,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
 
         # Process.
         with patch(
-            "odoo.addons.account.models.account_move_send.AccountMoveSend._call_web_service_after_invoice_pdf_render",
+            "odoo.addons.account.models.mixin_account_move_send.MixinAccountMoveSend._call_web_service_after_invoice_pdf_render",
             _call_web_service_after_invoice_pdf_render,
         ):
             wizard.action_send_and_print(allow_fallback_pdf=True)
@@ -1306,7 +1306,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
 
         # Process.
         with patch(
-            "odoo.addons.account.models.account_move_send.AccountMoveSend._call_web_service_before_invoice_pdf_render",
+            "odoo.addons.account.models.mixin_account_move_send.MixinAccountMoveSend._call_web_service_before_invoice_pdf_render",
             _call_web_service_before_invoice_pdf_render,
         ):
             wizard.action_send_and_print(allow_fallback_pdf=True)
@@ -1386,8 +1386,8 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         invoices = (invoice_ok + invoice_ko).sudo()
         self.assertTrue(all(invoice.sending_data for invoice in invoices))
 
-        AccountMoveSend = type(self.env["account.move.send"])
-        real_send_mail = AccountMoveSend._send_mail
+        MixinAccountMoveSend = type(self.env["mixin.account.move.send"])
+        real_send_mail = MixinAccountMoveSend._send_mail
 
         def _send_mail_maybe_fail(self, move, *args, **kwargs):
             if move.id == invoice_ko.id:
@@ -1396,7 +1396,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
 
         with (
             self.enter_registry_test_mode(),
-            patch.object(AccountMoveSend, "_send_mail", _send_mail_maybe_fail),
+            patch.object(MixinAccountMoveSend, "_send_mail", _send_mail_maybe_fail),
         ):
             self.env.ref("account.ir_cron_account_move_send").method_direct_trigger()
 
@@ -1460,7 +1460,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
 
         with (
             patch(
-                "odoo.addons.account.models.account_move_send.AccountMoveSend._hook_invoice_document_before_pdf_report_render",
+                "odoo.addons.account.models.mixin_account_move_send.MixinAccountMoveSend._hook_invoice_document_before_pdf_report_render",
                 _hook_invoice_document_before_pdf_report_render,
             ),
             self.enter_registry_test_mode(),
@@ -1696,7 +1696,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         draft_move_a = self.init_invoice("out_invoice", post=False)
         draft_move_b = self.init_invoice("out_invoice", post=False)
         with self.assertRaises(UserError) as capture:
-            self.env["account.move.send"]._check_move_constraints(
+            self.env["mixin.account.move.send"]._check_move_constraints(
                 draft_move_a + draft_move_b
             )
         self.assertIn(draft_move_a.display_name, str(capture.exception))

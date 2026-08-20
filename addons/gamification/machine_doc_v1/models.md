@@ -103,7 +103,7 @@ res.users (extended)
 ## 1. gamification.challenge
 
 **File:** `models/gamification_challenge.py`
-**Inherits:** `mail.thread`
+**Inherits:** `mixin.mail.thread`
 **Description:** Set of predefined objectives with recurrence rules and rewards.
 
 ### Fields
@@ -185,7 +185,7 @@ draft ──→ inprogress ──→ done
 ## 3. gamification.goal
 
 **File:** `models/gamification_goal.py`
-**Inherits:** `mail.thread`
+**Inherits:** `mixin.mail.thread`
 **Description:** Individual goal instance for a user in a specific time period.
 
 ### Fields
@@ -272,7 +272,7 @@ action_cancel() resets state back to inprogress.
 ## 5. gamification.badge
 
 **File:** `models/gamification_badge.py`
-**Inherits:** `mail.thread`, `image.mixin`
+**Inherits:** `mixin.mail.thread`, `mixin.image`
 **Description:** Achievement award that users can send and receive.
 
 ### Grant Status Constants
@@ -317,7 +317,7 @@ action_cancel() resets state back to inprogress.
 ## 6. gamification.badge.user
 
 **File:** `models/gamification_badge_user.py`
-**Inherits:** `mail.thread`
+**Inherits:** `mixin.mail.thread`
 **Description:** Instance of a badge granted to a user.
 
 ### Fields
@@ -343,7 +343,7 @@ action_cancel() resets state back to inprogress.
 ## 7. gamification.karma.rank
 
 **File:** `models/gamification_karma_rank.py`
-**Inherits:** `image.mixin`
+**Inherits:** `mixin.image`
 **Description:** Level thresholds in the karma progression system.
 
 ### Fields
@@ -425,7 +425,7 @@ action_cancel() resets state back to inprogress.
 
 ### gamification.kudos
 
-**Inherits:** `mail.thread`
+**Inherits:** `mixin.mail.thread`
 **Description:** Peer-to-peer recognition message.
 
 | Field | Type | Key Attributes | Purpose |
@@ -569,7 +569,7 @@ active ←──→ broken
 ## 12. gamification.team
 
 **File:** `models/gamification_team.py`
-**Inherits:** `mail.thread`
+**Inherits:** `mixin.mail.thread`
 **Description:** Team for collaborative challenges.
 
 | Field | Type | Key Attributes | Purpose |
@@ -645,7 +645,7 @@ active ←──→ broken
 ## 14. gamification.activity
 
 **File:** `models/gamification_activity.py`
-**Inherits:** `mail.thread`
+**Inherits:** `mixin.mail.thread`
 **Description:** Unified social feed for all gamification events.
 
 ### Fields
@@ -709,7 +709,7 @@ active ←──→ broken
 ## 16. gamification.mentorship
 
 **File:** `models/gamification_mentorship.py`
-**Inherits:** `mail.thread`
+**Inherits:** `mixin.mail.thread`
 **Description:** Mentor/mentee pairing with karma incentives.
 
 ### Fields
@@ -753,7 +753,7 @@ active ──→ completed (with rewards)
 ## 17. gamification.quest (+ step, enrollment, step.completion)
 
 **File:** `models/gamification_quest.py`
-**Inherits:** `mail.thread` (quest only)
+**Inherits:** `mixin.mail.thread` (quest only)
 **Description:** Multi-step narrative journeys.
 
 ### gamification.quest
@@ -829,7 +829,7 @@ active ──→ completed (with rewards)
 ## 18. gamification.season
 
 **File:** `models/gamification_season.py`
-**Inherits:** `mail.thread`
+**Inherits:** `mixin.mail.thread`
 **Description:** Time-limited themed event with exclusive rewards.
 
 ### Fields

@@ -97,8 +97,8 @@ export class RatingPopupComposer extends Interaction {
      */
     onReloadRatingPopupComposer(data) {
         // Refresh the internal state of the widget
-        this.rating_avg = data["mail.thread"][0].rating_avg;
-        this.rating_count = data["mail.thread"][0].rating_count;
+        this.rating_avg = data["mixin.mail.thread"][0].rating_avg;
+        this.rating_count = data["mixin.mail.thread"][0].rating_count;
         this.rating_value = data["rating.rating"]?.[0].rating;
         this.updateOptions(data);
         this.reloadRatingPopupComposer();

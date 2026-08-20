@@ -176,7 +176,7 @@ class Data_RecycleModel(models.Model):
         partner_ids = self.notify_user_ids.partner_id.ids if records_count else []
         if partner_ids:
             menu_id = self.env.ref('data_recycle.menu_data_cleaning_root').id
-            self.env['mail.thread'].message_notify(
+            self.env['mixin.mail.thread'].message_notify(
                 body=self.env['ir.qweb']._render(
                     'data_recycle.notification',
                     {

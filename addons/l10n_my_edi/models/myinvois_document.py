@@ -30,7 +30,7 @@ class MyInvoisDocument(models.Model):
     In Odoo, a document represent either an invoice, or a group of PoS order.
     """
     _name = 'myinvois.document'
-    _inherit = ['mail.thread', 'mail.activity.mixin', 'sequence.mixin']
+    _inherit = ['mixin.mail.thread', 'mixin.mail.activity', 'mixin.sequence']
     _description = "MyInvois Document"
     _order = "myinvois_issuance_date desc, id desc"
     _check_company_auto = True
@@ -449,7 +449,9 @@ class MyInvoisDocument(models.Model):
     def _get_mail_thread_data_attachments(self):
         res = super()._get_mail_thread_data_attachments()
         # else, attachments with 'res_field' get excluded
-        return res | self.myinvois_file_id
+        for document in self:
+            res[document.id] |= document.myinvois_file_id
+        return res
 
     def _get_active_myinvois_document(self, including_in_progress=False):
         """
@@ -671,14 +673,14 @@ class MyInvoisDocument(models.Model):
         :return: a dict of potential errors in the format {record: errors_list}
         """
         def _format_error_messages(errors_list):
-            AccountMoveSend = self.env['account.move.send']
+            MixinAccountMoveSend = self.env['mixin.account.move.send']
             error_data = {
                 'error_title': self.env._("Error when sending the documents to the E-invoicing service."),
                 'errors': errors_list,
             }
             return {
-                'html_error': AccountMoveSend._format_error_html(error_data),
-                'plain_text_error': AccountMoveSend._format_error_text(error_data),
+                'html_error': MixinAccountMoveSend._format_error_html(error_data),
+                'plain_text_error': MixinAccountMoveSend._format_error_text(error_data),
             }
 
         records_to_send = self.filtered(lambda record: record in submissions_content)
@@ -836,7 +838,7 @@ class MyInvoisDocument(models.Model):
             records = self.browse(list(results['statuses'].keys()))
 
             if results['error']:
-                message = self.env["account.move.send"]._format_error_html({
+                message = self.env["mixin.account.move.send"]._format_error_html({
                     "error_title": self.env._("The status update failed with the following errors:"),
                     "errors": results['error'],
                 })
@@ -1060,7 +1062,7 @@ class MyInvoisDocument(models.Model):
 
         message = None
         if 'validation_errors' in result:
-            message = self.env['account.move.send']._format_error_html({
+            message = self.env['mixin.account.move.send']._format_error_html({
                 'error_title': self.env._('The validation failed with the following errors:'),
                 'errors': result['validation_errors'],
             })

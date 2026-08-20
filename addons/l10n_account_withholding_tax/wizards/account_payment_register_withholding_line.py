@@ -7,7 +7,7 @@ class AccountPaymentRegisterWithholdingLine(models.TransientModel):
     Transient version of the withholding lines; used on the account.register.payment model.
     """
     _name = 'account.payment.register.withholding.line'
-    _inherit = "account.withholding.line"
+    _inherit = "mixin.account.withholding.line"
     _description = 'Payment register withholding line'
 
     # ------------------

@@ -27,7 +27,7 @@ class HrAttendance(models.Model):
     _name = 'hr.attendance'
     _description = "Attendance"
     _order = "check_in desc"
-    _inherit = ["mail.thread"]
+    _inherit = ["mixin.mail.thread"]
 
     def _default_employee(self):
         if self.env.user.has_group('hr_attendance.group_hr_attendance_user'):

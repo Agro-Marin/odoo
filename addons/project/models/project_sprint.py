@@ -20,7 +20,7 @@ class ProjectSprint(models.Model):
     _name = "project.sprint"
     _description = "Sprint"
     _order = "date_start desc, id desc"
-    _inherit = ["mail.thread"]
+    _inherit = ["mixin.mail.thread"]
 
     name = fields.Char("Sprint Name", required=True, tracking=True)
     project_id = fields.Many2one(

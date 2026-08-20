@@ -275,7 +275,7 @@ class TestRatingMailMessage(TransactionCase):
         store = Store()
         self.message._to_store(store, ["record_rating"])
         payload = store.get_result()
-        thread = payload["mail.thread"][0]
+        thread = payload["mixin.mail.thread"][0]
         self.assertEqual(thread["rating_avg"], 5)
         self.assertEqual(thread["rating_count"], 1)
         self.assertNotIn("rating_stats", thread)
@@ -285,5 +285,5 @@ class TestRatingMailMessage(TransactionCase):
         ):
             store_pub = Store()
             self.message._to_store(store_pub, ["record_rating"])
-            thread_pub = store_pub.get_result()["mail.thread"][0]
+            thread_pub = store_pub.get_result()["mixin.mail.thread"][0]
         self.assertEqual(thread_pub["rating_stats"]["total"], 1)

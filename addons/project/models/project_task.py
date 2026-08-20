@@ -141,16 +141,16 @@ class ProjectTask(models.Model):
     _description = "Task"
     _date_name = "date_assign"
     _inherit = [
-        "html.field.history.mixin",
-        "mail.thread.cc",
-        "mail.activity.mixin",
-        "mail.tracking.duration.mixin",
-        "portal.mixin",
-        "rating.mixin",
+        "mixin.html.field.history",
+        "mixin.mail.thread.cc",
+        "mixin.mail.activity",
+        "mixin.mail.tracking.duration",
+        "mixin.portal",
+        "mixin.rating",
         # Allocation, not just projection: a task's committed hours genuinely
         # are the sum of its per-assignee reservations. The allocation mixin
         # inherits the scheduling one, so this covers both.
-        "resource.allocation.mixin",
+        "mixin.resource.allocation",
     ]
     _mail_post_access = "read"
     _mail_thread_customer = True
@@ -470,7 +470,7 @@ class ProjectTask(models.Model):
         "writing back the value the formula would produce.",
     )
     # NB: this is NOT a plain writable Float, whatever the definition below
-    # looks like. ``resource.scheduling.mixin`` declares it
+    # looks like. ``mixin.resource.scheduling`` declares it
     # compute="_compute_allocated_hours" / store=True / readonly=False, and
     # attribute merge carries all three over — this redefinition only adds
     # tracking and the fork's help text. So it is the *commitment ledger*
@@ -500,7 +500,7 @@ class ProjectTask(models.Model):
         "effort.  Operational signal for PMs.  Pattern analog to "
         "invoice_state on sale.order.",
     )
-    # allocated_percentage inherited from resource.scheduling.mixin —
+    # allocated_percentage inherited from mixin.resource.scheduling —
     # uniform fractional allocation passed through to every reservation
     # via _get_reservation_vals_list.  Per-resource fractional units (PMI
     # strict per-assignment Units) lives on resource.reservation.
@@ -3157,7 +3157,7 @@ class ProjectTask(models.Model):
         return super().unlink()
 
     # ------------------------------------------------------------------
-    # Resource reservation integration (contracts from resource.scheduling.mixin)
+    # Resource reservation integration (contracts from mixin.resource.scheduling)
     # ------------------------------------------------------------------
 
     def _get_reservation_date_fields(self):
@@ -3490,6 +3490,7 @@ class ProjectTask(models.Model):
         force_email_company: Any = False,
         force_email_lang: str | bool = False,
         force_record_name: str | bool = False,
+        tracking_values: Any = None,
     ) -> dict:
         render_context = super()._notify_by_email_prepare_rendering_context(
             message,
@@ -3498,6 +3499,7 @@ class ProjectTask(models.Model):
             force_email_company=force_email_company,
             force_email_lang=force_email_lang,
             force_record_name=force_record_name,
+            tracking_values=tracking_values,
         )
         project_name = self.project_id.sudo().name
         stage_name = self.step_id.name
@@ -3570,7 +3572,7 @@ class ProjectTask(models.Model):
                     values,
                     minimal_qcontext=True,
                 )
-                assignation_msg = self.env["mail.render.mixin"]._replace_local_links(
+                assignation_msg = self.env["mixin.mail.render"]._replace_local_links(
                     assignation_msg
                 )
                 task.message_notify(
@@ -3733,23 +3735,17 @@ class ProjectTask(models.Model):
 
         return groups
 
-    def _notify_get_reply_to(
-        self, default: str | None = None, author_id: int | bool = False
-    ) -> dict:
+    def _notify_get_reply_to_addresses(self) -> dict:
         # Override to set alias of tasks to their project if any
-        aliases = (
-            self.sudo()
-            .mapped("project_id")
-            ._notify_get_reply_to(default=default, author_id=author_id)
-        )
-        res = {task.id: aliases.get(task.project_id.id) for task in self}
+        addresses = self.sudo().mapped("project_id")._notify_get_reply_to_addresses()
+        res = {
+            task.id: addresses[task.project_id.id]
+            for task in self
+            if task.project_id and task.project_id.id in addresses
+        }
         leftover = self.filtered(lambda rec: not rec.project_id)
         if leftover:
-            res.update(
-                super(ProjectTask, leftover)._notify_get_reply_to(
-                    default=default, author_id=author_id
-                )
-            )
+            res.update(super(ProjectTask, leftover)._notify_get_reply_to_addresses())
         return res
 
     def _find_internal_users_from_address_mail(
@@ -3802,7 +3798,7 @@ class ProjectTask(models.Model):
             custom_values = {}
         # Auto create partner if not existent when the task is created from email
         if not msg_dict.get("author_id") and msg_dict.get("email_from"):
-            author = self.env["mail.thread"]._partner_find_from_emails_single(
+            author = self.env["mixin.mail.thread"]._partner_find_from_emails_single(
                 [msg_dict["email_from"]], no_create=False
             )
             msg_dict["author_id"] = author.id

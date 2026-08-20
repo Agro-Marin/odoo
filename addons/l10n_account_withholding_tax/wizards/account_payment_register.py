@@ -117,7 +117,7 @@ class AccountPaymentRegister(models.TransientModel):
                     else:
                         payment_type = 'inbound'
 
-                wizard_domain = self.env['account.withholding.line']._get_withholding_tax_domain(company=wizard.company_id, payment_type=payment_type)
+                wizard_domain = self.env['mixin.account.withholding.line']._get_withholding_tax_domain(company=wizard.company_id, payment_type=payment_type)
                 wizard_withholding_taxes = withholding_taxes.filtered_domain(wizard_domain)
 
                 will_create_multiple_entry = not wizard.can_edit_wizard or (wizard.can_group_payments and not wizard.group_payment)

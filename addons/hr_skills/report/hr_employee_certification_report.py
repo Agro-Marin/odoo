@@ -7,7 +7,7 @@ from odoo.db.schema import drop_view_if_exists
 class HrEmployeeCertificationReport(models.BaseModel):
     _name = "hr.employee.certification.report"
     _auto = False
-    _inherit = ["hr.manager.department.report"]
+    _inherit = ["mixin.hr.manager.department.report"]
     _description = "Employee Certification Report"
     _order = "employee_id, level_progress desc"
 
