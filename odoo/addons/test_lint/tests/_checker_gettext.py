@@ -38,6 +38,46 @@ ERRORS_REQUIRING_GETTEXT = frozenset(
     }
 )
 
+ERRORS_REFUSING_GETTEXT = frozenset(
+    {
+        # Builtins only, and deliberately so. Odoo renders a dialog for
+        # `UserError` and its subclasses; everything here reaches a reader as a
+        # traceback in a log, which is not a place anyone reads their own
+        # language. `_()` around one of these is a category error wearing a
+        # translation problem: it books a developer diagnostic into the module
+        # catalogue, where an exporter ships it and a translator spends time on
+        # a string no user will ever see.
+        #
+        # A name is on this list only when the class cannot reach a UI. Nothing
+        # from `odoo.exceptions` is here, nor `werkzeug`'s -- `BadRequest` and
+        # `Forbidden` render pages a user reads -- and neither is any addon's
+        # own exception class, which may subclass `UserError` out of sight of
+        # this file.
+        "ArithmeticError",
+        "AssertionError",
+        "AttributeError",
+        "BufferError",
+        "EOFError",
+        "FloatingPointError",
+        "IndexError",
+        "KeyError",
+        "MemoryError",
+        "NameError",
+        "NotImplementedError",
+        "OverflowError",
+        "RecursionError",
+        "ReferenceError",
+        "RuntimeError",
+        "StopIteration",
+        "SyntaxError",
+        "SystemError",
+        "TypeError",
+        "UnboundLocalError",
+        "ValueError",
+        "ZeroDivisionError",
+    }
+)
+
 
 @dataclass
 class Violation:
@@ -53,6 +93,13 @@ def _get_call_name(node: ast.Call) -> str:
             return name
         case ast.Attribute(attr=name):
             return name
+    return ""
+
+
+def _get_call_name_if_gettext(node: ast.expr) -> str:
+    """`_("…")` / `_lt("…")` / `self.env._("…")`, or "" for anything else."""
+    if isinstance(node, ast.Call) and _get_call_name(node) in ("_", "_lt"):
+        return _get_call_name(node)
     return ""
 
 
@@ -94,6 +141,17 @@ def check(tree: ast.Module, nodes=None) -> Iterator[Violation]:
                     node.col_offset,
                     "missing-gettext",
                     f"Static string passed to {name} without gettext call.",
+                )
+                continue
+
+        if name in ERRORS_REFUSING_GETTEXT and node.args:
+            if _get_call_name_if_gettext(node.args[0]):
+                yield Violation(
+                    node.lineno,
+                    node.col_offset,
+                    "gettext-developer-error",
+                    f"{name} reaches a reader as a traceback, not as UI; drop the "
+                    f"gettext call and use an f-string.",
                 )
                 continue
 

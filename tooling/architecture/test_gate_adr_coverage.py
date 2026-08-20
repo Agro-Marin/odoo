@@ -11,7 +11,17 @@ import layer_check as lc
 HERE = Path(__file__).resolve().parent
 ADR_DIR = lc.ROOT / "doc" / "adr"
 
-UNRECORDED_GATES: frozenset[str] = frozenset()
+UNRECORDED_GATES: frozenset[str] = frozenset(
+    {
+        # Landed with the mail work, each argued for in its own commit message
+        # rather than in a record. Listed here so the omission is visible and
+        # owed, which is what this list is for -- not so it stops being owed.
+        "compute_context_deps.py",
+        "mail_hook_keyword_check.py",
+        "sql_placeholder.py",
+        "translation_catalog.py",
+    }
+)
 
 
 def gate_modules() -> list[Path]:

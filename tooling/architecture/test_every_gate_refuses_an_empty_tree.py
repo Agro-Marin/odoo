@@ -32,6 +32,16 @@ GATES = {
     "py_function_length": ["--count"],
     "js_service_shape": ["--count"],
     "naming_vocabulary": ["--count"],
+    # And for the catalogue gate: 0 unresolvable strings is what a tree whose
+    # every `_()` was exported looks like, so an emptied one must refuse. Its
+    # own guard is on finding no `.pot` at all rather than on the count.
+    "translation_catalog": ["--count"],
+    # And for the depends_context gate: 0 undeclared context reads is what a
+    # tree that declared every key looks like, so an empty scan must refuse.
+    "compute_context_deps": ["--count"],
+    # The Python core gates. They resolve inputs from `odoo/` packages rather
+    # than the JS trees, so EMPTY_TREES creates those too — present-and-empty,
+    # the harder of the two shapes.
     "env_surface_check": ["--check"],
     "env_model_surface_check": ["--check"],
     "model_member_surface_check": ["--check"],
@@ -39,6 +49,8 @@ GATES = {
     "worker_thread_surface_check": ["--check"],
     "mixin_coupling_check": ["--check"],
     "js_mixin_coupling": ["--check"],
+    "mail_hook_keyword_check": ["--check"],
+    "sql_placeholder": ["--check"],
     "libs_facade_check": ["--check"],
     "py_cycle_check": ["--check"],
     "package_index_check": ["--check"],
@@ -77,7 +89,29 @@ EMPTY_TREES = (
 
 
 def _checkout(tmp_path, *, litter=False):
-    shutil.copytree(HERE, tmp_path / "tooling" / "architecture")
+    """A checkout whose gates are real and whose source trees are empty."""
+    # Skip __pycache__: it is 139 of this directory's 238 inodes and every one
+    # is copied twice per gate. At 35 gates that is ~16k inodes a run, retained
+    # for three runs by pytest's tmp_path policy, and it has exhausted /tmp's
+    # inode table on this box. The subprocess recompiles what it imports.
+    shutil.copytree(
+        HERE,
+        tmp_path / "tooling" / "architecture",
+        ignore=shutil.ignore_patterns("__pycache__"),
+    )
+    # THE PROBE MUST REACH THE GATE'S LOGIC. Copying `tooling/architecture` alone
+    # left `tooling/_repo_root.py` out of the tmp checkout, and 33 of the 37 gates
+    # here import it -- so they died with ModuleNotFoundError before reading a
+    # line of the emptied tree, exited non-zero, and satisfied an assertion that
+    # only reads the exit code. The suite whose docstring warns that "a probe that
+    # does not actually empty the inputs is the same fault it is hunting" was
+    # running that fault one layer up, and it hid three gates that really do
+    # report a clean zero on an empty tree.
+    #
+    # `find_odoo_root` locates the checkout by the `odoo-bin` marker, so the probe
+    # needs that too or every gate refuses on the marker instead of on its inputs.
+    shutil.copy2(HERE.parent / "_repo_root.py", tmp_path / "tooling")
+    (tmp_path / "odoo-bin").write_text("#!/usr/bin/env python3\n")
     for rel in EMPTY_TREES:
         tree = tmp_path / rel
         tree.mkdir(parents=True, exist_ok=True)

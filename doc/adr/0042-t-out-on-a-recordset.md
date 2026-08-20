@@ -23,7 +23,7 @@ template renders Python's debugging repr:
 field's own formatter — and neither does `t-out` with `t-options={'widget': …}`,
 which routes through `_get_widget`. Only the bare form falls through.
 
-This surfaced from the other side. `mail.render.mixin` has two renderers behind
+This surfaced from the other side. `mixin.mail.render` has two renderers behind
 `engine="qweb"`: the real `ir.qweb`, and an evaluation-free one that resolves a
 dotted path itself for non-editors (`d475a875f49`). The stock allow-list
 `mail_allowed_qweb_expressions()` ships `object.partner_id` and `object.user_id`,

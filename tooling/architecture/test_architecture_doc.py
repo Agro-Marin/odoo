@@ -73,39 +73,93 @@ def _imported_modules(source: Path) -> set[str]:
     return names
 
 
-NUMBER_WORDS = {
-    "four": 4,
-    "five": 5,
-    "six": 6,
-    "seven": 7,
-    "eight": 8,
-    "nine": 9,
-    "ten": 10,
-    "eleven": 11,
-    "twelve": 12,
-    "thirteen": 13,
-    "fourteen": 14,
-    "fifteen": 15,
-    "sixteen": 16,
-    "seventeen": 17,
-    "eighteen": 18,
-    "nineteen": 19,
-    "twenty": 20,
-    "twenty-one": 21,
-    "twenty-two": 22,
-    "twenty-three": 23,
-    "twenty-four": 24,
-    "twenty-five": 25,
-    "twenty-six": 26,
-    "twenty-seven": 27,
-    "twenty-eight": 28,
-    "twenty-nine": 29,
-    "thirty": 30,
-    "thirty-one": 31,
-    "thirty-two": 32,
-    "thirty-three": 33,
+#: Number words the architecture documents spell out, so an assertion can
+#: re-derive the figure rather than trust it. Shared by every test here that
+#: compares a written-out count against a measured one -- it was a local dict
+#: inside one test until a second test needed it.
+_UNITS = [
+    "zero",
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+    "eleven",
+    "twelve",
+    "thirteen",
+    "fourteen",
+    "fifteen",
+    "sixteen",
+    "seventeen",
+    "eighteen",
+    "nineteen",
+]
+#: Index 0 and 1 are unreachable -- `_number_word` only indexes this for values
+#: of twenty and above -- and are placeholders rather than "" so a slip that
+#: does reach them produces a visible word instead of a hyphen.
+_TENS = [
+    "_",
+    "_",
+    "twenty",
+    "thirty",
+    "forty",
+    "fifty",
+    "sixty",
+    "seventy",
+    "eighty",
+    "ninety",
+]
+
+
+def _number_word(value: int) -> str:
+    if value < 20:
+        return _UNITS[value]
+    tens, unit = divmod(value, 10)
+    return _TENS[tens] if not unit else f"{_TENS[tens]}-{_UNITS[unit]}"
+
+
+#: Generated rather than written out, and to 99 rather than to the current
+#: total. The hand-written version ran to thirty-three and three separate local
+#: copies of it drifted out of range within one session as gates were added --
+#: each failing with a bare ``KeyError`` that reads like a broken test rather
+#: than a grown tree, which is what adding one more row would set up again.
+NUMBER_WORDS = {_number_word(value): value for value in range(4, 100)}
+
+
+#: Ordinals, derived by the same rule, for the same reason: the hand-written map
+#: this replaced ran to thirty-fourth and had to be extended by hand every time a
+#: gate landed. "thirtieth" is not `_number_word(30) + "th"`, but the exception
+#: list is three entries long and the tens rule is one line.
+_ORDINAL_UNITS = {
+    "one": "first",
+    "two": "second",
+    "three": "third",
+    "five": "fifth",
+    "eight": "eighth",
+    "nine": "ninth",
+    "twelve": "twelfth",
 }
 
+
+def _ordinal_word(value: int) -> str:
+    word = _number_word(value)
+    head, _, tail = word.rpartition("-")
+    ordinal = _ORDINAL_UNITS.get(tail) or (
+        f"{tail[:-1]}ieth" if tail.endswith("y") else f"{tail}th"
+    )
+    return f"{head}-{ordinal}" if head else ordinal
+
+
+#: The same map, value -> word, for the assertions that go the other way: they
+#: measure a count and then look for its written form on the page. Derived
+#: rather than written twice -- three separate local copies of this drifted out
+#: of range within one session as gates were added, each failing with a bare
+#: ``KeyError`` that read like a broken test rather than a grown tree.
 NUMBER_WORD_BY_VALUE = {value: word for word, value in NUMBER_WORDS.items()}
 
 
@@ -634,6 +688,22 @@ class TestToolsReachesTheRuntime(unittest.TestCase):
 
 
 class TestToolsIsTheFacadeForLibs(unittest.TestCase):
+    """Both façade figures must re-derive: the direct one and the real one.
+
+    The page said **23** where ``tools/__init__.py`` imports **22** names from
+    ``odoo.libs``, and stopped there — so the sentence measured one file's
+    import statements and read as if it measured the façade. Following each
+    exported name one hop into the submodule that supplies it gives **58**,
+    more than half of ``__all__``, which is the figure the section's argument
+    actually rests on.
+
+    Resolved by import rather than by ``__module__``: ``html_escape`` is a
+    re-exported ``markupsafe`` alias and ``single_email_re`` a compiled
+    pattern, so a live-attribute sweep answers 57 and looks authoritative doing
+    it. It is also why this test parses instead of importing — which it could
+    not do here anyway, the boundary job installing pytest and nothing else.
+    """
+
     TOOLS = ROOT / "odoo" / "tools"
 
     @staticmethod
@@ -707,6 +777,8 @@ class TestToolsIsTheFacadeForLibs(unittest.TestCase):
             len(self.exported) // 2,
             "the section claims more than half the façade; it no longer is",
         )
+        # The two the run-time sweep misattributes must still be in the set,
+        # or the paragraph explaining the 57 is explaining nothing.
         self.assertLessEqual({"html_escape", "single_email_re"}, from_libs)
 
 
@@ -1774,25 +1846,12 @@ class TestGateInventoryIsWiredShut(unittest.TestCase):
         self.assertNotIn("Not yet wired", DOC)
 
     def test_the_outside_checker_is_counted_from_the_inside_ones(self) -> None:
+        """``cross_repo_coherence.py`` is "an Nth checker" — N must track the table.
 
-        ordinals = {
-            12: "twelfth",
-            13: "thirteenth",
-            14: "fourteenth",
-            15: "fifteenth",
-            23: "twenty-third",
-            24: "twenty-fourth",
-            25: "twenty-fifth",
-            26: "twenty-sixth",
-            27: "twenty-seventh",
-            28: "twenty-eighth",
-            29: "twenty-ninth",
-            30: "thirtieth",
-            31: "thirty-first",
-            32: "thirty-second",
-            33: "thirty-third",
-        }
-        expected = ordinals[len(self._workflow_gates()) + 1]
+        Ordinals, through ``_ordinal_word``: the map this used to keep locally
+        stopped at thirty-fourth and needed a hand-written row per new gate.
+        """
+        expected = _ordinal_word(len(self._workflow_gates()) + 1)
         self.assertIn(f"is a {expected} checker and the only one outside CI", DOC_FLAT)
 
 

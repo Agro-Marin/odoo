@@ -76,6 +76,7 @@ RULES = frozenset(
         "gettext-placeholders",
         "gettext-repr",
         "missing-gettext",
+        "gettext-developer-error",
         "raise-unlink-override",
         "n-plus-one-query",
         "orm-import",

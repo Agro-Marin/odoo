@@ -1,0 +1,4 @@
+{
+  "count": 560,
+  "note": "554 -> 560, and only one of the six is the rebase.\n\n  this branch, pre-rebase   559   (against its own committed 554)\n  merged                    560\n\nTHE FLOOR WAS ALREADY RED BY FIVE before the rebase: the pre-rebase tip measures 559 against the 554 it committed, so the gate has been failing -- exact mode fails a count under and over -- since the commit that set 554 banked an export it had not re-measured beside the strings it added.\n\nThe sixth unit is origin's. Per-module offender counts are identical across the two trees except base, 111 -> 112, and the gate and its floor are this branch's: translation_catalog.py does not exist on origin/19.0-marin, so origin never measured what it was adding. Accepted as inherited debt rather than exported here, because the string is already on the pushed branch and exporting it is base i18n work with its own .pot churn."
+}

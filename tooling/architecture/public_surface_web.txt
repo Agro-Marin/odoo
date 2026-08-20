@@ -133,6 +133,7 @@
 @web/fields/display/progress_bar  odoo enterprise
 @web/fields/display/statusbar/statusbar_field  odoo
 @web/fields/dynamic_placeholder_popover  odoo enterprise
+@web/fields/dynamic_placeholder_syntax  odoo
 @web/fields/field  odoo enterprise
 @web/fields/field_dirty_signal  odoo enterprise
 @web/fields/hooks/record_observer  odoo enterprise agromarin

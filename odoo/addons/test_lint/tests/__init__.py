@@ -18,6 +18,8 @@ from . import test_pretty_xml
 from . import test_fixers
 from . import test_markers
 from . import test_naming
+from . import test_onchange_triggers
+from . import test_recipient_data
 from . import test_override_signatures
 from . import test_pep649
 from . import test_routes

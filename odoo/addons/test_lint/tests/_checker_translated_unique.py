@@ -1,21 +1,3 @@
-"""Detect UNIQUE rules declared over a translated column.
-
-A ``translate=True`` field is stored as ``jsonb``, so a UNIQUE over it compares
-whole translation *documents* rather than values. Two rows stop colliding the
-moment one carries a language the other does not -- which is the next create in
-a second language, not some later translation step, because Odoo writes the
-active language alongside the source term. The rule silently enforces nothing
-from then on.
-
-The fix is an expression index over the source term, ``name_uniq_index()`` in
-``odoo/addons/base/models/catalog_mixin.py``.
-
-This cannot be a per-file checker. Whether a column is translated is often
-decided somewhere else: on another module's extension of the same model, or on
-a mixin the model inherits. The detector therefore takes the whole tree at once
-and resolves ``_inherit`` before judging any constraint.
-"""
-
 import ast
 import re
 from collections.abc import Iterator
@@ -23,23 +5,18 @@ from dataclasses import dataclass, field
 
 _MODEL_BASES = frozenset({"Model", "TransientModel", "AbstractModel", "BaseModel"})
 
-# `unique (a, b)` / `UNIQUE NULLS NOT DISTINCT (a, b)`, anywhere in the text
 _UNIQUE_COLUMNS = re.compile(
     r"unique\s*(?:nulls\s+not\s+distinct\s*)?\(([^)]*)\)", re.IGNORECASE
 )
-# a UniqueIndex definition leads with its column list: `(a, b) WHERE ...`
 _INDEX_COLUMNS = re.compile(r"^\s*\(([^)]*)\)")
 _IDENTIFIER = re.compile(r"[a-z_][a-z0-9_]*", re.IGNORECASE)
 
 
 @dataclass
 class ClassInfo:
-    """What one `class Foo(models.Model)` contributes about its model."""
-
     model: str
     parents: tuple[str, ...] = ()
     translated: set[str] = field(default_factory=set)
-    # (attribute name, sql text, lineno, is_index)
     rules: list[tuple[str, str, int, bool]] = field(default_factory=list)
 
 
@@ -100,7 +77,6 @@ def _is_translated_field(call: ast.Call) -> bool:
 
 
 def collect(tree: ast.Module) -> list[ClassInfo]:
-    """Everything one parsed file says about the models it defines or extends."""
     out = []
     for node in ast.walk(tree):
         if not (isinstance(node, ast.ClassDef) and _looks_like_model(node)):
@@ -147,12 +123,6 @@ def collect(tree: ast.Module) -> list[ClassInfo]:
 
 
 def resolve_translated(infos: list[ClassInfo]) -> dict[str, set[str]]:
-    """Translated fields per model, following ``_inherit`` to its fixed point.
-
-    A model's own declarations are merged with every parent's, transitively --
-    a constraint on a concrete model is just as broken when the column it names
-    was declared ``translate=True`` by a mixin two levels up.
-    """
     own: dict[str, set[str]] = {}
     parents: dict[str, set[str]] = {}
     for info in infos:
@@ -164,7 +134,7 @@ def resolve_translated(infos: list[ClassInfo]) -> dict[str, set[str]]:
     def walk(model: str, seen: frozenset[str]) -> set[str]:
         if model in resolved:
             return resolved[model]
-        if model in seen:  # _inherit cycles are legal enough to survive
+        if model in seen:
             return set()
         fields_ = set(own.get(model, ()))
         for parent in parents.get(model, ()):
@@ -188,11 +158,6 @@ def _columns(text: str, is_index: bool) -> tuple[str, ...]:
 
 
 def violations(units: list[tuple[str, list[ClassInfo]]]) -> Iterator[Violation]:
-    """Flag every UNIQUE rule naming a column that is translated.
-
-    A definition already going through ``->>`` is the fixed form and is left
-    alone; so is a column list that names nothing translated.
-    """
     translated = resolve_translated([info for _path, infos in units for info in infos])
     for path, infos in units:
         for info in infos:
@@ -207,7 +172,6 @@ def violations(units: list[tuple[str, list[ClassInfo]]]) -> Iterator[Violation]:
                     continue
                 columns = _columns(text, is_index)
                 if is_index:
-                    # a partial index carries a predicate; only the key matters
                     columns = tuple(
                         token
                         for column in columns

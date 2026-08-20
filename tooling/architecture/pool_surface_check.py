@@ -294,6 +294,18 @@ def check(files: list[tuple[Path, str]] | None = None) -> Report:
                 report.unknown_members.append(reach)
             if reach.is_private:
                 (report.known if _is_known(rel, attr) else report.new).append(reach)
+    # Refuse a scan that reached nothing rather than report the seam intact.
+    # `registry_members()` skips a missing REGISTRY_SOURCES file and
+    # `iter_scope_files()` yields nothing for an emptied tree, so an empty
+    # checkout printed "Registry surface intact. ✓" and exited 0 -- the exact
+    # failure `test_every_gate_refuses_an_empty_tree` exists to catch, which
+    # never saw it because the probe died on an import before reaching here.
+    # Layer 1 alone holds hundreds of reaches; zero has never held.
+    if files is None and not report.reaches:
+        raise SystemExit(
+            "pool_surface_check: no Registry reach found in any scoped file — "
+            "the scan found no inputs; refusing to report the seam intact."
+        )
     return report
 
 

@@ -21,13 +21,6 @@ FIX = (
 
 
 class TestTranslatedUnique(lint_case.LintCase):
-    """No UNIQUE may be declared over a translated column.
-
-    The floor is 0 and is meant to stay there: the 21 rules that were in this
-    state were fixed in the same series that added this gate, so there is no
-    debt for a new one to hide behind.
-    """
-
     def test_no_unique_over_a_translated_column(self):
         paths = [
             path
@@ -47,9 +40,6 @@ class TestTranslatedUnique(lint_case.LintCase):
             infos = checker.collect(tree)
             if not infos:
                 continue
-            # Test models are excluded from the *findings* but not from the
-            # inheritance map: a real model may take a translated field from a
-            # mixin that a test module also uses.
             models += len(infos)
             rules += sum(len(info.rules) for info in infos)
             units.append((path, infos))
@@ -60,8 +50,6 @@ class TestTranslatedUnique(lint_case.LintCase):
             len(units),
             rules,
         )
-        # A scan that reaches nothing reports success just as loudly as one that
-        # finds nothing, so pin that it actually ran.
         self.assertGreater(models, 1000, "the scan reached almost no models")
         self.assertGreater(rules, 100, "the scan found almost no constraints")
 
@@ -75,12 +63,6 @@ class TestTranslatedUnique(lint_case.LintCase):
 
 @no_retry
 class TestTranslatedUniqueChecker(BaseCase):
-    """The detector's own behaviour, so a gate that stops detecting is caught.
-
-    A whole-tree gate whose floor is 0 passes both when the tree is clean and
-    when the checker has quietly broken. These pin the difference.
-    """
-
     @staticmethod
     def _units(**sources):
         return [
@@ -153,7 +135,6 @@ class TestTranslatedUniqueChecker(BaseCase):
         self.assertEqual(found[0].columns, ("name",))
 
     def test_sees_a_field_translated_by_another_module(self):
-        """The cross-file case a per-file checker cannot reach."""
         found = self._findings(
             base="""
             class Tag(models.Model):
@@ -176,14 +157,14 @@ class TestTranslatedUniqueChecker(BaseCase):
     def test_sees_a_field_translated_by_an_inherited_mixin(self):
         found = self._findings(
             mixin="""
-            class CatalogMixin(models.AbstractModel):
-                _name = "catalog.mixin"
+            class MixinCatalog(models.AbstractModel):
+                _name = "mixin.catalog"
                 name = fields.Char(required=True, translate=True)
             """,
             concrete="""
             class Thing(models.Model):
                 _name = "a.thing"
-                _inherit = ["catalog.mixin"]
+                _inherit = ["mixin.catalog"]
                 _uniq = models.Constraint("unique(name, company_id)", "dupe")
             """,
         )

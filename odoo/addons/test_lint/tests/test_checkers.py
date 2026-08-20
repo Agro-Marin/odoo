@@ -294,6 +294,64 @@ class TestOrmImportLint(BaseCase):
     def test_string_mentioning_odoo_orm_is_not_an_import(self):
         self.assertFalse(self._check("DOC = 'see odoo.orm.fields for details'"))
 
+    def test_a_type_checking_import_is_not_a_runtime_dependency(self):
+        """The guidelines recommend exactly this form, and this rule flagged it.
+
+        §2.1 and ADR-0008 allow `odoo.orm` under `if TYPE_CHECKING:` -- it is how
+        a module annotates a `Query` without importing the ORM at run time --
+        and `layer_check.py` enforces the same rule over the core by skipping
+        those blocks. Both spellings of the guard, because both are in the tree.
+        """
+        for guard in ("TYPE_CHECKING", "typing.TYPE_CHECKING"):
+            with self.subTest(guard=guard):
+                self.assertFalse(
+                    self._check(f"""
+                    if {guard}:
+                        from odoo.orm.query import Query
+                        import odoo.orm.fields
+                    """)
+                )
+
+    def test_the_else_branch_of_a_type_checking_block_still_counts(self):
+        """`else:` under `if TYPE_CHECKING:` is the branch that runs."""
+        self.assertTrue(
+            self._check("""
+            if TYPE_CHECKING:
+                from odoo.orm.query import Query
+            else:
+                from odoo.orm.query import Query
+            """)
+        )
+
+    def test_a_negated_guard_is_the_runtime_branch(self):
+        self.assertTrue(
+            self._check("""
+            if not TYPE_CHECKING:
+                from odoo.orm.query import Query
+            """)
+        )
+
+    def test_the_exemption_reaches_a_nested_import(self):
+        self.assertFalse(
+            self._check("""
+            if TYPE_CHECKING:
+                try:
+                    from odoo.orm.query import Query
+                except ImportError:
+                    Query = object
+            """)
+        )
+
+    def test_an_unguarded_import_beside_a_guarded_one_is_still_flagged(self):
+        self.assertTrue(
+            self._check("""
+            import odoo.orm.fields
+
+            if TYPE_CHECKING:
+                from odoo.orm.query import Query
+            """)
+        )
+
 
 @no_retry
 class TestConfigChainmapPatchLint(BaseCase):

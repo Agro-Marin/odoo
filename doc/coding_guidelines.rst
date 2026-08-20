@@ -4,8 +4,8 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 5.20
-:Date: 2026-08-17
+:Version: 5.21
+:Date: 2026-08-19
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
 
@@ -552,7 +552,17 @@ Keys must come from the known set and appear in the canonical order
 1.3 File naming
 ---------------
 
-**One model per file** ``[review]``. The file name derives from the model's ``_name``.
+**One model per file** ``[review]``. A ``.py`` file under ``models/`` (or
+``wizards/``) declares **exactly one** model class — one ``models.Model``,
+``models.AbstractModel`` or ``models.TransientModel`` — and the file is named after
+that model's ``_name`` with the dots replaced by underscores. A second model class
+in the file is a second file, whatever its size; ``models/__init__.py`` imports them
+in dependency order. The rule holds for an *extension* too: a module that adds
+fields to ``sale.order`` under ``_inherit`` puts them in its own
+``models/sale_order.py``, named after the model it extends.
+
+Adoption across the tree is partial — apply the rule to files you create or
+substantially rework rather than splitting a file you are only passing through.
 
 .. list-table::
    :header-rows: 1
@@ -563,6 +573,9 @@ Keys must come from the known set and appear in the canonical order
    * - Model
      - ``models/{model_name}.py``
      - ``sale_order.py`` for ``sale.order``
+   * - Mixin
+     - ``models/{model_name}.py``
+     - ``mixin_mail_activity.py`` for ``mixin.mail.activity`` (§2.2.1)
    * - Views
      - ``views/{model_name}_views.xml``
      - ``sale_order_views.xml``
@@ -634,7 +647,7 @@ justify it.
    class SaleOrder(models.Model):
        _name = "sale.order"
        _description = "Sales Order"
-       _inherit = ["mail.thread", "mail.activity.mixin"]
+       _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
        _order = "date_order desc, id desc"
 
 Code is grouped under ``# UPPERCASE`` section banners, in this order ``[review]``:
@@ -698,6 +711,73 @@ passing through.
 Within ``# COMPUTE METHODS`` and ``# ONCHANGE METHODS``, define a method before the
 ones that consume its output; beyond that, group related methods. No strict
 ordering is mandated, and no tool checks it.
+
+2.2.1 Mixin naming
+~~~~~~~~~~~~~~~~~~
+
+**A mixin's ``_name`` begins with ``mixin.``** ``[review]``. A mixin is a
+``models.AbstractModel`` whose purpose is to be inherited *into* other models — it
+contributes fields and behaviour to a concrete model rather than existing on its
+own. Every one of them carries the marker as a **prefix**, and the rest of the name
+keeps the order it already had:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Vanilla Odoo / pre-5.16 fork
+     - This fork
+   * - ``mixin.mail.activity``
+     - ``mixin.mail.activity``
+   * - ``mixin.mail.thread``
+     - ``mixin.mail.thread``
+   * - ``mixin.portal``
+     - ``mixin.portal``
+   * - ``mixin.image``
+     - ``mixin.image``
+   * - ``mixin.order.line.stock``
+     - ``mixin.order.line.stock``
+
+The class name and the file name follow from ``_name`` by the ordinary rules
+(§1.3, §2.2) — no special case:
+
+.. code-block:: python
+
+   # models/mixin_mail_activity.py
+   class MixinMailActivity(models.AbstractModel):
+       _name = "mixin.mail.activity"
+       _description = "Activity Mixin"
+
+**Why a prefix and not the suffix.** The marker is only useful where the name is
+*read*, and a name is read from the left: in an ``_inherit`` list, in an
+``ir.model`` listing, in a traceback, in a grep. Sorted anywhere, every mixin
+sits in one block instead of scattering under the model it happens to extend. And
+a suffix has never been applied consistently: measured 2026-08-16, 104 of the 413
+abstract models across ``odoo``, ``enterprise`` and ``agromarin`` spell ``mixin``
+at all, and the ones that do not include ``mixin.mail.thread``, ``mixin.mail.thread.cc``,
+``mixin.mail.thread.blacklist``, ``mixin.mail.thread.phone`` and ``mixin.website.seo.metadata`` —
+mixins by every other measure. A marker whose absence tells you nothing is not a
+category, it is a habit. The prefix is the same fact stated where it can be
+relied on.
+
+**What is not a mixin**, and keeps its own name: an abstract model nothing
+inherits from. QWeb report models (``report.{module}.{report_name}``) and abstract
+service models are declared ``AbstractModel`` for want of a table, not to be mixed
+into anything.
+
+**Renaming one is a code change, not a data migration.** A mixin is abstract and
+therefore has no table; the only stored trace is its ``ir.model`` row (``abstract
+= True``) and any ``ir.model.data``, both of which the module update rewrites.
+What a rename must reach is ``_name`` and ``_description``, every ``_inherit``
+list naming it, the file name, and any XML, CSV or Python that carries the model
+string literally — ``self.env["…"]``, ``<field name="model">``, an
+``ir.model.access.csv`` row. Watch the **auto-generated ``ir.model`` XML id**,
+which is ``model_`` plus the ``_name`` with dots as underscores: renaming
+``mixin.mail.activity`` moves ``model_mixin_mail_activity`` to
+``model_mixin_mail_activity``, so every ``ref()`` of it moves with the model.
+Renaming an inherited *method* to fit §2.4 is still forbidden
+(Appendix C); renaming the model is not — the mixin is ours, and ``19.0-marin``
+owes upstream no compatibility (*Scope and precedence*).
 
 2.3 Field conventions
 ---------------------
@@ -3533,7 +3613,7 @@ human committed to has a single name across order types:
 ``sale.order.date_commitment`` already carried that meaning — the delivery date
 promised to the customer — while purchase spelled the vendor's promised arrival
 ``date_planned``. The two are the same concept, and shared code in ``base_order``
-can now name it once: ``order.mixin``'s ``is_late`` domain reads
+can now name it once: ``mixin.order``'s ``is_late`` domain reads
 ``date_commitment`` on both.
 
 **``date_planned`` still exists, and still means something else.** It is a
@@ -3584,6 +3664,12 @@ Flag these on sight; migrate opportunistically when you are already editing the 
    * - Commit tags ``[MIG]``, ``[CLA]``
      - ``ADD`` / ``REF`` on the migration script; ``REF`` on the licence change.
        Both described the *subject*, not the intent (§7.1)
+   * - Suffix mixin names (``mixin.mail.activity``), and abstract models that are
+       mixins but carry no marker at all (``mixin.mail.thread``)
+     - Prefix ``mixin.`` (§2.2.1) — read from the left, sorts as one block, and
+       applies to every mixin rather than to the ones somebody remembered
+   * - Two model classes in one ``models/*.py``
+     - One per file, named from ``_name`` (§1.3)
    * - Field ordering by type
      - Semantic blocks (§2.3)
    * - Method ordering by Spanish category
@@ -3627,6 +3713,25 @@ Appendix D — Document history
    * - Version
      - Date
      - Summary
+   * - 5.21
+     - 2026-08-19
+     - **Mixins are named ``mixin.<what they add>``** (§2.2.1, new), and §1.3's
+       "one model per file" now says what it means. The suffix it replaces was
+       never a category: of the 413 abstract models across the three repos, 104
+       spell ``mixin`` at all, and ``mixin.mail.thread``, ``mixin.mail.thread.cc``,
+       ``mixin.mail.thread.blacklist``, ``mixin.mail.thread.phone`` and
+       ``mixin.website.seo.metadata`` are mixins carrying no marker whatever — so the
+       absence of ``.mixin`` in a name told a reader nothing, which is the one
+       job a marker has. Moving it to the front puts it where a name is actually
+       read (``_inherit`` lists, tracebacks, ``ir.model``, grep) and sorts every
+       mixin into one block. The rename is a code change, not a data migration:
+       an abstract model has no table, so what it costs is the ``_inherit``
+       references, the file name and the XML/CSV that names the model string.
+       §1.3 gains the ``mixin_mail_activity.py`` row and states the file rule in
+       full — exactly one model class per file, named from ``_name`` with dots as
+       underscores, extensions under ``_inherit`` included, carrying the same
+       "apply it to what you rework" caveat §2.2 uses. Appendix C retires both
+       shapes.
    * - 5.20
      - 2026-08-17
      - **The task ID and the PR stop being mandatory.** §7.1's ``Task ID`` line,

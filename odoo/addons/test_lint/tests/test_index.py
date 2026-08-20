@@ -57,6 +57,25 @@ def leading_index_columns(model) -> set[str]:
     return columns
 
 
+def _declared_index_kinds(registry, model_name: str, field_name: str) -> list:
+    """Every `index=` this field was declared with, oldest declaration first.
+
+    A field assembled from several classes keeps one merged `Field` on the
+    registry, and the merged object only remembers the *winning* value. The
+    declarations themselves survive on the classes that made them, which is
+    where the question "did an override take something away" can still be asked.
+    """
+    kinds = []
+    for cls in reversed(getattr(registry[model_name], "_model_classes__", ())):
+        for field in getattr(cls, "_field_definitions", ()):
+            if field.name != field_name:
+                continue
+            args = getattr(field, "_args__", None)
+            if args is not None and "index" in args:
+                kinds.append(args["index"])
+    return kinds
+
+
 BTREE_INDEX_IGNORE_MODELS = {
     "res.company",
     "stock.warehouse",
@@ -133,3 +152,48 @@ class TestIndex(common.TransactionCase):
                 f"- if not sure -> 'btree_not_null': \n{'\n'.join(sorted(fields_to_index))}"
             )
             self.fail(msg)
+
+    def test_a_trigram_override_keeps_an_exact_match_index(self):
+        """Narrowing an inherited btree to a trigram takes `=` away silently.
+
+        A GIN/trigram index answers `ilike`; it cannot answer `=`, and the
+        planner falls back to a sequential scan for one. So a model that
+        overrides an inherited `index="btree_not_null"` with `index="trigram"`
+        does not *add* fuzzy search -- it trades exact match for it, for every
+        consumer of the field, none of which is at the override.
+
+        That is not hypothetical. `crm.lead` and `hr.applicant` both did it to
+        `email_normalized`, a field whose entire purpose is exact match, and the
+        mail gateway's per-message bounce sweep sequential-scanned both tables on
+        every inbound email -- 16.3 ms against 0.3 ms for `res.partner`, which
+        kept the mixin's index, measured on 300k rows.
+
+        Both indexes are usually wanted, so this does not forbid the override; it
+        requires the model to declare the btree it took away.
+        """
+        missing = []
+        for model_name in self.env.registry:
+            model = self.env[model_name]
+            if model._abstract or model._transient or not model._auto:
+                continue
+            compensated = None
+            for field in model._fields.values():
+                if not field.store or field.index != "trigram":
+                    continue
+                declared = _declared_index_kinds(
+                    self.env.registry, model_name, field.name
+                )
+                if not any(kind in BTREE_INDEX_PY_DEFS for kind in declared):
+                    continue
+                if compensated is None:
+                    compensated = leading_index_columns(model)
+                if field.name not in compensated:
+                    missing.append(f"{model_name}.{field.name} (declared {declared})")
+        if missing:
+            self.fail(
+                "These fields were declared with a btree index and overridden to "
+                "'trigram', which cannot serve `=`. Keep the override and add the "
+                "btree back as an explicit index on the model, e.g.\n"
+                "    _<field>_idx = models.Index("
+                '"(<field>) WHERE <field> IS NOT NULL")\n' + "\n".join(sorted(missing))
+            )
