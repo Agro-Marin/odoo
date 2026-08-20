@@ -1257,7 +1257,11 @@ class MixinMailThread(models.AbstractModel):
             include_followers=not notif_kwargs.get("notify_skip_followers"),
         )
         email_collector: list[dict] = []
-        email_prefetch = records._notify_by_email_prefetch(messages)
+        email_prefetch = (
+            records._notify_by_email_prefetch(messages)
+            if records._notify_batch_wants_email_prefetch(follower_data, values_list)
+            else {}
+        )
         for record, message, values in zip(records, messages, values_list, strict=True):
             record._message_post_after_hook(message, values)
             record._notify_thread(
@@ -1265,7 +1269,7 @@ class MixinMailThread(models.AbstractModel):
                 values,
                 follower_data={record.id: follower_data.get(record.id, {})},
                 email_collector=email_collector,
-                email_prefetch=email_prefetch[message.id],
+                email_prefetch=email_prefetch.get(message.id),
                 **notif_kwargs,
             )
         self._notify_by_email_flush(
@@ -1394,13 +1398,26 @@ class MixinMailThread(models.AbstractModel):
         for author_id, res_ids in res_ids_per_author.items():
             real_author = self._message_compute_real_author(author_id)
             if real_author and not real_author.partner_share:
-                self.browse(res_ids)._message_subscribe(partner_ids=[real_author.id])
+                self.browse(res_ids)._message_subscribe(
+                    partner_ids=[real_author.id], customer_ids=[]
+                )
+
+    def _notify_batch_wants_email_prefetch(
+        self, follower_data: dict, values_list: list[dict]
+    ) -> bool:
+        if any(
+            pdata["notif"] == "email"
+            for record_data in follower_data.values()
+            for pdata in record_data.values()
+        ):
+            return True
+        return any(values.get("outgoing_email_to") for values in values_list)
 
     def _notify_by_email_prefetch(self, messages: MailMessage) -> dict:
         ancestors = self._notify_by_email_get_ancestors(messages)
         TrackingValue = self.env["mail.tracking.value"].sudo()
-        tracking_values = TrackingValue.search(
-            [("mail_message_id", "in", messages.ids)]
+        tracking_values = TrackingValue.search_fetch(
+            [("mail_message_id", "in", messages.ids)], ["mail_message_id"]
         )
         tracking_ids_by_message = defaultdict(list)
         for tracking_value in tracking_values:
@@ -1949,7 +1966,11 @@ class MixinMailThread(models.AbstractModel):
             "mail.followers"
         ]._get_recipient_data(self, "user_notification", subtype_id, all_pids)
         email_collector: list[dict] = []
-        email_prefetch = self._notify_by_email_prefetch(messages)
+        email_prefetch = (
+            self._notify_by_email_prefetch(messages)
+            if self._notify_batch_wants_email_prefetch(follower_data, values_list)
+            else {}
+        )
         for message, msg_values, notified in zip(
             messages, values_list, notified_records, strict=True
         ):
@@ -1964,7 +1985,7 @@ class MixinMailThread(models.AbstractModel):
                 msg_values,
                 follower_data={notified.id: record_data},
                 email_collector=email_collector,
-                email_prefetch=email_prefetch[message.id],
+                email_prefetch=email_prefetch.get(message.id),
                 **notif_kwargs,
             )
         self._notify_by_email_flush(
@@ -2565,12 +2586,13 @@ class MixinMailThread(models.AbstractModel):
             followers = (
                 self.env["mail.followers"]
                 .sudo()
-                .search(
+                .search_fetch(
                     [
                         ("res_model", "=", message.model),
                         ("res_id", "=", message.res_id),
                         ("partner_id", "in", users.partner_id.ids),
-                    ]
+                    ],
+                    ["res_model", "res_id", "partner_id"],
                 )
             )
             starred_pids = self._notify_inbox_get_starred_pids(
@@ -4633,12 +4655,13 @@ class MixinMailThread(models.AbstractModel):
             "scheduled": defaultdict(lambda: self.env["mail.scheduled.message"]),
         }
         if "followers" in request_list:
-            for follower in self.env["mail.followers"].search(
+            for follower in self.env["mail.followers"].search_fetch(
                 [
                     ("res_id", "in", self.ids),
                     ("res_model", "=", self._name),
                     ("partner_id", "=", self.env.user.partner_id.id),
-                ]
+                ],
+                ["res_id"],
             ):
                 res["self_follower"][follower.res_id] = follower
             res["followers"] = self._message_followers_to_store_batch(store)
@@ -4652,8 +4675,8 @@ class MixinMailThread(models.AbstractModel):
         if "attachments" in request_list:
             res["attachments"] = self._get_mail_thread_data_attachments()
         if "scheduledMessages" in request_list:
-            for scheduled in self.env["mail.scheduled.message"].search(
-                [("model", "=", self._name), ("res_id", "in", self.ids)]
+            for scheduled in self.env["mail.scheduled.message"].search_fetch(
+                [("model", "=", self._name), ("res_id", "in", self.ids)], ["res_id"]
             ):
                 res["scheduled"][scheduled.res_id] |= scheduled
         return res

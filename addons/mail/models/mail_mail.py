@@ -1325,7 +1325,7 @@ class MailMail(models.Model):
                 if not (post_send_callback and post_send_callback([mail_id])):
                     self.env.cr.commit()
         if batch.deferred_auto_delete:
-            self.browse(batch.deferred_auto_delete).sudo().exists().unlink()
+            self.browse(batch.deferred_auto_delete).sudo().unlink()
         if post_send_callback:
             post_send_callback(self.ids, final=True)
         return True

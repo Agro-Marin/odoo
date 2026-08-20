@@ -158,7 +158,10 @@ class MailMessage(models.Model):
         schedulers = (
             self.env["mail.message.schedule"]
             .sudo()
-            .search([("mail_message_id", "in", self.ids)])
+            .search_fetch(
+                [("mail_message_id", "in", self.ids)],
+                ["mail_message_id", "scheduled_datetime"],
+            )
         )
         return {
             scheduler.mail_message_id.id: scheduler.scheduled_datetime
@@ -205,7 +208,11 @@ class MailMessage(models.Model):
                 )
             )
             domain &= Domain("partner_id", "=", target_user.partner_id.id)
-            followers = self.env["mail.followers"].sudo().search(domain)
+            followers = (
+                self.env["mail.followers"]
+                .sudo()
+                .search_fetch(domain, ["res_model", "res_id", "partner_id"])
+            )
         follower_by_record_and_partner = {
             (
                 self.env[follower.res_model].browse(follower.res_id),

@@ -1,26 +1,26 @@
-# -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import base64
 import json
-
 from datetime import UTC, datetime, timedelta
-from freezegun import freeze_time
 from itertools import product
-from markupsafe import escape, Markup
 from unittest.mock import patch
 
+from freezegun import freeze_time
+from markupsafe import Markup, escape
+
 from odoo import tools
+from odoo.exceptions import AccessError
+from odoo.service.model import call_kw
+from odoo.tests import tagged
+from odoo.tests.common import users
+from odoo.tools import formataddr, mute_logger
+
 from odoo.addons.base.tests.test_ir_cron import CronMixinCase
-from odoo.addons.mail.tests.common import mail_new_test_user, MailCommon
+from odoo.addons.mail.tests.common import MailCommon, mail_new_test_user
 from odoo.addons.test_mail.data.test_mail_data import MAIL_TEMPLATE_PLAINTEXT
 from odoo.addons.test_mail.models.test_mail_models import MailTestSimple
 from odoo.addons.test_mail.tests.common import TestRecipients
-from odoo.service.model import call_kw
-from odoo.exceptions import AccessError
-from odoo.tests import tagged
-from odoo.tools import mute_logger, formataddr
-from odoo.tests.common import users
 
 
 class TestMessagePostCommon(MailCommon, TestRecipients):
@@ -735,7 +735,7 @@ class TestMessageNotify(TestMessagePostCommon):
         model_name = self.env["ir.model"].sudo()._get(test_records._name).name
         for test_record in test_records:
             assign_notif = self._new_msgs.filtered(
-                lambda msg: (
+                lambda msg, test_record=test_record: (
                     msg.message_type == "user_notification"
                     and msg.res_id == test_record.id
                 )
@@ -960,7 +960,7 @@ class TestMessageLog(TestMessagePostCommon):
                     for test_record in test_records
                 },
             )
-        for test_record, new_note in zip(test_records, new_notes):
+        for test_record, new_note in zip(test_records, new_notes, strict=True):
             self.assertMailNotifications(
                 new_note,
                 [
@@ -1009,7 +1009,7 @@ class TestMessageLog(TestMessagePostCommon):
                 },
                 partner_ids=self.test_partners[:5].ids,
             )
-        for test_record, new_note in zip(test_records, new_notes):
+        for test_record, new_note in zip(test_records, new_notes, strict=True):
             self.assertMailNotifications(
                 new_note,
                 [
@@ -1053,7 +1053,7 @@ class TestMessageLog(TestMessagePostCommon):
                 "test_mail.mail_template_simple_test",
                 render_values={"partner": self.user_employee.partner_id},
             )
-        for test_record, new_note in zip(test_records, new_notes):
+        for test_record, new_note in zip(test_records, new_notes, strict=True):
             self.assertMailNotifications(
                 new_note,
                 [
@@ -1480,7 +1480,7 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
             self.mail_alias_domain_c2,
         ]
         for record, expected_company, expected_alias_domain in zip(
-            records, expected_companies, expected_alias_domains
+            records, expected_companies, expected_alias_domains, strict=True
         ):
             with self.subTest(record=record):
                 with self.assertSinglePostNotifications(
@@ -1508,6 +1508,7 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
                             ),
                             "is_internal": False,
                             "notified_partner_ids": self.partner_employee_2,
+                            "record_company_id": expected_company,
                             "reply_to": formataddr(
                                 (
                                     self.user_erp_manager.name,
@@ -1556,7 +1557,7 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
             [],
         ]
 
-        for partner_email, expected_to in zip(partner_emails, expected_tos):
+        for partner_email, expected_to in zip(partner_emails, expected_tos, strict=True):
             with self.subTest(partner_email=partner_email, expected_to=expected_to):
                 self.partner_1.write({"email": partner_email})
                 with self.mock_mail_gateway():
@@ -1700,7 +1701,7 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
 
         # check notifications have been sent
         for msg, test_record, test_record_name in zip(
-            messages, test_records, test_record_names
+            messages, test_records, test_record_names, strict=True
         ):
             with self.subTest(test_record_name=test_record_name):
                 if test_record != deleted_record:
@@ -2049,16 +2050,14 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
         )
         self.assertEqual(set(msg.attachment_ids.mapped("res_id")), {test_record.id})
         self.assertEqual(
-            set(base64.b64decode(x) for x in msg.attachment_ids.mapped("datas")),
-            set(
-                [
-                    b"AttContent_00",
-                    b"AttContent_01",
-                    b"AttContent_02",
-                    _attachments[0][1],
-                    _attachments[1][1],
-                ]
-            ),
+            {base64.b64decode(x) for x in msg.attachment_ids.mapped("datas")},
+            {
+                b"AttContent_00",
+                b"AttContent_01",
+                b"AttContent_02",
+                _attachments[0][1],
+                _attachments[1][1],
+            },
         )
         self.assertTrue(
             set(_attachment_records.ids).issubset(msg.attachment_ids.ids),
@@ -2658,7 +2657,7 @@ class TestMessagePost(TestMessagePostCommon, CronMixinCase):
                 self.assertEqual(ooo_messages.author_id, exp_ooo_authors)
                 for ooo_author in exp_ooo_authors:
                     ooo_message = ooo_messages.filtered(
-                        lambda m: m.author_id == ooo_author
+                        lambda m, ooo_author=ooo_author: m.author_id == ooo_author
                     )
                     self.assertMailNotifications(
                         ooo_message,
@@ -3314,6 +3313,65 @@ class TestMessageNotifyBatchCost(TestMessagePostCommon):
         )
 
 
+@tagged("mail_post")
+class TestNotifyBatchEmailPrefetch(TestMessagePostCommon):
+    """A batch nobody receives by email must not prefetch email data.
+
+    `_notify_by_email_prefetch` reads a batch's References ancestors and its
+    tracking values once, so the per-record notify loop does not read them per
+    record. Both are consumed only inside `_notify_by_email_prepare`, which
+    returns immediately when no recipient has ``notif == "email"`` -- so an
+    inbox-only batch paid two queries for a result nothing read.
+
+    Asserted on the call, not on a query budget. The email variant also creates,
+    sends and unlinks a `mail.mail`, so it is dearer than the inbox one by far
+    more than the prefetch whether or not the prefetch is gated: a differential
+    budget would pass on the ungated code and prove nothing. Counting the calls
+    also pins that the prefetch stays one per batch rather than one per record.
+    """
+
+    def _prefetch_calls_posting_to(self, partner):
+        records = self.env["mail.test.simple"].create(
+            [{"name": f"Batch {index}"} for index in range(5)]
+        )
+        records.message_subscribe(partner_ids=partner.ids)
+        self.env.flush_all()
+
+        calls = []
+        Thread = self.registry["mixin.mail.thread"]
+        original = Thread._notify_by_email_prefetch
+
+        def traced(records_self, messages):
+            calls.append(len(messages))
+            return original(records_self, messages)
+
+        with (
+            patch.object(Thread, "_notify_by_email_prefetch", traced),
+            self.mock_mail_gateway(),
+        ):
+            records._message_post_batch(
+                {record.id: f"<p>body {record.id}</p>" for record in records},
+                subtype_id=self.env.ref("mail.mt_comment").id,
+                message_type="comment",
+            )
+        self.env.flush_all()
+        return calls
+
+    def test_an_inbox_only_batch_does_not_prefetch_email_data(self):
+        self.assertEqual(
+            self._prefetch_calls_posting_to(self.partner_employee),
+            [],
+            "nobody receives this batch by email, so nothing should be prefetched",
+        )
+
+    def test_a_batch_with_an_email_recipient_prefetches_once(self):
+        self.assertEqual(
+            self._prefetch_calls_posting_to(self.partner_employee_2),
+            [5],
+            "one prefetch for the whole batch, not one per record",
+        )
+
+
 @tagged("mail_post", "multi_lang")
 class TestMessagePostLang(MailCommon, TestRecipients):
     @classmethod
@@ -3400,8 +3458,8 @@ class TestMessagePostLang(MailCommon, TestRecipients):
                 # expected languages: content depend on template (lang field) aka
                 # customer.lang or record.lang (see template); notif lang is
                 # partner lang or default DB lang
-                exp_content_lang = partner.lang if partner.lang else "es_ES"
-                exp_notif_lang = partner.lang if partner.lang else "en_US"
+                exp_content_lang = partner.lang or "es_ES"
+                exp_notif_lang = partner.lang or "en_US"
 
                 if partner:
                     customer = partner
@@ -3517,7 +3575,9 @@ class TestMessagePostLang(MailCommon, TestRecipients):
             "Template usage should have created a contact based on record email",
         )
 
-        for record, customer in zip(test_records, record0_customer + self.partner_2):
+        for record, customer in zip(
+            test_records, record0_customer + self.partner_2, strict=True
+        ):
             customer_email = self._find_sent_email_wemail(customer.email_formatted)
             self.assertTrue(customer_email)
             body = customer_email["body"]
@@ -3609,6 +3669,7 @@ class TestMessagePostLang(MailCommon, TestRecipients):
             test_records,
             record0_customer + self.partner_2,
             ("en_US", "es_ES"),  # new customer is en_US, partner_2 is es_ES
+            strict=True,
         ):
             customer_email = self._find_sent_email_wemail(customer.email_formatted)
             self.assertTrue(customer_email)
@@ -3788,7 +3849,9 @@ class TestMessagePostLang(MailCommon, TestRecipients):
                         # is not tested against translations, only the custom one
                         # to ease translations checks.
                         for partner, exp_lang in zip(
-                            self.partner_1 + self.partner_2, ("en_US", "es_ES")
+                            self.partner_1 + self.partner_2,
+                            ("en_US", "es_ES"),
+                            strict=True,
                         ):
                             email = self._find_sent_email(
                                 self.partner_employee.email_formatted,
@@ -3816,9 +3879,8 @@ class TestMessagePostLang(MailCommon, TestRecipients):
                                 else:
                                     self.assertIn(exp_layout_content_en, email["body"])
                                     self.assertIn(exp_button_en, email["body"])
+                            # check default layouting applies
+                            elif exp_lang == "es_ES":
+                                self.assertIn('html lang="es_ES"', email["body"])
                             else:
-                                # check default layouting applies
-                                if exp_lang == "es_ES":
-                                    self.assertIn('html lang="es_ES"', email["body"])
-                                else:
-                                    self.assertIn('html lang="en_US"', email["body"])
+                                self.assertIn('html lang="en_US"', email["body"])
