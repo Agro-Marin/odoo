@@ -10,6 +10,7 @@ import {
 } from "@odoo/hoot";
 
 import { patchBrowserLocation, patchBrowserStorage } from "./mock_browser.hoot.js";
+import { isolateLocalizationCache } from "./mock_localization_cache.hoot.js";
 import { setupTestEnvironment } from "./module_set.hoot.js";
 
 /**
@@ -86,6 +87,9 @@ setupTestEnvironment();
 
 patchBrowserLocation();
 patchBrowserStorage();
+// IndexedDB is real here and outlives every test, so a translations cache
+// written by one test is read by the next -- see mock_localization_cache.hoot.js.
+isolateLocalizationCache();
 
 /**
  * Disarm the module loader's production asset-recovery reload for the whole run.
