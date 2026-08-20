@@ -1,5 +1,6 @@
 import logging
 import typing
+from collections.abc import Iterable
 from typing import Literal, NamedTuple, Self
 
 from odoo import _, api, exceptions, fields, models
@@ -289,6 +290,17 @@ class MailAliasDomain(models.Model):
     @api.model
     def _get_default_from_emails(self) -> tuple[str, ...]:
         return self._get_config().default_from_emails
+
+    @api.model
+    def _get_company_for_catchall_emails(self, emails: Iterable[str]) -> ResCompany:
+        """Company owning the alias domain whose catchall is one of ``emails``."""
+        wanted = {email for email in emails if email}
+        if not wanted:
+            return self.env["res.company"]
+        for domain in self.browse(self._get_config().ids).sudo():
+            if domain.catchall_email in wanted and domain.company_ids:
+                return domain.company_ids[:1]
+        return self.env["res.company"]
 
     @api.model
     def _get_allowed_domains(self) -> frozenset[str]:

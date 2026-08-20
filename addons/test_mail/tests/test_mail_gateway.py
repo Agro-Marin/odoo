@@ -1883,6 +1883,34 @@ class TestMailgateway(MailGatewayCommon):
         "odoo.addons.mail.models.mixin_mail_gateway",
         "odoo.models",
     )
+    def test_message_route_write_to_catchall_uses_the_written_to_company(self):
+        """A bounce speaks for the company whose catchall was written to."""
+        other_company = self.env["res.company"].create(
+            {"name": "Second Co", "email": "contact@second.example.com"}
+        )
+        other_domain = self.env["mail.alias.domain"].create(
+            {"name": "second.example.com", "catchall_alias": "catchall"}
+        )
+        other_company.alias_domain_id = other_domain
+        self.assertEqual(other_domain.company_ids[:1], other_company)
+        self.assertNotEqual(self.env.company, other_company)
+
+        with self.mock_mail_gateway():
+            record = self.format_and_process(
+                MAIL_TEMPLATE,
+                self.partner_1.email_formatted,
+                f'"Their Catchall" <{other_domain.catchall_email}>',
+                subject="Should Bounce For Second Co",
+            )
+        self.assertFalse(record)
+        bounce = self._new_mails[0]
+        self.assertIn(
+            other_company.name,
+            bounce.body_html,
+            "the bounce must name the company owning the catchall written to",
+        )
+        self.assertEqual(bounce.reply_to, other_company.email)
+
     def test_message_route_write_to_catchall_other_recipients_first(self):
         """Writing directly to catchall and a valid alias should take alias"""
         # Test: no group created, email bounced

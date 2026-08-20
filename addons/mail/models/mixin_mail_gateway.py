@@ -689,18 +689,29 @@ class MixinMailGateway(models.AbstractModel):
     def _route_bounce_catchall(
         self, message: EmailMessage, message_dict: dict
     ) -> list[Route]:
-        body = self.env["ir.qweb"]._render(
+        email_to_list = [
+            email_normalize(email) or email for email in email_split(message_dict["to"])
+        ]
+        company = (
+            self.env["mail.alias.domain"]._get_company_for_catchall_emails(
+                email_to_list
+            )
+            or self.env.company
+        )
+        self_company = self.with_company(company)
+        body = self_company.env["ir.qweb"]._render(
             "mail.mail_bounce_catchall",
             {
                 "message": message_dict,
+                "res_company": company,
             },
         )
-        self._routing_create_bounce_email(
+        self_company._routing_create_bounce_email(
             message_dict["email_from"],
             body,
             message,
             references=self._routing_bounce_references(message_dict),
-            reply_to=self.env.company.email,
+            reply_to=company.email,
         )
         return []
 
@@ -932,7 +943,7 @@ class MixinMailGateway(models.AbstractModel):
         route = self._routing_check_route(
             message,
             message_dict,
-            Route(reply_model, reply_thread_id, custom_values, user_id, dest_aliases),
+            Route(reply_model, reply_thread_id, None, user_id, dest_aliases),
             raise_exception=False,
         )
         if isinstance(route, Route):
@@ -943,7 +954,7 @@ class MixinMailGateway(models.AbstractModel):
                 message_dict["message_id"],
                 reply_model,
                 reply_thread_id,
-                custom_values,
+                None,
                 self.env.uid,
             )
             return [route]
@@ -1162,7 +1173,11 @@ class MixinMailGateway(models.AbstractModel):
                 "Undeliverable mail with Message-Id %s, model %s does not accept incoming emails"
                 % (message_dict["message_id"], model)
             )
-        ModelCtx = Model.with_user(related_user).sudo()
+        ModelCtx = Model
+        if alias:
+            if self.env.is_system():
+                ModelCtx = Model.with_user(related_user)
+            ModelCtx = ModelCtx.sudo()
         if thread_id:
             thread = ModelCtx.browse(thread_id)
             thread.message_update(message_dict)
