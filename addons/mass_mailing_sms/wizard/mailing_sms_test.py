@@ -50,7 +50,7 @@ class MailingSmsTest(models.TransientModel):
         body = self.mailing_id.body_plaintext
         if record:
             # Returns a proper error if there is a syntax error with qweb
-            body = self.env['mail.render.mixin']._render_template(body, self.mailing_id.mailing_model_real, record.ids)[record.id]
+            body = self.env['mixin.mail.render']._render_template(body, self.mailing_id.mailing_model_real, record.ids)[record.id]
         # create and send SMS for valid numbers (skip other, likely to crash)
         sms_values_list, trace_values_list = [], []
         for sanitized_number in valid_numbers:

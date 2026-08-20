@@ -217,7 +217,7 @@
                                 invisible="1"
                                 readonly="state != 'draft'" force_save="1"/>
                             <field class="text-break" name="subject"
-                                options="{'dynamic_placeholder': true, 'dynamic_placeholder_model_reference_field': 'mailing_model_real'}"
+                                options="{'dynamic_placeholder': true}"
                                 readonly="state in ('sending', 'done')"
                                 widget="char_emojis" placeholder="e.g. New Sale on all T-shirts"/>
                             <label for="mailing_model_id" string="Recipients"/>
@@ -264,7 +264,6 @@
                                         options="{
                                             'inline_field': 'body_html',
                                             'dynamic_placeholder': true,
-                                            'dynamic_placeholder_model_reference_field': 'mailing_model_real',
                                         }" readonly="state in ('sending', 'done')"/>
                                     <field name="is_body_empty" invisible="1"/>
                                 </div>
@@ -322,7 +321,7 @@
                                 <group>
                                     <group string="Email Content" name="email_content" invisible="mailing_type != 'mail'">
                                         <field class="o_text_overflow" name="preview" string="Preview Text"
-                                            options="{'dynamic_placeholder': true, 'dynamic_placeholder_model_reference_field': 'mailing_model_real'}"
+                                            options="{'dynamic_placeholder': true}"
                                             readonly="state in ('sending', 'done')"
                                             widget="char_emojis" placeholder="e.g. Check it out before it's too late!"/>
                                         <field name="email_from" readonly="state in ('sending', 'done')"/>

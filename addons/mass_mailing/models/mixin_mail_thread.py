@@ -9,10 +9,10 @@ from odoo import _, api, fields, models, tools
 BLACKLIST_MAX_BOUNCED_LIMIT = 5
 
 
-class MailThread(models.AbstractModel):
-    """Update MailThread to add the support of bounce management in mass mailing traces."""
+class MixinMailThread(models.AbstractModel):
+    """Update MixinMailThread to add the support of bounce management in mass mailing traces."""
 
-    _inherit = "mail.thread"
+    _inherit = "mixin.mail.thread"
 
     @api.model
     def _message_route_process(self, message, message_dict, routes):
@@ -39,7 +39,7 @@ class MailThread(models.AbstractModel):
         # avoid having message send through `message_post*` methods being implicitly considered as
         # mass-mailing
         return super(
-            MailThread,
+            MixinMailThread,
             self.with_context(
                 default_mass_mailing_name=False,
                 default_mass_mailing_id=False,
@@ -50,7 +50,7 @@ class MailThread(models.AbstractModel):
         # avoid having message send through `message_post*` methods being implicitly considered as
         # mass-mailing
         return super(
-            MailThread,
+            MixinMailThread,
             self.with_context(
                 default_mass_mailing_name=False,
                 default_mass_mailing_id=False,
@@ -115,7 +115,7 @@ class MailThread(models.AbstractModel):
     def message_new(self, msg_dict, custom_values=None):
         defaults = {}
 
-        if isinstance(self, self.pool["utm.mixin"]):
+        if isinstance(self, self.pool["mixin.utm"]):
             thread_references = msg_dict.get("references", "") or msg_dict.get(
                 "in_reply_to", ""
             )

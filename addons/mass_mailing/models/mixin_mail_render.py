@@ -3,8 +3,8 @@
 from odoo import api, models
 
 
-class MailRenderMixin(models.AbstractModel):
-    _inherit = "mail.render.mixin"
+class MixinMailRender(models.AbstractModel):
+    _inherit = "mixin.mail.render"
 
     @api.model
     def _render_template_postprocess(self, model, rendered):

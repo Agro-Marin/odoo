@@ -70,7 +70,7 @@ class SmsComposer(models.TransientModel):
         if self.mailing_id:
             tracker_values = self.mailing_id._get_link_tracker_values()
             for sms_id, body in all_bodies.items():
-                body = self.env['mail.render.mixin'].sudo()._shorten_links_text(body, tracker_values)
+                body = self.env['mixin.mail.render'].sudo()._shorten_links_text(body, tracker_values)
                 all_bodies[sms_id] = body
         return all_bodies
 

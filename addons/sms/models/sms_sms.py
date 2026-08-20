@@ -162,7 +162,11 @@ class SmsSms(models.Model):
         self.env['ir.cron']._commit_progress(len(records), remaining=self.search_count(domain) if len(records) == batch_size else 0)
 
     def _get_send_batch_size(self):
-        return int(self.env['ir.config_parameter'].sudo().get_param('sms.session.batch.size', 500))
+        # guarded: this number is handed to an SQL LIMIT in _process_queue and to
+        # itertools.batched in _split_batch, and neither survives a zero, a
+        # negative or a value that is not a number at all -- the bare int() this
+        # replaces raised ValueError straight out of the queue cron
+        return self.env['ir.config_parameter']._get_positive_int_param('sms.session.batch.size', 500)
 
     def _get_sms_company(self):
         return self.mail_message_id.record_company_id or self.env.company

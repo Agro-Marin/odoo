@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from odoo.tests import tagged
 
-from odoo.addons.sms.models.mail_thread import MailThread
+from odoo.addons.sms.models.mixin_mail_thread import MixinMailThread
 from odoo.addons.sms.tests.common import SMSCase, SMSCommon
 
 
@@ -48,7 +48,7 @@ class TestSMSComposerComment(SMSCommon, SMSCase):
         """Check that the rendering of the sms notification is identical to the sms.
 
         The only expected difference is that links are converted to be clickable.
-        The test verifies that MailThread._message_sms() works as expected."""
+        The test verifies that MixinMailThread._message_sms() works as expected."""
         # Cases are formatted as sms text, expected notification body
         cases = [
             (
@@ -75,7 +75,7 @@ class TestSMSComposerComment(SMSCommon, SMSCase):
                     composer = self.env['sms.composer'].with_context(
                         active_model='res.partner', active_id=self.partner_employee).create({'body': sms_content})
                     _message_sms_patch = patch.object(
-                        MailThread, '_message_sms', autospec=True, side_effect=MailThread._message_sms)
+                        MixinMailThread, '_message_sms', autospec=True, side_effect=MixinMailThread._message_sms)
                     with self.mockSMSGateway(), _message_sms_patch as _patched_message_sms:
                         messages = composer._action_send_sms()
                         _patched_message_sms.assert_called()  # make sure we're testing `_message_sms` too

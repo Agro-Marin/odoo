@@ -2,6 +2,8 @@
 
 from odoo import api, fields, models
 
+from odoo.addons.mail.tools.failure_type import DELIVERY_FAILURE_TYPES
+
 
 class MailingTrace(models.Model):
     """MailingTrace models the statistics collected about emails. Those statistics
@@ -107,22 +109,7 @@ class MailingTrace(models.Model):
         default="outgoing",
     )
     failure_type = fields.Selection(
-        selection=[
-            # generic
-            ("unknown", "Unknown error"),
-            # mail
-            ("mail_bounce", "Bounce"),
-            ("mail_spam", "Detected As Spam"),
-            ("mail_email_invalid", "Invalid email address"),
-            ("mail_email_missing", "Missing email address"),
-            ("mail_from_invalid", "Invalid from address"),
-            ("mail_from_missing", "Missing from address"),
-            ("mail_smtp", "Connection failed (outgoing mail server problem)"),
-            # mass mode
-            ("mail_bl", "Blacklisted Address"),
-            ("mail_dup", "Duplicated Email"),
-            ("mail_optout", "Opted Out"),
-        ],
+        selection=DELIVERY_FAILURE_TYPES,
         string="Failure type",
     )
     failure_reason = fields.Text("Failure reason", copy=False, readonly=True)

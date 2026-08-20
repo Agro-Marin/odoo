@@ -121,7 +121,9 @@ class MailingList(models.Model):
                 AND list_sub.list_id = ANY(%s)
                 GROUP BY list_sub.list_id
             """
-            self.env.cr.execute(sql, (tuple(self.ids),))
+            # a list, like the two sibling queries above: `= ANY` binds an
+            # array, and a tuple adapts to a composite instead
+            self.env.cr.execute(sql, (list(self.ids),))
             bounce_per_mailing = dict(self.env.cr.fetchall())
 
         # 3. Compute and assign all counts / pct fields
@@ -345,7 +347,10 @@ class MailingList(models.Model):
                     )
                 ) st
             WHERE st.rn = 1;""",
-            (self.id, tuple(src_lists.ids), self.id),
+            # a list, not a tuple: `= ANY` binds an array, and psycopg 3 adapts
+            # a tuple to a composite instead -- `malformed array literal:
+            # "(2,3,4)"` -- so every merge raised. `.ids` is already a list.
+            (self.id, src_lists.ids, self.id),
         )
         self.env.invalidate_all()
         if archive:

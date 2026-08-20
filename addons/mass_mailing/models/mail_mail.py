@@ -130,7 +130,12 @@ class MailMail(models.Model):
         return email_list
 
     def _postprocess_sent_message(
-        self, success_pids, success_emails, failure_reason=False, failure_type=None
+        self,
+        success_partners,
+        success_emails,
+        failure_reason=False,
+        failure_type=None,
+        **kwargs,
     ):
         if failure_type:  # we consider that a recipient error is a failure with mass mailing and show them as failed
             self.filtered("mailing_id").mailing_trace_ids.set_failed(
@@ -138,11 +143,12 @@ class MailMail(models.Model):
             )
         else:
             self.filtered("mailing_id").mailing_trace_ids.set_sent()
-        return super()._postprocess_sent_message(
-            success_pids,
+        super()._postprocess_sent_message(
+            success_partners,
             success_emails,
             failure_reason=failure_reason,
             failure_type=failure_type,
+            **kwargs,
         )
 
     @api.autovacuum

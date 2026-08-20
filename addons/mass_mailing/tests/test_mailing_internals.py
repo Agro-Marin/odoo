@@ -17,6 +17,11 @@ from odoo.tools import mute_logger
 from odoo.addons.base.tests.test_ir_cron import CronMixinCase
 from odoo.addons.mass_mailing.tests.common import MassMailCommon
 
+# A real 1x1 PNG, 92 characters and padded. Tests that want several distinct
+# images prefix a four-digit counter rather than appending one: appending runs
+# past the "=" padding, and anything longer than a single digit there is not
+# decodable base64 at all -- which is how images 10 to 17 below came to be
+# undecodable, and `mailing.mailing.create` to raise on this test's own fixture.
 BASE_64_STRING = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 
 
@@ -94,6 +99,32 @@ class TestMassMailValues(MassMailCommon):
         )
 
     @users("user_marketing")
+    def test_mailing_body_keeps_an_undecodable_inline_image(self):
+        """A body is pasted from arbitrary sources, so a mangled data: URI is an
+        ordinary thing to receive. It used to raise binascii.Error out of
+        `create`, so one truncated image lost the whole mailing.
+        """
+        # two characters past the "=" padding: b64decode refuses this outright,
+        # where a single one is silently tolerated
+        broken = BASE_64_STRING + "10"
+        mailing = self.env["mailing.mailing"].create({
+            "name": "Test",
+            "subject": "Test",
+            "state": "draft",
+            "mailing_model_id": self.env["ir.model"]._get("res.partner").id,
+            "body_html": (
+                f'<div><img src="data:image/png;base64,0000{BASE_64_STRING}">'
+                f'<img src="data:image/png;base64,{broken}"></div>'
+            ),
+        })
+        body = str(mailing.body_html)
+        self.assertIn(
+            "/web/image/", body, "the image that does decode is still converted"
+        )
+        self.assertIn(
+            broken, body, "the one that does not is left exactly as it arrived"
+        )
+
     def test_mailing_body_inline_image(self):
         """Testing mail mailing base64 image conversion to attachment.
 
@@ -131,27 +162,27 @@ class TestMassMailValues(MassMailCommon):
                     "mailing_model_id": self.env["ir.model"]._get("res.partner").id,
                     "body_html": f"""
                         <section>
-                            <img src="data:image/png;base64,{BASE_64_STRING}0">
-                            <img src="data:image/jpg;base64,{BASE_64_STRING}1">
-                            <div style='color: red; background-image:url("data:image/jpg;base64,{BASE_64_STRING}2"); display: block;'/>
-                            <div style="color: red; background-image:url('data:image/jpg;base64,{BASE_64_STRING}3'); display: block;"/>
-                            <div style="color: red; background-image:url(&quot;data:image/jpg;base64,{BASE_64_STRING}4&quot;); display: block;"/>
-                            <div style="color: red; background-image:url(&#34;data:image/jpg;base64,{BASE_64_STRING}5&#34;); display: block;"/>
-                            <div style="color: red; background-image:url(data:image/jpg;base64,{BASE_64_STRING}6); display: block;"/>
-                            <div style="color: red; background-image: url(data:image/jpg;base64,{BASE_64_STRING}7); background: url('data:image/jpg;base64,{BASE_64_STRING}8'); display: block;"/>
+                            <img src="data:image/png;base64,0000{BASE_64_STRING}">
+                            <img src="data:image/jpg;base64,0001{BASE_64_STRING}">
+                            <div style='color: red; background-image:url("data:image/jpg;base64,0002{BASE_64_STRING}"); display: block;'/>
+                            <div style="color: red; background-image:url('data:image/jpg;base64,0003{BASE_64_STRING}'); display: block;"/>
+                            <div style="color: red; background-image:url(&quot;data:image/jpg;base64,0004{BASE_64_STRING}&quot;); display: block;"/>
+                            <div style="color: red; background-image:url(&#34;data:image/jpg;base64,0005{BASE_64_STRING}&#34;); display: block;"/>
+                            <div style="color: red; background-image:url(data:image/jpg;base64,0006{BASE_64_STRING}); display: block;"/>
+                            <div style="color: red; background-image: url(data:image/jpg;base64,0007{BASE_64_STRING}); background: url('data:image/jpg;base64,0008{BASE_64_STRING}'); display: block;"/>
                             <!--[if mso]>
-                                <img src="data:image/png;base64,{BASE_64_STRING}9">Fake url, in text: img src="data:image/png;base64,{BASE_64_STRING}"
+                                <img src="data:image/png;base64,0009{BASE_64_STRING}">Fake url, in text: img src="data:image/png;base64,{BASE_64_STRING}"
                                 Fake url, in text: img src="data:image/png;base64,{BASE_64_STRING}"
-                                <img src="data:image/jpg;base64,{BASE_64_STRING}10">
-                                <div style='color: red; background-image:url("data:image/jpg;base64,{BASE_64_STRING}11"); display: block;'>Fake url, in text: style="background-image:url('data:image/png;base64,{BASE_64_STRING}');"
+                                <img src="data:image/jpg;base64,0010{BASE_64_STRING}">
+                                <div style='color: red; background-image:url("data:image/jpg;base64,0011{BASE_64_STRING}"); display: block;'>Fake url, in text: style="background-image:url('data:image/png;base64,{BASE_64_STRING}');"
                                 Fake url, in text: style="background-image:url('data:image/png;base64,{BASE_64_STRING}');"</div>
-                                <div style="color: red; background-image:url('data:image/jpg;base64,{BASE_64_STRING}12'); display: block;"/>
-                                <div style="color: red; background-image:url(&quot;data:image/jpg;base64,{BASE_64_STRING}13&quot;); display: block;"/>
-                                <div style="color: red; background-image:url(&#34;data:image/jpg;base64,{BASE_64_STRING}14&#34;); display: block;"/>
-                                <div style="color: red; background-image:url(data:image/jpg;base64,{BASE_64_STRING}15); display: block;"/>
-                                <div style="color: red; background-image: url(data:image/jpg;base64,{BASE_64_STRING}16); background: url('data:image/jpg;base64,{BASE_64_STRING}17'); display: block;"/>
+                                <div style="color: red; background-image:url('data:image/jpg;base64,0012{BASE_64_STRING}'); display: block;"/>
+                                <div style="color: red; background-image:url(&quot;data:image/jpg;base64,0013{BASE_64_STRING}&quot;); display: block;"/>
+                                <div style="color: red; background-image:url(&#34;data:image/jpg;base64,0014{BASE_64_STRING}&#34;); display: block;"/>
+                                <div style="color: red; background-image:url(data:image/jpg;base64,0015{BASE_64_STRING}); display: block;"/>
+                                <div style="color: red; background-image: url(data:image/jpg;base64,0016{BASE_64_STRING}); background: url('data:image/jpg;base64,0017{BASE_64_STRING}'); display: block;"/>
                             <![endif]-->
-                            <img src="data:image/png;base64,{BASE_64_STRING}0">
+                            <img src="data:image/png;base64,0000{BASE_64_STRING}">
                         </section>
                     """,
                 }
@@ -650,7 +681,9 @@ class TestMassMailValues(MassMailCommon):
             }
         )
 
-        mail_thread_attachments = mailing._get_mail_thread_data_attachments()
+        mail_thread_attachments = mailing._get_mail_thread_data_attachments()[
+            mailing.id
+        ]
         self.assertSetEqual(
             set(mail_thread_attachments.ids),
             {png_duplicate_of_svg_attachment.id, original_png_attachment.id},

@@ -6,10 +6,14 @@ from odoo import _, api, fields, models
 class SmsTemplate(models.Model):
     "Templates for sending SMS"
     _name = 'sms.template'
-    _inherit = ['mail.render.mixin', 'template.reset.mixin']
+    _inherit = ['mixin.mail.render', 'mixin.template.reset']
     _description = 'SMS Templates'
 
     _unrestricted_rendering = True
+    # Declared, not inferred: the type-based guess also named `model` (a
+    # related model name), `template_fs` (a filesystem path) and `name`,
+    # none of which any engine renders.
+    _dynamic_field_names = frozenset({'body', 'lang'})
 
     @api.model
     def default_get(self, fields):
@@ -30,7 +34,7 @@ class SmsTemplate(models.Model):
                                         help="Sidebar action to make this template available on records "
                                         "of the related document model")
 
-    # Overrides of mail.render.mixin
+    # Overrides of mixin.mail.render
     @api.depends('model')
     def _compute_render_model(self):
         for template in self:

@@ -41,16 +41,32 @@ class MailingMailing(models.Model):
     _name = "mailing.mailing"
     _description = "Mass Mailing"
     _inherit = [
-        "mail.thread",
-        "mail.activity.mixin",
-        "mail.render.mixin",
-        "utm.source.mixin",
+        "mixin.mail.thread",
+        "mixin.mail.activity",
+        "mixin.mail.attachment.owner",
+        "mixin.mail.render",
+        "mixin.utm.source",
     ]
     _order = "calendar_date DESC"
     _rec_name = "subject"
     _systray_view = "list"
 
     _unrestricted_rendering = True
+    # Declared, not inferred: the type-based guess also named
+    # `mailing_domain`, a recipient filter that no engine renders --
+    # so a domain whose literal happened to contain `{{ }}` was refused
+    # with "only members of Mail Template Editor may edit templates".
+    _dynamic_field_names = frozenset(
+        {
+            "body_arch",
+            "body_html",
+            "email_from",
+            "lang",
+            "preview",
+            "reply_to",
+            "subject",
+        }
+    )
 
     @api.model
     def default_get(self, fields):
@@ -708,7 +724,7 @@ class MailingMailing(models.Model):
             .get_param("mass_mailing.outgoing_mail_server")
         )
 
-    # Overrides of mail.render.mixin
+    # Overrides of mixin.mail.render
     @api.depends("mailing_model_real")
     def _compute_render_model(self):
         for mailing in self:
@@ -764,7 +780,9 @@ class MailingMailing(models.Model):
                 ab_testing_cron._trigger(at=at)
         mailings = super().create(vals_list)
         mailings._create_ab_testing_utm_campaigns()
-        mailings._update_attachment_ownership()
+        mailings._update_attachment_ownership(
+            self._get_linked_attachment_ids(vals_list)
+        )
 
         for values, mailing in zip(vals_list, mailings, strict=False):
             if values.get("body_arch"):
@@ -800,7 +818,7 @@ class MailingMailing(models.Model):
         result = super().write(values)
         if values.get("ab_testing_enabled"):
             self._create_ab_testing_utm_campaigns()
-        self._update_attachment_ownership()
+        self._update_attachment_ownership(self._get_linked_attachment_ids([values]))
 
         if any(self.mapped("ab_testing_schedule_datetime")):
             schedule_date = min(
@@ -824,13 +842,6 @@ class MailingMailing(models.Model):
             )
         ]
         return self.env["utm.campaign"].create(campaign_vals)
-
-    def _update_attachment_ownership(self):
-        for record in self:
-            record.attachment_ids.write(
-                {"res_model": record._name, "res_id": record.id}
-            )
-        return self
 
     def copy_data(self, default=None):
         vals_list = super().copy_data(default)
@@ -1668,7 +1679,7 @@ class MailingMailing(models.Model):
                 "digest.digest_mail_main", rendering_data
             )
 
-            full_mail = self.env["mail.render.mixin"]._render_encapsulate(
+            full_mail = self.env["mixin.mail.render"]._render_encapsulate(
                 "digest.digest_mail_layout",
                 rendered_body,
             )
@@ -1893,6 +1904,30 @@ class MailingMailing(models.Model):
                                         int(node.attrib.get("data-original-id") or "0"),
                                     )
                                 )
+
+        # An inline image whose payload will not decode is not an image. A
+        # mailing body is pasted from arbitrary sources, so a truncated or
+        # mangled data: URI is an ordinary thing to receive -- and it used to
+        # raise binascii.Error straight out of create(), losing the whole
+        # mailing rather than the one image.
+        #
+        # Filtered here, before the call: `conversion_info` and `urls` are
+        # zipped positionally below, so dropping a payload any further in would
+        # shift every image after it onto the wrong node. Decoded exactly as the
+        # consumer decodes it, so nothing that works today starts being skipped.
+        decodable = []
+        for entry in conversion_info:
+            try:
+                base64.b64decode(entry[0])
+            except ValueError:  # binascii.Error is a ValueError
+                _logger.warning(
+                    "Mailing %s: left an inline image in place, its data: URI does "
+                    "not decode as base64.",
+                    self.id,
+                )
+                continue
+            decodable.append(entry)
+        conversion_info = decodable
 
         # Apply the changes.
         urls = self._create_attachments_from_inline_images(

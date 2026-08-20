@@ -13,8 +13,8 @@ from . import mailing_trace
 from . import mailing
 from . import mailing_filter
 from . import mail_mail
-from . import mail_render_mixin
-from . import mail_thread
+from . import mixin_mail_render
+from . import mixin_mail_thread
 from . import res_company
 from . import res_config_settings
 from . import res_partner

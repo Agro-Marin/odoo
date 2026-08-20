@@ -12,7 +12,7 @@ class MailingContact(models.Model):
     base."""
 
     _name = "mailing.contact"
-    _inherit = ["mail.thread.blacklist", "properties.base.definition.mixin"]
+    _inherit = ["mixin.mail.thread.blacklist", "mixin.properties.base.definition"]
     _description = "Mailing Contact"
     _order = "name ASC, id DESC"
     _mailing_enabled = True

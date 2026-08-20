@@ -311,7 +311,9 @@ class MassMailCase(MailCase, MockLinkTracker):
                 "bounced_msg_ids": [trace.message_id],
             }
         )
-        self.env["mail.thread"]._routing_handle_bounce(False, parsed_bounce_values)
+        self.env["mixin.mail.thread"]._routing_handle_bounce(
+            False, parsed_bounce_values
+        )
         return trace
 
     def gateway_mail_trace_click(self, mailing, record, click_label):

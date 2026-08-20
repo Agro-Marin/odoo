@@ -199,7 +199,7 @@ class SmsComposer(models.TransientModel):
         if self.composition_mode == 'numbers':
             return self._action_send_sms_numbers()
         elif self.composition_mode == 'comment':
-            if records is None or not isinstance(records, self.pool['mail.thread']):
+            if records is None or not isinstance(records, self.pool['mixin.mail.thread']):
                 return self._action_send_sms_numbers()
             if self.comment_single_recipient:
                 return self._action_send_sms_comment_single(records)
@@ -253,7 +253,7 @@ class SmsComposer(models.TransientModel):
 
         sms_record_values_filtered = self._filter_out_and_handle_revoked_sms_values(self._prepare_mass_sms_values(records))
         records_filtered = records.filtered(lambda record: record.id in sms_record_values_filtered)
-        if self.mass_keep_log and sms_record_values_filtered and isinstance(records_filtered, self.pool['mail.thread']):
+        if self.mass_keep_log and sms_record_values_filtered and isinstance(records_filtered, self.pool['mixin.mail.thread']):
             log_values = self._prepare_mass_log_values(records_filtered, sms_record_values_filtered)
             mail_messages = records_filtered._message_log_batch(**log_values)
             for idx, record in enumerate(records_filtered):
@@ -311,7 +311,7 @@ class SmsComposer(models.TransientModel):
         if self.template_id and self.body == self.template_id.body:
             all_bodies = self.template_id._render_field('body', records.ids, compute_lang=True, add_context=additional_context)
         else:
-            all_bodies = self.env['mail.render.mixin']._render_template(self.body, records._name, records.ids, add_context=additional_context)
+            all_bodies = self.env['mixin.mail.render']._render_template(self.body, records._name, records.ids, add_context=additional_context)
         return all_bodies
 
     def _prepare_mass_sms_values(self, records):

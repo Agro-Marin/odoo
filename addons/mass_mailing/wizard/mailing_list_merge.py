@@ -22,12 +22,13 @@ class MailingListMerge(models.TransientModel):
                 }
             )
         if not res.get("dest_list_id") and "dest_list_id" in fields:
-            src_list_ids = res.get("src_list_ids") or self.env.context.get("active_ids")
-            res.update(
-                {
-                    "dest_list_id": (src_list_ids and src_list_ids[0]) or False,
-                }
-            )
+            # From the context, not from `res["src_list_ids"]`: that is a command
+            # list -- [(6, 0, ids)] -- so indexing it yields the command tuple
+            # itself, and handing that to a many2one raises before the wizard can
+            # be drawn. The ids are in the context either way, which is where the
+            # block above got them.
+            source_ids = self.env.context.get("active_ids") or []
+            res["dest_list_id"] = source_ids[0] if source_ids else False
         return res
 
     src_list_ids = fields.Many2many("mailing.list", string="Mailing Lists")

@@ -23,6 +23,14 @@ class IrActionsServer(models.Model):
         compute='_compute_sms_method',
         readonly=False, store=True)
 
+    @api.model
+    def _get_states_needing_a_live_record(self):
+        return super()._get_states_needing_a_live_record() | {'sms'}
+
+    def _is_batchable(self):
+        self.ensure_one()
+        return self.state == 'sms' or super()._is_batchable()
+
     def _name_depends(self):
         return [*super()._name_depends(), "sms_template_id"]
 
@@ -34,12 +42,22 @@ class IrActionsServer(models.Model):
 
     @api.depends('state')
     def _compute_available_model_ids(self):
-        mail_thread_based = self.filtered(lambda action: action.state == 'sms')
-        if mail_thread_based:
-            mail_models = self.env['ir.model'].search([('is_mail_thread', '=', True), ('transient', '=', False)])
-            for action in mail_thread_based:
-                action.available_model_ids = mail_models.ids
-        super(IrActionsServer, self - mail_thread_based)._compute_available_model_ids()
+        # Narrow what the modules below offer; never replace it. Assigning the
+        # whole search result for `sms` actions dropped base's own filtering --
+        # the models the reader may access -- and would drop any narrowing a
+        # module in between had applied, silently and only for this state.
+        super()._compute_available_model_ids()
+        sms_based = self.filtered(lambda action: action.state == 'sms')
+        if not sms_based:
+            return
+        supported = set(self.env['ir.model'].search([
+            ('is_mail_thread', '=', True), ('transient', '=', False),
+        ])._ids)
+        for action in sms_based:
+            action.available_model_ids = [
+                model_id for model_id in action.available_model_ids._ids
+                if model_id in supported
+            ]
 
     @api.depends('model_id', 'state')
     def _compute_sms_template_id(self):
@@ -52,12 +70,16 @@ class IrActionsServer(models.Model):
 
     @api.depends('state')
     def _compute_sms_method(self):
-        to_reset = self.filtered(lambda act: act.state != 'sms')
-        if to_reset:
-            to_reset.sms_method = False
-        other = self - to_reset
-        if other:
-            other.sms_method = 'sms'
+        # Seed the default, never impose it. The ORM marks a dependent modified
+        # on any write naming a dependency -- a write of the same value included
+        # -- so assigning 'sms' on every pass turned an action configured to
+        # only log a note into one that sends the message for real, on nothing
+        # more than an export and re-import of the record.
+        for action in self:
+            if action.state != 'sms':
+                action.sms_method = False
+            elif not action.sms_method:
+                action.sms_method = 'sms'
 
     @api.model
     def _warning_depends(self):
@@ -73,7 +95,7 @@ class IrActionsServer(models.Model):
 
         if self.state == 'sms':
             if self.model_id.transient or not self.model_id.is_mail_thread:
-                warnings.append(_("Sending SMS can only be done on a not transient mail.thread model"))
+                warnings.append(_("Sending SMS can only be done on a not transient mixin.mail.thread model"))
 
             if self.sms_template_id and self.sms_template_id.model_id != self.model_id:
                 warnings.append(
@@ -85,12 +107,13 @@ class IrActionsServer(models.Model):
         return warnings
 
     def _run_action_sms_multi(self, eval_context=None):
-        # TDE CLEANME: when going to new api with server action, remove action
-        if not self.sms_template_id or self._is_recompute():
-            return False
-
         records = eval_context.get('records') or eval_context.get('record')
-        if not records:
+        if records:
+            # per record, not for the set: the composer below takes the whole
+            # batch, and one record still waiting on a recompute must not stop
+            # the message going out for the others
+            records -= self._get_recompute_pending(records)
+        if not self.sms_template_id or not records:
             return False
 
         composer = self.env['sms.composer'].with_context(

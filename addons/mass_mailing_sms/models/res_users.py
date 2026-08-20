@@ -62,14 +62,14 @@ class ResUsers(models.Model):
                             'type': 'activity',
                             'icon': icon,
                             'domain': [('active', 'in', [True, False])],
-                            'total_count': 0, 'today_count': 0, 'overdue_count': 0, 'planned_count': 0,
+                            'due_count': 0, 'today_count': 0, 'overdue_count': 0, 'planned_count': 0,
                             'res_ids': res_ids,
                             "view_type": view_type,
                         }
                     user_activities[act['mailing_type']]['res_ids'].update(act['res_ids'])
                     user_activities[act['mailing_type']]['%s_count' % act['states']] += act['count']
                     if act['states'] in ('today', 'overdue'):
-                        user_activities[act['mailing_type']]['total_count'] += act['count']
+                        user_activities[act['mailing_type']]['due_count'] += act['count']
 
                 for mailing_type in user_activities.keys():
                     user_activities[mailing_type].update({

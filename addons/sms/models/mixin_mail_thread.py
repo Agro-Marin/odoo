@@ -10,13 +10,14 @@ from odoo.addons.sms.tools.sms_tools import sms_content_to_rendered_html
 _logger = logging.getLogger(__name__)
 
 
-class MailThread(models.AbstractModel):
-    _inherit = 'mail.thread'
+class MixinMailThread(models.AbstractModel):
+    _inherit = 'mixin.mail.thread'
 
     message_has_sms_error = fields.Boolean(
         'SMS Delivery error', compute='_compute_message_has_sms_error', search='_search_message_has_sms_error',
         help="If checked, some messages have a delivery error.")
 
+    @api.depends_context('uid')
     def _compute_message_has_sms_error(self):
         res = {}
         if self.ids:
@@ -152,7 +153,7 @@ class MailThread(models.AbstractModel):
           void as 'msg_vals' superseeds it;
         :param list recipients_data: list of recipients data based on <res.partner>
           records formatted like a list of dicts containing information. See
-          ``MailThread._notify_get_recipients()``;
+          ``MixinMailThread._notify_get_recipients()``;
         :param dict msg_vals: values dict used to create the message, allows to
           skip message usage and spare some queries if given;
 
