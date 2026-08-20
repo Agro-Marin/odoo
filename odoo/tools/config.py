@@ -240,6 +240,31 @@ class configmanager:
         version = "%s %s" % (release.description, release.version)
         parser = optparse.OptionParser(version=version, option_class=OdooOption)
 
+        self._add_file_only_options(parser, FileOnlyOption)
+
+        self._add_common_options(parser, OdooOption, PosixOnlyOption)
+        self._add_http_options(parser, OdooOption, PosixOnlyOption)
+        self._add_web_interface_options(parser, OdooOption, PosixOnlyOption)
+        self._add_testing_options(parser, OdooOption, PosixOnlyOption)
+        self._add_logging_options(parser, OdooOption, PosixOnlyOption)
+        self._add_smtp_options(parser, OdooOption, PosixOnlyOption)
+        self._add_database_options(parser, OdooOption, PosixOnlyOption)
+        self._add_i18n_options(parser, OdooOption, PosixOnlyOption)
+        self._add_security_options(parser, OdooOption, PosixOnlyOption)
+        self._add_advanced_options(parser, OdooOption, PosixOnlyOption)
+        self._add_multiprocessing_options(parser, OdooOption, PosixOnlyOption)
+
+        return parser
+
+    def _add_file_only_options(
+        self, parser: optparse.OptionParser, FileOnlyOption: type
+    ) -> None:
+        """Options settable from the config file only, with no CLI flag.
+
+        Grouped out of ``_build_cli`` the way every other block there is, so
+        that method stays a table of contents rather than growing by one more
+        entry each time an option is added.
+        """
         parser.add_option(FileOnlyOption(dest="admin_passwd", my_default="admin"))
         parser.add_option(
             FileOnlyOption(
@@ -263,6 +288,14 @@ class configmanager:
                 dest="registry_lru_size",
                 type="int",
                 my_default=42,
+                file_exportable=False,
+            )
+        )
+        parser.add_option(
+            FileOnlyOption(
+                dest="registry_idle_timeout",
+                type="int",
+                my_default=0,
                 file_exportable=False,
             )
         )
@@ -317,20 +350,6 @@ class configmanager:
                 dest="websocket_rate_limit_delay", type="float", my_default=0.2
             )
         )
-
-        self._add_common_options(parser, OdooOption, PosixOnlyOption)
-        self._add_http_options(parser, OdooOption, PosixOnlyOption)
-        self._add_web_interface_options(parser, OdooOption, PosixOnlyOption)
-        self._add_testing_options(parser, OdooOption, PosixOnlyOption)
-        self._add_logging_options(parser, OdooOption, PosixOnlyOption)
-        self._add_smtp_options(parser, OdooOption, PosixOnlyOption)
-        self._add_database_options(parser, OdooOption, PosixOnlyOption)
-        self._add_i18n_options(parser, OdooOption, PosixOnlyOption)
-        self._add_security_options(parser, OdooOption, PosixOnlyOption)
-        self._add_advanced_options(parser, OdooOption, PosixOnlyOption)
-        self._add_multiprocessing_options(parser, OdooOption, PosixOnlyOption)
-
-        return parser
 
     def _add_common_options(
         self,

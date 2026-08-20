@@ -146,6 +146,19 @@ def preload_registries(dbnames: list[str] | None) -> int:
     if registries_size:
         Registry.registries.count = registries_size
 
+    # Bound resident registries by recency as well as by count: the LRU alone
+    # tracks traffic, not memory, so a worker can be recycled at its memory soft
+    # limit while the LRU still has room. Off (0) unless asked for. Set on the
+    # class before any worker forks, so children inherit it.
+    idle_timeout = env_int(
+        "ODOO_REGISTRY_MAX_IDLE_TIMEOUT", 0, minimum=0, logger=_logger
+    )
+    if not idle_timeout:
+        idle_timeout = config.get("registry_idle_timeout") or 0
+    if idle_timeout > 0:
+        Registry.idle_timeout = idle_timeout
+        _logger.info("Idle registries are dropped after %ds", idle_timeout)
+
     for dbname in dbnames:
         if os.environ.get("ODOO_PROFILE_PRELOAD"):
             interval = env_float("ODOO_PROFILE_PRELOAD_INTERVAL", 0.1, logger=_logger)

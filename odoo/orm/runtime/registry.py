@@ -114,15 +114,37 @@ class Registry(
     registries = LRU[str, "Registry"](42)
     """A mapping from database names to registries."""
 
+    idle_timeout: float = 0
+    """Seconds a registry may go unused before :meth:`_drop_idle` collects it.
+
+    Zero (the default) disables collection entirely. Set from
+    ``registry_idle_timeout`` at startup -- see ``odoo.service.lifecycle``.
+    """
+
+    last_used: float
+    """``time.monotonic()`` of the most recent lookup, maintained by
+    :meth:`__new__` on *both* of its return paths."""
+
     def __new__(cls, db_name: str):
         if not db_name:
             raise ValueError("Missing database name")
         reg = cls.registries.get(db_name)
         if reg is not None and reg.ready:
+            # Stamp here too, not only in the locked branch below. A *ready*
+            # registry only ever leaves through this fast path -- the locked
+            # branch is reached solely when the registry is absent or still
+            # loading -- so stamping only there would leave `last_used` frozen
+            # at load time for every healthy registry, and `_drop_idle` would
+            # collect the busiest database on the server. Cheap enough to do
+            # unlocked: the write is a single float store, and a lost update
+            # under a race only ever costs one more collection pass.
+            reg.last_used = time.monotonic()
             return reg
         with cls._lock:
             try:
-                return cls.registries[db_name]
+                registry = cls.registries[db_name]
+                registry.last_used = time.monotonic()
+                return registry
             except KeyError:
                 return cls.new(db_name)
 
@@ -221,12 +243,17 @@ class Registry(
         registry.signal_changes()
 
         _logger.info("Registry loaded in %.3fs", time.time() - t0)
+        registry.last_used = time.monotonic()
+        cls._drop_idle()
         return registry
 
     def init(self, db_name: str) -> None:
         self._init = True
         self.loaded = False
         self.ready = False
+        # A registry must never be born already idle: loading one can take
+        # seconds, and `_drop_idle` runs at the end of every load.
+        self.last_used = time.monotonic()
 
         self._init_models_container()
         self._init_phase_state()
@@ -272,6 +299,37 @@ class Registry(
         from odoo.tools.cache import prune_counters
 
         prune_counters(db_name)
+
+    @classmethod
+    @locked
+    def _drop_idle(cls) -> None:
+        """Drop every registry unused for longer than :attr:`idle_timeout`.
+
+        ``registries`` is bounded by a *count*, so on a server with many
+        databases the number of resident registries follows traffic rather than
+        memory: a worker can be recycled at its virtual-memory soft limit while
+        the LRU still has room. This bounds it by recency instead.
+
+        Dropping only detaches a registry from ``registries``. A request already
+        holding one keeps working -- which is what makes this safe to run from a
+        serving process -- and the next lookup rebuilds it.
+
+        Registries that are still loading are skipped: ``new()`` publishes into
+        ``registries`` *before* ``load_modules`` runs, so a concurrent build is
+        visible here and must not be collected out from under itself.
+        """
+        if cls.idle_timeout <= 0:
+            return
+        now = time.monotonic()
+        for db_name, registry in cls.registries.items():
+            if not registry.ready:
+                continue
+            idle_for = now - registry.last_used
+            if idle_for > cls.idle_timeout:
+                _logger.info(
+                    "Dropping registry for %s, idle for %.0fs", db_name, idle_for
+                )
+                cls.delete(db_name)
 
     @classmethod
     @locked
