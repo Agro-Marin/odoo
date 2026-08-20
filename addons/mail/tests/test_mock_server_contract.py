@@ -40,7 +40,7 @@ GATED_MODELS = [
     "ir.attachment",
     "mail.followers",
     "mail.message",
-    "mail.thread",
+    "mixin.mail.thread",
     "res.partner",
 ]
 
@@ -175,7 +175,7 @@ class TestMockServerContract(HttpCase):
                 {
                     "fetch_params": [
                         [
-                            "mail.thread",
+                            "mixin.mail.thread",
                             {
                                 "thread_model": "res.partner",
                                 "thread_id": self.record.id,

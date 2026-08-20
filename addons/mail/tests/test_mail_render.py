@@ -173,7 +173,7 @@ class TestMailRender(TestMailRenderCommon):
     @users("employee")
     def test_evaluation_context(self):
         partner = self.env["res.partner"].browse(self.render_object.ids)
-        MailRenderMixin = self.env["mail.render.mixin"]
+        MixinMailRender = self.env["mixin.mail.render"]
 
         custom_ctx = {"custom_ctx": "Custom Context Value"}
         add_context = {"custom_value": "Custom Render Value"}
@@ -189,7 +189,7 @@ class TestMailRender(TestMailRenderCommon):
         ]
         for src, expected in zip(srces, results, strict=False):
             for engine in ["inline_template"]:
-                result = MailRenderMixin.with_context(**custom_ctx)._render_template(
+                result = MixinMailRender.with_context(**custom_ctx)._render_template(
                     src,
                     partner._name,
                     partner.ids,
@@ -202,7 +202,7 @@ class TestMailRender(TestMailRenderCommon):
     def test_prepend_preview_inline_template_to_qweb(self):
         body = "body"
         preview = 'foo{{"false" if 1 > 2 else "true"}}bar'
-        result = self.env["mail.render.mixin"]._prepend_preview(Markup(body), preview)
+        result = self.env["mixin.mail.render"]._prepend_preview(Markup(body), preview)
         self.assertEqual(
             result,
             """<div style="display:none;font-size:1px;height:0px;width:0px;opacity:0;">
@@ -324,7 +324,7 @@ class TestMailRender(TestMailRenderCommon):
         for source, expected in zip(
             self.base_inline_template_bits, self.base_rendered, strict=False
         ):
-            rendered = self.env["mail.render.mixin"]._render_template(
+            rendered = self.env["mixin.mail.render"]._render_template(
                 source,
                 partner._name,
                 partner.ids,
@@ -350,7 +350,7 @@ class TestMailRender(TestMailRenderCommon):
             self.env["res.partner"].browse(partner_ids).invalidate_recordset(
                 ["name", "display_name"]
             )
-            render_results = self.env["mail.render.mixin"]._render_template(
+            render_results = self.env["mixin.mail.render"]._render_template(
                 '<a href="/test/destination"><img src="/test/image"></a>',
                 "res.partner",
                 partner_ids,
@@ -372,7 +372,7 @@ class TestMailRender(TestMailRenderCommon):
         for source, expected in zip(
             self.base_qweb_bits, self.base_rendered, strict=False
         ):
-            rendered = self.env["mail.render.mixin"]._render_template(
+            rendered = self.env["mixin.mail.render"]._render_template(
                 source,
                 partner._name,
                 partner.ids,
@@ -386,7 +386,7 @@ class TestMailRender(TestMailRenderCommon):
         for source, expected in zip(
             self.base_qweb_templates_xmlids, self.base_rendered, strict=False
         ):
-            rendered = self.env["mail.render.mixin"]._render_template(
+            rendered = self.env["mixin.mail.render"]._render_template(
                 source,
                 partner._name,
                 partner.ids,
@@ -397,12 +397,12 @@ class TestMailRender(TestMailRenderCommon):
     @users("employee")
     def test_render_template_various(self):
         partner = self.env["res.partner"].browse(self.render_object.ids)
-        MailRenderMixin = self.env["mail.render.mixin"]
+        MixinMailRender = self.env["mixin.mail.render"]
 
         src = "This is a string"
         expected = "This is a string"
         for engine in ["inline_template"]:
-            result = MailRenderMixin._render_template(
+            result = MixinMailRender._render_template(
                 src,
                 partner._name,
                 partner.ids,
@@ -413,7 +413,7 @@ class TestMailRender(TestMailRenderCommon):
         src = "This is a string with a number {{ 13+13 }}"
         expected = "This is a string with a number 26"
         for engine in ["inline_template"]:
-            result = MailRenderMixin._render_template(
+            result = MixinMailRender._render_template(
                 src,
                 partner._name,
                 partner.ids,
@@ -424,7 +424,7 @@ class TestMailRender(TestMailRenderCommon):
         src = "This is a string with a block {{ 'hidden' if False else 'displayed' }}"
         expected = "This is a string with a block displayed"
         for engine in ["inline_template"]:
-            result = MailRenderMixin._render_template(
+            result = MixinMailRender._render_template(
                 src,
                 partner._name,
                 partner.ids,
@@ -435,7 +435,7 @@ class TestMailRender(TestMailRenderCommon):
         src = '<p class="text-muted"><span>This is a string</span></p>'
         expected = '<p class="text-muted"><span>This is a string</span></p>'
         for engine in ["inline_template", "qweb"]:
-            result = MailRenderMixin._render_template(
+            result = MixinMailRender._render_template(
                 src,
                 partner._name,
                 partner.ids,
@@ -451,7 +451,7 @@ class TestMailRender(TestMailRenderCommon):
             '<p class="text-muted"><span>This is a string with a number 26</span></p>'
         )
         for engine, src in zip(["inline_template", "qweb"], srces, strict=False):
-            result = MailRenderMixin._render_template(
+            result = MixinMailRender._render_template(
                 src,
                 partner._name,
                 partner.ids,
@@ -468,7 +468,7 @@ class TestMailRender(TestMailRenderCommon):
 <span>We have 4 cookies in stock</span>
 </p>"""
         for engine in ["qweb"]:
-            result = MailRenderMixin._render_template(
+            result = MixinMailRender._render_template(
                 src,
                 partner._name,
                 partner.ids,
@@ -489,7 +489,7 @@ class TestMailRender(TestMailRenderCommon):
             '<div background="/web/path?a=a&b=b"/>',
             "<div style='background-image:url(\"/web/path?a=a&b=b\");'/>",
         ]
-        base_url = self.env["mail.render.mixin"].get_base_url()
+        base_url = self.env["mixin.mail.render"].get_base_url()
         rendered_local_links = [
             '<a href="%s/web/path?a=a&b=b"/>' % base_url,
             '<img src="%s/web/path?a=a&b=b"/>' % base_url,
@@ -505,7 +505,7 @@ class TestMailRender(TestMailRenderCommon):
         for source, expected in zip(
             local_links_template_bits, rendered_local_links, strict=False
         ):
-            rendered = self.env["mail.render.mixin"]._replace_local_links(source)
+            rendered = self.env["mixin.mail.render"]._replace_local_links(source)
             self.assertEqual(rendered, expected)
 
 
@@ -515,7 +515,7 @@ class TestRegexRendering(common.MailCommon):
         record = self.env["res.partner"].create({"name": "Alice"})
 
         def render(template):
-            return self.env["mail.render.mixin"]._render_template_qweb(
+            return self.env["mixin.mail.render"]._render_template_qweb(
                 template, "res.partner", record.ids
             )[record.id]
 
@@ -556,12 +556,20 @@ class TestRegexRendering(common.MailCommon):
                 "<p>Default</p>",
             ),
             ("""<div><p t-out="object.name"/></div>""", "<div><p>Alice</p></div>"),
+            ("""<p t-out="object.name" title="Test"/>""", '<p title="Test">Alice</p>'),
+            ("""<p title="Test" t-out="object.name"/>""", '<p title="Test">Alice</p>'),
+            ("""<div/aa t-out="object.name"></div/aa>""", '<div aa="">Alice</div>'),
+            (
+                """<div/aa='x' t-out="object.name"></div/aa='x'>""",
+                '<div aa="x">Alice</div>',
+            ),
         )
-        o_qweb_render = self.env["ir.qweb"]._render
+        o_qweb_render = self.env.registry["ir.qweb"]._render_prepared
         for template, expected in static_templates:
             with (
                 patch(
-                    "odoo.addons.base.models.ir_qweb.IrQweb._render",
+                    "odoo.addons.base.models.ir_qweb.IrQweb._render_prepared",
+                    autospec=True,
                     side_effect=o_qweb_render,
                 ) as qweb_render,
                 patch(
@@ -575,7 +583,8 @@ class TestRegexRendering(common.MailCommon):
 
         with (
             patch(
-                "odoo.addons.base.models.ir_qweb.IrQweb._render",
+                "odoo.addons.base.models.ir_qweb.IrQweb._render_prepared",
+                autospec=True,
                 side_effect=o_qweb_render,
             ) as qweb_render,
             patch(
@@ -591,21 +600,15 @@ class TestRegexRendering(common.MailCommon):
             ("""<p t-out=""/>""", "<p>()</p>"),
             ("""<p t-out="1+1"/>""", "<p>2</p>"),
             ("""<p t-out="env.context.get('test')"/>""", ""),
-            ("""<p t-out="object.name" title="Test"/>""", '<p title="Test">Alice</p>'),
-            ("""<p title="Test" t-out="object.name"/>""", '<p title="Test">Alice</p>'),
             ("""<p t-out="object.name"><img/></p>""", "<p>Alice</p>"),
             ("""<p t-out="object.parent_id.name"><img/></p>""", "<p><img/></p>"),
             ("""<p t-out="'<h1>test</h1>'"/>""", "<p>&lt;h1&gt;test&lt;/h1&gt;</p>"),
-            ("""<div/aa t-out="object.name"></div/aa>""", '<div aa="">Alice</div>'),
-            (
-                """<div/aa='x' t-out="object.name"></div/aa='x'>""",
-                '<div aa="x">Alice</div>',
-            ),
         )
         for template, expected in non_static_templates:
             with (
                 patch(
-                    "odoo.addons.base.models.ir_qweb.IrQweb._render",
+                    "odoo.addons.base.models.ir_qweb.IrQweb._render_prepared",
+                    autospec=True,
                     side_effect=o_qweb_render,
                 ) as qweb_render,
                 patch(
@@ -623,7 +626,7 @@ class TestRegexRendering(common.MailCommon):
         record = self.env["res.partner"].create({"name": "Alice"})
 
         def render(template):
-            return self.env["mail.render.mixin"]._render_template_inline_template(
+            return self.env["mixin.mail.render"]._render_template_inline_template(
                 template, "res.partner", record.ids
             )[record.id]
 
@@ -642,7 +645,7 @@ class TestRegexRendering(common.MailCommon):
                 self.assertFalse(unsafe_eval.called)
                 self.assertFalse(
                     self.env[
-                        "mail.render.mixin"
+                        "mixin.mail.render"
                     ]._has_unsafe_expression_template_inline_template(
                         template, "res.partner"
                     )
@@ -662,7 +665,7 @@ class TestRegexRendering(common.MailCommon):
                 self.assertTrue(unsafe_eval.called)
                 self.assertTrue(
                     self.env[
-                        "mail.render.mixin"
+                        "mixin.mail.render"
                     ]._has_unsafe_expression_template_inline_template(
                         template, "res.partner"
                     )
@@ -677,7 +680,7 @@ class TestMailRenderSecurity(TestMailRenderCommon):
         src = "{{ user.name }} - {{ object.name }}"
         expected = "%s - %s" % (self.env.user.name, partner.name)
         result = (
-            self.env["mail.render.mixin"]
+            self.env["mixin.mail.render"]
             .sudo()
             ._render_template_inline_template(src, partner._name, partner.ids)[
                 partner.id
@@ -691,12 +694,12 @@ class TestMailRenderSecurity(TestMailRenderCommon):
         with self.assertRaises(
             AccessError, msg="Simple user should not be able to render dynamic code"
         ):
-            self.env["mail.render.mixin"]._render_template_inline_template(
+            self.env["mixin.mail.render"]._render_template_inline_template(
                 self.base_inline_template_bits[3], "res.partner", res_ids
             )
 
         src = """<h1>This is a static template</h1>"""
-        result = self.env["mail.render.mixin"]._render_template_inline_template(
+        result = self.env["mixin.mail.render"]._render_template_inline_template(
             src, "res.partner", res_ids
         )[res_ids[0]]
         self.assertEqual(src, str(result))
@@ -705,9 +708,9 @@ class TestMailRenderSecurity(TestMailRenderCommon):
     def test_render_inline_template_restricted_static(self):
         model = "res.partner"
         res_ids = self.env[model].search([], limit=1).ids
-        MailRenderMixin = self.env["mail.render.mixin"]
+        MixinMailRender = self.env["mixin.mail.render"]
 
-        result = MailRenderMixin._render_template_inline_template(
+        result = MixinMailRender._render_template_inline_template(
             self.base_inline_template_bits[0], model, res_ids
         )[res_ids[0]]
         self.assertEqual(result, self.base_inline_template_bits[0])
@@ -715,7 +718,7 @@ class TestMailRenderSecurity(TestMailRenderCommon):
     @users("employee")
     def test_render_inline_template_unrestricted(self):
         res_ids = self.env["res.partner"].search([], limit=1).ids
-        result = self.env["mail.render.mixin"]._render_template_inline_template(
+        result = self.env["mixin.mail.render"]._render_template_inline_template(
             self.base_inline_template_bits[3], "res.partner", res_ids
         )[res_ids[0]]
         self.assertIn(
@@ -794,7 +797,7 @@ class TestMailRenderSecurity(TestMailRenderCommon):
 
         src = """<h1>This is a static template</h1>"""
 
-        result = self.env["mail.render.mixin"]._render_template_qweb(
+        result = self.env["mixin.mail.render"]._render_template_qweb(
             src, model, res_ids
         )[partner.id]
         self.assertEqual(src, str(result))
@@ -804,7 +807,7 @@ class TestMailRenderSecurity(TestMailRenderCommon):
         model = "res.partner"
         res_ids = self.env[model].search([], limit=1).ids
         partner = self.env[model].browse(res_ids)
-        MailRenderMixin = self.env["mail.render.mixin"]
+        MixinMailRender = self.env["mixin.mail.render"]
 
         def cust_function():
             cust_function.call = True
@@ -819,7 +822,7 @@ class TestMailRenderSecurity(TestMailRenderCommon):
         context = {"cust_function": cust_function}
 
         result = (
-            self.env["mail.render.mixin"]
+            self.env["mixin.mail.render"]
             .with_user(self.user_admin)
             ._render_template_inline_template(
                 src, partner._name, partner.ids, add_context=context
@@ -831,7 +834,7 @@ class TestMailRenderSecurity(TestMailRenderCommon):
         with self.assertRaises(
             AccessError, msg="Simple user should not be able to render dynamic code"
         ):
-            MailRenderMixin._render_template_inline_template(
+            MixinMailRender._render_template_inline_template(
                 src, model, res_ids, add_context=context
             )
 
@@ -841,14 +844,14 @@ class TestMailRenderSecurity(TestMailRenderCommon):
         with self.assertRaises(
             AccessError, msg="Simple user should not be able to render dynamic code"
         ):
-            self.env["mail.render.mixin"]._render_template_inline_template(
+            self.env["mixin.mail.render"]._render_template_inline_template(
                 self.base_inline_template_bits[4], "res.partner", res_ids
             )
 
     @users("employee")
     def test_security_inline_template_unrestricted(self):
         res_ids = self.env["res.partner"].search([], limit=1).ids
-        result = self.env["mail.render.mixin"]._render_template_inline_template(
+        result = self.env["mixin.mail.render"]._render_template_inline_template(
             self.base_inline_template_bits[4], "res.partner", res_ids
         )[res_ids[0]]
         self.assertNotIn(
@@ -862,7 +865,7 @@ class TestMailRenderSecurity(TestMailRenderCommon):
             AccessError,
             msg="Simple user should not be able to render complex qweb code",
         ):
-            self.env["mail.render.mixin"]._render_template_qweb(
+            self.env["mixin.mail.render"]._render_template_qweb(
                 self.base_qweb_bits[2], "res.partner", res_ids
             )
 
@@ -871,7 +874,7 @@ class TestMailRenderSecurity(TestMailRenderCommon):
         res_ids = self.env["res.partner"].search([], limit=1).ids
 
         result = (
-            self.env["mail.render.mixin"]
+            self.env["mixin.mail.render"]
             .with_user(self.user_admin)
             ._render_template_qweb(self.base_qweb_bits[2], "res.partner", res_ids)
         )
@@ -884,14 +887,14 @@ class TestMailRenderSecurity(TestMailRenderCommon):
             AccessError,
             msg="Simple user should not be able to render complex qweb code",
         ):
-            self.env["mail.render.mixin"]._render_template_qweb(
+            self.env["mixin.mail.render"]._render_template_qweb(
                 self.base_qweb_bits[2], "res.partner", res_ids
             )
 
     @users("employee")
     def test_security_qweb_template_unrestricted(self):
         res_ids = self.env["res.partner"].search([], limit=1).ids
-        result = self.env["mail.render.mixin"]._render_template_qweb(
+        result = self.env["mixin.mail.render"]._render_template_qweb(
             self.base_qweb_bits[1], "res.partner", res_ids
         )[res_ids[0]]
         self.assertNotIn(

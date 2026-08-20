@@ -1,4 +1,3 @@
-import json
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from itertools import batched
@@ -425,15 +424,15 @@ class TestIrMailServer(MailCommon):
 
         self.env["ir.mail_server"].search([]).from_filter = "random.domain"
         self.mail_alias_domain.default_from = "test"
-        self.mail_alias_domain.name = "custom_domain.com"
+        self.mail_alias_domain.name = "custom-domain.com"
         with self.mock_smtplib_connection():
             message = self._build_email(mail_from="specific_user@test.com")
             IrMailServer.send_email(message)
 
         self.connect_mocked.assert_called_once()
         self.assertSMTPEmailsSent(
-            smtp_from="test@custom_domain.com",
-            message_from='"specific_user" <test@custom_domain.com>',
+            smtp_from="test@custom-domain.com",
+            message_from='"specific_user" <test@custom-domain.com>',
             from_filter="random.domain",
         )
 
@@ -544,17 +543,21 @@ class TestPersonalServer(MailCommon):
     def test_personal_mail_server_from_filter_is_matched_normalized(self):
         IrMailServer = self.env["ir.mail_server"]
         owner_email = self.user_1.email
-        self.user_1.outgoing_mail_server_id = self.mail_server_1
         for stored in (owner_email, owner_email.upper(), f"  {owner_email} "):
             with self.subTest(from_filter=stored):
                 self.mail_server_1.from_filter = stored
                 IrMailServer._check_forced_mail_server(
                     self.mail_server_1, True, owner_email
                 )
+                self.user_1.invalidate_recordset(["outgoing_mail_server_id"])
+                self.assertEqual(
+                    self.user_1.outgoing_mail_server_id,
+                    self.mail_server_1,
+                    "the owner must still be using the server the sender accepts",
+                )
 
     def test_personal_mail_server_still_rejects_other_senders(self):
         IrMailServer = self.env["ir.mail_server"]
-        self.user_1.outgoing_mail_server_id = self.mail_server_1
         domain = self.user_1.email.split("@")[1]
         for smtp_from, from_filter in (
             (f"someone.else@{domain}", self.user_1.email),
@@ -782,7 +785,7 @@ class TestPersonalServer(MailCommon):
                         "email_from": self.user_employee.email,
                         "email_cc": '"Named Cc1" <cc.1@test.com>, "Named Cc2" <cc.2@test.com>',
                         "email_to": email_to,
-                        "headers": '{"test": "test header"}',
+                        "headers": {"test": "test header"},
                         "recipient_ids": partners.ids,
                         "state": "outgoing",
                     }
@@ -804,8 +807,7 @@ class TestPersonalServer(MailCommon):
 
         self.assertEqual(mails.mapped("email_to"), [email_to, False])
 
-        self.assertEqual(len(set(mails.mapped("headers"))), 1)
-        self.assertEqual({"test": "test header"}, json.loads(mails[0].headers))
+        self.assertEqual(mails.mapped("headers"), [{"test": "test header"}] * 2)
 
         self.assertEqual(mails.mapped("state"), ["sent", "outgoing"])
         outgoing = mails.filtered(lambda m: m.state == "outgoing")
@@ -813,7 +815,7 @@ class TestPersonalServer(MailCommon):
         self.assertFalse(outgoing.email_to)
         self.assertEqual(outgoing.state, "outgoing")
         self.assertEqual(outgoing.create_uid, self.user_employee)
-        self.assertEqual(len(outgoing.recipient_ids), 16 - TEST_LIMIT)
+        self.assertEqual(len(outgoing.recipient_ids), 16 - (TEST_LIMIT - 1))
 
         with (
             self.mock_smtplib_connection(),
@@ -827,7 +829,7 @@ class TestPersonalServer(MailCommon):
         self.assertEqual(len(mails), 2)
         self.assertEqual(outgoing.state, "outgoing")
         self.assertEqual(outgoing.create_uid, self.user_employee)
-        self.assertEqual(len(outgoing.recipient_ids), 16 - TEST_LIMIT)
+        self.assertEqual(len(outgoing.recipient_ids), 16 - (TEST_LIMIT - 1))
 
         with (
             self.mock_smtplib_connection(),
@@ -844,7 +846,9 @@ class TestPersonalServer(MailCommon):
         self.assertFalse(outgoing.email_to)
         self.assertEqual(outgoing.state, "outgoing")
         self.assertEqual(outgoing.create_uid, self.user_employee)
-        self.assertEqual(len(outgoing.recipient_ids), 16 - 2 * TEST_LIMIT)
+        self.assertEqual(
+            len(outgoing.recipient_ids), 16 - (TEST_LIMIT - 1) - TEST_LIMIT
+        )
 
         with self.mock_datetime_and_now("2025-01-01 20:32:29"):
             other_mail = (
@@ -855,7 +859,7 @@ class TestPersonalServer(MailCommon):
                     {
                         "email_from": self.user_employee.email,
                         "email_to": "target@test.com",
-                        "headers": '{"test": "test header"}',
+                        "headers": {"test": "test header"},
                         "recipient_ids": partners[:7].ids,
                         "state": "outgoing",
                     }
@@ -887,7 +891,9 @@ class TestPersonalServer(MailCommon):
         self.assertFalse(outgoing_1.email_to)
         self.assertEqual(outgoing_1.state, "outgoing")
         self.assertEqual(outgoing_1.create_uid, self.user_employee)
-        self.assertEqual(len(outgoing_1.recipient_ids), 16 - 3 * TEST_LIMIT)
+        self.assertEqual(
+            len(outgoing_1.recipient_ids), 16 - (TEST_LIMIT - 1) - 2 * TEST_LIMIT
+        )
 
         outgoing_2 = mails[1]
         self.assertEqual(outgoing_2.email_to, "target@test.com")
@@ -920,14 +926,14 @@ class TestPersonalServer(MailCommon):
         self.assertFalse(outgoing.email_to)
         self.assertEqual(outgoing.state, "outgoing")
         self.assertEqual(outgoing.create_uid, self.user_employee)
-        self.assertEqual(len(outgoing.recipient_ids), 3)
+        self.assertEqual(len(outgoing.recipient_ids), 7 - 2)
 
         with (
             self.mock_smtplib_connection(),
             self.mock_datetime_and_now("2025-01-01 20:42:29"),
         ):
             self.env["mail.mail"].process_email_queue()
-        self.assertEqual(self.mail_server_1.owner_limit_count, 3)
+        self.assertEqual(self.mail_server_1.owner_limit_count, 5)
         mails = self.env["mail.mail"].search(
             [
                 (

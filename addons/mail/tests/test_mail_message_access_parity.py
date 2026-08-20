@@ -228,7 +228,7 @@ class TestMailMessageCreateDetails(MailCommon):
                 {
                     "body": "<p>b</p>",
                     "message_type": "comment",
-                    "model": "mail.thread",
+                    "model": "mixin.mail.thread",
                     "res_id": 5,
                 }
             )
@@ -280,7 +280,7 @@ class TestMailMessageCreateDetails(MailCommon):
                 {
                     "body": "b",
                     "message_type": "comment",
-                    "model": "mail.thread",
+                    "model": "mixin.mail.thread",
                     "res_id": 9,
                 },
             ]

@@ -29,3 +29,11 @@ class TestFontToImg(HttpCase):
             404,
             "out-of-range code point should be a clean 404, not a 500",
         )
+
+    def test_font_to_img_caps_the_glyph_count(self):
+        response = self.url_open("/mail/font_to_img/" + "W" * 400 + "/%23000/512x512")
+        self.assertEqual(
+            response.status_code,
+            404,
+            "a glyph string past the cap must be refused before it is rendered",
+        )

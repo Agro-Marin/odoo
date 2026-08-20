@@ -6,7 +6,6 @@ import json
 import logging
 import re
 import time
-from ast import literal_eval
 from contextlib import contextmanager
 from datetime import UTC, timedelta
 from functools import partial
@@ -32,12 +31,13 @@ from odoo.addons.base.models.ir_mail_server import IrMail_Server
 from odoo.addons.base.tests.common import MockSmtplibCase
 from odoo.addons.bus.models.bus import BusBus, json_dump
 from odoo.addons.bus.tests.common import BusCase
-from odoo.addons.mail.models import mail_thread
+from odoo.addons.mail.models import mixin_mail_thread
 from odoo.addons.mail.models.mail_mail import MailMail
 from odoo.addons.mail.models.mail_message import MailMessage
 from odoo.addons.mail.models.mail_notification import MailNotification
 from odoo.addons.mail.models.res_users import ResUsers
 from odoo.addons.mail.tools.discuss import Store
+from odoo.addons.mail.tools.recipients import build_recipient_data
 
 _logger = logging.getLogger(__name__)
 
@@ -68,9 +68,10 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
     @contextmanager
     def mock_push_to_end_point(self, max_direct_push=5):
         with (
-            patch.object(mail_thread, "push_to_end_point") as patched_push,
+            patch.object(mixin_mail_thread, "push_to_end_point") as patched_push,
             patch(
-                "odoo.addons.mail.models.mail_thread.MAX_DIRECT_PUSH", max_direct_push
+                "odoo.addons.mail.models.mixin_mail_thread.MAX_DIRECT_PUSH",
+                max_direct_push,
             ),
         ):
             self.push_to_end_point_mocked = patched_push
@@ -156,7 +157,7 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
                 wraps=MailMail,
                 side_effect=_mail_mail_unlink,
             ),
-            patch.object(mail_thread, "push_to_end_point") as patched_push,
+            patch.object(mixin_mail_thread, "push_to_end_point") as patched_push,
         ):
             self.build_email_mocked = build_email_mocked
             self.send_email_mocked = send_email_mocked
@@ -309,7 +310,7 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
             msg_id=msg_id,
             **kwargs,
         )
-        self.env["mail.thread"].with_user(
+        self.env["mixin.mail.thread"].with_user(
             with_user or self.env.user
         ).sudo().message_process(model, mail)
         return self.env[target_model].search([(target_field, "=", subject)])
@@ -736,7 +737,7 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
         for fname, expected_fvalue in (fields_values or {}).items():
             with self.subTest(fname=fname, expected_fvalue=expected_fvalue):
                 if fname == "headers":
-                    fvalue = literal_eval(mail[fname])
+                    fvalue = mail[fname] or {}
                     if "X-Msg-To-Add" in fvalue and "X-Msg-To-Add" in expected_fvalue:
                         msg_to_add = fvalue["X-Msg-To-Add"]
                         exp_msg_to_add = expected_fvalue["X-Msg-To-Add"]
@@ -1009,33 +1010,12 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
 
         self.assertEqual(len(mails), 0)
 
-    def assertSentEmail(self, author, recipients, **values):
-        direct_check = [
-            "body_alternative",
-            "email_from",
-            "message_id",
-            "references",
-            "reply_to",
-            "subject",
-        ]
-        content_check = [
-            "body_alternative_content",
-            "body_content",
-            "references_content",
-        ]
-        email_list_check = ["email_bcc", "email_cc", "email_to"]
-        other_check = ["attachments", "attachments_info", "body", "headers"]
-
-        expected = {}
-        for fname in direct_check + content_check + email_list_check + other_check:
-            if fname in values:
-                expected[fname] = values[fname]
-        unknown = set(values.keys()) - set(
-            direct_check + content_check + email_list_check + other_check
-        )
+    def _prepare_expected_sent_email(self, author, recipients, values, known_fields):
+        unknown = set(values.keys()) - set(known_fields)
         if unknown:
             raise NotImplementedError("Unsupported %s" % ", ".join(unknown))
 
+        expected = {fname: values[fname] for fname in known_fields if fname in values}
         if isinstance(author, self.env["res.partner"].__class__):
             expected["email_from"] = formataddr(
                 (
@@ -1064,39 +1044,9 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
                 else:
                     email_to_list.append(email_to)
         expected["email_to"] = email_to_list
+        return expected
 
-        attachments = [
-            attachment["name"]
-            for attachment in values.get("attachments_info", [])
-            if "name" in attachment
-        ]
-        sent_mail = self._find_sent_email(
-            expected["email_from"],
-            expected["email_to"],
-            subject=values.get("subject"),
-            body=values.get("body"),
-            attachment_names=attachments or None,
-        )
-        debug_info = ""
-        if not sent_mail:
-            debug_info = "\n-".join(
-                "From: %s-To: %s" % (mail["email_from"], mail["email_to"])
-                for mail in self._mails
-            )
-        self.assertTrue(
-            bool(sent_mail),
-            "Expected mail from %s to %s not found in %s\n"
-            % (expected["email_from"], expected["email_to"], debug_info),
-        )
-
-        for val in direct_check:
-            if val in expected:
-                self.assertEqual(
-                    expected[val],
-                    sent_mail[val],
-                    "Value for %s: expected %s, received %s"
-                    % (val, expected[val], sent_mail[val]),
-                )
+    def _assert_sent_email_attachments(self, expected, sent_mail):
         if "attachments" in expected:
             self.assertEqual(
                 sorted(expected["attachments"]),
@@ -1132,6 +1082,88 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
                 % ("body", expected["body"], sent_mail["body"]),
             )
 
+    def _assert_sent_email_headers(self, expected, sent_mail):
+        if "headers" not in expected:
+            return
+        if (
+            "X-Msg-To-Add" in sent_mail["headers"]
+            and "X-Msg-To-Add" in expected["headers"]
+        ):
+            msg_to_add = sent_mail["headers"]["X-Msg-To-Add"]
+            exp_msg_to_add = expected["headers"]["X-Msg-To-Add"]
+            self.assertEqual(
+                sorted(email_split_and_format_normalize(msg_to_add)),
+                sorted(email_split_and_format_normalize(exp_msg_to_add)),
+            )
+        for key, value in expected["headers"].items():
+            if key == "X-Msg-To-Add":
+                continue
+            self.assertTrue(key in sent_mail["headers"], f"Missing key {key}")
+            found = sent_mail["headers"][key]
+            self.assertEqual(
+                found,
+                value,
+                f"Header value for {key} invalid, found {found} instead of {value}",
+            )
+
+    def assertSentEmail(self, author, recipients, **values):
+        direct_check = [
+            "body_alternative",
+            "email_from",
+            "message_id",
+            "references",
+            "reply_to",
+            "subject",
+        ]
+        content_check = [
+            "body_alternative_content",
+            "body_content",
+            "references_content",
+        ]
+        email_list_check = ["email_bcc", "email_cc", "email_to"]
+        other_check = ["attachments", "attachments_info", "body", "headers"]
+
+        expected = self._prepare_expected_sent_email(
+            author,
+            recipients,
+            values,
+            direct_check + content_check + email_list_check + other_check,
+        )
+
+        attachments = [
+            attachment["name"]
+            for attachment in values.get("attachments_info", [])
+            if "name" in attachment
+        ]
+        sent_mail = self._find_sent_email(
+            expected["email_from"],
+            expected["email_to"],
+            subject=values.get("subject"),
+            body=values.get("body"),
+            attachment_names=attachments or None,
+        )
+        debug_info = ""
+        if not sent_mail:
+            debug_info = "\n-".join(
+                "From: %s-To: %s" % (mail["email_from"], mail["email_to"])
+                for mail in self._mails
+            )
+        self.assertTrue(
+            bool(sent_mail),
+            "Expected mail from %s to %s not found in %s\n"
+            % (expected["email_from"], expected["email_to"], debug_info),
+        )
+
+        for val in direct_check:
+            if val in expected:
+                self.assertEqual(
+                    expected[val],
+                    sent_mail[val],
+                    "Value for %s: expected %s, received %s"
+                    % (val, expected[val], sent_mail[val]),
+                )
+        self._assert_sent_email_attachments(expected, sent_mail)
+
         for val in email_list_check:
             if expected.get(val):
                 self.assertEqual(
@@ -1163,27 +1195,7 @@ class MockEmail(common.BaseCase, MockSmtplibCase):
                     % (val, sent_mail[val[:-8]], expected[val]),
                 )
 
-        if "headers" in expected:
-            if (
-                "X-Msg-To-Add" in sent_mail["headers"]
-                and "X-Msg-To-Add" in expected["headers"]
-            ):
-                msg_to_add = sent_mail["headers"]["X-Msg-To-Add"]
-                exp_msg_to_add = expected["headers"]["X-Msg-To-Add"]
-                self.assertEqual(
-                    sorted(email_split_and_format_normalize(msg_to_add)),
-                    sorted(email_split_and_format_normalize(exp_msg_to_add)),
-                )
-            for key, value in expected["headers"].items():
-                if key == "X-Msg-To-Add":
-                    continue
-                self.assertTrue(key in sent_mail["headers"], f"Missing key {key}")
-                found = sent_mail["headers"][key]
-                self.assertEqual(
-                    found,
-                    value,
-                    f"Header value for {key} invalid, found {found} instead of {value}",
-                )
+        self._assert_sent_email_headers(expected, sent_mail)
         return sent_mail
 
     def assertNoPushNotification(self):
@@ -1491,29 +1503,29 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
         ]
 
     def _generate_notify_recipients(self, partners, record=None):
-        return [
-            {
-                "id": partner.id,
-                "active": partner.active,
-                "email_normalized": partner.email_normalized,
-                "is_follower": partner in record.message_partner_ids
-                if record
-                else False,
-                "groups": partner.user_ids.group_ids.ids,
-                "lang": partner.lang,
-                "name": partner.name,
-                "notif": partner.user_ids.notification_type or "email",
-                "share": partner.partner_share,
-                "type": "user"
-                if partner.main_user_id and partner.main_user_id._is_internal()
-                else "customer",
-                "uid": partner.main_user_id.id,
-                "ushare": all(user.share for user in partner.user_ids)
-                if partner.user_ids
-                else False,
-            }
-            for partner in partners
-        ]
+        entries = []
+        for partner in partners:
+            user = partner.user_ids.filtered("active").sorted(
+                key=lambda u: (u.share, u.id)
+            )[:1]
+            entries.append(
+                build_recipient_data(
+                    partner_id=partner.id,
+                    active=partner.active,
+                    email_normalized=partner.email_normalized,
+                    groups=frozenset(user.all_group_ids.ids),
+                    is_follower=(
+                        partner in record.message_partner_ids if record else False
+                    ),
+                    lang=partner.lang,
+                    name=partner.name,
+                    notif=user.notification_type or "email",
+                    partner_share=partner.partner_share,
+                    uid=user.id,
+                    user_share=bool(user.share),
+                )
+            )
+        return entries
 
     def _get_mail_composer_web_context(self, records, add_web=True, **values):
         base_context = {
@@ -1679,7 +1691,7 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
             self.assertFalse(bool(self._new_msgs))
             self.assertFalse(bool(self._new_notifs))
 
-    def assertMailNotifications(self, messages, recipients_info, bus_notif_count=1):
+    def _find_expected_notifications(self, messages, recipients_info):
         partners = (
             self.env["res.partner"]
             .sudo()
@@ -1711,7 +1723,214 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
             f"Notif: partner {notif.res_partner_id.id} ({notif.res_partner_id.name}) / type {notif.notification_type}"
             for notif in notifications
         )
+        return notifications, email_addrs, debug_info
 
+    def _find_notified_message(self, messages, mbody, mtype, msubtype):
+        if messages:
+            message = messages.filtered(
+                lambda message: (
+                    mbody in message.body
+                    and message.message_type == mtype
+                    and msubtype == message.subtype_id
+                )
+            )
+            debug_info = "\n".join(
+                f"Msg: message_type {message.message_type}, subtype {message.subtype_id.name}, content {message.body}"
+                for message in messages
+            )
+            return message, debug_info
+        message = (
+            self.env["mail.message"]
+            .sudo()
+            .search(
+                [
+                    ("body", "ilike", mbody),
+                    ("message_type", "=", mtype),
+                    ("subtype_id", "=", msubtype.id),
+                ],
+                limit=1,
+                order="id DESC",
+            )
+        )
+        return message, ""
+
+    def _get_recipient_notif_group(self, partner, email_to_lst):
+        if (partner and not partner.user_ids) or (not partner and email_to_lst):
+            return "customer"
+        if partner and partner.partner_share:
+            return "portal"
+        return "user"
+
+    def _find_recipient_notif(
+        self, notifications, message, partner, email_to_lst, ntype
+    ):
+        return notifications.filtered(
+            lambda n: (
+                n.mail_message_id == message
+                and (
+                    (partner and n.res_partner_id == partner)
+                    or n.mail_email_address in email_to_lst
+                )
+                and n.notification_type == ntype
+            )
+        )
+
+    def _update_notif_email_groups(
+        self,
+        email_group,
+        status_groups,
+        recipient,
+        partner,
+        email_to_lst,
+        email_cc_lst,
+        nstatus,
+    ):
+        if nstatus in ("sent", "ready", "exception") and recipient.get(
+            "check_send", True
+        ):
+            email_group["partners"] += partner
+            if "email_to_recipients" in recipient:
+                email_group["email_to_recipients"] += recipient["email_to_recipients"]
+            if email_cc_lst:
+                email_group["email_cc_lst"] += email_cc_lst
+            if email_to_lst:
+                email_group["email_to_lst"] += email_to_lst
+        if nstatus in ("ready", "exception"):
+            state = "outgoing" if nstatus == "ready" else "exception"
+            if partner:
+                status_groups[state]["partners"].append(partner)
+            if email_cc_lst:
+                status_groups[state]["email_lst"] += email_cc_lst
+            if email_to_lst:
+                status_groups[state]["email_lst"] += email_to_lst
+        elif nstatus in ("sent", "canceled"):
+            pass
+        else:
+            raise NotImplementedError
+
+    def _assert_recipient_notif(
+        self, message, recipient, notifications, email_groups, status_groups, debug_info
+    ):
+        extra_keys = set(recipient.keys()) - {
+            "check_send",
+            "email_to",
+            "email_to_recipients",
+            "is_read",
+            "failure_reason",
+            "failure_type",
+            "group",
+            "partner",
+            "status",
+            "type",
+        }
+        if extra_keys:
+            raise ValueError(f"Unsupported recipient values: {extra_keys}")
+
+        partner = recipient.get("partner", self.env["res.partner"])
+        email_to_lst, email_cc_lst = (
+            recipient.get("email_to", []),
+            recipient.get("email_cc", []),
+        )
+        ntype, nstatus = recipient["type"], recipient.get("status", "sent")
+        ngroup = recipient.get("group") or self._get_recipient_notif_group(
+            partner, email_to_lst
+        )
+        if ngroup not in email_groups:
+            email_groups[ngroup] = {
+                "email_cc_lst": [],
+                "email_to_lst": [],
+                "email_to_recipients": [],
+                "partners": self.env["res.partner"].sudo(),
+            }
+
+        notif = self._find_recipient_notif(
+            notifications, message, partner, email_to_lst, ntype
+        )
+        self.assertEqual(
+            len(notif),
+            1,
+            f"Mail: not found notification for {partner or email_to_lst} (type: {ntype}, message: {message.id})\n{debug_info}",
+        )
+        self.assertEqual(notif.author_id, notif.mail_message_id.author_id)
+        self.assertEqual(notif.is_read, recipient.get("is_read", ntype != "inbox"))
+        if "failure_reason" in recipient:
+            self.assertEqual(notif.failure_reason, recipient["failure_reason"])
+        if "failure_type" in recipient:
+            self.assertEqual(notif.failure_type, recipient["failure_type"])
+        self.assertEqual(notif.notification_status, nstatus)
+
+        if ntype == "email":
+            self._update_notif_email_groups(
+                email_groups[ngroup],
+                status_groups,
+                recipient,
+                partner,
+                email_to_lst,
+                email_cc_lst,
+                nstatus,
+            )
+        return notif
+
+    def _get_notif_group_mail_status(self, partners, email_to_lst, status_groups):
+        mail_status = "sent"
+        if partners and all(
+            p in status_groups["exception"]["partners"] for p in partners
+        ):
+            mail_status = "exception"
+        if email_to_lst and all(
+            p in status_groups["exception"]["email_lst"] for p in email_to_lst
+        ):
+            mail_status = "exception"
+        if partners and all(
+            p in status_groups["outgoing"]["partners"] for p in partners
+        ):
+            mail_status = "outgoing"
+        if email_to_lst and all(
+            p in status_groups["outgoing"]["email_lst"] for p in email_to_lst
+        ):
+            mail_status = "outgoing"
+        return mail_status
+
+    def _assert_notif_email_group(
+        self, message, message_info, group, status_groups, email_values, mbody
+    ):
+        partners = group["partners"]
+        email_to_lst = group["email_to_lst"]
+        mail_status = self._get_notif_group_mail_status(
+            partners, email_to_lst, status_groups
+        )
+        if not self.mail_unlink_sent and (partners or email_to_lst):
+            self.assertMailMail(
+                partners,
+                mail_status,
+                author=message_info.get("mail_mail_values", {}).get(
+                    "author_id", message.author_id
+                ),
+                content=mbody,
+                email_to_all=email_to_lst,
+                email_to_recipients=group["email_to_recipients"] or None,
+                email_values=email_values,
+                fields_values=message_info.get("mail_mail_values"),
+                mail_message=message,
+            )
+        else:
+            for partner in partners:
+                self.assertSentEmail(
+                    message.author_id or message.email_from,
+                    partner,
+                    **email_values,
+                )
+            if email_to_lst:
+                self.assertSentEmail(
+                    message.author_id or message.email_from,
+                    email_to_lst,
+                    **email_values,
+                )
+
+    def assertMailNotifications(self, messages, recipients_info, bus_notif_count=1):
+        notifications, email_addrs, debug_info = self._find_expected_notifications(
+            messages, recipients_info
+        )
         done_msgs = self.env["mail.message"].sudo()
         done_notifs = self.env["mail.notification"].sudo()
 
@@ -1739,33 +1958,9 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
                 self.env.ref(message_info.get("subtype", "mail.mt_comment")),
             )
 
-            if messages:
-                message = messages.filtered(
-                    lambda message, mbody=mbody, mtype=mtype, msubtype=msubtype: (
-                        mbody in message.body
-                        and message.message_type == mtype
-                        and msubtype == message.subtype_id
-                    )
-                )
-                debug_info = "\n".join(
-                    f"Msg: message_type {message.message_type}, subtype {message.subtype_id.name}, content {message.body}"
-                    for message in messages
-                )
-            else:
-                message = (
-                    self.env["mail.message"]
-                    .sudo()
-                    .search(
-                        [
-                            ("body", "ilike", mbody),
-                            ("message_type", "=", mtype),
-                            ("subtype_id", "=", msubtype.id),
-                        ],
-                        limit=1,
-                        order="id DESC",
-                    )
-                )
-                debug_info = ""
+            message, debug_info = self._find_notified_message(
+                messages, mbody, mtype, msubtype
+            )
             self.assertTrue(
                 message,
                 "Mail: not found message (content: %s, message_type: %s, subtype: %s\n%s)"
@@ -1782,98 +1977,14 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
             }
             self.assertEqual(len(message.notification_ids), len(message_info["notif"]))
             for recipient in message_info["notif"]:
-                extra_keys = set(recipient.keys()) - {
-                    "check_send",
-                    "email_to",
-                    "email_to_recipients",
-                    "is_read",
-                    "failure_reason",
-                    "failure_type",
-                    "group",
-                    "partner",
-                    "status",
-                    "type",
-                }
-                if extra_keys:
-                    raise ValueError(f"Unsupported recipient values: {extra_keys}")
-
-                partner = recipient.get("partner", self.env["res.partner"])
-                email_to_lst, email_cc_lst = (
-                    recipient.get("email_to", []),
-                    recipient.get("email_cc", []),
+                done_notifs |= self._assert_recipient_notif(
+                    message,
+                    recipient,
+                    notifications,
+                    email_groups,
+                    status_groups,
+                    debug_info,
                 )
-                ntype, ngroup, nstatus = (
-                    recipient["type"],
-                    recipient.get("group"),
-                    recipient.get("status", "sent"),
-                )
-                nis_read = recipient.get("is_read", recipient["type"] != "inbox")
-                ncheck_send = recipient.get("check_send", True)
-
-                if not ngroup:
-                    ngroup = "user"
-                    if (partner and not partner.user_ids) or (
-                        not partner and email_to_lst
-                    ):
-                        ngroup = "customer"
-                    elif partner and partner.partner_share:
-                        ngroup = "portal"
-                if ngroup not in email_groups:
-                    email_groups[ngroup] = {
-                        "email_cc_lst": [],
-                        "email_to_lst": [],
-                        "email_to_recipients": [],
-                        "partners": self.env["res.partner"].sudo(),
-                    }
-
-                notif = notifications.filtered(
-                    lambda n, message=message, partner=partner, email_to_lst=email_to_lst, ntype=ntype: (
-                        n.mail_message_id == message
-                        and (
-                            (partner and n.res_partner_id == partner)
-                            or n.mail_email_address in email_to_lst
-                        )
-                        and n.notification_type == ntype
-                    )
-                )
-                self.assertEqual(
-                    len(notif),
-                    1,
-                    f"Mail: not found notification for {partner or email_to_lst} (type: {ntype}, message: {message.id})\n{debug_info}",
-                )
-                self.assertEqual(notif.author_id, notif.mail_message_id.author_id)
-                self.assertEqual(notif.is_read, nis_read)
-                if "failure_reason" in recipient:
-                    self.assertEqual(notif.failure_reason, recipient["failure_reason"])
-                if "failure_type" in recipient:
-                    self.assertEqual(notif.failure_type, recipient["failure_type"])
-                self.assertEqual(notif.notification_status, nstatus)
-
-                if ntype == "email":
-                    if nstatus in ("sent", "ready", "exception") and ncheck_send:
-                        email_groups[ngroup]["partners"] += partner
-                        if "email_to_recipients" in recipient:
-                            email_groups[ngroup]["email_to_recipients"] += recipient[
-                                "email_to_recipients"
-                            ]
-                        if email_cc_lst:
-                            email_groups[ngroup]["email_cc_lst"] += email_cc_lst
-                        if email_to_lst:
-                            email_groups[ngroup]["email_to_lst"] += email_to_lst
-                    if nstatus in ("ready", "exception"):
-                        state = "outgoing" if nstatus == "ready" else "exception"
-                        if partner:
-                            status_groups[state]["partners"].append(partner)
-                        if email_cc_lst:
-                            status_groups[state]["email_lst"] += email_cc_lst
-                        if email_to_lst:
-                            status_groups[state]["email_lst"] += email_to_lst
-                    elif nstatus in ("sent", "canceled"):
-                        pass
-                    else:
-                        raise NotImplementedError
-
-                done_notifs |= notif
             done_msgs |= message
 
             bus_notifications = (
@@ -1892,54 +2003,9 @@ class MailCase(common.TransactionCase, MockEmail, BusCase):
             if message_info.get("email_values"):
                 email_values.update(message_info["email_values"])
             for group in email_groups.values():
-                partners = group["partners"]
-                email_cc_lst = group["email_cc_lst"]
-                email_to_lst = group["email_to_lst"]
-
-                mail_status = "sent"
-                if partners and all(
-                    p in status_groups["exception"]["partners"] for p in partners
-                ):
-                    mail_status = "exception"
-                if email_to_lst and all(
-                    p in status_groups["exception"]["email_lst"] for p in email_to_lst
-                ):
-                    mail_status = "exception"
-                if partners and all(
-                    p in status_groups["outgoing"]["partners"] for p in partners
-                ):
-                    mail_status = "outgoing"
-                if email_to_lst and all(
-                    p in status_groups["outgoing"]["email_lst"] for p in email_to_lst
-                ):
-                    mail_status = "outgoing"
-                if not self.mail_unlink_sent and (partners or email_to_lst):
-                    self.assertMailMail(
-                        partners,
-                        mail_status,
-                        author=message_info.get("mail_mail_values", {}).get(
-                            "author_id", message.author_id
-                        ),
-                        content=mbody,
-                        email_to_all=email_to_lst,
-                        email_to_recipients=group["email_to_recipients"] or None,
-                        email_values=email_values,
-                        fields_values=message_info.get("mail_mail_values"),
-                        mail_message=message,
-                    )
-                else:
-                    for partner in partners:
-                        self.assertSentEmail(
-                            message.author_id or message.email_from,
-                            partner,
-                            **email_values,
-                        )
-                    if email_to_lst:
-                        self.assertSentEmail(
-                            message.author_id or message.email_from,
-                            email_to_lst,
-                            **email_values,
-                        )
+                self._assert_notif_email_group(
+                    message, message_info, group, status_groups, email_values, mbody
+                )
 
             if not any(p for recipients in email_groups.values() for p in recipients):
                 self.assertNoMail(
@@ -2287,10 +2353,10 @@ class MailCommon(MailCase):
     def _filter_threads_fields(self, /, *threads_data):
         for data in threads_data:
             if (
-                "rating.mixin" not in self.env.registry
+                "mixin.rating" not in self.env.registry
                 or data["model"] not in self.env.registry
                 or not issubclass(
-                    self.env.registry[data["model"]], self.env.registry["rating.mixin"]
+                    self.env.registry[data["model"]], self.env.registry["mixin.rating"]
                 )
             ):
                 data.pop("rating_avg", None)

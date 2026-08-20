@@ -79,7 +79,7 @@ class TestMailTools(MailCommon):
             ]
         )
 
-        found = self.env["mail.thread"]._partner_find_from_emails_single(
+        found = self.env["mixin.mail.thread"]._partner_find_from_emails_single(
             ["test_localpart@gmail.com"], no_create=False
         )
         self.assertFalse(
@@ -108,7 +108,7 @@ class TestMailTools(MailCommon):
             ),
         ]:
             with self.subTest(check="Allowed domain support", test_email=test_email):
-                found = self.env["mail.thread"]._partner_find_from_emails_single(
+                found = self.env["mixin.mail.thread"]._partner_find_from_emails_single(
                     [test_email], no_create=False
                 )
                 if not done:
@@ -121,7 +121,7 @@ class TestMailTools(MailCommon):
                     self.assertEqual(found.email_normalized, email_normalized)
                     self.assertEqual(found.name, "Customer")
 
-        found = self.env["mail.thread"]._partner_find_from_emails_single(
+        found = self.env["mixin.mail.thread"]._partner_find_from_emails_single(
             ['"Customer" <test_no_localpart@gmail.com>'], no_create=False
         )
         self.assertTrue(found, "Should have created a partner")
@@ -135,7 +135,7 @@ class TestMailTools(MailCommon):
             '"Customer" <test_localpart@brutijus.fr.com>',
         ]
 
-        found = self.env["mail.thread"]._partner_find_from_emails_single(
+        found = self.env["mixin.mail.thread"]._partner_find_from_emails_single(
             test_list, no_create=False
         )
         self.assertEqual(

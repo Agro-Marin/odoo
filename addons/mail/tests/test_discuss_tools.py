@@ -112,25 +112,26 @@ class TestDiscussTools(TransactionCase):
     def test_210_store_thread_dict(self):
         store = Store()
         store.add_model_values(
-            "mail.thread", {"id": 1, "model": "res.partner", "test": True}
+            "mixin.mail.thread", {"id": 1, "model": "res.partner", "test": True}
         )
         self.assertEqual(
             store.get_result(),
-            {"mail.thread": [{"id": 1, "model": "res.partner", "test": True}]},
+            {"mixin.mail.thread": [{"id": 1, "model": "res.partner", "test": True}]},
         )
 
     def test_211_store_thread_dict_update_same_id(self):
         store = Store()
         store.add_model_values(
-            "mail.thread", {"id": 1, "model": "res.partner", "test": True}
+            "mixin.mail.thread", {"id": 1, "model": "res.partner", "test": True}
         )
         store.add_model_values(
-            "mail.thread", {"id": 1, "model": "res.partner", "test": False, "abc": 1}
+            "mixin.mail.thread",
+            {"id": 1, "model": "res.partner", "test": False, "abc": 1},
         )
         self.assertEqual(
             store.get_result(),
             {
-                "mail.thread": [
+                "mixin.mail.thread": [
                     {"id": 1, "model": "res.partner", "test": False, "abc": 1}
                 ]
             },
@@ -139,18 +140,19 @@ class TestDiscussTools(TransactionCase):
     def test_212_store_thread_dict_update_multiple_ids(self):
         store = Store()
         store.add_model_values(
-            "mail.thread", {"id": 1, "model": "res.partner", "test": True}
+            "mixin.mail.thread", {"id": 1, "model": "res.partner", "test": True}
         )
         store.add_model_values(
-            "mail.thread", {"id": 2, "model": "res.partner", "test": True}
+            "mixin.mail.thread", {"id": 2, "model": "res.partner", "test": True}
         )
         store.add_model_values(
-            "mail.thread", {"id": 2, "model": "res.partner", "test": False, "abc": 1}
+            "mixin.mail.thread",
+            {"id": 2, "model": "res.partner", "test": False, "abc": 1},
         )
         self.assertEqual(
             store.get_result(),
             {
-                "mail.thread": [
+                "mixin.mail.thread": [
                     {"id": 1, "model": "res.partner", "test": True},
                     {"id": 2, "model": "res.partner", "test": False, "abc": 1},
                 ]
@@ -160,25 +162,26 @@ class TestDiscussTools(TransactionCase):
     def test_213_store_thread_dict_update_multiple_models(self):
         store = Store()
         store.add_model_values(
-            "mail.thread", {"id": 1, "model": "res.partner", "test": True}
+            "mixin.mail.thread", {"id": 1, "model": "res.partner", "test": True}
         )
         store.add_model_values(
-            "mail.thread", {"id": 2, "model": "res.partner", "test": True}
+            "mixin.mail.thread", {"id": 2, "model": "res.partner", "test": True}
         )
         store.add_model_values(
-            "mail.thread", {"id": 2, "model": "discuss.channel", "test": True, "abc": 1}
+            "mixin.mail.thread",
+            {"id": 2, "model": "discuss.channel", "test": True, "abc": 1},
         )
         store.add_model_values(
-            "mail.thread",
+            "mixin.mail.thread",
             {"id": 2, "model": "discuss.channel", "test": False, "abc": 2},
         )
         store.add_model_values(
-            "mail.thread", {"id": 1, "model": "res.partner", "test": False}
+            "mixin.mail.thread", {"id": 1, "model": "res.partner", "test": False}
         )
         self.assertEqual(
             store.get_result(),
             {
-                "mail.thread": [
+                "mixin.mail.thread": [
                     {"id": 1, "model": "res.partner", "test": False},
                     {"id": 2, "model": "res.partner", "test": True},
                     {"id": 2, "model": "discuss.channel", "test": False, "abc": 2},
@@ -189,34 +192,35 @@ class TestDiscussTools(TransactionCase):
     def test_240_store_thread_invalid_bool(self):
         store = Store()
         with self.assertRaises(AttributeError):
-            store.add_model_values("mail.thread", True)
+            store.add_model_values("mixin.mail.thread", True)
 
     def test_241_store_thread_invalid_list(self):
         store = Store()
         with self.assertRaises(AttributeError):
-            store.add_model_values("mail.thread", [True])
+            store.add_model_values("mixin.mail.thread", [True])
 
     def test_242_store_thread_invalid_missing_id(self):
         store = Store()
         with self.assertRaises(AssertionError):
-            store.add_model_values("mail.thread", {"model": "res.partner"})
+            store.add_model_values("mixin.mail.thread", {"model": "res.partner"})
 
     def test_243_store_thread_invalid_missing_model(self):
         store = Store()
         with self.assertRaises(AssertionError):
-            store.add_model_values("mail.thread", {"id": 1})
+            store.add_model_values("mixin.mail.thread", {"id": 1})
 
     def test_260_store_thread_data_empty_val(self):
         store = Store()
-        store.add_model_values("mail.thread", {})
+        store.add_model_values("mixin.mail.thread", {})
         self.assertEqual(store.get_result(), {})
 
     def test_261_store_thread_data_empty_not_empty(self):
         store = Store()
         store.add_model_values("key1", {})
-        store.add_model_values("mail.thread", {"id": 1, "model": "res.partner"})
+        store.add_model_values("mixin.mail.thread", {"id": 1, "model": "res.partner"})
         self.assertEqual(
-            store.get_result(), {"mail.thread": [{"id": 1, "model": "res.partner"}]}
+            store.get_result(),
+            {"mixin.mail.thread": [{"id": 1, "model": "res.partner"}]},
         )
 
     def test_350_non_list_extra_fields_copy_when_following_relations(self):

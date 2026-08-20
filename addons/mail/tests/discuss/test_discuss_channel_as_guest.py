@@ -103,6 +103,10 @@ class TestMailPublicPage(HttpCaseWithUserPortal, HttpCaseWithUserDemo):
         channel = self.env["discuss.channel"].search([("uuid", "=", "xyz")])
         self.assertEqual(len(channel), 1)
 
+    def test_chat_from_token_page_mounts_as_guest(self):
+        self.env["ir.config_parameter"].set_param("mail.chat_from_token", True)
+        self.start_tour("/chat/xyz", "discuss_chat_from_token_tour")
+
     def test_channel_invitation_from_token(self):
         public_channel = self.env["discuss.channel"]._create_channel(
             name="Public Channel", group_id=None

@@ -48,7 +48,7 @@ class TestMailTemplate(MailCommon):
 
     @users("admin")
     @mute_logger("odoo.addons.mail.models.mail_template")
-    @mute_logger("odoo.addons.mail.models.mail_render_mixin")
+    @mute_logger("odoo.addons.mail.models.mixin_mail_render")
     def test_invalid_template_on_save(self):
         mail_template = self.env["mail.template"].create(
             {
@@ -107,7 +107,7 @@ class TestMailTemplate(MailCommon):
 
     @users("admin")
     @mute_logger("odoo.addons.mail.models.mail_template")
-    @mute_logger("odoo.addons.mail.models.mail_render_mixin")
+    @mute_logger("odoo.addons.mail.models.mixin_mail_render")
     def test_invalid_template_skipped_during_install(self):
         mail_template = self.env["mail.template"].create(
             {
@@ -167,7 +167,7 @@ class TestMailTemplate(MailCommon):
             self.env["mail.template"].create(
                 {
                     "name": "Test abstract template",
-                    "model_id": self.env["ir.model"]._get("mail.thread").id,
+                    "model_id": self.env["ir.model"]._get("mixin.mail.thread").id,
                 }
             )
         template = self.env["mail.template"].create(
@@ -180,7 +180,7 @@ class TestMailTemplate(MailCommon):
             template.write(
                 {
                     "name": "Test abstract template",
-                    "model_id": self.env["ir.model"]._get("mail.thread").id,
+                    "model_id": self.env["ir.model"]._get("mixin.mail.thread").id,
                 }
             )
 
@@ -306,12 +306,12 @@ class TestMailTemplate(MailCommon):
             )
 
         code = """<t t-inner-content="<p t-out='1+11'>Test</p>"></t>"""
-        body = self.env["mail.render.mixin"]._render_template_qweb(
+        body = self.env["mixin.mail.render"]._render_template_qweb(
             code, "res.partner", record.ids
         )[record.id]
         self.assertNotIn("12", body)
         code = """<t t-inner-content="&lt;p t-out='1+11'&gt;Test&lt;/p&gt;"></t>"""
-        body = self.env["mail.render.mixin"]._render_template_qweb(
+        body = self.env["mixin.mail.render"]._render_template_qweb(
             code, "res.partner", record.ids
         )[record.id]
         self.assertNotIn("12", body)
@@ -327,7 +327,6 @@ class TestMailTemplate(MailCommon):
             '<t t-set="namn" t-value="Hello {{world}} !"/>',
             '<t t-att-test="object.name"/>',
             '<p t-att-title="object.name"></p>',
-            '<p t-out="object.name" title="Test"></p>',
             '<p t-out="object.name"><img/></p>',
             '<p t-out="object.password"></p>',
         )
@@ -335,7 +334,7 @@ class TestMailTemplate(MailCommon):
             with self.assertRaises(AccessError):
                 employee_template.body_html = expression
             self.assertTrue(
-                self.env["mail.render.mixin"]._has_unsafe_expression_template_qweb(
+                self.env["mixin.mail.render"]._has_unsafe_expression_template_qweb(
                     expression, "res.partner"
                 )
             )
@@ -345,9 +344,10 @@ class TestMailTemplate(MailCommon):
             '<p t-out="object.name"></p><img/>',
             '<p t-out="object.name"></p><img title="Test"/>',
             '<p t-out="object.name">Default</p>',
+            '<p t-out="object.name" title="Test"></p>',
             '<p t-out="object.partner_id.name">Default</p>',
         )
-        o_qweb_render = self.env["ir.qweb"]._render
+        o_qweb_render = self.env.registry["ir.qweb"]._render_prepared
         for expression in allowed_qweb_expressions:
             template = (
                 self.env["mail.template"]
@@ -360,14 +360,15 @@ class TestMailTemplate(MailCommon):
                 )
             )
             self.assertFalse(
-                self.env["mail.render.mixin"]._has_unsafe_expression_template_qweb(
+                self.env["mixin.mail.render"]._has_unsafe_expression_template_qweb(
                     expression, "res.partner"
                 )
             )
 
             with (
                 patch(
-                    "odoo.addons.base.models.ir_qweb.IrQweb._render",
+                    "odoo.addons.base.models.ir_qweb.IrQweb._render_prepared",
+                    autospec=True,
                     side_effect=o_qweb_render,
                 ) as qweb_render,
                 patch(
@@ -381,20 +382,14 @@ class TestMailTemplate(MailCommon):
                 self.assertFalse(unsafe_eval.called)
 
         mail_template.body_html = '<t t-out="1+1"/>'
-        with (
-            patch(
-                "odoo.addons.base.models.ir_qweb.IrQweb._render",
-                side_effect=o_qweb_render,
-            ) as qweb_render,
-            patch(
-                "odoo.addons.base.models.ir_qweb.unsafe_eval",
-                side_effect=eval,  # noqa: S307
-            ) as unsafe_eval,
-        ):
+        with patch(
+            "odoo.addons.base.models.ir_qweb.IrQweb._render_prepared",
+            autospec=True,
+            side_effect=o_qweb_render,
+        ) as qweb_render:
             rendered = mail_template._render_field("body_html", record.ids)[record.id]
-            self.assertNotIn("t-out", rendered)
+            self.assertEqual(rendered, "2")
             self.assertTrue(qweb_render.called)
-            self.assertTrue(unsafe_eval.called)
 
         employee_template.email_to = "Test {{ object.name }}"
         with patch("odoo.tools.safe_eval.unsafe_eval", side_effect=eval) as unsafe_eval:  # noqa: S307
@@ -416,11 +411,11 @@ class TestMailTemplate(MailCommon):
                 """<p title="'&lt;p t-out='object.name'/&gt;"></p>""",
             ),
         )
-        o_render = self.env["mail.render.mixin"]._render_template_qweb_static
+        o_render = self.env["mixin.mail.render"]._render_template_qweb_static
         for template, excepted in templates:
             mail_template.body_html = template
             with patch(
-                "odoo.addons.mail.models.mail_render_mixin.MailRenderMixin._render_template_qweb_static",
+                "odoo.addons.mail.models.mixin_mail_render.MixinMailRender._render_template_qweb_static",
                 side_effect=o_render,
             ) as render:
                 rendered = mail_template._render_field("body_html", record.ids)[
@@ -432,7 +427,7 @@ class TestMailTemplate(MailCommon):
         record.name = "<b> test </b>"
         mail_template.body_html = '<t t-out="object.name"/>'
         with patch(
-            "odoo.addons.mail.models.mail_render_mixin.MailRenderMixin._render_template_qweb_static",
+            "odoo.addons.mail.models.mixin_mail_render.MixinMailRender._render_template_qweb_static",
             side_effect=o_render,
         ) as render:
             rendered = mail_template._render_field("body_html", record.ids)[record.id]

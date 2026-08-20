@@ -12,8 +12,8 @@ from odoo.tests import HttpCase, tagged, users
 from odoo.tools import html_escape, mute_logger
 
 from odoo.addons.bus.models.bus import json_dump
-from odoo.addons.mail.models.discuss.discuss_channel import channel_avatar, group_avatar
 from odoo.addons.mail.tests.common import MailCommon, mail_new_test_user
+from odoo.addons.mail.tools.channel_avatar import CHANNEL_AVATAR, GROUP_AVATAR
 from odoo.addons.mail.tools.discuss import Store
 
 
@@ -144,7 +144,7 @@ class TestChannelInternals(MailCommon, HttpCase):
                                         "id": self.env.ref("mail.mt_comment").id,
                                     }
                                 ],
-                                "mail.thread": self._filter_threads_fields(
+                                "mixin.mail.thread": self._filter_threads_fields(
                                     {
                                         "display_name": "Group",
                                         "has_mail_thread": True,
@@ -803,10 +803,10 @@ class TestChannelInternals(MailCommon, HttpCase):
         bgcolor_channel = html_escape("hsl(316, 61%, 45%)")
         bgcolor_group = html_escape("hsl(17, 60%, 45%)")
         expceted_avatar_channel = (
-            channel_avatar.replace('fill="#875a7b"', f'fill="{bgcolor_channel}"')
+            CHANNEL_AVATAR.replace('fill="#875a7b"', f'fill="{bgcolor_channel}"')
         ).encode()
         expected_avatar_group = (
-            group_avatar.replace('fill="#875a7b"', f'fill="{bgcolor_group}"')
+            GROUP_AVATAR.replace('fill="#875a7b"', f'fill="{bgcolor_group}"')
         ).encode()
 
         self.assertEqual(
@@ -1069,7 +1069,7 @@ class TestChannelInternals(MailCommon, HttpCase):
             {
                 "name": "Private Channel",
                 "channel_type": "group",
-                "channel_partner_ids": [(6, 0, self.partner_employee.id)],
+                "channel_partner_ids": [Command.set([self.partner_employee.id])],
             }
         )
 
@@ -1156,7 +1156,7 @@ class TestChannelInternals(MailCommon, HttpCase):
             {
                 "name": "Private Channel",
                 "channel_type": "group",
-                "channel_partner_ids": [(6, 0, test_user.partner_id.id)],
+                "channel_partner_ids": [Command.set([test_user.partner_id.id])],
             }
         )
         test_group._add_members(users=self.user_employee_nomail)

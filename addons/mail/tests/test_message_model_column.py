@@ -93,5 +93,5 @@ class TestMessageModelColumn(HttpCase):
 
                 self.assertFalse(message._is_thread_model())
                 fallback = message._get_thread_model()
-                self.assertEqual(fallback._name, "mail.thread")
+                self.assertEqual(fallback._name, "mixin.mail.thread")
                 self.assertIsInstance(fallback._get_allowed_access_params(), set)

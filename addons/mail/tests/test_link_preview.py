@@ -261,6 +261,54 @@ class TestLinkPreview(MailCommon):
             with self.assertBus(get_params=get_bus_params):
                 self.env["mail.link.preview"]._create_from_message_and_notify(message)
 
+    def test_a_cached_preview_is_reused_when_the_url_set_changes_size_not(self):
+        LP = self.env["mail.link.preview"]
+        url_a, url_b = "https://cached.example.com/a", "https://cached.example.com/b"
+        LP.create(
+            [
+                {"source_url": url_a, "og_title": "Cached A"},
+                {"source_url": url_b, "og_title": "Cached B"},
+            ]
+        )
+        LP.flush_model()
+        fetched = []
+
+        def _never_fetch(url, session=None):
+            fetched.append(url)
+            return {"source_url": url, "og_title": "REFETCHED"}
+
+        message = (
+            self.env["res.partner"]
+            .create({"name": "preview"})
+            .message_post(
+                body=Markup(f'<p><a href="{url_a}">a</a></p>'),
+                message_type="comment",
+                subtype_xmlid="mail.mt_comment",
+            )
+        )
+        with patch(
+            "odoo.addons.mail.models.mail_link_preview.get_link_preview_from_url",
+            _never_fetch,
+        ):
+            LP._create_from_message_and_notify(message)
+            self.assertEqual(fetched, [], "url_a is already cached")
+            message.sudo().body = Markup(f'<p><a href="{url_b}">b</a></p>')
+            message.flush_recordset()
+            LP._create_from_message_and_notify(message)
+        self.assertEqual(
+            fetched, [], "url_b is cached too and must not be fetched over HTTP"
+        )
+        self.assertEqual(
+            LP.search([("source_url", "=", url_b)]).og_title,
+            "Cached B",
+            "the cached row must survive, not be replaced by a refetch",
+        )
+        self.assertEqual(
+            message.sudo().message_link_preview_ids.link_preview_id.source_url,
+            url_b,
+            "the message must end up pointing at the new url",
+        )
+
     def test_link_preview_throttle_is_per_host(self):
         LP = self.env["mail.link.preview"]
         self.env["ir.config_parameter"].sudo().set_param(
@@ -274,7 +322,7 @@ class TestLinkPreview(MailCommon):
         )
         LP.flush_model()
         self.assertFalse(
-            LP._is_domain_thottled("https://evil.com/target"),
+            LP._is_domain_throttled("https://evil.com/target"),
             "an unrelated substring match must not throttle a host with 0 previews",
         )
         LP.create(
@@ -285,7 +333,7 @@ class TestLinkPreview(MailCommon):
         )
         LP.flush_model()
         self.assertTrue(
-            LP._is_domain_thottled("https://real.com/c"),
+            LP._is_domain_throttled("https://real.com/c"),
             "two recent previews of the same host exceed a throttle of 1",
         )
 

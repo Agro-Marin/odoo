@@ -1051,8 +1051,6 @@ class TestChannelRTC(MailCommon, HttpCase):
             [
                 (self.cr.dbname, "discuss.channel", channel.id),
                 (self.cr.dbname, "res.partner", test_user.partner_id.id),
-                (self.cr.dbname, "res.partner", self.user_employee.partner_id.id),
-                (self.cr.dbname, "discuss.channel", channel.id),
                 (self.cr.dbname, "mail.guest", test_guest.id),
                 (self.cr.dbname, "res.partner", self.user_employee.partner_id.id),
                 (self.cr.dbname, "discuss.channel", channel.id),

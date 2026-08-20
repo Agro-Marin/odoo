@@ -5,7 +5,7 @@ from uuid import uuid4
 from markupsafe import Markup
 
 from odoo import tools
-from odoo.tests import Form, tagged, users
+from odoo.tests import Form, RecordCapturer, tagged, users
 from odoo.tools import mute_logger
 
 from odoo.addons.base.models.res_partner import ResPartner
@@ -461,6 +461,53 @@ class TestPartner(MailCommon):
                     self.assertEqual(partner.name, exp_name)
 
     @users("employee_c2")
+    def test_find_or_create_from_emails_returns_what_it_created(self):
+        Partner = self.env["res.partner"]
+        with RecordCapturer(Partner, []) as capture:
+            partners = Partner._find_or_create_from_emails(["  Spacey Name  "])
+
+        self.assertEqual(len(capture.records), 1, "the partner is created either way")
+        self.assertEqual(capture.records.name, "Spacey Name")
+        self.assertEqual(
+            partners,
+            [capture.records],
+            "and the caller is given the partner its input produced",
+        )
+
+    def test_find_or_create_from_emails_strips_the_name_it_stores(self):
+        partner = self.env["res.partner"].find_or_create("  Spacey Name  ")
+        self.assertEqual(partner.name, "Spacey Name")
+
+    def test_find_or_create_from_emails_keeps_first_match_after_sorting(self):
+        Partner = self.env["res.partner"]
+        first, second = Partner.create(
+            [
+                {"name": "Dupe One", "email": "dupe@test.example.com"},
+                {"name": "Dupe Two", "email": "dupe@test.example.com"},
+            ]
+        )
+        self.assertEqual(
+            Partner._find_or_create_from_emails(["dupe@test.example.com"]),
+            [first],
+            "id order without a sort key",
+        )
+        self.assertEqual(
+            Partner._find_or_create_from_emails(
+                ["dupe@test.example.com"], sort_key=lambda partner: partner.name
+            ),
+            [second],
+            "the sort key decides which duplicate answers",
+        )
+
+    def test_find_or_create_from_emails_repeats_one_partner_per_input(self):
+        Partner = self.env["res.partner"]
+        emails = ["repeat@test.example.com", "REPEAT@test.example.com", "  Named  "]
+        partners = Partner._find_or_create_from_emails(emails)
+        self.assertEqual(len(partners), 3)
+        self.assertEqual(partners[0], partners[1], "same address, same partner")
+        self.assertTrue(partners[2], "and the name-only input resolves too")
+        self.assertEqual(partners[2].name, "Named")
+
     def test_find_or_create_from_emails_dupes_email_field(self):
         email_dupes_samples = [
             '"Formatted Customer" <test.customer@TEST.DUPE.EXAMPLE.COM>',
