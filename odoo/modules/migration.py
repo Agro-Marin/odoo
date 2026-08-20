@@ -90,6 +90,12 @@ def _warn_unstaged_scripts(directory: Path, files: list[str]) -> None:
     checks out this repo alone, so the number could be neither confirmed nor
     refuted from inside the build that was supposed to be keeping it honest —
     and it had already drifted to 235 by the time anyone counted.
+
+    The test globs the working tree, not the index, which is deliberate: whoever
+    adds a script sees the gate go red on the spot rather than in someone else's
+    CI run. In this workspace that also means an *uncommitted* script in another
+    session's tree moves the number locally, so re-measure against a clean
+    checkout of HEAD before believing a count that disagrees with this one.
     """
     for path in files:
         name = Path(path).name

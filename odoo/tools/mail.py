@@ -46,6 +46,7 @@ from odoo.libs.text import (
     is_html_empty,
     plaintext2html,
     prepend_html_content,
+    replace_local_links,
     safe_attrs,
     tag_quote,
     validate_url,
@@ -66,6 +67,7 @@ __all__ = [
     "is_html_empty",
     "parse_contact_from_email",
     "plaintext2html",
+    "replace_local_links",
     "single_email_re",
 ]
 

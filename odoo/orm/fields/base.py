@@ -1028,6 +1028,38 @@ class Field[T](
                 added.add(id_)
         return record.browse(result)
 
+    def _clear_dead_pending(self, records: BaseModel) -> None:
+        """Drop PENDING markers that no compute is going to replace.
+
+        ``create`` seeds PENDING for every stored computed field, meaning "a
+        compute owes this record a value". A compute that leaves a record
+        unassigned -- the idiom for "leave the stored value alone" -- returns
+        without clearing the marker and without scheduling anything, which is
+        the state ``_flush`` refuses outright: *the value can never
+        materialize*. Reading such a field papers over it with a full-width
+        SELECT, and because ``_insert_cache`` is a ``setdefault`` the marker
+        survives that SELECT, so the *next* field read pays for another one.
+
+        The row is in hand here. Take it for every marker nothing else owns:
+        still-scheduled fields keep theirs, because their compute is the
+        authority, and dirty ids keep theirs, because a pending write is.
+        """
+        env = records.env
+        field_cache = self._get_cache(env)
+        if not field_cache:
+            return
+        core = env._core
+        scheduled = core.pending_ids(self)
+        dirty = core.get_dirty(self)
+        for id_ in records._ids:
+            if field_cache.get(id_) is not PENDING:
+                continue
+            if scheduled and id_ in scheduled:
+                continue
+            if dirty and id_ in dirty:
+                continue
+            del field_cache[id_]
+
     def _insert_cache(self, records: BaseModel, values: Iterable) -> None:
         field_cache = self._get_cache(records.env)
         collections.deque(

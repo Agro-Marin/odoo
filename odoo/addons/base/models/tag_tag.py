@@ -3,7 +3,7 @@ from odoo import fields, models
 
 class TagTag(models.Model):
     _name = "tag.tag"
-    _inherit = ["tag.nested.mixin"]
+    _inherit = ["mixin.tag.nested"]
     _description = "Tag"
 
     parent_id = fields.Many2one(

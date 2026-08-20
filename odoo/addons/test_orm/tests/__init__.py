@@ -3,6 +3,7 @@ from . import (
     test_audit_regressions,
     test_autovacuum,
     test_backend_differential,
+    test_cache_dead_pending,
     test_company_checks,
     test_domain,
     test_domain_evaluator_parity,
@@ -40,3 +41,4 @@ from . import (
     test_write_uniform_update,
 )
 from . import test_translation_write_propagation
+from . import test_unlink_invalidation

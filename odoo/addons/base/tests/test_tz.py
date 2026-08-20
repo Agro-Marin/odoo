@@ -97,3 +97,60 @@ class TestTZ(TransactionCase):
             expected_offset,
             "Timezone offset should work even with deprecated timezone names",
         )
+
+
+class TestLegacyTimezoneGrouping(TransactionCase):
+    """Grouping under a legacy alias must land in that zone, not in UTC.
+
+    Odoo's ``tz`` dropdown offers 599 zoneinfo names; this PostgreSQL accepts
+    487. Degrading the other 112 to UTC never raised, so nothing noticed that
+    an 'Asia/Calcutta' user was reading day buckets cut 5h30 from their own
+    midnight -- a wrong answer that looks like a working report.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.partner = cls.env["res.partner"].create({"name": "tz grouping probe"})
+        # 20:00 UTC is still the 15th in UTC and already the 16th in +05:30,
+        # so the day bucket alone tells the two zones apart.
+        cls.env.cr.execute(
+            "UPDATE res_partner SET create_date = %s WHERE id = %s",
+            ("2024-06-15 20:00:00", cls.partner.id),
+        )
+        cls.partner.invalidate_recordset(["create_date"])
+
+    def _day_buckets(self, tz_name):
+        return [
+            group[0]
+            for group in self.env["res.partner"]
+            .with_context(tz=tz_name)
+            ._read_group(
+                [("id", "=", self.partner.id)], ["create_date:day"], ["__count"]
+            )
+        ]
+
+    def test_the_probe_instant_really_straddles_a_day(self):
+        """Guards the other tests: without this they would pass on any zone."""
+        self.assertNotEqual(self._day_buckets("Asia/Kolkata"), self._day_buckets("UTC"))
+
+    def test_a_legacy_alias_groups_in_its_real_zone(self):
+        self.assertNotIn("Asia/Calcutta", _pg_timezone_names(self.env))
+        self.assertEqual(
+            self._day_buckets("Asia/Calcutta"), self._day_buckets("Asia/Kolkata")
+        )
+
+    def test_a_resolvable_alias_warns_about_nothing(self):
+        with self.assertNoLogs("odoo.fields", logging.WARNING):
+            self._day_buckets("Asia/Calcutta")
+
+    def test_a_zone_with_no_server_equivalent_still_falls_back_to_utc(self):
+        with self.assertLogs("odoo.fields", logging.WARNING) as capture:
+            buckets = self._day_buckets("Mars/Olympus_Mons")
+        self.assertEqual(buckets, self._day_buckets("UTC"))
+        self.assertIn("Mars/Olympus_Mons", capture.output[0])
+
+
+def _pg_timezone_names(env):
+    env.cr.execute("SELECT name FROM pg_timezone_names")
+    return {name for [name] in env.cr.fetchall()}

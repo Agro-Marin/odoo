@@ -8,7 +8,7 @@ from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tools.translate import _
 
-from odoo.addons.base.models.catalog_mixin import name_uniq_index
+from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 _logger = logging.getLogger(__name__)
 

@@ -13,7 +13,7 @@ import traceback
 import urllib.parse
 import warnings
 from collections import defaultdict
-from collections.abc import Iterator, Mapping, Sequence, Sized
+from collections.abc import Iterable, Iterator, Mapping, Sequence, Sized
 from copy import deepcopy
 from itertools import chain, count
 from pathlib import Path
@@ -349,6 +349,47 @@ class IrQweb(models.AbstractModel):
         values: dict[str, Any] | None = None,
         **options: Any,
     ) -> Markup:
+        values = values.copy() if values else {}
+        irQweb = self._render_prepare(values, options)
+        return irQweb._render_prepared(template, values)
+
+    @api.model
+    def _render_batch(
+        self,
+        template: int | str | etree._Element,
+        shared_values: dict[str, Any] | None,
+        varying_values: Iterable[dict[str, Any]],
+        **options: Any,
+    ) -> list[Markup]:
+        """Render one template against many value sets, preparing once.
+
+        Each entry of ``varying_values`` is rendered against ``shared_values``
+        updated with it.
+
+        Everything :meth:`_render` does before reaching the template — stacking
+        the option context and the five ``__qweb_*`` slots onto the recordset,
+        the ``minimal_qcontext`` defaults, and ``safe_eval.check_values`` over
+        the values — depends on the options and on the shared half, not on the
+        varying one. Called once per record it dominates: for a mail body of one
+        `t-out`, a template carrying *no directive at all* costs 83% of what the
+        real one does, and hoisting the preparation measures 3.8ms against
+        27.3ms over 500 renders of `mass_mailing.mass_mailing_mail_layout`.
+
+        The varying half is still checked, so a caller cannot smuggle a module
+        into the evaluation context through it. What it may not do is override a
+        key ``_prepare_environment`` *forces* (``request``, ``json``, ``time``,
+        …): those are qweb's own and :meth:`_render` would win them back.
+        """
+        shared = dict(shared_values) if shared_values else {}
+        irQweb = self._render_prepare(shared, options)
+        results = []
+        for varying in varying_values:
+            safe_eval.check_values(varying)
+            results.append(irQweb._render_prepared(template, {**shared, **varying}))
+        return results
+
+    def _render_prepare(self, values: dict[str, Any], options: dict[str, Any]) -> Self:
+        """The half of a render that depends on the options, not on the values."""
         current_thread = threading.current_thread()
         execution_context_enabled = getattr(current_thread, "profiler_params", {}).get(
             "execution_context_qweb"
@@ -357,7 +398,6 @@ class IrQweb(models.AbstractModel):
         if execution_context_enabled or qweb_hooks:
             options["profile"] = True
 
-        values = values.copy() if values else {}
         if T_CALL_SLOT in values or 0 in values:
             _logger.warning(
                 "values[0] should be unset when call the _render method and only set into the template."
@@ -376,11 +416,21 @@ class IrQweb(models.AbstractModel):
         )
 
         safe_eval.check_values(values)
+        return irQweb
+
+    def _render_prepared(
+        self, template: int | str | etree._Element, values: dict[str, Any]
+    ) -> Markup:
+        """Render ``template``, the recordset's preparation already done."""
+        # Reset rather than rebuild: `_render_prepare` puts one list in the
+        # context and a batch reuses that recordset, so the error path a
+        # previous render wrote must not be read as this one's.
+        self.env.context["_qweb_error_path_xml"][:] = [None, None, None]
 
         root_values = values.copy()
         values["__qweb_root_values"] = root_values["__qweb_root_values"] = root_values
 
-        iterator = irQweb._render_iterall(template, None, values)
+        iterator = self._render_iterall(template, None, values)
         return Markup("".join(iterator))
 
     def _render_iterall(
@@ -1423,6 +1473,14 @@ class IrQweb(models.AbstractModel):
         return bool(default)
 
     def _compile_to_str(self, expr: Any) -> str:
+        """Turn an evaluated value into text.
+
+        The single conversion point for everything a template emits -- `t-out`
+        content, text interpolation and attribute interpolation all pass through
+        here -- so a renderer with its own idea of how a value reads (mail
+        renders a recordset as its display name, not as its repr) overrides this
+        and gets all three at once.
+        """
         if expr is None or expr is False:
             return ""
 
@@ -2266,7 +2324,7 @@ class IrQweb(models.AbstractModel):
                 self.env.context['_qweb_error_path_xml'][2] = {xml!r}
                 yield content
             else:
-                yield str(escape(content))
+                yield str(escape(self._compile_to_str(content)))
         """,
                 level + 1,
             )

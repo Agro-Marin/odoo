@@ -8,8 +8,8 @@ from odoo import api, models
 ADDRESS_FIELDS = ("street", "street2", "zip", "city", "state_id", "country_id")
 
 
-class FormatAddressMixin(models.AbstractModel):
-    _name = "format.address.mixin"
+class MixinFormatAddress(models.AbstractModel):
+    _name = "mixin.format.address"
     _description = "Address Format"
 
     def _extract_fields_from_address(self, address_line: str) -> list[str]:

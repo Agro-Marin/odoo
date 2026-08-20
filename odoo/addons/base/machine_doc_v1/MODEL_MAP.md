@@ -975,7 +975,7 @@ Garbage collection framework.
 #### ResPartner — `res.partner` (`_name`, `_parent_store = True`)
 
 Core business entity — contacts, companies, addresses.
-Inherits: `format.address.mixin`, `format.vat.label.mixin`, `avatar.mixin`, `properties.base.definition.mixin`
+Inherits: `mixin.format.address`, `mixin.format.vat.label`, `mixin.avatar`, `mixin.properties.base.definition`
 
 **Fields (key selection):**
 - `name` (Char, indexed), `complete_name` (Char, computed, indexed)
@@ -1028,7 +1028,7 @@ Partner tags — hierarchical.
 
 ### models/res_partner_format_address_mixin.py
 
-#### FormatAddressMixin — `format.address.mixin` (AbstractModel)
+#### FormatAddressMixin — `mixin.format.address` (AbstractModel)
 
 Customizes address form layout based on country `address_view_id` or `address_format`.
 
@@ -1038,7 +1038,7 @@ Customizes address form layout based on country `address_view_id` or `address_fo
 
 ### models/res_partner_format_vat_mixin.py
 
-#### FormatVatLabelMixin — `format.vat.label.mixin` (AbstractModel)
+#### FormatVatLabelMixin — `mixin.format.vat.label` (AbstractModel)
 
 Relabels VAT field based on company country's `vat_label`.
 
@@ -1339,7 +1339,7 @@ Latest device per session/platform/browser (aggregated view).
 
 ### models/image_mixin.py
 
-#### ImageMixin — `image.mixin` (AbstractModel)
+#### ImageMixin — `mixin.image` (AbstractModel)
 
 Multi-resolution image fields.
 
@@ -1347,7 +1347,7 @@ Multi-resolution image fields.
 
 ### models/avatar_mixin.py
 
-#### AvatarMixin — `avatar.mixin` (AbstractModel, inherits `image.mixin`)
+#### AvatarMixin — `mixin.avatar` (AbstractModel, inherits `mixin.image`)
 
 SVG avatar generation from name initials.
 
@@ -1367,7 +1367,7 @@ Properties field definition storage.
 - `properties_field_id` (Many2one → ir.model.fields, required, unique, cascade)
 - `properties_definition` (PropertiesDefinition)
 
-#### PropertiesBaseDefinitionMixin — `properties.base.definition.mixin` (AbstractModel)
+#### PropertiesBaseDefinitionMixin — `mixin.properties.base.definition` (AbstractModel)
 
 Adds properties support to any model.
 
@@ -1499,11 +1499,11 @@ Quick lookup — file → model → primary role:
 | `ir_ui_view_custom.py` | ir.ui.view.custom | User view customizations |
 | `ir_ui_view_name_manager.py` | NameManager (utility) | View XML validator |
 | `assetsbundle.py` | AssetsBundle (non-ORM) | Asset compilation |
-| `avatar_mixin.py` | avatar.mixin | SVG avatar generation |
+| `avatar_mixin.py` | mixin.avatar | SVG avatar generation |
 | `decimal_precision.py` | decimal.precision | Decimal precision config |
-| `image_mixin.py` | image.mixin | Multi-resolution images |
+| `image_mixin.py` | mixin.image | Multi-resolution images |
 | `properties_base_definition.py` | properties.base.definition | Properties definitions |
-| `properties_base_definition_mixin.py` | properties.base.definition.mixin | Properties mixin |
+| `properties_base_definition_mixin.py` | mixin.properties.base.definition | Properties mixin |
 | `report_layout.py` | report.layout | Report templates |
 | `report_paperformat.py` | report.paperformat | Paper format config |
 | `res_bank.py` | res.bank, res.partner.bank | Banks + accounts |
@@ -1517,8 +1517,8 @@ Quick lookup — file → model → primary role:
 | `res_lang.py` | res.lang | Languages |
 | `res_partner.py` | res.partner | Contacts/companies |
 | `res_partner_category.py` | res.partner.category | Partner tags |
-| `res_partner_format_address_mixin.py` | format.address.mixin | Address formatting |
-| `res_partner_format_vat_mixin.py` | format.vat.label.mixin | VAT label formatting |
+| `res_partner_format_address_mixin.py` | mixin.format.address | Address formatting |
+| `res_partner_format_vat_mixin.py` | mixin.format.vat.label | VAT label formatting |
 | `res_partner_industry.py` | res.partner.industry | Industries |
 | `res_users.py` | res.users | User accounts |
 | `res_users_apikeys.py` | res.users.apikeys, .description, .show | API keys |

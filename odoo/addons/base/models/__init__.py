@@ -53,19 +53,20 @@ from . import ir_demo
 from . import ir_demo_failure
 
 from . import properties_base_definition
-from . import properties_base_definition_mixin
+from . import mixin_properties_base_definition
 from . import report_layout
 from . import report_paperformat
 
 from . import ir_profile
-from . import image_mixin
-from . import avatar_mixin
-from . import catalog_mixin
-from . import tag_mixin
+from . import mixin_image
+from . import mixin_avatar
+from . import mixin_catalog
+from . import mixin_tag
+from . import mixin_tag_nested
 from . import tag_tag
 
-from . import res_partner_format_vat_mixin
-from . import res_partner_format_address_mixin
+from . import mixin_format_vat_label
+from . import mixin_format_address
 from . import res_partner_category
 from . import res_partner_industry
 from . import res_country

@@ -383,6 +383,8 @@ class ReadMixin(_ModelStubs):
             fetched = self.browse(ids)
 
             for field, values in zip(column_fields, column_values, strict=True):
+                if field.is_stored_computed:
+                    field._clear_dead_pending(fetched)
                 field._insert_cache(fetched, values)
             prof.mark("cache")
         else:

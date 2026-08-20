@@ -390,6 +390,36 @@ ZeroDivisionError: division by zero"""
         self.assertEqual(partners[0].city, str(partners[0].id))
         self.assertEqual(partners[1].city, str(partners[1].id))
 
+    def test_object_write_ignores_ids_of_another_model(self):
+        """`active_ids` are ids in `active_model`; read as ours they name strangers.
+
+        Every runner but `code` used to browse them in the action's own model
+        whatever the caller had been looking at, so a server action reached from
+        one model's list could write to whichever records of its own model
+        happened to carry the same ids.
+        """
+        self.action.write(
+            {
+                "state": "object_write",
+                "update_path": "city",
+                "evaluation_type": "value",
+                "value": "Elsewhere",
+            }
+        )
+        self.test_partner.city = "OrigCity"
+        self.action.with_context(
+            active_model="res.users",
+            active_id=self.test_partner.id,
+            active_ids=self.test_partner.ids,
+        ).run()
+        self.assertEqual(
+            self.test_partner.city,
+            "OrigCity",
+            "ids selected in another model must not be read as ours",
+        )
+        self.action.with_context(self.context).run()
+        self.assertEqual(self.test_partner.city, "Elsewhere", "and ours still work")
+
     def test_35_crud_write_selection(self):
         selection_value = self.res_country_name_position_field.selection_ids.filtered(
             lambda s: s.value == "after"

@@ -3,7 +3,7 @@ import typing
 from datetime import UTC, date, datetime, time
 from typing import override
 
-from odoo.libs.datetime import all_timezones, utc
+from odoo.libs.datetime import TIMEZONE_ALIASES, all_timezones, utc
 from odoo.libs.datetime import timezone as get_timezone
 from odoo.tools import DEFAULT_SERVER_DATE_FORMAT as DATE_FORMAT
 from odoo.tools import DEFAULT_SERVER_DATETIME_FORMAT as DATETIME_FORMAT
@@ -33,7 +33,9 @@ def _get_sql_timezones_set(env) -> frozenset[str]:
     and refused by ``AT TIME ZONE``, so validating a timezone against Python's
     set and then interpolating it into a query turns one user's profile setting
     into an ``InvalidParameterValue`` on every grouped read they perform.
-    Grouping degrades to UTC instead, with a warning naming the timezone.
+
+    Callers go through :func:`_sql_timezone_name`, which resolves the alias
+    rather than reading this set directly.
     """
     names = _sql_timezones_set.get(env.cr.dbname)
     if names is None:
@@ -41,6 +43,25 @@ def _get_sql_timezones_set(env) -> frozenset[str]:
         names = frozenset(name for [name] in env.cr.fetchall())
         _sql_timezones_set[env.cr.dbname] = names
     return names
+
+
+def _sql_timezone_name(env, tz_name: str) -> str | None:
+    """The name PostgreSQL accepts for ``tz_name``, or None if it has none.
+
+    Refusing a name outright and grouping in UTC is a wrong answer, not a safe
+    one: an 'Asia/Calcutta' user reading a month group-by silently gets buckets
+    cut 5h30 away from their own midnight. 99 of the 113 names this PostgreSQL
+    refuses are only legacy spellings of names it does know, so the alias is
+    resolved first and UTC is left for the 14 that genuinely have no server-side
+    equivalent.
+    """
+    sql_names = _get_sql_timezones_set(env)
+    if tz_name in sql_names:
+        return tz_name
+    canonical = TIMEZONE_ALIASES.get(tz_name)
+    if canonical is not None and canonical in sql_names:
+        return canonical
+    return None
 
 
 if typing.TYPE_CHECKING:
@@ -118,10 +139,10 @@ class BaseDate[T](Field[T | typing.Literal[False]]):
     ) -> SQL:
         sql_expr = field_sql
         if self.type == "datetime" and (tz_name := model.env.context.get("tz")):
-            if tz_name in _get_sql_timezones_set(model.env):
+            if sql_tz := _sql_timezone_name(model.env, tz_name):
                 sql_expr = SQL(
                     "timezone(%s, timezone('UTC', %s))",
-                    SQL.literal(tz_name),
+                    SQL.literal(sql_tz),
                     sql_expr,
                 )
             else:

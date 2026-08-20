@@ -78,11 +78,13 @@ def _verify_check_hostname_callback(
         return False
 
     if err_depth == 0:
-        peercert = {
-            "subject": ((("commonName", x509.get_subject().CN),),),
-            "subjectAltName": get_subj_alt_name(x509),
-        }
-        match_hostname(peercert, hostname)
+        # SAN only, deliberately. `match_hostname` consults `subject` solely
+        # under `hostname_checks_common_name`, which stays off: CN-as-hostname
+        # was deprecated by RFC 6125 and no public CA has issued it since 2017.
+        # Supplying a `subject` here bought nothing and cost a deprecated
+        # `X509.get_subject()` call whose value was discarded on every strict
+        # handshake. `TestVerifyHostnameCallback` pins the rule.
+        match_hostname({"subjectAltName": get_subj_alt_name(x509)}, hostname)
 
     return True
 
@@ -1066,13 +1068,27 @@ class IrMail_Server(models.Model):
             message["To"] = x_forge_to
         elif x_msg_add_to := message["X-Msg-To-Add"]:
             to = message["To"] or ""
-            to_normalized = tools.mail.email_normalize_all(to)
-            additions = [
-                address
-                for address in tools.mail.email_split_and_format(x_msg_add_to)
-                if tools.mail.email_normalize(address, strict=False)
-                not in to_normalized
-            ]
+            # Dedupe within the header as well as against `To`. This becomes the
+            # visible `To:` line, and a producer may legitimately list the same
+            # correspondent more than once: `_notify_get_recipients` returns one
+            # entry per notification transport, so a partner who is both a channel
+            # member and a mentioned recipient appears twice, and
+            # `_notify_by_email_get_base_mail_values` copies every share-flagged
+            # entry into this header. Filtering only against `To` let that reach
+            # the recipient as `To: bob@example.com, bob@example.com`.
+            # `email_split_and_format` drops what it cannot parse, so in practice
+            # every address here normalizes; the falsy branch is defence, because
+            # collapsing two unnormalizable addresses into one would lose a
+            # recipient, which is worse than the duplicate this fixes.
+            seen = set(tools.mail.email_normalize_all(to))
+            additions = []
+            for address in tools.mail.email_split_and_format(x_msg_add_to):
+                normalized = tools.mail.email_normalize(address, strict=False)
+                if normalized and normalized in seen:
+                    continue
+                if normalized:
+                    seen.add(normalized)
+                additions.append(address)
             del message["To"]
             if new_to := ", ".join(part for part in [str(to), *additions] if part):
                 message["To"] = new_to

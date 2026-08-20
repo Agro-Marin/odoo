@@ -100,8 +100,8 @@ class TestOrmSelection(models.Model):
         return [("baz", "Baz")]
 
 
-class Test_Inherit_Mixin(models.AbstractModel):
-    _name = "test_inherit_mixin"
+class MixinTest_Inherit_(models.AbstractModel):
+    _name = "mixin.test_inherit"
     _description = "Test Inherit Mixin"
 
     published = fields.Boolean()

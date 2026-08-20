@@ -270,7 +270,7 @@ class TestOrmEmailmessage(models.Model):
     _name = "test_orm.emailmessage"
     _description = "Test ORM Email Message"
     _inherits = {"test_orm.message": "message"}
-    _inherit = "properties.base.definition.mixin"
+    _inherit = "mixin.properties.base.definition"
 
     message = fields.Many2one(
         "test_orm.message", "Message", required=True, ondelete="cascade"
@@ -1502,14 +1502,14 @@ class TestOrmDisplay(models.Model):
             record.display_name = "My id is %s" % (record.id)
 
 
-class TestOrmMixin(models.AbstractModel):
-    _name = "test_orm.mixin"
+class MixinTestOrm(models.AbstractModel):
+    _name = "mixin.test_orm"
     _description = "Dummy mixin model"
 
 
 class TestOrmDisplay(models.Model):
     _name = "test_orm.display"
-    _inherit = ["test_orm.mixin", "test_orm.display"]
+    _inherit = ["mixin.test_orm", "test_orm.display"]
 
 
 class TestOrmModel_Active_Field(models.Model):
@@ -1645,8 +1645,8 @@ class TestOrmCity(models.Model):
     country_id = fields.Many2one("test_orm.country")
 
 
-class TestOrmState_Mixin(models.AbstractModel):
-    _name = "test_orm.state_mixin"
+class MixinTestOrmState_(models.AbstractModel):
+    _name = "mixin.test_orm.state"
     _description = "Dummy state mixin model"
 
     state = fields.Selection(
@@ -2854,3 +2854,20 @@ class TestOrmInverseWithUnlinkChild(models.Model):
 
     name = fields.Char()
     parent_id = fields.Many2one("test_orm.inverse.with.unlink", ondelete="cascade")
+
+
+class TestOrmPartialCompute(models.Model):
+    _name = "test_orm.partial.compute"
+    _description = "Stored computes that leave records unassigned"
+
+    mode = fields.Char()
+    alpha = fields.Integer(compute="_compute_alpha", store=True, readonly=False)
+    beta = fields.Integer(compute="_compute_beta", store=True, readonly=False)
+
+    @api.depends("mode")
+    def _compute_alpha(self):
+        self.filtered(lambda record: record.mode == "force").alpha = 1
+
+    @api.depends("mode")
+    def _compute_beta(self):
+        self.filtered(lambda record: record.mode == "force").beta = 2

@@ -16,9 +16,9 @@ def _get_placeholder_image(path: str) -> bytes:
         return file.read()
 
 
-class AvatarMixin(models.AbstractModel):
-    _name = "avatar.mixin"
-    _inherit = ["image.mixin"]
+class MixinAvatar(models.AbstractModel):
+    _name = "mixin.avatar"
+    _inherit = ["mixin.image"]
     _description = "Avatar Mixin"
     _avatar_name_field = "name"
 

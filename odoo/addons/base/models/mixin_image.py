@@ -1,8 +1,8 @@
 from odoo import fields, models
 
 
-class ImageMixin(models.AbstractModel):
-    _name = "image.mixin"
+class MixinImage(models.AbstractModel):
+    _name = "mixin.image"
     _description = "Image Mixin"
 
     image_1920 = fields.Image("Image", max_width=1920, max_height=1920)

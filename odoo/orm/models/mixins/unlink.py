@@ -75,13 +75,24 @@ class UnlinkMixin(_ModelStubs):
             ir_attachment_unlink |= attachments
         prof.mark("sql")
 
-        self.env.invalidate_all(flush=False)
+        if self.env.context.get(MODULE_UNINSTALL_FLAG):
+            self.env.invalidate_all(flush=False)
+        else:
+            self._invalidate_after_delete()
 
         if ir_model_data_unlink:
             ir_model_data_unlink.unlink()
         if ir_attachment_unlink:
             ir_attachment_unlink.unlink()
 
+        self._log_unlinked_ids(deleted_ids)
+
+        prof.stop()
+        self._log_unlink_profile(prof, len(deleted_ids))
+
+        return True
+
+    def _log_unlinked_ids(self, deleted_ids: list[int]) -> None:
         if len(deleted_ids) <= _UNLINK_LOG_MAX_IDS:
             _unlink.info(
                 "User #%s deleted %s records with IDs: %r",
@@ -101,7 +112,7 @@ class UnlinkMixin(_ModelStubs):
                 deleted_ids[:_UNLINK_LOG_MAX_IDS],
             )
 
-        prof.stop()
+    def _log_unlink_profile(self, prof: _OrmProfile, record_count: int) -> None:
         if prof.debug:
             _orm_crud.debug(
                 "[%.3f ms] unlink %s: %d records"
@@ -109,7 +120,7 @@ class UnlinkMixin(_ModelStubs):
                 " sql=%.1f invalidate=%.1f",
                 prof.elapsed * 1000,
                 self._name,
-                len(self),
+                record_count,
                 prof.ms("start", "acl"),
                 prof.ms("acl", "ondelete"),
                 prof.ms("ondelete", "flush"),
@@ -118,9 +129,25 @@ class UnlinkMixin(_ModelStubs):
                 prof.ms("sql", "end"),
             )
         if prof.agg and (p := self.env.transaction._orm_profiler):
-            p.record_unlink(self._name, len(self), prof.elapsed)
+            p.record_unlink(self._name, record_count, prof.elapsed)
 
-        return True
+    def _invalidate_after_delete(self) -> None:
+        env = self.env
+        registry = env.registry
+        cascades = registry.models_cascading_from
+        gone = {self._name}
+        todo = [self._name]
+        while todo:
+            for model_name in cascades.get(todo.pop(), ()):
+                if model_name not in gone:
+                    gone.add(model_name)
+                    todo.append(model_name)
+        fields_by_comodel = registry.fields_by_comodel
+        for model_name in gone:
+            for field in env[model_name]._fields.values():
+                field._invalidate_cache(env, keep_dirty=True)
+            for field in fields_by_comodel.get(model_name, ()):
+                field._invalidate_cache(env, keep_dirty=True)
 
     def _unlink_process_batch(
         self,

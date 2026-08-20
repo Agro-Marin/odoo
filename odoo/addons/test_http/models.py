@@ -8,7 +8,7 @@ PEGASUS_REGIONS = ["M4R", "P3Y", "M6R"]
 class Test_HttpStargate(models.Model):
     _name = "test_http.stargate"
     _description = "Stargate"
-    _inherit = ["mail.thread", "mail.activity.mixin"]
+    _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
 
     name = fields.Char(
         required=True, store=True, compute="_compute_name", readonly=False

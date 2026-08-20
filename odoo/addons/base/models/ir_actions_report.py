@@ -1921,6 +1921,12 @@ class IrActionsReport(models.Model):
             )
         return attachment_vals_list
 
+    def _renders_pdf(self) -> bool:
+        return not (
+            (modules.module.current_test or tools.config["test_enable"])
+            and not self.env.context.get("force_report_rendering")
+        )
+
     def _pre_render_qweb_pdf(
         self,
         report_ref: int | str | Any,
@@ -1929,9 +1935,7 @@ class IrActionsReport(models.Model):
     ) -> tuple[bytes | dict[int | bool, dict[str, Any]], str]:
         res_ids, data = self._normalize_render_args(res_ids, data, "pdf")
         report_sudo = self._get_report(report_ref)
-        if (
-            modules.module.current_test or tools.config["test_enable"]
-        ) and not self.env.context.get("force_report_rendering"):
+        if not self._renders_pdf():
             return self._render_qweb_html(report_sudo, res_ids, data=data)
 
         self = self.with_context(webp_as_jpg=True)

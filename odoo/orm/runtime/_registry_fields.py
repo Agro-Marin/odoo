@@ -61,6 +61,29 @@ class _RegistryFieldsMixin(_RegistryStubs):
         return result
 
     @functools.cached_property
+    def fields_by_comodel(self) -> dict[str, tuple[Field, ...]]:
+        result: defaultdict[str, list[Field]] = defaultdict(list)
+        for model_cls in self.models.values():
+            for field in model_cls._fields.values():
+                if field.relational and field.comodel_name:
+                    result[field.comodel_name].append(field)
+        return {name: tuple(fields) for name, fields in result.items()}
+
+    @functools.cached_property
+    def models_cascading_from(self) -> dict[str, frozenset[str]]:
+        result: defaultdict[str, set[str]] = defaultdict(set)
+        for model_cls in self.models.values():
+            for field in model_cls._fields.values():
+                if (
+                    field.is_many2one
+                    and field.store
+                    and field.comodel_name
+                    and getattr(field, "ondelete", None) == "cascade"
+                ):
+                    result[field.comodel_name].add(field.model_name)
+        return {name: frozenset(models) for name, models in result.items()}
+
+    @functools.cached_property
     def field_computed(self) -> dict[Field, list[Field]]:
         computed: dict[Field, list[Field]] = {}
         for model_name, Model in self.models.items():
@@ -121,21 +144,19 @@ class _RegistryFieldsMixin(_RegistryStubs):
 
             self.field_setup_dependents.discard_keys_and_values(fields)
 
-            for _prop in ("_field_triggers", "field_inverses", "field_computed"):
+            for _prop in (
+                "_field_triggers",
+                "field_inverses",
+                "field_computed",
+                "fields_by_comodel",
+                "models_cascading_from",
+            ):
                 self.__dict__.pop(_prop, None)
 
             self.model_graph.discard_fields(fields)
         finally:
             self.model_graph.end_invalidation()
 
-        # Invalidate only. Rebuilding here forces a full `resolve_depends` over every
-        # field of every model, and `_discard_fields` runs from `_add_manual_models`
-        # during `setup_model_classes` -- before the fields are set up. A related
-        # many2one still has `comodel_name = None` at that point, so resolving a
-        # dependency *through* one raised "is not relational", and only manual fields
-        # are excused from that error. Every reader goes through
-        # `_ensure_field_triggers`, so the rebuild happens on next use, once setup is
-        # complete.
         self.__dict__.pop("_field_triggers", None)
 
     def get_field_trigger_tree(self, field: Field) -> TriggerTree:

@@ -15,6 +15,16 @@ BUCKET_OWNERS: dict[str, str] = {
     "assets.links": "base/web — the asset link map",
     "stable": "base — long-lived lookups (xmlids, ACLs, record-rule domains)",
     "templates": "base — QWeb template lookup",
+    "templates.mail": (
+        "the `mail` addon — mixin.mail.render._get_qweb_template_node, which "
+        "parses a mail body and holds the programs compiled from it. Its own "
+        "bucket because it is the one template cache keyed on arbitrary *text* "
+        "rather than on a view reference: a composer body is a key that will "
+        "never be seen again, so the population is unbounded and mostly "
+        "one-shot, where every other member of `templates` is a bounded set of "
+        "views. Sharing one LRU, 1000 unique mail bodies filled it and evicted "
+        "every compiled view in the registry (measured, 5 -> 0)"
+    ),
     "templates.cached_values": "base — values cached against a template render",
     "routing": "base/web — the HTTP routing map",
     "routing.rewrites": "base/web — URL rewrite rules",

@@ -3,7 +3,7 @@ from odoo import fields, models
 
 class TestOrmFoo(models.Model):
     _name = "test_orm.foo"
-    _inherit = ["test_orm.foo", "test_inherit_mixin"]
+    _inherit = ["test_orm.foo", "mixin.test_inherit"]
 
 
 class TestInheritMother(models.Model):

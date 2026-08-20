@@ -4345,3 +4345,79 @@ class TestCloseRunsHooksOnALiveCursor(BaseCase):
         cr.prerollback.add(lambda: (_ for _ in ()).throw(RuntimeError("hook boom")))
         cr.close()
         self.assertTrue(cr._closed)
+
+
+class TestSavepointRollbackDropsRefilledRegistryCaches(BaseCase):
+    """End to end for `_OrmFlushingSavepoint._reclear_invalidated_caches`.
+
+    `ir.config_parameter._get_param` is `@ormcache(cache="stable")` and `set_param`
+    clears that group inline, which makes it the shortest real path to the defect:
+    write inside a savepoint, read the parameter back, roll the savepoint away, and
+    the registry-wide LRU is left holding a value the database never kept. Nothing
+    re-clears it afterwards -- `signal_changes` only bumps `orm_signaling_stable` for
+    other processes -- so it survived for the life of the worker.
+    """
+
+    KEY = "base.test_savepoint_cache_reclear"
+
+    def _icp(self, cr):
+        return api.Environment(cr, api.SUPERUSER_ID, {})["ir.config_parameter"].sudo()
+
+    def test_a_rolled_back_write_does_not_outlive_its_savepoint(self):
+        reg = registry()
+        cr = reg.cursor()
+        self.addCleanup(cr.close)
+        icp = self._icp(cr)
+
+        icp.set_param(self.KEY, "committed")
+        cr.flush()
+        reg.clear_cache("stable")
+        self.assertEqual(icp.get_param(self.KEY), "committed")
+
+        try:
+            with cr.savepoint(flush=True):
+                icp.set_param(self.KEY, "discarded")
+                cr.flush()
+                # the read that refills the registry LRU from uncommitted rows
+                self.assertEqual(icp.get_param(self.KEY), "discarded")
+                raise _Abort
+        except _Abort:
+            pass
+
+        cr.execute(
+            "SELECT value FROM ir_config_parameter WHERE key = %s", (self.KEY,)
+        )
+        row = cr.fetchone()
+        self.assertEqual(row[0], "committed", "sanity: the row rolled back")
+        self.assertEqual(
+            icp.get_param(self.KEY),
+            "committed",
+            "the registry cache kept a value the savepoint discarded",
+        )
+
+    def test_a_savepoint_that_wrote_nothing_cached_clears_nothing(self):
+        reg = registry()
+        cr = reg.cursor()
+        self.addCleanup(cr.close)
+        reg.clear_cache("stable")
+        reg.cache_invalidated.clear()
+
+        cleared = []
+        original = reg.clear_cache
+        reg.clear_cache = lambda *names: cleared.append(names) or original(*names)
+        self.addCleanup(lambda: setattr(reg, "clear_cache", original))
+
+        try:
+            with cr.savepoint(flush=True):
+                cr.execute("SELECT 1")
+                raise _Abort
+        except _Abort:
+            pass
+
+        self.assertEqual(
+            cleared, [], "a read-only savepoint must not drop the worker's caches"
+        )
+
+
+class _Abort(Exception):
+    """Rolls a savepoint back without the test failing on it."""

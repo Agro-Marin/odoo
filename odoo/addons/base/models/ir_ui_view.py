@@ -1014,8 +1014,14 @@ class IrUiView(models.Model):
 
     @api.model
     def _get_filter_xmlid_query(self) -> str:
+        # ``= ANY`` over a list rather than ``IN`` over a tuple. Both work here
+        # -- ``SQL()`` expands a tuple into ``IN (%s, %s, ...)`` -- but that
+        # expansion produces a different statement for every cardinality, so a
+        # hot path prepares a new plan per length instead of reusing one. It
+        # also keeps the clause valid if it is ever executed as a plain string,
+        # which is how the same shape broke Chilean invoicing.
         return """SELECT res_id FROM ir_model_data
-                  WHERE res_id IN %(res_ids)s AND model = 'ir.ui.view' AND module IN %(modules)s
+                  WHERE res_id = ANY(%(res_ids)s) AND model = 'ir.ui.view' AND module = ANY(%(modules)s)
                """
 
     @api.model
@@ -1097,11 +1103,13 @@ class IrUiView(models.Model):
         if not ids_to_check:
             return self
         install_module = self.env.context.get("install_module")
-        loaded_modules = tuple(self.pool._init_modules)
+        loaded_modules = list(self.pool._init_modules)
         if install_module:
-            loaded_modules += (install_module,)
+            loaded_modules.append(install_module)
         query = self._get_filter_xmlid_query()
-        sql = SQL(query, res_ids=tuple(ids_to_check), modules=loaded_modules)
+        # lists, not tuples: ``= ANY`` adapts a tuple to a composite rather than
+        # an array, and fails with "malformed array literal"
+        sql = SQL(query, res_ids=list(ids_to_check), modules=loaded_modules)
         valid_view_ids = {id_ for (id_,) in self.env.execute_query(sql)} | set(
             check_view_ids
         )

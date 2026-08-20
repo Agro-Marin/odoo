@@ -5,8 +5,8 @@ from lxml import etree
 from odoo import api, models
 
 
-class FormatVatLabelMixin(models.AbstractModel):
-    _name = "format.vat.label.mixin"
+class MixinFormatVatLabel(models.AbstractModel):
+    _name = "mixin.format.vat.label"
     _description = "Country Specific VAT Label"
 
     @api.model

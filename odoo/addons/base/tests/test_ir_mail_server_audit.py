@@ -1,5 +1,6 @@
 import base64
 import contextlib
+import datetime
 import email.policy
 import logging
 import re
@@ -9,6 +10,8 @@ import tempfile
 from email.message import EmailMessage
 from pathlib import Path
 from unittest.mock import patch
+
+from urllib3.util.ssl_match_hostname import CertificateError
 
 from odoo.exceptions import AccessError, UserError
 from odoo.service.model import call_kw, get_public_method
@@ -20,6 +23,7 @@ from odoo.addons.base.models.ir_mail_server import (
     MailDeliveryError,
     OutgoingEmailError,
     _log_smtp_debug,
+    _verify_check_hostname_callback,
 )
 
 _IR_MAIL_SERVER_LOGGER = "odoo.addons.base.models.ir_mail_server"
@@ -168,6 +172,23 @@ class TestMailServerArchiveAndHeaders(TransactionCase):
         message["X-Msg-To-Add"] = "keep@example.com, extra@example.com"
         self.IrMailServer._alter_message__(message, "sender@example.com")
         self.assertEqual(message["To"], "keep@example.com, extra@example.com")
+
+    def test_alter_message_x_msg_to_add_dedupes_within_the_header(self):
+        """The header is a set of correspondents, not a transport log.
+
+        `_notify_get_recipients` returns one entry per notification transport, so
+        a partner who is both a channel member and a mentioned recipient appears
+        twice, and every share-flagged entry is copied into this header.
+        """
+        message = self._make_message()
+        message["To"] = "keep@example.com"
+        message["X-Msg-To-Add"] = (
+            "bob@example.com, Bob <bob@example.com>, extra@example.com"
+        )
+        self.IrMailServer._alter_message__(message, "sender@example.com")
+        self.assertEqual(
+            message["To"], "keep@example.com, bob@example.com, extra@example.com"
+        )
 
     def test_alter_message_x_forge_to_overrides_and_scrubs_headers(self):
         message = self._make_message()
@@ -1663,3 +1684,82 @@ class TestResolvedServerIsNotResolvedTwice(TransactionCase):
                 smtp_from="a@example.com",
                 resolve_server=False,
             )
+
+
+@tagged("post_install", "-at_install")
+class TestVerifyHostnameCallback(TransactionCase):
+    """Strict TLS matches the hostname against the SAN and nothing else.
+
+    Nothing pinned this, which is how a `subject` entry built from the
+    deprecated `X509.get_subject()` survived in the peer-cert dict: it looked
+    load-bearing while `match_hostname` never read it, because the reading is
+    gated behind `hostname_checks_common_name` and that stays off.
+    """
+
+    @staticmethod
+    def _certificate(common_name, san_dns_names=()):
+        """A self-signed cert, as pyOpenSSL hands one to the verify callback."""
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from cryptography.x509.oid import NameOID
+        from OpenSSL.crypto import X509
+
+        key = ec.generate_private_key(ec.SECP256R1())
+        name = x509.Name(
+            [x509.NameAttribute(NameOID.COMMON_NAME, common_name)],
+        )
+        builder = (
+            x509.CertificateBuilder()
+            .subject_name(name)
+            .issuer_name(name)
+            .public_key(key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(datetime.datetime(2020, 1, 1))
+            .not_valid_after(datetime.datetime(2050, 1, 1))
+        )
+        if san_dns_names:
+            builder = builder.add_extension(
+                x509.SubjectAlternativeName(
+                    [x509.DNSName(dns) for dns in san_dns_names]
+                ),
+                critical=False,
+            )
+        return X509.from_cryptography(builder.sign(key, hashes.SHA256()))
+
+    def _verify(self, certificate, hostname, err_depth=0):
+        return _verify_check_hostname_callback(
+            None, certificate, 0, err_depth, 0, hostname=hostname
+        )
+
+    def test_san_match_is_accepted(self):
+        certificate = self._certificate("irrelevant", ["smtp.example.com"])
+        self.assertTrue(self._verify(certificate, "smtp.example.com"))
+
+    def test_san_mismatch_is_refused(self):
+        certificate = self._certificate("irrelevant", ["other.example.com"])
+        with self.assertRaises(CertificateError):
+            self._verify(certificate, "smtp.example.com")
+
+    def test_common_name_alone_is_not_a_match(self):
+        """The rule the removed `subject` entry could never have enforced."""
+        certificate = self._certificate("smtp.example.com")
+        with self.assertRaises(CertificateError):
+            self._verify(certificate, "smtp.example.com")
+
+    def test_a_wildcard_san_still_matches(self):
+        certificate = self._certificate("irrelevant", ["*.example.com"])
+        self.assertTrue(self._verify(certificate, "smtp.example.com"))
+
+    def test_only_the_leaf_is_matched(self):
+        """Intermediates reach the callback at depth > 0 and are not hostnames."""
+        certificate = self._certificate("Some CA", ["ca.example.com"])
+        self.assertTrue(self._verify(certificate, "smtp.example.com", err_depth=1))
+
+    def test_a_failed_openssl_check_is_refused_before_any_matching(self):
+        certificate = self._certificate("irrelevant", ["smtp.example.com"])
+        self.assertFalse(
+            _verify_check_hostname_callback(
+                None, certificate, 10, 0, 0, hostname="smtp.example.com"
+            )
+        )

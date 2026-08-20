@@ -93,7 +93,7 @@ def no_name_uniq_index():
     return models.UniqueIndex(lambda registry: "")
 
 
-class CatalogMixin(models.AbstractModel):
+class MixinCatalog(models.AbstractModel):
     """A named, archivable record whose name is unique.
 
     The single most repeated field bundle in this codebase: 289 concrete models
@@ -120,7 +120,7 @@ class CatalogMixin(models.AbstractModel):
     archived catalog entry keeps its name reserved.
     """
 
-    _name = "catalog.mixin"
+    _name = "mixin.catalog"
     _description = "Catalog Entry (unique translated name, archivable)"
 
     name = fields.Char(

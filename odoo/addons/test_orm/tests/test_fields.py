@@ -4571,7 +4571,7 @@ class TestMany2oneReference(TransactionExpressionCase):
 
 @tagged("selection_abstract")
 class TestSelectionDeleteUpdate(TransactionCase):
-    MODEL_ABSTRACT = "test_orm.state_mixin"
+    MODEL_ABSTRACT = "mixin.test_orm.state"
 
     def setUp(self):
         super().setUp()

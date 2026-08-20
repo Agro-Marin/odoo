@@ -7,8 +7,8 @@ from odoo.fields import Domain
 from odoo.tools import SQL
 
 
-class PropertiesBaseDefinitionMixin(models.AbstractModel):
-    _name = "properties.base.definition.mixin"
+class MixinPropertiesBaseDefinition(models.AbstractModel):
+    _name = "mixin.properties.base.definition"
     _description = "Properties Base Definition Mixin"
 
     properties = fields.Properties(

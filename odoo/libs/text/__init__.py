@@ -1,4 +1,11 @@
-from .strings import remove_accents, human_size, str2bool, mod10r, get_flag
+from .strings import (
+    remove_accents,
+    human_size,
+    is_encodable,
+    str2bool,
+    mod10r,
+    get_flag,
+)
 from .address import street_split, ADDRESS_REGEX
 from .arabic_reshaper import reshape
 from .html import (
@@ -17,6 +24,7 @@ from .html import (
     html_to_inner_content,
     append_content_to_html,
     prepend_html_content,
+    replace_local_links,
     create_link,
     validate_url,
     tag_quote,
@@ -50,6 +58,7 @@ __all__ = [
     "html_sanitize",
     "html_to_inner_content",
     "human_size",
+    "is_encodable",
     "is_html_empty",
     "mod10r",
     "nl2br",
@@ -57,6 +66,7 @@ __all__ = [
     "plaintext2html",
     "prepend_html_content",
     "remove_accents",
+    "replace_local_links",
     "reshape",
     "safe_attrs",
     "str2bool",

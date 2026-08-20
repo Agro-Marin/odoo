@@ -6,7 +6,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.tools import SetDefinitions
 
-from odoo.addons.base.models.catalog_mixin import name_uniq_index
+from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 
 class ResGroups(models.Model):

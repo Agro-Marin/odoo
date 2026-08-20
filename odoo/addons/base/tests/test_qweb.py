@@ -3885,3 +3885,67 @@ class TestQWebStaticAttributes(TransactionCase):
             out = self._render("<t><span class='c'>x</span></t>")
         self.assertNotIn(' onload="alert(1)"', out)
         self.assertIn("&#34;", out)
+
+
+@tagged("post_install", "-at_install")
+class TestQWebRenderBatch(TransactionCase):
+    """`_render_batch` is `_render` N times, minus the preparation done N times.
+
+    The two share `_render_prepare` and `_render_prepared` precisely so they
+    cannot drift, and these assert that they have not: same template, same
+    values, same string. What the batch hoists — the option context, the five
+    `__qweb_*` slots, the `minimal_qcontext` defaults and `check_values` over the
+    shared half — is what a per-record loop was paying for every record, and it
+    dominated: a template carrying no directive at all cost 83% of what the real
+    one did.
+    """
+
+    def _tree(self, arch):
+        return etree.fromstring(arch)
+
+    def test_batch_matches_render_one_by_one(self):
+        arch = '<t><p t-out="name"/><span t-if="shout">!</span></t>'
+        varying = [
+            {"name": "a", "shout": True},
+            {"name": "b", "shout": False},
+            {"name": "<b>c</b>", "shout": True},
+        ]
+        one_by_one = [
+            self.env["ir.qweb"]._render(self._tree(arch), {"greeting": "hi", **values})
+            for values in varying
+        ]
+        batched = self.env["ir.qweb"]._render_batch(
+            self._tree(arch), {"greeting": "hi"}, varying
+        )
+        self.assertEqual([str(v) for v in batched], [str(v) for v in one_by_one])
+        self.assertTrue(all(isinstance(v, markupsafe.Markup) for v in batched))
+
+    def test_batch_does_not_leak_values_between_entries(self):
+        """Each entry starts from the shared half, not from its predecessor."""
+        arch = "<t><p t-out=\"only_first or 'none'\"/></t>"
+        out = self.env["ir.qweb"]._render_batch(
+            self._tree(arch), {"only_first": False}, [{"only_first": "x"}, {}]
+        )
+        self.assertEqual([str(v) for v in out], ["<p>x</p>", "<p>none</p>"])
+
+    def test_batch_checks_the_varying_half_too(self):
+        """A module cannot ride into the evaluation context on the varying half."""
+        with self.assertRaises(TypeError):
+            self.env["ir.qweb"]._render_batch(
+                self._tree("<t><p>x</p></t>"), {}, [{"leak": ast}]
+            )
+
+    def test_batch_over_no_entries_is_no_renders(self):
+        self.assertEqual(
+            self.env["ir.qweb"]._render_batch(self._tree("<t><p>x</p></t>"), {}, []), []
+        )
+
+    def test_batch_reports_the_failing_entry_not_the_first(self):
+        """The error path one render writes must not be read as the next one's."""
+        arch = '<t><p t-out="value.missing_attribute"/></t>'
+        with self.assertRaises(QWebError):
+            self.env["ir.qweb"]._render_batch(
+                self._tree(arch),
+                {},
+                [{"value": {"missing_attribute": 1}}, {"value": 1}],
+            )

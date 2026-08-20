@@ -3,7 +3,7 @@ import psycopg
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
 
-from odoo.addons.base.models.catalog_mixin import no_name_uniq_index
+from odoo.addons.base.models.mixin_catalog import no_name_uniq_index
 
 
 class TestCatalogMixin(TransactionCase):
@@ -22,7 +22,7 @@ class TestCatalogMixin(TransactionCase):
         cls.root = cls.Tag.create({"name": "Rootcat"})
 
     def test_name_keeps_mixin_attributes_through_partial_override(self):
-        """tag.mixin restates ``name`` for its label only."""
+        """mixin.tag restates ``name`` for its label only."""
         field = self.Tag._fields["name"]
         self.assertTrue(field.required)
         self.assertTrue(field.translate)

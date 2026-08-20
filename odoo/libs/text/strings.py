@@ -1,4 +1,11 @@
-__all__ = ["get_flag", "human_size", "mod10r", "remove_accents", "str2bool"]
+__all__ = [
+    "get_flag",
+    "human_size",
+    "is_encodable",
+    "mod10r",
+    "remove_accents",
+    "str2bool",
+]
 
 import unicodedata
 import warnings
@@ -10,6 +17,24 @@ def remove_accents(input_str: str) -> str:
         return input_str
     nkfd_form = unicodedata.normalize("NFKD", input_str)
     return "".join(c for c in nkfd_form if not unicodedata.combining(c))
+
+
+def is_encodable(value: str, charset: str = "ascii") -> bool:
+    """Can ``value`` survive ``charset`` once its accents are folded away?
+
+    Lived on ``mail.alias`` as ``_is_encodable`` although nothing about it is an
+    alias -- its only callers are in ``account.journal``, deciding whether a company
+    or journal name can go into an email address at all. ``LookupError`` is caught
+    with the encoding errors on purpose: an unknown charset is a caller's bug, but
+    this is a predicate, and a predicate that raises is not one.
+    """
+    if not value:
+        return False
+    try:
+        remove_accents(value).encode(charset)
+    except LookupError, UnicodeEncodeError:
+        return False
+    return True
 
 
 def human_size(sz: float | str) -> str | Literal[False]:

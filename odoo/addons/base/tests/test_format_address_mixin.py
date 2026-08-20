@@ -225,7 +225,7 @@ class TestPartnerFormatAddress(FormatAddressCase):
 
 class TestFormatVatLabel(ViewCase):
     def test_vat_label_cache_key_is_vat_label_keyed(self):
-        mixin = self.env["format.vat.label.mixin"]
+        mixin = self.env["mixin.format.vat.label"]
         base_key = self.env["ir.ui.view"]._get_view_cache_key("form")
         vat_key = mixin._get_view_cache_key("form")
 

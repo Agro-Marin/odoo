@@ -19,7 +19,7 @@ if typing.TYPE_CHECKING:
     from .res_users import ResUsers
 
 
-from .res_partner_format_address_mixin import ADDRESS_FIELDS
+from .mixin_format_address import ADDRESS_FIELDS
 
 EU_EXTRA_VAT_CODES = {
     "GR": "EL",
@@ -108,10 +108,10 @@ class ResPartner(models.Model):
     _name = "res.partner"
     _description = "Contact"
     _inherit = [
-        "format.address.mixin",
-        "format.vat.label.mixin",
-        "avatar.mixin",
-        "properties.base.definition.mixin",
+        "mixin.format.address",
+        "mixin.format.vat.label",
+        "mixin.avatar",
+        "mixin.properties.base.definition",
     ]
     _order = "complete_name ASC, id DESC"
     _rec_names_search = [

@@ -20,7 +20,7 @@ class ResCompany(models.Model):
     _name = "res.company"
     _description = "Companies"
     _order = "sequence, name"
-    _inherit = ["format.address.mixin", "format.vat.label.mixin"]
+    _inherit = ["mixin.format.address", "mixin.format.vat.label"]
     _parent_store = True
 
     def copy(self, default: ValuesType | None = None) -> Self:

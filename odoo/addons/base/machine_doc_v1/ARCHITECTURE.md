@@ -38,8 +38,8 @@ High-level structure, data flow, and component organization for `core/odoo/addon
 │                                                                      │
 │  ┌─────────────────┐  ┌───────────────────┐  ┌────────────────────┐  │
 │  │ Localization    │  │ Module System     │  │ Mixins             │  │
-│  │ res.country     │  │ ir.module.module  │  │ image.mixin        │  │
-│  │ res.currency    │  │ ir.module.cat.    │  │ avatar.mixin       │  │
+│  │ res.country     │  │ ir.module.module  │  │ mixin.image        │  │
+│  │ res.currency    │  │ ir.module.cat.    │  │ mixin.avatar       │  │
 │  │ res.lang        │  │ ir.config.param.  │  │ format.address.*   │  │
 │  │ res.bank        │  │                   │  │ properties.base.*  │  │
 │  └─────────────────┘  └───────────────────┘  └────────────────────┘  │
@@ -211,12 +211,12 @@ every Odoo module depends on.
 
 | Model | Purpose |
 |-------|---------|
-| image.mixin | Multi-resolution image fields (1920/1024/512/256/128) |
-| avatar.mixin | SVG avatar generation from name initials |
-| format.address.mixin | Country-specific address form layout |
-| format.vat.label.mixin | Country-specific VAT field labeling |
+| mixin.image | Multi-resolution image fields (1920/1024/512/256/128) |
+| mixin.avatar | SVG avatar generation from name initials |
+| mixin.format.address | Country-specific address form layout |
+| mixin.format.vat.label | Country-specific VAT field labeling |
 | properties.base.definition | Properties field definition storage |
-| properties.base.definition.mixin | Properties support for models |
+| mixin.properties.base.definition | Properties support for models |
 | decimal.precision | Configurable decimal precision per usage |
 | report.layout | Report layout template registry |
 | report.paperformat | Paper format configuration (A4, Letter, etc.) |

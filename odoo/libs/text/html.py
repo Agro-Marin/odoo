@@ -19,6 +19,8 @@ from lxml.html import (
 )
 from markupsafe import Markup, escape_silent
 
+from odoo.libs.web.urls import urljoin
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -45,6 +47,7 @@ __all__ = [
     "nl2br_enclose",
     "plaintext2html",
     "prepend_html_content",
+    "replace_local_links",
     "safe_attrs",
     "tag_quote",
     "validate_url",
@@ -855,3 +858,58 @@ def prepend_html_content(html_body: str, html_content: str | markupsafe.Markup) 
             str(html_body[insert_index:]),
         )
     )
+
+
+#: Attributes that carry a URL, and the elements allowed to carry them.
+#:
+#: The path group is `/(?!/)[^"]*`: a `/` not followed by another `/`, because
+#: `//host/x` is protocol-relative and already absolute. Spelling that as
+#: `/[^/][^"]+` -- a slash, then "something that is not a slash" -- instead makes
+#: the closing quote itself match `[^/]` for `href="/"`, and `[^"]+` then runs
+#: forward to the next quote in the document, swallowing the following
+#: `href="`. The link after a root link was left relative, which in a mail
+#: client means a dead link.
+LOCAL_LINK_PATTERNS = (
+    re.compile(r"""(<(?:img|v:fill|v:image)(?=\s)[^>]*\ssrc=")(/(?!/)[^"]*)"""),
+    re.compile(r"""(<a(?=\s)[^>]*\shref=")(/(?!/)[^"]*)"""),
+    re.compile(r"""(<[\w-]+(?=\s)[^>]*\sbackground=")(/(?!/)[^"]*)"""),
+    re.compile(
+        r"""(                            # 1: the element up to the url, opening quote included
+            <[^>]+\bstyle=['"]           # an element carrying a style attribute
+            [^'"]+\burl\(                # whose style contains url(
+            (?:&\#34;|'|&quot;|&\#39;|")?  # the url may open with an (escaped) quote
+        )(                               # 2: the url itself
+            /(?!/)[^'")]*                # a local path; "//host" is not one
+        )""",
+        re.VERBOSE,
+    ),
+)
+
+
+def replace_local_links(html_content: str, resolve_base_url: Callable[[], str]) -> str:
+    """Rewrite root-relative URLs in ``html_content`` against a base URL.
+
+    ``resolve_base_url`` is called at most once, and only if the document turns
+    out to hold a rewritable link -- looking the base URL up is the expensive
+    part and most documents have none.
+    """
+    if not html_content:
+        return html_content
+
+    wrapper = type(html_content)
+    base_url = None
+
+    def to_absolute(match: re.Match[str]) -> str:
+        nonlocal base_url
+        if base_url is None:
+            base_url = resolve_base_url() or ""
+        try:
+            return match.group(1) + urljoin(base_url, match.group(2))
+        except ValueError:
+            # urljoin refuses dot segments; leave the link as authored.
+            return match.group(0)
+
+    for pattern in LOCAL_LINK_PATTERNS:
+        html_content = pattern.sub(to_absolute, html_content)
+
+    return wrapper(html_content)
