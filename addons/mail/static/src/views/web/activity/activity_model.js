@@ -14,6 +14,7 @@ export class ActivityModel extends RelationalModel {
         if (params && "groupBy" in params) {
             params.groupBy = [];
         }
+        delete params.limit;
         await Promise.all([this.fetchActivityData(params), super.load(params)]);
     }
 

@@ -820,12 +820,19 @@ export class Rtc extends Record {
      * @param {Object} request
      * @param {boolean} [request.audio]
      * @param {boolean} [request.video]
+     * @param {string} [request.deviceId]
      */
-    async askForBrowserPermission({ audio, video }) {
+    async askForBrowserPermission({ audio, video, deviceId }) {
         try {
+            const audioConstraints = deviceId
+                ? { ...this.store.settings.audioConstraints, deviceId }
+                : this.store.settings.audioConstraints;
+            const cameraConstraints = deviceId
+                ? { ...this.store.settings.cameraConstraints, deviceId }
+                : this.store.settings.cameraConstraints;
             const stream = await browser.navigator.mediaDevices.getUserMedia({
-                audio: audio ? this.store.settings.audioConstraints : false,
-                video: video ? this.store.settings.cameraConstraints : false,
+                audio: audio ? audioConstraints : false,
+                video: video ? cameraConstraints : false,
             });
             if (audio) {
                 this.microphonePermission = "granted";

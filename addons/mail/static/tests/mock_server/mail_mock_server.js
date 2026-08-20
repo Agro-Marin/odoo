@@ -300,6 +300,10 @@ async function channel_call_leave(request) {
     BusBus._sendmany(notifications);
 }
 
+registerRoute("/mail/rtc/channel/upgrade_connection", channel_upgrade_connection);
+/** @type {RouteCallback} */
+async function channel_upgrade_connection() {}
+
 registerRoute("/discuss/channel/members", discuss_channel_members);
 /** @type {RouteCallback} */
 async function discuss_channel_members(request) {

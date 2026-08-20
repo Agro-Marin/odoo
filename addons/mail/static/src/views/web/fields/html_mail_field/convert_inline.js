@@ -1043,6 +1043,7 @@ export async function toInline(element, cssRules) {
     attachmentThumbnailToLinkImg(element);
     fontToImg(element);
     await svgToPng(element);
+    await webpToPng(element);
 
     for (const image of element.querySelectorAll("img.img-fluid")) {
         if ((image.getAttribute("style") || "").includes("mso-hide")) {
@@ -1685,46 +1686,64 @@ function responsiveToStaticForOutlook(element) {
         _hideForOutlook(td, "opening");
     }
 }
-/** @param {HTMLElement} element */
+/** @param {HTMLImageElement} source */
+async function convertToPng(source) {
+    await new Promise((resolve) => {
+        source.onload = () => resolve();
+        source.onerror = () => resolve();
+        if (source.complete) {
+            resolve();
+        }
+    });
+    if (!source.naturalWidth || !source.naturalHeight) {
+        return;
+    }
+    const image = document.createElement("img");
+    const canvas = document.createElement("canvas");
+    const width = _getWidth(source);
+    const height = _getHeight(source);
+
+    canvas.setAttribute("width", String(width));
+    canvas.setAttribute("height", String(height));
+    let png;
+    try {
+        canvas.getContext("2d").drawImage(source, 0, 0, width, height);
+        png = canvas.toDataURL("image/png");
+    } catch {
+        return;
+    }
+
+    for (const attribute of source.attributes) {
+        image.setAttribute(attribute.name, attribute.value);
+    }
+
+    image.setAttribute("src", png);
+    image.setAttribute("width", String(width));
+    image.setAttribute("height", String(height));
+
+    source.before(image);
+    source.remove();
+}
+
+/**
+ * @param {HTMLElement} element
+ */
 async function svgToPng(element) {
     for (const svg of /** @type {NodeListOf<HTMLImageElement>} */ (
         element.querySelectorAll('img[src*=".svg"]')
     )) {
-        await new Promise((resolve) => {
-            svg.onload = () => resolve();
-            svg.onerror = () => resolve();
-            if (svg.complete) {
-                resolve();
-            }
-        });
-        if (!svg.naturalWidth || !svg.naturalHeight) {
-            continue;
-        }
-        const image = document.createElement("img");
-        const canvas = document.createElement("canvas");
-        const width = _getWidth(svg);
-        const height = _getHeight(svg);
+        await convertToPng(svg);
+    }
+}
 
-        canvas.setAttribute("width", String(width));
-        canvas.setAttribute("height", String(height));
-        let png;
-        try {
-            canvas.getContext("2d").drawImage(svg, 0, 0, width, height);
-            png = canvas.toDataURL("image/png");
-        } catch {
-            continue;
-        }
-
-        for (const attribute of svg.attributes) {
-            image.setAttribute(attribute.name, attribute.value);
-        }
-
-        image.setAttribute("src", png);
-        image.setAttribute("width", String(width));
-        image.setAttribute("height", String(height));
-
-        svg.before(image);
-        svg.remove();
+/**
+ * @param {HTMLElement} element
+ */
+async function webpToPng(element) {
+    for (const webp of /** @type {NodeListOf<HTMLImageElement>} */ (
+        element.querySelectorAll('img[src*=".webp"]')
+    )) {
+        await convertToPng(webp);
     }
 }
 
