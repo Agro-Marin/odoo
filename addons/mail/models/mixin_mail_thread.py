@@ -13,7 +13,6 @@ from types import NotImplementedType
 from typing import Any, Literal, Self
 from urllib.parse import urlencode
 
-import lxml
 from lxml import etree, html
 from markupsafe import Markup, escape
 from requests import Session
@@ -42,6 +41,11 @@ from odoo.tools.mail import (
 )
 
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput, StoreFieldSpec
+from odoo.addons.mail.tools.html_body import (
+    iter_fragment_elements,
+    parse_body_fragments,
+    render_body_fragments,
+)
 from odoo.addons.mail.tools.recipients import build_recipient_data
 from odoo.addons.mail.tools.web_push import (
     ENCRYPTION_BLOCK_OVERHEAD,
@@ -1479,9 +1483,9 @@ class MixinMailThread(models.AbstractModel):
             attachment_ids = filtered_attachment_ids.ids
         return [(4, att_id) for att_id in attachment_ids]
 
-    def _get_body_attachment_markers(self, root) -> tuple[set, set]:
+    def _get_body_attachment_markers(self, fragments: list) -> tuple[set, set]:
         body_cids, body_filenames = set(), set()
-        for node in root.iter("img"):
+        for node in iter_fragment_elements(fragments, "img"):
             if node.get("src", "").startswith("cid:"):
                 body_cids.add(node.get("src").split("cid:")[1])
             elif node.get("data-filename"):
@@ -1536,10 +1540,10 @@ class MixinMailThread(models.AbstractModel):
         return values_list, extra_list
 
     def _update_body_attachment_urls(
-        self, root, attach_cid_mapping: dict, attach_name_mapping: dict
+        self, fragments: list, attach_cid_mapping: dict, attach_name_mapping: dict
     ) -> bool:
         postprocessed = False
-        for node in root.iter("img"):
+        for node in iter_fragment_elements(fragments, "img"):
             att_id, token = False, False
             if node.get("src", "").startswith("cid:"):
                 cid = node.get("src").split("cid:")[1]
@@ -1580,10 +1584,10 @@ class MixinMailThread(models.AbstractModel):
 
         return_values = {}
         if attachments:
-            root, body_cids, body_filenames = None, set(), set()
+            fragments, body_cids, body_filenames = None, set(), set()
             if body:
-                root = lxml.html.fromstring(body)
-                body_cids, body_filenames = self._get_body_attachment_markers(root)
+                fragments = parse_body_fragments(body)
+                body_cids, body_filenames = self._get_body_attachment_markers(fragments)
 
             attachment_values_list, attachment_extra_list = (
                 self._prepare_new_attachments_for_post(
@@ -1605,11 +1609,9 @@ class MixinMailThread(models.AbstractModel):
 
             if (body_cids or body_filenames) and body:
                 if self._update_body_attachment_urls(
-                    root, attach_cid_mapping, attach_name_mapping
+                    fragments, attach_cid_mapping, attach_name_mapping
                 ):
-                    return_values["body"] = Markup(
-                        lxml.html.tostring(root, pretty_print=False, encoding="unicode")
-                    )
+                    return_values["body"] = render_body_fragments(fragments)
         return_values["attachment_ids"] = m2m_attachment_ids
         return return_values
 

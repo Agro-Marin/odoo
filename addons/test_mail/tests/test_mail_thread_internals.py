@@ -149,6 +149,43 @@ class TestAPI(ThreadRecipients):
         self.assertTrue(self.partner_employee_archived.active)
 
     @users("employee")
+    def test_body_keeps_its_shape_when_cid_images_are_rewritten(self):
+        """Rewriting cid: images must not wrap the body in an invented element."""
+        ticket_record = self.ticket_record.with_env(self.env)
+        for body, expected_shape in [
+            (
+                'Zboing <img src="cid:ii_shape" alt="test_image.jpeg"> pow',
+                ("Zboing ", " pow"),
+            ),
+            (
+                '<p>one</p><p>two <img src="cid:ii_shape" alt="test_image.jpeg"></p>',
+                ("<p>one</p>", "</p>"),
+            ),
+        ]:
+            with self.subTest(body=body):
+                processed = self.env[
+                    "mixin.mail.thread"
+                ]._process_attachments_for_post(
+                    [("test_image.jpeg", "b", {"cid": "ii_shape"})],
+                    [],
+                    {
+                        "body": Markup(body),
+                        "model": ticket_record._name,
+                        "res_id": ticket_record.id,
+                    },
+                )
+                new_body = str(processed["body"])
+                self.assertIn("/web/image/", new_body, "the cid: was not rewritten")
+                self.assertTrue(
+                    new_body.startswith(expected_shape[0]),
+                    f"body gained a wrapper: {new_body!r}",
+                )
+                self.assertTrue(
+                    new_body.endswith(expected_shape[1]),
+                    f"body gained a wrapper: {new_body!r}",
+                )
+
+    @users("employee")
     def test_body_escape(self):
         """Test various use cases involving HTML encoding / escaping"""
         ticket_record = self.ticket_record.with_env(self.env)
