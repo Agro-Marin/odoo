@@ -129,3 +129,23 @@ test("no split-brain: exactly one of many concurrent tabs is main", async () => 
     );
     expect(mainFlags.filter(Boolean)).toHaveLength(1);
 });
+
+test("a bfcache re-acquire invalidated in the same task still settles isOnMainTab()", async () => {
+    const env = await makeMockEnv();
+    expect(await env.services.multi_tab.isOnMainTab()).toBe(true);
+    const pageshow = new Event("pageshow");
+    Object.defineProperty(pageshow, "persisted", { value: true });
+    // Same task, so the lock callback armed by the re-acquire has not run yet
+    // when the pagehide invalidates its attempt token.
+    browser.dispatchEvent(pageshow);
+    browser.dispatchEvent(new Event("pagehide"));
+    let resolved = false;
+    env.services.multi_tab.isOnMainTab().then(() => {
+        resolved = true;
+    });
+    await runAllTimers();
+    for (let i = 0; i < 20; i++) {
+        await Promise.resolve();
+    }
+    expect(resolved).toBe(true);
+});

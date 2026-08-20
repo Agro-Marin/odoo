@@ -668,6 +668,17 @@ export class WebsocketWorker {
         // gate is needed: the next `_start` brings a fresh Connection with its
         // own, and `lastSubscription` dies with this connection too.
         this._connection?.subscribeDeferred.resolve();
+        if (
+            [
+                WEBSOCKET_CLOSE_CODES.KEEP_ALIVE_TIMEOUT,
+                WEBSOCKET_CLOSE_CODES.CLOSING_HANDSHAKE_ABORTED,
+            ].includes(code)
+        ) {
+            // Don't wait to reconnect: keep-alive shouldn't be noticed, and the
+            // closing handshake was aborted because the client explicitly tried
+            // to connect while the socket was stuck in the closing state.
+            this.connectRetryDelay = 0;
+        }
         if (this.isReconnecting) {
             // Connection was not established but the close event was
             // triggered anyway. Let the onWebsocketError method handle
@@ -687,17 +698,6 @@ export class WebsocketWorker {
         // WebSocket was not closed cleanly, let's try to reconnect.
         this.broadcast("BUS:RECONNECTING", { closeCode: code });
         this.isReconnecting = true;
-        if (
-            [
-                WEBSOCKET_CLOSE_CODES.KEEP_ALIVE_TIMEOUT,
-                WEBSOCKET_CLOSE_CODES.CLOSING_HANDSHAKE_ABORTED,
-            ].includes(code)
-        ) {
-            // Don't wait to reconnect: keep-alive shouldn't be noticed, and the
-            // closing handshake was aborted because the client explicitly tried
-            // to connect while the socket was stuck in the closing state.
-            this.connectRetryDelay = 0;
-        }
         if (code === WEBSOCKET_CLOSE_CODES.SESSION_EXPIRED) {
             this.isWaitingForNewUID = true;
         }

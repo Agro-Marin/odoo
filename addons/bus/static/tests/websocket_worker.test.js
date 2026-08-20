@@ -955,3 +955,19 @@ test("a batch whose broadcast throws is not remembered as delivered", async () =
     expect([...worker.seenNotificationIds.keys()]).toEqual([]);
     expect(worker.lastNotificationId).toBe(0);
 });
+
+test("aborted closing handshake during a reconnect resets the retry delay", async () => {
+    const worker = await startWebSocketWorker();
+    // A reconnect sequence already in progress, with the delay backed off.
+    worker.isReconnecting = true;
+    worker.connectRetryDelay = 40_000;
+    // Wedge the socket in CLOSING: the mock defers the close dispatch to a tick,
+    // so `_start` runs while the handshake is still open -- upstream's scenario.
+    worker.websocket.close();
+    expect(worker.websocket.readyState).toBe(2);
+    worker._start();
+    // The client explicitly asked to connect and found the socket wedged, so
+    // the retry should be immediate: the 0 fast-path advances the base to
+    // INITIAL. Without the reset the base is min(40_000 * 1.5, 60_000).
+    expect(worker.connectRetryDelay).toBe(worker.INITIAL_RECONNECT_DELAY);
+});

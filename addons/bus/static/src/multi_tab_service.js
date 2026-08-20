@@ -140,6 +140,12 @@ export const multiTabService = {
             // cannot be aborted via the signal, so bumping the token is what
             // stops its callback from re-seizing the lock on this torn-down tab.
             attempt++;
+            // Settle the current wait before the token bump orphans it: the
+            // lock callbacks armed by `acquire()` all early-return once their
+            // attempt is superseded, so none of them would ever resolve it and
+            // every pending `isOnMainTab()` would hang forever. The status IS
+            // known here -- this tab is not main.
+            settled.resolve();
             releaseHeld?.();
             releaseHeld = null;
             abortController?.abort();
