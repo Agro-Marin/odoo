@@ -1,8 +1,8 @@
 # Mail Module Architecture
 
-High-level structure, data flow, and layer organization for `addons/odoo/addons/mail`.
+High-level structure, data flow, and layer organization for `addons/mail`.
 
-> **See also**: `MODEL_MAP.md` (Python models + the `mail.thread` mixin API),
+> **See also**: `MODEL_MAP.md` (Python models + the `mixin.mail.thread` mixin API),
 > `STATE_MANAGEMENT.md` (the JS `Store`/`Record` reactive ORM), `ROUTE_MAP.md` (HTTP/RPC
 > endpoints), `ASSET_LAYERS.md` (the common/web/public bundling), `CONVENTIONS.md`
 > (patterns & gotchas), `TEST_TAGS.md` (test selection), `DIRECTORY_MAP.md` (per-directory map).
@@ -13,7 +13,7 @@ High-level structure, data flow, and layer organization for `addons/odoo/addons/
 - **Category:** Productivity/Discuss · **`application: True`**
 - **Depends:** `web_tour`, `html_editor` (transitively `web`, `bus`, `base`)
 - **`post_init_hook`:** `_mail_post_init`
-- **Two faces:** (1) a **framework** — the `mail.thread` / `mail.activity.mixin` mixins that
+- **Two faces:** (1) a **framework** — the `mixin.mail.thread` / `mixin.mail.activity` mixins that
   give every business model a chatter, followers, tracking, and an email gateway; and (2) an
   **application** — Discuss (real-time chat, channels, calls) with its own JS client.
 
@@ -41,14 +41,14 @@ High-level structure, data flow, and layer organization for `addons/odoo/addons/
                     POST /mail/action│               │  "mail.record/insert", …
                                      ▼               ▼
    ┌──────────────────────────────────────────────────────────────────────┐
-   │  Python  (controllers → mail.thread / models → PostgreSQL + SMTP)     │
+   │  Python  (controllers → mixin.mail.thread / models → PostgreSQL + SMTP) │
    │                                                                       │
-   │  ┌──────────────┐   ┌───────────────────────┐   ┌──────────────────┐  │
-   │  │ Controllers  │──▶│ mail.thread mixin      │──▶│ mail.message /   │  │
-   │  │ webclient.py │   │  message_post()        │   │ mail.mail /      │  │
-   │  │ thread.py    │   │  _notify_thread()      │   │ mail.followers / │  │
-   │  │ discuss/*.py │   │  message_process()     │   │ mail.notification│  │
-   │  └──────────────┘   │  _track_*() tracking   │   └──────────────────┘  │
+   │  ┌──────────────┐   ┌────────────────────────┐  ┌──────────────────┐  │
+   │  │ Controllers  │──▶│ mixin.mail.thread      │─▶│ mail.message /   │  │
+   │  │ webclient.py │   │  message_post()        │  │ mail.mail /      │  │
+   │  │ thread.py    │   │  _notify_thread()      │  │ mail.followers / │  │
+   │  │ discuss/*.py │   │  message_process()     │  │ mail.notification│  │
+   │  └──────────────┘   │  _track_*() tracking   │  └──────────────────┘  │
    │                     └───────────┬────────────┘            │            │
    │                                 │ _bus_send(type, payload)│ SMTP send  │
    │                                 ▼                         ▼            │
@@ -85,9 +85,9 @@ divergence — every one is an upsert keyed by model id.
 `mail` is mostly **abstract mixins** injected into other models (see `MODEL_MAP.md`). The
 key contract:
 
-- A business model adds `mail.thread` (± `mail.activity.mixin`) to `_inherit` and gains
+- A business model adds `mixin.mail.thread` (± `mixin.mail.activity`) to `_inherit` and gains
   `message_ids`, `message_follower_ids`, activities, tracking, and the email gateway.
-- **`message_post(**kwargs)`** (`mail_thread.py`) is the canonical posting entry point.
+- **`message_post(**kwargs)`** (`mixin_mail_thread.py`) is the canonical posting entry point.
   Everything (chatter UI, templates, gateway) funnels through it → creates a `mail.message`
   → `_notify_thread()` fans out to inbox / email / web-push recipients.
 - **Field tracking** — `write()` on a tracked model runs `_track_*` hooks that diff old/new
@@ -105,7 +105,7 @@ webclient's view-scoped `RelationalModel`). See `STATE_MANAGEMENT.md`. Highlight
 - **The store service** `mail.store` (`core/common/store_service.js`) owns the singleton,
   seeds it from `session.storeData` (backend) or `odoo.discuss_data` (public page), and
   drives the fetch plane.
-- **~22 OWL services** provide behavior: `mail.core.common` / `discuss.core.common` (bus
+- **23 OWL services** provide behavior: `mail.core.common` / `discuss.core.common` (bus
   subscriptions), `discuss.rtc` (WebRTC engine), `mail.suggestion` (@mentions),
   `mail.composer`, `mail.attachment_upload`, `mail.sound_effects`, `im_status`, etc. Full
   list below.
@@ -123,6 +123,7 @@ webclient's view-scoped `RelationalModel`). See `STATE_MANAGEMENT.md`. Highlight
 | `mail.suggestion` | `core/common/suggestion_service.js` | Composer @mention / #channel / :emoji suggestions |
 | `mail.composer` | `core/common/composer_service.js` | Composer send / draft helpers |
 | `mail.attachment_upload` | `core/common/attachment_upload_service.js` | File-upload lifecycle |
+| `mail.link_navigation` | `core/common/link_navigation_service.js` | Intercepts clicks on links in message bodies (same-origin routing, channel/record links) |
 | `mail.sound_effects` | `core/common/sound_effects_service.js` | Named sound-effect playback |
 | `mail.out_of_focus` | `core/common/out_of_focus_service.js` | Tab-blur notification sound/title |
 | `mail.popout` | `core/common/mail_popout_service.js` | Pop-out window management |
@@ -168,23 +169,27 @@ public page, where `web/` is absent).
 
 All counts exclude `__init__.py`.
 
+Measured 2026-08-17 at `dd172d10485`. `factcheck.sh` is what keeps them honest — it pins
+every one as a literal, so re-run it rather than trusting this table.
+
 | Category | Count |
 |----------|------:|
-| Python models (`models/`, incl. `discuss/`) | 76 |
-| Python controllers | 19 files · **65** routes |
+| Python models (`models/`, incl. `discuss/`) | 77 (63 + 14 in `discuss/`) |
+| Python controllers | 20 files · **64** routes across **84** URL strings |
 | Python wizards | 9 |
-| Python tests | 62 `test_*.py` |
-| JavaScript (`static/src/`) | 392 |
-| JS model classes (registered with `.register()`) | 38 (+ the base `Record` itself → 39 calls) |
-| JS OWL services | 22 |
-| JS tests (`static/tests/`, `*.test.js`) | 128 |
-| SCSS (`static/src/`) | 132 |
+| Python tests | 55 `test_*.py` |
+| JavaScript (`static/src/`) | 397 |
+| JS model classes (registered with `.register()`) | 39 (+ the base `Record` itself → 40 calls) |
+| JS OWL services | 23 |
+| JS tests (`static/tests/`, `*.test.js`) | 143 |
+| SCSS (`static/src/`) | 101 |
 | XML (module-wide) | 232 = 164 static OWL + 41 views + 15 data + 6 wizard + 4 demo + 1 security + 1 test |
 | i18n (.po/.pot) | 64 |
 
-> **Counting the JS models:** grep for `extends Record` and you get 38 by coincidence, not
-> by correctness — it misses `Attachment extends FileModelMixin(Record)`
+> **Counting the JS models:** grep for `extends Record` and you get the wrong set, twice over
+> — it misses `Attachment extends FileModelMixin(Record)`
 > (`core/common/attachment_model.js`) and falsely matches `class StoreInternal extends
-> RecordInternal` (`model/store_internal.js`). Count `.register()` call sites instead: 39,
-> of which one is `Record.register()` in `model/record.js` (the base class), leaving 38
-> model classes.
+> RecordInternal` (`model/store_internal.js`). Count `.register()` call sites instead: 40,
+> of which one is `Record.register()` in `model/record.js` (the base class), leaving 39
+> model classes. (The two grep errors used to cancel out and return the right number for the
+> wrong reason; they no longer do, which is the whole argument for counting `.register()`.)

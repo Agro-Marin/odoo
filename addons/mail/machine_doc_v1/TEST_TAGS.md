@@ -1,7 +1,7 @@
 # Mail Module Test Tags
 
 Reference for running targeted subsets of the `mail` module's tests — Python
-(`tests/`, 64 `test_*.py` files) and JavaScript HOOT (`static/tests/`, 139 `*.test.js`).
+(`tests/`, 55 `test_*.py` files) and JavaScript HOOT (`static/tests/`, 143 `*.test.js`).
 
 > **See also**: `CONVENTIONS.md` (the mock-gateway / bus test helpers), `ROUTE_MAP.md`
 > (the controller-contract tests), `STATE_MANAGEMENT.md` (what the JS store tests exercise).
@@ -10,7 +10,7 @@ Reference for running targeted subsets of the `mail` module's tests — Python
 
 Almost every mail test class is decorated `@tagged("post_install", "-at_install", …)` — the
 suites need a fully-installed database (mail wires into `res.partner`, `res.users`, the bus,
-etc.). Of **135** tagged classes, **120** carry `post_install`/`-at_install`. Note both
+etc.). Of **72** tagged classes, **56** carry `post_install`/`-at_install`. Note both
 decorator spellings are in use (`@tagged(...)` and `@odoo.tests.tagged(...)`, the latter in
 e.g. `test_js.py` and `discuss/test_discuss_attachment_controller.py`) — grep for both or you
 will undercount. Topic tags on top of that are
@@ -19,40 +19,46 @@ filter (`-u mail`) alone, not by a topic tag.
 
 ### Topic tags → files
 
-| Tag | Files | Covers |
-|-----|-------|--------|
-| `mail_hardening_v6` (14 classes) | `test_mail_hardening_v6.py` | Fork security/hardening regression suite v6 |
-| `mail_hardening_v7` (4) | `test_mail_hardening_v7.py` | Hardening v7 |
-| `mail_hardening_v8` (1) | `test_mail_hardening_v8.py` | Hardening v8 |
-| `mail_hardening_v9` (7) | `test_mail_hardening_v9.py` | Hardening v9 |
-| `mail_hardening_v10` (3) | `test_mail_hardening_v10.py` | Hardening v10 |
-| `mail_hardening_v11` (7) | `test_mail_hardening_v11.py` | Hardening v11: `/mail/data` fetch-param isolation, dynamic-model-name guards, controller id coercion, inbox fan-out cost |
-| `mail_hardening_v12` (2) | `test_mail_hardening_v12.py` | Hardening v12: regex-render root resolution, `_prepare_message_data` `from_create` contract |
-| `mail_hardening_v13` (3) | `test_mail_hardening_v13.py` | Hardening v13: activity reschedule vs assignee timezone, the UTC "today" fallback, batched `_notify_thread_by_email` mail↔notification pairing |
-| `mail_asset_index` (3) | `test_mail_asset_index.py` | `core/common/_models.js` lists exactly the `*_model.js` files beside it. Reads the tree, needs no database or bundle |
-| `mail_controller` (7) | `test_mock_server_contract.py`, `discuss/test_*_controller.py` (message, reaction, binary, message_update, thread, attachment) | HTTP controller ↔ store-payload contract |
-| `mail_store_contract` | `test_mock_server_contract.py` | The JS-store ↔ server payload shape contract |
-| `mail_tools` | `test_mail_tools.py`, `test_res_users.py`, `test_res_partner.py` | Email parsing/normalization helpers |
-| `mail_init` | `test_mail_tools.py` | Module init / post-init hook |
-| `mail_template` | `test_mail_template.py` | `mail.template` + `send_mail` |
-| `mail_render`, `regex_render` | `test_mail_render.py` | QWeb / inline-template rendering |
-| `mail_message` | `test_mail_message.py`, `test_mail_message_translate.py`, `test_link_preview.py`, `discuss/test_message_controller.py` | `mail.message` model + translation |
-| `mail_link_preview` | `test_link_preview.py` | URL link-preview generation |
-| `mail_composer` | `test_mail_composer.py` | `mail.compose.message` wizard |
-| `mail_activity` | `test_mail_activity.py` | `mail.activity` scheduling/state |
-| `mail_server` | `test_ir_mail_server.py` | Outgoing SMTP server selection/config |
-| `mail_thread`, `mail_thread_api` | `test_ir_ui_menu.py`, `test_res_partner.py` | `mail.thread` integration / API |
-| `res_users`, `res_partner` | `test_res_users.py`, `test_res_partner.py`, `test_mail_tools.py` | Partner/user mail behavior |
-| `mail_js` | `test_js.py` | Runs the JS/HOOT suites in a headless browser |
-| `discuss_action` | `discuss/test_discuss_action.py` | Discuss client-action loading |
-| `RTC` | `discuss/test_rtc.py` | WebRTC call session model |
-| `is_tour` | `discuss/test_discuss_channel_as_guest.py` | Guest browser tours |
+Class counts measured 2026-08-17 at `dd172d10485`; `factcheck.sh` pins them.
 
-> **Fork hardening/audit suites without a topic tag.** `test_mail_hardening_v2.py` …
-> `_v5.py` and `test_mail_audit_v6.py` / `_v6b.py` carry only `("post_install",
-> "-at_install")`. They are the AgroMarin fork's own regression suites (upstream is the
-> baseline, not the ceiling — see the fork memory) and run under the module filter, not a
-> topic tag. `_v6` onwards (`_v6`…`_v12`) DID get dedicated tags; the earlier ones did not.
+| Tag | Classes | Files | Covers |
+|-----|--------:|-------|--------|
+| `mail_controller` | 7 | `test_mock_server_contract.py`, `discuss/test_*_controller.py` (message, reaction, binary, message_update, thread, attachment) | HTTP controller ↔ store-payload contract |
+| `mail_template` | 6 | `test_mail_template.py` | `mail.template` + `send_mail` |
+| `mail_tools` | 5 | `test_mail_tools.py`, `test_res_partner.py`, `test_res_users.py` | Email parsing/normalization helpers |
+| `mail_composer` | 4 | `test_mail_composer.py` | `mail.compose.message` wizard |
+| `mail_message` | 4 | `test_mail_message.py`, `test_mail_message_translate.py`, `test_link_preview.py`, `discuss/test_message_controller.py` | `mail.message` model + translation |
+| `mail_render` | 3 | `test_mail_render.py` | QWeb / inline-template rendering |
+| `res_users` | 3 | `test_res_users.py` | User mail behavior |
+| `mail_activity` | 2 | `test_mail_activity.py` | `mail.activity` scheduling/state |
+| `mail_server` | 2 | `test_ir_mail_server.py` | Outgoing SMTP server selection/config |
+| `mail_js` | 2 | `test_js.py` | Runs the JS/HOOT suites in a headless browser |
+| `res_partner` | 2 | `test_res_partner.py`, `test_mail_tools.py` | Partner mail behavior |
+| `regex_render` | 1 | `test_mail_render.py` | The restricted ("static") render path — see CONVENTIONS.md gotcha 8. The tag name predates the regex's removal |
+| `mail_asset_index` | 1 | `test_mail_asset_index.py` | `core/common/_models.js` lists exactly the `*_model.js` files beside it, in both directions, and each indexed file registers. Reads the tree, needs no database or bundle |
+| `mail_store_contract` | 1 | `test_mock_server_contract.py` | The JS-store ↔ server payload shape contract |
+| `mail_link_preview` | 1 | `test_link_preview.py` | URL link-preview generation |
+| `mail_init` | 1 | `test_mail_tools.py` | Module init / post-init hook |
+| `mail_thread` | 1 | `test_ir_ui_menu.py` | `mixin.mail.thread` integration |
+| `mail_thread_api` | 1 | `test_res_partner.py` | `mixin.mail.thread` public API |
+| `discuss_action` | 1 | `discuss/test_discuss_action.py` | Discuss client-action loading |
+| `RTC` | 1 | `discuss/test_rtc.py` | WebRTC call session model |
+| `is_tour` | 1 | `discuss/test_discuss_channel_as_guest.py` | Guest browser tours |
+
+**30 of the 55 test files carry no topic tag at all** and are reachable only by the module
+filter — among them `test_fetchmail.py`, `test_mail_mail.py`, `test_mail_blacklist.py`,
+`test_mail_message_access_parity.py`, `test_mail_message_search.py`, `test_uninstall.py`,
+`test_update_notification.py`, and 14 of the 23 files in `discuss/`. That is **more than
+half the module**: a `--test-tags` run covers 24 files, so treat the tag table as a way to
+go fast, never as a way to say "mail passed". Use `-u mail --test-enable` for that.
+
+> **The round-numbered hardening suites are gone.** `test_mail_hardening_v2` … `_v13` and
+> `test_mail_audit_v6*` — twenty-one files, eight of them carrying dedicated
+> `mail_hardening_v*` tags — were deleted in `e4df7f5569b`. Those tags now select nothing, so
+> a run using one reports success having executed no test. What survived is
+> `test_mail_message_access_parity.py`, which pins the access rule's two spellings against
+> each other rather than restating one audit round's findings. New regression tests go in the
+> suite named after what they test — see CONVENTIONS.md gotcha 9.
 
 ### Base test classes (`tests/common.py`)
 
@@ -75,12 +81,11 @@ for controller-contract tests; `TestMailRenderCommon` for rendering; `MailTracki
 
 ### Running Python tests
 
-```bash
-CONF=config/p314o19marin.conf
-PY="venv/p314o19marin/bin/python addons/odoo/odoo-bin"
+From the **workspace root** (`~/Odoo`), whose paths these are — see workspace CLAUDE.md §2.
 
-# A fork hardening suite:
-$PY -c $CONF -d <db> --test-tags mail_hardening_v6 --stop-after-init --no-http
+```bash
+PY="p314o19m/bin/python odoo/odoo-bin"
+CONF=p314o19m.conf
 
 # Controller ↔ store contract:
 $PY -c $CONF -d <db> --test-tags mail_controller --stop-after-init --no-http
@@ -88,39 +93,63 @@ $PY -c $CONF -d <db> --test-tags mail_controller --stop-after-init --no-http
 # A single class/method:
 $PY -c $CONF -d <db> --test-tags '/mail:TestMailActivity.test_activity_flow' --stop-after-init --no-http
 
-# All mail tests (module filter; catches the topic-tag-less files):
+# All mail tests (module filter; the only way to reach the 28 topic-tag-less files):
 $PY -c $CONF -d <db> -u mail --test-enable --stop-after-init --no-http
 ```
 
+> **`p314o19m.conf` puts `enterprise/` on the addons path**, which pulls in ~40 modules of
+> auto-installs that patch mail. For anything you intend to compare against CI, use the CI
+> scope instead — from the `odoo/` checkout root, `--addons-path=odoo/addons,addons`, which
+> installs 27 modules.
+
 ### ⚠ The query-count suite is red before you start
 
+This suite is in the **sibling `test_mail` module**, not in `mail`.
 `test_mail/tests/test_performance.py` (tag `mail_performance`) pins exact query
-counts with `assertQueryCount`. **It currently fails wholesale — measured at 94
-failing assertions across 57 tests, 93 of them "Query count *more* than
-expected".** Verified independent of any local change: reverting the working
-tree and re-running reproduces the same 94.
+counts with `assertQueryCount`, and it is red before you touch anything.
 
-Two separate things inflate it, so check both before believing a number:
+**Measured 2026-08-17 at `dd172d10485`, CI scope (27 modules): 56 failed, 0
+errors of 72 tests.** Underneath that headline, in `test_performance.py`:
+
+| | |
+|---|---:|
+| failing `assertQueryCount` blocks | **63** |
+| — over the floor | 56 (**334** surplus queries) |
+| — under the floor | 7 (**9** queries below) |
+| distinct failing tests | 36 (30 over, 6 under) |
+
+```bash
+# from the workspace root; the CI addons-path, per odoo/CLAUDE.md
+p314o19m/bin/python odoo/odoo-bin --addons-path=odoo/odoo/addons,odoo/addons \
+    -d <ci-db> -i mail,test_mail --test-enable --test-tags mail_performance \
+    --stop-after-init --no-http
+```
+
+One more block fails outside that file — `test_mail_template.py:434`
+`test_template_send_email_wreport_batch`, 149 **<** 240, a floor the batching
+work has already overtaken by 91 queries.
+
+⚠ **Symlink `node_modules` into the checkout you measure in**, or the two
+`*_wreport*` tests error on `EsbuildBundleError` instead of reporting a count,
+and you will read 2 errors that are about your toolchain (workspace CLAUDE.md §4).
+
+Two separate things inflate the numbers, so check both before believing one:
 
 1. **Your database's module set.** A DB built with the workspace conf installs
    ~40 modules, because `enterprise/` is on the `addons_path` and pulls in
    auto-installs (`ai_fields`, `snailmail`, `mail_enterprise`, `auth_totp_mail`,
-   …), each adding `write`/`create` overrides. Harvest and compare at **CI
-   scope** instead — 27 modules:
+   …), each adding `write`/`create` overrides. Harvest and compare at CI scope,
+   as above.
 
-   ```bash
-   # from the odoo checkout root -- the CI addons-path, per odoo/CLAUDE.md
-   odoo-bin --addons-path=odoo/addons,addons -d <ci-db> -i mail,test_mail \
-       --no-http --stop-after-init
-   ```
-
-2. **The floors themselves have drifted** (e.g. 48 vs 34, 113 vs 94). Fixing that
+2. **The floors themselves have drifted** (e.g. 48 vs 34, 108 vs 94). Fixing that
    is a per-test judgement — is this delta legitimate or a real regression? —
    *not* a blanket re-baseline, which would cement whatever regressions are
    hiding in it.
 
-   Measured shape of the drift, at CI scope over the four performance classes
-   (48 distinct failing tests, 172 surplus queries in total):
+   The analysis below was done in an earlier pass, at a different commit; the
+   *causes* it names still hold and the arithmetic in it is that pass's, not the
+   measurement above. Where it quotes a total, treat it as the shape of the drift
+   rather than today's number.
 
    | Cause | Share of the 283 surplus queries |
    |-------|-------|
@@ -132,15 +161,23 @@ Two separate things inflate it, so check both before believing a number:
    both are *legitimate cost*, i.e. the floors are stale rather than the code
    being wrong:
 
-   **The follower savepoint.** `mail.followers._insert_followers` wraps its
-   `create` in `cr.savepoint(flush=False)` and retries row-by-row on
-   `IntegrityError`, because two transactions auto-subscribing the same partner
-   race the `unique(res_model, res_id, partner_id)` index. `SAVEPOINT` +
+   **The follower savepoint — paid off.** `mail.followers._create_followers`
+   used to wrap its `create` in `cr.savepoint(flush=False)` and retry row-by-row
+   on `IntegrityError`, because two transactions auto-subscribing the same
+   partner race the `unique(res_model, res_id, partner_id)` index. `SAVEPOINT` +
    `RELEASE` are two real queries, so **any test that auto-subscribes a follower
-   pays +2** — that is the entire delta for `test_create_mail_simple`,
+   paid +2** — the entire delta for `test_create_mail_simple`,
    `test_create_mail_simple_multi`, `test_create_mail_with_tracking` and
-   `test_adv_activity` (all 10/8-shaped). Deliberate, commented, and not to be
-   "optimised" away without replacing the race protection.
+   `test_adv_activity`, then all 10/8-shaped.
+
+   The race protection was not removed, it was **replaced**: one
+   `INSERT ... ON CONFLICT DO NOTHING RETURNING`, where a row that does not come
+   back is a raced pair reported to the caller. No savepoint, no `O(N)` retry,
+   and no `odoo.db.cursor` warning claiming a handled conflict was "surfaced to
+   the user". Measured over `/test_mail,/test_mail_sms`: **44 query-count blocks
+   fell, net −160 queries, none rose**, and those four are back at 8/8/9/8. If
+   you are here because a follower count moved *up*, the savepoint is not the
+   explanation any more — look at `_create_followers` itself.
 
    The access-check share is
    real but small: since `a7450df423d [IMP] core: checking/testing/filtering
@@ -205,11 +242,22 @@ the five `test_mail_composer_*` variants, `test_partner_find_from_emails`, and
 `test_message_get_default_recipients`(+`_batch`). Do these first in any future
 pass: they are free.
 
-Verified at CI scope: **"less than expected" 19 -> 0**, failing tests
+Verified at CI scope at the time: **"less than expected" 19 -> 0**, failing tests
 **48 -> 34**, with **nothing newly failing** at any step. (Odoo's headline
 "65 failed" barely moves across the last step, because most of those tests have a
 second block still failing for an unrelated reason — count blocks, not tests,
 when judging progress.)
+
+> **Re-measured 2026-08-17: those ten raises have held.** Every test named above
+> is clean at `dd172d10485` — none has drifted back over its new floor. But
+> **"less than expected" is back to 7 blocks / 6 tests**, two of them tests this
+> pass raised (`test_message_get_suggested_recipients` 24 < 25,
+> `test_message_get_default_recipients` 4 < 5) and now overtaken *again* by later
+> improvements, plus `test_activity_full` (×2), the two `test_message_to_store_*`
+> and `test_message_get_suggested_recipients_batch`. That is the "drift runs both
+> ways" point restated by the tree itself: **under-floor blocks reappear
+> continuously**, so lowering them is not a one-off chore but the cheap half of
+> every pass.
 
 Two traps this exercise hit, both worth avoiding:
 
@@ -229,7 +277,7 @@ the same number. Our 23 had simply been set too low.
 
 **A shortcut that does not work, so you need not retry it.** The pristine
 upstream `19.0` mirror carries this same file, so it is tempting to adopt its
-floors wholesale. Measured: of the 64 remaining failing assertions, **zero** have
+floors wholesale. Measured in that pass, not re-verified since: of the 64 then-remaining failing assertions, **zero** have
 an actual count equal to upstream's floor for the same block. The remaining drift
 is genuinely fork-specific behaviour, not our copy of the floors having gone
 stale against upstream — which is precisely why the rest needs per-query
@@ -241,11 +289,19 @@ pass/fail, since the tests fail either way:
 
 ```bash
 odoo-bin --addons-path=odoo/addons,addons -d <ci-db> --test-enable \
-    --test-tags /test_mail:TestMailAPIPerformance,/test_mail:TestBaseAPIPerformance \
-    --stop-after-init --no-http 2>&1 \
-  | grep -oE "for user [a-z]+: [0-9]+ > [0-9]+ in [a-z_]+" | LC_ALL=C sort > after.txt
+    --test-tags mail_performance --stop-after-init --no-http 2>&1 \
+  | grep -oE "for user [a-z]+: [0-9]+ [<>] [0-9]+ in [a-z_0-9]+ at [^ ]+" \
+  | LC_ALL=C sort > after.txt
 # ...then the same with your change reverted, and `diff before.txt after.txt`.
 ```
+
+Three things that pattern gets right and the obvious one does not: `[<>]` keeps
+the **under**-floor blocks (a change that *lowers* a count moves those and
+nothing else); `[a-z_0-9]+` matches test names ending in a digit
+(`..._v2`, `..._128`), which `[a-z_]+` silently truncates into a wrong key; and
+keeping ` at <file>:<line>` makes the block, not the test, the unit — two blocks
+of one test can move in opposite directions, and without the line number `sort`
+merges them.
 
 `assertQueryCount` reports only the count, never the queries. To see *which*
 queries, wrap `self.cr.execute` for the duration of the block — the useful frame
@@ -253,25 +309,26 @@ is the last one under `/addons/`, since everything below it is ORM.
 
 ## JavaScript — HOOT suites (`static/tests/`)
 
-128 `*.test.js` files. They run in a headless browser via `test_js.py` (tag `mail_js`), or
+143 `*.test.js` files. They run in a headless browser via `test_js.py` (tag `mail_js`), or
 interactively at `/web/tests` (mail is included in `web.assets_unit_tests`).
 
 ### File groups (by subdirectory)
 
-Rows below sum to 139.
+Rows below sum to 142.
 
 | Directory | Files | Scope |
 |-----------|------:|-------|
-| `discuss/` | 43 | Discuss app: channels, members, calls, sidebar, sub-channels |
+| `discuss/` | 44 | Discuss app: channels, members, calls, sidebar, sub-channels |
 | `core/` | 22 | Store/Record framework, personas, notifications, settings, presence |
 | `web/` | 9 | Backend-web integration (systray, form chatter wiring) |
 | `chatter/` | 9 | Form-view chatter |
 | `discuss_app/` | 6 | Discuss client-action shell |
 | `utils/` | 6 | Date/format/misc helper units |
+| `composer/` | 5 | Message composer |
 | `thread/` | 5 | Thread rendering + message list |
 | `(root)` | 5 | Cross-cutting suites + helpers |
-| `composer/` | 4 | Message composer |
-| `activity/`, `message/`, `mock_server/` | 3 each | Activities · message component · mock-server units |
+| `message/` | 4 | Message component |
+| `activity/`, `mock_server/` | 3 each | Activities · mock-server units |
 | `chat_window/`, `emoji/`, `inline/`, `messaging_menu/`, `views/` | 2 each | — |
 | `chat_bubble/`, `crosstab/`, `gif_picker/`, `html_editor/`, `messaging/`, `mobile/`, `quick_reaction_menu/`, `scheduled_message/`, `suggestion/`, `translation/`, `widgets/` | 1 each | — |
 | `tours/` | 0 | Browser tours — excluded from the unit bundle (ship in `web.assets_tests`) |
@@ -295,7 +352,7 @@ Rows below sum to 139.
 
 Other helper files: `mail_test_helpers_contains.js` (DOM `contains`-style assertions),
 `mail_shared_tests.js` (reusable test bodies),
-`mock_server/mail_mock_server.js` (39 mocked RPC routes, all via `registerRoute("<path>", …)`),
+`mock_server/mail_mock_server.js` (40 mocked RPC routes, all via `registerRoute("<path>", …)`),
 `mock_server/mock_models/` (35 mock model files: `mail_thread.js`, `mail_message.js`,
 `discuss_channel.js`, `discuss_channel_member.js`, `discuss_channel_rtc_session.js`,
 `mail_activity.js`, `res_partner.js`, `mail_guest.js`, `mail_notification.js`,

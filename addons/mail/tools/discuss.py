@@ -79,7 +79,7 @@ ids_by_model: defaultdict[str, tuple[str, ...]] = defaultdict(lambda: ("id",))
 ids_by_model.update(
     {
         "DiscussApp": (),
-        "mail.thread": ("model", "id"),
+        "mixin.mail.thread": ("model", "id"),
         "MessageReactions": ("message", "content"),
         "Rtc": (),
         "Store": (),
@@ -109,28 +109,14 @@ class Store:
             return self
         assert isinstance(records, models.Model)
         if fields is None:
-            if as_thread:
-                fields = []
-            else:
-                fields = (
-                    records._to_store_defaults(self.target)
-                    if hasattr(records, "_to_store_defaults")
-                    else []
-                )
+            fields = [] if as_thread else records._to_store_defaults(self.target)
         fields = self._format_fields(records, fields) + self._format_fields(
             records, extra_fields
         )
         if as_thread:
-            if hasattr(records, "_thread_to_store"):
-                records._thread_to_store(self, fields, **kwargs)
-            else:
-                assert not kwargs
-                self.add_records_fields(records, fields, as_thread=True)
-        elif hasattr(records, "_to_store"):
-            records._to_store(self, fields, **kwargs)
+            records._thread_to_store(self, fields, **kwargs)
         else:
-            assert not kwargs
-            self.add_records_fields(records, fields)
+            records._to_store(self, fields, **kwargs)
         return self
 
     def add_global_values(self, **values) -> Self:
@@ -166,7 +152,7 @@ class Store:
             for record_data in record_data_list:
                 if as_thread:
                     self.add_model_values(
-                        "mail.thread",
+                        "mixin.mail.thread",
                         {"id": record.id, "model": record._name, **record_data},
                     )
                 else:
@@ -190,7 +176,7 @@ class Store:
         if not records:
             return self
         assert isinstance(records, models.Model)
-        model_name = "mail.thread" if as_thread else records._name
+        model_name = "mixin.mail.thread" if as_thread else records._name
         for record in records:
             values = (
                 {"id": record.id}
@@ -263,9 +249,7 @@ class Store:
         self, records: models.Model, fields: StoreFieldsInput
     ) -> list[StoreFieldSpec]:
         fields = Store._static_format_fields(fields)
-        if hasattr(records, "_field_store_repr"):
-            return [f for field in fields for f in records._field_store_repr(field)]
-        return fields
+        return [f for field in fields for f in records._field_store_repr(field)]
 
     @staticmethod
     def _static_format_fields(fields: StoreFieldsInput) -> list[StoreFieldSpec]:
@@ -390,6 +374,8 @@ class Store:
             )
 
     class Attr:
+        _requires_real_field = True
+
         def __init__(
             self,
             field_name: str | None,
@@ -404,13 +390,21 @@ class Store:
             self.value = value
 
         def _get_value(self, record: models.Model) -> Any:
-            if self.value is None and self.field_name in record._fields:
-                return (record.sudo() if self.sudo else record)[self.field_name]
+            if self.value is None and self.field_name is not None:
+                if self.field_name in record._fields:
+                    return (record.sudo() if self.sudo else record)[self.field_name]
+                if self._requires_real_field:
+                    raise ValueError(
+                        f"Store.Attr({self.field_name!r}) names no field on "
+                        f"{record._name} and carries no value"
+                    )
             if callable(self.value):
                 return self.value(record)
             return self.value
 
     class Relation(Attr):
+        _requires_real_field = False
+
         def __init__(
             self,
             records_or_field_name: str | models.Model | None,

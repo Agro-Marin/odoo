@@ -42,14 +42,15 @@ Directories on disk carrying these suffixes: `core/{common,public_web,web_portal
 `chatter/{web,web_portal}`, `discuss/call/{common,public,public_web,web}`,
 `discuss/core/{common,public,public_web,web}`,
 `discuss/{gif_picker,message_pin,typing,voice_message}/common`, `discuss/web`,
-`utils/common`, `views/web`, `webclient/web`.
+`utils/{common,web}`, `views/web`, `webclient/web`.
 
 ## Backend bundle composition (`web.assets_backend`)
 
 Layers load in a strict order via two glob families:
 
 ```python
-# explicit core layers first…
+("mail/static/src/model/**/*",)  # the reactive ORM, before anything using it
+# explicit core layers next…
 ("mail/static/src/core/common/**/*",)
 ("mail/static/src/core/public_web/**/*",)
 ("mail/static/src/core/web_portal/**/*",)
@@ -72,7 +73,12 @@ re-added** as one deterministic block:
 ("mail/static/src/discuss/core/public_web/**/*",)
 ("mail/static/src/discuss/core/web/**/*",)
 ("mail/static/src/discuss/**/common/**/*",)  # + public_web, web
+("mail/static/src/views/web/activity/**",)  # re-added after the strip — see below
 ```
+
+> The trailing `views/web/activity/**` line is a **re-add, not a new layer**: those files are
+> already matched by `**/web/**` above, and the explicit repeat puts the activity view type
+> after the discuss block rather than before it.
 
 **Why (per the manifest comment):** the historical core → discuss import inversion has been
 fixed, so **JS imports no longer require this ordering**. It is kept for two remaining
@@ -92,7 +98,8 @@ and the `web.assets_web_dark` bundle itself, went with it.
 `mail.assets_public` is a **self-contained** bundle for the anonymous discuss page — it does
 not assume the webclient is present, so it re-includes the web platform from scratch:
 `web._assets_helpers`, `web._assets_backend_helpers`, bootstrap SCSS, fontawesome7,
-`web._assets_core`, `web/static/src/fields/formatters.js`, all of `bus/static/src/**` (minus
+`web._assets_core`, `web/static/src/core/formatters.js`, `bus/static/src/*.js` +
+`bus/static/src/services/**/*.js` + `bus/static/src/workers/*.js` (minus
 `bus_worker_script.js`), and `html_editor._assets_editor`. Then it adds mail's
 `common` + `public_web` + `public` layers plus the discuss block (mirroring the
 remove-then-re-add pattern, but with `public_web`/`public` instead of `web`/`web_portal`).

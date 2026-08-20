@@ -37,9 +37,9 @@ reactive, id-keyed record graph.
 ## Defining a model
 
 Every model is a class `extends Record` with a `static id`, field declarations, and a
-trailing `<Class>.register()`. There are **38 model classes** across `static/src/`
+trailing `<Class>.register()`. There are **39 model classes** across `static/src/`
 (enumerated in `ARCHITECTURE.md` and `DIRECTORY_MAP.md`). Count them by `.register()` call
-sites (39, minus `Record.register()` for the base class) — **not** by grepping
+sites (40, minus `Record.register()` for the base class) — **not** by grepping
 `extends Record`, which both misses `Attachment extends FileModelMixin(Record)` and falsely
 matches `StoreInternal extends RecordInternal`. See the counting note in `ARCHITECTURE.md`.
 
@@ -60,10 +60,11 @@ Message.register();                        // adds to modelRegistry (category "d
 ```
 
 - **`static _name`** — the python model name used when routing server data. If omitted,
-  `getName()` falls back to the JS class name. **14 of the 39 registered models omit it**
+  `getName()` falls back to the JS class name. **15 of the 40 registered models omit it**
   (`ChatHub`, `ChatWindow`, `Composer`, `DataResponse`, `DiscussApp`, `DiscussAppCategory`,
-  `Failure`, `MessageReactions`, `Record`, `Rtc`, `Settings`, `Store`, `Thread`, `Volume`);
-  the other 25 declare one. Omitting `_name` is not the same as having no server model —
+  `Failure`, `MessageReactions`, `MessagingMenu`, `Record`, `Rtc`, `Settings`, `Store`,
+  `Thread`, `Volume`); the other 25 declare one. Omitting `_name` is not the same as having no
+  server model —
   `Thread` is still reachable from python payloads via `pyToJsModels`, and `Settings` is fed
   by the `res.users.settings` bus type. See CONVENTIONS.md gotcha 4.
 - **`static id`** — the identity key. A field name (`"id"`), or a composite/alternate
@@ -136,8 +137,19 @@ FC  computes    →  FS  sorts       →  FA  onAdd      →  FD  onDelete
 →  FU  onUpdate  →  RO  onChange    →  RD  record deletes  →  RHD  hard deletes
 ```
 
-Errors are collected in `_.ERRORS` and rethrown at flush end (or `console.warn` when
-`warnErrors`). **Computes and sorts are always eager** — queued at record creation and on any
+Errors are collected in `_.ERRORS` and **always** rethrown at flush end — the first one, with
+the rest discarded. `store.logErrors` (default `true`) decides only whether they are *also*
+printed; it never decides whether they throw. Set it to `false` in a test that asserts a throw
+so the assertion does not also assert the console noise. (It was named `warnErrors` until
+2026-08-17, when the name was the last thing still claiming it could swallow an error: it could
+not, because `handleError` only reaches its non-collecting branch outside an update, and every
+mutation path runs inside one.)
+
+Consequently **`store.insert()` is best-effort, not atomic**: a payload can be partly applied
+*and* throw. One model's rows failing no longer aborts the models after it — that error is
+collected like any other and surfaces at flush end.
+
+**Computes and sorts are always eager** — queued at record creation and on any
 dependency change, observed or not; there is no per-field `eager` opt-in and no `markEager`
 symbol. `store.env` holds the `OdooEnv`.
 
@@ -185,7 +197,7 @@ extra `useState` wrapping is needed.
 | `Store.insert(dataByModelName)` (`model/store.js`) | Iterate model → rows, map py→js model name, handle per-row `_DELETE`, then `store[modelName].insert(rows)` |
 
 Python → JS model-name mapping lives in `pyToJsModels`
-(`{"discuss.channel": "Thread", "mail.thread": "Thread"}`) and `addFieldsByPyModel`
+(`{"discuss.channel": "Thread", "mixin.mail.thread": "Thread"}`) and `addFieldsByPyModel`
 (`{"discuss.channel": {model: "discuss.channel"}}`), consumed by three overridable
 `Store` methods that `Store.insert` calls (declared neutral in `model/store.js`,
 overridden in `core/common/store_service.js`):

@@ -1,7 +1,7 @@
 # Mail Module Route Map
 
 Complete mapping of HTTP endpoints to Python handlers for the `mail` module
-(`addons/odoo/addons/mail/controllers/`, including `controllers/discuss/`).
+(`addons/mail/controllers/`, including `controllers/discuss/`).
 
 > **See also**: `ARCHITECTURE.md` (request flow, the `/mail/data` ↔ `/mail/action`
 > split), `STATE_MANAGEMENT.md` (how batched fetches feed the JS Store),
@@ -25,7 +25,8 @@ runtime** despite never declaring it — verified against the live routing map, 
 report `readonly=True`. Every other mail route's runtime `readonly` matches its source
 declaration exactly.
 
-**Total: 65 `@http.route` handlers** — 32 in `controllers/`, 33 in `controllers/discuss/`.
+**Total: 64 `@http.route` handlers** — 31 in `controllers/`, 33 in `controllers/discuss/` —
+across **84 URL strings** (20 of them `export_icon_to_png`'s font_to_img variants).
 
 ## The two central data endpoints
 
@@ -232,6 +233,12 @@ injects guest data into `user_context` when there is no `request.session.uid` bu
 
 | Group | Handlers | Files |
 |-------|----------|-------|
-| `controllers/` | 32 | thread (10), webclient (2), attachment (5), mailbox (3), mail (4), websocket (2), link_preview (2), message_reaction (1), google_translate (1), im_status (1), guest (1) — webmanifest = 0 |
+| `controllers/` | 31 | thread (9), attachment (5), mail (4), mailbox (3), webclient (2), websocket (2), link_preview (2), message_reaction (1), google_translate (1), im_status (1), guest (1) — webmanifest = 0 |
 | `controllers/discuss/` | 33 | channel (12), rtc (8), gif (5), public_page (4), settings (2), search (1), voice (1) |
-| **Total** | **65** | **19** controller files (excluding the two `__init__.py`). One file contributes 0 routes — `webmanifest.py`; separately, the *class* `DiscussChannelWebclientController` in `channel.py` also declares none |
+| **Total** | **64** | **20** controller files (excluding the two `__init__.py`). One file contributes 0 routes — `webmanifest.py`; separately, the *class* `DiscussChannelWebclientController` in `channel.py` also declares none |
+
+> **`thread.py` was 10 until `3d39ae624a0`**, which removed
+> `/mail/thread/recipients/fields` (`mail_thread_recipients_fields`) — the route existed to
+> hand the frontend the recipient field names, and the guard it needed on a caller-supplied
+> model name was cheaper to delete than to keep. A search of history finds it; the routing map
+> does not.
