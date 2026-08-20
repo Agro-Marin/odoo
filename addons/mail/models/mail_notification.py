@@ -131,9 +131,9 @@ class MailNotification(models.Model):
     def format_failure_reason(self) -> str:
         self.ensure_one()
         if self.failure_type != "unknown":
-            return dict(self._fields["failure_type"].selection).get(
-                self.failure_type, _("No Error")
-            )
+            return dict(
+                self._fields["failure_type"]._description_selection(self.env)
+            ).get(self.failure_type, _("No Error"))
         else:
             if self.failure_reason:
                 return _("Unknown error: %(error)s", error=self.failure_reason)

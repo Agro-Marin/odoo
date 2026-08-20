@@ -110,6 +110,18 @@ test("Search highlight", async () => {
             output: `<p>&lt;strong&gt;<span class="${HIGHLIGHT_CLASS}">test</span>&lt;/strong&gt; <span class="${HIGHLIGHT_CLASS}">hello</span></p>`,
             searchTerm: "test hello",
         },
+        {
+            // A blank between words, or around them, yields an empty term whose
+            // regexp matches at every position and highlights the whole message.
+            input: markup`test odoo`,
+            output: `<span class="${HIGHLIGHT_CLASS}">test</span> <span class="${HIGHLIGHT_CLASS}">odoo</span>`,
+            searchTerm: "test  odoo",
+        },
+        {
+            input: markup`test odoo`,
+            output: `<span class="${HIGHLIGHT_CLASS}">test</span> odoo`,
+            searchTerm: " test ",
+        },
     ];
     for (const { input, output, searchTerm } of testCases) {
         expect(searchHighlight(searchTerm, input).toString()).toBe(output);

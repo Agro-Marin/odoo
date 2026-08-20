@@ -15,7 +15,7 @@ export function searchHighlight(searchTerm, target) {
         return target;
     }
     const htmlDoc = createDocumentFragmentFromContent(target);
-    for (const term of searchTerm.split(" ")) {
+    for (const term of searchTerm.split(" ").filter(Boolean)) {
         const regexp = new RegExp(`(${escapeRegExp(term)})`, "gi");
         const split = term.toLowerCase().split("'");
         let lowercase = split.map((s) => `'${s}'`).join(', "\'", ');
