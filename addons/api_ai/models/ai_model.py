@@ -1,11 +1,11 @@
 from odoo import api, fields, models
 
-from odoo.addons.base.models.catalog_mixin import name_uniq_index
+from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 
 class AIModel(models.Model):
     _name = "ai.model"
-    _inherit = ["catalog.mixin"]
+    _inherit = ["mixin.catalog"]
     _description = "AI Model"
     _order = "provider_id, sequence, name"
 

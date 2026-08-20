@@ -3,7 +3,7 @@ from odoo import api, fields, models
 
 class AIUseCaseTag(models.Model):
     _name = "ai.use.case.tag"
-    _inherit = ["catalog.mixin"]
+    _inherit = ["mixin.catalog"]
     _description = "AI Use Case Tag"
     _order = "sequence, name"
 
