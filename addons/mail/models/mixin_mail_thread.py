@@ -4731,7 +4731,14 @@ class MixinMailThread(models.AbstractModel):
                 res["areAttachmentsLoaded"] = True
                 res["isLoadingAttachments"] = False
             if "contact_fields" in request_list:
-                res["primary_email_field"] = thread._mail_get_primary_email_field()
+                # ``or False``: a model whose ``_primary_email`` names no real
+                # field yields None, and Store.Attr reads None as "no value
+                # supplied", then looks for a field called primary_email_field
+                # and raises. False is a value, so it is passed through --
+                # matching what _mail_get_primary_email() already returns.
+                res["primary_email_field"] = (
+                    thread._mail_get_primary_email_field() or False
+                )
                 res["partner_fields"] = thread._mail_get_partner_fields()
             if "followers" in request_list:
                 res.update(
