@@ -411,7 +411,12 @@ class MrpBom(models.Model):
                     .browse(values["product_tmpl_id"])
                     .uom_id.id
                 )
-        res = super().create(vals_list)
+        # The lines created alongside the BoM are its initial content, not
+        # components somebody added to an existing BoM, so they stay out of a
+        # chatter that has nothing above them yet.
+        res = super(MrpBom, self.with_context(skip_bom_component_chatter=True)).create(
+            vals_list
+        )
         # Checks if the BoM was created from a Manufacturing Order (through Generate BoM action).
         parent_production_id = self.env.context.get("parent_production_id")
         if (
@@ -421,7 +426,9 @@ class MrpBom(models.Model):
             env = self.env(context=clean_context(self.env.context))
             production = env["mrp.production"].browse(parent_production_id)
             production._link_bom(res[0])
-        return res
+        # Hand the records back in the caller's environment: the mute above is an
+        # implementation detail of building the BoM, not a property of the result.
+        return res.with_env(self.env)
 
     def write(self, vals):
         res = super().write(vals)
@@ -439,7 +446,12 @@ class MrpBom(models.Model):
         return res
 
     def copy(self, default=None):
-        new_boms = super().copy(default)
+        # Same reasoning as `create`, plus the operation remapping below, which
+        # rewrites `operation_id` on every copied line -- that is this method
+        # finishing the duplicate, not somebody re-assigning operations by hand.
+        new_boms = super(
+            MrpBom, self.with_context(skip_bom_component_chatter=True)
+        ).copy(default)
         for old_bom, new_bom in zip(self, new_boms, strict=True):
             if old_bom.operation_ids:
                 operations_mapping = dict(
@@ -467,7 +479,7 @@ class MrpBom(models.Model):
                             for dependency in operation.blocked_by_operation_ids
                         ]
                         copied_operation.blocked_by_operation_ids = dependencies
-        return new_boms
+        return new_boms.with_env(self.env)
 
     @api.model
     def name_create(self, name):
@@ -1211,7 +1223,9 @@ class MrpBomLine(models.Model):
                 values["product_uom_id"] = (
                     self.env["product.product"].browse(values["product_id"]).uom_id.id
                 )
-        return super().create(vals_list)
+        lines = super().create(vals_list)
+        lines._post_components_note(self.env._("Components added:"))
+        return lines
 
     # Component changes worth an entry in the parent BoM chatter. `sequence` is
     # deliberately out: reordering the components rewrites it on every line at once
@@ -1272,13 +1286,22 @@ class MrpBomLine(models.Model):
     def unlink(self):
         # Deleting a whole BoM cascades through `bom_id`'s `ondelete` in SQL, so it
         # never reaches this override and never posts to a thread on its way out.
-        if self._chatter_is_muted():
-            return super().unlink()
+        self._post_components_note(self.env._("Components removed:"))
+        return super().unlink()
 
+    def _post_components_note(self, heading):
+        """Log these components under `heading` in each parent BoM's chatter.
+
+        Shared by the two changes that are about the component itself rather than
+        one of its fields -- being added and being removed -- so both read the
+        same way in the thread.
+        """
+        if self._chatter_is_muted():
+            return
         for bom, lines in self.grouped("bom_id").items():
             bom.message_post(
                 body=Markup("{}<ul>{}</ul>").format(
-                    self.env._("Components removed:"),
+                    heading,
                     Markup("").join(
                         Markup("<li><b>{}</b> — {}: {} {}</li>").format(
                             line.product_id.display_name,
@@ -1291,7 +1314,6 @@ class MrpBomLine(models.Model):
                 ),
                 subtype_xmlid="mail.mt_note",
             )
-        return super().unlink()
 
     def _chatter_is_muted(self):
         """Whether this write should stay out of the parent BoM's chatter.
@@ -1301,10 +1323,15 @@ class MrpBomLine(models.Model):
         and `copy_data` already set them, and so does any bulk restamp that is not
         a user editing a component -- `product.product._update_uom` being the one
         in `mrp`, which would otherwise post to every BoM holding the product.
+
+        `skip_bom_component_chatter` is this module's own: `mrp.bom.create` and
+        `.copy` set it while they build a BoM, so the lines they bring into
+        existence are not announced as components added to it afterwards.
         """
         return bool(
             self.env.context.get("tracking_disable")
             or self.env.context.get("mail_notrack")
+            or self.env.context.get("skip_bom_component_chatter")
         )
 
     def _get_chatter_label(self, field_name):
