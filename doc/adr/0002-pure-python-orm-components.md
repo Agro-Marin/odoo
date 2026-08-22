@@ -5,55 +5,45 @@
 
 ## Context
 
-The hardest parts of the ORM to reason about and test are the field cache, the
-computed-field engine, and the flush/recompute unit of work. In upstream Odoo
-these are entangled with `Environment`, `Registry`, `BaseModel`, and the
-database cursor, so they can only be exercised by spinning up a full registry
-against a live database. That makes their invariants (cache coherency,
-recompute convergence, field protection scopes) expensive to test and easy to
-break.
+The field cache, the computed-field engine and the flush/recompute unit of work
+are the hardest parts of the ORM to reason about. Upstream entangles them with
+`Environment`, `Registry`, `BaseModel` and the cursor, so exercising them needs
+a full registry against a live database. That makes cache coherency, recompute
+convergence and field-protection scopes expensive to test and easy to break.
 
 ## Decision
 
-Implement the cache/compute/unit-of-work machinery as a self-contained package,
-`odoo/orm/components/`, written as **pure Python with no `odoo` imports at
-runtime**:
+Implement that machinery as `odoo/orm/components/`, **pure Python with no
+`odoo` imports at runtime**:
 
 - `FieldCache` — value cache keyed by `(field, record id)`, dirty tracking.
-- `ComputeEngine` — pending recomputations and field-protection scopes.
+- `ComputeEngine` — pending recomputations, field-protection scopes.
 - `UnitOfWork` — the flush/recompute fixpoint loop.
-- `ModelGraph` — the static field-dependency graph and recompute ordering.
-- `OrmCore` — a thin façade unifying the above.
+- `ModelGraph` — static field-dependency graph, recompute ordering.
+- `OrmCore` — façade over the above.
 
-These objects receive their collaborators (the SQL executor, the recompute
-callback, the registry's recompute order) by **injection**, rather than
-importing the runtime.
+Collaborators (SQL executor, recompute callback, registry recompute order) are
+**injected**, not imported.
 
 ## Consequences
 
-- The cache and compute engines are unit-testable in isolation — see
-  `odoo/orm/components/tests/` — without an `Environment` or a database.
-- The contracts between the engine and the runtime are explicit (the injected
-  callbacks), which makes the data-ownership boundary clear: the components own
-  no model state.
-- The cost: a little duplication of small helpers that the components cannot
-  import from the framework, and the discipline of passing collaborators in.
+- The cache and compute engines are unit-testable without an `Environment` or a
+  database — `odoo/orm/components/tests/`.
+- The engine↔runtime contracts are explicit, and the components own no model
+  state.
+- Cost: small helpers duplicated rather than imported, and the discipline of
+  passing collaborators in.
 
 ## Enforcement
 
 `tooling/architecture/layer_check.py`, contract
-`orm-components-are-pure-python`. Test files under `components/tests/` are
-exempt — tests may import freely. For the contract's live status, run the
-checker — this record does not restate it.
+`orm-components-are-pure-python`. Tests under `components/tests/` are exempt.
+Run the checker for the contract's live status.
 
 ## Amendments
 
-Append-only. An amendment corrects what this record says *about the repo*; it
-never edits the decision above.
-
 ### 2026-08-07 — the live contract status is no longer restated here
 
-The Enforcement section said the contract was "currently **clean at zero**". A
-status is a fact about the tree at a moment, and this record is immutable, so
-the sentence could only become false. Corrected in place: it is a citation, not
-the decision.
+Enforcement said the contract was "currently **clean at zero**". That is a fact
+about a moment in an immutable record, so it could only become false. Replaced
+by a citation.

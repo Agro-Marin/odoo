@@ -22,6 +22,8 @@ INERT_IN_URI_RE = re.compile(r"(?:var|color-mix)(?:\(|%28)")
 
 DARK_SCOPE_RE = re.compile(r'(?:^|(?<= )):root\[data-color-scheme="?dark"?\] +')
 
+COLOR_RE = re.compile(r"#[0-9a-fA-F]{3,8}\b|rgba?\([^()]*\)")
+
 _KEYWORDS = {
     "white": "#ffffff",
     "black": "#000000",
@@ -46,6 +48,7 @@ SINGLE_BUNDLE_GAP_FLOOR = {
     "mail": 58,
     "mrp": 2,
     "onboarding": 1,
+    "point_of_sale": 2,
     "product": 1,
     "project": 7,
     "sale": 11,
@@ -182,6 +185,25 @@ def pick_dark(value):
         value = value[:start] + pick_dark(halves[1]) + value[index + 1 :]
 
 
+def is_mask(prop):
+    return bool(re.fullmatch(r"(?:-webkit-)?mask(?:-image)?", prop.strip().lower()))
+
+
+def flatten_opaque(value):
+    return COLOR_RE.sub(
+        lambda match: "#000000" if _is_opaque(match.group(0)) else match.group(0),
+        value,
+    )
+
+
+def _is_opaque(literal):
+    literal = norm(literal)
+    if literal.startswith("#"):
+        return len(literal) == 7
+    parts = literal[len("rgb(") : -1].split(",") if literal.startswith("rgb(") else []
+    return len(parts) == 3
+
+
 def norm(value):
     value = re.sub(r"\s+", " ", (value or "").strip().lower())
     value = _KEYWORDS.get(value, value)
@@ -245,6 +267,8 @@ def measure(light_css, dark_css):
             single, wanted = scoped.get(key, served[key]), value
         single = pick_dark(resolve(single, attr_root))
         wanted = pick_dark(resolve(wanted, dark_root))
+        if is_mask(prop):
+            single, wanted = flatten_opaque(single), flatten_opaque(wanted)
         if norm(single) == norm(wanted):
             answered += 1
         else:
@@ -382,6 +406,23 @@ class TestSchemeDuplication(lint_case.LintCase):
         )
         self.assertEqual(pick_dark("light-dark(a, light-dark(b, c))"), "c")
         self.assertEqual(pick_dark("#abc"), "#abc")
+
+    def test_an_opaque_colour_inside_a_mask_is_not_a_scheme_difference(self):
+        light = "linear-gradient(130deg, #000 55%, rgba(0, 0, 0, 0.8) 75%, #000 95%)"
+        dark = light.replace("#000 ", "#E2E8F0 ")
+        self.assertNotEqual(norm(light), norm(dark))
+        self.assertEqual(norm(flatten_opaque(light)), norm(flatten_opaque(dark)))
+
+        self.assertNotEqual(
+            norm(flatten_opaque("linear-gradient(rgba(0, 0, 0, 0.8), #000)")),
+            norm(flatten_opaque("linear-gradient(rgba(0, 0, 0, 0.4), #000)")),
+        )
+        self.assertEqual(flatten_opaque("var(--o-text)"), "var(--o-text)")
+
+        self.assertTrue(is_mask("mask-image"))
+        self.assertTrue(is_mask("-webkit-mask"))
+        self.assertFalse(is_mask("mask-size"))
+        self.assertFalse(is_mask("background-image"))
 
     def test_a_comma_inside_has_is_not_a_selector_boundary(self):
         selector = ':root[data-color-scheme="dark"] .a:has(.b, .c) .d, .e'

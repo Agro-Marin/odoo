@@ -1,0 +1,12 @@
+{
+  "expected": {
+    "l10n_ch/QRPrintTest.test_print_qr": "ERROR",
+    "l10n_ch/TestSwissQR.test_swissQR_iban": "ERROR",
+    "l10n_ch/TestSwissQR.test_swissQR_qriban": "ERROR"
+  },
+  "note": "Measured 2026-08-22 on a fresh DB; unchanged since 2026-08-20, the only one of four rows audited that day that had not drifted. All three die in account_move.py's allow_out_payment guard before any Swiss-QR code runs. Whether the guard is miscoped or the fixture owes a trusted account is an accounting call: do not silence it by setting allow_out_payment on the fixture.",
+  "run_spec": "-i l10n_ch --test-enable --test-tags '/l10n_ch'",
+  "suite": "/l10n_ch",
+  "tests_total": 13,
+  "verified_at": "ca4ee2ddd79"
+}

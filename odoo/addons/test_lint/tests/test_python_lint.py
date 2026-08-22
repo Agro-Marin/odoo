@@ -7,7 +7,7 @@ from . import _py_scan, _suppression
 from .lint_case import LintCase
 
 FLOORS = {
-    "sql-injection": 37,
+    "sql-injection": 36,
     "gettext-variable": 1,
     "gettext-placeholders": 5,
     "gettext-repr": 8,
@@ -16,6 +16,22 @@ FLOORS = {
     "orm-import": 0,
     "noqa-rationale": 72,
     "onchange-domain": 0,
+    # 402 -> 395 on the rebase onto origin/19.0-marin, and the seven are this
+    # branch's own. Both parents were measured by running the gate at CI scope
+    # (`--addons-path=odoo/addons,addons`, only test_lint installed), which is the
+    # only scope these floors are defined at:
+    #
+    #   origin/19.0-marin   402   (its whole test_lint suite passes; 402 reproduces)
+    #   merged              395
+    #
+    # This branch's committed floor said 409 against origin's 402, so the two
+    # parents had each reduced findings the other could not see -- fourteen on
+    # origin's side, seven on this one -- over a common base of 416. They are
+    # disjoint, so the composition keeps both and lands on 395 rather than on
+    # either parent's number. Nothing here removed a query: an exact ratchet fails
+    # in the falling direction too, which is why the improvement is banked in the
+    # same change that produced it.
+    #
     # 403 -> 402. The unit was already gone when this was measured: a clean
     # worktree of HEAD reports 402 against the committed 403, so `test_batch_queries`
     # had been failing in the falling direction for every commit since whichever
@@ -36,7 +52,7 @@ FLOORS = {
     # the call inside a `for`. It was never an N+1 to begin with: that loop is
     # over document *models*, of which a message batch has one or two, not over
     # records. A finding removed, not a query.
-    "n-plus-one-query": 402,
+    "n-plus-one-query": 394,
     "gettext-developer-error": 52,
     "config-chainmap-patch": 0,
 }
@@ -177,14 +193,6 @@ class TestPythonLint(LintCase):
         self.assertEqual(parallel, serial)
 
     def test_every_rule_code_is_declared_external_to_ruff(self):
-        """`# noqa: E85xx` must not itself become a lint finding.
-
-        Ruff owns the `# noqa` syntax and reports RUF102 for any code it does not
-        recognise, so a checker whose alias is missing from `lint.external` cannot
-        be suppressed at all: the suppression comment is the violation. Two codes
-        (E8508, E8509) were already missing when this test was written, which is
-        why it exists rather than a comment asking people to remember.
-        """
         ruff_toml = Path(odoo.__path__[0]).parent / "ruff.toml"
         declared = set(tomllib.loads(ruff_toml.read_text())["lint"]["external"])
         codes = {
@@ -201,7 +209,6 @@ class TestPythonLint(LintCase):
         )
 
     def test_every_rule_has_a_suppression_alias(self):
-        """A finding nobody can suppress is a finding people delete the check for."""
         self.assertEqual(
             sorted(
                 _py_scan.RULES - set(_suppression.RULE_ALIASES) - {"noqa-rationale"}

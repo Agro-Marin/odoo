@@ -233,7 +233,14 @@ def test_real_web_tree_is_scanned():
     assert found, "expected the pinned debt to still be measurable"
     assert public > 0
     writes = [a for a in found if a.write]
-    assert 0 < len(writes) < len(found) / 4
+    # Bounded, not non-empty. The docstring's whole argument is that the write
+    # half should be driven to zero first, so asserting a write still exists
+    # here would forbid the outcome the gate exists to reach -- and it did, on
+    # the commit that reached it. That the scanner can SEE a write is pinned
+    # against synthetic fixtures instead (test_cross_module_write_is_counted_as_a_write
+    # and its two neighbours), which is where a detection test belongs: it does
+    # not depend on the tree still being broken.
+    assert len(writes) <= len(found) / 4, "writes must never dominate the budget"
 
 
 def test_the_debt_is_concentrated_where_the_docstring_says_it_is():
@@ -366,3 +373,113 @@ def test_module_docstring_measured_block_is_fresh():
         + "\n  ".join(problems)
         + ("\n\n  python tooling/architecture/js_private_access.py --update-doc")
     )
+
+
+# --- the cross-tree scope -------------------------------------------------
+#
+# `measure` cannot see these by construction: it resolves a member's owner from
+# the tree it is pointed at, so aimed at a consuming addon it finds no owner and
+# reports nothing. These tests drive `measure_cross_tree`, which indexes both.
+
+
+def _addon_tree(root, addons):
+    """Build `<root>/addons/<name>/static/src/...` for each addon given."""
+    for addon, files in addons.items():
+        src = root / "addons" / addon / "static" / "src"
+        for rel, body in files.items():
+            path = src / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(body)
+        src.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def _cross(root):
+    web_src = root / "addons" / "web" / "static" / "src"
+    return {
+        (a.addon, a.module, a.base, a.member, a.write)
+        for a in jpa.measure_cross_tree(root=root, web_src=web_src)
+    }
+
+
+def test_an_addon_reading_a_web_private_is_counted(tmp_path):
+    _addon_tree(
+        tmp_path,
+        {
+            "web": {"model/record.js": "class R {\n    _values = {};\n}\n"},
+            "account": {"form.js": "const x = record._values.rounding;\n"},
+        },
+    )
+    assert _cross(tmp_path) == {
+        ("account", "account/static/src/form.js", "record", "_values", False)
+    }
+
+
+def test_a_write_is_flagged_as_a_write(tmp_path):
+    _addon_tree(
+        tmp_path,
+        {
+            "web": {"model/record.js": "class R {\n    _update() {}\n}\n"},
+            "documents": {"mixin.js": "record._update = async () => {};\n"},
+        },
+    )
+    assert _cross(tmp_path) == {
+        ("documents", "documents/static/src/mixin.js", "record", "_update", True)
+    }
+
+
+def test_a_member_the_addon_declares_is_its_own(tmp_path):
+    # No type inference is attempted, so declaring the name anywhere in the
+    # addon is taken as ownership. That is the whole precision budget.
+    _addon_tree(
+        tmp_path,
+        {
+            "web": {"model/record.js": "class R {\n    _values = {};\n}\n"},
+            "sale": {
+                "own.js": "class Mine {\n    _values = {};\n}\n",
+                "use.js": "const x = thing._values;\n",
+            },
+        },
+    )
+    assert _cross(tmp_path) == set()
+
+
+def test_web_looking_at_itself_is_the_other_scope(tmp_path):
+    _addon_tree(
+        tmp_path,
+        {
+            "web": {
+                "model/record.js": "class R {\n    _values = {};\n}\n",
+                "views/list.js": "const x = record._values;\n",
+            }
+        },
+    )
+    assert _cross(tmp_path) == set()
+
+
+def test_a_pinned_plain_object_member_is_not_counted(tmp_path):
+    _addon_tree(
+        tmp_path,
+        {
+            "web": {"model/record.js": "class R {\n    _id = 1;\n}\n"},
+            "html_builder": {"list.js": "const x = item._id;\n"},
+        },
+    )
+    assert ("html_builder", "_id") in jpa.PLAIN_OBJECT_MEMBERS
+    assert _cross(tmp_path) == set()
+
+
+def test_every_pin_carries_a_reason():
+    for key, reason in jpa.PLAIN_OBJECT_MEMBERS.items():
+        assert isinstance(reason, str) and len(reason) > 40, key
+
+
+def test_a_pin_that_matches_nothing_is_stale():
+    # A pin whose access disappeared is an exemption nobody is using, and it
+    # would silently excuse the name if it came back somewhere else.
+    found = jpa.measure_cross_tree()
+    live = {(a.addon, a.member) for a in found}
+    web_declared = jpa.addon_private_names(jpa.WEB_SRC)
+    for addon, member in jpa.PLAIN_OBJECT_MEMBERS:
+        assert member in web_declared, f"{addon}.{member}: web no longer declares it"
+        assert (addon, member) not in live, f"{addon}.{member}: pin has no effect"

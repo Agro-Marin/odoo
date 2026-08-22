@@ -3,7 +3,7 @@
 An **ADR** captures one significant architectural decision: its context, the
 choice made, and the consequences. A record is immutable from the moment it
 leaves `Draft` — to change a decision, add a new ADR that supersedes the old one
-(and mark the old one `Superseded by ADR-XXXX`). A `Draft` is the one editable
+and mark the old one `Superseded by ADR-XXXX`. `Draft` is the one editable
 state, and it exists so that "still being written" does not have to borrow a
 status that promises more than it means.
 
@@ -17,21 +17,18 @@ If they would, the argument they are missing belongs here.
 Required:
 
 - **A new CI-blocking gate**, or a material widening of an existing one's scope.
-  A boundary worth failing a build over is worth the paragraph that says why.
 - **A new package, layer or dependency direction** in core — anything that
   changes what may import what.
 - **A cross-cutting mechanism**: a seam other packages or addons must consume,
   as opposed to a facility they may.
 - **A change to a public surface** — the façades, an inheritance contract, a
-  route family — where the cost of the decision is paid by code outside this
-  repository.
+  route family — where the cost is paid by code outside this repository.
 - **Mandatory infrastructure**: a build step, a native extension, an interpreter
-  floor, a driver choice. The distinguishing mark is that a checkout without it
-  does not run.
-- **A decision whose rejected alternative is plausible.** If the option not taken
-  is one a reasonable reviewer would propose, the record exists to stop it being
-  re-litigated from scratch. This is what `Alternatives considered` is for, and
-  it is the strongest single reason to write a record at all.
+  floor, a driver choice. The mark is that a checkout without it does not run.
+- **A decision whose rejected alternative is plausible.** If the option not
+  taken is one a reasonable reviewer would propose, the record exists to stop it
+  being re-litigated. This is what `Alternatives considered` is for, and the
+  strongest single reason to write a record at all.
 
 Not required:
 
@@ -44,60 +41,54 @@ Not required:
 - **Anything the tree already states plainly.** A record that restates what a
   reader would find in the code is a second copy, and the second copy drifts.
 
-**Coverage is a property to be measured, not assumed.** Left to inclination, a
-register fills up wherever its authors happened to be working. Measured
-2026-08-14, this one argued for the Python import boundaries of the core and for
-the enforcement philosophy, and for very little else the fork gates: the JS
-checkers in `tooling/architecture/`, the mandatory Rust extension in `crates/`
-and the JS test runner carried no record between them — not because they are
-less consequential, but because nothing said they qualified.
+**Coverage is measured, not assumed.** Left to inclination, a register fills up
+wherever its authors happened to be working. Measured 2026-08-14, this one
+argued for the Python import boundaries of the core and for the enforcement
+philosophy, and for very little else the fork gates: the JS checkers in
+`tooling/architecture/`, the mandatory Rust extension in `crates/` and the JS
+test runner carried no record between them.
 
-So the gap is counted rather than described. Every runnable gate in
-`tooling/architecture/` declares a module-level `ADR`: the record that argues for
-it, or `unrecorded`. `test_gate_adr_coverage.py` requires a cited record to exist
-and be `Accepted`, and pins the unrecorded set **drift-zero and one-way** — a new
-gate must name its record or be added to that set deliberately, and writing one up
-means deleting its entry, so the number can only fall. `layer_check.py` does the
-same per *contract*, at a finer grain, pinned by `test_layer_check.py`.
+So the gap is counted. Every runnable gate in `tooling/architecture/` declares a
+module-level `ADR`: the record that argues for it, or `unrecorded`.
+`test_gate_adr_coverage.py` requires a cited record to exist and be `Accepted`,
+and pins the unrecorded set **drift-zero and one-way** — a new gate must name its
+record or be added to that set deliberately, and writing one up means deleting
+its entry, so the number can only fall. `layer_check.py` does the same per
+*contract*, pinned by `test_layer_check.py`.
 
-**The backlog is the register's own to-do list.** It stood at 34 of 36 gates when
-the pin was introduced on 2026-08-14, and the JavaScript client architecture was
-twenty of those. Writing the first of them up (ADR-0019, the layering model)
-corrected an assumption worth recording: it cleared **five**, not most. The
-twenty are not one argument with twenty enforcement points — layering, public
-surface, extension and patch discipline, and render behaviour are separate
-decisions with separate consequences, and a record stretched to cover all of them
-would cite gates it does not argue for. Expect roughly one record per cluster.
-Read the current count from the pin, not from this paragraph.
+**The backlog is the register's own to-do list.** It stood at 34 of 36 gates
+when the pin was introduced on 2026-08-14, and the JavaScript client
+architecture was twenty of those. Writing the first of them up (ADR-0019)
+cleared **five**, not most: the twenty are not one argument with twenty
+enforcement points — layering, public surface, extension and patch discipline,
+and render behaviour are separate decisions, and a record stretched to cover all
+of them would cite gates it does not argue for. Expect roughly one record per
+cluster. Read the current count from the pin, not from this paragraph.
 
 ## Claiming a number
 
 Numbers run contiguously from 0001 — no gaps, no duplicates, gated by
 `test_numbers_are_contiguous_from_one`. Several sessions typically work this
-checkout at once, so the rule that matters is who gets the next one when two
-people want it.
+checkout at once, so the rule that matters is who gets the next one.
 
 **A number is claimed by committing the file and its index row, not by starting
 to write.** Commit the skeleton as soon as the subject is settled — a status, a
-date and a Context is enough — then fill in the argument. The claim is visible to
-everyone who pulls, and a collision surfaces as a merge conflict on this file
-rather than as a record silently overwritten by whoever pushed second.
+date and a Context is enough — then fill in the argument. The claim is visible
+to everyone who pulls, and a collision surfaces as a merge conflict on this file
+rather than as a record silently overwritten.
 
 **If your number is taken by the time you commit, renumber.** A record's number
 is not part of its identity: renumbering is a filename change and one index row,
-and nothing else in the tree addresses a record by number except a contract
-naming one that has already landed. Never renumber someone else's committed
-record to make room, and never leave a gap to avoid the edit — the gate rejects
-both.
+and nothing else addresses a record by number except a contract naming one that
+has already landed. Never renumber someone else's committed record to make room,
+and never leave a gap to avoid the edit — the gate rejects both.
 
-**A number is never reused, and a record is never deleted.** A decision that lost
-still spent the argument, and deleting it both breaks contiguity and destroys the
-reason the next person will need when they propose the same thing again. Where a
-later record won the argument, the loser keeps its number and is marked
-`Superseded by ADR-YYYY`. Where nothing replaced it — a proposal simply
-abandoned — the status is `Withdrawn`, and an amendment says what abandoned it.
-Either way the file stays: the argument is the reason to keep it, and it is the
-thing a later reader needs when they propose the same idea again.
+**A number is never reused, and a record is never deleted.** A decision that
+lost still spent the argument, and deleting it breaks contiguity and destroys
+the reason the next person will need when they propose the same thing again.
+Where a later record won, the loser keeps its number and is marked `Superseded
+by ADR-YYYY`. Where nothing replaced it — a proposal abandoned — the status is
+`Withdrawn`, and an amendment says what abandoned it.
 
 ## Status is a claim about the tree, not a mood
 
@@ -109,34 +100,29 @@ thing a later reader needs when they propose the same idea again.
 | `Superseded by ADR-YYYY` | Replaced. Kept for the history. | as `Accepted`, until superseded |
 | `Withdrawn` | Proposed, argued, and **abandoned** — nothing replaced it. Kept for the argument; an amendment says why. No contract may cite it. | exempt from the existence check |
 
-Those five are the whole vocabulary, and `test_status_kind_is_known` pins it so a
-sixth spelling cannot arrive unnoticed.
+Those five are the whole vocabulary, pinned by `test_status_kind_is_known`.
 
 **`Withdrawn` exists because `Proposed` was doing its job.** A proposal nobody
 pursues sits at `Proposed` indefinitely — exempt from the existence check, and
-indistinguishable from one still being worked on. That is the fiction-with-an-
-exemption the register's fact-checking rules were written to prevent, arriving
-through the status word rather than through the prose. Withdrawing is not a
-failure state: the argument was made, it lost or was overtaken, and the record is
-worth keeping for exactly that.
+indistinguishable from one still being worked on. That is
+fiction-with-an-exemption arriving through the status word rather than through
+the prose. Withdrawing is not a failure state: the argument was made, it lost or
+was overtaken, and the record is worth keeping for that.
 
 **`Draft` exists because the alternative was happening anyway.** A record under
-active revision was being parked at `Accepted` or `Proposed` — statuses that make
-a promise about the tree — and then quietly rewritten, which is the one thing
-immutability forbids. Giving that state its own word costs nothing and makes the
-immutability rule true as written rather than true-with-an-unwritten-exception.
-A `Draft` carrying a `**Revised:** YYYY-MM-DD` line is welcome; on any other
-status a revision is an Amendment or a supersession, never an edit.
+active revision was being parked at `Accepted` or `Proposed` — statuses that
+make a promise about the tree — and then quietly rewritten, which is the one
+thing immutability forbids. A `Draft` carrying a `**Revised:** YYYY-MM-DD` line
+is welcome; on any other status a revision is an Amendment or a supersession,
+never an edit.
 
-**Citing code outside this repository.** Several decisions span repos — ADR-0031
-is about a gate that exists only because they are separately versioned. The
+**Citing code outside this repository.** Several decisions span repos. The
 existence check resolves names against *this* checkout, and CI checks out this
 repository alone, so a name in `enterprise/` or `agromarin/` cannot be verified
-here. Teaching the gate to load them would be worse than not checking: it would
-pass silently wherever the siblings are absent, which is green-while-verifying-
-nothing — the failure `tests/contract`'s skip guard exists to prevent. So the
+here. Teaching the gate to load them would be worse: it would pass silently
+wherever the siblings are absent, which is green-while-verifying-nothing. So the
 rule is a writing convention. Name sibling code in prose or by bare module name,
-never as a rooted path or a dotted model name: those shapes assert
+never as a rooted path or a dotted model name — those shapes assert
 verifiability the register does not have, and a reader is entitled to assume a
 backticked path was checked. Say which repository it lives in, so the claim is
 attributable even though it is unverified.
@@ -144,42 +130,37 @@ attributable even though it is unverified.
 `Accepted` is earned, not assigned at commit time. `TestReferencedNamesExist`
 resolves every backticked path, `name()` and dotted model name in an `Accepted`
 record against the tree, so the cheap way past the gate is to be honest about
-status. This rule exists because ADR-0012 and ADR-0013 sat at `Accepted` for a
-week describing a subsystem this repository has never contained — see their
-Amendments.
+status. The rule exists because ADR-0012 and ADR-0013 sat at `Accepted` for a
+week describing a subsystem this repository has never contained.
 
 ## Three rules that keep a frozen record from rotting
 
 **An ADR is past tense; `doc/architecture/ARCHITECTURE.md` is present tense.**
-This is the rule the other two follow from. An ADR says *on this date, given
-these forces, we chose X over Y* — a claim about a moment, and therefore true
-forever.
+The rule the other two follow from. An ADR says *on this date, given these
+forces, we chose X over Y* — a claim about a moment, and therefore true forever.
 `doc/architecture/ARCHITECTURE.md` says *this is how the system is today* — a
 claim about now, which is why it is gated and re-derived. **A sentence in an ADR
-written in the present tense about the tree is a bug**, because the record is
-immutable and the tree is not: it can only become false, and nothing will
-notice. Write "at
-this decision the count was N", not "the count is N"; write "run the checker",
-not "currently clean at zero". Gated by
+written in the present tense about the tree is a bug**: the record is immutable
+and the tree is not, so it can only become false, and nothing will notice. Write
+"at this decision the count was N", not "the count is N"; "run the checker", not
+"currently clean at zero". Gated by
 `test_adr_coherence.TestNoLiveStatusClaims`.
 
 **Never restate a number that lives somewhere else.** Ratchet floors, contract
 counts and file counts belong to `tooling/ratchet/baselines/*.json` and
 `layer_check.py`'s `CONTRACTS`. Cite the file, not the value. Every count
 written into an ADR body so far has since gone stale, and one — ADR-0006's mypy
-figure — never matched the baseline committed beside it. `typecheck.yml`'s
-header states the same rule for the same reason: "two copies drift, and they
-did." A *dated* measurement is not a restatement and is welcome: "measured 2074
-on 2026-06-25" stays true, "the count is 2074" does not.
+figure — never matched the baseline committed beside it. A *dated* measurement
+is not a restatement and is welcome: "measured 2074 on 2026-06-25" stays true,
+"the count is 2074" does not.
 
 **Corrections go in an append-only `## Amendments` section.** Immutability
 protects the *decision*, not a path that has since moved. An amendment is dated,
 never edits the argument above it, and may correct a citation in place when it
-says so. This is what ADR-0004's two silent post-acceptance rewrites should have
-been.
+says so.
 
-These records document the framework-core architecture of the `19.0-marin`
-fork. The companion overview is
+These records document the framework-core architecture of the `19.0-marin` fork.
+The companion overview is
 [`doc/architecture/ARCHITECTURE.md`](../architecture/ARCHITECTURE.md); the
 boundaries several of these ADRs establish are enforced by
 [`tooling/architecture/layer_check.py`](../../tooling/architecture/layer_check.py).
@@ -232,6 +213,22 @@ enforce them.
 | [0040](0040-the-fallback-chain-is-a-chain-of-models.md) | The fallback chain is a chain of models, and the orchestrator selects one | 2026-08-15 | Proposed |
 | [0041](0041-prose-figures-are-machine-maintained.md) | A figure stated in prose is regenerated, not retyped | 2026-08-16 | Accepted |
 | [0042](0042-t-out-on-a-recordset.md) | What `t-out` should render when the value is a recordset | 2026-08-16 | Proposed |
+| [0043](0043-machine-doc-figures-are-gated-or-frozen.md) | A machine-doc figure is gated or frozen, never bare | 2026-08-16 | Accepted |
+| [0044](0044-a-zero-count-assertion-names-a-class-the-tree-declares.md) | A zero-count assertion names a class the tree declares | 2026-08-17 | Accepted |
+| [0045](0045-duplication-is-measured-not-reviewed.md) | Duplication is measured, not reviewed | 2026-08-17 | Accepted |
+| [0046](0046-a-presentational-component-takes-its-data-as-props.md) | A presentational component takes its data as props | 2026-08-18 | Accepted |
+| [0047](0047-a-component-directory-is-entered-at-a-face.md) | A component directory is entered at a face | 2026-08-18 | Accepted |
+| [0048](0048-edi-names-three-things.md) | "EDI" names three things, and only one of them is interchange | 2026-08-18 | Accepted |
+| [0049](0049-a-field-hook-is-named-for-its-field.md) | A field hook is named for the field it serves, and the count says how far that is true | 2026-08-19 | Accepted |
+| [0050](0050-a-domain-is-its-own-family.md) | A domain is its own family, and `domain=` is a field hook like the rest | 2026-08-19 | Superseded by ADR-0054 |
+| [0051](0051-a-field-hook-does-one-job.md) | A field hook does one job, and the ones that do two are counted | 2026-08-19 | Accepted |
+| [0052](0052-a-count-of-an-x2many-is-a-field.md) | A count of an x2many is a field, not a compute | 2026-08-19 | Accepted |
+| [0053](0053-the-vocabulary-reaches-public-model-methods.md) | The naming vocabulary reaches public model methods, and renaming one is a surface change | 2026-08-19 | Accepted |
+| [0054](0054-a-domain-builder-leads-with-its-object.md) | A domain builder leads with its object, not with a suffix | 2026-08-20 | Accepted |
+| [0055](0055-in-over-a-tuple-is-the-builders-job.md) | `IN` over a bound value goes through the SQL builder | 2026-08-20 | Accepted |
+| [0056](0056-stored-python-is-a-binding-no-checkout-holds.md) | Stored Python is a binding no checkout holds, and `_for_xml_id` is renamed across it | 2026-08-20 | Accepted |
+| [0057](0057-a-count-asked-only-whether-it-is-nonzero.md) | A count asked only whether it is nonzero takes a limit | 2026-08-21 | Accepted |
+| [0058](0058-a-call-resolves-to-something-this-checkout-defines.md) | A call resolves to something this checkout defines | 2026-08-21 | Accepted |
 
 ## Template
 
@@ -251,13 +248,12 @@ The change we are making, stated in active voice.
 ## Alternatives considered
 What else was on the table, and why each lost. **Required for every record from
 the fourteenth on** (`ALTERNATIVES_REQUIRED_FROM` in
-`tooling/architecture/test_adr_coherence.py`) — the earlier records predate the
-rule and are not back-filled, because inventing a rejected alternative months
-later is fiction. This is the section that makes a
-record worth reading once the decision is old news: the Decision says what we
-built, and anyone can read the tree for that; only this says what we already
-tried not to build, which is the part a future reader would otherwise have to
-re-derive by proposing it again. ADR-0010 is the worked example.
+`tooling/architecture/test_adr_coherence.py`) — earlier records predate the rule
+and are not back-filled, because inventing a rejected alternative months later
+is fiction. This is the section that makes a record worth reading once the
+decision is old news: the Decision says what we built, and anyone can read the
+tree for that; only this says what we already tried not to build. ADR-0010 is
+the worked example.
 
 ## Consequences
 What becomes easier, what becomes harder, and what we now must maintain.
@@ -268,9 +264,8 @@ on every `Accepted` record from the nineteenth on**
 (`ENFORCEMENT_ANSWER_REQUIRED_FROM`) — not because every decision must have a
 checker, but because every accepted decision must *answer the question*. "No
 checker, and here is why, and here is the shape one would take" is a complete
-answer and often the right one; silence is not, and silence is what an
-accepted-but-unenforced decision looked like before this rule. A boundary added
-to `layer_check.py` sets `adr="XXXX"` on its contract, which `test_layer_check.py`
+answer and often the right one; silence is not. A boundary added to
+`layer_check.py` sets `adr="XXXX"` on its contract, which `test_layer_check.py`
 checks resolves to this file and to an `Accepted` record.
 
 ## Amendments
@@ -281,22 +276,22 @@ reason.
 ```
 
 **Do not add an `## Implementation status` section.** Whether the decision has
-landed is a present-tense claim about the tree, and this is the one document that
-can never be corrected — so it can only decay, and nothing re-derives it.
-ADR-0010 is the worked example: its implementation section reported three steps
-done, and its own amendment later recorded that two of those were not true when
-they shipped. Put the state in `doc/architecture/`, where it is re-derived, or
-date the sentence. Gated by
+landed is a present-tense claim about the tree, in the one document that can
+never be corrected — so it can only decay, and nothing re-derives it. ADR-0010
+is the worked example: its implementation section reported three steps done, and
+its own amendment later recorded that two of those were not true when they
+shipped. Put the state in `doc/architecture/`, where it is re-derived, or date
+the sentence. Gated by
 `test_no_record_carries_an_implementation_status_section` from the thirty-sixth
 record on (`IMPLEMENTATION_STATUS_FORBIDDEN_FROM`), because correcting ADR-0010
 would mean editing an immutable record.
 
 **The order above is the argument, so it is enforced** — what forced this, what
 we chose, what we rejected, what it costs, what keeps it true. A record that
-answers those out of sequence is harder to read for no gain, and the deviation is
-invisible without a check. `test_template_sections_appear_in_template_order` pins
-it **from the nineteenth record on** (`SECTION_ORDER_REQUIRED_FROM`): reordering
-an existing record would mean editing an immutable one, and the earlier corpus is
-allowed its history. Only the template's own sections are ordered — a record may
-interleave bespoke sections of its own wherever they read best, as ADR-0014 and
-ADR-0015 do.
+answers those out of sequence is harder to read for no gain, and the deviation
+is invisible without a check. `test_template_sections_appear_in_template_order`
+pins it **from the nineteenth record on** (`SECTION_ORDER_REQUIRED_FROM`):
+reordering an existing record would mean editing an immutable one, and the
+earlier corpus is allowed its history. Only the template's own sections are
+ordered — a record may interleave bespoke sections of its own wherever they read
+best, as ADR-0014 and ADR-0015 do.

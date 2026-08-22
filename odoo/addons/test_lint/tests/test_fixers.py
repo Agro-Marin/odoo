@@ -76,6 +76,62 @@ class TestPrettyXml(BaseCase):
         self.tmpdir = self._tmp.name
         self.addCleanup(self._tmp.cleanup)
 
+    PRE_IN_ARCH = """
+        <odoo>
+            <record id="v" model="ir.ui.view">
+                <field name="arch" type="xml">
+                    <form>
+                        <div>
+                            <div>
+                                <div>
+                                    <div>
+                                        <p>The value must be
+                                            assigned to each record with a
+                                            dictionary-like assignment.</p>
+                                        <pre>
+for record in self:
+    record['size'] = len(record.name)
+</pre>
+                                        <p>The only predefined variables are</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </field>
+            </record>
+        </odoo>
+    """
+
+    def test_a_pre_block_inside_an_arch_keeps_its_own_indentation(self):
+        path = Path(self.tmpdir) / "arch.xml"
+        path.write_bytes(textwrap.dedent(self.PRE_IN_ARCH).lstrip().encode())
+        self.assertIs(_pretty_xml.format_xml_file(path), True)
+        self.assertIn(
+            "\nfor record in self:\n    record['size'] = len(record.name)\n",
+            path.read_text(),
+        )
+        self.assertIs(_pretty_xml.format_xml_file(path, dry_run=True), False)
+
+    def test_xml_space_preserve_is_honoured_on_any_tag(self):
+        source = self.PRE_IN_ARCH.replace("<pre>", '<div xml:space="preserve">')
+        source = source.replace("</pre>", "</div>")
+        path = Path(self.tmpdir) / "space.xml"
+        path.write_bytes(textwrap.dedent(source).lstrip().encode())
+        self.assertIs(_pretty_xml.format_xml_file(path), True)
+        self.assertIn(
+            "\nfor record in self:\n    record['size'] = len(record.name)\n",
+            path.read_text(),
+        )
+
+    def test_the_faithfulness_check_sees_a_reindented_preserve_block(self):
+        original = b"<odoo><t><pre>\nfor x in y:\n    z(x)\n</pre></t></odoo>"
+        flattened = b"<odoo><t><pre>\nfor x in y:\nz(x)\n</pre></t></odoo>"
+        self.assertFalse(_pretty_xml._is_faithful(original, flattened))
+        prose = b"<odoo><t><p>one\n   two</p></t></odoo>"
+        rewrapped = b"<odoo><t><p>one\n      two</p></t></odoo>"
+        self.assertTrue(_pretty_xml._is_faithful(prose, rewrapped))
+
     def test_text_between_children_survives(self):
         out = self._format("""
             <?xml version="1.0" encoding="utf-8"?>

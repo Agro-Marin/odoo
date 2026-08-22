@@ -126,8 +126,6 @@ _CHECKERS: list[
         lambda u: u.in_module,
     ),
     (
-        # Not restricted to tests: the corruption is process-wide, so it is the
-        # same defect wherever it is written.
         "config-chainmap-patch",
         lambda u: _checker_config_patch.check(u.tree, u.nodes),
         lambda u: True,

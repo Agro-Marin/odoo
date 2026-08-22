@@ -5,56 +5,46 @@
 
 ## Context
 
-ADR-0005 made the architectural boundaries a real gate: `layer_check.py` keeps
-crossings at zero and fails CI on any new one. The team's other quality
-signals — mypy, ruff, ESLint, `tsc`, the free-threading run — did *not* get the
-same treatment. Each workflow computed a `DRIFT = COUNT - BASELINE` and then only
+ADR-0005 made the architectural boundaries a real gate. The other quality
+signals — mypy, ruff, ESLint, `tsc`, free-threading — did not get the same
+treatment. Each workflow computed `DRIFT = COUNT - BASELINE` and then only
 `echo`-ed it: with `continue-on-error: true` and no `exit 1`, a PR could add
-hundreds of new type or lint errors and still merge green
-(`py_typecheck.yml`, `lint.yml`, `typecheck.yml`, `freethreading.yml` were all in
-this "Phase 1 warn-only" state). The Python type-check baseline was also stale and
-self-contradictory — the header said "unset (-1)" while the script hardcoded
-`BASELINE=1973`.
+hundreds of type or lint errors and merge green (`py_typecheck.yml`,
+`lint.yml`, `typecheck.yml`, `freethreading.yml` were all warn-only). The
+Python baseline was self-contradictory — the header said "unset (-1)" while the
+script hardcoded `BASELINE=1973`.
 
-A baseline that nothing enforces is a comment, not a gate. And a fork that is
-actively reducing a large inherited error count (1972 mypy errors, 658 ruff
-findings at the time of writing) needs the reductions to *stick* — otherwise the
-count sawtooths and the cleanup work is continuously undone by unrelated PRs.
+A baseline nothing enforces is a comment. A fork actively reducing a large
+inherited count (1972 mypy errors, 658 ruff findings at the time) needs the
+reductions to stick, or the count sawtooths and the cleanup is undone by
+unrelated PRs.
 
-There was also a missing gate outright: `doc/coding_guidelines.rst` and
-`CLAUDE.md` require new Python to pass `ruff check`, but no CI workflow ran ruff.
+One gate was missing outright: `doc/coding_guidelines.rst` and `CLAUDE.md`
+require new Python to pass `ruff check`, and no workflow ran ruff.
 
 ## Decision
 
-Add a dependency-free (stdlib-only) ratchet, `tooling/ratchet/ratchet.py`, that
-turns any gate reducible to a single number into a drift-zero contract — the
-generalisation of `layer_check.py`'s `KNOWN_VIOLATIONS` idea from "crossings" to
-"counts".
+Add a stdlib-only ratchet, `tooling/ratchet/ratchet.py`, turning any gate
+reducible to a single number into a drift-zero contract — `layer_check.py`'s
+`KNOWN_VIOLATIONS` idea generalised from crossings to counts.
 
-- The committed floor for each gate lives in
-  `tooling/ratchet/baselines/<gate>.json` — one small, reviewable file per gate.
-- The ratchet moves one way only. In the default `exact` mode: a count **above**
-  the floor fails (regression); a count **below** the floor *also* fails, asking
-  the author to commit the lower floor in the same PR, so every improvement is
-  locked in and can never silently slip back. A `no-increase` mode is available
-  for gates not yet ready to lock improvements.
-- The tool has its own stdlib `unittest` suite (`test_ratchet.py`), and each
-  workflow that uses it runs that self-test first — mirroring how
-  `architecture.yml` self-tests the layer checker before trusting it.
-- **The floor must be measured on a clean checkout of the target commit**, the
-  way CI sees it — not in a working tree carrying *other* uncommitted edits,
-  which silently inflate the count (this bit during authoring: in-tree
-  measurements read 1974/662, an isolated worktree at HEAD read the true
-  1972/658). The gates also pin `--no-incremental` (mypy) / `--no-cache` (ruff)
-  so the number is reproducible regardless of cache state. CI starts cacheless
-  anyway (both cache dirs are gitignored); the pins make local runs match.
+- One floor per gate, `tooling/ratchet/baselines/<gate>.json`.
+- Default `exact` mode moves one way: above the floor fails as a regression,
+  **below it also fails**, asking for the lower floor in the same PR. Every
+  improvement is locked in. `no-increase` mode exists for gates not ready to
+  lock improvements.
+- Its own stdlib suite (`test_ratchet.py`) runs first in every consuming
+  workflow, as `architecture.yml` self-tests the layer checker.
+- **Measure the floor on a clean checkout of the target commit.** A working
+  tree carrying other uncommitted edits inflates the count silently — during
+  authoring, in-tree measurements read 1974/662 where an isolated worktree at
+  HEAD read 1972/658. The gates pin `--no-incremental` (mypy) and `--no-cache`
+  (ruff) so local runs match CI, which starts cacheless.
 
-Wired gates (all now blocking; the warn-only placeholders are retired). **The
-floors below are the ones this decision wired on 2026-06-25, recorded to show
-what the ratchet started from — they are not current and are not meant to be.**
-The live floors are `tooling/ratchet/baselines/<gate>.json`, and the whole point
-of the mechanism is that they move; `python tooling/ratchet/ratchet.py --list`
-prints them.
+Wired gates, all blocking. **These floors are what the ratchet started from on
+2026-06-25, not current values** — the live floors are
+`tooling/ratchet/baselines/<gate>.json`, printed by
+`python tooling/ratchet/ratchet.py --list`.
 
 | Gate | Floor as first wired | Workflow |
 |------|----------------------|----------|
@@ -63,56 +53,42 @@ prints them.
 | `tsc` | 2002 | `typecheck.yml` (stale 6,575 baseline removed) |
 | `eslint` | 122843 | `lint.yml` (was a `BASELINE=0` placeholder) |
 
-The `eslint` floor is the fork's own JS only: vendored third-party libraries are
-excluded **structurally** — `eslint.config.mjs` ignores `**/static/lib/**`, and
-the convention is that vendored code lives in `static/lib` and nowhere else, so
-there is no per-library allowlist to drift (this dropped the raw count from
-152007 by relocating one stray lib and generalising the ignore). The remaining
-floor is ~76k source + ~46k test errors; the test bulk is largely missing test
-globals — a separate follow-up.
+The `eslint` floor is fork JS only. Vendored libraries are excluded
+**structurally**: `eslint.config.mjs` ignores `**/static/lib/**`, and the
+convention is that vendored code lives there and nowhere else, so no
+per-library allowlist can drift. Relocating one stray lib and generalising the
+ignore dropped the raw count from 152007.
 
 ## Consequences
 
-- The mypy and ruff counts can now only fall. The large inherited debt is frozen
-  at today's number and every PR either holds or lowers it; the cleanup compounds
-  instead of sawtoothing.
-- The ratchet state is visible in the diff (the baseline file moves in the same
-  commit as the count), not buried in CI logs — reviewable like any other change.
-- New cost: a PR that legitimately changes a count must run the tool and commit
-  the new floor. This is intentional friction — it is the mechanism by which the
-  floor stays truthful.
-- All four count gates (mypy, ruff, tsc, eslint) are on the tool. The
-  free-threading run (`freethreading.yml`) is a pass/fail correctness gate, not a
-  count, so it stays as-is.
+- The counts can only fall; the inherited debt is frozen and cleanup compounds.
+- Ratchet state moves in the diff, reviewable, rather than in CI logs.
+- Cost: a PR that legitimately changes a count runs the tool and commits the
+  new floor. That friction is the mechanism.
+- All four count gates are on the tool. `freethreading.yml` is pass/fail, not a
+  count, and stays as-is.
 
 ## Enforcement
 
-`tooling/ratchet/ratchet.py` exits non-zero on any drift; `py_typecheck.yml` and
-`ruff.yml` invoke it without `continue-on-error`. The tool is itself gated by
-`tooling/ratchet/test_ratchet.py`, run as the first step of each consuming
-workflow. Run locally:
+`tooling/ratchet/ratchet.py` exits non-zero on drift; `py_typecheck.yml` and
+`ruff.yml` invoke it without `continue-on-error`. `tooling/ratchet/test_ratchet.py`
+gates the tool and runs first in each consuming workflow.
 
 ```bash
-python tooling/ratchet/test_ratchet.py          # self-test
-python tooling/ratchet/ratchet.py --list         # current floors
+python tooling/ratchet/test_ratchet.py            # self-test
+python tooling/ratchet/ratchet.py --list          # current floors
 python tooling/ratchet/ratchet.py mypy --count N  # verdict (exit 1 on drift)
 ```
 
 ## Amendments
 
-Append-only. An amendment corrects what this record says *about the repo*; it
-never edits the decision above.
-
 ### 2026-08-07 — the floor table now says which moment it describes
 
-The four floors were tabulated under a bare "Floor" heading, which reads as the
-current value. Every one of them has since moved — in both directions, which is
-the mechanism working — and the `eslint` row had drifted furthest by an order of
-magnitude. This is the exact failure the register's own rule ("never restate a
-number that lives somewhere else — cite the file, not the value") names, and
-this ADR is where that rule came from.
+The floors sat under a bare "Floor" heading, reading as current values. All
+four have since moved, `eslint` by an order of magnitude. That is this
+register's own rule — cite the file, not the value — failing in the record the
+rule came from.
 
-The values are kept, because *what the ratchet started from* is part of the
-decision and is true forever. Corrected in place: the column is now "Floor as
-first wired", with the date and a pointer to `tooling/ratchet/baselines/` for the
-live numbers.
+The values are kept: what the ratchet started from is part of the decision and
+is true forever. The column is now "Floor as first wired", dated, pointing at
+`tooling/ratchet/baselines/` for live numbers.

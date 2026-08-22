@@ -17,6 +17,7 @@ EMPTY_DOC = "# Nothing\n\nThis page makes no claims.\n"
 
 EXPECTED_SURVIVORS: dict[str, str] = {
     "TestAddonSuiteFigures.test_every_prose_figure_is_fresh": "code-only",
+    "TestReferencedArtifacts.test_a_sibling_driven_baseline_is_driven_by_its_sibling": "code-only",
     "TestCountsRestatedElsewhere.test_checker_docstring": "code-only",
     "TestCountsRestatedElsewhere.test_metadata_fan_in_figures": "code-only",
     "TestCountsRestatedElsewhere.test_workflow_comment": "code-only",

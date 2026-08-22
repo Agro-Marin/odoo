@@ -1,0 +1,4 @@
+{
+  "count": 0,
+  "note": "2 -> 0. Both were one compute assigning a PLAIN count and a FILTERED one:\n\n  gate.criteria_total_count = len(gate.criterion_ids)\n  gate.criteria_met_count   = len(gate.criterion_ids.filtered(\"met\"))\n\nOnly the first is a `fields.Count`; the second has no declarative form and stays a compute. Splitting them also narrows what the remaining compute depends on, from (\"criterion_ids\", \"criterion_ids.met\") to (\"criterion_ids.met\") -- a dotted depends already covers adding and removing a line, which was verified rather than assumed: with the narrowed depends, creating two criteria takes the met count from 0 to 1 and flipping `met` takes it back to 0, both without an explicit invalidation.\n\nA zero floor here is a real zero: the scope is scanned, has computes and x2many fields, and now carries no hand-written counter."
+}

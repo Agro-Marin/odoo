@@ -355,12 +355,6 @@ class TestOrmImportLint(BaseCase):
 
 @no_retry
 class TestConfigChainmapPatchLint(BaseCase):
-    """`patch.dict` on `config.options` corrupts the ChainMap for the process.
-
-    The restore is `clear()` + `update()`; on a ChainMap that empties only
-    `maps[0]` and writes the flattened mapping back into it, pinning every lower
-    layer in `_override_options`. `config.patch(**values)` exists for this.
-    """
 
     def _check(self, snippet):
         return list(_checker_config_patch.check(ast.parse(dedent(snippet).strip())))
@@ -388,7 +382,6 @@ class TestConfigChainmapPatchLint(BaseCase):
         self.assertFalse(self._check("odoo.tools.config.patch(test_tags=tags)"))
 
     def test_a_plain_dict_is_not_flagged(self):
-        """Only the ChainMap is the hazard — `_runtime_options` is a real dict."""
         self.assertFalse(self._check('patch.dict(config._runtime_options, {"a": 1})'))
         self.assertFalse(self._check('patch.dict(os.environ, {"A": "1"})'))
         self.assertFalse(self._check('patch.dict(self.registry.options, {"a": 1})'))

@@ -8,6 +8,7 @@ from naming_vocabulary import (
     RESERVED,
     Violation,
     classify,
+    collection_head_order,
     is_model_class,
     measure,
 )
@@ -145,3 +146,93 @@ def test_the_real_tree_still_measures():
     found = measure()
     assert found, "the odoo checkout should still have abolished-verb definitions"
     assert all(Path(v.path).suffix == ".py" for v in found)
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("_get_model_names_in_tree", "head"),
+        ("_get_keys_client_only", "head"),
+        ("get_view_types_for_window", "head"),
+        ("_get_allowed_models", "tail"),
+        ("_get_supported_account_types", "tail"),
+        ("_get_company_address_field_names", "tail"),
+        # ``fields`` carries its own pair of figures and is excluded from this
+        # one in BOTH directions -- counting a converted head-first name as a
+        # ``views`` tail would report the rule broken by a name that keeps it.
+        ("_get_fields_inheriting_views", None),
+        ("_get_fields_readable", None),
+        # An ``ids`` tail names a FIELD; the field-hook rule owns that spelling
+        # and head-first must never be read as licence to rewrite it.
+        ("_get_partner_ids", None),
+        # No head noun in either position.
+        ("_compute_xml_id", None),
+        ("_sync_path_reservations", None),
+    ],
+)
+def test_collection_head_order_reads_the_position(name, expected):
+    assert collection_head_order(name) is expected
+
+
+def test_collection_head_census_counts_both_orders():
+    from naming_vocabulary import census
+
+    c = census()
+    assert c.heads_searched > 0
+    assert c.heads_head_first > 0
+    assert c.heads_tail_first > 0, (
+        "the ordering is settled and unapplied outside the fields family; a zero "
+        "here means the search stopped matching, not that the tree was converted"
+    )
+
+
+@pytest.mark.parametrize(
+    ("src", "expected"),
+    [
+        # The plain shape: the decorator's positional constants, in order.
+        (
+            "@api.constrains('order', 'field_id')\ndef _check_order(self): pass",
+            ["order", "field_id"],
+        ),
+        # A bare name rather than an attribute -- ``from odoo.api import constrains``.
+        ("@constrains('date')\ndef _check_date(self): pass", ["date"]),
+        # An undecorated method, and a decorator that is not a call, read as empty
+        # rather than raising: ``@api.model`` sits on plenty of these.
+        ("def _check_date(self): pass", []),
+        ("@api.model\ndef _check_date(self): pass", []),
+        # A field list built at runtime is not a constant, so it is not counted --
+        # the same blind spot ``@api.depends(lambda self: ...)`` has.
+        ("@api.constrains(*FIELDS)\ndef _check_date(self): pass", []),
+        # ``@api.onchange`` must not be picked up by the constrains reader.
+        ("@api.onchange('partner_id')\ndef _onchange_partner_id(self): pass", []),
+    ],
+)
+def test_constrains_fields_reads_the_decorator(src, expected):
+    from naming_vocabulary import constrains_fields
+
+    node = next(
+        n
+        for n in ast.walk(ast.parse(textwrap.dedent(src)))
+        if isinstance(n, ast.FunctionDef)
+    )
+    assert constrains_fields(node) == expected
+
+
+def test_constrains_census_sizes_the_family_it_exempts():
+    """§2.4 exempts ``@api.constrains`` from the field-hook rule, and this is why.
+
+    A constraint is named for the condition it enforces, so most single-field
+    hooks are NOT ``_check_<field>`` -- and that is the rule working, not debt.
+    A regression to a near-total here would mean the reader stopped resolving
+    the decorator, which is the only way the exemption could go unmeasured.
+    """
+    from naming_vocabulary import census
+
+    c = census()
+    assert c.constrains_hooks > 0
+    assert c.constrains_single > 0
+    assert 0 < c.constrains_named_for_field < c.constrains_single, (
+        "a constraint named for its field is the minority the exemption predicts; "
+        "0 or all of them means the decorator is no longer being read"
+    )
+    assert 0 < c.constrains_unruled < c.constrains_hooks - c.constrains_canonical

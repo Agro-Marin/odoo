@@ -1,0 +1,10 @@
+{
+  "expected": {
+    "hr_payroll/TestDashboardUi.test_dashboard_ui": "FAIL"
+  },
+  "note": "Measured 2026-08-22 on a fresh DB. The six tests recorded red on 2026-08-20 -- TestPayslipComputation x3 on unpaid-leave arithmetic, TestDashboard x3 on an employee stat -- all pass now; the suite grew 136 -> 140. TestDashboardUi.test_dashboard_ui is a browser tour and is unexplained.",
+  "run_spec": "-i hr_payroll --test-enable --test-tags '/hr_payroll'",
+  "suite": "/hr_payroll",
+  "tests_total": 140,
+  "verified_at": "ca4ee2ddd79"
+}

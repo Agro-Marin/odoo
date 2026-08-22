@@ -16,6 +16,8 @@ _BLANK_SEP_CONTAINERS: frozenset[str] = frozenset({"odoo", "openerp"})
 
 _OPAQUE_TAGS: frozenset[str] = frozenset({"template"})
 
+_PRESERVE_TAGS: frozenset[str] = frozenset({"pre", "textarea"})
+
 EXCLUDED_DIRS: frozenset[str] = frozenset({"_vendor", "static", "node_modules"})
 
 
@@ -108,12 +110,42 @@ def _orig_depth_from_text(text: str | None, inner: str = "") -> int:
     return min(widths) if widths else 0
 
 
+def _preserve_spans(lines: list[str]) -> list[bool]:
+    flags = [False] * len(lines)
+    open_re = re.compile(
+        r"<(" + "|".join(sorted(_PRESERVE_TAGS)) + r")\b(?![^>]*/>)"
+        r'|<[a-zA-Z][^>]*\bxml:space\s*=\s*"preserve"(?![^>]*/>)'
+    )
+    close_re = re.compile(r"</(" + "|".join(sorted(_PRESERVE_TAGS)) + r")\s*>")
+    depth = 0
+    closing: list[str] = []
+    for i, line in enumerate(lines):
+        if depth:
+            flags[i] = True
+            if closing and close_re.search(line):
+                depth -= 1
+                closing.pop()
+            continue
+        match = open_re.search(line)
+        if match:
+            tail = line[match.end() :]
+            name = match.group(1)
+            if not (name and close_re.search(tail)):
+                depth += 1
+                closing.append(name or "")
+    return flags
+
+
 def _convert_arch_indent(content: str, orig_base: int, new_base: int) -> str:
     lines = content.split("\n")
+    preserved = _preserve_spans(lines)
     result: list[str] = []
     stack: list[int] = [orig_base]
 
-    for line in lines:
+    for index, line in enumerate(lines):
+        if preserved[index]:
+            result.append(line)
+            continue
         if not line.strip():
             result.append("")
             continue
@@ -198,8 +230,12 @@ def _wrap_serialized_tag(line: str) -> list[str]:
 
 def _rewrite_opaque_lines(lines: list[str]) -> list[str]:
     out: list[str] = []
+    preserved = _preserve_spans(lines)
     in_comment = False
-    for line in lines:
+    for index, line in enumerate(lines):
+        if preserved[index]:
+            out.append(line)
+            continue
         opens, closes = "<!--" in line, "-->" in line
         if in_comment or opens:
             out.append(line)
@@ -352,15 +388,25 @@ def _format_children(
     return lines
 
 
+_XML_SPACE = "{http://www.w3.org/XML/1998/namespace}space"
+
+
+def _preserves_space(element) -> bool:
+    return element.tag in _PRESERVE_TAGS or element.get(_XML_SPACE) == "preserve"
+
+
 def _comparable(source: bytes) -> list:
+
     def squeeze(value: str | None) -> str:
         return " ".join((value or "").split())
 
     out: list = []
 
-    def walk(element, depth: int) -> None:
+    def walk(element, depth: int, preserve: bool = False) -> None:
+        keep = preserve or (not callable(element.tag) and _preserves_space(element))
+        text = (element.text or "") if keep else squeeze(element.text)
         if callable(element.tag):
-            out.append((depth, "#text-node", squeeze(element.text)))
+            out.append((depth, "#text-node", text))
         else:
             out.append(
                 (
@@ -368,12 +414,13 @@ def _comparable(source: bytes) -> list:
                     element.tag,
                     tuple(sorted((k, squeeze(v)) for k, v in element.attrib.items())),
                     tuple(sorted(element.nsmap.items(), key=lambda kv: kv[0] or "")),
-                    squeeze(element.text),
+                    text,
                 )
             )
         for child in element:
-            walk(child, depth + 1)
-        out.append((depth, "#tail", squeeze(element.tail)))
+            walk(child, depth + 1, keep)
+        tail = (element.tail or "") if preserve else squeeze(element.tail)
+        out.append((depth, "#tail", tail))
 
     tree = etree.parse(BytesIO(source), _PARSER)
     root = tree.getroot()
@@ -471,6 +518,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print which files would change without modifying them",
     )
     parser.add_argument(
+        "--count",
+        action="store_true",
+        help=(
+            "Print only the number of files that would change, for "
+            "PrettyXmlLinter's floor. Implies --dry-run"
+        ),
+    )
+    parser.add_argument(
         "--exclude",
         metavar="DIR",
         action="append",
@@ -486,20 +541,25 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     excluded: set[str] = set(args.exclude)
+    dry_run = args.dry_run or args.count
     changed = unchanged = skipped = 0
 
     for xml_file in iter_target_files(args.roots, excluded):
-        result = format_xml_file(xml_file, dry_run=args.dry_run)
+        result = format_xml_file(xml_file, dry_run=dry_run)
         if result is None:
             skipped += 1
         elif result:
-            label = "would format" if args.dry_run else "formatted  "
-            print(f"  {label}  {xml_file}")
+            if not args.count:
+                label = "would format" if dry_run else "formatted  "
+                print(f"  {label}  {xml_file}")
             changed += 1
         else:
             unchanged += 1
 
-    verb = "would change" if args.dry_run else "formatted"
+    if args.count:
+        print(changed)
+        return
+    verb = "would change" if dry_run else "formatted"
     print(f"\nDone: {changed} {verb}, {unchanged} unchanged, {skipped} skipped")
 
 

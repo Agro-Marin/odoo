@@ -161,6 +161,7 @@ def get_decorators(method):
 
 @tagged("-at_install", "post_install")
 class TestLintOverrideSignatures(LintCase):
+
     def test_lint_override_signature(self):
         self.failureException = TypeError
         registry = Registry(get_db_name())

@@ -35,6 +35,17 @@ CONSUMER_RES = (
     re.compile(r'\bservices\s*\[\s*"([^"]+)"\s*\]'),
 )
 
+# The fourth form, and the only DECLARATIVE one: a service descriptor naming its
+# services in `dependencies: [...]`, which the runtime then hands to `start()` or
+# to the constructor. The three patterns above all match a *call site*, so none
+# of them can see it -- `hotkey_service.js` has consumed `ui` this way since
+# before 2026-08-15 while reporting as clean, and reaching that same service
+# through `useService("ui")` from a sibling module was reported the day it
+# landed. Whether the gate sees a dependency should not turn on which of two
+# sanctioned spellings the author used.
+DEPENDENCIES_RE = re.compile(r"\bdependencies\s*:\s*\[([^\]]*)\]")
+_QUOTED_RE = re.compile(r'"([^"]+)"')
+
 CATEGORY_ADD_RE = re.compile(
     r'registry\s*\.\s*category\(\s*"([^"]+)"\s*\)\s*\.\s*add\(\s*"([^"]+)"'
 )
@@ -88,6 +99,16 @@ KNOWN_INVERSIONS: tuple[Known, ...] = (
     Known("core/file_upload/file_handler.js", "notification", "core", "ui"),
     Known("fields/relational/x2many_dialog.js", "view", "fields", "views"),
     Known("search/with_search/with_search.js", "view", "search", "views"),
+    # Revealed, not created, by DEPENDENCIES_RE above. All three declared the
+    # dependency before 2026-08-15 and reported clean only because no pattern
+    # read a `dependencies` array. Pinned here so the gate can be widened
+    # without a tree-wide repair in the same change -- the coupling is exactly
+    # what it was yesterday, and it is now counted. Note `core/file_upload/`
+    # carries one of each: `file_handler.js` was visible and pinned above,
+    # `file_upload_service.js` was not, for the same service.
+    Known("core/file_upload/file_upload_service.js", "notification", "core", "ui"),
+    Known("core/hotkeys/hotkey_service.js", "ui", "core", "ui"),
+    Known("core/network/slow_rpc_service.js", "notification", "core", "ui"),
 )
 
 KNOWN_KEYED_INVERSIONS: tuple[KnownKeyed, ...] = (
@@ -197,6 +218,11 @@ def resolve(files: list[Path]) -> tuple[dict[str, str], list[tuple[str, str, int
             consumers.extend(
                 (rel, m.group(1), src[: m.start()].count("\n") + 1)
                 for m in pattern.finditer(src)
+            )
+        for m in DEPENDENCIES_RE.finditer(src):
+            lineno = src[: m.start()].count("\n") + 1
+            consumers.extend(
+                (rel, name, lineno) for name in _QUOTED_RE.findall(m.group(1))
             )
     return producers, consumers
 

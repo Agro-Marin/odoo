@@ -740,10 +740,36 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
                         "Pattern 4 smell: setters inside reactive({...}) conflate state with effects. Use plain reactive({foo: null}) + useEffect for side effects, or a SignalStore subclass for computation. See machine_doc_v1/STATE_MANAGEMENT.md §Pattern 4.",
                 },
                 {
+                    // `toBeCloseTo(x, { digits: n })` is the Jest spelling and
+                    // hoot has no such option: its matcher takes an absolute
+                    // `margin` and DEFAULTS IT TO 1. So the Jest form does not
+                    // tighten the comparison, it loosens it to +/-1 — which on a
+                    // 0..1 quantity asserts nothing at all, and is how a bottom
+                    // sheet progress test passed against a value of 0.148.
                     selector:
-                        "MemberExpression[property.name='services'][object.type='MemberExpression'][object.property.name='env'][object.object.type='ThisExpression']",
+                        "CallExpression[callee.property.name='toBeCloseTo'] > ObjectExpression > Property[key.name=/^(digits|precision|numDigits)$/]",
                     message:
-                        "Use useService('X') instead of this.env.services.X. useService adds component-lifecycle protection that prevents promise-resolution-after-destroy bugs. If you genuinely need the raw service (e.g., the dialog outlives the widget), add `// eslint-disable-next-line no-restricted-syntax` with a comment explaining why.",
+                        "hoot's toBeCloseTo takes { margin } (an absolute tolerance, default 1), not { digits }. `{ digits: n }` is silently ignored, so the assertion holds to +/-1 — vacuous for any quantity smaller than that. Spell the margin you mean.",
+                },
+                {
+                    // Any receiver, not just `this`. The selector used to
+                    // require a ThisExpression, which is the shape a *class*
+                    // reaches a service through -- but a hook holds its
+                    // component in a local (`const owner = useComponent()`) and
+                    // reaches `owner.env.services.x`, the identical hazard with
+                    // none of the lifecycle protection, and the gate could not
+                    // see it. Within this scope that widening reports eleven
+                    // sites; each now carries a disable naming its reason,
+                    // which is the point: a raw service read should be a
+                    // decision on the page, not an accident of spelling.
+                    //
+                    // A bare `env.services.x` still does not match, and must
+                    // not: a registry callback is handed an `env` and has no
+                    // component to protect.
+                    selector:
+                        "MemberExpression[property.name='services'][object.type='MemberExpression'][object.property.name='env']",
+                    message:
+                        "Use useService('X') instead of <holder>.env.services.X. useService adds component-lifecycle protection that prevents promise-resolution-after-destroy bugs. If you genuinely need the raw service (e.g., the dialog outlives the widget, or there is no component to protect), add `// eslint-disable-next-line no-restricted-syntax` with a comment explaining why.",
                 },
                 // (Removed 2026-05-09) The `Reactive` BC alias was dropped
                 // from `@web/core/utils/reactive` along with this rule.

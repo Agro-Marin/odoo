@@ -1,0 +1,4 @@
+{
+  "count": 34,
+  "note": "35 -> 34, and not this branch's: the count already read 34 at the commit before this session's first, and no commit here touches purchase_stock. 35 last reproduces at 703d1e7b303, which set it earlier the same day, so the unit landed between the two. Offender-set diff of --cross-tree between that commit and HEAD:\n\n  purchase_stock  1 -> 0    the addon leaves the list entirely, 17 -> 16 addons reaching across trees\n  _notify         1 -> 0\n  _applyValues    0 -> 1    the same reach, renamed by whatever refactor moved it -- net zero\n\nso the single unit is purchase_stock's, and the member rename is noise that would look like two units if this were done by subtraction. Writes are unchanged at 2. Banked for the same reason as jsprivate in db367dd3b54: an exact ratchet fails on an unbanked improvement, and locking a better number in can never hide a regression."
+}

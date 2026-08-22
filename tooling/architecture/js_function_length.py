@@ -3,7 +3,7 @@ import json
 import re
 import subprocess
 import sys
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -14,7 +14,7 @@ ADR = "0025"
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_function_length")
 WEB_SRC = ROOT / "addons" / "web" / "static" / "src"
 
-GOVERNED_ADDONS = ("web", "mail")
+GOVERNED_ADDONS = ("web", "mail", "account", "stock", "product")
 DEFAULT_ADDON = "web"
 
 
@@ -33,13 +33,21 @@ MAX_LINES = 80
 GENERATED = frozenset({"emoji_data.js"})
 
 RULE = "max-lines-per-function"
+# skipComments is True on purpose: this gate is a complexity proxy, and counting
+# JSDoc as complexity makes documenting a function cost ratchet budget. That is
+# not hypothetical -- the floor moved 148 -> 139 under `skipComments: False` when
+# c22e34ded2f stripped prose tree-wide, "nine functions crossed back under 80
+# without one statement changing" (that ratchet note). Three more sat over the
+# limit on their JSDoc alone, useListOptionalFields at 69 code lines counted as
+# 82. Blank lines still count: they are a formatting choice, not documentation,
+# so skipping them would only blur the reading without removing an incentive.
 RULE_CONFIG = {
     RULE: [
         "warn",
         {
             "max": MAX_LINES,
             "skipBlankLines": False,
-            "skipComments": False,
+            "skipComments": True,
             "IIFEs": True,
         },
     ]
@@ -66,22 +74,44 @@ def _describe(message: str) -> str:
 _MIXIN_FACTORY_RE = re.compile(r"=>\s*class\s+extends\b")
 
 
-def _relabel_mixin_factories(found: list[LongFunction], root: Path) -> None:
+def _drop_mixin_factories(found: list[LongFunction], root: Path) -> list[LongFunction]:
+    """Remove `(Base) => class extends Base { … }` wrappers from the offenders.
 
+    A mixin factory is a function only in the grammatical sense: its body is a
+    class, and the complexity lives in that class's METHODS, which eslint already
+    reports separately -- so counting the wrapper too charges the floor twice for
+    one piece of code. `SearchSplitDomainMixin` was the clearest case: a mixin
+    holding exactly one method, listed at 142 lines for the body and again at 139
+    for `splitAndAddDomain`, three lines apart.
+
+    Worse than double-counting, the wrapper was UNPAYABLE. `SearchQueryMixin` is
+    292 lines over twelve methods, not one of them over the budget: the only way
+    to take it off the list was to shatter it into four ~73-line mixins -- more
+    files, no less complexity, floor down by one. A gate that pays for that is
+    steering the tree the wrong way.
+
+    This used to relabel these entries "Mixin class body" and keep counting them,
+    which named the shape without acting on it. Five of the six in `web` were the
+    SearchModel mixins.
+    """
     cache: dict[str, list[str]] = {}
-    for i, item in enumerate(found):
+    kept: list[LongFunction] = []
+    for item in found:
         if not item.what.startswith("Arrow function"):
+            kept.append(item)
             continue
         lines = cache.get(item.file)
         if lines is None:
             path = root / item.file
             if not path.is_file():
+                kept.append(item)
                 continue
             lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
             cache[item.file] = lines
         window = " ".join(lines[item.line - 1 : item.line + 1])
-        if _MIXIN_FACTORY_RE.search(window):
-            found[i] = replace(item, what="Mixin class body")
+        if not _MIXIN_FACTORY_RE.search(window):
+            kept.append(item)
+    return kept
 
 
 def measure(src: Path = WEB_SRC, eslint: Path = ESLINT) -> list[LongFunction]:
@@ -133,8 +163,7 @@ def measure(src: Path = WEB_SRC, eslint: Path = ESLINT) -> list[LongFunction]:
                 )
             )
     found.sort(key=lambda f: (-f.lines, f.file))
-    _relabel_mixin_factories(found, ROOT)
-    return found
+    return _drop_mixin_factories(found, ROOT)
 
 
 def main(argv: list[str] | None = None) -> int:

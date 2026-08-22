@@ -5,73 +5,58 @@
 
 ## Context
 
-ADRs 0001–0004 establish four load-bearing boundaries: the ORM layering, the
-purity of `orm/components`, the ORM-agnosticism of `db/`, and the
-dependency-freedom of `libs/`. Today these hold only by convention — they are
-stated in the `orm/__init__.py` docstring and reviewer habit. As the team grows,
-convention erodes: a single innocent import re-introduces a cycle or drags the
-framework into a "dependency-free" module, and nothing catches it until it
-causes a problem far away.
+ADRs 0001–0004 establish four load-bearing boundaries: ORM layering, the purity
+of `orm/components`, the ORM-agnosticism of `db/`, the dependency-freedom of
+`libs/`. They held by convention alone — an `orm/__init__.py` docstring and
+reviewer habit. One innocent import re-introduces a cycle or drags the
+framework into a dependency-free module, and nothing catches it until it causes
+a problem far away.
 
-Off-the-shelf import linters (e.g. `import-linter`) are a poor fit because the
-fork's layering *depends on* `TYPE_CHECKING`-guarded cross-layer imports, which
-those tools flag by default — the exact pattern the architecture relies on would
-be reported as a violation.
+Off-the-shelf import linters (`import-linter` and kin) are a poor fit: this
+layering *depends on* `TYPE_CHECKING`-guarded cross-layer imports, which they
+flag by default.
 
 ## Decision
 
-Add a dependency-free (stdlib-only) checker,
-`tooling/architecture/layer_check.py`, that:
+Add a stdlib-only checker, `tooling/architecture/layer_check.py`, that:
 
-- parses each module's AST and counts only **runtime** imports, **skipping
-  `if TYPE_CHECKING:` blocks**;
-- resolves Odoo's pervasive **relative imports** to absolute dotted paths;
-- evaluates the boundary contracts — the full Layer 0→3 ORM ordering
+- parses each module's AST and counts **runtime** imports only, skipping
+  `if TYPE_CHECKING:` blocks;
+- resolves relative imports to absolute dotted paths;
+- evaluates the boundary contracts — the Layer 0→3 ordering
   (`orm-layer0-is-foundational`, `orm-layer1-below-models-and-runtime`,
   `orm-models-below-runtime`) plus the purity contracts (`libs`, `db`,
-  `orm/components`) — six at the time of this decision. The live set is
-  `layer_check.py`'s `CONTRACTS`, which has grown since; this record does not
-  restate its size;
-- treats a pinned, annotated `KNOWN_VIOLATIONS` allowlist as tolerated debt and
-  fails on **any new** crossing (drift-zero by design).
+  `orm/components`), six at this decision. The live set is `layer_check.py`'s
+  `CONTRACTS`;
+- treats the annotated `KNOWN_VIOLATIONS` allowlist as tolerated debt and fails
+  on any new crossing.
 
-The checker has its own stdlib-only test suite
-(`tooling/architecture/test_layer_check.py`) covering relative-import
-resolution, `TYPE_CHECKING` skipping, prefix matching, and a regression guard
-that the real framework core stays at zero violations.
+Its own stdlib-only suite (`tooling/architecture/test_layer_check.py`) covers
+relative-import resolution, `TYPE_CHECKING` skipping, prefix matching, and that
+the core stays at zero violations.
 
-Gate it in CI via `.github/workflows/architecture.yml`, following the team's
-established phased-gate convention (warn-only first, flip to blocking). Because
-the checker already reports **zero new violations**, it runs **blocking** — its
-own tests run first, then the check.
+Gate it in `.github/workflows/architecture.yml`. The convention is warn-first,
+then blocking; it reported zero new violations, so it goes in **blocking** —
+its tests first, then the check.
 
 ## Consequences
 
-- The six boundaries become guaranteed invariants rather than aspirations; the
-  full Layer 0→3 layering and the pure-Python / ORM-agnostic claims are verified
-  on every PR.
-- At the time of this decision the framework core has **zero** tolerated
-  exceptions; should an unavoidable one arise, it is pinned (annotated) in
-  `KNOWN_VIOLATIONS`, visible and unable to multiply.
-- The checker is fork-local code to maintain (and is itself tested); new
-  boundaries require a new contract entry (and ideally a new ADR).
+- The six boundaries become verified invariants rather than aspirations.
+- At this decision the core has **zero** tolerated exceptions; an unavoidable
+  one is pinned in `KNOWN_VIOLATIONS`, visible and unable to multiply.
+- Fork-local code to maintain, itself tested. A new boundary means a new
+  contract entry, and ideally a new record.
 
 ## Enforcement
 
-The checker enforces itself. Run locally with
-`python tooling/architecture/layer_check.py --check`.
+The checker enforces itself: `python tooling/architecture/layer_check.py --check`.
 
 ## Amendments
 
-Append-only. An amendment corrects what this record says *about the repo*; it
-never edits the decision above.
-
 ### 2026-08-07 — two counts re-dated to the decision that made them
 
-The Decision said the checker evaluates "six" contracts and the Consequences
-that the core "currently has zero tolerated exceptions". Both were true on
-2026-06-23 and neither is a claim this immutable record can keep: the contract
-set has grown well past six, and the pinned-violation count is a property of
-`layer_check.py`, not of this page. Corrected in place — they are citations of a
-measurement, not the decision, and they now say *when* they were measured and
-where the live value lives.
+The Decision said "six" contracts and the Consequences that the core
+"currently has zero tolerated exceptions". Both were true on 2026-06-23 and
+neither is a claim an immutable record can keep: the contract set has grown,
+and the pinned-violation count belongs to `layer_check.py`. Both now say when
+they were measured and where the live value lives.

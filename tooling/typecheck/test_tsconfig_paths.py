@@ -64,6 +64,65 @@ def test_the_scan_reaches_the_tree():
     assert used["web"] > 1000, f"implausibly few @web imports: {used['web']}"
 
 
+def test_the_addon_alias_block_is_derived_not_hand_written():
+    """The block must equal what the addon layout says, byte for byte.
+
+    `test_every_imported_addon_alias_is_mapped` only catches an addon that is
+    *both* unmapped and imported, which is why the list could sit at 238 entries
+    against 599 addons on disk and stay green until someone happened to import
+    `@website_mail`. Deriving it is the fix; this is what stops it being
+    hand-edited back into drift.
+    """
+    import tsconfig_paths
+
+    _before, block, _after = tsconfig_paths._split(TSCONFIG.read_text(encoding="utf8"))
+    existing = tsconfig_paths._existing_entries(block)
+    expected = tsconfig_paths.render(tsconfig_paths.desired_entries(existing))
+    assert block == expected, (
+        "tsconfig.json's addon-alias block has drifted from the addon layout.\n"
+        "  run: python tooling/typecheck/tsconfig_paths.py --update"
+    )
+
+
+def test_the_generator_never_drops_an_absent_checkouts_aliases():
+    """CI has `odoo` alone; a regenerate there must not delete enterprise aliases.
+
+    The same file has to be right in a bare CI checkout and in a full workspace,
+    so the generator grows what it can see and refuses to shrink what it cannot --
+    the rule the sibling `architecture.yml` lanes already follow. Without it,
+    `--update` run in CI would silently strip every `../enterprise/...` entry.
+    """
+    import tsconfig_paths
+
+    ci_only = tuple(pair for pair in tsconfig_paths.CHECKOUTS if pair[1] == "addons")
+    foreign = "@some_enterprise_addon/*"
+    existing = {
+        foreign: "../enterprise/some_enterprise_addon/static/src/*",
+        "@web/*": "addons/web/static/src/*",
+    }
+    original = tsconfig_paths.CHECKOUTS
+    try:
+        tsconfig_paths.CHECKOUTS = ci_only
+        kept = tsconfig_paths.desired_entries(existing)
+    finally:
+        tsconfig_paths.CHECKOUTS = original
+    assert foreign in kept, "a regenerate in CI would have dropped an absent checkout"
+    assert kept[foreign] == existing[foreign]
+
+
+def test_the_generator_drops_an_alias_whose_addon_is_gone():
+    """Shrinking is allowed, but only for a checkout this workspace can actually see."""
+    import tsconfig_paths
+
+    existing = {
+        "@no_such_addon_here/*": "addons/no_such_addon_here/static/src/*",
+        "@web/*": "addons/web/static/src/*",
+    }
+    kept = tsconfig_paths.desired_entries(existing)
+    assert "@no_such_addon_here/*" not in kept
+    assert "@web/*" in kept
+
+
 def test_every_imported_addon_alias_is_mapped():
     paths = _load_paths()
     on_disk = _addons_on_disk()

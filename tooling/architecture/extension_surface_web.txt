@@ -47,7 +47,6 @@ CalendarCommonRenderer.convertRecordToEvent  odoo
 CalendarCommonRenderer.eventClassNames  odoo enterprise
 CalendarCommonRenderer.eventTemplate  odoo
 CalendarCommonRenderer.fcEventToRecord  odoo
-CalendarCommonRenderer.getDayCellClassNames  odoo
 CalendarCommonRenderer.getPopoverProps  odoo
 CalendarCommonRenderer.isSelectionAllowed  odoo
 CalendarCommonRenderer.onClick  odoo
@@ -101,13 +100,13 @@ CalendarModel.setup  odoo enterprise
 CalendarModel.showMultiCreateTimeRange  enterprise
 CalendarModel.updateData  odoo
 CalendarModel.updateRecord  odoo enterprise
+CalendarRendererBase.eventClassNames  odoo
+CalendarRendererBase.getDayCellClassNames  odoo
 CalendarSidePanel.showDatePicker  enterprise
 CalendarYearPopover.getRecordClass  odoo
 CalendarYearPopover.onRecordClick  odoo
 CalendarYearPopover.subTemplates  odoo
 CalendarYearRenderer.customOptions  odoo
-CalendarYearRenderer.eventClassNames  odoo
-CalendarYearRenderer.getDayCellClassNames  odoo
 CalendarYearRenderer.onDateClick  odoo
 CalendarYearRenderer.openPopover  odoo
 CalendarYearRenderer.options  odoo
@@ -122,8 +121,8 @@ CogMenu.setup  odoo
 Colibri.addListener  odoo
 Colibri.applyAttr  odoo
 Colibri.applyTOut  odoo
+Colibri.bindDeferred  odoo
 Colibri.destroyInteraction  odoo
-Colibri.protectSyncAfterAsync  odoo
 Colibri.setupInteraction  odoo
 Colibri.startInteraction  odoo
 CommandPalette.setCommands  enterprise
@@ -132,7 +131,6 @@ ConfirmationDialog._confirm  odoo enterprise
 ConfirmationDialog._dismiss  odoo enterprise
 ConfirmationDialog.execButton  odoo
 ConfirmationDialog.setup  odoo enterprise
-ControlPanel._isEmbeddedActionVisible  enterprise
 ControlPanel.setup  odoo enterprise
 ControlPanel.switchView  enterprise
 CopyButton.onClick  odoo enterprise
@@ -160,14 +158,12 @@ FileViewer.close  odoo
 FileViewer.next  odoo
 FileViewer.previous  odoo
 FileViewer.setup  odoo enterprise
-FloatField.formattedValue  odoo
 FloatField.parse  odoo
 FloatTimeField.formattedValue  odoo enterprise
 FormArchParser.parse  odoo enterprise
 FormCompiler.compile  odoo enterprise
 FormCompiler.compileNotebook  odoo enterprise
 FormCompiler.createLabelFromField  enterprise
-FormController.actionMenuItems  odoo
 FormController.afterExecuteActionButton  odoo
 FormController.archiveDialogProps  odoo enterprise
 FormController.beforeExecuteActionButton  odoo enterprise
@@ -194,7 +190,6 @@ FormViewDialog.setup  odoo enterprise
 GaugeField.formattedValue  odoo
 GaugeField.renderChart  odoo
 GaugeField.setup  odoo
-GraphController.setup  enterprise
 GraphModel._getProcessedDataPoints  odoo
 GraphModel.getLineOverlayDataset  odoo
 GraphModel.load  odoo enterprise
@@ -213,7 +208,6 @@ GroupConfigMenu.permissions  odoo enterprise
 GroupConfigMenu.setup  odoo enterprise
 ImageField.onFileRemove  odoo
 ImageField.setup  odoo enterprise
-IntegerField.formattedValue  odoo enterprise
 Interaction.destroy  odoo enterprise
 Interaction.dynamicContent  odoo enterprise
 Interaction.dynamicSelectors  odoo enterprise
@@ -230,13 +224,12 @@ JournalDashboardGraphField.renderChart  odoo
 JournalDashboardGraphField.setup  odoo
 KanbanArchParser.parse  odoo enterprise
 KanbanArchParser.parseProgressBar  odoo
-KanbanArchParser.processButton  enterprise
 KanbanColumnQuickCreate.relatedFieldName  odoo
 KanbanColumnQuickCreate.unfold  odoo
 KanbanCompiler.compileButton  odoo enterprise
 KanbanCompiler.compileField  odoo enterprise
 KanbanCompiler.setup  odoo enterprise
-KanbanController.beforeLeave  enterprise
+KanbanController.beforeLeave  odoo enterprise
 KanbanController.beforeUnload  enterprise
 KanbanController.canCreate  odoo
 KanbanController.className  odoo
@@ -245,7 +238,6 @@ KanbanController.deleteRecord  enterprise
 KanbanController.modelParams  enterprise
 KanbanController.openRecord  odoo enterprise
 KanbanController.progressBarAggregateFields  odoo
-KanbanController.setup  odoo enterprise agromarin
 KanbanDropdownMenuWrapper.onClick  odoo
 KanbanMany2ManyTagsAvatarField.tags  odoo
 KanbanQuickCreateController.showFormDialogInError  enterprise
@@ -274,8 +266,6 @@ KanbanRenderer.toggleSelection  odoo
 KanbanRenderer.validateQuickCreate  enterprise
 ListArchParser.parse  enterprise
 ListArchParser.parseFieldNode  enterprise
-ListArchParser.parseWidgetNode  enterprise
-ListArchParser.processButton  enterprise
 ListController.beforeExecuteActionButton  odoo enterprise
 ListController.beforeLeave  enterprise
 ListController.beforeUnload  enterprise
@@ -285,7 +275,6 @@ ListController.modelParams  enterprise
 ListController.onClickCreate  odoo enterprise
 ListController.onRecordSaved  enterprise
 ListController.openRecord  odoo enterprise
-ListController.setup  odoo enterprise
 ListRenderer.add  odoo
 ListRenderer.buildRowApi  odoo enterprise
 ListRenderer.canCreate  enterprise
@@ -360,17 +349,13 @@ ModelFieldSelectorPopover.loadPages  enterprise
 ModelFieldSelectorPopover.selectField  enterprise
 ModelFieldSelectorPopover.setup  enterprise
 MonetaryField.currencySymbol  enterprise
-MonetaryField.formattedValue  enterprise
-MultiRecordController.actionMenuItems  odoo
 MultiRecordController.actionMenuProps  odoo enterprise
-MultiRecordController.afterExecuteActionButton  odoo enterprise
-MultiRecordController.archiveDialogProps  odoo enterprise
-MultiRecordController.deleteConfirmationDialogProps  odoo enterprise
 MultiRecordController.getStaticActionMenuItems  odoo enterprise
 MultiRecordController.hasSelectedRecords  odoo
 MultiRecordController.modelOptions  odoo enterprise
 MultiRecordController.onDeleteSelectedRecords  odoo enterprise
 MultiRecordController.onSelectionChanged  enterprise
+MultiRecordController.setup  odoo enterprise agromarin
 MultiSelectionButtons.getMultiCreatePopoverProps  odoo
 MultiSelectionButtons.loadMultiCreateView  odoo
 MultiSelectionButtons.setup  odoo
@@ -389,10 +374,10 @@ NavBar.systrayItems  odoo
 Notebook.setup  enterprise
 NotificationContainer.notificationComponent  odoo
 NotificationContainer.serviceName  odoo
+NumericInputFieldBase.formattedValue  odoo enterprise
 NumericInputFieldBase.setup  odoo
 NumericInputFieldBase.value  odoo enterprise
 ORM.read  odoo
-PhoneField.setup  enterprise
 PivotController.setup  enterprise
 PivotModel._getGroupsSubdivision  odoo enterprise
 PivotModel._loadData  odoo
@@ -413,15 +398,14 @@ PropertiesField.additionalPropertyDefinitionProps  enterprise
 PropertiesField.onPropertyDefinitionChange  enterprise
 PropertyValue.propertyValue  odoo
 PropertyValue.setup  odoo
-RPCErrorDialog.setup  odoo
 RadioField.items  odoo
 RadioField.onChange  odoo
 RadioField.setup  odoo enterprise
 ReferenceField.m2oProps  odoo
 ReferenceField.setup  odoo
 RelationalModel.DEFAULT_LIMIT  odoo
-RelationalModel.Record  odoo enterprise
-RelationalModel._loadData  odoo enterprise
+RelationalModel.Record  odoo
+RelationalModel._loadData  odoo
 RelationalModel._updateSimilarRecords  odoo
 RelationalModel.hasData  enterprise
 RelationalModel.load  odoo enterprise agromarin
@@ -430,9 +414,10 @@ RelationalModel.services  odoo
 RelationalModel.setup  odoo enterprise agromarin
 RelationalModel.webReadGroup  odoo
 RelationalModel.withCache  odoo enterprise
-RelationalRecord.setup  odoo enterprise
+RelationalRecord.setup  odoo
 RemainingDaysField.diffDays  enterprise
 RemainingDaysField.diffString  enterprise
+ReportController.setup  enterprise
 ResizablePanel.setup  enterprise
 SampleServer._generateFieldValue  enterprise
 SearchBar.getPreposition  odoo
@@ -447,7 +432,6 @@ SearchModel._importState  odoo enterprise
 SearchModel._notify  odoo
 SearchModel._reset  odoo
 SearchModel.exportState  odoo enterprise
-SearchModel.extractSearchDefaultsFromGlobalContext  odoo
 SearchModel.facets  enterprise
 SearchModel.getSearchItemDomain  odoo
 SearchModel.getSearchItems  odoo
@@ -455,6 +439,7 @@ SearchModel.groupBy  odoo
 SearchModel.load  odoo enterprise
 SearchModel.orderBy  odoo
 SearchModel.setup  odoo enterprise
+SearchModel.takeSearchDefaultsFromGlobalContext  odoo
 SearchPanel.setup  odoo
 SearchPanel.subTemplates  odoo
 SearchPanel.toggleCategory  odoo
@@ -473,6 +458,8 @@ SelectionField.options  odoo enterprise
 SelectionLikeField.setup  odoo enterprise
 SelectionLikeField.string  odoo
 SelectionLikeField.value  odoo enterprise
+SimpleInputFieldBase.setup  odoo enterprise
+SimpleInputFieldBase.value  odoo
 StateSelectionField.label  odoo
 StateSelectionField.options  odoo
 StateSelectionField.setup  odoo
@@ -483,12 +470,12 @@ StatusBarField.selectItem  odoo
 StatusBarField.setup  odoo
 TextField.setup  odoo enterprise
 TextInputFieldBase.onBlur  odoo
-UrlField.setup  odoo
-UrlField.value  odoo
 UserMenu.setup  odoo
 View.loadView  enterprise
 View.onWillUpdateProps  enterprise
 View.setup  odoo enterprise
+ViewArchParser.parseWidgetNode  enterprise
+ViewArchParser.processButton  enterprise
 ViewButton.getClassName  enterprise
 ViewButton.onClick  enterprise
 ViewButton.setup  enterprise
@@ -496,6 +483,10 @@ ViewCompiler.applyInvisible  enterprise
 ViewCompiler.compile  odoo enterprise
 ViewCompiler.compileField  odoo
 ViewCompiler.compileNode  odoo enterprise
+ViewController.actionMenuItems  odoo
+ViewController.afterExecuteActionButton  odoo enterprise
+ViewController.archiveDialogProps  odoo enterprise
+ViewController.deleteConfirmationDialogProps  odoo enterprise
 WebClient._loadDefaultApp  enterprise
 WebClient.loadRouterState  odoo
 WebClient.setup  odoo enterprise

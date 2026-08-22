@@ -73,9 +73,9 @@ class TestCollector(unittest.TestCase):
             _pairs("""
                 Access = env["ir.model.access"]
                 Access.check(model, operation)
-                Access._make_access_error(a, b)
+                Access._prepare_access_error(a, b)
             """),
-            {("ir.model.access", "check"), ("ir.model.access", "_make_access_error")},
+            {("ir.model.access", "check"), ("ir.model.access", "_prepare_access_error")},
         )
 
     def test_a_twice_assigned_local_is_not_followed(self):

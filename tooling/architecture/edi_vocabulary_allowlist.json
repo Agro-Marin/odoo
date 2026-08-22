@@ -1,0 +1,14 @@
+{
+  "adr": "0048",
+  "note": "Modules whose name carries 'edi' as a component. `l10n_*` is exempt by rule and is not listed. Add an entry only with the category that justifies it; there is no --update.",
+  "modules": {
+    "account_edi": "queue - transmission framework for the other two; upstream name",
+    "account_edi_proxy_client": "queue - proxy client for EDI web services; upstream name",
+    "account_edi_ubl_cii": "partner interchange - UBL/CII formats between businesses",
+    "documents_l10n_mx_edi": "fiscal clearance - inherits the l10n_mx_edi name (ADR-0048)",
+    "purchase_edi_ubl_bis3": "partner interchange - Peppol BIS 3 orders",
+    "sale_edi_ubl": "partner interchange - UBL ordering",
+    "syngenta_edi": "partner interchange - sell-through and stock reports to a supplier",
+    "test_sale_purchase_edi_ubl": "partner interchange - test module for the UBL pair"
+  }
+}

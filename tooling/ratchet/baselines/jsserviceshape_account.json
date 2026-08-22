@@ -1,0 +1,4 @@
+{
+  "count": 0,
+  "note": "Services in addons/account/static/src whose start() returns an object literal: none, so this floor is a drift-zero pin from the day it is set.\n\naccount publishes two services. account_move is already instance-shaped \u2014 a class with setup(), which is why point_of_sale, pos_iot and l10n_cl_edi_pos can each patch(AccountMoveService.prototype, ...) and override downloadPdf; that is the seam ADR-0021 argues for, in use across two repos. accountNotification returns nothing at all: it subscribes to a bus channel and exists for the side effect, so there is no surface to publish and the script reports it as 'unknown' rather than as a literal.\n\nPinned at zero to keep it that way while account grows services, not to record debt.\n\nCommand: python tooling/architecture/js_service_shape.py --addon account --count"
+}

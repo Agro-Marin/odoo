@@ -1,7 +1,10 @@
 name: ESLint Check
 
-# ESLint gate, enforced as a DRIFT-ZERO RATCHET (tooling/ratchet): the committed
-# floor (errorCount) is tooling/ratchet/baselines/eslint.json. This gate BLOCKS
+# Two DRIFT-ZERO RATCHETS (tooling/ratchet), both blocking: eslint over the JS,
+# and `prettier --check` over the SCSS that eslint structurally cannot see.
+#
+# ESLint gate: the committed floor (errorCount) is
+# tooling/ratchet/baselines/eslint.json. This gate BLOCKS
 # (no continue-on-error). The floor only moves one way — see
 # tooling/ratchet/README.md. To change it, run locally and commit:
 #   npx eslint . --format=json --output-file=/tmp/eslint.json
@@ -26,6 +29,9 @@ on:
     paths:
       - '**/*.js'
       - '**/*.mjs'
+      - '**/*.scss'
+      - '.prettierrc.json'
+      - '.prettierignore'
       - 'eslint.config.mjs'
       - 'package.json'
       - 'package-lock.json'
@@ -86,6 +92,26 @@ jobs:
           python tooling/ratchet/ratchet.py eslint --count "${{ steps.eslint.outputs.error_count }}" --json | tee /tmp/verdict.json
           python tooling/ratchet/ratchet.py eslint --count "${{ steps.eslint.outputs.error_count }}"
 
+      # SCSS is the half of .prettierrc.json that eslint cannot reach: it runs
+      # prettier through the prettier/prettier rule, which only ever sees JS.
+      # Nothing applied the repo's own format config to .scss, so 104 files
+      # drifted. Ratcheted rather than fixed in one sweep — reformatting 104
+      # stylesheets at once buries every real change under whitespace.
+      - name: Check SCSS formatting
+        id: prettier_scss
+        run: |
+          set +e
+          npx prettier --list-different "**/*.scss" > /tmp/prettier_scss.txt
+          set -e
+          COUNT=$(grep -c . /tmp/prettier_scss.txt || true)
+          echo "count=${COUNT}" >> "$GITHUB_OUTPUT"
+          head -200 /tmp/prettier_scss.txt
+
+      - name: Enforce SCSS ratchet
+        run: |
+          python tooling/ratchet/ratchet.py prettier_scss --count "${{ steps.prettier_scss.outputs.count }}" --json | tee /tmp/verdict_scss.json
+          python tooling/ratchet/ratchet.py prettier_scss --count "${{ steps.prettier_scss.outputs.count }}"
+
       - name: Summarise
         if: always()
         run: |
@@ -103,4 +129,13 @@ jobs:
             echo "| Drift | $((ERR_COUNT - BASELINE)) |"
             echo ""
             echo "Floor: \`tooling/ratchet/baselines/eslint.json\` · Config: \`eslint.config.mjs\`"
+            echo ""
+            echo "## SCSS formatting (ratchet)"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|--------|------:|"
+            echo "| Unformatted .scss files | ${{ steps.prettier_scss.outputs.count }} |"
+            echo "| Committed floor | $(python -c "import json;print(json.load(open('tooling/ratchet/baselines/prettier_scss.json'))['count'])") |"
+            echo ""
+            echo "Floor: \`tooling/ratchet/baselines/prettier_scss.json\` · Config: \`.prettierrc.json\`"
           } >> "$GITHUB_STEP_SUMMARY"

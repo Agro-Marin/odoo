@@ -1,12 +1,9 @@
-import logging
 import re
 
 from odoo.libs.lint import scan_regex_patterns
 from odoo.modules import get_resource_from_path
 
 from . import lint_case
-
-_logger = logging.getLogger(__name__)
 
 BS_RAMP_PAT = r"var\(\s*--gray-[1-9]00\s*[,)]"
 BS_RAMP_RE = re.compile(BS_RAMP_PAT)

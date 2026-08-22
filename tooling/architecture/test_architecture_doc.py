@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
-
 from __future__ import annotations
 
 import ast
+import collections
 import json
 import re
 import sys
@@ -13,6 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import doc_restated_counts
+import js_layer_check
 import layer_check
 from _repo_root import find_odoo_root
 
@@ -1116,6 +1117,15 @@ class TestReferencedArtifacts(unittest.TestCase):
                 name, DOC, f"the base suite excludes {name}; the page does not say so"
             )
 
+    SIBLING_DRIVEN = {
+        "py_x2many_count_enterprise": "enterprise",
+        "py_x2many_count_agromarin": "agromarin",
+        "sql_in_placeholder_enterprise": "enterprise",
+        "sql_in_placeholder_agromarin": "agromarin",
+        "py_count_as_boolean_enterprise": "enterprise",
+        "py_count_as_boolean_agromarin": "agromarin",
+    }
+
     @staticmethod
     def _gates_the_workflows_drive() -> set[str]:
         driven: set[str] = set()
@@ -1128,10 +1138,26 @@ class TestReferencedArtifacts(unittest.TestCase):
             )
         return driven
 
-    def test_ratchet_baselines_match_documented_gates(self) -> None:
+    def test_a_sibling_driven_baseline_is_driven_by_its_sibling(self) -> None:
+        siblings = ROOT.parent
+        checked = 0
+        for gate, repo in self.SIBLING_DRIVEN.items():
+            workflow = siblings / repo / ".github" / "workflows" / "architecture.yml"
+            if not workflow.is_file():
+                continue
+            checked += 1
+            self.assertRegex(
+                workflow.read_text(encoding="utf-8"),
+                rf"ratchet\.py\s*\\?\s*{re.escape(gate)}\s+--mode\s+no-increase\s+--count",
+                f"{gate} is exempted here as driven by {repo}, and {repo}'s "
+                f"architecture.yml does not drive it as a no-increase ratchet",
+            )
+        if not checked:
+            self.skipTest("no sibling checkout beside this one")
 
+    def test_ratchet_baselines_match_documented_gates(self) -> None:
         match = re.search(
-            r"turns (\w+) tool\s+counts into one-way contracts: "
+            r"turns ([\w-]+) tool\s+counts into one-way contracts: "
             r"\*\*([^*]+)\*\*",
             DOC,
         )
@@ -1140,7 +1166,7 @@ class TestReferencedArtifacts(unittest.TestCase):
         on_disk = {
             p.stem for p in (ROOT / "tooling" / "ratchet" / "baselines").glob("*.json")
         }
-        driven = self._gates_the_workflows_drive()
+        driven = self._gates_the_workflows_drive() | set(self.SIBLING_DRIVEN)
         self.assertTrue(driven, "no workflow drives ratchet.py; the regex has rotted")
         self.assertEqual(
             driven,
@@ -1832,6 +1858,75 @@ class TestGateInventoryIsWiredShut(unittest.TestCase):
         steps = len(re.findall(r"^\s+id: \w+$", self.yaml, re.MULTILINE))
         self.assertEqual(reraised, steps)
 
+    def test_the_step_count_tracks_the_workflow(self) -> None:
+        """Steps, not checkers -- the page used to conflate them and drifted.
+
+        It said twenty-nine "checkers CI runs as their own step" against a
+        workflow that had grown to sixty-seven steps over forty-nine checkers,
+        and matched neither reading. The two differ only because a gate
+        governing several scopes gets a step per scope, so both are asserted
+        here: a step that stopped invoking exactly one checker would make the
+        sentence meaningless in a way a bare count cannot report.
+        """
+        words = NUMBER_WORD_BY_VALUE
+        per_step = [
+            set(re.findall(r"tooling/architecture/([\w.]+)\.py", body))
+            for body in re.split(r"^\s+id: \w+$", self.yaml, flags=re.MULTILINE)[1:]
+        ]
+        self.assertTrue(per_step, "the workflow declares no gate step")
+        self.assertEqual(
+            [len(checkers) for checkers in per_step],
+            [1] * len(per_step),
+            "a step no longer invokes exactly one checker, which is the whole "
+            "claim the step count rests on",
+        )
+        self.assertIn(
+            f"**{words[len(per_step)].capitalize()}** is how many steps CI runs "
+            f"the {words[len(self._workflow_gates())]} in",
+            DOC_FLAT,
+        )
+        widest = collections.Counter(
+            checker for (checker,) in map(tuple, per_step)
+        ).most_common(1)[0]
+        self.assertIn(
+            f"`{widest[0]}` alone accounts for {words[widest[1]]}",
+            DOC_FLAT,
+            f"the example of a multi-scope gate is stale; widest is {widest}",
+        )
+
+    def test_the_tokenizer_consumer_count_is_derived(self) -> None:
+        """`js_imports.py` is parsed by more modules than the gate table lists.
+
+        The page said nine, which is no reading of the tree: eight of the
+        forty-nine parse with it, and three more that are not steps of their own
+        do too. Counting the table alone is the plausible wrong answer, so it is
+        asserted beside the real one.
+        """
+        words = NUMBER_WORD_BY_VALUE
+        tooling = ROOT / "tooling" / "architecture"
+        consumers = {
+            source.stem
+            for source in tooling.glob("*.py")
+            if not source.name.startswith("test_")
+            and source.name != "js_imports.py"
+            and re.search(
+                r"^(?:import js_imports|from js_imports)",
+                source.read_text(encoding="utf-8"),
+                re.MULTILINE,
+            )
+        }
+        self.assertTrue(consumers, "nothing imports js_imports; the regex rotted")
+        stepped = consumers & {g.removesuffix(".py") for g in self._workflow_gates()}
+        self.assertIn(
+            f"the JS tokenizer **{words[len(consumers)]}** of the checkers parse with",
+            DOC_FLAT,
+        )
+        self.assertIn(
+            f"{words[len(consumers)].capitalize()} and not {words[len(stepped)]}, "
+            f"which is what counting only the table above would give",
+            DOC_FLAT,
+        )
+
     def test_annotate_condition_covers_every_step(self) -> None:
         ids = set(re.findall(r"^\s+id: (\w+)$", self.yaml, re.MULTILINE))
         condition = self.yaml.split("Annotate PR on failure", 1)[1].split("uses:", 1)[0]
@@ -1927,17 +2022,12 @@ class TestRiskRegisterFigures(unittest.TestCase):
         )
 
     def test_the_public_surface_pin_size_is_measured(self) -> None:
-        pin = ROOT / "tooling" / "architecture" / "public_surface_web.txt"
-        specifiers = [
-            line
-            for line in pin.read_text(encoding="utf-8").splitlines()
-            if line.strip() and not line.lstrip().startswith("#")
-        ]
+        (measured,) = doc_restated_counts.public_surface_specifiers()
         self.assertIn(
-            f"{len(specifiers)} specifiers",
+            f"{measured} specifiers",
             DOC_FLAT,
-            f"the register's pin size disagrees with {pin.name} "
-            f"({len(specifiers)} specifiers on disk)",
+            f"no page states the pin size ({measured} specifiers on disk); "
+            f"`doc_restated_counts.py --update` writes it into risks.md",
         )
 
 
@@ -2319,13 +2409,6 @@ class TestAddonSuiteFigures(unittest.TestCase):
             self.assertNotIn(f"{lines:,} lines", DOC_FLAT)
 
     def test_every_prose_figure_is_fresh(self) -> None:
-        """Delegates to the generator that owns these measurements.
-
-        The figures live inside sentences on narrative pages, where a
-        ``MEASURED`` stanza would cost the sentence its argument, so
-        ``doc_restated_counts.py`` rewrites the digits in place instead.
-        Run it with ``--update`` after the change that moved one.
-        """
         problems = doc_restated_counts.check()
         self.assertFalse(
             problems,
@@ -2851,7 +2934,12 @@ class TestLifecycleSketches(unittest.TestCase):
 
 class TestContractNamesResolveEverywhere(unittest.TestCase):
     def test_every_kebab_case_citation_is_a_real_contract(self) -> None:
-        known = {c.name for c in layer_check.CONTRACTS}
+        # Both gates' contracts. The page cites either — `gates.md` names
+        # `components-below-entity`, which is `js_layer_check`'s — and resolving
+        # only the Python half made a real citation look invented.
+        known = {c.name for c in layer_check.CONTRACTS} | {
+            c.name for c in js_layer_check.CONTRACTS
+        }
         cited = set(re.findall(r"`([a-z][a-z0-9]*(?:-[a-z0-9]+){2,})`", DOC))
         self.assertTrue(cited, "the page cites no contract; the pattern has rotted")
         self.assertEqual(

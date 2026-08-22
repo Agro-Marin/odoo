@@ -5,99 +5,74 @@
 
 ## Context
 
-The fork has an excellent *static* safety net — six architectural boundary
-contracts (ADR-0001…0005) and, now, drift-zero count ratchets (ADR-0006) — and a
-fast *DB-free* unit tier (`unit_tests.yml` runs `orm/components`,
-`_field_access`, and the `model_test_env` self-tests). But **no CI workflow ran a
-single `TransactionCase` or `HttpCase`.** The entire traditional, database-backed
-suite — every test in `odoo/addons/*/tests/` that needs a real registry and real
-SQL — never executed on a pull request.
+The fork has a strong *static* net — the boundary contracts of ADRs 0001–0005,
+the count ratchets of ADR-0006 — and a fast DB-free unit tier (`unit_tests.yml`
+runs `orm/components`, `_field_access` and the `model_test_env` self-tests).
+**No workflow ran a single `TransactionCase` or `HttpCase`.** Every test needing
+a real registry and real SQL never executed on a pull request.
 
-That is a large hole precisely because of how much this fork has restructured.
-The ORM was decomposed into layers, `sql_db.py` into `db/`, `http.py` into
-`http/`, and the cache/compute engine into injected components. Static checks
-prove the *import graph* is acyclic and the layers don't reach across; ratchets
-prove types and lint don't regress. Neither proves the decomposed pieces still
-*behave* correctly when wired together against PostgreSQL — exactly the property
-most at risk during aggressive refactoring. A regression in
-`orm/runtime`, `orm/models`, `modules/loading`, or `http/` could merge green.
+That gap matters in proportion to how much has been restructured: the ORM into
+layers, `sql_db.py` into `db/`, `http.py` into `http/`, the cache/compute engine
+into injected components. Static checks prove the import graph is acyclic;
+ratchets prove types and lint do not regress. Neither proves the pieces still
+behave when wired together against PostgreSQL. A regression in `orm/runtime`,
+`orm/models`, `modules/loading` or `http/` could merge green.
 
 ## Decision
 
-Add `integration_tests.yml`: a workflow that boots a real **PostgreSQL 18**
-service, builds and installs the `odoo_rust` extension, installs the runtime
-requirements, and runs the **`base` module's test suite** end-to-end with
+Add `integration_tests.yml`: boot PostgreSQL 18, build and install `odoo_rust`,
+install the runtime requirements, run the `base` suite with
 `odoo-bin --test-enable --test-tags /base --stop-after-init`.
 
-Scope is a deliberate framework **smoke**, not the whole suite. The `base` suite
-exercises the registry, environment, fields, domains, module loading, and access
-rules against real SQL — the highest-value-per-minute coverage of the decomposed
-core. The workflow parameterises `INSTALL` / `TEST_TAGS` so coverage can broaden
-(`test_orm`, `test_http`, …) once timing is understood.
+Scope is a deliberate framework **smoke**. `base` exercises the registry,
+environment, fields, domains, module loading and access rules against real SQL
+— the highest coverage per minute of the decomposed core. `INSTALL` /
+`TEST_TAGS` are parameterised so coverage can broaden once timing is understood.
 
-The database is created with `--db-template=template0`, because Odoo only applies
-its `ENCODING 'unicode' LC_COLLATE 'C'` creation path on `template0`
-(`odoo/service/db/lifecycle.py` — it was odoo/service/db.py when this was
-written, deliberately not backticked here because that file no longer exists;
-see ADR-0014); PostgreSQL 18's default `template1` locale would
-otherwise yield non-deterministic ordering. Test failures fail the job directly:
-`odoo-bin` propagates the assertion report's result as the process exit code
-(`odoo/cli/server.py`), so no log-scraping is needed.
+The database is created with `--db-template=template0`: Odoo applies its
+`ENCODING 'unicode' LC_COLLATE 'C'` creation path only on `template0`
+(`odoo/service/db/lifecycle.py`; it was service/db.py when this was written —
+see ADR-0014), and PostgreSQL 18's default `template1` locale would give
+non-deterministic ordering. `odoo-bin` propagates the assertion report as its
+exit code (`odoo/cli/server.py`), so no log-scraping is needed.
 
 ## Consequences
 
-- Behavioural regressions in the framework core are caught on the PR that
-  introduces them, not in a downstream environment. This is the safety net that
-  makes the deeper in-layer refactors (dissolving the BaseModel mixins, the
-  `Environment` and `Field` god-objects) tractable to land incrementally.
-- New cost: the lane is heavier than the DB-free tiers (Rust build + full
-  requirements + a PostgreSQL service), bounded here at 30 minutes. It is scoped
-  to a smoke for that reason and triggered only on changes under the framework
-  paths and `base`.
+- Behavioural regressions in the core are caught on the PR that introduces
+  them. This is what makes the deeper in-layer refactors — dissolving the
+  BaseModel mixins, the `Environment` and `Field` god-objects — landable
+  incrementally.
+- Cost: heavier than the DB-free tiers (Rust build, full requirements, a
+  PostgreSQL service), bounded at 30 minutes, hence the smoke scope and the
+  path filter.
 - A smoke is not full coverage. The `INSTALL`/`TEST_TAGS` knobs make broadening
-  explicit and reviewable rather than silently partial.
+  explicit rather than silently partial.
 
 ## Enforcement
 
 `integration_tests.yml` runs on every PR touching `odoo/orm`, `odoo/db`,
-`odoo/http`, `odoo/service`, `odoo/modules`, `odoo/addons/base`, or the Rust
-crate, and blocks on any test failure. Reproduce locally with a disposable
-`postgres:18` and the `odoo-bin` invocation in the workflow (note the
-`--db-template=template0` requirement for C collation).
+`odoo/http`, `odoo/service`, `odoo/modules`, `odoo/addons/base` or the Rust
+crate, and blocks on any failure. Reproduce with a disposable `postgres:18` and
+the workflow's `odoo-bin` invocation, including `--db-template=template0`.
 
 ## Amendments
 
-Append-only. An amendment corrects what this record says *about the repo*; it
-never edits the decision above.
-
 ### 2026-08-07 — the lane has broadened, using the knobs this decision added
 
-The Decision scopes the gate to the `base` suite and says the `INSTALL` /
-`TEST_TAGS` parameters exist so coverage can broaden "once timing is understood".
-It has: `integration_tests.yml` now runs two suites, `base` (less
-`TestReportsRendering` and `TestIrModelFieldsTranslation`) and `test_http`, each
-against **its own database** (`-d ci_smoke`, `-d ci_http`). Separate databases
-are not a detail — the suites interfere, and
-`doc/architecture/ARCHITECTURE.md` records the `res_partner_views.xml` /
-`test_hard_reset_from_file_still_works` collision that proves it.
-
-Recorded rather than corrected in place: the decision text is right about what
-was decided, and the broadening is that decision working as intended, not a
-citation that aged out. `--db-template=template0` is still what both runs pass.
+`integration_tests.yml` runs two suites: `base` (less `TestReportsRendering`
+and `TestIrModelFieldsTranslation`) and `test_http`, each against its own
+database (`-d ci_smoke`, `-d ci_http`). Separate databases are load-bearing —
+the suites interfere, and `doc/architecture/ARCHITECTURE.md` records the
+`res_partner_views.xml` / `test_hard_reset_from_file_still_works` collision that
+proves it. Recorded, not corrected: this is the decision working as intended.
+`--db-template=template0` is still passed by both runs.
 
 ### 2026-08-07 — the architecture front door moved to `doc/architecture/`
 
 This record cited the front door at the path it held inside the core package
-until 2026-08-07 (odoo/ARCHITECTURE.md — deliberately not backticked, because a
-backticked path in this repo asserts that the file exists, and this one no
-longer does). That page sat inside the core *package* while describing the
-whole repository — the gate
-catalog it indexes covers `addons/**` JS and the repo-wide `eslint`/`tsc`
-ratchets — so it was filed one level below its own scope, and the two halves of
-the architecture document cited each other across directories. Widening
-`doc_link_gate.py` to the set found 15 broken references held together by
-nothing. The set is now one flat directory, `doc/architecture/`, with the front
-door at `doc/architecture/ARCHITECTURE.md`.
-
-Corrected in place: the *Consequences* pointer to where the suite-interference collision is
-recorded. It is a citation, not the decision.
+until 2026-08-07. That page described the whole repository — its gate catalog
+covers `addons/**` JS and the repo-wide `eslint`/`tsc` ratchets — while filed
+one level below its own scope. Widening `doc_link_gate.py` to the set found 15
+broken references. The set is now one flat directory, `doc/architecture/`.
+Corrected in place: the Consequences pointer to where the suite-interference
+collision is recorded.

@@ -1,0 +1,4 @@
+{
+  "count": 53,
+  "note": "BOTH REMAINING CALENDAR RUNS, AND THEY WERE THE SAME ARGUMENT TWICE. 72 -> 53.\n\nThe 10-line run was customOptions + viewDidMount, byte-identical in\ncalendar_common_renderer.js and calendar_year_renderer.js; the 9-line run was\ntheir shared import block. Both are gone because the two renderers now have a\nbase. What the gate could not report is the reason there was one to build: 16 of\nthe year renderer's 21 members shared a name with the common one, and three of\nthose were PREFIXES rather than copies -- onDayCellDidMount, onEventDidMount and\neventClassNames were exactly the head of the common ones, which then append.\nByte-exact detection sees a prefix as no duplication at all, which is the right\ntrade for a ratchet and the reason this pair sat at 19 units for so long.\n\nMeasured in clean worktrees: 72 at ac6b7c05d45, 53 with the two commits on top.\nThe remaining 5 runs are outside views/."
+}

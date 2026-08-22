@@ -300,3 +300,126 @@ class TestThePolyglotPreambleStillExecutes:
             f"broken and every invocation will abort before the re-exec.\n"
             f"{done.stderr.strip()}"
         )
+
+
+class TestRestartWithoutSuites:
+    """`--restart` is read on the way into a run, but a run is not required.
+
+    It returned 0 here having stopped nothing, so `hoot --restart` on its own
+    left the warm server up and the next invocation quietly tested the sources
+    as they were at ITS boot -- the failure mode the no-file-watcher banner
+    warns about, reached by a command that looks like the cure for it.
+    """
+
+    @staticmethod
+    def _spy(cli, monkeypatch):
+        calls = []
+
+        def stop_server(db, clean=False):
+            calls.append((db, clean))
+            return f"Stopped server db={db}."
+
+        monkeypatch.setattr(cli.H, "stop_server", stop_server)
+        monkeypatch.setattr(cli.H, "modules_for_suites", lambda suites: ("web",))
+        monkeypatch.setattr(cli.H, "db_for_modules", lambda modules: "hoot_web")
+        return calls
+
+    @staticmethod
+    def _run(cli, monkeypatch, argv):
+        monkeypatch.setattr(sys, "argv", ["hoot", *argv])
+        with redirect_stdout(io.StringIO()):
+            return cli.main()
+
+    def test_bare_restart_stops_the_warm_server(self, cli, monkeypatch):
+        calls = self._spy(cli, monkeypatch)
+        assert self._run(cli, monkeypatch, ["--restart"]) == 0
+        assert calls == [("hoot_web", False)]
+
+    def test_bare_restart_honours_an_explicit_db(self, cli, monkeypatch):
+        calls = self._spy(cli, monkeypatch)
+        assert self._run(cli, monkeypatch, ["--restart", "--db", "hoot_mine"]) == 0
+        assert calls == [("hoot_mine", False)]
+
+    def test_no_suites_and_no_restart_stops_nothing(self, cli, monkeypatch):
+        calls = self._spy(cli, monkeypatch)
+        assert self._run(cli, monkeypatch, []) == 0
+        assert calls == []
+
+
+class TestADeadServerIsNotAFailingSuite:
+    """`hoot` runs against a warm server it does not own the lifetime of. When
+    that server dies mid-run -- measured cause on this box: the per-user inotify
+    instance cap -- every test still to configure its MockServer fails on a
+    fetch, and the run reports as an ordinary wall of failures. It must not."""
+
+    def _report(self, cli, **kwargs):
+        result = cli.H.RunResult(ok=False, suites=["@web/ui"], **kwargs)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            cli._report(result)
+        return buf.getvalue()
+
+    def test_a_void_run_is_not_reported_as_failures(self, cli):
+        out = self._report(cli, failed=127, passed=282, wall=31.4, server_died=True)
+        assert "VOID" in out
+        assert "FAIL" not in out
+        assert "THE WARM SERVER DIED" in out
+
+    def test_a_void_run_says_what_to_do_instead_of_naming_tests(self, cli):
+        out = self._report(
+            cli,
+            failed=2,
+            passed=0,
+            server_died=True,
+            failed_tests=["@web/ui/dialog/a", "@web/ui/dialog/b"],
+        )
+        assert "@web/ui/dialog/a" not in out
+        assert "inotify" in out
+        assert "hoot --stop" in out
+
+    def test_an_ordinary_failure_is_still_reported_as_one(self, cli):
+        out = self._report(cli, failed=2, passed=9, failed_tests=["@web/ui/dialog/a"])
+        assert out.startswith(("\x1b[", "FAIL"))
+        assert "VOID" not in out
+        assert "@web/ui/dialog/a" in out
+
+    def test_the_shard_parses_the_void_line_rather_than_guessing(self, shard):
+        r = shard.ShardResult(0, "hoot_web_s0")
+        r.raw = "VOID  @web/ui  (THE WARM SERVER DIED DURING THIS RUN — 127 failed / 282 passed, 31.4s)\n"
+        r.rc = 1
+        r.parse()
+        assert r.status == "VOID"
+        assert (r.failed, r.passed, r.wall) == (127, 282, 31.4)
+
+
+class TestTheDeadServerCheckAsksAboutIdentity:
+    """Warmth is not the question. A concurrent `hoot` reboots a server that
+    died, so by the time this run finishes there is *a* warm server on that db --
+    just not the one whose absence produced the failures."""
+
+    def _run(self, cli, monkeypatch, before_pid, after_state):
+        state = {"pid": before_pid, "port": 8085, "db": "hoot_web"}
+        monkeypatch.setattr(
+            cli.H, "run_suites", lambda *a, **k: cli.H.RunResult(ok=False, suites=["s"], failed=3)
+        )
+        monkeypatch.setattr(cli.H, "read_state", lambda db: after_state)
+        monkeypatch.setattr(cli.H, "server_is_warm", bool)
+        args = type("A", (), {
+            "preset": "desktop", "browser_size": None, "touch": None, "tag": None,
+            "filter": None, "hook_timeout": None, "hoot_timeout": 15000,
+            "timeout": 300, "verbose": False,
+        })()
+        return cli._run_once(["s"], state, args)
+
+    def test_a_replacement_server_does_not_make_the_run_valid(self, cli, monkeypatch):
+        # died, then rebooted by someone else: warm, different pid
+        r = self._run(cli, monkeypatch, 111, {"pid": 222, "db": "hoot_web"})
+        assert r.server_died is True
+
+    def test_the_same_server_still_warm_leaves_the_result_alone(self, cli, monkeypatch):
+        r = self._run(cli, monkeypatch, 111, {"pid": 111, "db": "hoot_web"})
+        assert r.server_died is False
+
+    def test_no_server_at_all_is_a_dead_one(self, cli, monkeypatch):
+        r = self._run(cli, monkeypatch, 111, None)
+        assert r.server_died is True

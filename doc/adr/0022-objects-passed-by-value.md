@@ -5,123 +5,112 @@
 
 ## Context
 
-Two kinds of coupling in the client already have gates and records. Imports are
-one: direction, cycles and cohesion (ADR-0019). Modules and classes are the
-other: which specifiers may be reached, where a directory is entered, which
-members may be overridden (ADR-0020), and how a service exposes itself
-(ADR-0021).
+Two kinds of client coupling have gates and records: imports — direction,
+cycles, cohesion (ADR-0019) — and modules and classes — which specifiers may be
+reached, where a directory is entered, which members may be overridden
+(ADR-0020), how a service exposes itself (ADR-0021).
 
-**A third kind carries as much dependency as either, and neither can see it.** An
-object handed from one part of the system to another *by value* — as a prop, as
-an ambient bag, as a parsed structure — creates a contract on every key its
-consumers read. It produces no import edge and no inheritance relationship, so
-every gate built on those two is structurally blind to it.
+**A third kind carries as much dependency as either, and neither can see it.**
+An object handed from one part of the system to another *by value* — as a prop,
+an ambient bag, a parsed structure — creates a contract on every key its
+consumers read. It produces no import edge and no inheritance relationship.
 
 Three such objects were load-bearing in the view layer and declared nowhere.
 
 **`archInfo`** — a view's arch parser turns XML into it, and the view's model,
-controller, renderer and compiler then read keys out of it by name. It is the
-widest undeclared seam in the view layer.
+controller, renderer and compiler read keys out of it by name. The widest
+undeclared seam in the view layer.
 
 **`env.config`** — an ambient per-action bag installed by the view's
 `useSubEnv` and reachable from every component beneath it. Every view, every
-control-panel item and a good deal of a sibling repository reads keys out of it
-by name. Nothing declared what those keys were.
+control-panel item and much of a sibling repository reads keys out of it by
+name.
 
-**The field record** — `standardFieldProps` has four keys and one of them is a
-live relational record carrying 83 own members before anything inherited. Every
-field widget in the fork receives all of it, so the real interface of 155 widgets
-across four checkouts was, in effect, "the record".
+**The field record** — `standardFieldProps` has four keys and one is a live
+relational record carrying 83 own members before anything inherited. Every field
+widget in the fork receives all of it, so the real interface of 155 widgets
+across four checkouts was "the record".
 
-The existing gates say why they cannot help, each in its own docstring: the
-surface gate pins the module specifiers other addons import, and these objects
-arrive as a prop or an ambient bag rather than an import; the extension gate pins
-`(class, member)` points reached by `extends` or `patch`, and none of these is
-inherited.
+The existing gates say why they cannot help: the surface gate pins module
+specifiers other addons import, and these arrive as a prop or an ambient bag;
+the extension gate pins `(class, member)` points reached by `extends` or
+`patch`, and none of these is inherited.
 
 ### One slice has no static protection at all
 
-The view compiler does not *read* the key that holds a view's field nodes. It
+The view compiler does not *read* the key holding a view's field nodes. It
 **emits the text** of that lookup into a template it registers with OWL. Until
-OWL compiles the template, the key exists only inside a string — so the
+OWL compiles the template the key exists only inside a string — so the
 typechecker sees a string, ESLint sees a string, and every import-, member-,
-layer- and surface-based gate in `tooling/architecture/` sees a string.
+layer- and surface-based gate sees a string.
 
-Measured on this tree by renaming that key in one arch parser and leaving every
-consumer untouched: the typecheck produced **zero new errors**, the architecture
-suite produced an **identical failure set** to pristine HEAD, and the browser
-suite for that view went from 577 passing to **509 failing**. The only thing in
-the toolchain that noticed was running the code.
+Measured by renaming that key in one arch parser and leaving every consumer
+untouched: the typecheck produced **zero new errors**, the architecture suite
+produced an **identical failure set** to pristine HEAD, and the browser suite for
+that view went from 577 passing to **509 failing**. The only thing that noticed
+was running the code.
 
 ## Decision
 
-**An object that crosses a boundary by value is an interface, and is declared and
-pinned like one.** Each of the three gets a gate that records which keys are
-actually read, and fails when the tree and the declaration disagree.
+**An object that crosses a boundary by value is an interface, and is declared
+and pinned like one.** Each of the three gets a gate recording which keys are
+actually read, failing when tree and declaration disagree.
 
-The pins differ in mechanism because the objects differ in shape, and forcing one
-mechanism on all three would fit none of them:
+The pins differ in mechanism because the objects differ in shape:
 
 | object | how it is pinned |
 |---|---|
 | `env.config` | a shrink-only pin file (`tooling/architecture/env_config_surface_web.txt`), per scope — a key newly read by a wider scope is a widening and must be committed as one |
 | the field record | a `MEASURED` block regenerated by the tool, with `--check` failing when block and tree disagree |
-| `archInfo` | checked directly, **including the string-emitted slice**, which is the whole reason the gate exists rather than deferring to the typechecker |
+| `archInfo` | checked directly, **including the string-emitted slice** |
 
-The generated-text slice is the load-bearing part of the decision. A gate that
-only understood syntactic reads would cover the easy consumers and miss the one
-that no other tool can see, which is worse than not covering the object at all:
-it would report the seam as governed.
+The generated-text slice is the load-bearing part. A gate understanding only
+syntactic reads would cover the easy consumers and miss the one no other tool
+can see — worse than not covering the object at all, because it would report the
+seam as governed.
 
 ## Alternatives considered
 
-**Type the objects and let the typechecker enforce them.** The obvious answer,
-and it was refuted by measurement rather than by argument: renaming the key
-produced zero new typecheck errors, because the widest consumer builds its read
-as a string. Types help exactly where the read is syntactic, and the slice that
-most needed protection is the one where it is not. Typing these objects is still
-worth doing; it is not a substitute for this.
+**Type the objects and let the typechecker enforce them.** Refuted by
+measurement: renaming the key produced zero new typecheck errors, because the
+widest consumer builds its read as a string. Types help where the read is
+syntactic, and the slice that most needed protection is the one where it is not.
+Typing these objects is still worth doing; it is not a substitute.
 
-**Rely on the browser suite, which did catch it.** It did — at 509 failures, all
-after the fact, and with no indication of *which* contract broke. A red suite
-says something is wrong; a gate names the key and the consumer. The suite is also
-the slowest feedback in the toolchain, so it is the wrong place to learn a
-rename was unsafe.
+**Rely on the browser suite, which did catch it.** At 509 failures, after the
+fact, with no indication of *which* contract broke. A red suite says something
+is wrong; a gate names the key and the consumer. The suite is also the slowest
+feedback in the toolchain.
 
-**One gate for all three objects.** Rejected because the three are shaped
-differently — an ambient bag reached by scope, a prop object reached by every
-widget, and a parsed structure passed between a view's parts — and their pins
-differ accordingly. A single mechanism would have to be the loosest of the three,
-and the loosest one does not catch the generated-text case.
+**One gate for all three objects.** Rejected: an ambient bag reached by scope, a
+prop object reached by every widget and a parsed structure passed between a
+view's parts are shaped differently, and a single mechanism would have to be the
+loosest of the three — which does not catch the generated-text case.
 
-**Narrow the objects instead of declaring them** — pass each consumer only what
-it needs, and the interface shrinks to nothing. That is the better end state and
-it is not available first: narrowing requires knowing which keys are read, across
-four checkouts, which is exactly what these pins produce. The same relationship
-holds here as in ADR-0020, where the surface pin is the instrument that makes the
-later API decision possible.
+**Narrow the objects instead of declaring them.** The better end state, not
+available first: narrowing requires knowing which keys are read across four
+checkouts, which is what these pins produce. The same relationship as ADR-0020's
+surface pin.
 
 ## Consequences
 
-- The third kind of coupling is visible. A rename in any of the three now fails a
-  gate that names the key, instead of a browser suite that names 509 tests.
-- **Three pins must be maintained**, each regenerated by its own tool rather than
-  hand-edited, and one of them (`env.config`) needs every consumer checkout
-  present to regenerate correctly — a real operational constraint on updating it.
-- The widest of the three is declared but not narrowed. Knowing that 155 widgets
-  depend on a record with 83 own members is a precondition for reducing that
-  number and is not itself a reduction.
+- The third kind of coupling is visible. A rename fails a gate that names the
+  key, instead of a browser suite that names 509 tests.
+- **Three pins must be maintained**, each regenerated by its own tool rather
+  than hand-edited, and `env.config` needs every consumer checkout present to
+  regenerate correctly — a real operational constraint.
+- The widest of the three is declared but not narrowed. Knowing 155 widgets
+  depend on a record with 83 own members is a precondition for reducing it.
 - A fourth object of this kind would need its own gate; the pattern is
   established but not automatic, and nothing detects a new by-value seam
-  appearing. That gap is real and is not closed by this record.
-- The generated-text slice is now covered for `archInfo` specifically. Other
-  code that builds member reads as strings remains invisible to everything, and
-  this record does not claim otherwise.
+  appearing.
+- The generated-text slice is covered for `archInfo` specifically. Other code
+  that builds member reads as strings remains invisible to everything.
 
 ## Enforcement
 
-Three gates in `tooling/architecture/`, each declaring `ADR = "0022"`, all run by
-`.github/workflows/architecture.yml`:
+Three gates in `tooling/architecture/`, each declaring `ADR = "0022"`, all run
+by `.github/workflows/architecture.yml`:
 
 | gate | declares |
 |---|---|
@@ -130,5 +119,5 @@ Three gates in `tooling/architecture/`, each declaring `ADR = "0022"`, all run b
 | `tooling/architecture/js_field_record_surface.py` | what field widgets reach through the record prop |
 
 `tooling/architecture/test_gate_adr_coverage.py` checks that each citation
-resolves to this record and that it is `Accepted`. For any gate's live figures,
-run it — this record does not restate them.
+resolves to this record and that it is `Accepted`. Run any gate for its live
+figures.

@@ -1,8 +1,10 @@
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 import hoot_lib as H
@@ -598,6 +600,532 @@ class TestDbNameValidation:
             H.check_db_name(bad)
 
 
+class TestClusterUnreachableIsNotAbsence:
+    """`_psql` used to swallow every psql failure and return "".
+
+    On a shared cluster at `max_connections`, that made `db_exists` answer
+    *False* for a database that exists -- so `ensure_db` re-installed the warm
+    database, `installed_modules` reported every module missing, and
+    `_odoo_install` raised `Database init failed (rc=0)` after a run whose log
+    ended `Modules loaded.`  Every one of those is a lie about someone else's
+    working environment.
+    """
+
+    def _fake_psql(self, returncode, stdout="", stderr=""):
+        def run(cmd, **kwargs):
+            return subprocess.CompletedProcess(cmd, returncode, stdout, stderr)
+
+        return run
+
+    def test_a_failing_psql_raises_rather_than_reporting_absence(self, monkeypatch):
+        monkeypatch.setattr(
+            H.subprocess,
+            "run",
+            self._fake_psql(2, stderr="FATAL:  sorry, too many clients already"),
+        )
+        with pytest.raises(H.PostgresUnavailable) as exc:
+            H.db_exists("hoot_web")
+        assert "too many clients" in str(exc.value)
+
+    def test_a_reachable_cluster_still_answers_yes_and_no(self, monkeypatch):
+        monkeypatch.setattr(H.subprocess, "run", self._fake_psql(0, stdout="1\n"))
+        assert H.db_exists("hoot_web") is True
+        monkeypatch.setattr(H.subprocess, "run", self._fake_psql(0, stdout=""))
+        assert H.db_exists("hoot_web") is False
+
+    def test_the_error_names_the_cause_even_with_an_empty_stderr(self, monkeypatch):
+        monkeypatch.setattr(H.subprocess, "run", self._fake_psql(1))
+        with pytest.raises(H.PostgresUnavailable) as exc:
+            H.db_exists("hoot_web")
+        assert "exited 1" in str(exc.value)
+
+
+@pytest.fixture
+def isolated_lock_dir(tmp_path, monkeypatch):
+    """Keep `_boot_lock` off the real `.hoot_logs`.
+
+    Any test reaching `boot_server` takes the db's boot lock for real, so a
+    session genuinely booting `hoot_web` next door would block the suite for
+    the length of its boot -- and the suite would then act on that session's
+    server. Tests get their own lock directory.
+    """
+    monkeypatch.setattr(H, "LOG_DIR", tmp_path / "locks")
+
+
+class TestWarmServerSurvivesAnUnreachableCluster:
+    """A live warm server must not be recycled because psql could not connect.
+
+    `installed_modules` returned an empty set for every psql failure, so
+    `ensure_server` computed "every module is missing" and stopped a healthy
+    server -- then tried to rebuild it against the same unreachable cluster.
+    """
+
+    def test_an_unreachable_cluster_reuses_instead_of_recycling(self, monkeypatch):
+        stopped = []
+        monkeypatch.setattr(H, "read_state", lambda db: {"db": db, "pid": 1})
+        monkeypatch.setattr(H, "server_is_warm", lambda state: True)
+        monkeypatch.setattr(
+            H,
+            "installed_modules",
+            lambda db: (_ for _ in ()).throw(H.PostgresUnavailable("too many clients")),
+        )
+        monkeypatch.setattr(H, "stop_server", stopped.append)
+        monkeypatch.setattr(
+            H, "boot_server", lambda *a, **k: pytest.fail("must not reboot")
+        )
+
+        state, booted = H.ensure_server("hoot_web", ("web",))
+
+        assert booted is False
+        assert state["db"] == "hoot_web"
+        assert stopped == []
+
+    def test_a_reachable_cluster_still_recycles_a_server_missing_modules(
+        self, monkeypatch, isolated_lock_dir
+    ):
+        stopped = []
+        # `stop_server` unlinks the state file, so a recycled server must stop
+        # being readable. Modelling it as a constant made the boot lock's
+        # re-check see a server that no longer exists and recycle it twice.
+        recorded = {"state": {"db": "hoot_web", "pid": 1}}
+
+        def stop(db):
+            stopped.append(db)
+            recorded["state"] = None
+
+        monkeypatch.setattr(H, "read_state", lambda db: recorded["state"])
+        monkeypatch.setattr(H, "server_is_warm", lambda state: state is not None)
+        monkeypatch.setattr(H, "installed_modules", lambda db: {"base"})
+        monkeypatch.setattr(H, "stop_server", stop)
+        monkeypatch.setattr(H, "boot_server", lambda *a, **k: {"db": "hoot_web"})
+
+        _, booted = H.ensure_server("hoot_web", ("web",))
+
+        assert booted is True
+        assert stopped == ["hoot_web"]
+
+
+class _Resp:
+    def __init__(self, status_code):
+        self.status_code = status_code
+
+
+class TestBusyIsNotDead:
+    """A server that is merely slow must not be called dead.
+
+    The health check was a single 2 s probe whose every failure -- read
+    timeout, 5xx from a starved connection pool -- collapsed to "not warm".
+    That false negative is what made `ensure_server` boot a replacement, and
+    the replacement is what lost the original's pid.
+    """
+
+    def test_a_refused_connection_is_down(self, monkeypatch):
+        import requests
+
+        monkeypatch.setattr(
+            requests,
+            "get",
+            lambda *a, **k: (_ for _ in ()).throw(requests.ConnectionError("refused")),
+        )
+        assert H._http_probe(9999) == "down"
+
+    def test_a_read_timeout_is_busy_not_down(self, monkeypatch):
+        import requests
+
+        monkeypatch.setattr(
+            requests,
+            "get",
+            lambda *a, **k: (_ for _ in ()).throw(requests.ReadTimeout("slow")),
+        )
+        assert H._http_probe(9999) == "busy"
+
+    def test_a_connect_timeout_is_busy_despite_subclassing_connectionerror(
+        self, monkeypatch
+    ):
+        """On loopback a refusal is instant, so a timed-out handshake means
+        the backlog is full -- the busiest server, not an absent one."""
+        import requests
+
+        assert issubclass(requests.ConnectTimeout, requests.ConnectionError), (
+            "the ordering this test guards is only needed while that holds"
+        )
+        monkeypatch.setattr(
+            requests,
+            "get",
+            lambda *a, **k: (_ for _ in ()).throw(requests.ConnectTimeout("backlog")),
+        )
+        assert H._http_probe(9999) == "busy"
+
+    def test_a_5xx_is_busy_not_down(self, monkeypatch):
+        import requests
+
+        monkeypatch.setattr(requests, "get", lambda *a, **k: _Resp(500))
+        assert H._http_probe(9999) == "busy"
+
+    def test_a_down_port_is_not_retried(self, monkeypatch):
+        """`--status` must stay fast: a refused port cannot become an answer."""
+        calls = []
+        monkeypatch.setattr(
+            H, "_http_probe", lambda port, *a: (calls.append(port), "down")[1]
+        )
+        monkeypatch.setattr(H.time, "sleep", lambda s: pytest.fail("must not wait"))
+
+        assert H._server_responsive(9999) is False
+        assert len(calls) == 1
+
+    def test_a_busy_server_answering_late_is_still_responsive(self, monkeypatch):
+        verdicts = iter(["busy", "busy", "up"])
+        monkeypatch.setattr(H, "_http_probe", lambda port, *a: next(verdicts))
+        monkeypatch.setattr(H.time, "sleep", lambda s: None)
+
+        assert H._server_responsive(9999) is True
+
+
+class TestReplacedServerIsNeverAbandoned:
+    """Booting a replacement must not forget the server it replaces.
+
+    A db has exactly one state file and `boot_server` ends in `write_state`,
+    so booting over a still-running pid left that process with nothing
+    pointing at it: invisible to `--status`, `--stop --all` and `--clean`, and
+    unprotected from `_prune_logs`. One workspace reached 16 servers on
+    `hoot_web` and exhausted a 100-slot cluster this way.
+    """
+
+    def _record(self, monkeypatch, tmp_path, *, pid_alive):
+        monkeypatch.setattr(
+            H, "read_state", lambda db: {"db": db, "pid": 4242, "port": 8085}
+        )
+        monkeypatch.setattr(H, "server_is_warm", lambda state: False)
+        monkeypatch.setattr(H, "_pid_alive", lambda pid: pid_alive)
+        monkeypatch.setattr(H, "state_file", lambda db: tmp_path / f".{db}.json")
+        monkeypatch.setattr(
+            H, "boot_server", lambda *a, **k: {"db": "hoot_web", "pid": 99}
+        )
+
+    def test_a_live_but_unresponsive_server_is_stopped_first(
+        self, monkeypatch, tmp_path, isolated_lock_dir
+    ):
+        killed = []
+        self._record(monkeypatch, tmp_path, pid_alive=True)
+        monkeypatch.setattr(H, "_terminate_pid", killed.append)
+
+        _, booted = H.ensure_server("hoot_web", ("web",))
+
+        assert booted is True
+        assert killed == [4242], "the replaced server was left running"
+
+    def test_the_superseded_record_is_removed(
+        self, monkeypatch, tmp_path, isolated_lock_dir
+    ):
+        self._record(monkeypatch, tmp_path, pid_alive=True)
+        monkeypatch.setattr(H, "_terminate_pid", lambda pid: None)
+        stale = tmp_path / ".hoot_web.json"
+        stale.write_text("{}")
+
+        H.ensure_server("hoot_web", ("web",))
+
+        assert not stale.exists()
+
+    def test_a_dead_record_terminates_nothing(
+        self, monkeypatch, tmp_path, isolated_lock_dir
+    ):
+        killed = []
+        self._record(monkeypatch, tmp_path, pid_alive=False)
+        monkeypatch.setattr(H, "_terminate_pid", killed.append)
+
+        H.ensure_server("hoot_web", ("web",))
+
+        assert killed == []
+
+    def test_the_reuse_path_terminates_nothing(self, monkeypatch):
+        """Reuse is the common case: two sessions share one warm server."""
+        monkeypatch.setattr(
+            H, "read_state", lambda db: {"db": db, "pid": 4242, "port": 8085}
+        )
+        monkeypatch.setattr(H, "server_is_warm", lambda state: True)
+        monkeypatch.setattr(H, "installed_modules", lambda db: {"web"})
+        monkeypatch.setattr(
+            H, "_terminate_pid", lambda pid: pytest.fail("killed a healthy server")
+        )
+        monkeypatch.setattr(
+            H, "boot_server", lambda *a, **k: pytest.fail("must not reboot")
+        )
+
+        _, booted = H.ensure_server("hoot_web", ("web",))
+
+        assert booted is False
+
+
+_RACE_WORKER = """
+import os, sys, time
+sys.path.insert(0, {hoot_dir!r})
+from pathlib import Path
+import hoot_lib as H
+
+shared = Path(sys.argv[1])
+H.SCRIPT_DIR = shared
+H.LOG_DIR = shared / "logs"
+H.STATE_FILE = shared / ".hoot_state.json"
+
+def fake_boot(db, modules=("web",), verbose=False):
+    time.sleep(1.0)                      # a real boot is ~12s
+    state = {{"pid": os.getpid(), "port": 9000 + os.getpid() % 1000,
+              "db": db, "log": "", "started": 0.0}}
+    H.write_state(state)
+    (shared / ("booted." + str(os.getpid()))).write_text("1")
+    return state
+
+H.boot_server = fake_boot
+H._pid_alive = lambda pid: False         # so nothing is ever terminated
+H.server_is_warm = lambda st: st is not None   # a recorded server is usable
+H.installed_modules = lambda db: {{"web"}}
+H.ensure_server("hoot_web", ("web",))
+"""
+
+
+class TestConcurrentBootDoesNotDuplicate:
+    """N sessions finding no warm server must produce ONE server, not N.
+
+    The port locks made concurrent boots pick different ports; nothing made
+    them pick different databases. A db has one state file, so every racer
+    wrote it and the last write won -- the rest stayed alive, unreferenced.
+    Measured before `_boot_lock`: 4 processes -> 4 servers, 1 record.
+
+    Real processes, not threads: `flock` is what is under test, and a thread
+    pair in one process shares neither the failure nor the fix faithfully
+    (`write_state` even names its temp file by pid alone).
+    """
+
+    def test_four_concurrent_sessions_boot_one_server(self, tmp_path):
+        worker = tmp_path / "worker.py"
+        worker.write_text(_RACE_WORKER.format(hoot_dir=str(Path(H.__file__).parent)))
+        shared = tmp_path / "shared"
+        (shared / "logs").mkdir(parents=True)
+
+        procs = [
+            subprocess.Popen([sys.executable, str(worker), str(shared)])
+            for _ in range(4)
+        ]
+        for p in procs:
+            assert p.wait(timeout=120) == 0, "a racing session crashed"
+
+        booted = list(shared.glob("booted.*"))
+        records = list(shared.glob(".hoot_state*.json"))
+        assert len(booted) == 1, (
+            f"{len(booted)} servers booted for one db; "
+            f"{len(booted) - len(records)} of them would be orphans"
+        )
+        assert len(records) == 1
+
+
+class TestFilestoreIsDroppedWithItsDatabase:
+    """`DROP DATABASE` leaves the filestore, so every drop leaked one.
+
+    Found by dropping a scratch db and seeing its 13 MB filestore survive;
+    the same mechanism had left 109 directories and 4.4 GB behind.
+    """
+
+    def _conf(self, tmp_path, monkeypatch, body):
+        conf = tmp_path / "env.conf"
+        conf.write_text(body)
+        monkeypatch.setattr(H, "CONF", conf)
+        return conf
+
+    def test_data_dir_is_read_from_the_config(self, tmp_path, monkeypatch):
+        self._conf(tmp_path, monkeypatch, "[options]\ndata_dir = /srv/odoo-data\n")
+        assert H.data_dir() == Path("/srv/odoo-data")
+
+    def test_an_inline_comment_is_not_part_of_the_path(self, tmp_path, monkeypatch):
+        """`db_port = 5432 ; the default` parses as 5432 for the server too."""
+        self._conf(
+            tmp_path, monkeypatch, "[options]\ndata_dir = /srv/odoo-data ; scratch\n"
+        )
+        assert H.data_dir() == Path("/srv/odoo-data")
+
+    def test_a_config_without_data_dir_says_so(self, tmp_path, monkeypatch):
+        self._conf(tmp_path, monkeypatch, "[options]\nhttp_port = 8069\n")
+        assert H.data_dir() is None
+
+    def test_no_config_at_all_says_so(self, monkeypatch):
+        monkeypatch.setattr(H, "CONF", None)
+        assert H.data_dir() is None
+
+    def test_the_filestore_is_removed(self, tmp_path, monkeypatch):
+        self._conf(tmp_path, monkeypatch, f"[options]\ndata_dir = {tmp_path / 'd'}\n")
+        store = tmp_path / "d" / "filestore" / "hoot_probe"
+        store.mkdir(parents=True)
+        (store / "ab" / "cd").mkdir(parents=True)
+        (store / "ab" / "cd" / "blob").write_text("x")
+
+        assert H.drop_filestore("hoot_probe") is True
+        assert not store.exists()
+
+    def test_a_neighbour_database_is_untouched(self, tmp_path, monkeypatch):
+        self._conf(tmp_path, monkeypatch, f"[options]\ndata_dir = {tmp_path / 'd'}\n")
+        keep = tmp_path / "d" / "filestore" / "hoot_other"
+        keep.mkdir(parents=True)
+        (tmp_path / "d" / "filestore" / "hoot_probe").mkdir()
+
+        H.drop_filestore("hoot_probe")
+        assert keep.is_dir(), "dropped a database's filestore took a neighbour with it"
+
+    def test_nothing_to_remove_is_not_an_error(self, tmp_path, monkeypatch):
+        self._conf(tmp_path, monkeypatch, f"[options]\ndata_dir = {tmp_path / 'd'}\n")
+        (tmp_path / "d" / "filestore").mkdir(parents=True)
+        assert H.drop_filestore("hoot_absent") is False
+
+    def test_no_data_dir_removes_nothing(self, tmp_path, monkeypatch):
+        self._conf(tmp_path, monkeypatch, "[options]\nhttp_port = 8069\n")
+        assert H.drop_filestore("hoot_probe") is False
+
+    @pytest.mark.parametrize("escape", ["../../etc", "..", "a/../../b", "/etc"])
+    def test_a_name_that_escapes_the_filestore_is_refused(
+        self, tmp_path, monkeypatch, escape
+    ):
+        """`check_db_name` already blocks these; the containment check is the
+        second lock on a door that opens onto `rmtree`."""
+        self._conf(tmp_path, monkeypatch, f"[options]\ndata_dir = {tmp_path / 'd'}\n")
+        (tmp_path / "d" / "filestore").mkdir(parents=True)
+        with pytest.raises(SystemExit):
+            H.drop_filestore(escape)
+
+    def test_containment_refuses_even_if_the_name_check_is_bypassed(
+        self, tmp_path, monkeypatch
+    ):
+        """The second lock must hold on its own.
+
+        The escape cases above never reach it -- `check_db_name` raises first
+        -- so without neutralising that, the containment check is asserted by
+        nothing and could be deleted with every test still green.
+        """
+        self._conf(tmp_path, monkeypatch, f"[options]\ndata_dir = {tmp_path / 'd'}\n")
+        (tmp_path / "d" / "filestore").mkdir(parents=True)
+        outsider = tmp_path / "d" / "not_the_filestore"
+        outsider.mkdir()
+
+        monkeypatch.setattr(H, "check_db_name", lambda db: db)  # first lock off
+
+        assert H.drop_filestore("../not_the_filestore") is False
+        assert outsider.is_dir(), "reached a directory outside the filestore"
+
+    def test_a_failed_drop_leaves_the_filestore_alone(self, tmp_path, monkeypatch):
+        """A filestore whose database still exists is live data, not litter."""
+        self._conf(tmp_path, monkeypatch, f"[options]\ndata_dir = {tmp_path / 'd'}\n")
+        store = tmp_path / "d" / "filestore" / "hoot_probe"
+        store.mkdir(parents=True)
+
+        class Failed:
+            returncode = 1
+
+        monkeypatch.setattr(H.subprocess, "run", lambda *a, **k: Failed())
+        H.drop_db("hoot_probe")
+        assert store.is_dir(), "filestore removed although DROP DATABASE failed"
+
+
+class TestUntrackedServerDiscovery:
+    """Ground truth is /proc; the state files are only the record of it.
+
+    Orphans predating this fix -- or left by a crash between boot and
+    `write_state` -- are reachable no other way.
+    """
+
+    def test_the_pattern_matches_the_flag_boot_actually_writes(self):
+        assert H._DB_FILTER_RE.match("--db-filter=^hoot_web$").group(1) == "hoot_web"
+
+    def test_a_partial_db_filter_is_not_matched(self):
+        assert H._DB_FILTER_RE.match("--db-filter=^hoot_") is None
+
+    def test_a_recorded_server_is_not_untracked(self, monkeypatch):
+        monkeypatch.setattr(H, "find_server_processes", lambda: {7: "hoot_web"})
+        monkeypatch.setattr(
+            H, "read_all_states", lambda: [{"pid": 7, "db": "hoot_web"}]
+        )
+
+        assert H.find_untracked_servers() == {}
+
+    def test_an_unrecorded_server_is_reported(self, monkeypatch):
+        monkeypatch.setattr(
+            H, "find_server_processes", lambda: {7: "hoot_web", 9: "hoot_mail"}
+        )
+        monkeypatch.setattr(
+            H, "read_all_states", lambda: [{"pid": 7, "db": "hoot_web"}]
+        )
+        monkeypatch.setattr(H, "_process_age", lambda pid: H.ORPHAN_GRACE + 1)
+
+        assert H.find_untracked_servers() == {9: "hoot_mail"}
+
+    def test_a_booting_server_is_not_yet_an_orphan(self, monkeypatch):
+        """`write_state` lands only after the server answers HTTP, so a
+        healthy server is unrecorded for its whole boot. Calling that an
+        orphan makes `--status` lie and `--stop --all` kill a live boot."""
+        monkeypatch.setattr(H, "find_server_processes", lambda: {9: "hoot_mail"})
+        monkeypatch.setattr(H, "read_all_states", list)
+        monkeypatch.setattr(H, "_process_age", lambda pid: 5.0)
+
+        assert H.find_untracked_servers() == {}
+
+    def test_an_old_unrecorded_server_is_an_orphan(self, monkeypatch):
+        monkeypatch.setattr(H, "find_server_processes", lambda: {9: "hoot_mail"})
+        monkeypatch.setattr(H, "read_all_states", list)
+        monkeypatch.setattr(H, "_process_age", lambda pid: H.ORPHAN_GRACE + 1)
+
+        assert H.find_untracked_servers() == {9: "hoot_mail"}
+
+    def test_the_grace_outlasts_the_boot_deadline(self):
+        """A grace shorter than the boot timeout would still catch a boot."""
+        assert H.ORPHAN_GRACE > 120, "boot may take the full 120s in _boot_server_on"
+
+    def test_an_unreadable_process_is_not_reaped(self, monkeypatch):
+        """The orphan list feeds a kill: unreadable must mean 'leave alone'."""
+        monkeypatch.setattr(H, "find_server_processes", lambda: {9: "hoot_mail"})
+        monkeypatch.setattr(H, "read_all_states", list)
+        assert not H._process_age(2**30)  # no such pid
+        monkeypatch.setattr(H, "_process_age", lambda pid: 0.0)
+        assert H.find_untracked_servers() == {}
+
+    def test_a_real_process_reports_a_plausible_age(self):
+        proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(20)"])
+        try:
+            assert 0.0 <= H._process_age(proc.pid) < 10.0
+        finally:
+            proc.kill()
+            proc.wait()
+
+    def test_reaping_terminates_only_the_orphan(self, monkeypatch):
+        killed = []
+        monkeypatch.setattr(H, "find_untracked_servers", lambda: {9: "hoot_mail"})
+        monkeypatch.setattr(H, "_terminate_pid", killed.append)
+        monkeypatch.setattr(H, "drop_db", lambda db: pytest.fail("no --clean asked"))
+
+        msg = H.stop_untracked_servers()
+
+        assert killed == [9]
+        assert "pid=9" in msg and "hoot_mail" in msg
+
+    def test_nothing_to_reap_says_nothing(self, monkeypatch):
+        monkeypatch.setattr(H, "find_untracked_servers", dict)
+        assert H.stop_untracked_servers() == ""
+
+    def test_this_checkouts_own_server_is_discoverable(self):
+        """The signature must match a real process, not an imagined one.
+
+        Asserting on the parts `_boot_server_on` writes keeps discovery and
+        boot from drifting apart -- the failure mode being a reaper that
+        silently finds nothing.
+        """
+        found = H.find_server_processes()
+        assert isinstance(found, dict)
+        for pid, db in found.items():
+            argv = (
+                Path(f"/proc/{pid}/cmdline")
+                .read_bytes()
+                .decode("utf8", "replace")
+                .split("\0")
+            )
+            assert str(H.ODOO_BIN) in argv
+            assert f"--db-filter=^{db}$" in argv
+
+
 class TestShardRunnerCoversCI:
     def test_ci_runner_suites_is_not_empty(self):
         assert H.ci_runner_suites("web"), (
@@ -634,3 +1162,125 @@ class TestShardWeights:
     def test_weights_file_lives_under_data(self):
         weights = Path(H.__file__).resolve().parent / "data" / "hoot_shard_weights.json"
         assert weights.is_file(), "hoot-shard's weights table did not survive the move"
+
+
+@contextmanager
+def _env(**overrides):
+    """Set or clear environment variables for the duration of a block."""
+    previous = {k: os.environ.get(k) for k in overrides}
+    try:
+        for key, value in overrides.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        yield
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
+def test_port_range_default_is_wider_than_one_workspace() -> None:
+    with _env(ODOO_HOOT_PORTS=None):
+        assert H._port_range() == range(8085, 8145)
+
+
+def test_port_range_accepts_first_last_and_first_count() -> None:
+    with _env(ODOO_HOOT_PORTS="9000-9002"):
+        assert H._port_range() == range(9000, 9003)
+    with _env(ODOO_HOOT_PORTS="9000+3"):
+        assert H._port_range() == range(9000, 9003)
+    with _env(ODOO_HOOT_PORTS="9100"):
+        assert H._port_range() == range(9100, 9101)
+    with _env(ODOO_HOOT_PORTS="  9000-9001  "):
+        assert H._port_range() == range(9000, 9002)
+
+
+def test_port_range_rejects_what_it_cannot_read() -> None:
+    with _env(ODOO_HOOT_PORTS=""):
+        # empty means "unset": fall back to the default
+        assert H._port_range() == range(8085, 8145)
+    for spec in ("nonsense", "9000-8999", "0-10", "9000-99999", "9000+0"):
+        with (
+            _env(ODOO_HOOT_PORTS=spec),
+            pytest.raises(SystemExit, match="ODOO_HOOT_PORTS"),
+        ):
+            H._port_range()
+
+
+def test_the_mobile_tag_pattern_matches_the_suites_own() -> None:
+    """The copy in hoot_lib must be the pattern MobileWebSuite selects with.
+
+    Two copies of a rule is a rule that drifts; this one is duplicated on
+    purpose (reaching for the original costs an odoo bootstrap) and so has to be
+    compared rather than trusted.
+    """
+    upstream = (H.ODOO_ROOT / "addons" / "web" / "tests" / "test_js.py").read_text(
+        encoding="utf-8"
+    )
+    match = re.search(r"^RE_MOBILE_TAG = re\.compile\((.*)\)$", upstream, re.MULTILINE)
+    assert match, "MobileWebSuite no longer defines RE_MOBILE_TAG on one line"
+    assert eval(match.group(1)) == H.RE_MOBILE_TAG.pattern, (  # noqa: S307
+        "hoot_lib.RE_MOBILE_TAG has drifted from web/tests/test_js.py's"
+    )
+
+
+def test_mobile_tagged_files_finds_the_files_that_own_a_mobile_test() -> None:
+    ui = H.mobile_tagged_files(["@web/ui"])
+    names = {p.name for p in ui}
+    # the sheet is mobile-only and the dialog goes fullscreen there; both own
+    # mobile-tagged tests, so a desktop-preset run does not execute them
+    assert "bottom_sheet.test.js" in names, names
+    assert "dialog_service.test.js" in names, names
+    # a file with no mobile tag is not reported
+    assert "viewport.test.js" not in names, names
+    assert H.mobile_tagged_files([]) == []
+
+
+class TestWatcherWarning:
+    """A server whose inotify watcher failed serves the sources as they were at
+    boot, so every later run silently tests stale code. The server says so, once,
+    in a log nobody reads during a green run -- these pin that the runner repeats
+    it where the answer is.
+
+    This is not hypothetical: three servers on this box logged it while fifteen
+    warm servers were up, and the symptom was a correct fix appearing to fail and
+    a pre-existing failure appearing to pass.
+    """
+
+    WARNING = (
+        "2026-01-01 00:00:00,000 1 WARNING uid:- ? odoo.service.server: "
+        "Could not start the file watcher — the server runs without it, so "
+        "source edits are NOT picked up."
+    )
+
+    def test_fires_on_a_log_that_carries_the_warning(self, tmp_path, caplog):
+        log = tmp_path / "server_hoot_web.log"
+        log.write_text(f"boot line\n{self.WARNING}\nmore\n", encoding="utf8")
+
+        assert H.warn_if_no_watcher(log) is True
+        assert "NO file watcher" in caplog.text
+        assert "max_user_watches" in caplog.text
+
+    def test_silent_on_a_healthy_log(self, tmp_path, caplog):
+        log = tmp_path / "server_hoot_web.log"
+        log.write_text("boot line\nHTTP service (werkzeug) running\n", encoding="utf8")
+
+        assert H.warn_if_no_watcher(log) is False
+        assert caplog.text == ""
+
+    def test_silent_when_the_log_is_gone(self, tmp_path):
+        assert H.warn_if_no_watcher(tmp_path / "absent.log") is False
+
+    def test_the_reuse_path_checks_too(self):
+        """The boot path is the easy one. Reuse is where it bites: "Reusing warm
+        server" reads like everything is fine while the bundle is frozen."""
+        source = (Path(H.__file__)).read_text(encoding="utf8")
+        reuse = source[source.index("def ensure_server") :]
+        assert reuse.count("warn_if_no_watcher") >= 2, (
+            "both the plain reuse branch and the cannot-re-verify branch must "
+            "check, not just one"
+        )

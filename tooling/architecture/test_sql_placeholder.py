@@ -125,6 +125,41 @@ class TestWhatItMustNotReport(GateCase):
             with self.subTest(source=source):
                 self.assertEqual(self.findings(source), [])
 
+    def test_a_docstring_describing_the_defect_is_not_the_defect(self):
+        """The gate reported `sql_in_placeholder.py`'s own opening paragraph.
+
+        Every ``ast.Constant`` string was in scope and a module docstring is one,
+        so the sibling gate quoting ``WHERE id IN %s`` to explain what it hunts
+        was a CI-red finding on a line no statement will ever execute. The rule
+        has to be spellable in the tree that enforces it. All four docstring
+        positions, because ``ast.walk`` reaches them by different node types.
+        """
+        for source in (
+            '"""Do not write WHERE id IN %s -- psycopg 3 cannot bind it."""\n',
+            'class C:\n    """Do not write WHERE id IN %s here either."""\n',
+            'def f():\n    """WHERE id IN %s is the shape this forbids."""\n',
+            'async def f():\n    """WHERE id IN %s is the shape this forbids."""\n',
+        ):
+            with self.subTest(source=source):
+                self.assertEqual(self.findings(source), [])
+
+    def test_a_statement_below_a_docstring_is_still_read(self):
+        """Exempting the docstring must not exempt the module that carries one."""
+        source = (
+            '"""WHERE id IN %s is the shape this forbids."""\n'
+            'cr.execute("SELECT id FROM t WHERE id IN %s", ids)\n'
+        )
+        self.assertEqual(self.kinds(source), ["in-placeholder"])
+
+    def test_a_bare_string_expression_is_not_a_docstring(self):
+        """Only the *first* statement of a body is prose; the rest is code."""
+        source = (
+            '"""Module prose."""\n'
+            'query = "SELECT id FROM t WHERE id IN %s"\n'
+            "cr.execute(query, ids)\n"
+        )
+        self.assertEqual(self.kinds(source), ["in-placeholder"])
+
     def test_the_supported_spelling_expands_the_placeholder(self):
         self.assertEqual(
             self.findings('cr.execute(SQL("SELECT id FROM t WHERE id IN %s", tup))\n'),

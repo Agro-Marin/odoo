@@ -14,7 +14,7 @@ ADR = "0021"
 ROOT = find_odoo_root(Path(__file__).resolve(), tool="js_service_shape")
 WEB_SRC = ROOT / "addons" / "web" / "static" / "src"
 
-GOVERNED_ADDONS = ("web", "mail")
+GOVERNED_ADDONS = ("web", "mail", "account", "stock")
 DEFAULT_ADDON = "web"
 
 

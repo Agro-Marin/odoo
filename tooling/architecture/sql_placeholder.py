@@ -124,13 +124,31 @@ def _python_files(roots: list[Path]) -> list[Path]:
 def _exempt_literals(tree: ast.Module) -> set[tuple[int, int]]:
     """Literals the `IN` rule must not read.
 
-    ``SQL()`` arguments, because that spelling rewrites the placeholder; and the
-    left operand of ``%``, where Python writes the values into the statement text
+    ``SQL()`` arguments, because that spelling rewrites the placeholder; the left
+    operand of ``%``, where Python writes the values into the statement text
     before Postgres sees it -- a CHECK constraint listing what it allows, not a
-    bind.
+    bind; and docstrings, which are prose about code rather than code.
+
+    The docstring case is not hypothetical and not confined to this directory.
+    ``sql_in_placeholder.py`` opens by quoting ``WHERE id IN %s`` to explain the
+    shape it hunts, and this gate reported its sibling's own explanation as a
+    defect -- red in CI, on a line no statement will ever execute. Every
+    ``ast.Constant`` string was in scope, and a module docstring is one. The
+    documented anti-pattern has to be *spellable* in the tree that forbids it,
+    or the rule cannot be written down anywhere the rule can see.
     """
     exempt: set[tuple[int, int]] = set()
     for node in ast.walk(tree):
+        if isinstance(
+            node, ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef
+        ):
+            first = node.body[0] if node.body else None
+            if (
+                isinstance(first, ast.Expr)
+                and isinstance(first.value, ast.Constant)
+                and isinstance(first.value.value, str)
+            ):
+                exempt.add((first.value.lineno, first.value.col_offset))
         if isinstance(node, ast.Call):
             name = (
                 node.func.id

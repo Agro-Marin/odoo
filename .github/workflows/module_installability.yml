@@ -190,3 +190,40 @@ jobs:
             echo "::error::at the top of this workflow."
             exit 1
           fi
+
+      # The only lane with every module installed, which is the only scope at
+      # which this question can be asked of every bundle. `test_lint`'s own lane
+      # installs test_lint alone and therefore sees 22 of 118 declared bundles;
+      # here it sees 78, and reported three bundles' worth of escapes the first
+      # time it was run at this scope (a58d2b9bba0). Free to add: the database is
+      # already built, and the class is two test methods.
+      #
+      # Bundle *assembly* is checked at both scopes; what only works here is
+      # whether the modules in an assembled bundle can resolve the relative
+      # imports they make. A bundle that cannot has the browser fetching a
+      # module as raw source, outside the import map.
+      - name: Every bundled module resolves its own imports
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_installability \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --test-enable --test-tags '/test_lint:TestBundlesAssemble' \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=warn --log-handler=odoo.addons.test_lint:INFO \
+            --logfile=/dev/stdout 2>&1 | tee /tmp/bundles.log
+          if grep -qE '[1-9][0-9]* (failed|error\(s\))' /tmp/bundles.log; then
+            echo "::error::a bundle does not assemble, or carries a module that"
+            echo "::error::cannot resolve its own relative imports — see above."
+            exit 1
+          fi
+          # The scope this ran at, which is the whole reason the step is here
+          # rather than in test_lint.yml. `--log-handler` and not a bare
+          # `--log-level=info`: the summary is one INFO line from one logger, and
+          # raising the level for 644 modules' registry load to read it would bury
+          # it. `|| true` because a grep that matches nothing exits 1, and a
+          # missing summary line is not a reason to fail a green check.
+          grep -oE '[0-9]+ of [0-9]+ declared bundle\(s\) resolve[^"]*' /tmp/bundles.log \
+            | tail -1 || true

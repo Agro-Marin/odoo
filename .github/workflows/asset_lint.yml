@@ -46,6 +46,16 @@ name: Asset & Palette Lint (DB-backed)
 # (project.webclient's theme globs, web_enterprise's navbar) are not reachable
 # from this repo and stay a manual check.
 #
+# TestSchemeDuplication is here for that same reason, and was not: its floors are
+# per module -- 26 of them, mail 58, html_editor 28, website 19 -- and a module
+# that is not installed contributes nothing to measure, so every floor but web's
+# passed by describing an absence. It ran only in test_lint.yml, whose INSTALL is
+# `test_lint` alone. Run against the set below it reports point_of_sale, which no
+# floor named, from two `color: $o-brand-secondary` declarations in
+# pos_kanban_view.scss -- a palette variable with no token to answer it and no
+# `$o-dark-` counterpart, so the floor records the debt rather than inventing a
+# colour to close it.
+#
 # Why template0 + C collation: as integration_tests.yml -- Odoo only creates
 # with `LC_COLLATE 'C'` when db_template is template0.
 
@@ -93,6 +103,7 @@ env:
     /test_lint:TestEsmSpecifiers,
     /test_lint:TestGreyRampToken,
     /test_lint:TestColorSchemeReads,
+    /test_lint:TestSchemeDuplication,
     /web:TestDarkBundles,
     /web:TestTokenLayer,
     /web:TestLazyBundleRelativeImports,

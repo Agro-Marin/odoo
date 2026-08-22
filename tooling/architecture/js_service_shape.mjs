@@ -1,7 +1,55 @@
 import { readFileSync } from "node:fs";
 import * as espree from "espree";
 
-const PARSE = { ecmaVersion: "latest", sourceType: "module", loc: true };
+const PARSE = {
+    ecmaVersion: "latest",
+    sourceType: "module",
+    loc: true,
+    comment: true,
+};
+
+// Comment lines are skipped so this gate's LARGE and js_function_length.py's
+// MAX_LINES mean the same thing. Both are 80 and test_js_service_shape.py
+// cross-checks the two tools against each other, but funclen measures through
+// eslint max-lines-per-function with skipComments true, deliberately, so that
+// documenting a function does not cost ratchet budget. Counting raw body lines
+// here made connection_recovery_service.js an 86-line offender funclen never
+// reported, and the cross-check failed finding 0 of 1. A line counts as a
+// comment line only when blanking every comment span on it leaves whitespace,
+// which is what eslint means and what a column-0 test would get wrong for the
+// indented comment that is the common case. Blank lines still count, matching
+// skipBlankLines: false there.
+function codeLines(body, comments, sourceLines) {
+    const first = body.loc.start.line;
+    const last = body.loc.end.line;
+    const blanked = new Map();
+    for (const c of comments) {
+        if (c.loc.end.line < first || c.loc.start.line > last) {
+            continue;
+        }
+        for (let ln = c.loc.start.line; ln <= c.loc.end.line; ln++) {
+            if (ln < first || ln > last) {
+                continue;
+            }
+            const text = blanked.get(ln) ?? sourceLines[ln - 1] ?? "";
+            const from = ln === c.loc.start.line ? c.loc.start.column : 0;
+            const to = ln === c.loc.end.line ? c.loc.end.column : text.length;
+            blanked.set(
+                ln,
+                text.slice(0, from) +
+                    " ".repeat(Math.max(0, to - from)) +
+                    text.slice(to),
+            );
+        }
+    }
+    let commentOnly = 0;
+    for (const [, text] of blanked) {
+        if (text.trim() === "") {
+            commentOnly++;
+        }
+    }
+    return last - first + 1 - commentOnly;
+}
 
 const TRANSPARENT_WRAPPERS = new Set(["reactive", "markRaw"]);
 
@@ -134,8 +182,10 @@ function localScope(fn) {
 
 for (const file of process.argv.slice(2)) {
     let ast;
+    let source;
     try {
-        ast = espree.parse(readFileSync(file, "utf8"), PARSE);
+        source = readFileSync(file, "utf8");
+        ast = espree.parse(source, PARSE);
     } catch {
         continue;
     }
@@ -171,21 +221,33 @@ for (const file of process.argv.slice(2)) {
         );
     };
 
+    // A service reaches `.add()` either as a named binding or as an object
+    // literal written straight into the call. Matching only the first left the
+    // second unseen: `stock_warehouse` returned an object literal from `start()`
+    // -- the exact shape this gate faults -- and was reported as no service at
+    // all, so the gate read 0 while the offence was in the tree. Registration
+    // form is not what is being measured, so both are collected here.
     const registered = new Map();
+    const objects = new Map();
+    let inlineSeq = 0;
     walk(ast, (n) => {
-        if (
-            n.type === "CallExpression" &&
-            isServicesAdd(n.callee) &&
-            n.arguments[1]?.type === "Identifier"
-        ) {
-            registered.set(n.arguments[1].name, n.arguments[0]?.value ?? "?");
+        if (n.type !== "CallExpression" || !isServicesAdd(n.callee)) {
+            return;
+        }
+        const name = n.arguments[0]?.value ?? "?";
+        const definition = n.arguments[1];
+        if (definition?.type === "Identifier") {
+            registered.set(definition.name, name);
+        } else if (definition?.type === "ObjectExpression") {
+            const key = `<inline:${inlineSeq++}>`;
+            registered.set(key, name);
+            objects.set(key, definition);
         }
     });
     if (!registered.size) {
         continue;
     }
 
-    const objects = new Map();
     walk(ast, (n) => {
         if (
             n.type === "VariableDeclarator" &&
@@ -223,7 +285,7 @@ for (const file of process.argv.slice(2)) {
                 file,
                 service,
                 shape,
-                lines: fn.body.loc.end.line - fn.body.loc.start.line + 1,
+                lines: codeLines(fn.body, ast.comments ?? [], source.split("\n")),
             }) + "\n",
         );
     }

@@ -8,6 +8,8 @@ import pytest
 HERE = Path(__file__).resolve().parent
 
 GATES = {
+    "js_component_data_access": ["--check"],
+    "js_component_face": ["--check"],
     "js_cycle_check": ["--check"],
     "js_layer_check": ["--check"],
     "js_layer_cohesion": ["--check"],
@@ -18,6 +20,8 @@ GATES = {
     "js_env_config_surface": ["--check"],
     "js_arch_info_surface": ["--check"],
     "js_field_record_surface": ["--check"],
+    "js_action_surface": ["--check"],
+    "js_template_binding": ["--check"],
     "js_face_boundary": ["--check"],
     "js_import_resolution": ["--check"],
     "js_patch_blind_facade": ["--check"],
@@ -29,8 +33,16 @@ GATES = {
     "js_private_access": ["--check"],
     "xml_reference_coherence": ["--check"],
     "js_function_length": ["--count"],
+    "js_duplication": ["--count"],
+    "js_vacuous_assertions": ["--count"],
     "py_function_length": ["--count"],
+    "py_x2many_count": ["--count"],
+    "sql_in_placeholder": ["--count"],
+    "py_count_as_boolean": ["--count"],
+    "py_unresolved_calls": ["--count"],
     "js_service_shape": ["--count"],
+    "field_hook_naming": ["--count"],
+    "field_hook_purity": ["--count"],
     "naming_vocabulary": ["--count"],
     # And for the catalogue gate: 0 unresolvable strings is what a tree whose
     # every `_()` was exported looks like, so an emptied one must refuse. Its
@@ -56,6 +68,7 @@ GATES = {
     "package_index_check": ["--check"],
     "subsystem_map_check": ["--check"],
     "doc_restated_counts": ["--check"],
+    "edi_vocabulary": ["--check"],
 }
 
 UNPROBED = {

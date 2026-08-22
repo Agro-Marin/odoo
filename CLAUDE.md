@@ -85,6 +85,30 @@ CLAUDE.md comes next — named without backticks on purpose: these are file
 *kinds* a module may carry, not paths, and a backticked path in this repo
 asserts that one particular file exists.
 
+That last point is a rule these directories are held to, not a stylistic note:
+`factcheck.sh` resolves every backticked path in them, including inside a
+backticked *command*, so a deliberately-absent file is named in plain prose.
+
+**Because you read these first, their numbers become your premises — so every
+figure is gated or frozen, never bare** (`doc/coding_guidelines.rst` §1.4,
+ADR-0043). *Gated* means the module's `factcheck.sh` derives it from the tree
+and asserts the document cites it (`assert_doc_cites`); the expected value is
+never a literal in the script, because that makes the script a second copy of
+the tree. *Frozen* means pinned to a named base commit, for readings that cannot
+be re-derived — a profile, a benchmark, an ad-hoc scanner. **Do not "correct" a
+frozen figure to a current value**: the argument built on it rests on that base.
+
+Run the module's harness after changing its docs, and before believing them:
+
+```bash
+bash addons/<module>/machine_doc_v1/factcheck.sh
+```
+
+`.github/workflows/machine_doc.yml` runs every harness it discovers, blocking.
+It is not total coverage: `mail` is quarantined (literal expectations), and
+`odoo/tests`, `odoo/addons/base`, `gamification` and `base_automation` carry
+machine docs with no harness, so their figures are checked by nothing.
+
 ## Tests
 
 ### Python — pytest, from the repo root
@@ -124,6 +148,23 @@ Integration tests need a database and run through `odoo-bin`:
 ```bash
 odoo-bin -d <db> -i <module> --test-enable --stop-after-init
 ```
+
+**Before re-running one to find out whether a failure is yours, diff it against
+the recorded set** — `tooling/testbaseline/` holds an expected-failure baseline
+per suite, and the second run whose only purpose was to establish "was this
+already red?" is what it exists to delete:
+
+```bash
+odoo-bin -d <db> -i <module> --test-enable --stop-after-init \
+    --test-tags '/<module>' --logfile run.log
+tooling/testbaseline/testbaseline.py /<module> run.log   # 0 new, 0 newly-passing = green
+```
+
+It diffs failure **names**, not counts — `quality_control` held at 2 across a day
+in which one recorded test was fixed and an unrecorded one broke, and a count
+comparison calls that "both known". `--list` is the roster; a suite with no
+baseline gets no verdict rather than a guess. Its README carries the
+measurements behind each of those choices.
 
 ### JS (HOOT) — use the warm runner
 

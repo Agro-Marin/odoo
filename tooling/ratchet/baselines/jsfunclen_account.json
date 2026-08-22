@@ -1,0 +1,4 @@
+{
+  "count": 2,
+  "note": "Functions over 80 lines in addons/account/static/src, the third tree onboarded to js_function_length.py after web and mail \u2014 same script, one flag, its own floor.\n\nTwo, and both are list-shaped rather than complex: js/tours/account.js 'steps' (133 lines) is a flat sequence of tour steps, and tests_shared_js_python.js 'processTest' (124) is a five-branch dispatch on params.test that wants a table. Neither is product logic a user reaches.\n\nThe unit is the OFFENDER COUNT, not excess lines as pyfunclen uses: splitting a long function lowers this floor rather than raising it, which is the incentive we want here.\n\nCommand: python tooling/architecture/js_function_length.py --addon account --count"
+}

@@ -1,0 +1,4 @@
+{
+  "count": 0,
+  "note": "2 -> 0, from two sites that needed different fixes.\n\n`stock.lot.count_transfer_outgoing` was assigned inside `_compute_delivery_ids`, beside the collection it counts. Both fields named that compute, so the counter became `fields.Count(\"delivery_ids\")` and the compute kept only the assignment it exists for. `delivery_ids` is computed, so `counts_in_database` is False and the field evaluates `len(lot.delivery_ids)` -- literally the line removed.\n\n`stock.quant.relocate._compute_dest_package_id` was not a counter at all: `search_count(domain, limit=1)` used as a truthiness test is an EXISTENCE check, and \u00a711.2 spells that `bool(search(domain, limit=1))`. Rewritten to the documented form, which is why the gate stops counting it -- it is no longer a count, rather than being hidden from one."
+}

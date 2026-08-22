@@ -45,6 +45,53 @@ def test_an_upward_service_edge_is_an_inversion(monkeypatch, tmp_path):
     assert known == []
 
 
+def test_a_declared_dependency_is_an_edge(monkeypatch, tmp_path):
+    """The declarative form counts the same as the three call-site forms.
+
+    A service naming its dependencies in `dependencies: [...]` couples to them
+    exactly as much as one reaching for `useService`, and this gate read only
+    the latter until three long-standing `core -> ui` edges turned up invisible.
+    """
+    new, known = _tree(
+        monkeypatch,
+        tmp_path,
+        {
+            "webclient/thing_service.js": PRODUCER,
+            "core/consumer_service.js": 'dependencies: ["thing"],',
+        },
+    )
+    assert [(i.module, i.service) for i in new] == [
+        ("core/consumer_service.js", "thing")
+    ]
+    assert known == []
+
+
+def test_a_declared_dependency_names_every_entry(monkeypatch, tmp_path):
+    """One array, several services -- each is its own edge, all on that line."""
+    new, _known = _tree(
+        monkeypatch,
+        tmp_path,
+        {
+            "webclient/a_service.js": 'registry.category("services").add("a", {});',
+            "webclient/b_service.js": 'registry.category("services").add("b", {});',
+            "core/consumer_service.js": '\n\ndependencies: ["a", "b"],',
+        },
+    )
+    assert sorted((i.service, i.lineno) for i in new) == [("a", 3), ("b", 3)]
+
+
+def test_a_downward_declared_dependency_is_not_an_inversion(monkeypatch, tmp_path):
+    new, known = _tree(
+        monkeypatch,
+        tmp_path,
+        {
+            "core/thing_service.js": PRODUCER,
+            "webclient/consumer_service.js": 'dependencies: ["thing"],',
+        },
+    )
+    assert (new, known) == ([], [])
+
+
 def test_a_downward_service_edge_is_not_an_inversion(monkeypatch, tmp_path):
     new, known = _tree(
         monkeypatch,

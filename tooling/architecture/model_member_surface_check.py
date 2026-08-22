@@ -26,7 +26,7 @@ subtracted (:func:`base_model_members`): ``browse``, ``search``, ``sudo``,
 ``create``, ``with_context`` on ``env["res.users"]`` ask ``base`` for nothing it
 did not inherit from the framework. Counting them put 46 further pairs in the
 surface and buried the ones that are the real contract -- ``ir.model.data
-._load_xmlid``, ``ir.attachment._filestore``, ``res.users._compute_session_token``
+._load_xmlid``, ``ir.attachment._get_filestore``, ``res.users._compute_session_token``
 -- among them. What remains is the surface an addon must actually implement:
 **69 pairs across 22 models**, of which **13 models have a declared interface** covering 60 of the pairs.
 
@@ -155,8 +155,10 @@ PROTOCOLS: dict[str, tuple[str, str]] = {
 }
 
 KNOWN_MEMBER_SURFACE: dict[str, frozenset[str]] = {
-    "decimal.precision": frozenset({"precision_get"}),
-    "ir.attachment": frozenset({"_content_checksum", "_filestore", "_unsized"}),
+    "decimal.precision": frozenset({"get_precision"}),
+    "ir.attachment": frozenset(
+        {"_get_content_checksum", "_get_filestore", "_without_bin_size"}
+    ),
     "ir.config_parameter": frozenset({"get_param"}),
     "ir.default": frozenset(
         {
@@ -165,7 +167,7 @@ KNOWN_MEMBER_SURFACE: dict[str, frozenset[str]] = {
             "_get_model_defaults",
         }
     ),
-    "ir.fields.converter": frozenset({"for_model"}),
+    "ir.fields.converter": frozenset({"_get_converter_record"}),
     "ir.http": frozenset(
         {
             "_apply_max_upload_size",
@@ -183,8 +185,8 @@ KNOWN_MEMBER_SURFACE: dict[str, frozenset[str]] = {
             "_serve_fallback",
         }
     ),
-    "ir.model": frozenset({"_get", "_instantiate_attrs", "_reflect_models"}),
-    "ir.model.access": frozenset({"_make_access_error", "check"}),
+    "ir.model": frozenset({"_get", "_prepare_class_attrs", "_reflect_models"}),
+    "ir.model.access": frozenset({"_prepare_access_error", "check"}),
     "ir.model.constraint": frozenset({"_reflect_constraint", "_reflect_constraints"}),
     "ir.model.data": frozenset(
         {"_load_xmlid", "_process_end", "_update_xmlids", "_xmlid_to_res_model_res_id"}
@@ -194,7 +196,7 @@ KNOWN_MEMBER_SURFACE: dict[str, frozenset[str]] = {
             "_get",
             "_get_ids",
             "_get_manual_field_data",
-            "_instantiate_attrs",
+            "_prepare_field_attrs",
             "_reflect_fields",
             "get_field_help",
             "get_field_selection",
@@ -208,9 +210,9 @@ KNOWN_MEMBER_SURFACE: dict[str, frozenset[str]] = {
         {"_extract_resource_attachment_translations", "_import_zipfile", "update_list"}
     ),
     "ir.qweb": frozenset({"_pregenerate_assets_bundles"}),
-    "ir.rule": frozenset({"_compute_domain", "_make_access_error"}),
+    "ir.rule": frozenset({"_compute_domain", "_prepare_access_error"}),
     "ir.ui.view": frozenset(
-        {"_render_template", "_validate_custom_views", "_validate_module_views"}
+        {"_render_template", "_check_custom_views", "_check_module_views"}
     ),
     "res.company": frozenset({"root_id"}),
     "res.device.log": frozenset({"_update_device"}),

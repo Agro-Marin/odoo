@@ -1,0 +1,11 @@
+{
+  "expected": {
+    "quality_control/TestQualityCheck.test_checks_removal_on_SM_cancellation": "FAIL",
+    "quality_control/TestQualitySpreadsheetTemplate.test_create_new_spreadsheet_from_quality_form": "FAIL"
+  },
+  "note": "Measured 2026-08-22 on a fresh DB. test_quality_check_with_backorder, red since 2026-08-20, now passes; TestQualitySpreadsheetTemplate.test_create_new_spreadsheet_from_quality_form is red instead and is unexplained. The count stayed 2 across that swap, which is why counts are not the unit here. enterprise has no test lane.",
+  "run_spec": "-i quality_control --test-enable --test-tags '/quality_control'",
+  "suite": "/quality_control",
+  "tests_total": 41,
+  "verified_at": "ca4ee2ddd79"
+}

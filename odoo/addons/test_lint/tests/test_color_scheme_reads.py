@@ -1,12 +1,9 @@
-import logging
 import re
 
 from odoo.libs.lint import scan_regex_patterns
 from odoo.modules import get_resource_from_path
 
 from . import lint_case
-
-_logger = logging.getLogger(__name__)
 
 COOKIE_GET_PAT = r"""cookie\.get\(\s*["']color_scheme["']\s*\)"""
 COOKIE_SET_PAT = r"""cookie\.set\(\s*["']color_scheme["']"""

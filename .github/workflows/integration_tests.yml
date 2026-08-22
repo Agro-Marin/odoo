@@ -47,6 +47,9 @@ on:
       # DB-backed workflow at all — `addons/**` appeared nowhere in this filter.
       - 'addons/mrp/**'
       - 'addons/stock/**'
+      # The certificate lane below, for the same reason the two above are listed:
+      # without it a certificate-only pull request triggers no DB-backed workflow.
+      - 'addons/certificate/**'
       - 'crates/odoo_rust/**'
       - 'requirements*.txt'
       - '.github/workflows/integration_tests.yml'
@@ -136,6 +139,21 @@ env:
   # Its own database, same reasoning as test_http and test_orm above.
   MRP_INSTALL: mrp
   MRP_TEST_TAGS: /mrp
+
+  # `certificate` owns X.509 parsing, private-key loading and the signing API for
+  # every consumer that needs one -- l10n_mx_edi, l10n_cl_edi, l10n_ec_edi,
+  # l10n_pe_edi, sign, account_edi_proxy_client and eleven more. Its suite ran in
+  # no lane at all: it is not in the four above, and `module_installability.yml`
+  # asks only whether the graph still assembles.
+  #
+  # That is a poor place to have no coverage. The failures this catches are not
+  # ordinary regressions -- a certificate that stops parsing, or a key that signs
+  # with the wrong digest, breaks fiscal document submission in whichever country
+  # is downstream, and does it silently until a tax authority refuses the file.
+  #
+  # Cheap: 43 post-install tests in 13s on a fresh database, measured.
+  CERTIFICATE_INSTALL: certificate
+  CERTIFICATE_TEST_TAGS: /certificate
 
 jobs:
   base-smoke:
@@ -318,6 +336,39 @@ jobs:
           echo "mrp tests run: $RAN (floor: 350)"
           if [ "$RAN" -lt 350 ]; then
             echo "::error::only $RAN mrp tests ran, below the floor of 350 —"
+            echo "::error::something was skipped rather than failed."
+            exit 1
+          fi
+
+      - name: Run certificate suite
+        # Its own database, same reasoning as the three suites above.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_certificate \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${CERTIFICATE_INSTALL}" \
+            --test-enable --test-tags "${CERTIFICATE_TEST_TAGS}" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/certificate-suite.log
+
+      - name: Assert the certificate suite actually ran
+        # Same guard as the three suites above. 43 tests today; the floor sits well
+        # under it so that a narrowed tag or a module that failed to install fails
+        # loudly, rather than a single deleted test doing it.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/certificate-suite.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — certificate did not report a count"
+            exit 1
+          fi
+          echo "certificate tests run: $RAN (floor: 35)"
+          if [ "$RAN" -lt 35 ]; then
+            echo "::error::only $RAN certificate tests ran, below the floor of 35 —"
             echo "::error::something was skipped rather than failed."
             exit 1
           fi

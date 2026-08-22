@@ -32,11 +32,6 @@ RST_INFO_FIELDS_DOC = (
     "https://www.sphinx-doc.org/en/master/usage/domains/python.html#info-field-lists"
 )
 
-# Shared with addons/api_doc, which renders the fields this gate lints. Two
-# copies of the vocabulary drift, and a field this linter accepts while the
-# renderer drops it (or the reverse) is exactly the kind of disagreement
-# neither side would notice.
-
 
 ABUSE_KWARGS = """\
 {where}:

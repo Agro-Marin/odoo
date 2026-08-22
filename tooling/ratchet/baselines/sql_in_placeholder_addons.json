@@ -1,0 +1,4 @@
+{
+  "count": 0,
+  "note": "First floor, at zero, set the day ADR-0055's gate landed. The unit is the SITE COUNT: one `IN %s` that psycopg3 cannot execute is one, whether it reached `cr.execute` with no builder in front of it or reached `SQL()` holding a list. A real zero, not a vacuous one -- `test_sql_in_placeholder.py` asserts the gate still reports each shape it exists to catch, and `test_every_gate_refuses_an_empty_tree` covers the scope being absent. Both defects that prompted it are fixed: l10n_ec's sequence domain and marin's year-over-year wizard."
+}

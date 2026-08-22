@@ -181,7 +181,11 @@ def hoot_cmd(extra: list[str]) -> list[str]:
     return [sys.executable, str(HOOT), *extra]
 
 
-RE_SUMMARY = re.compile(r"^(PASS|FAIL|WARN)\s+(.*?)\s+\((.+)\)\s*$")
+# VOID is not a result: `hoot` prints it when the warm server it ran against
+# was gone by the end of the run, which makes every test still to configure
+# its MockServer fail on a fetch. Parsed so a shard can say so instead of
+# reporting someone's dead server as that shard's failures.
+RE_SUMMARY = re.compile(r"^(PASS|FAIL|WARN|VOID)\s+(.*?)\s+\((.+)\)\s*$")
 RE_FAILED = re.compile(r"(\d+)\s+failed")
 RE_PASSED = re.compile(r"(\d+)\s+passed")
 RE_WALL = re.compile(r"([\d.]+)s")

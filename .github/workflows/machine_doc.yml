@@ -1,0 +1,124 @@
+name: Machine Docs
+
+# Runs every module's `machine_doc_v*/factcheck.sh` — the harnesses that hold
+# the machine-readable module maps to the tree they describe.
+#
+# WHY THIS LANE EXISTS. `CLAUDE.md` makes `machine_doc_v*/` the FIRST thing to
+# read before touching a module, so its numbers are load-bearing for every
+# session that starts there. They were held by nothing: the harnesses existed,
+# were correct, and ran only when someone remembered. `addons/web` had
+# accumulated seven defects against a green-when-run harness, `addons/website`'s
+# root was hardcoded to a path present in no checkout (42 failures, 1 pass), and
+# a stale reference to a directory deleted months earlier sat in two documents.
+# A gate nothing invokes is documentation of an intention, not a gate.
+#
+# BLOCKING by design, and with no ratchet. A factcheck assertion is not debt to
+# ramp down: it either describes the tree or it does not, and every one of them
+# derives its expected value from the filesystem, so a passing run costs nothing
+# to keep passing. Rule: `doc/coding_guidelines.rst` §1.4. Rationale: ADR-0042.
+#
+# To soften to warn-only during a transition, set `continue-on-error: true`.
+
+on:
+  # Mainline re-verification: direct commits and merge skew cannot drift past
+  # the gate. No path filter here on purpose — mainline is re-checked in full.
+  push:
+    branches: ['19.0-marin', '19.0']
+  pull_request:
+    branches: ['*']
+    paths:
+      # WHOLE-TREE, NOT PER-MODULE. Enumerating the modules that carry a
+      # machine_doc would be a second, hand-maintained copy of the discovery
+      # below, and it would rot the first time one is added — the exact failure
+      # architecture.yml records having made once already. The harnesses read
+      # source, tests, manifests, controllers and workflows, so anything under
+      # these trees can move a number.
+      - 'odoo/**'
+      - 'addons/**'
+      - '.github/workflows/**'
+
+permissions:
+  contents: read
+
+jobs:
+  factcheck:
+    name: factcheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          # Matches the repo target. The harnesses shell out to the interpreter
+          # for their heavier scans (path resolution, registerField call sites).
+          python-version: '3.14'
+
+      - name: Run every machine_doc factcheck
+        env:
+          # QUARANTINE — harnesses known red at HEAD, excluded with a reason and
+          # nothing else. Membership is checked in BOTH directions below: a
+          # quarantined harness that starts passing fails the lane too, so the
+          # list cannot outlive the breakage it documents. Same argument as the
+          # `exact` ratchets: an improvement that is not banked is an improvement
+          # that can be silently undone.
+          #
+          #   The list is empty. `mail` sat here from 2026-08-16 to 2026-08-20 on
+          #   22 red assertions, and left it the way this comment requires:
+          #   converted to the derive-and-cite form §1.4 asks for, not by bumping
+          #   digits. Its expected values had been a second copy of the tree, so
+          #   `e4df7f5569b` — which deleted twenty-one hardening suites — moved 22
+          #   assertions and eight rows of TEST_TAGS.md at once, and nothing said
+          #   so for ten days.
+          QUARANTINE: ''
+        run: |
+          set -uo pipefail
+          # DISCOVER, never enumerate: a new machine_doc that ships without a
+          # harness, or with a broken one, must not be able to join the tree
+          # unnoticed. `-not -path` keeps node_modules out of the walk.
+          mapfile -t harnesses < <(
+            find odoo/addons addons -type f -path '*/machine_doc_v*/factcheck.sh' \
+              -not -path '*/node_modules/*' | sort)
+
+          if [ "${#harnesses[@]}" -eq 0 ]; then
+            echo "::error::no machine_doc factcheck.sh found — discovery is broken"
+            exit 1
+          fi
+
+          echo "Discovered ${#harnesses[@]} harness(es)."
+          rc=0
+          for h in "${harnesses[@]}"; do
+            # addons/web/machine_doc_v1/factcheck.sh -> web
+            module=$(basename "$(dirname "$(dirname "$h")")")
+            quarantined=0
+            for q in $QUARANTINE; do [ "$q" = "$module" ] && quarantined=1; done
+
+            echo "::group::$module"
+            if bash "$h"; then status=pass; else status=fail; fi
+            echo "::endgroup::"
+
+            if [ "$quarantined" -eq 1 ]; then
+              if [ "$status" = pass ]; then
+                echo "::error::$module is quarantined but PASSES — remove it from QUARANTINE"
+                rc=1
+              else
+                echo "::warning::$module quarantined (known red); not blocking"
+              fi
+            elif [ "$status" = fail ]; then
+              echo "::error::$module factcheck failed"
+              rc=1
+            fi
+          done
+
+          # A single-repo checkout cannot judge fork-wide claims: no workflow
+          # passes `repository:` to actions/checkout, so `enterprise`,
+          # `agromarin` and `design-themes` are absent here and the harnesses
+          # SKIP those assertions with a count rather than failing on a tree
+          # they cannot see. The skips are expected; read them, do not silence
+          # them. Cross-repo coverage is the sibling repos' own workflows.
+          exit $rc

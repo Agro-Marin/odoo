@@ -1,0 +1,4 @@
+{
+  "count": 8,
+  "note": "base_user_role res.users.role loses two hand-written counters: 10 -> 8. Both sit in the compute that also produces the collection -- model_access_ids and rule_ids are Many2many fields assigned from implied_ids -- so only the counter line leaves. The remaining eight are search_count in a loop and are NOT convertible: six count over a domain built per record (`_get_contact_domain()` in remote_dav_sync, the approval dashboard queries) rather than over an x2many field, so there is no collection for fields.Count to name. They are genuine N+1 queries with a different fix, which is why this floor stops here rather than at zero."
+}

@@ -15,36 +15,15 @@ CALL_ASSETS_RE = re.compile(
 )
 JS_DISABLED_RE = re.compile(r"""t-js=["']False["']""")
 
-# The runtime half of the same question. A bundle reached through one of these
-# is fetched from `/web/bundle` and served by `assets.getBundle`, which is a
-# different code path from `t-call-assets` and was covered by nothing.
-# The trailing group captures the options object when there is one, so a
-# CSS-only fetch can be told apart: `loadBundle(name, {js: false})` never calls
-# `loadESMBundle`, so the ESM half of the payload is never read and the bundle
-# needs no ESM declaration at all.
 LOAD_BUNDLE_RE = re.compile(
     r"""\b(?:loadBundle|getBundle|preloadBundle)\(\s*["']([\w]+\.[\w.]+)["']"""
     r"""\s*(?:,\s*(?P<options>\{[^{}]*\}))?""",
 )
 JS_DISABLED_OPTION_RE = re.compile(r"""\bjs\s*:\s*false\b""")
 
-# Page bundles that are also replayed into an iframe at runtime. They must NOT be
-# declared `esm.runtime_bundles`: that switches them to the per-file payload,
-# which they are not built for -- `_get_esm_bundle_payload("web.assets_frontend")`
-# raises `EsbuildBundleError` on relative imports that escape the bundle, because
-# esbuild resolves those at build time and per-file serving cannot.
-#
-# Named rather than counted: a floor of "1" would say nothing about which bundle
-# or why, and the next addition would inherit the silence.
 RUNTIME_DECLARATION_EXEMPT = {
-    # `website_helpers.js` loads it into the builder iframe with
-    # `js: loadAssetsFrontendJS`. It is a page bundle being replayed into a
-    # second document, not a lazily-loaded feature, and the legacy branch is
-    # what serves it there today.
     "web.assets_frontend",
 }
-# `<LazyComponent bundle="'addon.bundle'"/>` in an inline OWL template, and the
-# same attribute in a `.xml` template file.
 LAZY_BUNDLE_RE = re.compile(
     r"""\bbundle=["']{1,2}([\w]+\.[\w.]+)["']{1,2}""",
 )
@@ -65,7 +44,6 @@ class TestEsmBundles(lint_case.LintCase):
         return found
 
     def _rendered_bundles(self):
-        """Bundles a server-rendered template puts on a page."""
         rendered = set()
         for path in self.iter_module_files("*.xml"):
             try:
@@ -79,12 +57,10 @@ class TestEsmBundles(lint_case.LintCase):
 
     @staticmethod
     def _wants_js(match):
-        """False for `loadBundle(name, {js: false})` — a CSS-only fetch."""
         options = match.groupdict().get("options")
         return not (options and JS_DISABLED_OPTION_RE.search(options))
 
     def _runtime_fetched_bundles(self):
-        """Bundles the client fetches at runtime *with their JS*."""
         found = {}
         for glob, pattern in (
             ("*.js", LOAD_BUNDLE_RE),
@@ -101,7 +77,6 @@ class TestEsmBundles(lint_case.LintCase):
         return found
 
     def _declaration_index(self):
-        """(declared ESM bundle names, own files per bundle, include edges, addon roots)."""
         manifests = list(Manifest.all_addon_manifests())
         addon_dirs = {m.name: Path(m.path) for m in manifests}
 
@@ -193,15 +168,6 @@ class TestEsmBundles(lint_case.LintCase):
             )
 
     def test_runtime_fetched_bundles_carrying_esm_are_declared(self):
-        """The lazy half of the sibling above, which reads XML and nothing else.
-
-        `loadBundle` resolves *successfully* against an undeclared bundle: the
-        server builds it as a legacy concatenation, every module-syntax file is
-        replaced by a `console.error` stub, and the caller gets a fulfilled
-        promise carrying nothing. Nothing throws, the page returns 200, and the
-        component that awaited the bundle dies later on a registry lookup —
-        which is why this needs a gate rather than a test per feature.
-        """
         fetched = self._runtime_fetched_bundles()
         offenders, n_declared = self._offenders(fetched)
         _logger.info(
@@ -226,14 +192,6 @@ class TestEsmBundles(lint_case.LintCase):
             )
 
     def test_runtime_fetched_bundles_are_declared_as_such(self):
-        """Declared ESM is not enough — the route reads `runtime_bundle_names`.
-
-        `/web/bundle` serves the ESM payload only for a bundle in
-        `esm.runtime_bundles` (or, equivalently, a `dynamic_children` child). A
-        bundle in `esm.bundles` alone still falls through to the legacy branch,
-        which is the same console.error stub with none of the signals: the
-        manifest looks right, and the sibling test above passes.
-        """
         registry = esm_registry()
         fetched = self._runtime_fetched_bundles()
         _declared, own_files, includes, addon_dirs = self._declaration_index()
@@ -241,7 +199,7 @@ class TestEsmBundles(lint_case.LintCase):
         candidates = set(fetched) - registry.runtime_bundle_names
         for bundle in sorted(candidates - RUNTIME_DECLARATION_EXEMPT):
             if bundle not in registry.bundles:
-                continue  # the sibling test above owns this case
+                continue
             if self._module_files(bundle, own_files, includes, addon_dirs, set()):
                 offenders.append(bundle)
         if offenders:

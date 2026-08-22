@@ -1,0 +1,4 @@
+{
+  "count": 282,
+  "note": "ADR-0054: A DOMAIN BUILDER LEADS WITH ITS OBJECT. 233 -> 282, re-derived in a detached worktree at HEAD (the committed floor read 234 against a measured 233, a downward drift nobody banked). +50 is the rule: 51 free-standing builders that end in _domain become findings, and _get_domain_aal_with_no_move_line stops being one. -1 is base converted -- ir.module.module._get_modules_to_load_domain -> _get_domain_modules_to_load. The 51 are debt with a list: field_hook_naming.py --kind unmarked."
+}

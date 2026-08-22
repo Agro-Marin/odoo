@@ -1,28 +1,3 @@
-# Pre-commit configuration for the AgroMarin Odoo core fork (t23543).
-#
-# Deliberately MINIMAL for an upstream-code repo:
-#
-# - ruff-check --fix, pinned to the SAME ruff the CI ratchet measures with
-#   (0.16.2 — requirements-dev.txt / .github/workflows/ruff.yml). --fix
-#   repairs every fixable finding in a STAGED file, so touching one of the
-#   ~632 baseline-carrying files may shrink the ratchet floor — after such a
-#   cleanup run:
-#     python tooling/ratchet/ratchet.py ruff --count <N> --update
-# - ruff-format, same pin, runs after ruff-check. It formats whole files, not
-#   diffs — staging one line of an unformatted upstream file reformats the
-#   whole thing. That cost is accepted deliberately (2026-08-09): it is
-#   opt-in (only contributors with hooks installed reformat on touch), it
-#   only ever reaches files someone is already committing, and there is no
-#   CI job re-checking format — `ruff format --check` does not run in
-#   ruff.yml or anywhere else, so an existing unformatted file that nobody
-#   touches stays exactly as it is. This is not a repo-wide reformat.
-# - Safe file hygiene checks (line/EOF, syntax, merge markers).
-# - agromarin-commit-format: canonical §7.1 commit-message gate. Requires:
-#     pre-commit install && pre-commit install --hook-type commit-msg
-# - NO OCA / pylint-odoo hooks (addons-style checkers, noisy on upstream
-#   code) and NO eslint hook (JS gate lives in the lint.yml drift-zero
-#   ratchet).
-
 exclude: |
   (?x)(
     _vendor/|
@@ -34,15 +9,13 @@ default_language_version:
   python: python3
 
 repos:
-  # === Ruff (lint + format, staged files only — see header) ===
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.2 # keep in lockstep with requirements-dev.txt + ruff.yml ratchet
+    rev: v0.16.2
     hooks:
       - id: ruff-check
         args: [--fix]
       - id: ruff-format
 
-  # === File checks ===
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
@@ -56,26 +29,10 @@ repos:
       - id: check-merge-conflict
       - id: debug-statements
 
-  # === Commit message (AgroMarin canonical §7.1) ===
   - repo: https://github.com/JemXiaolong/pre-commit-agromarin
     rev: v3.2.0
     hooks:
       - id: agromarin-commit-format
-
-  # === Cross-repo symbol coherence (pre-push, local) ===
-  # Fails a core push that removes a JS module a sibling repo (enterprise,
-  # agromarin-addons, design-themes) still imports at runtime — the split-repo
-  # break from t23778. pre-push stage → run once against the pushed range, not
-  # per-file. Declaring it here installs NOTHING — run tooling/install-hooks.sh
-  # once per clone (it covers all three hook stages), or this gate never runs.
-  #
-  # `python3.14`, not `python3`: `language: system` resolves the interpreter from
-  # PATH, and the checker itself is written in this fork's Python (it uses PEP 758
-  # bracketless `except A, B:`, which ruff enforces here). On any box whose
-  # `python3` is older — 3.12 on the loop-runner — the hook died with a
-  # SyntaxError before reading a line, so EVERY push to core was refused by a
-  # gate that had not run. The fork requires 3.14 (see CLAUDE.md), so naming the
-  # version is also what the rest of the toolchain already assumes.
   - repo: local
     hooks:
       - id: cross-repo-coherence

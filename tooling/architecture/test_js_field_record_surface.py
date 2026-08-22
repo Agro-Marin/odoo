@@ -148,6 +148,28 @@ class TestLiveTree:
         files = state["needs_record_files"]
         assert files and len(files) == state["scanned_metrics"]["needs_record"]
 
+    def test_the_handed_out_class_is_measured_not_stated(self):
+        """`own_members` opens the gate's argument, so it must be a measurement.
+
+        It was prose, and wrong: 83 in two documents against a class that
+        declares 81. Asserted against what the widgets actually reach rather
+        than against a literal -- a class handing out fewer members than its
+        consumers read would mean the count is of the wrong class.
+        """
+        state = gate.measure()
+        own = state["metrics"]["own_members"]
+        assert own == gate.record_own_members()
+        assert own >= len(state["members"]), (
+            f"{gate.RECORD_CLASS} declares {own} own members but widgets reach "
+            f"{len(state['members'])} — the count names the wrong class"
+        )
+
+    def test_a_renamed_record_class_is_a_loud_failure(self, monkeypatch):
+        """Not a silent zero: the figure would go on being cited as if measured."""
+        monkeypatch.setattr(gate, "RECORD_CLASS", "NoSuchRecordClass")
+        with pytest.raises(LookupError, match="no longer declared"):
+            gate.record_own_members()
+
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))

@@ -1,0 +1,4 @@
+{
+  "count": 0,
+  "note": "Functions over 80 lines in addons/stock/static/src, the fourth tree onboarded to js_function_length.py after web, mail and account \u2014 same script, one flag, its own floor.\n\nSeeded at ZERO, not at what the tree held. It held exactly one: picking_type_dashboard_graph_field.js 'getBarChartConfig' (94 lines), which was a colour mapping, a click handler and a Chart.js config literal sharing a scope for no reason. Splitting it into _barSeries/_onBarClick/_categoryOfBar/_isAllSample took the count to 0 in the same change that onboarded the gate, so this floor never carries debt it could have avoided.\n\nThe unit is the OFFENDER COUNT, not excess lines as pyfunclen uses: splitting a long function lowers this floor rather than raising it.\n\nCommand: python tooling/architecture/js_function_length.py --addon stock --count"
+}

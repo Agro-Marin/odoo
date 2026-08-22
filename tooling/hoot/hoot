@@ -29,7 +29,9 @@ Examples
   hoot --status                        # show all warm servers
   hoot --stop [--db hoot_mail]         # stop ONE warm server (keep its DB)
   hoot --clean [--db hoot_mail]        # stop ONE warm server AND drop its DB
-  hoot --stop --all                    # stop EVERY warm server (all sessions)
+                                       #   and that DB's filestore
+  hoot --stop --all                    # stop EVERY warm server (all sessions),
+                                       #   including untracked orphans
 
 Full test path form works too (HOOT resolves an id against a suite OR a single
 test), e.g.  hoot '@web/core/domain/Basic Properties/empty'.
@@ -84,8 +86,56 @@ def _repeated_note(result) -> str:
     )
 
 
+def _report_unrun_preset(suites: list[str], args, result: H.RunResult) -> None:
+    """Say when the other preset owns tests this run did not execute.
+
+    The README already says to run both presets and to "gate on the per-preset
+    test count, not on the exit code alone". A PASS that silently skipped every
+    mobile test in the selection is exactly the reading that advice guards
+    against, and nothing was saying so.
+    """
+    if args.preset != "desktop" or result.failed:
+        return
+    files = H.mobile_tagged_files(suites)
+    if not files:
+        return
+    names = ", ".join(sorted(p.name for p in files)[:4])
+    if len(files) > 4:
+        names += f", +{len(files) - 4} more"
+    print(
+        _color(
+            f"  note: {len(files)} selected file(s) own mobile-tagged tests this "
+            f"preset does not run ({names}). Verify with: "
+            f"./hoot --preset mobile {' '.join(suites)}",
+            C_DIM,
+        )
+    )
+
+
 def _report(result: H.RunResult) -> None:
     header = " ".join(result.suites) or "(no suites)"
+    if result.server_died:
+        print(
+            _color(
+                f"VOID  {header}  "
+                f"(THE WARM SERVER DIED DURING THIS RUN — "
+                f"{result.failed} failed / {result.passed} passed, "
+                f"{result.wall:.1f}s)",
+                C_RED,
+            )
+        )
+        print(
+            _color(
+                "  These failures are not the code: once the server is gone every "
+                "test still to configure its MockServer fails in _loadModels with "
+                "`TypeError: Failed to fetch`. Re-run; if it repeats, read the "
+                "server log for `inotify is out of capacity` (ENOSPC) or `Postgres "
+                "unavailable`. Freeing instances -- `hoot --stop --db <name>` for "
+                "servers you own -- is the cheapest mitigation.",
+                C_YEL,
+            )
+        )
+        return
     if result.ok:
         print(
             _color(
@@ -176,6 +226,7 @@ def _run_isolated(suites: list[str], state: dict, args) -> H.RunResult:
         merged.wall += result.wall
         merged.failed_tests.extend(result.failed_tests)
         merged.incomplete = merged.incomplete or result.incomplete
+        merged.server_died = merged.server_died or result.server_died
         merged.ok = merged.ok and result.ok
         if result.error and not merged.error:
             merged.error = result.error
@@ -192,7 +243,7 @@ def _run_once(suites: list[str], state: dict, args) -> H.RunResult:
         extra += f"&filter={args.filter}"
     if args.hook_timeout is not None:
         extra += f"&hookTimeout={args.hook_timeout}"
-    return H.run_suites(
+    result = H.run_suites(
         suites,
         port=state["port"],
         db=state["db"],
@@ -204,6 +255,15 @@ def _run_once(suites: list[str], state: dict, args) -> H.RunResult:
         extra=extra,
         verbose=args.verbose,
     )
+    # Ask whether the server we ran against is still THAT server. Warmth alone
+    # is not the question: a concurrent invocation reboots a died server, and
+    # `server_is_warm` would then answer for its replacement while this run's
+    # failures came from the gap. Identity is the pid.
+    after = H.read_state(state["db"]) or {}
+    if after.get("pid") != state.get("pid") or not H.server_is_warm(after):
+        result.server_died = True
+        result.ok = False
+    return result
 
 
 def _watch(suites: list[str], state: dict, args) -> int:
@@ -356,13 +416,15 @@ def main() -> int:
     ap.add_argument(
         "--clean",
         action="store_true",
-        help="Stop this invocation's warm server AND drop its DB, then exit.",
+        help="Stop this invocation's warm server, drop its DB and that "
+        "DB's filestore, then exit.",
     )
     ap.add_argument(
         "--all",
         action="store_true",
         help="With --stop/--clean: act on EVERY recorded warm "
-        "server, including those other sessions are using.",
+        "server, including those other sessions are using, and reap "
+        "untracked orphans no state file accounts for.",
     )
     ap.add_argument(
         "--restart",
@@ -383,16 +445,39 @@ def main() -> int:
                     f"WARM  pid={st['pid']} port={st['port']} db={st['db']}", C_GREEN
                 )
             )
+        # Orphans hold connection slots and inotify watches while answering to
+        # nobody, so a status that omits them reads as clean while the cluster
+        # fills up. `--stop --all` is what clears them.
+        for pid, db in sorted(H.find_untracked_servers().items()):
+            print(
+                _color(
+                    f"ORPHAN pid={pid} db={db} — untracked; `hoot --stop --all` "
+                    f"reaps it",
+                    C_YEL,
+                )
+            )
         return 0
     if args.stop or args.clean:
         db = args.db
         if db is None and not args.all:
             db = H.db_for_modules(H.modules_for_suites(list(args.suites)))
         print(H.stop_server(db=db, clean=args.clean))
+        if args.all:
+            reaped = H.stop_untracked_servers(clean=args.clean)
+            if reaped:
+                print(reaped)
         return 0
 
     suites = _resolve_suites(args)
     if not suites:
+        # `--restart` used to be read only on the way into a run, so a bare
+        # `hoot --restart` returned 0 here having stopped nothing: the next
+        # invocation reused the stale server and silently tested the sources
+        # as they were at ITS boot. Honour the flag whether or not there is
+        # something to run, resolving the database the way `--stop` does.
+        if args.restart:
+            db = args.db or H.db_for_modules(H.modules_for_suites([]))
+            print(H.stop_server(db=db, clean=False))
         return 0
 
     modules = H.modules_for_suites(suites)
@@ -401,7 +486,22 @@ def main() -> int:
         H.stop_server(db=db, clean=False)
 
     t0 = time.time()
-    state, booted = H.ensure_server(db, modules, verbose=args.verbose)
+    try:
+        state, booted = H.ensure_server(db, modules, verbose=args.verbose)
+    except H.PostgresUnavailable as exc:
+        # Not a hoot failure and not a test failure: the shared cluster is out
+        # of connection slots. Say which, so nobody spends the next hour
+        # bisecting a green branch.
+        print(
+            _color(
+                f"hoot: cannot reach PostgreSQL — {exc}\n"
+                f"      The cluster is shared; wait for slots rather than "
+                f"dropping anyone's database.",
+                C_DIM,
+            ),
+            file=sys.stderr,
+        )
+        return 2
     isolated = args.isolate and len(suites) > 1
     if booted:
         scopes = (
@@ -429,6 +529,7 @@ def main() -> int:
 
     result = (_run_isolated if isolated else _run_once)(suites, state, args)
     _report(result)
+    _report_unrun_preset(suites, args, result)
     if result.failed:
         return 1
     return 0 if (result.ok or result.incomplete) else 1

@@ -1,0 +1,4 @@
+{
+  "count": 0,
+  "note": "The framework core goes to zero the day after the gate landed: 3 -> 0. All three counted a whole table to decide whether one row exists -- res_lang._check_active over every active language, res_lang._register_hook over every language to write a log line, and ir_model_fields.create probing for one many2one. Verified beyond the suite: for each of the three domains, search_count(domain) and search_count(domain, limit=1) agree on truthiness in both the populated and the empty case, and the ir_model_fields guard still refuses a one2many whose relation_field does not exist while still accepting one that does."
+}

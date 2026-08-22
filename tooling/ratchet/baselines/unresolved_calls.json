@@ -1,0 +1,4 @@
+{
+  "count": 25,
+  "note": "First floor, set at what the tree reads on the day ADR-0058 landed. The unit is CALL SITES, not names: 25 sites over 20 names, since one vanished method is usually called from more than one place and each is its own repair. Five defects in one day motivated it -- a stranded _message_log override, a call renamed past its definition, three calls to methods nothing defines, and an API split two callers kept unpacking -- none of which ruff, C901 or naming_vocabulary can see, because they check how code is written and this asks whether a name resolves."
+}

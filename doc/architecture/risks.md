@@ -107,7 +107,7 @@ needs the previous representation and is filed as `post-` has nothing to read.
 [`scenarios.md`](scenarios.md#scenario-b--upgrading-a-database-that-holds-data).
 
 **Cost.** Silent data loss on upgrade of a populated database. Not caught by any
-gate — all 36 are structural and DB-free — and not caught by either DB-free test
+gate — all 49 are structural and DB-free — and not caught by either DB-free test
 tier.
 
 **Narrowed 2026-08-09: the syntactic half is caught, the semantic half is the
@@ -120,8 +120,10 @@ upgrade of a populated database that is a migration nobody notices did not
 happen, and it needed no schema knowledge to detect.
 `modules/migration.py::_warn_unstaged_scripts` now logs one, as a warning rather
 than an error, because an addon may legitimately keep a helper module beside its
-scripts. Measured across this workspace's five addon trees: 235 scripts (228 in
-`migrations/`, 7 in `upgrades/`), all correctly prefixed, none dropped.
+scripts. Measured across this repository's two addon trees — the scope CI
+reproduces, a workspace reading being whatever checkouts happened to be on
+disk: **162** scripts in `migrations/` and **5** in `upgrades/`, all correctly
+prefixed, **0** dropped.
 
 A risk stated at the level of its hardest half hides the half that is cheap to
 close.
@@ -131,9 +133,9 @@ integration lane. Nothing cheaper can see the semantic half.
 
 ## R4 — "Enforced" means structural only
 
-**What.** The 36 boundary checkers read import graphs, call graphs,
+**What.** The 49 boundary checkers read import graphs, call graphs,
 reached-member sets and documents. None executes the framework. A change can
-satisfy all 36 and both DB-free tiers and still be wrong.
+satisfy all 49 and both DB-free tiers and still be wrong.
 
 **Evidence.** Recorded in [`gates.md`](gates.md#the-limits-of-enforced): renaming
 `OrmCore`'s slots (`cache`/`engine` → `_cache`/`_engine`) broke two DB-backed
@@ -141,7 +143,7 @@ addon tests in 2026-08 while every gate and both tiers stayed green.
 
 **Cost.** A green boundary job reads as "the framework works" when it means "the
 structure holds". The integration lane is the only one that runs addon tests,
-and it runs four suites.
+and it runs five suites.
 
 **What would close it.** Broadening the integration lane is the only lever;
 adding structural gates cannot reach this class of defect by construction.
@@ -167,7 +169,7 @@ record to learn what `ir.attachment`'s dual storage costs.
 
 **What.** `web` publishes no API: everything under `static/src` is reachable as
 `@web/<path>`. The pin records which specifiers each consumer scope reaches, so
-the surface can only shrink. It stands at **219 specifiers**
+the surface can only shrink. It stands at **222 specifiers**
 (`tooling/architecture/public_surface_web.txt`). What remains is *recorded*, not
 resolved.
 
@@ -184,6 +186,8 @@ mean:
 | following `web`'s own module renames | 222 | `web` dissolved `services/` in b6c0619c571, so `@web/services/user` became `@web/core/user` and `browser`/`datetime`/`popover` moved with it; `agromarin` followed in 0aa8c0f5 |
 | removing specifiers backed by no module | 219 | |
 | `date_range` entered at the `@web/core/tree` face | **218** | `in_range_providers` was reached directly by the only consumer outside `web`; the face republishes it, so the file stops being surface |
+| `fields/field_options` published | **219** | the shared `supportedOptions` entries, reached by `html_editor` and `analytic`; one option descriptor had been written out twelve times across ten files, so this is a specifier bought deliberately to delete duplication (ADR-0045) |
+| the search bar split, and one selector newly reached | **221** | `adfb8afce15` gave `purchase_stock` and `product` real accessors instead of reaching around the search model, and split `search_bar` into `search_bar` and `search_bar_toggler` — one pinned specifier becoming two is +1 with no new exposure — while `components/record_selectors/avatar_models` is a genuinely new one specifier |
 
 **A scope is not a specifier.** Recording that `agromarin`'s `geoengine` also
 enters at `@web/views/widgets` added a third scope tag to a line already pinned

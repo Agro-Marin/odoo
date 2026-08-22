@@ -412,6 +412,83 @@ class CliTests(unittest.TestCase):
             code = scope_gate.run(argv)
         return code, out.getvalue(), errbuf.getvalue()
 
+    def test_prune_repoints_a_renamed_exception(self):
+        # The exemption was granted for the file's CONTENT, which moved with it.
+        # Dropping the entry would lock a file someone deliberately exempted;
+        # repointing keeps the intent the rename lost.
+        self.touch(f"{WEB_SRC}moved/thing.js")
+        log = self.write_log(err(f"{WEB_SRC}moved/thing.js"))
+        scope_gate.write_exceptions("g", "web", [f"{WEB_SRC}old/thing.js"])
+
+        code, out, _ = self._run(["g", "--log", log, "--prune"])
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("repoint", out)
+        self.assertEqual(
+            scope_gate.read_exceptions("g", "web"), [f"{WEB_SRC}moved/thing.js"]
+        )
+
+    def test_prune_refuses_an_ambiguous_rename(self):
+        # Two files share the basename, so any repoint is a guess -- and a guess
+        # exempts the wrong file while leaving the intended one locked.
+        self.touch(f"{WEB_SRC}a/thing.js")
+        self.touch(f"{WEB_SRC}b/thing.js")
+        log = self.write_log("")
+        scope_gate.write_exceptions("g", "web", [f"{WEB_SRC}old/thing.js"])
+
+        code, out, _ = self._run(["g", "--log", log, "--prune"])
+        self.assertEqual(code, EXIT_DRIFT)
+        self.assertIn("ambiguous", out)
+        self.assertEqual(
+            scope_gate.read_exceptions("g", "web"), [f"{WEB_SRC}old/thing.js"]
+        )
+
+    def test_prune_drops_an_entry_whose_file_is_gone(self):
+        self.touch(f"{WEB_SRC}kept.js")
+        log = self.write_log(err(f"{WEB_SRC}kept.js"))
+        scope_gate.write_exceptions(
+            "g", "web", [f"{WEB_SRC}kept.js", f"{WEB_SRC}vanished.js"]
+        )
+
+        code, out, _ = self._run(["g", "--log", log, "--prune"])
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("file is gone", out)
+        self.assertEqual(scope_gate.read_exceptions("g", "web"), [f"{WEB_SRC}kept.js"])
+
+    def test_prune_drops_a_now_clean_entry_so_the_file_locks(self):
+        self.touch(f"{WEB_SRC}fixed.js")
+        log = self.write_log("")
+        scope_gate.write_exceptions("g", "web", [f"{WEB_SRC}fixed.js"])
+
+        code, out, _ = self._run(["g", "--log", log, "--prune"])
+        self.assertEqual(code, EXIT_OK)
+        self.assertIn("locks at zero", out)
+        self.assertEqual(scope_gate.read_exceptions("g", "web"), [])
+
+    def test_prune_never_exempts_a_regression(self):
+        # The whole reason --prune exists. --update rewrites the list to EVERY
+        # erroring file, so the only sanctioned way to repair one stale path was
+        # to exempt every regression alongside it.
+        self.touch(f"{WEB_SRC}regressed.js")
+        self.touch(f"{WEB_SRC}exempt.js")
+        log = self.write_log(
+            "\n".join([err(f"{WEB_SRC}regressed.js"), err(f"{WEB_SRC}exempt.js")])
+        )
+        scope_gate.write_exceptions(
+            "g", "web", [f"{WEB_SRC}exempt.js", f"{WEB_SRC}vanished.js"]
+        )
+        # The plain gate refuses to run against a module with no list at all,
+        # and this fixture's SCOPED_MODULES carries `mail` as well as `web`.
+        scope_gate.write_exceptions("g", "mail", [])
+
+        self._run(["g", "--log", log, "--prune"])
+        self.assertEqual(
+            scope_gate.read_exceptions("g", "web"), [f"{WEB_SRC}exempt.js"]
+        )
+
+        code, out, _ = self._run(["g", "--log", log])
+        self.assertEqual(code, EXIT_DRIFT)
+        self.assertIn("regressed.js", out)
+
     def test_update_then_gate_is_green(self):
         self.touch(f"{WEB_SRC}dirty.js")
         self.touch(f"{WEB_SRC}clean.js")

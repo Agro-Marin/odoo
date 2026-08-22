@@ -1,0 +1,12 @@
+{
+  "expected": {
+    "base/TestActionsReadAndXmlId.test_write_binding_irrelevant_field_skips_cache_clear": "FAIL",
+    "base/TestActionsReadAndXmlId.test_write_server_action_value_field_skips_cache_clear": "FAIL",
+    "base/TestMenuMisc.test_multi_copy_names_and_single_invalidation": "FAIL"
+  },
+  "note": "Measured 2026-08-22 on a fresh DB; server summary agrees: 3 failed, 0 error(s) of 3284. All three assert that a cache clear or an invalidation did NOT happen, so they only fail when the whole suite has run before them -- by tag they pass. Run /base whole or this baseline does not apply. None root-caused.",
+  "run_spec": "-i base,web,website,documents,mail,purchase,survey,portal --test-enable --test-tags '/base'",
+  "suite": "/base",
+  "tests_total": 3284,
+  "verified_at": "ca4ee2ddd79"
+}

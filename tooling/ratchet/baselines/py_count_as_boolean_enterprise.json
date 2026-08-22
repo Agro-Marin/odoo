@@ -1,0 +1,4 @@
+{
+  "count": 0,
+  "note": "Every site the gate could see goes, the day after it landed: this scope reaches 0. Each is one keyword -- search_count(domain) becomes search_count(domain, limit=1) -- and the shape the gate reports is exactly the shape where that cannot change the answer: the result reaches an if, a not, a bool() or a comparison against 0 and nothing else. Driven from the gate's own --json so the set fixed and the set counted cannot drift apart. search_count is overridden nowhere in the four checkouts except a test stub taking *args, so no caller can be handed an unexpected keyword."
+}

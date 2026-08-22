@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import configparser
 import contextlib
 import fcntl
 import getpass
@@ -9,6 +10,7 @@ import logging
 import os
 import posixpath
 import re
+import shutil
 import socket
 import subprocess
 import sys
@@ -64,7 +66,40 @@ def require_conf() -> Path:
     return CONF
 
 
-PORT_RANGE = range(8085, 8100)
+def _port_range() -> range:
+    """The ports a warm server may claim.
+
+    Fifteen was enough when one session ran tests. It is not enough now: a
+    busy workspace holds every one of them, and the next session cannot run a
+    suite at all -- `boot_server` raises "No usable port" and there is nothing
+    to pass to make it try elsewhere. `$ODOO_HOOT_PORTS` is that something,
+    spelt `first-last` (inclusive) or `first+count`.
+
+    The default is widened rather than left at fifteen, because the failure it
+    produces is total and the cost of a wider scan is one connect() per busy
+    port.
+    """
+    spec = os.environ.get("ODOO_HOOT_PORTS", "").strip()
+    if not spec:
+        return range(8085, 8145)
+    try:
+        if "+" in spec:
+            first, count = (int(part) for part in spec.split("+", 1))
+            last = first + count - 1
+        elif "-" in spec:
+            first, last = (int(part) for part in spec.split("-", 1))
+        else:
+            first = last = int(spec)
+        if not (0 < first <= last <= 65535):
+            raise ValueError(spec)
+    except ValueError:
+        raise SystemExit(
+            f"hoot: $ODOO_HOOT_PORTS={spec!r} is not 'first-last' or 'first+count'"
+        ) from None
+    return range(first, last + 1)
+
+
+PORT_RANGE = _port_range()
 DEFAULT_DB = "hoot_web"
 HOST = "127.0.0.1"
 
@@ -114,6 +149,22 @@ def generate_hash(test_string: str) -> str:
 PG_USER = os.environ.get("PGUSER") or getpass.getuser()
 
 
+class PostgresUnavailable(RuntimeError):
+    """The cluster could not be reached.
+
+    Distinct from "the database is not there", and the distinction is the whole
+    point: this box shares one PostgreSQL cluster between sessions and reaches
+    ``max_connections`` routinely.  ``_psql`` used to discard ``returncode``
+    and ``stderr`` and return ``""`` for every failure, so ``db_exists``
+    answered *False* to "too many clients already" — and three things went
+    wrong at once.  ``ensure_db`` decided the warm database was absent and
+    re-installed it, ``installed_modules`` returned an empty set so every
+    module looked missing, and ``_odoo_install`` reported
+    ``Database init failed (rc=0)`` on a run whose log ends
+    ``Modules loaded.``  A tool that cannot reach the cluster must say so.
+    """
+
+
 def _psql(sql: str) -> str:
     out = subprocess.run(
         ["psql", "-U", PG_USER, "-d", "postgres", "-tAc", sql],
@@ -121,6 +172,11 @@ def _psql(sql: str) -> str:
         text=True,
         check=False,
     )
+    if out.returncode != 0:
+        raise PostgresUnavailable(
+            f"psql exited {out.returncode}: "
+            f"{out.stderr.strip() or out.stdout.strip() or 'no output'}"
+        )
     return out.stdout.strip()
 
 
@@ -143,8 +199,52 @@ def db_exists(db: str) -> bool:
     )
 
 
+def data_dir() -> Path | None:
+    """``data_dir`` from the active config, or None if it does not say one.
+
+    Returning None rather than guessing Odoo's default is deliberate: the only
+    caller uses this to choose a directory to *delete*, and a guess that lands
+    on the wrong tree deletes the wrong tree. Inline ``;``/``#`` comments are
+    stripped, as the server's own parser does.
+    """
+    if CONF is None:
+        return None
+    parser = configparser.ConfigParser(inline_comment_prefixes=(";", "#"))
+    try:
+        parser.read(CONF)
+        raw = parser.get("options", "data_dir", fallback="").strip()
+    except configparser.Error:
+        return None
+    return Path(raw).expanduser() if raw else None
+
+
+def drop_filestore(db: str) -> bool:
+    """Delete the filestore of a database being dropped.
+
+    ``DROP DATABASE`` does not touch it, so every hoot database ever dropped
+    left its attachments behind. One workspace had accumulated 109 such
+    directories, 4.4 GB, every one belonging to a database that no longer
+    existed -- invisible, because nothing ever looks there.
+
+    Guarded rather than trusted, since this removes a tree: the name is
+    already confined to ``[A-Za-z0-9_]+`` by ``check_db_name``, and the
+    resolved path must still be a directory sitting *directly* inside
+    ``<data_dir>/filestore``. Anything else is refused rather than removed.
+    """
+    root = data_dir()
+    if root is None:
+        return False
+    store = (root / "filestore").resolve()
+    target = (store / check_db_name(db)).resolve()
+    if target.parent != store or not target.is_dir():
+        return False
+    shutil.rmtree(target, ignore_errors=True)
+    _log.info("Removed filestore for %s (%s)", db, target)
+    return True
+
+
 def drop_db(db: str) -> None:
-    subprocess.run(
+    out = subprocess.run(
         [
             "psql",
             "-U",
@@ -158,6 +258,10 @@ def drop_db(db: str) -> None:
         text=True,
         check=False,
     )
+    # Only after the database is really gone: a filestore whose database still
+    # exists is live data, not litter.
+    if out.returncode == 0:
+        drop_filestore(db)
 
 
 def port_is_free(port: int) -> bool:
@@ -221,16 +325,90 @@ def _release_port(port: int) -> None:
         handle.close()
 
 
-def _http_alive(port: int) -> bool:
+@contextlib.contextmanager
+def _boot_lock(db: str):
+    """Serialise booting ONE database across every session on this box.
+
+    The port locks make concurrent boots pick different ports; nothing made
+    them pick different *databases*. A db has a single state file, so N
+    sessions that all find no warm server all boot one, all write that file,
+    and the last write wins -- leaving N-1 live servers with nothing pointing
+    at them. Measured before this lock: 4 concurrent invocations produced 4
+    servers, 1 record and 3 orphans, in one burst.
+
+    ``flock`` rather than a lock file's existence, because the kernel releases
+    it when the holder dies: a session killed mid-boot cannot wedge everyone
+    else. Held across the whole boot on purpose -- that is the window being
+    closed, and a waiter blocking is the correct outcome, since the thing it
+    would otherwise do is boot a duplicate.
+    """
+    LOG_DIR.mkdir(exist_ok=True)
+    handle = (LOG_DIR / f".boot_{check_db_name(db)}.lock").open("w")
+    try:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            _log.info("Another session is booting %s -- waiting for it", db)
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        yield
+    finally:
+        handle.close()
+
+
+HEALTH_TIMEOUT = 2.0
+HEALTH_ATTEMPTS = 3
+HEALTH_BACKOFF = 1.0
+
+
+def _http_probe(port: int, timeout: float = HEALTH_TIMEOUT) -> str:
+    """Probe one server once: ``up``, ``busy`` or ``down``.
+
+    The three-way answer is the point. ``down`` means nothing is listening --
+    instant and definitive, so there is nothing to wait for. ``busy`` means
+    something IS there but did not answer in time, or answered 5xx; a heavy
+    suite and a starved connection pool both produce that, and neither means
+    the server is unusable. Collapsing the two into one boolean is what let a
+    momentarily slow server be read as dead and replaced.
+    """
     import requests
 
     try:
         resp = requests.get(
-            f"http://{HOST}:{port}/web/login", timeout=2, allow_redirects=False
+            f"http://{HOST}:{port}/web/login", timeout=timeout, allow_redirects=False
         )
-        return resp.status_code < 500
+    except requests.ConnectTimeout:
+        # MUST precede ConnectionError, which it subclasses. On loopback a
+        # refused connection is instant, so a handshake that times out means
+        # the listen backlog is full -- an overloaded server, not an absent
+        # one. Ordering these the other way round classified the busiest
+        # servers as dead, which is the exact case this split exists to spare.
+        return "busy"
+    except requests.ConnectionError:
+        return "down"
     except requests.RequestException:
-        return False
+        return "busy"
+    return "up" if resp.status_code < 500 else "busy"
+
+
+def _http_alive(port: int, timeout: float = HEALTH_TIMEOUT) -> bool:
+    return _http_probe(port, timeout) == "up"
+
+
+def _server_responsive(port: int, attempts: int = HEALTH_ATTEMPTS) -> bool:
+    """Ask more than once before calling a server unusable.
+
+    Only a ``busy`` verdict is retried: a refused connection cannot become an
+    answer, so ``--status`` stays fast over dead entries.
+    """
+    for attempt in range(attempts):
+        verdict = _http_probe(port)
+        if verdict == "up":
+            return True
+        if verdict == "down":
+            return False
+        if attempt + 1 < attempts:
+            time.sleep(HEALTH_BACKOFF)
+    return False
 
 
 def addons_for_suites(suites: list[str]) -> set[str]:
@@ -303,7 +481,7 @@ def _pid_alive(pid: int) -> bool:
 def server_is_warm(state: dict | None) -> bool:
     if not state:
         return False
-    return _pid_alive(state.get("pid", -1)) and _http_alive(state["port"])
+    return _pid_alive(state.get("pid", -1)) and _server_responsive(state["port"])
 
 
 def installed_modules(db: str) -> set[str]:
@@ -348,9 +526,13 @@ def _odoo_install(db: str, modules: tuple[str, ...], log_path: Path) -> None:
             cwd=str(ODOO_ROOT),
             check=False,
         )
-    if proc.returncode != 0 or not db_exists(db):
+    if proc.returncode != 0:
         raise RuntimeError(
             f"Database init failed (rc={proc.returncode}); see {log_path}"
+        )
+    if not db_exists(db):
+        raise RuntimeError(
+            f"Database init exited 0 but {db!r} is not there; see {log_path}"
         )
 
 
@@ -444,7 +626,54 @@ def _boot_server_on(db: str, port: int) -> dict:
         "started": time.time(),
     }
     write_state(state)
+    warn_if_no_watcher(log_path)
     return state
+
+
+# The exact string ``service/lifecycle.py`` logs when the inotify watcher
+# cannot start. Matching on it is deliberate: a server without a watcher serves
+# whatever the sources were at boot, so every later run silently tests stale
+# code -- a false PASS on a fix you just wrote, or a false FAIL on one you just
+# reverted. The warning goes to the server log, which nobody reads during a
+# green run, so it is repeated here where the answer is.
+_WATCHER_FAILED = "Could not start the file watcher"
+
+
+def warn_if_no_watcher(log_path: Path | str | None) -> bool:
+    """Say so, loudly, if this server will not pick up source edits.
+
+    Returns whether the warning fired, so callers and tests can assert on it.
+    """
+    if not log_path:
+        # A state written before this check existed, or a fake one in a test:
+        # nothing to read, nothing to say.
+        return False
+    try:
+        if _WATCHER_FAILED not in Path(log_path).read_text(
+            encoding="utf8", errors="replace"
+        ):
+            return False
+    except OSError:
+        return False
+    try:
+        limit = (
+            Path("/proc/sys/fs/inotify/max_user_watches")
+            .read_text(encoding="utf8")
+            .strip()
+        )
+    except OSError:
+        limit = "?"
+    _log.warning(
+        "This server has NO file watcher: source edits are NOT picked up, so "
+        "every run tests the sources as they were at boot. "
+        "fs.inotify.max_user_watches (%s) is per USER -- shared with your "
+        "editor and with every other warm server. `hoot --status` lists them; "
+        "stop some with `hoot --stop --db <name>`, or raise the limit, then "
+        "`hoot --restart`. See %s.",
+        limit,
+        log_path,
+    )
+    return True
 
 
 def _boot_flags_stale(state: dict) -> bool:
@@ -456,13 +685,73 @@ def _boot_flags_stale(state: dict) -> bool:
     return DEV_FLAGS.encode() not in cmdline
 
 
+def _reclaim_recorded_server(db: str, state: dict | None) -> bool:
+    """Stop a recorded server that is alive but failed its health check.
+
+    ``boot_server`` ends in ``write_state``, and a db has exactly one state
+    file. Booting a replacement while the recorded process is still running
+    therefore does not replace that process -- it FORGETS it. The pid is then
+    in no state file, so ``--status`` cannot show it, ``--stop --all`` cannot
+    stop it and ``--clean`` cannot drop its db. The log is a second casualty:
+    it is named per-DB, so the replacement opens the *same* path ``"wb"`` and
+    truncates the running orphan's log, after which both write to one file at
+    independent offsets.
+
+    Left alone the leak compounds: every forgotten server keeps its psycopg
+    pool and its inotify watches, so the cluster runs out of connection slots,
+    the next health check reads 5xx as "dead", and another server is booted to
+    join them. One workspace reached 16 servers on ``hoot_web`` and exhausted
+    a 100-slot cluster this way.
+
+    This closes one of the two ways a server was lost; ``_boot_lock`` closes
+    the other, which is the unlocked window between "no warm server" and
+    ``write_state``.
+
+    Terminating first is safe because the caller has already established the
+    server is not answering: ``_server_responsive`` retries a ``busy`` verdict
+    before giving up, so a server that is merely slow is reused rather than
+    replaced, and one that reaches here is of no use to anyone.
+
+    Returns whether anything was terminated, for callers and tests.
+    """
+    if not state:
+        return False
+    pid = state.get("pid", -1)
+    if not _pid_alive(pid):
+        return False
+    _log.warning(
+        "Warm server for %s (pid %s, port %s) is alive but not answering -- "
+        "stopping it before booting its replacement, so it cannot become an "
+        "untracked orphan.",
+        db,
+        pid,
+        state.get("port"),
+    )
+    _terminate_pid(pid)
+    state_file(db).unlink(missing_ok=True)
+    return True
+
+
 def ensure_server(
     db: str | None, modules: tuple[str, ...] = ALWAYS_MODULES, verbose: bool = False
 ) -> tuple[dict, bool]:
     db = db or db_for_modules(modules)
     state = read_state(db)
     if server_is_warm(state) and state["db"] == db:
-        missing = set(modules) - installed_modules(db)
+        try:
+            missing = set(modules) - installed_modules(db)
+        except PostgresUnavailable as exc:
+            # A warm server answering HTTP is its own proof: it could not have
+            # booted without the database and the modules. When the shared
+            # cluster is out of connection slots we cannot re-verify, and the
+            # old code read the resulting empty set as "no modules installed"
+            # and RECYCLED the healthy server -- turning another session's
+            # connection pressure into a cold rebuild that then failed to get
+            # a connection either. Reuse is both correct and the only thing
+            # that can succeed here.
+            _log.info("Cannot re-verify %s (%s) - reusing the warm server", db, exc)
+            warn_if_no_watcher(state.get("log"))
+            return state, False
         if missing:
             _log.info(
                 "Warm server on %s lacks modules %s - recycling",
@@ -474,9 +763,49 @@ def ensure_server(
             _log.info("Warm server on %s predates %s - recycling", db, DEV_FLAGS)
             stop_server(db)
         else:
+            # The reuse path is where a watcherless server does its damage:
+            # "Reusing warm server" reads like everything is fine while the
+            # bundle is frozen at boot time.
+            warn_if_no_watcher(state.get("log"))
             return state, False
-    state = boot_server(db, modules, verbose=verbose)
-    return state, True
+    return _boot_serialised(db, modules, verbose=verbose)
+
+
+def _boot_serialised(
+    db: str, modules: tuple[str, ...], verbose: bool = False
+) -> tuple[dict, bool]:
+    """Boot under the db's lock, re-checking once the lock is ours.
+
+    The re-check is the half that matters. `ensure_server`'s inspection ran
+    unlocked, so by the time we hold the lock another session may have booted
+    exactly the server we were about to duplicate; reusing it is both correct
+    and free. Without it the lock would merely stagger the duplicate boots
+    rather than prevent them.
+
+    Every mutation of this db's server happens here, under the lock -- reuse,
+    recycle, reclaim and boot alike. That is the invariant worth keeping: a
+    decision taken from an unlocked read can be stale by the time it is acted
+    on, and acting on a stale read is what stranded the servers.
+    """
+    with _boot_lock(db):
+        state = read_state(db)
+        if server_is_warm(state) and state["db"] == db:
+            try:
+                missing = set(modules) - installed_modules(db)
+            except PostgresUnavailable:
+                # As in ensure_server: a server answering HTTP is its own
+                # proof that its db and modules are there.
+                missing = set()
+            if not missing:
+                _log.info("Another session booted %s while we waited - reusing", db)
+                warn_if_no_watcher(state.get("log"))
+                return state, False
+            stop_server(db)
+        else:
+            # Not warm, but possibly not dead either -- one of the two ways a
+            # server was being lost. See _reclaim_recorded_server.
+            _reclaim_recorded_server(db, state)
+        return boot_server(db, modules, verbose=verbose), True
 
 
 def _terminate_pid(pid: int) -> None:
@@ -511,6 +840,95 @@ def stop_server(db: str | None = None, clean: bool = False) -> str:
         if clean and sdb:
             drop_db(sdb)
             msg.append(f"Dropped database {sdb}.")
+    return " ".join(msg)
+
+
+_DB_FILTER_RE = re.compile(r"^--db-filter=\^(\w+)\$$")
+
+
+def find_server_processes() -> dict[int, str]:
+    """Every running warm server of THIS checkout, read from /proc.
+
+    The state files are the record of what was booted; this is the ground
+    truth. They disagree whenever a record was lost, and only the ground truth
+    can find a server nothing points at any more.
+
+    Matching is deliberately tied to ``ODOO_BIN``, so a sibling workspace's
+    servers -- and anything else on the box -- are none of our business.
+    """
+    servers: dict[int, str] = {}
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            argv = (
+                (entry / "cmdline").read_bytes().decode("utf8", "replace").split("\0")
+            )
+        except OSError:
+            continue  # exited between iterdir and read: not our problem
+        if str(ODOO_BIN) not in argv or "--max-cron-threads=0" not in argv:
+            continue
+        for arg in argv:
+            match = _DB_FILTER_RE.match(arg)
+            if match:
+                servers[int(entry.name)] = match.group(1)
+                break
+    return servers
+
+
+ORPHAN_GRACE = 180.0
+"""How old an unrecorded server must be before it counts as an orphan.
+
+``write_state`` runs only once the server answers HTTP, so throughout a boot --
+12-25s in practice, up to the 120s deadline in ``_boot_server_on`` -- a
+perfectly healthy server is recorded nowhere. Without a grace period longer
+than that deadline, ``--status`` labels every booting server ORPHAN and
+``--stop --all`` kills a session's boot mid-flight. Observed as a phantom
+orphan that had vanished by the next sample.
+"""
+
+
+def _process_age(pid: int) -> float:
+    """Seconds since the process started, or 0.0 if it cannot be read.
+
+    0.0 means "too young to judge", which keeps an unreadable process out of
+    the orphan list rather than into it: the list feeds a kill.
+    """
+    try:
+        return max(0.0, time.time() - Path(f"/proc/{pid}").stat().st_ctime)
+    except OSError:
+        return 0.0
+
+
+def find_untracked_servers(grace: float = ORPHAN_GRACE) -> dict[int, str]:
+    """Running warm servers, old enough to have finished booting, that no
+    state file accounts for."""
+    tracked = {s.get("pid") for s in read_all_states()}
+    return {
+        pid: db
+        for pid, db in find_server_processes().items()
+        if pid not in tracked and _process_age(pid) >= grace
+    }
+
+
+def stop_untracked_servers(clean: bool = False) -> str:
+    """Reap orphans -- servers running with nothing pointing at them.
+
+    Only ever called from an explicit ``--stop/--clean --all``. An untracked
+    server has no owner by construction, but a session that booted one
+    microseconds ago has not written its state file yet, and reaping on the
+    ordinary boot path would race it.
+    """
+    orphans = find_untracked_servers()
+    if not orphans:
+        return ""
+    msg = []
+    for pid, db in sorted(orphans.items()):
+        _terminate_pid(pid)
+        msg.append(f"Reaped untracked server pid={pid} db={db}.")
+        if clean:
+            drop_db(db)
+            msg.append(f"Dropped database {db}.")
     return " ".join(msg)
 
 
@@ -606,6 +1024,14 @@ class RunResult:
     """Re-executions observed on a truncated run: passed-lines minus distinct
     test names. Non-zero means the selection made HOOT run suites more than
     once, which is why such a run never reaches its summary."""
+    server_died: bool = False
+    """The warm server this ran against was gone by the end of it. Every test
+    still to be configured then fails in `MockServer._loadModels` with
+    `TypeError: Failed to fetch`, which reads as a wall of ordinary test
+    failures and is not one. Measured cause on this box: the per-user inotify
+    instance cap (128, shared with the desktop and every editor), which the
+    server hits and dies on -- `OSError: [Errno 28] inotify is out of
+    capacity`. A result with this set says nothing about the code."""
 
 
 def run_suites(
@@ -842,6 +1268,37 @@ def _run_hoot_args(tree: ast.Module) -> set[str]:
                 elif isinstance(arg, ast.Starred) and isinstance(arg.value, ast.Name):
                     prefixes.update(constants.get(arg.value.id, ()))
     return prefixes
+
+
+RE_MOBILE_TAG = re.compile(r"""\.tags\([^)]*["']mobile["']""")
+"""A `mobile`-tagged test, matched exactly as `MobileWebSuite` matches one.
+
+A second copy of that pattern, kept honest by
+`test_hoot_lib.py::test_the_mobile_tag_pattern_matches_the_suites_own`: reaching
+for the original costs an odoo bootstrap, which is the wrong price for a hint
+printed after a passing run.
+"""
+
+
+def mobile_tagged_files(suites: list[str]) -> list[Path]:
+    """The selected test files that own at least one `mobile`-tagged test.
+
+    The desktop preset does not run them: HOOT selects by tag, and the two
+    presets execute different sets -- "neither a superset of the other", as the
+    README puts it, which is why it also says verifying a change means running
+    the same suite list under both. That advice is easy to follow and easier to
+    forget, and forgetting it is silent: a mobile-only test that fails is simply
+    not in the desktop count.
+    """
+    found = []
+    for suite in suites:
+        for path in suite_test_files(suite):
+            try:
+                if RE_MOBILE_TAG.search(path.read_text(encoding="utf-8")):
+                    found.append(path)
+            except OSError:
+                continue
+    return sorted(set(found))
 
 
 def suite_test_files(suite: str) -> list[Path]:

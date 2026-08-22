@@ -1,0 +1,4 @@
+{
+  "count": 0,
+  "note": "Functions over 80 lines in addons/product/static/src, the fifth tree onboarded to js_function_length.py after web, mail, account and stock -- same script, one flag, its own floor. Zero on arrival: the tree has no function over the budget, so the floor guards new code from the start rather than recording debt. Command: python tooling/architecture/js_function_length.py --addon product --count"
+}

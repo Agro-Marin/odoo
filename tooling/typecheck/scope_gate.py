@@ -532,6 +532,17 @@ def run(argv: list[str] | None = None) -> int:
         "no-increase: only regressions, stale and out-of-scope entries fail.",
     )
     parser.add_argument(
+        "--prune",
+        action="store_true",
+        help="Repair the exception list WITHOUT exempting anything new: repoint "
+        "an entry whose file was renamed (only when exactly one file in the "
+        "module carries that basename), drop it when the file is gone, and drop "
+        "an entry that no longer errors so the file locks at zero. --update "
+        "cannot be used for this: it rewrites the list to EVERY erroring file, "
+        "so the only sanctioned way to fix two stale paths was to exempt "
+        "thirty-seven regressions with them.",
+    )
+    parser.add_argument(
         "--update",
         action="store_true",
         help="rewrite the exception lists from the log (the only way they move).",
@@ -594,6 +605,51 @@ def run(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return EXIT_USAGE
+
+    if args.prune:
+        verdict = evaluate(args.gate, tally, modules, args.mode, program)
+        rc = EXIT_OK
+        for mv in verdict.modules:
+            exceptions = read_exceptions(args.gate, mv.module)
+            by_base: dict[str, list[str]] = {}
+            for f in module_files(mv.module):
+                by_base.setdefault(f.rsplit("/", 1)[-1], []).append(f)
+
+            kept: list[str] = []
+            for entry in exceptions:
+                if entry in mv.resolved:
+                    print(f"  drop (now clean, locks at zero): {entry}")
+                    continue
+                if entry in mv.stale:
+                    candidates = by_base.get(entry.rsplit("/", 1)[-1], [])
+                    # Exactly one, or not at all. Two files sharing a basename
+                    # is a guess, and a guess here silently exempts the wrong
+                    # file while leaving the intended one locked.
+                    if len(candidates) == 1:
+                        print(f"  repoint: {entry} -> {candidates[0]}")
+                        kept.append(candidates[0])
+                    elif not candidates:
+                        print(f"  drop (file is gone): {entry}")
+                    else:
+                        print(
+                            f"  KEPT {entry}: {len(candidates)} files share that "
+                            f"basename, so the rename is ambiguous — repoint it "
+                            f"by hand"
+                        )
+                        kept.append(entry)
+                        rc = EXIT_DRIFT
+                    continue
+                kept.append(entry)
+
+            if sorted(set(kept)) == sorted(exceptions):
+                print(f"{mv.module}: nothing to prune")
+                continue
+            path = write_exceptions(args.gate, mv.module, sorted(set(kept)))
+            print(
+                f"wrote {path.relative_to(ROOT)}: {len(set(kept))} exception(s) "
+                f"(was {len(exceptions)})"
+            )
+        return rc
 
     if args.update:
         for module in modules:

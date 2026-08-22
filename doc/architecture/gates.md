@@ -6,10 +6,10 @@
 
 ## Running the checks
 
-The thirty-six blocking checkers do **not** share one CLI, and a loop that
-assumes they do fails on five of them.
+The forty-nine blocking checkers do **not** share one CLI, and a loop that
+assumes they do fails on thirteen of them.
 
-**Twenty-eight are contract gates.** Each takes bare for a human-readable
+**Thirty-three are contract gates.** Each takes bare for a human-readable
 report, `--check` for CI (exit 1 on a new violation), `--json` for a
 machine-readable one:
 
@@ -19,15 +19,18 @@ python tooling/architecture/layer_check.py --check   # CI mode: exit 1 on new vi
 python tooling/architecture/layer_check.py --json    # machine-readable
 ```
 
-**Eight are count ratchets.** `js_function_length`, `py_function_length`,
-`naming_vocabulary`, `js_service_shape` and `compute_context_deps` implement no
-`--check` at all — the five a `--check` loop breaks on. They print a number under `--count` and hand it
+**Sixteen are count ratchets.** `js_function_length`, `py_function_length`,
+`py_x2many_count`, `sql_in_placeholder`, `py_count_as_boolean`, `naming_vocabulary`,
+`field_hook_naming`, `field_hook_purity`, `js_service_shape`,
+`js_vacuous_assertions`, `js_duplication`, `compute_context_deps` and
+`py_unresolved_calls` implement no
+`--check` at all — the thirteen a `--check` loop breaks on. They print a number under `--count` and hand it
 to `tooling/ratchet/ratchet.py`, which owns the floor. `js_private_access`,
 `js_forced_render` and `translation_catalog` also implement `--check`, but CI
-drives them as ratchets, so they belong to this group. Run any of the eight bare
+drives them as ratchets, so they belong to this group. Run any of the sixteen bare
 and it reports without enforcing.
 
-Twenty-eight plus eight is thirty-six. All three figures derive from the
+Thirty-three plus sixteen is forty-nine. All three figures derive from the
 workflow, by the assertion that divides its own list; so does the membership of
 the loop below (`test_the_reproduce_loop_is_exactly_the_contract_gates`) — an
 enumerated list is a gate only when something independently derives the
@@ -47,9 +50,12 @@ for gate in layer_check mixin_coupling_check subsystem_map_check \
             js_layer_check js_cycle_check \
             js_deployment_layers named_export_coherence js_suite_parity \
             js_layer_cohesion js_import_resolution js_self_bridge \
+            js_component_face js_component_data_access \
             js_patch_blind_facade js_public_surface js_extension_surface \
             js_env_config_surface js_arch_info_surface js_field_record_surface \
-            xml_reference_coherence js_mixin_coupling sql_placeholder; do
+            js_action_surface js_template_binding \
+            xml_reference_coherence js_mixin_coupling edi_vocabulary \
+            sql_placeholder; do
     python "tooling/architecture/$gate.py" --check || echo "FAILED: $gate"
 done
 
@@ -60,20 +66,30 @@ while read -r gate floor; do
 done <<'EOF'
 js_function_length jsfunclen
 py_function_length pyfunclen
+py_x2many_count    py_x2many_count
+sql_in_placeholder sql_in_placeholder
+py_count_as_boolean py_count_as_boolean
 naming_vocabulary  naming
 compute_context_deps computectx
+field_hook_naming  fieldhooks
+field_hook_purity  hookpurity
 js_private_access  jsprivate
 js_service_shape   jsserviceshape
 js_forced_render   jsforcedrender
+js_vacuous_assertions jsvacuous
+js_duplication     jsduplication
 translation_catalog translations
+py_unresolved_calls unresolved_calls
 EOF
 
-# Two gates are addon-scoped and run twice, once per governed addon. The loop
-# above carries no argument column, so mail's scopes are explicit:
-python tooling/architecture/js_function_length.py --addon mail --count \
-    | xargs python tooling/ratchet/ratchet.py jsfunclen_mail --count
-python tooling/architecture/js_service_shape.py --addon mail --count \
-    | xargs python tooling/ratchet/ratchet.py jsserviceshape_mail --count
+# Two gates are addon-scoped and run once per governed addon. The loop above
+# carries no argument column, so the non-default scopes are explicit:
+for addon in mail account; do
+    python tooling/architecture/js_function_length.py --addon "$addon" --count \
+        | xargs python tooling/ratchet/ratchet.py "jsfunclen_$addon" --count
+    python tooling/architecture/js_service_shape.py --addon "$addon" --count \
+        | xargs python tooling/ratchet/ratchet.py "jsserviceshape_$addon" --count
+done
 ```
 
 **A local run judges more than CI does.** `js_public_surface`,
@@ -87,7 +103,7 @@ prefix on a `[FAIL]` before concluding this tree is broken.
 ## Quality gates beyond the boundaries
 
 The Python boundary checker (ADR-0005) is one gate among several. The
-`Architecture Boundaries` workflow runs **thirty-six** blocking checkers, after
+`Architecture Boundaries` workflow runs **forty-nine** blocking checkers, after
 `pytest tooling/architecture/` self-tests them:
 
 | Gate | What it locks |
@@ -100,7 +116,7 @@ The Python boundary checker (ADR-0005) is one gate among several. The
 | `env_model_surface_check.py` | the framework's string-keyed dependency on addon-owned models (`env["res.users"]`), which `core-does-not-depend-on-addons` cannot see — *which* models (exact set) **and** which subtrees may reach none. Reads six syntaxes, not just the subscript |
 | `worker_thread_surface_check.py` | inline `threading.current_thread().<attr>` reads of per-request bookkeeping (`dbname`, `cursor_mode`, …), which mypy and `layer_check` cannot see |
 | `libs_facade_check.py` | addon code **and every core package** importing `odoo.libs` **areas**, never their leaf modules |
-| `mail_hook_keyword_check.py` | the keywords `mail` passes to its own `_notify_*` / `_message_*` / `_track_*` / `_mail_*` hooks, against every override of them — `mail` is a framework whose extension points are implemented in dozens of addons across four repos, so its own 866-test suite is structurally unable to see a signature it just broke, and `28ed9db3341` broke six overrides and merged green |
+| `mail_hook_keyword_check.py` | the keywords `mail` passes to its own `_notify_*` / `_message_*` / `_track_*` / `_mail_*` hooks, against every override of them — `mail` is a framework whose extension points are implemented in dozens of addons across four repos, so its own **577**-test suite is structurally unable to see a signature it just broke, and `28ed9db3341` broke six overrides and merged green |
 | `py_cycle_check.py` | Python import cycles in the core — the direction gates cannot see them |
 | `subsystem_map_check.py` | the **subsystem map** in the module view against the actual tree |
 | `package_index_check.py` | a package README's module index against the package |
@@ -112,18 +128,32 @@ The Python boundary checker (ADR-0005) is one gate among several. The
 | `js_layer_cohesion.py` | each file filed with what it serves, not with what it resembles |
 | `js_import_resolution.py` | every first-party specifier naming a real file |
 | `js_self_bridge.py` | no source module resolving itself through the loader |
+| `js_component_face.py` | which directories under `components/` must HAVE a face — `js_face_boundary` refuses an import that reaches *past* one but a face is discovered rather than declared, so nothing said when a directory needs one (ADR-0047) |
+| `js_component_data_access.py` | no component acquiring data at runtime — `components-below-entity` argues components take their data as props and enforces it by forbidding one import prefix no component uses (ADR-0046) |
 | `js_forced_render.py` | web core not sweeping a subtree with `render(true)` — a forced render hides reads that subscribe to nothing |
 | `js_patch_blind_facade.py` | a service's own callers going through its facade |
 | `js_function_length.py` | the web addon's JS function-length budget |
+| `js_duplication.py` | the web addon's duplicated JS, as byte-exact runs of 9+ significant lines — the one property the other JS gates cannot see, because a copied block is structurally identical to a block that belongs where it is (ADR-0045) |
+| `js_vacuous_assertions.py` | a zero-count HOOT assertion naming a class no non-test file declares — the one assertion shape a wrong selector cannot be told from a passing test |
 | `py_function_length.py` | the core's Python function-length budget — ratchets *excess lines* over 80, not the offender count, because splitting one long function raises the count while lowering the excess |
+| `py_x2many_count.py` | a counter that counts by hand — `len(record.x_ids)` in a `_compute*`, or `search_count` inside a loop over `self` — which ADR-0052 replaced with `fields.Count`. Ratchets the offender count, not excess lines as `py_function_length` beside it does: there is nothing to split, each site is one declaration that was not written |
+| `sql_in_placeholder.py` | an `IN %s` psycopg3 cannot execute — a query handed straight to `cr.execute`, where nothing expands the placeholder, or an `SQL()` given a list where the builder's tuple branch is what makes `IN` work at all (ADR-0055). Floored at zero on all four scopes; a query assembled into a variable and executed elsewhere is out of its reach and is held by tests instead |
+| `py_count_as_boolean.py` | a `search_count` whose answer is only a yes or a no — consumed by an `if`, a `not`, a `bool()` or a comparison against `0` — and which passes no `limit`, so it scans the whole table to decide whether the first row exists (ADR-0057). O(rows) against O(1); the fix is one keyword. A count used inside a larger boolean expression is excluded, because the value escapes there |
+| `py_unresolved_calls.py` | a call that resolves to nothing this checkout defines — a method renamed without its callers, or a caller written against a method that never existed (ADR-0058). Five such defects landed in one day, each invisible to every other gate: the call is syntactically fine, imports nothing and reaches no boundary, so it is only found when the branch runs. Ratchets the offender count |
+
 | `js_private_access.py` | the cross-module private-access budget (`_member` reached past a module) |
 | `js_service_shape.py` | a service handing back an instance, not a literal |
 | `js_public_surface.py` | the web addon's published JS surface, as a ratchet |
 | `js_extension_surface.py` | the web addon's inheritance surface — the methods downstream subclasses override, as a ratchet |
 | `js_arch_info_surface.py` | the `archInfo` keys the view compiler writes into *generated template source*, where they are strings until OWL compiles them and no type, linter or member gate can follow them; plus each view type's parser against what its own directory reads |
-| `js_field_record_surface.py` | what field widgets reach through `props.record` — `standardFieldProps` hands all 83 members of a live `RelationalRecord` to 155 widgets, and a prop read is neither an import nor a class member, so no other gate sees it |
+| `js_field_record_surface.py` | what field widgets reach through `props.record` — `standardFieldProps` hands all **81** members of a live `RelationalRecord` to **110** widgets in this checkout, and a prop read is neither an import nor a class member, so no other gate sees it. Both figures are this repository's, not the workspace's: the gate's block was pinned once at 155 widgets from an assembled workspace, and failed in the build and nowhere else |
 | `js_env_config_surface.py` | the keys read out of `env.config`, web's ambient per-action bag — inherited through the component tree, so it is neither an import nor a class member and the two surface gates above are blind to it |
+| `js_action_surface.py` | the members reached on the `ActionManager` instance behind `env.services.action` — handed out by name, so blind to the import and member gates for the same reason. It found the contract under-declaring by four members that consumers reached at 45 call sites |
+| `js_template_binding.py` | the names an OWL template calls against the component that owns it — ADR-0032's rule on a fourth string edge. It found `EmbeddedActionsBar` binding a handler its class had lost, which took the client down on every click for 48 commits |
 | `naming_vocabulary.py` | the §2.4 method-naming verb vocabulary |
+| `field_hook_naming.py` | what a `compute=`, `search=`, `inverse=`, `default=` or `domain=` names — the field declaration carries the method's name, so the two sit inches apart and can disagree; plus the domain builders whose name does not lead with it (ADR-0049, ADR-0050, ADR-0054) |
+| `field_hook_purity.py` | whether the method a field attribute names is a hook at all — **22** are also called from production code, down from the 342 ADR-0051 opened with, which makes a compute's dependency graph something its callers compensate for (ADR-0051) |
+| `edi_vocabulary.py` | module names carrying `edi`, default-deny against ADR-0048's allowlist — the word names fiscal clearance, partner interchange and document import alike, and the collision has already produced a refactor proposal that would have made fifteen modules depend on a queue they do not use |
 | `sql_placeholder.py` | `IN %s`, which psycopg 3 binds as `IN $1` and Postgres refuses — moved out of `test_lint` so it can see the tooling half of the tree and every repo, not only installed addons |
 | `translation_catalog.py` | every `_()` literal against the msgids its module's `.pot` actually carries — a reflowed string still renders, in English, for every reader who asked for another language, and nothing else in the tree can see it |
 | `compute_context_deps.py` | computes resolving the acting user (`env.user`, `env.uid`, `_get_guest_from_context`) without declaring the context key that keys their cache — the ORM cannot see that a method read `env`, and a test transaction has one uid, so six `mail`/`sms` fields shipped it and `discuss.channel._broadcast` sent every member the first member's unread count |
@@ -176,7 +206,7 @@ name rather than by count. A backticked path in this repo asserts the file
 exists, so only *where on the page* a name sits distinguishes a citation from an
 assertion.
 
-### Checkers outside the thirty-six
+### Checkers outside the forty-nine
 
 Three more block without appearing in the table, enforced by the
 `pytest tooling/architecture/` step rather than a `--check` invocation of their
@@ -186,17 +216,23 @@ real-tree test — `test_the_real_tree_holds_the_property_today`,
 `test_the_surface_matches_the_committed_baseline` — so a violation fails the
 self-test step, which is blocking.
 
-`cross_repo_coherence.py` is a thirty-seventh checker and the only one outside CI: it
+`cross_repo_coherence.py` is a fiftieth checker and the only one outside CI: it
 runs at the `pre-push` stage via `.pre-commit-config.yaml`, because GitHub
 checks out this repo alone and the check needs the sibling checkouts. Opt-in per
 clone — `pre-commit install --hook-type pre-push`.
 
-`js_imports.py` is neither: no `main()`, no flags. It is the JS tokenizer nine of
-the gates parse with — the easiest thing in the directory to mistake for a gate,
-since it sits beside them and has a `test_js_imports.py`.
+`js_imports.py` is neither: no `main()`, no flags. It is the JS tokenizer
+**eleven** of the checkers parse with — the easiest thing in the directory to
+mistake for a gate, since it sits beside them and has a `test_js_imports.py`.
+Eleven and not eight, which is what counting only the table above would give:
+`js_face_boundary` and `js_registry_layering` are two of the three enforced by
+the self-test rather than a step of their own, and `cross_repo_coherence` is the
+fiftieth.
 
-**Twenty-nine** is how many checkers CI runs as their own step; the self-test is
-the step above them.
+**Sixty-seven** is how many steps CI runs the forty-nine in, each step invoking
+exactly one checker; the self-test is the step above them all. The two figures
+differ because a gate governing several scopes gets one step per scope —
+`py_x2many_count` alone accounts for six.
 
 `model_member_surface_check.py` is the companion to `env_model_surface_check.py`:
 *which members* the core calls on addon-owned models, against the `Protocol`s in
@@ -211,8 +247,8 @@ done right: it derives the tree and compares.
 
 ## The two count ratchets beyond the boundary gates
 
-**Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns nineteen tool
-counts into one-way contracts: **c901, c901_addons, computectx, eslint, jsforcedrender, jsfunclen, jsfunclen_mail, jsprivate, jsserviceshape, jsserviceshape_mail, mypy, naming, pyfunclen, pyfunclen_addons, pyfunclen_mail, ruff, translations, tsc and tsc_serviceworker**
+**Drift-zero count ratchet** (`tooling/ratchet/`, ADR-0006) — turns forty-seven tool
+counts into one-way contracts: **mypy, ruff, c901, c901_addons, eslint, tsc, tsc_serviceworker, jsfunclen, jsfunclen_mail, jsfunclen_account, jsfunclen_stock, jsfunclen_product, pyfunclen, pyfunclen_addons, pyfunclen_mail, py_x2many_count, py_x2many_count_addons, py_x2many_count_mail, py_x2many_count_account, py_x2many_count_stock, py_x2many_count_project, py_x2many_count_enterprise, py_x2many_count_agromarin, sql_in_placeholder, sql_in_placeholder_addons, sql_in_placeholder_enterprise, sql_in_placeholder_agromarin, py_count_as_boolean, py_count_as_boolean_addons, py_count_as_boolean_enterprise, py_count_as_boolean_agromarin, jsprivate, jsprivate_crosstree, jsserviceshape, jsserviceshape_mail, jsserviceshape_account, jsserviceshape_stock, jsforcedrender, jsvacuous, jsduplication, prettier_scss, naming, fieldhooks, hookpurity, computectx, translations and unresolved_calls**
 (floors in `tooling/ratchet/baselines/`, one JSON per gate). CI fails
 on any increase and — in the default `exact` mode — on an un-committed decrease,
 so every cleanup is locked in.
@@ -303,15 +339,16 @@ expected set from the gates the workflows actually drive rather than from a list
 beside it, so the next retirement fails instead of lingering.
 
 **DB-backed integration gate** (`.github/workflows/integration_tests.yml`,
-ADR-0007) — boots PostgreSQL 18 and runs four suites, **each against its own
+ADR-0007) — boots PostgreSQL 18 and runs five suites, **each against its own
 database**:
 
 | Suite | Database | Notes |
 |---|---|---|
 | `base` | `ci_smoke` | less the excluded `TestReportsRendering` and `TestIrModelFieldsTranslation` |
 | `test_http` | `ci_http` | |
-| `test_orm` | `ci_orm` | added 2026-08-08. **1,141 test methods** under its `tests/` directory — the addon written to test the ORM, and the largest thing that was outside the lane. Above all `test_domain_evaluator_parity.py`: the only check that a `Domain` means the same to `search()` (SQL) and `filtered_domain()` (the in-memory predicate), with a generative suite asserting the two evaluators agree *or both refuse*. No DB-free tier can see a SQL/predicate divergence |
+| `test_orm` | `ci_orm` | added 2026-08-08. **1,164 test methods** under its `tests/` directory — the addon written to test the ORM, and the largest thing that was outside the lane. Above all `test_domain_evaluator_parity.py`: the only check that a `Domain` means the same to `search()` (SQL) and `filtered_domain()` (the in-memory predicate), with a generative suite asserting the two evaluators agree *or both refuse*. No DB-free tier can see a SQL/predicate divergence |
 | `mrp` | `ci_mrp` | the first suite here that is not a `test_*` addon. Recursive BoM explosion, backorder splitting, multi-level procurement and compute chains across four models make it the deepest ORM consumer among the bundled addons; installing it gives `stock`, `product`, `uom` and `resource` their first DB-backed exercise through a real consumer |
+| `certificate` | `ci_certificate` | added 2026-08-20. Owns X.509 parsing, private-key loading and the signing API for `l10n_mx_edi`, `l10n_cl_edi`, `sign`, `account_edi_proxy_client` and fifteen more consumers, and ran in no lane at all. What it catches is not an ordinary regression: a key that signs with the wrong digest breaks fiscal submission in whichever country is downstream, silently, until a tax authority refuses the file |
 
 Adding `test_orm` paid for itself on the first run:
 `TestBackendDifferential.test_divergence_ilike_unaccent` asserted PostgreSQL's
@@ -335,13 +372,25 @@ argument — `test_orm` lost 68 lines between two runs an hour apart while its
 
 ### The limits of "enforced"
 
-**The integration gate is the only lane that runs addon tests.** All thirty-six
+**The integration gate is the only lane that runs addon tests.** All forty-nine
 boundary checkers are structural and DB-free: they read import graphs, call
-graphs, reached-member sets and documents. A change can satisfy all thirty-six,
+graphs, reached-member sets and documents. A change can satisfy all forty-nine,
 and Tier 1 and Tier 2, and still be wrong — renaming `OrmCore`'s slots
 (`cache`/`engine` → `_cache`/`_engine`) broke two DB-backed addon tests in
 2026-08 while every gate and both DB-free tiers stayed green. Read a green
 boundary job as "the structure holds", never as "the framework works".
+
+**No lane runs the JS suites.** `WebSuite` and `MobileWebSuite` in
+`addons/web/tests/test_js.py` are addon tests like any other, and the integration
+lane does not name them — `grep -rn 'WebSuite' .github/workflows/` finds nothing.
+The HOOT suites are a local gate, driven by `tooling/hoot`, which makes that
+runner's own advice (verify under both presets, gate on the per-preset count
+rather than the exit code) the whole of the enforcement. The cost is not
+hypothetical: a `mobile`-tagged test in `@web/ui/dialog_service` sat failing from
+the day it landed, invisible because the desktop preset skips it by tag and
+nothing else ran it at all. `./hoot` now prints when a selection owns tests the
+preset does not execute, which is a nudge and not a gate — read a green local run
+as "the suites you selected, under the preset you chose".
 
 A suite outside the lane is a suite nobody runs. When you add a test addon, add
 it to the lane — **with its own database.** The suites interfere: `test_http`

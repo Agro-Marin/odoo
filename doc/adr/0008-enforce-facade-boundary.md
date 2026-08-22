@@ -5,104 +5,84 @@
 
 ## Context
 
-The whole layered-ORM strategy (ADR-0001) rests on one promise stated in
-`doc/architecture/ARCHITECTURE.md`: *addon and application code imports from
-the stable façades — `odoo.api`, `odoo.fields`, `odoo.models` — not from
-`odoo.orm.*` submodules directly.* Keeping that promise is what lets the ORM's
-internal layout (Layers 0–3, the mixin decomposition, the `components/` engine)
-evolve without breaking imports across hundreds of addons.
+The layered-ORM strategy (ADR-0001) rests on one promise in
+`doc/architecture/ARCHITECTURE.md`: addon and application code imports from the
+stable façades — `odoo.api`, `odoo.fields`, `odoo.models` — not from
+`odoo.orm.*`. That promise is what lets Layers 0–3, the mixin decomposition and
+the `components/` engine move without breaking imports across hundreds of
+addons.
 
-Until now that promise was a **convention, not a guarantee**:
+It was a convention, not a guarantee:
 
-- The architecture checker (`tooling/architecture/layer_check.py`, ADR-0005)
-  derived its scanned files from the contract `source` prefixes, all of which
-  lived under `odoo.libs` / `odoo.db` / `odoo.orm`. It **never scanned
-  `odoo/addons/`**, so no contract said "addon code must use the façade."
-- As a result the boundary was already breached 35 times in `odoo/addons/base`
-  — mostly gratuitous `from odoo.orm._typing import ValuesType` (a name the
-  façades already re-export), plus genuinely *forced* bypasses (`add_field`,
-  `pop_field`) for which **no façade alternative existed**.
-- The façades carried **no `__all__`**, so the "curated public surface" was
-  implicit — whatever happened to be imported — and `import *` would leak ORM
-  internals.
+- `layer_check.py` (ADR-0005) derived its scanned files from contract `source`
+  prefixes, all under `odoo.libs` / `odoo.db` / `odoo.orm`. It never scanned
+  `odoo/addons/`, so no contract said addon code must use the façade.
+- The boundary was breached 35 times in `odoo/addons/base` — mostly gratuitous
+  `from odoo.orm._typing import ValuesType`, a name the façades already
+  re-export, plus forced bypasses (`add_field`, `pop_field`) with no façade
+  alternative.
+- The façades carried no `__all__`, so the public surface was whatever happened
+  to be imported, and `import *` leaked ORM internals.
 
-Documenting a guarantee the tooling did not enforce is worse than not claiming
-it: it invites exactly the drift it warns against.
+Documenting a guarantee the tooling does not enforce invites the drift it warns
+against.
 
 ## Decision
 
-Make the façade boundary a real, mechanically-enforced contract.
-
-1. **Complete the façades.** Surface the previously-internal-only
-   `add_field` / `pop_field` on `odoo.models`, and `COLLECTION_TYPES` on
-   `odoo.fields`, so every symbol an addon needs has a façade home.
-2. **Curate the surface.** Give `odoo/api`, `odoo/fields`, `odoo/models` each an
-   explicit `__all__` listing exactly their public exports.
-3. **Pay down the bypasses.** Rewrite all 35 `odoo.orm.*` imports in
-   `odoo/addons/**` to import from the façades instead.
+1. **Complete the façades.** Surface `add_field` / `pop_field` on
+   `odoo.models` and `COLLECTION_TYPES` on `odoo.fields`, so every symbol an
+   addon needs has a façade home.
+2. **Curate the surface.** Give `odoo/api`, `odoo/fields`, `odoo/models` an
+   explicit `__all__`.
+3. **Pay down the bypasses.** Rewrite all 35 `odoo.orm.*` imports under
+   `odoo/addons/**` to use the façades.
 4. **Enforce it.** Add the `facade-boundary` contract to `layer_check.py`:
-   files under `odoo.addons` may not import `odoo.orm.*` at runtime. Imports
-   guarded by `if TYPE_CHECKING:` are exempt (they never execute and create no
-   runtime coupling), consistent with every other contract. The façades
-   themselves (`odoo.api` / `odoo.fields` / `odoo.models`) are not under
-   `odoo.orm`, so importing them is allowed by construction.
+   files under `odoo.addons` may not import `odoo.orm.*` at runtime.
+   `if TYPE_CHECKING:` imports are exempt, as in every other contract. The
+   façades are not under `odoo.orm`, so importing them is legal by
+   construction.
 
-This brings the framework core to **eight** drift-zero boundary contracts as of
-2026-06-25, all clean at zero on that date. The live set and its status are
-`layer_check.py`'s `CONTRACTS` and the checker's own report; this record does not
-restate either.
+That brought the core to **eight** drift-zero contracts as of 2026-06-25, all
+clean at zero on that date. The live set is `layer_check.py`'s `CONTRACTS`.
 
 ## Consequences
 
-- The façade promise is now true and stays true: a new `odoo.orm.*` import in
-  any addon fails CI, with a pointer to the façade to use instead.
-- The ORM's internal layout can be refactored freely; the blast radius of an
+- A new `odoo.orm.*` import in any addon fails CI, with a pointer to the façade
+  to use instead.
+- The ORM's internal layout can be refactored freely: the blast radius of an
   internal move is the façade re-export line, not hundreds of addon files.
 - `__all__` makes the public surface reviewable and diffable, and stops
-  `import *` from leaking internals.
-- New genuinely-public ORM symbols must be added to a façade (and its `__all__`)
-  to be usable from addons — a small, deliberate step that keeps the surface
-  curated rather than accidental.
-- The checker walks `odoo/addons/**` as well, which at this decision took it from
-  ~150 files to 314; still sub-second. (ADR-0009 widened the scope again.)
+  `import *` leaking internals.
+- A genuinely public new ORM symbol must be added to a façade and its `__all__`
+  to be usable from addons — deliberate friction that keeps the surface curated.
+- The checker now also walks `odoo/addons/**`, which at this decision took it
+  from ~150 files to 314; still sub-second. ADR-0009 widened it again.
 
 ## Enforcement
 
-`tooling/architecture/layer_check.py` — the `facade-boundary` contract, gated in
-CI via `--check` (ADR-0005), drift-zero. Covered by
+`tooling/architecture/layer_check.py`, `facade-boundary` contract, gated via
+`--check` (ADR-0005), drift-zero. Covered by
 `tooling/architecture/test_layer_check.py`
 (`test_addon_importing_orm_internal_is_a_violation`,
 `test_addon_importing_facades_is_clean`,
 `test_addon_type_checking_import_of_orm_is_exempt`,
-`test_facade_boundary_scans_the_addon_tree`) and by the standing
-`test_framework_core_has_no_new_violations` regression guard.
+`test_facade_boundary_scans_the_addon_tree`) and the standing
+`test_framework_core_has_no_new_violations` guard.
 
 ## Amendments
 
-Append-only. An amendment corrects what this record says *about the repo*; it
-never edits the decision above.
+### 2026-08-07 — the contract count and scanned-file count are now dated
 
-### 2026-08-07 — the contract count and the scanned-file count are now dated
-
-"This brings the framework core to **eight** drift-zero boundary contracts, all
-clean at zero" and "the checker **now** walks 314 files" both read as claims
-about today. Neither is: the contract set has grown well past eight, and
-ADR-0009 widened the façade scope to both addon trees a fortnight later, which
-this record could not know. Corrected in place — both now name the moment they
-describe and point at where the live value lives.
+"Eight drift-zero boundary contracts, all clean at zero" and "the checker now
+walks 314 files" both read as claims about today. The contract set has grown
+past eight, and ADR-0009 widened the façade scope to both addon trees a
+fortnight later. Both now name the moment they describe.
 
 ### 2026-08-07 — the architecture front door moved to `doc/architecture/`
 
 This record cited the front door at the path it held inside the core package
-until 2026-08-07 (odoo/ARCHITECTURE.md — deliberately not backticked, because a
-backticked path in this repo asserts that the file exists, and this one no
-longer does). That page sat inside the core *package* while describing the
-whole repository — the gate
-catalog it indexes covers `addons/**` JS and the repo-wide `eslint`/`tsc`
-ratchets — so it was filed one level below its own scope, and the two halves of
-the architecture document cited each other across directories. Widening
-`doc_link_gate.py` to the set found 15 broken references held together by
-nothing. The set is now one flat directory, `doc/architecture/`, with the front
-door at `doc/architecture/ARCHITECTURE.md`.
-
-Corrected in place: the *Context* citation of the promise this decision rests on. It is a citation, not the decision.
+until 2026-08-07. That page described the whole repository — its gate catalog
+covers `addons/**` JS and the repo-wide `eslint`/`tsc` ratchets — while filed
+one level below its own scope. Widening `doc_link_gate.py` to the set found 15
+broken references. Corrected in place: the Context citation of the promise this
+decision rests on.
