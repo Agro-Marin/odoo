@@ -1,17 +1,9 @@
 /** @odoo-module native */
 /** @typedef {typeof import("@web/model/relational_model/record").RelationalRecord} RelationalModelRecord */
 
-/**
- * Schemes a URL document is allowed to be opened with. Anything else (most
- * notably `javascript:`, `data:` and `vbscript:`, which would run in the
- * origin of the opener) is treated as a bare host and prefixed with `http://`.
- */
 const SAFE_URL_SCHEME = /^(https?|ftp):\/\//;
 
 /**
- * Normalize a documents.document URL into something safe to hand to
- * `window.open`. Mirrors the server-side hardening of the /document redirect.
- *
  * @param {String} url
  * @return {String}
  */
@@ -20,9 +12,6 @@ export function toSafeDocumentUrl(url) {
 }
 
 /**
- * Open a documents.document URL in a new tab, with the scheme allowlist
- * applied and the opener detached (reverse tabnabbing).
- *
  * @param {String} url
  */
 export function openDocumentUrl(url) {
@@ -30,19 +19,8 @@ export function openDocumentUrl(url) {
 }
 
 /**
- * Normalize a `user_folder_id` into a search-panel value id.
- *
- * The panel keys real folders by number and the virtual roots by string
- * ("COMPANY", "MY", "SHARED", "RECENT", "TRASH"), while `user_folder_id` is a
- * Char that carries either -- or `false`, which `_compute_user_folder_id`
- * assigns to any document the user cannot access.
- *
- * Replaces `!isNaN(v) ? parseInt(v) : v`, copied at five call sites: `Number("")`
- * and `Number(false)` are both `0`, so `isNaN` accepts them and `parseInt` then
- * answers `NaN` -- an id that matches no folder and no root.
- *
  * @param {number|String|false} userFolderId
- * @returns {number|String|false} `false` when there is no usable id
+ * @returns {number|String|false}
  */
 export function toFolderValueId(userFolderId) {
     if (typeof userFolderId === "number") {
@@ -55,7 +33,6 @@ export function toFolderValueId(userFolderId) {
 }
 
 /**
- * From multiple documents.document records, return the actions available on all of them.
  * @param {RelationalModelRecord[]} documents
  * @return {{id: Number, name: String}[]}
  */

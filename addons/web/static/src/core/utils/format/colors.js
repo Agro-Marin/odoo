@@ -2,7 +2,6 @@
 /** @odoo-module native */
 
 /**
- * @static
  * @param {string} gradient
  * @param {number} opacity
  * @returns {string}
@@ -14,7 +13,6 @@ export function applyOpacityToGradient(gradient, opacity = 100) {
     return gradient.replace(/rgb\(([^)]+)\)/g, `rgba($1, ${opacity / 100.0})`);
 }
 /**
- * @static
  * @param {number} r
  * @param {number} g
  * @param {number} b
@@ -67,7 +65,6 @@ export function convertRgbToHsl(r, g, b) {
     };
 }
 /**
- * @static
  * @param {number} h
  * @param {number} s
  * @param {number} l
@@ -146,7 +143,6 @@ export function convertHslToRgb(h, s, l) {
     return false;
 }
 /**
- * @static
  * @param {number} r
  * @param {number} g
  * @param {number} b
@@ -187,7 +183,6 @@ export function convertRgbaToCSSColor(r, g, b, a) {
     return `#${rr}${gg}${bb}${aa}`.toUpperCase();
 }
 /**
- * @static
  * @param {string} cssColor
  * @returns {{red: number, green: number, blue: number, opacity: number}|false}
  */
@@ -247,7 +242,6 @@ export function convertCSSColorToRgba(cssColor = "") {
     return false;
 }
 /**
- * @static
  * @param {string} cssColor
  * @returns {string}
  */
@@ -261,7 +255,6 @@ export function normalizeCSSColor(cssColor) {
     );
 }
 /**
- * @static
  * @param {string} cssColor
  * @returns {boolean}
  */
@@ -269,7 +262,6 @@ export function isCSSColor(cssColor) {
     return convertCSSColorToRgba(cssColor) !== false;
 }
 /**
- * @static
  * @param {string} cssColor1
  * @param {string} cssColor2
  * @param {number} weight

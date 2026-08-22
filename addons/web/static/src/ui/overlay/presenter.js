@@ -3,14 +3,6 @@
 
 import { markRaw } from "@odoo/owl";
 
-// `useBottomSheet` is not one of these: no service reads it, `usePopover` does,
-// to choose *which* service to call. It is listed anyway because the hook cannot
-// take it back out. Callers hand `usePopover` an options object whose `class`
-// and `position` are live getters (Dropdown's are), so the hook layers
-// `Object.create` over it rather than copying -- and an inherited property
-// cannot be deleted from the derived object. Dropping the name here would warn
-// every `usePopover({ useBottomSheet })` caller about an option that is doing
-// exactly what it is supposed to.
 const SERVICE_OPTIONS = ["env", "onClose", "sequence", "useBottomSheet"];
 
 const PRESENTER_SUPPLIED = ["close", "component", "componentProps", "slots", "target"];

@@ -29,15 +29,11 @@ export class WorkcenterDashboardGraphField extends JournalDashboardGraphField {
                     {
                         type: "line",
                         borderColor: maxLoadLineColor,
-                        // normally the line stops in the middle of the first and last columns, which is ugly
-                        // to make it go through all the graph, the single point has been configured as a line
-                        // in the middle of the graph and extended. The real line is not shown.
                         data: [undefined, undefined, this.data[0].values[1]],
                         showLine: false,
                         pointStyle: "line",
                         pointRadius: 500,
                         pointBorderWidth: 2,
-                        // this is so that hovering on the 'line' does not change its appearance
                         pointHoverRadius: 500,
                         pointHoverBorderWidth: 2,
                     },

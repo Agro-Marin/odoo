@@ -224,7 +224,6 @@ export class ComboConfiguratorPopup extends Component {
     }
 
     setQuantity(combo_item, quantity) {
-        //Make sure quantity is within the bounds [0, combo_id.qty_max]
         const combo_id = combo_item.combo_id;
         const maxQtyAvailable =
             combo_id.qty_max -

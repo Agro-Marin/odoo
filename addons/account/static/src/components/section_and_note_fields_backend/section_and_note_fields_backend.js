@@ -23,7 +23,6 @@ import {
     isTopSectionType,
 } from "./section_and_note_helpers.js";
 
-// Re-exported for external consumers (e.g. sale_management's order line field).
 export { getSectionRecords };
 
 const SHOW_ALL_ITEMS_TOOLTIP = _t(
@@ -49,7 +48,6 @@ export class SectionAndNoteListRenderer extends ListRenderer {
         super.setup();
         this.titleField = "name";
         this.priceColumns = [...this.props.aggregatedFields, "price_unit"];
-        // invisible fields to force copy when duplicating a section
         this.copyFields = ["display_type", "collapse_composition", "collapse_prices"];
         this.parentSectionMap = new Map();
         useEffect(
@@ -70,10 +68,6 @@ export class SectionAndNoteListRenderer extends ListRenderer {
     }
 
     /**
-     * The section/note members the row template calls (see ListRowApi).
-     * Rendering reads keep the row's own record so the reads subscribe the
-     * row; the section actions resolve it back to this renderer's context.
-     *
      * @override
      */
     buildRowApi() {
@@ -106,12 +100,6 @@ export class SectionAndNoteListRenderer extends ListRenderer {
     }
 
     /**
-     * The section feature flags the row template reads from `props`, plus the
-     * per-row collapse derivations. The derivations depend on the record's
-     * PARENT section, which the row itself never reads — computing them here
-     * subscribes the renderer to the parent's collapse fields and prop-flips
-     * exactly the member rows whose muting changed.
-     *
      * @override
      */
     getRowProps(record, group, groupId) {
@@ -129,8 +117,6 @@ export class SectionAndNoteListRenderer extends ListRenderer {
         };
     }
 
-    // Current row's collapse state (distinct from the props.hidePrices /
-    // props.hideComposition feature flags that gate the toggle buttons).
     isPriceCollapsed(record) {
         return record.data.collapse_prices;
     }
@@ -170,7 +156,6 @@ export class SectionAndNoteListRenderer extends ListRenderer {
     }
 
     async toggleCollapse(record, fieldName) {
-        // We don't want to have 'collapse_prices' & 'collapse_composition' set to True at the same time
         const reverseFieldName =
             fieldName === "collapse_prices"
                 ? "collapse_composition"
@@ -217,9 +202,6 @@ export class SectionAndNoteListRenderer extends ListRenderer {
         await this.props.list.addNewRecordAtIndex(index, { context });
     }
 
-    /**
-     * Hook for other modules to conditionally specify defaults for new lines
-     */
     getInsertLineContext(_record, _addSubSection) {
         return {};
     }
@@ -307,7 +289,6 @@ export class SectionAndNoteListRenderer extends ListRenderer {
 
     isNextSectionInPage(record) {
         if (this.props.list.count <= this.props.list.offset + this.props.list.limit) {
-            // if last page
             return true;
         }
         const sectionRecords = getSectionRecords(this.props.list, record);
@@ -336,7 +317,6 @@ export class SectionAndNoteListRenderer extends ListRenderer {
 
     isSectionInPage(record) {
         if (this.props.list.count <= this.props.list.offset + this.props.list.limit) {
-            // if last page
             return true;
         }
         const { sectionIndex } = getRecordsUntilSection(this.props.list, record, true);
@@ -356,13 +336,9 @@ export class SectionAndNoteListRenderer extends ListRenderer {
     }
 
     /**
-     * Determines whether the line should be collapsed.
-     * - If the parent is a section: use the parent’s field.
-     * - If the parent is a subsection: use parent subsection OR its section.
      * @param {object} record
      * @param {string} fieldName
-     * @param {boolean} checkSection - if true, also evaluates the collapse state for section or
-     *  subsection records
+     * @param {boolean} checkSection
      * @returns {boolean}
      */
     shouldCollapse(record, fieldName, checkSection = false) {
@@ -378,7 +354,6 @@ export class SectionAndNoteListRenderer extends ListRenderer {
             return false;
         }
 
-        // `line_section` never collapses unless explicitly checked above
         if (this.isTopSection(record)) {
             return false;
         }
@@ -409,7 +384,6 @@ export class SectionAndNoteListRenderer extends ListRenderer {
 
     getCellClass(column, record) {
         let classNames = super.getCellClass(column, record);
-        // Hide the non-title columns of sections and notes
         if (
             this.isSectionOrNote(record) &&
             column.widget !== "handle" &&
@@ -417,7 +391,6 @@ export class SectionAndNoteListRenderer extends ListRenderer {
         ) {
             return `${classNames} o_hidden`;
         }
-        // For muting the price columns
         if (
             this.props.hidePrices &&
             this.shouldCollapse(record, "collapse_prices") &&
@@ -530,9 +503,6 @@ export class SectionAndNoteListRenderer extends ListRenderer {
     }
 
     /**
-     * Reset the `collapse_` fields of a dragged subsection when its parent
-     * section is composition-collapsed.
-     *
      * @override
      */
     async sortDrop(dataRowId, dataGroupId, options) {

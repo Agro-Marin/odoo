@@ -56,10 +56,6 @@ const total = () => queryText("[name='sale_product_configurator_list_total']").t
 const quantity = () => queryFirst("[name='sale_quantity']").value;
 
 test("quantity: a superseded price response does not overwrite the current one", async () => {
-    // Two `+` clicks in a row, with the responses arriving in the opposite order. Before
-    // sequencing, the last response to arrive won regardless of which request it
-    // answered, and the dialog showed quantity 3 priced as quantity 2 - which the
-    // footer then multiplied by 3.
     const pending = [];
     onRpc("/sale/product_configurator/get_values", () => ({
         products: [productPayload(10)],
@@ -76,14 +72,14 @@ test("quantity: a superseded price response does not overwrite the current one",
     expect(price()).toInclude("10");
 
     const plus = queryFirst("[name='sale_quantity_button_plus']");
-    click(plus); // -> quantity 2
+    click(plus);
     await animationFrame();
-    click(plus); // -> quantity 3
+    click(plus);
     await animationFrame();
     expect(pending).toHaveLength(2);
 
-    pending[1].resolve({ price: "30", show_extra_price: true }); // the qty-3 answer
-    pending[0].resolve({ price: "20", show_extra_price: true }); // the stale qty-2 answer
+    pending[1].resolve({ price: "30", show_extra_price: true });
+    pending[0].resolve({ price: "20", show_extra_price: true });
     await animationFrame();
     await animationFrame();
 
@@ -93,8 +89,6 @@ test("quantity: a superseded price response does not overwrite the current one",
 });
 
 test("quantity: the newest response still applies when it arrives last", async () => {
-    // The control for the test above: in-order responses must behave normally, i.e.
-    // sequencing must not drop the answer we actually want.
     const pending = [];
     onRpc("/sale/product_configurator/get_values", () => ({
         products: [productPayload(10)],
@@ -125,9 +119,6 @@ test("quantity: the newest response still applies when it arrives last", async (
 });
 
 test("ProductCard is operable from the keyboard", async () => {
-    // The card is the combo configurator's primary control. It used to hang off the
-    // deprecated `keypress` event and test only for `Space`, so Enter never activated
-    // it, and Space scrolled the dialog on the way through.
     const clicks = [];
     class Parent extends Component {
         static components = { ProductCard };
@@ -159,7 +150,6 @@ test("ProductCard is operable from the keyboard", async () => {
     await press(" ");
     expect(clicks).toHaveLength(2);
 
-    // Space must not also scroll the dialog.
     const spaceEvent = new KeyboardEvent("keydown", {
         key: " ",
         bubbles: true,

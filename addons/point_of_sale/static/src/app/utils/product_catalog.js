@@ -1,12 +1,6 @@
 /** @odoo-module native */
 import { normalize } from "@web/core/l10n/utils";
 
-// Product-catalogue display/search logic extracted from PosStore. These are pure
-// functions of the store: PosStore keeps thin delegating getters/methods (the
-// patchable, consumer-facing API) so the modules that patch PosStore.prototype
-// and the components reading `pos.productsToDisplay` are unaffected. Cross-calls
-// go through `pos.<method>()` so a module's patch still applies.
-
 export function getExcludedProductIds(pos) {
     return [
         pos.config.tip_product_id?.product_tmpl_id?.id,
@@ -73,9 +67,6 @@ export function computeProductsToDisplay(pos) {
     const isSearchByWord = searchWord !== "";
 
     if (isSearchByWord) {
-        // The "reset category when a search begins" transition lives in a
-        // reactive effect (see PosStore.setup), not here — this is read during
-        // render and must stay pure.
         list = pos.getProductsBySearchWord(
             searchWord,
             pos.selectedCategory?.id
@@ -144,12 +135,10 @@ export function computeProductToDisplayByCateg(pos) {
         ? pos.models["pos.category"].map((c) => c.id)
         : pos.selectedCategory.getAllChildren().map((c) => c.id);
 
-    // Sorting in place the categories according to their sequence in the database
     selectedCategoryIds.sort((a, b) => {
         const categA = pos.models["pos.category"].get(a);
         const categB = pos.models["pos.category"].get(b);
 
-        // All category with a parent will be at the end
         if (categA.parent_id && !categB.parent_id) {
             return 1;
         } else if (!categA.parent_id && categB.parent_id) {
@@ -160,10 +149,6 @@ export function computeProductToDisplayByCateg(pos) {
     });
 
     if (!pos.selectedCategory) {
-        // In case of no category selected, we want to display products without category in
-        // a "Without category" category at the end of the list.
-        // We use the default sortedProducts order to keep the same order as in the non
-        // group by category mode.
         const productWithoutCategory = sortedProducts.filter(
             (p) => !p.pos_categ_ids.length,
         );
@@ -178,12 +163,6 @@ export function computeProductToDisplayByCateg(pos) {
             : products;
 
         if (filtered.length) {
-            // Its advised to not use group by categ with too much products in differents
-            // categories, but in case of we end up with too much products, we slice them in
-            // group of 100 to avoid freezing the browser tab.
-            // We cannot just slice the products to display and keep the same category, because
-            // we want to avoid having categories with only few products displayed and others
-            // with a lot of products not displayed.
             const sorted = pos.orderProductBySequenceAndFav(filtered);
             results.push([catId, sorted.splice(0, 100)]);
         }

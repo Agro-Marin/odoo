@@ -35,9 +35,6 @@ const isScrollSwipable = (scrollables, direction) => {
     );
 };
 
-/**
- * @extends Component
- */
 export class ActionSwiper extends Component {
     static template = "web.ActionSwiper";
     static props = {

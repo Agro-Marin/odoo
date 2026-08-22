@@ -54,8 +54,6 @@ export class TextInputFieldBase extends TrimmingInputFieldBase {
     onDynamicPlaceholderOpen() {
         /** @type {any} */ (this).dynamicPlaceholder.open({
             validateCallback: this.onDynamicPlaceholderValidate.bind(this),
-            // Without this the popover closes leaving the focus on the button
-            // that opened it, where the `#` trigger returns it to the input.
             closeCallback: () => this.inputEl?.focus(),
         });
     }

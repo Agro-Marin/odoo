@@ -6,26 +6,8 @@ import { animationFrame, Deferred, tick } from "@odoo/hoot-mock";
 import { isMacOS } from "@web/core/browser/feature_detection";
 import { isVisible } from "@web/core/utils/dom/ui";
 
-/**
- * How long the wait helpers give the client before failing.
- *
- * The first wait after `openDiscuss` pays for the whole mount, `/mail/data` and
- * `/discuss/channel/messages`; upstream measured 867-5258ms over ten runs with
- * the CPU throttled 4x, which is what a loaded runbot looks like. 3s was too
- * tight for that. 10s matches the budget a tour step already gets and leaves
- * room inside hoot's own 15s per-test ceiling (`_run_hoot` builds the URL with
- * `&timeout=15000`).
- *
- * Kept separate from the re-check cadence below. Upstream sets `tickTimeoutDelay
- * = TIMEOUT`, which conflates the two: every wait the MutationObserver does not
- * catch then costs a full 10s instead of 3s, and the whole @mail suite measured
- * ~6% slower for it (315s against 297s over three runs each). Raising the budget
- * alone costs nothing measurable -- 292s, 291s -- because a green wait still
- * settles on the observer or the first tick.
- */
 export const TIMEOUT = 10_000;
 
-/** How often a pending wait re-checks. Not the budget -- see above. */
 const TICK_DELAY = 3000;
 
 /** @param {EventInit} [args] */

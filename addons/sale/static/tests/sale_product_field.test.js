@@ -35,7 +35,7 @@ class ProductTemplateAttributeValue extends models.Model {
 
 defineModels({ ...saleModels, SaleOrderLine, ProductTemplateAttributeValue });
 
-saleModels.SaleOrder._views.form = /* xml */ `
+saleModels.SaleOrder._views.form = `
     <form>
         <field name="line_ids" widget="sol_o2m" mode="list">
             <list editable="bottom">
@@ -69,7 +69,6 @@ test("pressing tab with incomplete text will create a product", async () => {
                 </form>`,
     });
 
-    // add a line and enter new product name
     await contains(".o_field_x2many_list .o_field_x2many_list_row_add a").click();
     await contains("[name='product_template_id'] input").edit("new product");
     await press("tab");
@@ -213,12 +212,6 @@ test("No description should be shown if there does not exist one apart from the 
 });
 
 test("the product cascade holds the model until the combo configurator is done", async () => {
-    // `_selectProduct` runs the cascade inside `trackCompoundUpdate` so that a save,
-    // reload or `leaveEditMode` cannot settle on a half-applied line. That only holds if
-    // `_onProductTemplateUpdate` awaits the configurator it opens: on the
-    // all-preselected combo path the configurator skips its dialog and writes
-    // `product_qty` / `selected_combo_items` itself. Started but not awaited, the model
-    // reported the line settled while it held nothing but `product_id`.
     const model = Object.create(RelationalModel.prototype);
     model._compoundUpdates = new Set();
     model.mutex = new Mutex();
@@ -253,13 +246,9 @@ test("the product cascade holds the model until the combo configurator is done",
         await field._onProductTemplateUpdate();
     });
 
-    // Race the settle against the combo work. Whichever wins names the behaviour:
-    // "askChanges-first" is the bug (the model declared the line settled while the
-    // configurator was still writing to it), "combo-first" is the invariant.
     const winner = await Promise.race([
         model._askChanges().then(() => "askChanges-first"),
         comboWork.then(() => "combo-first"),
-        // Nothing else may resolve the race: give the settle every chance to win.
         new Promise((resolve) => setTimeout(() => resolve("nothing-settled"), 0)),
     ]);
     expect(winner).not.toBe("askChanges-first");

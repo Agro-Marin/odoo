@@ -394,7 +394,7 @@ export const globalValues = {
  * @param {import("@odoo/owl").ComponentConstructor} component
  * @param {HTMLElement | ShadowRoot} target
  * @param {Partial<ConstructorParameters<typeof App>[1]> & {
- *  beforeMount?: (env: OdooEnv) => void | Promise<void>
+ * beforeMount?: (env: OdooEnv) => void | Promise<void>
  * }} [appConfig]
  */
 export async function mountComponent(component, target, appConfig = {}) {

@@ -12,10 +12,8 @@ export class Orderline extends Component {
         slots: { type: Object, optional: true },
         showTaxGroupLabels: { type: Boolean, optional: true },
         showTaxGroup: { type: Boolean, optional: true },
-        // showImage had a defaultProps entry (and a template read) but no
-        // declaration, so passing it was a validation error in dev mode.
         showImage: { type: Boolean, optional: true },
-        mode: { type: String, optional: true }, // display, receipt
+        mode: { type: String, optional: true },
         basic_receipt: { type: Boolean, optional: true },
         onClick: { type: Function, optional: true },
         onLongPress: { type: Function, optional: true },
@@ -63,7 +61,7 @@ export class Orderline extends Component {
             ...(this.props.class || []),
             "border-start": this.props.mode !== "receipt" && this.line.combo_parent_id,
             "orderline-combo fst-italic ms-4": this.line.combo_parent_id,
-            "position-relative d-flex align-items-center lh-sm cursor-pointer": true, // Keep all classes here
+            "position-relative d-flex align-items-center lh-sm cursor-pointer": true,
         };
     }
 
@@ -98,15 +96,9 @@ export class Orderline extends Component {
         return "";
     }
 
-    /**
-     * To avoid to much logic in the template, we compute all values here
-     * and use them in the template.
-     */
     get lineScreenValues() {
         const line = this.line;
 
-        // Prevent rendering if the line is not yet linked to an order
-        // this can happen during related models connections
         if (!line.order_id) {
             return {};
         }
@@ -123,9 +115,6 @@ export class Orderline extends Component {
         const taxGroup = this.line.taxGroupLabels;
         const showPrice =
             !basic &&
-            // getQuantityStr() returns an object, so `!= 1` was always true and the
-            // "hide the unit price when qty is 1" intent never applied. Compare the
-            // numeric quantity instead. (Also compute the object once, above.)
             line.getQuantity() !== 1 &&
             (mode === "receipt" ||
                 (line.price_type !== "original" && !line.combo_parent_id));

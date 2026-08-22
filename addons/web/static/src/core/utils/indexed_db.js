@@ -82,7 +82,6 @@ export class IndexedDB {
     }
 
     /**
-     * @deprecated
      * @param {string[]} tables
      * @param {(key: string) => boolean} predicate
      */

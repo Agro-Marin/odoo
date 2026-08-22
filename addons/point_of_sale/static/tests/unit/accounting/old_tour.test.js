@@ -1,9 +1,3 @@
-/**
- * This file contains old tour tests related to accounting that were migrated to Hoot.
- * These tours were not checking anything on the Python side, so they were simply
- * converted to Hoot tests without any additional checks.
- */
-
 import { expect, test } from "@odoo/hoot";
 
 import { definePosModels } from "../data/generate_model_definitions.js";
@@ -24,7 +18,6 @@ test("[Old Tour] pos_basic_order_01_multi_payment_and_change", async () => {
     const order = store.addNewOrder();
     order.pricelist_id = false;
 
-    // Add products
     await store.addLineToOrder({ product_tmpl_id: product1, qty: 2 }, order);
     order.addPaymentline(cashPm);
     order.payment_ids[0].setAmount(5);
@@ -141,7 +134,7 @@ test("[Old Tour] test_cash_rounding_halfup_add_invoice_line_not_only_round_cash_
     order.addPaymentline(cardPm);
     order.payment_ids[0].setAmount(0.68);
     expect(order.amountPaid).toBe(0.68);
-    expect(order.remainingDue).toBe(15.02); // Order is rounded globaly so remaining due is rounded
+    expect(order.remainingDue).toBe(15.02);
     order.addPaymentline(cashPm);
     expect(order.payment_ids[1].amount).toBe(15.02);
     expect(order.amountPaid).toBe(15.7);
@@ -158,7 +151,7 @@ test("[Old Tour] test_cash_rounding_halfup_add_invoice_line_not_only_round_cash_
     order2.addPaymentline(cardPm);
     order2.payment_ids[0].setAmount(-0.68);
     expect(order2.amountPaid).toBe(-0.68);
-    expect(order2.remainingDue).toBe(-15.02); // Order is rounded globaly so remaining due is rounded
+    expect(order2.remainingDue).toBe(-15.02);
     order2.addPaymentline(cashPm);
     expect(order2.payment_ids[1].amount).toBe(-15.02);
     expect(order2.amountPaid).toBe(-15.7);

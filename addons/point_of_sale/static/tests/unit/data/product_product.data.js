@@ -3,7 +3,6 @@ import { models } from "@web/../tests/web_test_helpers";
 export class ProductProduct extends models.ServerModel {
     _name = "product.product";
 
-    // NOTE - We don't take into account _eval_taxes_computation_prepare_product_fields
     _load_pos_data_fields() {
         return [
             "id",

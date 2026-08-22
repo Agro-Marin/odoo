@@ -16,7 +16,6 @@ import { registry } from "@web/core/registry";
 registry.category("web_tour.tours").add("ReceiptScreenTour", {
     steps: () =>
         [
-            // press close button in receipt screen
             Chrome.startPoS(),
             Dialog.confirm("Open Register"),
             OfflineUtil.setOfflineMode(),
@@ -30,16 +29,13 @@ registry.category("web_tour.tours").add("ReceiptScreenTour", {
             PaymentScreen.shippingLaterHighlighted(),
             PaymentScreen.clickValidate(),
             ReceiptScreen.receiptIsThere(),
-            ReceiptScreen.cashierNameExists("A"), // A simple PoS man! (Take the first word)
+            ReceiptScreen.cashierNameExists("A"),
             Dialog.confirm("Continue with limited functionality"),
-            //receipt had expected delivery printed
             ReceiptScreen.shippingDateExists(),
             ReceiptScreen.shippingDateIsToday(),
-            // letter tray has 10% tax (search SRC)
             ReceiptScreen.totalAmountContains("55.0"),
             ReceiptScreen.clickNextOrder(),
 
-            // send email in receipt screen
             ProductScreen.addOrderline("Desk Pad", "6", "5", "30.0"),
             ProductScreen.addOrderline("Whiteboard Pen", "6", "6", "36.0"),
             ProductScreen.addOrderline("Monitor Stand", "6", "1", "6.0"),
@@ -61,8 +57,6 @@ registry.category("web_tour.tours").add("ReceiptScreenTour", {
             OfflineUtil.setOfflineMode(),
             ReceiptScreen.clickNextOrder(),
 
-            // order with tip
-            // check if tip amount is displayed
             ProductScreen.addOrderline("Desk Pad", "6", "5"),
             ProductScreen.clickPayButton(),
             PaymentScreen.clickTipButton(),
@@ -80,7 +74,6 @@ registry.category("web_tour.tours").add("ReceiptScreenTour", {
             ReceiptScreen.totalAmountContains(`$ 30.00 + $ 1.00 tip`),
             ReceiptScreen.clickNextOrder(),
 
-            // Test customer note in receipt
             ProductScreen.addOrderline("Desk Pad", "1", "5"),
             inLeftSide([
                 { ...ProductScreen.clickLine("Desk Pad")[0], isActive: ["mobile"] },
@@ -92,7 +85,6 @@ registry.category("web_tour.tours").add("ReceiptScreenTour", {
             Order.hasLine({ customerNote: "Test customer note" }),
             ReceiptScreen.clickNextOrder(),
 
-            // Test that Internal notes are not available on receipt
             ProductScreen.addOrderline("Desk Pad", "1", "5"),
             inLeftSide([
                 { ...ProductScreen.clickLine("Desk Pad")[0], isActive: ["mobile"] },
@@ -109,7 +101,6 @@ registry.category("web_tour.tours").add("ReceiptScreenTour", {
             negateStep(...Order.hasInternalNote("Test internal note on order")),
             ReceiptScreen.clickNextOrder(),
 
-            // Test discount and original price
             ProductScreen.addOrderline("Desk Pad", "1", "20"),
             inLeftSide([
                 { ...ProductScreen.clickLine("Desk Pad")[0], isActive: ["mobile"] },
@@ -172,7 +163,6 @@ registry.category("web_tour.tours").add("OrderPaidInCash", {
             ReceiptScreen.receiptIsThere(),
             ReceiptScreen.clickNextOrder(),
             ProductScreen.isShown(),
-            // Close the session
             Chrome.clickMenuOption("Close Register"),
             ProductScreen.closeWithCashAmount("25"),
             ProductScreen.cashDifferenceIs("0.00"),

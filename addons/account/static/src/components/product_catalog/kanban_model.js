@@ -18,8 +18,6 @@ patch(ProductCatalogKanbanModel.prototype, {
                 },
             };
         }
-        // Forward the cache and abort signal the caller passed: dropping them
-        // leaves an in-flight load running after the view is left.
         return await super._loadData(params, ...rest);
     },
 

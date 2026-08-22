@@ -20,14 +20,6 @@ const getDefaultConfig = () => ({
     useWithBarcode: false,
 });
 
-/**
- * Singleton, exported pre-instantiated. Only one component holds the buffer at a
- * time: holders are tracked in a stack (bufferHolderStack), the top one holds it,
- * and unmounting pops the stack and re-sets up the buffer for the new top.
- *
- * A component uses it by calling `NumberBuffer.use(<config>)` in its constructor,
- * then has access to get(), set(val), reset(), getFloat() and capture().
- */
 class NumberBuffer extends EventBus {
     static serviceDependencies = ["mail.sound_effects", "localization", "overlay"];
     constructor() {
@@ -44,15 +36,12 @@ class NumberBuffer extends EventBus {
         window.addEventListener("keyup", this._onKeyboardInput.bind(this));
     }
     /**
-     * @returns {String} value of the buffer, e.g. '-95.79'
+     * @returns {String}
      */
     get() {
         return this.state ? this.state.buffer : null;
     }
     /**
-     * Takes a string that is convertible to float, and set it as
-     * value of the buffer. e.g. val = '2.99';
-     *
      * @param {String} val
      */
     set(val) {
@@ -60,20 +49,11 @@ class NumberBuffer extends EventBus {
         this.state.buffer = !isNaN(parseFloat(val)) ? val : "";
         this.trigger("buffer-update", this.state.buffer);
     }
-    /**
-     * Resets the buffer to empty string.
-     */
     reset() {
         this.isReset = true;
         this.state.buffer = "";
         this.trigger("buffer-update", this.state.buffer);
     }
-    /**
-     * Calling this function, we immediately invoke the `handler` method
-     * that handles the contents of the input events buffer (`eventsBuffer`).
-     * This is helpful when we don't want to wait for the timeout that
-     * is supposed to invoke the handler.
-     */
     capture() {
         if (this.handler) {
             clearTimeout(this._timeout);
@@ -82,23 +62,18 @@ class NumberBuffer extends EventBus {
         }
     }
     /**
-     * @returns {number} float equivalent of the value of buffer
+     * @returns {number}
      */
     getFloat() {
         return oParseFloat(this.get());
     }
     /**
-     * @param {Object} config Use to setup the buffer
-     * @param {String|null} config.decimalPoint The decimal character.
-     * @param {String|null} config.triggerAtEnter Event triggered when 'Enter' key is pressed.
-     * @param {String|null} config.triggerAtEsc Event triggered when 'Esc' key is pressed.
-     * @param {String|null} config.triggerAtInput Event triggered for every accepted input.
-     *      that carries a payload of { key }. The key is checked if it is a valid input. If valid,
-     *      the number buffer is modified just as it is modified when a keyboard key is pressed.
-     * @param {Boolean} config.useWithBarcode Whether this buffer is used with barcode.
-     * @emits config.triggerAtEnter when 'Enter' key is pressed.
-     * @emits config.triggerAtEsc when 'Esc' key is pressed.
-     * @emits config.triggerAtInput when an input is accepted.
+     * @param {Object} config
+     * @param {String|null} config.decimalPoint
+     * @param {String|null} config.triggerAtEnter
+     * @param {String|null} config.triggerAtEsc
+     * @param {String|null} config.triggerAtInput
+     * @param {Boolean} config.useWithBarcode
      */
     use(config) {
         this.eventsBuffer = [];
@@ -113,10 +88,6 @@ class NumberBuffer extends EventBus {
         this.bufferHolderStack.push(holder);
         this._setUp();
         onWillDestroy(() => {
-            // Remove the exact holder this component pushed. Matching by
-            // constructor.name removed the first same-class entry, corrupting the
-            // stack when two instances of one component class are stacked (and
-            // minified builds mangle/duplicate names).
             const indexComponent = this.bufferHolderStack.indexOf(holder);
             if (indexComponent !== -1) {
                 this.bufferHolderStack.splice(indexComponent, 1);
@@ -141,12 +112,6 @@ class NumberBuffer extends EventBus {
             : 0;
     }
     _onKeyboardInput(event) {
-        // While an overlay (dialog) is open, only a buffer holder that
-        // explicitly opted in may consume global keyboard input — the
-        // NumberPopup registers `captureWithOverlay` when it takes the buffer.
-        // The previous probe compared the overlay's subComponent constructor
-        // NAME ("NumberPopup"), coupling this service to the overlay/dialog
-        // services' internals and silently breaking for any subclass.
         const overlays = Object.values(this.overlay.overlays);
         if (overlays.length && !this._currentBufferHolder?.config?.captureWithOverlay) {
             return;
@@ -174,7 +139,6 @@ class NumberBuffer extends EventBus {
             ) {
                 return;
             }
-            // Ignore any input if combined with Ctrl, Cmd, or Alt
             if (event.ctrlKey || event.metaKey || event.altKey) {
                 return;
             }
@@ -186,24 +150,17 @@ class NumberBuffer extends EventBus {
     }
     _onInput(keyAccessor) {
         return (manualCapture = false) => {
-            // Manual call to NumberBuffer.capture() should allow handling more than 2 items in the buffer.
-            // This is useful in tour test that make very fast screen numpad presses (clicks).
             if (
                 manualCapture ||
                 session.test_mode ||
                 (!manualCapture && this.eventsBuffer.length <= 2)
             ) {
-                // Check first the buffer if its contents are all valid
-                // number input.
                 for (const event of this.eventsBuffer) {
                     if (!ALLOWED_KEYS.has(keyAccessor(event))) {
                         this.eventsBuffer = [];
                         return;
                     }
                 }
-                // At this point, all the events in buffer
-                // contains number input. It's now okay to handle
-                // each input.
                 for (const event of this.eventsBuffer) {
                     this._handleInput(keyAccessor(event));
                     event.preventDefault();
@@ -229,8 +186,7 @@ class NumberBuffer extends EventBus {
         }
     }
     /**
-     * Updates the current buffer state using the given input.
-     * @param {String} input valid input
+     * @param {String} input
      */
     _updateBuffer(input) {
         const isEmpty = (val) => val === "" || val === null;
@@ -269,9 +225,6 @@ class NumberBuffer extends EventBus {
             if (isEmpty(buffer)) {
                 this.state.buffer = null;
             } else {
-                // Remove exactly one character. The previous "remove 2 when the
-                // last char is the decimal point" ate the preceding digit too
-                // (e.g. "12." backspaced to "1" instead of "12").
                 this.state.buffer = buffer.substring(0, buffer.length - 1);
             }
         } else if (input === "+") {
@@ -293,7 +246,6 @@ class NumberBuffer extends EventBus {
                 this.state.buffer = "-" + this.state.buffer;
             }
         } else if (input[0] === "+" && !isNaN(parseFloat(input))) {
-            // when input is like '+10', '+50', etc
             const inputValue = oParseFloat(input.slice(1));
             const currentBufferValue = this.state.buffer
                 ? oParseFloat(this.state.buffer.replace(".", this.decimalPoint))
@@ -303,7 +255,6 @@ class NumberBuffer extends EventBus {
                 .replace(".", this.decimalPoint);
         } else if (!isNaN(parseInt(input, 10))) {
             if (this.state.toStartOver) {
-                // when we want to erase the current buffer for a new value
                 this.state.buffer = "";
             }
             if (this.state.buffer === this.state.lastSet) {
@@ -321,10 +272,7 @@ class NumberBuffer extends EventBus {
         if (this.state.buffer === "-") {
             this.state.buffer = "";
         }
-        // once an input is accepted and updated the buffer,
-        // the buffer should not be in reset state anymore.
         this.isReset = false;
-        // it should not be in a start the buffer over state anymore.
         this.state.toStartOver = false;
 
         this.trigger("buffer-update", this.state.buffer);

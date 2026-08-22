@@ -21,15 +21,10 @@ export class FollowerSubtypeDialog extends Component {
         this.store = useService("mail.store");
         this.state = useState({
             /**
-             * The subtypes this dialog offers, i.e. the ones the record exposes
-             * through `_mail_get_message_subtypes`.
              * @type {import("models").MailMessageSubtype[]}
              */
             subtypes: [],
             /**
-             * Draft selection, held here rather than on the follower record:
-             * the record is shared state and must only change once the server
-             * has accepted the new subscription.
              * @type {number[]}
              */
             selectedIds: [],
@@ -52,12 +47,6 @@ export class FollowerSubtypeDialog extends Component {
     }
 
     /**
-     * Subtypes the follower is subscribed to that this dialog never renders,
-     * because `_mail_get_message_subtypes` filters them out: `hidden` ones, and
-     * model-specific exclusions such as `project.task`'s rating subtype on a
-     * step where rating is off. Applying rewrites the whole subscription, so
-     * these have to ride along or pressing Apply silently revokes them.
-     *
      * @returns {import("models").MailMessageSubtype[]}
      */
     get unmanagedSubtypes() {
@@ -92,9 +81,6 @@ export class FollowerSubtypeDialog extends Component {
     }
 
     async onClickApply() {
-        // Unchecking everything the dialog offers means "stop following", as it
-        // always has -- the unmanaged subtypes go with the subscription rather
-        // than keeping it alive on their own.
         const selected = this.state.subtypes.filter((subtype) =>
             this.isSelected(subtype.id),
         );

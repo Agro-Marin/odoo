@@ -3,12 +3,10 @@ import { EventBus } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 
 const BASE_STORAGE_KEY = "EXPIRABLE_STORAGE_";
-const CLEAR_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+const CLEAR_INTERVAL = 24 * 60 * 60 * 1000;
 
 function cleanupExpirableStorage() {
     const now = Date.now();
-    // Next line is for testing compatibility as for..in is not supported by
-    // the `MockStorage` class.
     const keys =
         browser.localStorage.items?.keys() ?? Object.keys(browser.localStorage);
     for (const key of keys) {
@@ -43,7 +41,7 @@ export const expirableStorage = {
     /**
      * @param {string} key
      * @param {string} value
-     * @param {number} ttl Number of seconds after which the item should expire.
+     * @param {number} ttl
      */
     setItem(key, value, ttl) {
         let expires;

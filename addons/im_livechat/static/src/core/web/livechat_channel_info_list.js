@@ -66,7 +66,6 @@ export class LivechatChannelInfoList extends Component {
             .map((m) => m.chatbotStep);
     }
 
-    /** @deprecated */
     get expertiseTags() {
         return this.props.thread.livechat_expertise_ids.map((expertise) => ({
             id: expertise.id,

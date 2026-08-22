@@ -24,8 +24,6 @@ test("sendPaymentCancel restores the line status when the terminal throws", asyn
     line.setPaymentStatus("waitingCard");
 
     await comp.sendPaymentCancel(line);
-    // Must not be stranded in "waitingCancel" (unrecoverable + unhandled
-    // rejection); the prior status is restored so cancel can be retried.
     expect(line.getPaymentStatus()).toBe("waitingCard");
 });
 

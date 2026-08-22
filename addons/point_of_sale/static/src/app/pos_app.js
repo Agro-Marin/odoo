@@ -13,9 +13,6 @@ import useTours from "./hooks/use_tours.js";
 import { init as initDebugFormatters } from "./utils/debug-formatter.js";
 import { useIdleTimer } from "./utils/use_idle_timer.js";
 
-/**
- * Chrome is the root component of the PoS App.
- */
 export class Chrome extends Component {
     static template = "point_of_sale.Chrome";
     static components = { Transition, MainComponentsContainer, Navbar };
@@ -52,8 +49,6 @@ export class Chrome extends Component {
 
         onWillStart(this.pos._loadFonts);
         onMounted(this.props.disableLoader);
-        // One adapter for the component's lifetime: a new instance per
-        // mutation leaked a BroadcastChannel each time.
         this.customerDisplayAdapter = new CustomerDisplayPosAdapter();
         effect(
             batched(({ selectedOrder, scale }) => {
@@ -70,8 +65,6 @@ export class Chrome extends Component {
                         : null;
                     this.sendOrderToCustomerDisplay(selectedOrder, scaleData);
                 } else {
-                    // Reset the display, otherwise it keeps showing the last
-                    // order after it was closed/deleted.
                     this.customerDisplayAdapter.formatEmpty();
                     this.customerDisplayAdapter.dispatch(this.pos);
                 }
@@ -87,7 +80,4 @@ export class Chrome extends Component {
         adapter.dispatch(this.pos);
     }
 
-    // NB: the showCashMoveButton getter was removed: no template referenced it,
-    // and unlike the navbar's store getter it skipped the cash-move permission
-    // check — a permission bypass waiting to be wired in by mistake.
 }

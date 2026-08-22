@@ -5,10 +5,6 @@ describe.current.tags("desktop");
 defineMailModels();
 
 test("log() survives being called before the first call join", async () => {
-    // `state.logs` starts as `{}` — truthy, but with no `entriesBySessionId`.
-    // Any rtc_session removal on any thread reaches Rtc.disconnect() -> log(),
-    // so with the logRtc setting on this runs before joinCall() has ever built
-    // the per-call log object.
     const env = await start();
     const store = env.services["mail.store"];
     const rtc = store.rtc;

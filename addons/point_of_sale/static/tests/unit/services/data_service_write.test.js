@@ -26,9 +26,6 @@ describe("data_service.write", () => {
             raised = true;
         }
 
-        // The write is fired optimistically; leaving the mutation applied after
-        // a rejection left this tab diverged from the server for good, with no
-        // rollback and no queue entry.
         expect(raised).toBe(true);
         expect(category.name).toBe(originalName);
     });
@@ -49,8 +46,6 @@ describe("data_service.write", () => {
         const store = await setupPosEnv();
         const data = store.data;
 
-        // execute()'s write branch already guards this lookup; write() did not,
-        // so a stale id raised a TypeError out of a synchronous method.
         const records = await data.write("pos.category", [999999], { name: "x" });
         expect(records).toHaveLength(0);
     });

@@ -13,9 +13,6 @@ export class ProductPricelist extends Base {
             generalRulesIds: {},
         };
 
-        // General rules can be computed only on starting since they
-        // are loaded by default, if a new pricelist is created
-        // after the POS is started, it will be computed during the setup
         this.computeGeneralRulesByCateg();
     }
 

@@ -65,9 +65,6 @@ describe("connection recovery outlives nothing", () => {
             },
         };
 
-        // The handler reaches the state through `env.services`, so the env has
-        // to carry it -- which is the point: there is no module-level channel
-        // between the two any more.
         const recovery = connectionRecoveryService.start(/** @type {any} */ (env));
         /** @type {any} */ (env).services.connection_recovery = recovery;
         recovery.destroy();

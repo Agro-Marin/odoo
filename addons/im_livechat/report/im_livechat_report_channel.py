@@ -1,13 +1,8 @@
-# -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import api, fields, models
 from odoo.tools import get_lang, Query, SQL
 
 
 class Im_LivechatReportChannel(models.Model):
-    """ Livechat Support Report on the Channels """
-
     _name = 'im_livechat.report.channel'
     _description = "Livechat Support Channel Report"
     _order = 'start_date, livechat_channel_id, channel_id'
@@ -40,7 +35,6 @@ class Im_LivechatReportChannel(models.Model):
     country_id = fields.Many2one('res.country', 'Country of the visitor', readonly=True)
     lang_id = fields.Many2one("res.lang", related="channel_id.livechat_lang_id", string="Language", readonly=True)
     rating = fields.Integer('Rating', aggregator="avg", readonly=True)
-    # TODO DBE : Use Selection field - Need : Pie chart must show labels, not keys.
     rating_text = fields.Char('Satisfaction Rate', readonly=True)
     partner_id = fields.Many2one("res.partner", "Agent", readonly=True)
     handled_by_bot = fields.Integer("Handled by Bot", readonly=True, aggregator="sum")
@@ -231,8 +225,6 @@ class Im_LivechatReportChannel(models.Model):
                  WHERE M.res_id = C.id and M.model = 'discuss.channel'
             ) AS message_vals ON TRUE
             """,
-            # lang must be a SQL literal (not a bound parameter) because
-            # psycopg3 can't infer the type for jsonb->>$N operators.
             SQL("'%s'" % self.env.lang),
             self._unknown_chatbot_answer_name,
             SQL("'%s'" % self.env.lang),
@@ -243,8 +235,6 @@ class Im_LivechatReportChannel(models.Model):
 
     @api.model
     def formatted_read_group(self, domain, groupby=(), aggregates=(), having=(), offset=0, limit=None, order=None):
-        # Update chatbot_answers_path label: ids are used for grouping but names
-        # should be displayed.
         result = super().formatted_read_group(
             domain, groupby, aggregates, having=having, offset=offset, limit=limit, order=order
         )

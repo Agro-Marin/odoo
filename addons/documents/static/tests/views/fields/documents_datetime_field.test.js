@@ -17,7 +17,7 @@ class Partner extends models.Model {
 defineModels({ ...mailModels, Partner });
 
 beforeEach(() => {
-    mockTimeZone(+2); // UTC+2
+    mockTimeZone(+2);
     mockDate("2017-01-25 00:00:00");
 });
 

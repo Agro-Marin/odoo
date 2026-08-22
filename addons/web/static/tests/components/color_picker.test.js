@@ -479,8 +479,6 @@ test("useColorPicker re-reads its props on every open when given a getter", asyn
 
     await contains("button").click();
     await animationFrame();
-    // The object form is captured once at setup; the getter form is asked again,
-    // so a value that moved between opens is the value the picker gets.
     prefix = "second-";
     await contains("button").click();
     await animationFrame();

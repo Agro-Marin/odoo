@@ -50,7 +50,7 @@ test("edit progressbar target", async () => {
     await mountView({
         type: "kanban",
         resModel: "crm.team",
-        arch: /* xml */ `
+        arch: `
             <kanban>
                 <field name="invoiced_target"/>
                 <templates>
@@ -67,6 +67,6 @@ test("edit progressbar target", async () => {
     ).toHaveCount(1);
     expect(".o_progressbar input").toHaveCount(0);
 
-    await contains(".sale_progressbar_form_link").click(); // should trigger a do_action
+    await contains(".sale_progressbar_form_link").click();
     expect.verifySteps(["doAction"]);
 });

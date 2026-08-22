@@ -7,10 +7,6 @@ import { _resetMediaQueryLists } from "@web/ui/viewport";
 
 describe.current.tags("desktop");
 
-/**
- * A panel reduced to what `_expandFolder` touches: the folder section's id, the
- * `expanded` state it writes, and the search model's two folder lookups.
- */
 function makePanel(folders) {
     const values = new Map(folders.map((folder) => [folder.id, folder]));
     const panel = Object.create(DocumentsSearchPanel.prototype);
@@ -43,7 +39,6 @@ const COMPANY_TREE = [
 describe("_expandFolder", () => {
     test("unfolds the whole chain up to an expanded root", () => {
         const panel = makePanel(COMPANY_TREE);
-        // The root is what `onWillStart` expands before asking for a folder.
         panel.state.expanded[1].COMPANY = true;
         panel._expandFolder({ folderId: 2 });
         expect(panel.state.expanded[1]).toEqual({ COMPANY: true, 1: true, 2: true });
@@ -58,10 +53,6 @@ describe("_expandFolder", () => {
     });
 
     test("an id the panel does not hold is a no-op, not a crash", () => {
-        // `getFolderById` answers `false` for an unknown id and
-        // `getFolderAndParents(false)` is `[]`, which the ancestor test used to
-        // dereference. `jumpToTarget` reaches here with a target whose
-        // `user_folder_id` the panel never received.
         const panel = makePanel(COMPANY_TREE);
         panel.state.expanded[1].COMPANY = true;
         let thrown = null;
@@ -97,7 +88,6 @@ test("template and subTemplates follow the viewport instead of freezing at impor
         "documents.SearchPanel.Category",
     );
 
-    // the same class, asked again after the viewport moved
     atWidth(400);
     _resetMediaQueryLists();
     expect(DocumentsSearchPanel.template).toBe("documents.SearchPanel.Small");

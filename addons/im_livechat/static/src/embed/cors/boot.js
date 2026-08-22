@@ -11,29 +11,11 @@ import { session } from "@web/session";
 const ABSOLUTE_URL = /^(?:https?:)?\/\//;
 
 /**
- * Resolve a `fetch` target onto the Odoo server.
- *
- * The embed runs inside a page Odoo does not serve, so a request written
- * against the *page* -- a bare path, or a `URL` resolved from
- * `browser.location.origin` -- is addressed to `session.origin` instead.
- *
- * `fetch` takes `string | URL | Request` and `browser.fetch` is literally
- * `window.fetch`, so narrowing the input to `string` here is a contract
- * violation, not a shortcut: `getBundle` fetches a `URL`, a `URL` has no
- * `.match`, and the livechat support page died on `n.match is not a function`
- * before any tour could start.  A `Request` is handed over untouched -- it
- * carries its own method, headers and body, and rebuilding one here would
- * drop them.
- *
  * @param {string | URL | Request} input
  * @returns {string | URL | Request}
  */
 function toServerUrl(input) {
     const out = _toServerUrl(input);
-    // Every request the embed makes passes through here, and under CORS its
-    // origin is rewritten -- so when something 404s or is blocked, the first
-    // question is always "what URL actually went out". The `error` service is
-    // removed below, so nothing else will tell you.
     livechatLog(
         "fetch:rewrite",
         typeof input === "string" ? "string" : input?.constructor?.name,
@@ -66,8 +48,6 @@ function _toServerUrl(input) {
         return fetch(toServerUrl(input), ...args);
     };
 
-    // Override rpc to forward requests to CORS-allowed routes.
-    // The "guest_token" will be appended to the request parameters for authentication.
     const originalRPC = rpc._rpc;
     rpc._rpc = function (route, params, settings) {
         if (route in livechatRoutingMap.content) {
@@ -86,8 +66,5 @@ function _toServerUrl(input) {
         livechatLog("rpc:route", route, params?.guest_token ? "+guest_token" : "");
         return originalRPC(route, params, settings);
     };
-    // Remove the error service: it fails to identify issues within the shadow
-    // DOM of the live chat and causes disruption for pages that embed it by
-    // displaying pop-ups for errors outside of its scope.
     registry.category("services").remove("error");
 })();

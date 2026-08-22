@@ -27,16 +27,9 @@ export class PortalChatterService {
     async initialize(env) {
         const chatterEl = document.querySelector(".o_portal_chatter");
         if (!chatterEl) {
-            // The boot service only loads this bundle when a chatter anchor is
-            // present, but guard locally too: without the anchor there is
-            // nothing to mount, and every getAttribute below would throw.
             odoo.portalChatterReady.resolve(false);
             return;
         }
-        // Templates emit three different boolean conventions for these attrs
-        // (``'0'/'1'``, ``'true'/'false'``, Python ``True/False``); each parse
-        // path below mirrors what its emit site (views/portal_templates.xml,
-        // portal_rating/views/portal_templates.xml) actually produces.
         const props = {
             resId: parseInt(chatterEl.getAttribute("data-res_id"), 10),
             resModel: chatterEl.getAttribute("data-res_model"),
@@ -58,9 +51,6 @@ export class PortalChatterService {
             hash: chatterEl.getAttribute("data-hash"),
             pid: parseInt(chatterEl.getAttribute("data-pid"), 10),
         });
-        // Fetch the initial chatter payload in parallel with shadow-root setup,
-        // then insert the store data BEFORE mounting so the chatter renders
-        // once with correct state (instead of empty-then-rerender).
         const [shadow, data] = await Promise.all([
             this.createShadow(root),
             rpc(
@@ -90,10 +80,6 @@ export const portalChatterService = {
     dependencies: ["mail.store", "bus_service"],
     start(env, services) {
         const portalChatter = new PortalChatterService(env, services);
-        // `initialize` is async (it fetches the chatter payload). Don't await it
-        // here — the service must start synchronously — but do handle rejection
-        // so a failed init surfaces in the console and never leaves
-        // `portalChatterReady` pending forever (which would hang awaiters).
         portalChatter.initialize(env).catch((error) => {
             odoo.portalChatterReady.resolve(false);
             console.error("Portal chatter failed to initialize", error);

@@ -34,7 +34,6 @@ registry
                 trigger: `${comboConfiguratorTourUtils.comboItemSelector("Test product")}:contains("Attribute B: B")`,
             },
             ...comboConfiguratorTourUtils.saveConfigurator(),
-            // Don't end the tour with a form in edition mode.
             ...stepUtils.saveForm(),
         ],
     });

@@ -64,10 +64,10 @@ function neutralizeTouchInterference(
 export class DragSession {
     /**
      * @param {{
-     *  ctx: DraggableHookContext,
-     *  state: { dragging: boolean, willDrag: boolean },
-     *  params: Record<string, any>,
-     *  hookParams: Record<string, any>,
+     * ctx: DraggableHookContext,
+     * state: { dragging: boolean, willDrag: boolean },
+     * params: Record<string, any>,
+     * hookParams: Record<string, any>,
      * }} deps
      */
     constructor({ ctx, state, params, hookParams }) {

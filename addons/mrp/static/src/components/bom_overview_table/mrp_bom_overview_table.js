@@ -35,8 +35,6 @@ export class BomOverviewTable extends Component {
             formatMonetary(val, { currencyId: this.data.currency_id });
     }
 
-    //---- Handlers ----
-
     async goToProduct() {
         return this.actionService.doAction({
             type: "ir.actions.act_window",
@@ -49,8 +47,6 @@ export class BomOverviewTable extends Component {
             },
         });
     }
-
-    //---- Getters ----
 
     get data() {
         return this.props.data;

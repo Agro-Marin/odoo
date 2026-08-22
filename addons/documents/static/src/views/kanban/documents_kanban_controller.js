@@ -46,9 +46,6 @@ export class DocumentsKanbanController extends DocumentsControllerMixin(KanbanCo
         return this.model.targetRecords;
     }
 
-    /**
-     * Override this to add view options.
-     */
     documentsViewHelpers() {
         return {
             getSelectedDocumentsElements: () =>
@@ -64,9 +61,6 @@ export class DocumentsKanbanController extends DocumentsControllerMixin(KanbanCo
         return record.isViewable();
     }
 
-    /**
-     * Borrowed from ListController for ListView.Selection.
-     */
     onUnselectAll() {
         this.model.root.selection.forEach((record) => {
             record.toggleSelection(false);
@@ -74,9 +68,6 @@ export class DocumentsKanbanController extends DocumentsControllerMixin(KanbanCo
         this.model.root.selectDomain(false);
     }
 
-    /**
-     * Select all the records for a selected domain
-     */
     async onSelectDomain() {
         await this.model.root.selectDomain(true);
     }

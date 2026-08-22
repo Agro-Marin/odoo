@@ -10,10 +10,6 @@ export const CustomerDisplayDataService = {
     async start(env, { bus_service, notification }) {
         const data = reactive({});
         if (session.proxy_ip) {
-            // Transient failures (IoT box rebooting, momentary congestion)
-            // must not kill the poll: one failed fetch used to clearInterval,
-            // freezing the display on the last order forever. Warn only after
-            // several consecutive failures and recover silently on success.
             let consecutiveFailures = 0;
             let warned = false;
             setInterval(async () => {

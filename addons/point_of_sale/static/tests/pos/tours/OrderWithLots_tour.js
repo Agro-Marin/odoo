@@ -36,8 +36,6 @@ registry.category("web_tour.tours").add("test_03_pos_with_lots", {
             ProductScreen.clickPriceList("min_quantity ordering"),
             ProductScreen.totalAmountIs("5.00"),
             ProductScreen.clickReview(),
-            // By quantity: at this point the two lots stand at 2 and 3, and it is
-            // the second that the backspace below clears.
             {
                 ...ProductScreen.ensureLineSelected("Monitor Stand", "3")[0],
                 isActive: ["mobile"],

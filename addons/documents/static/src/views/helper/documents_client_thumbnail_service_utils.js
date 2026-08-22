@@ -2,12 +2,8 @@
 import { generatePdfThumbnail } from "@mail/utils/common/pdf_thumbnail";
 
 /**
- * `isPdfValid` is `false` only when the route refused the document outright
- * (415), i.e. a failure no retry can fix; `undefined` means the attempt was
- * inconclusive and may be worth repeating.
- *
  * @return {Promise<{thumbnail: string|undefined, isPdfValid: boolean|undefined,
- *   pdfEnabled: boolean}>}
+ * pdfEnabled: boolean}>}
  */
 export async function getPdfThumbnail(record, width, height) {
     return generatePdfThumbnail(

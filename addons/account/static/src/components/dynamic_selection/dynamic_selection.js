@@ -13,16 +13,12 @@ export class DynamicSelectionField extends SelectionField {
     };
 
     get availableOptions() {
-        // Split on the separator with its surrounding space: "a, b" is as
-        // natural a way to write the field as "a,b", and an untrimmed " b"
-        // matches no selection key.
         return (
             this.props.record.data[this.props.available_field]?.split(/\s*,\s*/) || []
         );
     }
 
     /**
-     * Filter the options with the accepted available options.
      * @override
      */
     get options() {
@@ -31,8 +27,6 @@ export class DynamicSelectionField extends SelectionField {
     }
 
     /**
-     * Resolve the label from the filtered `options` rather than the field's full
-     * `selection` metadata, so a value that is not available renders empty.
      * @override
      */
     get string() {
@@ -46,20 +40,6 @@ export class DynamicSelectionField extends SelectionField {
         return super.string;
     }
 }
-
-/*
-EXAMPLE USAGE:
-
-In python:
-the_available_field = fields.Char()  # string of comma separated available selection field keys
-the_selection_field = fields.Selection([ ... ])
-
-In the views:
-<field name="the_available_field" column_invisible="1"/>
-<field name="the_selection_field"
-       widget="dynamic_selection"
-       options="{'available_field': 'the_available_field'}"/>
- */
 
 registry.category("fields").add("dynamic_selection", {
     ...selectionField,

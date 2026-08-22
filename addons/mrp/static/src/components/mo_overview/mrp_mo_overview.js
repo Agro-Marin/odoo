@@ -35,8 +35,6 @@ export class MoOverview extends Component {
         });
 
         useSubEnv({ overviewBus: new EventBus() });
-        // Kept in sync (via the shared fold protocol) with the folded rows so the
-        // printed PDF reproduces the on-screen state.
         this.unfoldedIds = useUnfoldedIds();
 
         onWillStart(async () => {
@@ -58,7 +56,6 @@ export class MoOverview extends Component {
             this.state.showOptions.realCosts = false;
         }
         if (this.isProductionDone) {
-            // Hide Availabilities / Receipts / Status / MO Cost columns when the MO is done.
             this.state.showOptions.availabilities = false;
             this.state.showOptions.receipts = false;
             this.state.showOptions.replenishments = false;
@@ -67,7 +64,6 @@ export class MoOverview extends Component {
         }
         this.state.showOptions.uom = reportValues.context.show_uom;
         this.context = reportValues.context;
-        // Main MO's operations & byproducts are always unfolded by default.
         if (reportValues.data?.operations?.summary?.index) {
             this.unfoldedIds.add(reportValues.data.operations.summary.index);
         }
@@ -75,8 +71,6 @@ export class MoOverview extends Component {
             this.unfoldedIds.add(reportValues.data.byproducts.summary.index);
         }
     }
-
-    //---- Handlers ----
 
     onChangeDisplay(displayInfo) {
         this.state.showOptions[displayInfo] = !this.state.showOptions[displayInfo];
@@ -94,8 +88,6 @@ export class MoOverview extends Component {
     onUnfold() {
         this.env.overviewBus.trigger(FOLD_ALL, { folded: false });
     }
-
-    //---- Helpers ----
 
     getDefaultConfig() {
         return {
@@ -115,8 +107,6 @@ export class MoOverview extends Component {
             currencyId: this.state.data.summary.currency_id,
         });
     }
-
-    //---- Getters ----
 
     get activeId() {
         return this.props.action.context.active_id;
@@ -179,13 +169,13 @@ export class MoOverview extends Component {
     }
 
     get totalColspan() {
-        let colspan = 2; // Name & Quantity
+        let colspan = 2;
         if (this.showReplenishments) {
             colspan++;
         }
         if (this.showAvailabilities) {
             colspan += 2;
-        } // Free to use / On Hand & Reserved
+        }
         if (this.showUom) {
             colspan++;
         }

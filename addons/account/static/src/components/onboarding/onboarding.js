@@ -22,7 +22,6 @@ class AccountOnboardingWidget extends Component {
         try {
             return JSON.parse(raw).onboarding?.steps;
         } catch {
-            // A malformed dashboard blob shouldn't crash the journal kanban render.
             return undefined;
         }
     }

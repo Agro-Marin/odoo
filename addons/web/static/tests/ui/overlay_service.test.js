@@ -437,7 +437,6 @@ test("a hosted overlay still reports containment to click-away", async () => {
     expect(contains(document.body)).toBe(false);
 });
 
-// global handler when nobody catches it. Either way the entry is gone, because
 test("a throwing onRemove removes the overlay and hands the caller the error", async () => {
     await mountWithCleanup(MainComponentsContainer);
     class MyComp extends Component {

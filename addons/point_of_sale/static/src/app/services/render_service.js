@@ -5,12 +5,6 @@ import { waitImages } from "@point_of_sale/utils";
 import { registry } from "@web/core/registry";
 import { Mutex } from "@web/core/utils/concurrency";
 
-// Serializes every render that goes through the shared render container /
-// component slot. Without it, two concurrent renders (e.g. a preparation
-// ticket and the customer receipt after validation) clobber each other's
-// resolver — the first caller's promise never settles and the print pipeline
-// wedges with `isPrinting` stuck — and applyWhenMounted removes the other
-// job's element from the container mid-capture (blank receipt).
 const renderMutex = new Mutex();
 class ComponentRenderer extends Component {
     static props = ["comp", "onMounted"];
@@ -30,9 +24,6 @@ class ComponentRenderer extends Component {
 export class RenderContainer extends Component {
     static props = ["comp", "onRendered"];
     static components = { ComponentRenderer };
-    // the `.render-container` is used by other functions that need a
-    // place where to momentarily render some html code
-    // we should only intact with that div through the `whenMounted` function
     static template = xml`
         <div class="render-container-parent" style="left: -1000px; position: fixed;">
             <t t-if="props.comp.component">
@@ -41,11 +32,6 @@ export class RenderContainer extends Component {
             <div class="render-container" />
         </div>`;
 }
-/**
- * This service does for components what renderToElement does for templates.
- * In order to obtain the html code that represents a component, we need to
- * actually mount the respective component in the dom.
- */
 export const renderService = {
     dependencies: [],
     start() {
@@ -58,8 +44,6 @@ export const renderService = {
                 onRendered: (el) => {
                     elem = el;
                     resolver?.();
-                    // after obtaining the html code, we need to flush the
-                    // contents of the RenderContainer component
                     toBeRenderedComponentData.component = null;
                 },
             },
@@ -67,10 +51,6 @@ export const renderService = {
         const toHtml = (component, props) =>
             renderMutex.exec(async () => {
                 Object.assign(toBeRenderedComponentData, { component, props });
-                // We wait for the RenderContainer component to actually render
-                // our component. If it never does (a throwing receipt
-                // component leaves onRendered unreached), time out and reject
-                // instead of hanging the print pipeline forever.
                 let timer;
                 try {
                     await new Promise((resolve, reject) => {
@@ -109,18 +89,11 @@ export const renderService = {
 };
 registry.category("services").add("renderer", renderService);
 
-/**
- * This function is meant to be used for the cases where an
- * action needs to be performed based on some html code, but
- * that html code has to be in the dom for the action to be
- * performed. ( for example calling html-to-image )
- */
 const applyWhenMounted = async ({ el, container, callback }) => {
     const elClone = el.cloneNode(true);
     const sameClassElements = container.querySelectorAll(
         `.${[...el.classList].join(".")}`,
     );
-    // Remove all elements with the same class as the one we are about to add
     sameClassElements.forEach((element) => {
         element.remove();
     });
@@ -143,23 +116,17 @@ const sanitizeNodeText = (element) => {
     }
 };
 
-/**
- * This function assumes that the `renderer` service is available.
- */
 export const htmlToCanvas = async (el, options) => {
     if (options.addClass) {
         el.classList.add(...options.addClass.split(" "));
     }
     sanitizeNodeText(el);
-    // Serialized on the same mutex as toHtml: applyWhenMounted removes every
-    // same-class element from the shared container, so a concurrent capture
-    // would lose its DOM node mid-toCanvas.
     return await renderMutex.exec(() =>
         applyWhenMounted({
             el,
             container: document.querySelector(".render-container"),
             callback: async (el) => {
-                await waitImages(el); // Ensure all images in the cloned element are fully loaded to be rendered correctly
+                await waitImages(el);
                 return toCanvas(el, {
                     backgroundColor: "#ffffff",
                     height: Math.ceil(el.clientHeight),

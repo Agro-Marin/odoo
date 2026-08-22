@@ -7,18 +7,6 @@ import {
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
-/**
- * Link to a Char field representing a JSON:
- * {
- *  'replan': <REPLAN_BOOL>, // Show the replan btn
- *  'color': '<COLOR_CLASS>', // Color Class of the icon (d-none to hide)
- *  'infos': [
- *      {'msg' : '<MESSAGE>', 'color' : '<COLOR_CLASS>'},
- *      {'msg' : '<MESSAGE>', 'color' : '<COLOR_CLASS>'},
- *      ... ]
- * }
- */
-
 class WorkOrderPopover extends PopoverComponent {
     setup() {
         this.orm = useService("orm");

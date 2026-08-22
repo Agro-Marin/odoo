@@ -377,12 +377,6 @@ class CertificateCertificate(models.Model):
         ]
 
     def _get_key_holding(self, pem_key, company):
-        """Return the company's existing key for *pem_key*, or an empty recordset.
-
-        Matching goes through ``content`` rather than the attachment that used
-        to back it: the bytes now live in whichever column the deployment's
-        encryption posture selected, and only the field knows which.
-        """
         candidates = (
             self.env["certificate.key"]
             .with_context(active_test=False)
@@ -395,35 +389,12 @@ class CertificateCertificate(models.Model):
         )[:1]
 
     def _load_certificate(self):
-        """The parsed X.509 certificate this record holds.
-
-        This model owns the parsing, but exposed no way to obtain the parsed object, so
-        every caller that needed one re-derived it: four methods below opened with the
-        same three lines, and 'documents_l10n_mx_edi' added a fifth copy on this very
-        model under an '_l10n_mx_edi_' prefix -- another module's namespace on a
-        'certificate' method, which is what a missing accessor looks like from outside.
-
-        No 'sudo': 'pem_certificate' declares no 'groups', so the only thing sudo changed
-        at the previous call sites was the record rule, and that is the caller's decision
-        rather than this method's.
-
-        :return: a 'cryptography.x509.Certificate'.
-        """
         self.ensure_one()
         return x509.load_pem_x509_certificate(
             base64.b64decode(self.with_context(bin_size=False).pem_certificate)
         )
 
     def _get_der_certificate_bytes(self, formatting="encodebytes"):
-        """Get the DER bytes of the certificate.
-
-        :param optional,default='encodebytes' formatting: The formatting of the returned bytes
-            - 'encodebytes' returns a base64-encoded block of 76 characters lines
-            - 'base64' returns the raw base64-encoded data
-            - other returns non-encoded data
-        :return: The formatted DER bytes of the certificate
-        :rtype: bytes
-        """
         self.ensure_one()
         cert = self._load_certificate()
         return _get_formatted_value(
@@ -433,16 +404,6 @@ class CertificateCertificate(models.Model):
     def _get_fingerprint_bytes(
         self, hashing_algorithm="sha256", formatting="encodebytes"
     ):
-        """Get the fingerprint bytes of the certificate.
-
-        :param optional,default='sha256' hashing_algorithm: The digest algorithm to use. Currently, only 'sha1' and 'sha256' are available.
-        :param optional,default='encodebytes' formatting: The formatting of the returned bytes
-            - 'encodebytes' returns a base64-encoded block of 76 characters lines
-            - 'base64' returns the raw base64-encoded data
-            - other returns non-encoded data
-        :return: The formatted fingerprint bytes of the certificate
-        :rtype: bytes
-        """
         self.ensure_one()
         cert = self._load_certificate()
         if hashing_algorithm not in STR_TO_HASH:
@@ -454,30 +415,11 @@ class CertificateCertificate(models.Model):
         )
 
     def _get_signature_bytes(self, formatting="encodebytes"):
-        """Get the signature bytes of the certificate.
-
-        :param optional,default='encodebytes' formatting: The formatting of the returned bytes
-            - 'encodebytes' returns a base64-encoded block of 76 characters lines
-            - 'base64' returns the raw base64-encoded data
-            - other returns non-encoded data
-        :return: The formatted signature bytes of the certificate
-        :rtype: bytes
-        """
         self.ensure_one()
         cert = self._load_certificate()
         return _get_formatted_value(cert.signature, formatting=formatting)
 
     def _get_public_key_numbers_bytes(self, formatting="encodebytes"):
-        """Get the certificate public key's public numbers bytes.
-
-        :param optional,default='encodebytes' formatting: The formatting of the returned bytes
-            - 'encodebytes' returns a base64-encoded block of 76 characters lines
-            - 'base64' returns the raw base64-encoded data
-            - other returns non-encoded data
-        :return: A tuple containing the formatted public number bytes of the certificate's public key
-
-        :rtype: tuple(bytes,bytes)
-        """
         self.ensure_one()
         if self.public_key_id or self.private_key_id:
             return (
@@ -490,18 +432,6 @@ class CertificateCertificate(models.Model):
         )
 
     def _get_public_key_bytes(self, encoding="der", formatting="encodebytes"):
-        """Get the certificate's public key bytes.
-
-        :param optional,default='der' encoding: The formatting of the returned bytes
-            - 'der' returns DER public key bytes
-            - other returns PEM public key bytes
-        :param optional,default='encodebytes' formatting: The formatting of the returned bytes
-            - 'encodebytes' returns a base64-encoded block of 76 characters lines
-            - 'base64' returns the raw base64-encoded data
-            - other returns non-encoded data
-        :return: The formatted certificate public key bytes in the corresponding format
-        :rtype: bytes
-        """
         self.ensure_one()
         if self.public_key_id or self.private_key_id:
             return (self.public_key_id or self.private_key_id)._get_public_key_bytes(
@@ -529,17 +459,6 @@ class CertificateCertificate(models.Model):
         )
 
     def _sign(self, message, hashing_algorithm="sha256", formatting="encodebytes"):
-        """Compute and return the message's signature.
-
-        :param str|bytes message: The message to sign
-        :param optional,default='sha256' hashing_algorithm: The digest algorithm to use. Currently, only 'sha1' and 'sha256' are available.
-        :param optional,default='encodebytes' formatting: The formatting of the returned bytes
-            - 'encodebytes' returns a base64-encoded block of 76 characters lines
-            - 'base64' returns the raw base64-encoded data
-            - other returns non-encoded data
-        :return: The formatted signature bytes of the message
-        :rtype: bytes
-        """
         self.ensure_one()
 
         if not self.is_valid:

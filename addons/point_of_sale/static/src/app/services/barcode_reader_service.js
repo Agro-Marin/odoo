@@ -30,7 +30,6 @@ export class BarcodeReader {
     setup() {
         this.mutex = new Mutex();
         this.cbMaps = new Set();
-        // FIXME POSREF: When LoginScreen becomes a normal screen, we can remove this exclusive callback handling.
         this.exclusiveCbMap = null;
         this.remoteScanning = false;
         this.remoteActive = 0;
@@ -83,10 +82,6 @@ export class BarcodeReader {
             }
         }
         if (Array.isArray(parseBarcode)) {
-            // Await GS1 handlers like the scalar path below: fire-and-forget
-            // released the scan mutex while handlers still ran, letting the
-            // next scan interleave with them (and their errors were unhandled
-            // rejections).
             await Promise.all(cbMaps.map((cb) => cb.gs1?.(parseBarcode)));
         } else {
             const cbs = cbMaps.map((cbMap) => cbMap[parseBarcode.type]).filter(Boolean);
@@ -130,8 +125,6 @@ export class BarcodeReader {
         );
     }
 
-    // the barcode scanner will listen on the hw_proxy/scanner interface for
-    // scan events until disconnectFromProxy is called
     connectToProxy() {
         this.remoteScanning = true;
         if (this.remoteActive >= 1) {
@@ -147,10 +140,6 @@ export class BarcodeReader {
             try {
                 barcode = await this.hardwareProxy.message("scanner");
             } catch {
-                // The proxy rejects synchronously while disconnected. Back off
-                // instead of re-arming immediately, otherwise this recursion
-                // becomes an unbounded busy loop pinning the event loop, then
-                // re-check remoteScanning before retrying.
                 await new Promise((resolve) => setTimeout(resolve, 1000));
                 continue;
             }
@@ -158,15 +147,12 @@ export class BarcodeReader {
                 break;
             }
             if (barcode) {
-                // Await so overlapping scans can't interleave the next poll; a
-                // scan error must not tear down the listen loop.
                 await this.scan(barcode).catch(() => {});
             }
         }
         this.remoteActive = 0;
     }
 
-    // the barcode scanner will stop listening on the hw_proxy/scanner remote interface
     disconnectFromProxy() {
         this.remoteScanning = false;
     }
@@ -211,9 +197,6 @@ export const barcodeReaderService = {
             if (barcodeReader) {
                 barcodeReader.scan(ev.detail.barcode);
             } else if (session.nomenclature_id) {
-                // A nomenclature IS configured — the boot-time fetch failed
-                // (transient network). Diagnosing this as "not configured"
-                // sent users to the settings for nothing; tell them to retry.
                 dialog.add(AlertDialog, {
                     title: _t("Unable to parse barcode"),
                     body: _t(

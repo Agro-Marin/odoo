@@ -42,7 +42,6 @@ class Network {
         });
     }
     /**
-     * @param id
      * @return {{id, p2p: PeerToPeer}}
      */
     register(id) {
@@ -306,9 +305,6 @@ onlineTest("can reject arbitrary offers", async () => {
 });
 
 test("an unparsable data-channel frame is discarded, not raised", async () => {
-    // `content` is whatever a peer put on the wire. handleNotification is
-    // awaited by the "message" listener, so a throw here is an unhandled
-    // rejection any peer could trigger by sending one bad frame.
     await mountWebClient();
     const p2p = new PeerToPeer();
     p2p.connect(1, 10);
@@ -321,10 +317,6 @@ test("an unparsable data-channel frame is discarded, not raised", async () => {
 onlineTest(
     "camera and screen stay distinguishable when both are uploaded",
     async () => {
-        // Transceivers are addressed by their position in getTransceivers(), so the
-        // only thing keeping a screen track from arriving as a camera track is that
-        // both ends build them in ORDERED_TRANSCEIVER_TYPES order. Send both at once
-        // and check the receiver agrees about which is which.
         mockGetMedia();
         await mountWebClient();
         const channelId = 7;
@@ -360,7 +352,6 @@ onlineTest(
             STREAM_TYPE.CAMERA,
             STREAM_TYPE.SCREEN,
         ]);
-        // and the two are not the same transceiver
         const peer = user2.p2p.peers.get(user1.id);
         expect(peer.getTransceiver(STREAM_TYPE.CAMERA)).not.toBe(
             peer.getTransceiver(STREAM_TYPE.SCREEN),

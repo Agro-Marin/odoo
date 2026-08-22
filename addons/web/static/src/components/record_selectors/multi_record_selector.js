@@ -68,17 +68,6 @@ export class MultiRecordSelector extends BaseRecordSelector {
     }
 
     /**
-     * Every field here comes from `props`, never from `this.props`. The two
-     * are not the same object at the only moment this runs: the caller is
-     * `computeDerivedParams(nextProps)`, which awaits `loadDisplayNames`
-     * inside `onWillUpdateProps`, and owl does not swap `this.props` until the
-     * patch that follows. Reading `this.props.resModel` here therefore paired
-     * the *incoming* ids with the *outgoing* model — so a selector switched
-     * from one relation to another (the domain editor changing a condition's
-     * path, a spreadsheet filter changing its model) built its avatar URLs
-     * against the model it had just left, and asked `isAvatarModel` about it
-     * too.
-     *
      * @param {MultiRecordSelectorProps} props
      * @param {Record<number, string>} displayNames
      * @returns {RecordTag[]}

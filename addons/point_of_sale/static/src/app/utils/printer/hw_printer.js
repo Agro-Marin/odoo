@@ -1,14 +1,10 @@
 /** @odoo-module native */
 import { BasePrinter } from "@point_of_sale/app/utils/printer/base_printer";
 import { rpc } from "@web/core/network";
-/**
- * Printer that sends print requests thru /hw_proxy endpoints.
- * Doesn't require pos_iot to be installed.
- */
 export class HWPrinter extends BasePrinter {
     /**
      * @param {Object} params
-     * @param {string} params.url full address of the iot box. E.g. `http://10.23.45.67:8069`.
+     * @param {string} params.url
      */
     setup(params) {
         super.setup(...arguments);

@@ -2,7 +2,6 @@ import logging
 
 _logger = logging.getLogger(__name__)
 
-#: (table, model, old, new) -- model is needed for ir_model_fields and the views.
 RENAMES = (
     (
         "credential_credential",
@@ -86,8 +85,6 @@ def migrate(cr, version):
             [new, model, old, model, new],
         )
 
-        # '(?<![_a-z])x(?![_a-z])' so that renaming 'enable_rate_limiting' does not
-        # reach inside 'default_enable_rate_limiting', which is its own entry here.
         cr.execute(
             """
             UPDATE ir_ui_view

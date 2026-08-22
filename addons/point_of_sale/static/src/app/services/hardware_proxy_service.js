@@ -8,11 +8,6 @@ import { registry } from "@web/core/registry";
 import { effect } from "@web/core/utils/reactive";
 
 import { logPosMessage } from "../utils/pretty_console_log.js";
-/**
- * Interfaces with the local proxy to reach the hardware devices connected to the
- * Point of Sale. Communication is POS-to-proxy only, so methods both signal
- * events and fetch information.
- */
 export class HardwareProxy extends EventBus {
     static serviceDependencies = [];
     constructor() {
@@ -44,9 +39,6 @@ export class HardwareProxy extends EventBus {
     disconnect() {
         if (this.connectionInfo.status !== "disconnected") {
             this.host = null;
-            // Stop the keepAlive poll: without this it keeps firing every 5s for
-            // the life of the tab, hitting `null/hw_proxy/status_json` once the
-            // host is cleared. keepAlive() restarts it cleanly on reconnect.
             this.keptalive = false;
             this.setConnectionInfo({ status: "disconnected" });
         }
@@ -80,18 +72,14 @@ export class HardwareProxy extends EventBus {
     }
 
     /**
-     * Find a proxy and connects to it.
-     *
      * @param {Object} [options]
-     * @param {string} [options.force_ip] only try to connect to the specified ip.
+     * @param {string} [options.force_ip]
      * @param {string} [options.port]
      * @returns {Promise}
      */
     async autoConnect(options) {
         this.setConnectionInfo({ status: "connecting", drivers: {} });
         let url = options.force_ip || localStorage.hw_proxy_url;
-        // Return a pending promise if there is no url to connect to
-        // FIXME POSREF do something useful instead if this condition can happen, remove if not
         if (!url) {
             return new Promise(() => {});
         }
@@ -104,21 +92,12 @@ export class HardwareProxy extends EventBus {
         }
     }
 
-    // starts a loop that updates the connection status
     keepAlive() {
         const status = () => {
             if (!this.keptalive || !this.host) {
-                // Stopped via disconnect(); don't reschedule or poll a null host.
                 return;
             }
             const always = () => this.keptalive && setTimeout(status, 5000);
-            // `{ xhr }` stopped being honoured when rpc moved to fetch()
-            // (34d4d0640a6) and became a hard throw once settings were
-            // validated (8e7a2fc2e8e) -- so every keep-alive poll raised
-            // `Invalid RPC setting(s): "xhr"` and the proxy read as
-            // permanently disconnected. The only thing that handle carried was
-            // `xhr.timeout = 2500`, and rpc has a first-class `timeout`
-            // setting in the same unit (ms), so the intent survives intact.
             rpc(
                 `${this.host}/hw_proxy/status_json`,
                 {},
@@ -156,9 +135,6 @@ export class HardwareProxy extends EventBus {
     }
 
     /**
-     * Makes sure that the proxy is available by attempting to call the hello
-     * route on the proxy.
-     *
      * @param {string} url
      * @returns {Promise<void>}
      */

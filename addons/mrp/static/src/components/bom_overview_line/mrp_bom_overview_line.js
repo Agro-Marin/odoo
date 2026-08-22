@@ -41,8 +41,6 @@ export class BomOverviewLine extends Component {
             formatMonetary(val, { currencyId: this.data.currency_id });
     }
 
-    //---- Handlers ----
-
     async goToRoute(routeType) {
         if (routeType === "manufacture") {
             return this.goToAction(this.data.bom_id, "mrp.bom");
@@ -109,8 +107,6 @@ export class BomOverviewLine extends Component {
         });
     }
 
-    //---- Getters ----
-
     get data() {
         return this.props.data;
     }
@@ -164,7 +160,6 @@ export class BomOverviewLine extends Component {
     }
 
     get availabilityColorClass() {
-        // For first line, another rule applies : green if doable now, red otherwise.
         if (Object.hasOwn(this.data, "components_available")) {
             if (
                 this.data.components_available &&

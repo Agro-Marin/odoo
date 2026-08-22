@@ -2,19 +2,10 @@
 import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/translation";
 
-// CONSOLE_COLOR lives on pos_store; importing it here mirrors the existing
-// call-time circular imports (pos_config, data_service, indexed_db, …) — the
-// binding is only read inside function bodies, so the cycle resolves fine.
 import { CONSOLE_COLOR } from "../services/pos_store.js";
 import { logPosMessage } from "./pretty_console_log.js";
 
 const { DateTime } = luxon;
-
-// Order-change → preparation/receipt data generation extracted from PosStore.
-// Pure functions of the store; PosStore keeps thin delegating methods so the
-// print orchestration (printChanges/sendOrderInPreparation, which modules patch)
-// and its callers are unaffected. Cross-calls go through `pos.<method>()` so a
-// module's patch still applies.
 
 export function getStrNotes(note) {
     if (!note) {
@@ -92,10 +83,6 @@ export function generateOrderChange(
     const orderData = pos.getOrderData(order, reprint);
 
     const changes = pos.filterChangeByCategories(categories, orderChange);
-    // Annotate COPIES: printChanges calls this once per printer, and mutating
-    // the shared change items handed the second printer already-stringified
-    // notes (re-parsed through the JSON failure path, logged as an error on
-    // every multi-printer note print).
     const stringifyNotes = (items) =>
         items.map((changeItem) => ({
             ...changeItem,
@@ -186,7 +173,6 @@ export function filterChangeByCategories(pos, categories, currentOrderChange) {
     };
 
     const filterChanges = (changes) => {
-        // Combo line uuids to have at least one child line in the given categories
         const validComboUuids = new Set(
             changes
                 .filter(

@@ -17,8 +17,6 @@ describe.current.tags("desktop");
 defineLivechatModels();
 
 test("Only two quick actions are shown", async () => {
-    // This is desired because 2 actions share a same icon
-    // "Add a reaction" and "View reactions".
     await startServer();
     await loadDefaultEmbedConfig();
     const env = await start({ authenticateAs: false });
@@ -29,7 +27,6 @@ test("Only two quick actions are shown", async () => {
     await contains(".o-mail-ChatWindow");
     await insertText(".o-mail-Composer-input", "Hello World!");
     triggerHotkey("Enter");
-    // message data from post contains no reaction, wait now to avoid overriding newer value later
     await waitForSteps(["discuss.channel/new_message"]);
     await click("[title='Add a Reaction']");
     await click(".o-mail-QuickReactionMenu button", { text: "😅" });

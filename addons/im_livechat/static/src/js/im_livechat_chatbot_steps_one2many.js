@@ -8,10 +8,6 @@ import { ListRenderer } from "@web/views/list";
 const fieldRegistry = registry.category("fields");
 
 export class ChatbotStepsOne2manyRenderer extends ListRenderer {
-    /**
-     * Small override to force column entries to be non-sortable.
-     * Indeed, we want to force it being sorted on "sequence" at all times.
-     */
     setup() {
         super.setup();
 
@@ -26,15 +22,6 @@ export class ChatbotStepsOne2many extends X2ManyField {
         ...X2ManyField.components,
         ListRenderer: ChatbotStepsOne2manyRenderer,
     };
-    /**
-     * Overrides the "openRecord" method to overload the save.
-     *
-     * Every time we save a sub-chatbot.script.step, we want to save the whole chatbot.script record
-     * and form view.
-     *
-     * This allows the end-user to easily chain steps, otherwise he would have to save the
-     * enclosing form view in-between each step addition.
-     */
     setup() {
         super.setup();
 

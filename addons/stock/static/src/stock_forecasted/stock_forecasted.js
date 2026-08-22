@@ -13,19 +13,7 @@ import { ForecastedHeader } from "./forecasted_header.js";
 import { ForecastedWarehouseFilter } from "./forecasted_warehouse_filter.js";
 
 /**
- * Last-resort recovery of `active_model` from a serialised action.
- *
- * The report normally reads the model from its own context. This path is for an
- * action restored from a URL, where the context has been through the server and
- * the model survives only inside the original action's `context` -- which, for a
- * server action, is a *Python expression as a string*.
- *
- * Reading a Python expression with a regex is not a defensible design; the
- * action should carry the model in a field of its own. It is load-bearing until
- * that payload changes, so it lives here: named, isolated, tested, and audible
- * when it fails, rather than inlined behind an empty `catch`.
- *
- * @param {string | undefined} originalAction the action as serialised JSON
+ * @param {string | undefined} originalAction
  * @returns {string | undefined}
  */
 export function activeModelOfOriginalAction(originalAction) {

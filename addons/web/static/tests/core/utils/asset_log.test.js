@@ -165,11 +165,6 @@ describe("makeXxxLog factory", () => {
     });
 });
 
-/**
- * Runs `body` with the structured sink armed and empty, then restores whatever
- * the surrounding page had. The sink lives on globalThis, so leaking it would
- * make one test's counts visible to the next.
- */
 function withTraceSink(body) {
     const globals = globalThis;
     const priorFlag = globals.__odooTrace;
@@ -318,9 +313,6 @@ describe("active() — the guard a call site must use", () => {
     });
 
     test("true when only the structured sink is armed", () => {
-        // The case enabled() cannot answer, and the reason active() exists: both
-        // rpc.js listeners guarded on enabled(), so rpc.* recorded nothing on a
-        // fully armed page boot until they moved to this predicate.
         withLocalStorage("debug.rpc", "", () => {
             const globals = globalThis;
             const prior = globals.__odooTrace;

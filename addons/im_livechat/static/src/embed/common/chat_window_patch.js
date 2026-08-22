@@ -19,7 +19,7 @@ patch(ChatWindow.prototype, {
         await this.livechatService.open();
     },
     onClickFeedback() {
-        this.props.chatWindow.livechatStep = CW_LIVECHAT_STEP.CONFIRM_CLOSE; // Skip the confirmation step.
+        this.props.chatWindow.livechatStep = CW_LIVECHAT_STEP.CONFIRM_CLOSE;
         this.close();
     },
     get showGiveFeedbackBtn() {

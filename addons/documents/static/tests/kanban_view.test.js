@@ -116,7 +116,6 @@ test("Uploading from control panel", async () => {
     await mountDocumentsKanbanView();
     await contains("button.btn.btn-primary.o-dropdown:contains('New')").click();
     await contains("button.btn.btn-link.o_documents_kanban_upload").click();
-    // This step seems necessary to succeed everytime vs. clicking on "Upload" above...
     await contains("input.o_input_file.o_hidden", {
         visible: false,
     }).click();
@@ -137,22 +136,17 @@ test("Download button availability", async function () {
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsKanbanView();
     await contains(`.o_kanban_record:contains(${folder1Name})`).click({ ctrlKey: true });
-    // Folder should be downloadable
     await waitFor(".o_control_panel_actions:contains('Download')");
 
     await contains(`.o_kanban_record:contains(${folder1Name})`).click({ ctrlKey: true });
-    // Request should not be downloadable
     await contains(".o_kanban_record:contains('Request')").click();
     await waitForNone(".o_control_panel_actions:contains('Download')");
 
-    // Binary should be downloadable
     await contains(".o_kanban_record:contains('Binary')").click();
     await waitFor(".o_control_panel_actions:contains('Download')");
-    // Multiple documents can be downloaded
     await contains(`.o_kanban_record:contains(${folder1Name})`).click({ ctrlKey: true });
     await waitFor(".o_control_panel_actions:contains('Download')");
 
-    // Button should remain even if some records are not downloadable
     await contains(".o_kanban_record:contains('Request')").click({ ctrlKey: true });
     await waitFor(".o_control_panel_actions:contains('Download')");
 });
@@ -166,7 +160,6 @@ test("Drag and Drop - Search panel expand folders", async function () {
     await mountDocumentsKanbanView();
 
     const searchPanelSelector = ".o_search_panel_category_value .o_search_panel_label_title";
-    // Check that when we drag hover the Company folder it opens up to display its children
     expect(queryAllTexts(searchPanelSelector)).toEqual([
         "All",
         "Company",
@@ -312,10 +305,10 @@ test("Drag and Drop - Check access rights confirmation popup when moving from ka
         )
     );
     const cases = [
-        [2, 3, true], // Change internal access
-        [2, 4, true], // Change link access
-        [2, 5, false], // Change link hidden access with link access == none
-        [4, 6, true], // Change link hidden access with link access != none
+        [2, 3, true],
+        [2, 4, true],
+        [2, 5, false],
+        [4, 6, true],
     ];
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsKanbanView();
@@ -327,14 +320,12 @@ test("Drag and Drop - Check access rights confirmation popup when moving from ka
         await moveTo(`.o_kanban_record[data-value-id='${targetDoc}']`);
         await drop();
         if (expectedConfirmation) {
-            // Wait for dialog, cancel move and close dialog
             await waitFor(".o_dialog:not(.o_inactive_modal)");
             expect(".o_dialog:not(.o_inactive_modal)").toHaveCount(1);
             await click(".o_dialog:not(.o_inactive_modal) .modal-footer button:contains(Cancel)");
             await animationFrame();
             expect(".o_dialog:not(.o_inactive_modal)").toHaveCount(0);
         } else {
-            // Assert move
             await animationFrame();
             expect.verifySteps(["action_move_documents"]);
         }
@@ -354,11 +345,6 @@ test("Drag and Drop - Check access rights confirmation popup when moving from se
         [6, "Internal Viewer - Link Viewer - Must have link", "view", "view", true],
     ];
     const labelByCode = { none: "None", view: "Viewer", edit: "Editor" };
-    // Folder 7 lives *inside* folder 2. Every other folder here is already a
-    // direct child of COMPANY, so dropping one "into COMPANY" moves nothing --
-    // and web's nested sortable skips `onDrop` entirely for a no-op ("if the
-    // drop position is different from the starting position"). Only a folder
-    // that starts elsewhere can exercise the special-destination path below.
     const nestedFolder = makeDocumentRecordData(7, "Nested in folder 2", {
         access_internal: "view",
         access_via_link: "none",
@@ -377,10 +363,10 @@ test("Drag and Drop - Check access rights confirmation popup when moving from se
         ).concat(nestedFolder)
     );
     const cases = [
-        [2, 3, true], // Change internal access
-        [2, 4, true], // Change link access
-        [2, 5, false], // Change link hidden access with link access == none
-        [4, 6, true], // Change link hidden access with link access != none
+        [2, 3, true],
+        [2, 4, true],
+        [2, 5, false],
+        [4, 6, true],
     ];
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsKanbanView();
@@ -388,7 +374,6 @@ test("Drag and Drop - Check access rights confirmation popup when moving from se
     await animationFrame();
 
     for (const [docToMove, targetDoc, expectedConfirmation] of cases) {
-        // Drag & Drop under the target folder
         const { drop, moveTo } = await contains(
             `.o_search_panel_category_value[data-value-id='${docToMove}']`
         ).drag();
@@ -425,22 +410,10 @@ test("Drag and Drop - Check access rights confirmation popup when moving from se
             await waitForNone(".o_dialog:not(.o_inactive_modal)");
         }
     }
-    // Dropping inside COMPANY: folder 7 starts inside folder 2, so this is a
-    // genuine change of parent. COMPANY is a special destination, so the move
-    // skips the access-rights dialog and calls `action_move_folder` directly.
     await click(".o_search_panel_category_value[data-value-id='2'] .o_toggle_fold");
     await animationFrame();
     const source = contains(".o_search_panel_category_value[data-value-id='7']");
     const { drop, moveTo } = await source.drag();
-    // The same nesting gesture the cases above use, not a single `moveTo`:
-    // `useNestedSortable` only reports a `parent` once the pointer has moved
-    // far enough right to nest. Dropped straight onto the row, folder 7 lands
-    // as a SIBLING -- `parent` is null, `onDrop` returns on `!parentFolderId`,
-    // and no move is issued.
-    // Folders 2..6 are already COMPANY's children, so dropping folder 7 as
-    // their sibling makes COMPANY its parent. Hovering the COMPANY row itself
-    // does NOT work: the placeholder lands next to the dragged element and
-    // `nested_sortable` skips `onDrop` for that no-op.
     const lastCompanyChild = document.querySelector(
         ".o_search_panel_category_value[data-value-id='6']"
     );
@@ -496,7 +469,7 @@ test("Drag and Drop - Drop document while holding CTRL", async function () {
         ".o_search_panel_category_value[data-value-id='COMPANY'] div.o_search_panel_label"
     );
     await moveTo(".o_search_panel_category_value[data-value-id='1'] div.o_search_panel_label");
-    expect(".o_documents_dnd_modifier").toBeVisible(); // check after moveTo to be sure it's still visible
+    expect(".o_documents_dnd_modifier").toBeVisible();
     await drop();
     await waitFor(".o_notification");
     expect(".o_notification_content:eq(-1)").toHaveText("A shortcut has been created.");
@@ -511,18 +484,15 @@ test("Lock action availability and check", async function () {
 
     const folder = ".o_kanban_record[data-value-id='1']";
 
-    // Folder should not be lockable
     await contains(folder).click({ ctrlKey: true });
     await contains(".o_cp_action_menus button").click();
     await waitForNone(".o-dropdown--menu .o-dropdown-item:contains('Lock')");
 
-    // Binary should be lockable
     await contains(".o_kanban_record:contains('Binary')").click();
     await contains(".o_cp_action_menus button").click();
     await contains(".o-dropdown--menu .o-dropdown-item:contains('Lock')").click();
     await waitFor(".o_kanban_record i.fa-lock");
 
-    // Unlock the binary record
     await contains(".o_cp_action_menus button").click();
     await contains(".o-dropdown--menu .o-dropdown-item:contains('Unlock')").click();
     expect(".modal-body").toHaveText(
@@ -531,7 +501,6 @@ test("Lock action availability and check", async function () {
     await contains(".modal .modal-footer .btn-primary").click();
     await waitForNone(".o_kanban_record i.fa-lock");
 
-    // Multiple documents cannot be locked
     await contains(folder).click({ ctrlKey: true });
     await contains(".o_cp_action_menus button").click();
     await waitForNone(".o-dropdown--menu .o-dropdown-item:contains('Lock')");
@@ -637,7 +606,6 @@ test("focus when selecting all - ctrl + a", async function () {
     await waitFor(".o_searchview");
     expect(".o_record_selected").toHaveCount(0);
 
-    // Focus another document first
     await contains(".o_kanban_record[data-value-id='3']").click();
     await keyDown(["Control", "a"]);
     await waitFor(".o_kanban_record[data-value-id='3']:focus");
@@ -697,36 +665,30 @@ test("Split PDF button availability", async function () {
     await mountWithCleanup(WebClient);
     await getService("action").doAction(1);
 
-    // Non-PDF with edit permission in control panel
     await contains(".o_kanban_record:contains('text_file.txt') .o_record_selector").click();
     await contains(".o_dropdown_title").click();
     await waitForNone(".o-dropdown-item:contains('Split PDF')");
 
-    // Non-PDF with edit permission in preview
     await contains(".o_kanban_record:contains('text_file.txt') [name='document_preview']").click();
     await contains(".o-FileViewer .o_cp_action_menus .o-dropdown").click();
     await waitForNone(".o-dropdown-item:contains('Split PDF')");
     await press("escape");
     await waitForNone(".o-FileViewer");
 
-    // PDF with view permission in control panel
     await contains(".o_kanban_record:contains('pdf1.pdf') .o_record_selector").click();
     await contains(".o_dropdown_title").click();
     await waitForNone(".o-dropdown-item:contains('Split PDF')");
 
-    // PDF with view permission in preview
     await contains(".o_kanban_record:contains('pdf1.pdf') [name='document_preview']").click();
     await contains(".o-FileViewer .o_cp_action_menus .o-dropdown").click();
     await waitForNone(".o-dropdown-item:contains('Split PDF')");
     await press("escape");
     await waitForNone(".o-FileViewer");
 
-    // PDF with edit permission in control panel
     await contains(".o_kanban_record:contains('pdf2.pdf') .o_record_selector").click();
     await contains(".o_dropdown_title").click();
     await waitFor(".o-dropdown-item:contains('Split PDF')");
 
-    // PDF with edit permission in preview
     await contains(".o_kanban_record:contains('pdf2.pdf') [name='document_preview']").click();
     await contains(".o-FileViewer .o_cp_action_menus .o-dropdown").click();
     await waitFor(".o-dropdown-item:contains('Split PDF')");
@@ -780,9 +742,7 @@ test("Control panel cog menu visibility", async function () {
 
     await contains(".o_search_panel_label_title:contains('Company')").click();
     await waitFor(".o_last_breadcrumb_item:contains('Company')");
-    //  There should be no cog menu on Company
     await waitForNone(".o_cp_action_menus", {});
-    // There should be one on Company roots
     await contains(`.o_kanban_record:contains('${folder1Name}')`).click();
     await waitFor(`.o_last_breadcrumb_item:contains('${folder1Name}')`);
     expect(`.o_cp_action_menus`).toHaveCount(1);
@@ -802,9 +762,6 @@ test("Select a range with SHIFT key", async () => {
 });
 
 test("Select a range with SHIFT key, upwards", async () => {
-    // Only the downwards direction was covered. `toggleRangeSelection` reads the
-    // range off the rendered DOM and applies it over `props.list.records`, two
-    // orderings that need not agree, so pin the other direction too.
     const serverData = getDocumentsTestServerModelsData([
         makeDocumentRecordData(2, "Doc A", { folder_id: 1 }),
         makeDocumentRecordData(3, "Doc B", { folder_id: 1 }),
@@ -823,10 +780,6 @@ test("Select a range with SHIFT key, upwards", async () => {
 });
 
 test("The kanban view mounts in debug mode", async () => {
-    // `DocumentsSearchModel.orderBy` used to push its default onto the array
-    // `super.orderBy` returns. That array is memoized in `_orderBy` and frozen
-    // by `_freezeInDevMode`, so the push threw "Cannot add property 0, object is
-    // not extensible" and the whole view failed to mount under `?debug=1`.
     patchWithCleanup(odoo, { debug: "1" });
     const serverData = getDocumentsTestServerModelsData([
         makeDocumentRecordData(2, "Doc A", { folder_id: 1 }),
@@ -838,9 +791,6 @@ test("The kanban view mounts in debug mode", async () => {
 });
 
 test("The search panel spins on the folder an upload targets", async () => {
-    // The upload never carried a `folder_id` form field (the route takes
-    // `user_folder_id`, and only for the two drive roots), so the spinner
-    // `isUploadingInFolder` drives never appeared for any upload.
     const serverData = getDocumentsTestServerModelsData([
         makeDocumentRecordData(2, "Doc A", { folder_id: 1 }),
     ]);
@@ -960,16 +910,13 @@ test("Check actions with preview", async function () {
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsKanbanView({ arch: basicDocumentsKanbanArchWithLockUid });
 
-    // Document is not locked so there should be Lock option.
     await contains(".o_kanban_record:contains('Test_file.txt') [name='document_preview']").click();
     await contains(".o-FileViewer .o_cp_action_menus .o-dropdown").click();
     await waitFor(".o-dropdown-item:contains('Lock')");
     await contains(".o-dropdown-item:contains('Lock')").click();
 
-    // The preview should be closed when clicking the lock action.
     expect(".o-FileViewer").toHaveCount(0);
 
-    // Document is locked so there should be Unlock option.
     await contains(".o_kanban_record:contains('Test_file.txt') [name='document_preview']").click();
     await contains(".o-FileViewer .o_cp_action_menus .o-dropdown").click();
     await waitFor(".o-dropdown-item:contains('Unlock')");
@@ -1022,7 +969,6 @@ test("Select all (Ctrl+A) in an empty folder does not crash", async function () 
     await mountDocumentsKanbanView();
     await contains(`.o_search_panel_label[data-tooltip="Company"] .o_toggle_fold`).click();
 
-    // Control case: a folder holding one record -> Ctrl+A selects it and focuses its card.
     await contains(`.o_search_panel_label[data-tooltip="Folder 1"] div`).click();
     expect(".o_kanban_record:not(.o_kanban_ghost)").toHaveCount(1);
     await press(["control", "a"]);
@@ -1030,20 +976,14 @@ test("Select all (Ctrl+A) in an empty folder does not crash", async function () 
     expect(".o_kanban_record.o_record_selected").toHaveCount(1);
     expect(".o_kanban_record[data-value-id='3']").toBeFocused();
 
-    // Empty folder: the renderer stays mounted (the no-content helper renders
-    // *inside* it), so the Ctrl+A command is still registered. The record it
-    // would focus is the container folder, which is never rendered as one of our
-    // own cards -> querySelector returns null. That must not throw.
     await contains(`.o_search_panel_label[data-tooltip="Empty Folder"] div`).click();
     expect(".o_kanban_record:not(.o_kanban_ghost)").toHaveCount(0);
-    // The renderer (hence the Ctrl+A command) is still there.
     expect(".o_kanban_renderer").toHaveCount(1);
     await press(["control", "a"]);
     await animationFrame();
     expect(".o_error_dialog").toHaveCount(0);
     expect(".o_kanban_record.o_record_selected").toHaveCount(0);
 
-    // Same for a virtual root with no documents in it.
     await contains(`.o_search_panel_label[data-tooltip="My Drive"] div`).click();
     expect(".o_kanban_record:not(.o_kanban_ghost)").toHaveCount(0);
     await press(["control", "a"]);

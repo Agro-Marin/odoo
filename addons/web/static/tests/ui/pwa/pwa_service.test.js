@@ -184,7 +184,6 @@ test("a native prompt that rejects leaves no install affordance behind", async (
 
     await expect(pwaService.show()).rejects.toThrow();
 
-    // no prompt left, so nothing may claim one can still be shown
     expect(pwaService.nativePrompt).toBe(null);
     expect(pwaService.canPromptToInstall).toBe(false);
 });

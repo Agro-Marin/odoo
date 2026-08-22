@@ -1,10 +1,3 @@
-/**
- * Regression tests for the 2026-08-17 purchase JS audit.
- *
- * Each block names the defect it pins. These started as adversarial probes
- * against the audit's own claims and were kept as the guard for the fixes.
- */
-
 import { expect, test } from "@odoo/hoot";
 import { animationFrame, click } from "@odoo/hoot-dom";
 import { ProductCatalogPurchaseOrderLine } from "@purchase/product_catalog/purchase_order_line/purchase_order_line";
@@ -35,10 +28,6 @@ class PurchaseOrder extends models.Model {
 defineWebModels();
 defineModels([PurchaseOrder]);
 
-// ---------------------------------------------------------------------------
-// monetary_no_zero — renders a stored 0.0 blank, and says so consistently.
-// ---------------------------------------------------------------------------
-
 test("monetary_no_zero blanks a stored zero but keeps a non-zero", async () => {
     await mountView({
         type: "list",
@@ -66,11 +55,6 @@ test("monetary_no_zero has its own label and an isEmpty matching the render", ()
     });
     expect(noZero.isEmpty({ data: { amount: 3 } }, "amount")).toBe(false);
 });
-
-// ---------------------------------------------------------------------------
-// Dashboard search wiring — a card that cannot be honoured must not silently
-// clear the query and apply nothing. `waiting_rfqs` had no filter at all.
-// ---------------------------------------------------------------------------
 
 function dashboardData() {
     const zero = () => ({ all: 0, priority: 0 });
@@ -128,7 +112,6 @@ test("the RFQ Sent card resolves and applies waiting_rfqs", async () => {
 test("a my-scoped card applies its own filter alongside my_purchases", async () => {
     const { board, toggled } = await mountDashboard();
     board.setSearchContext(["waiting_rfqs", "my_purchases"]);
-    // getSearchItems yields search-model order, not the caller's.
     expect([...toggled].sort()).toEqual([2, 3]);
 });
 
@@ -141,10 +124,6 @@ test("every dashboard card names at least one filter", async () => {
     }
 });
 
-// ---------------------------------------------------------------------------
-// A failing prepare_dashboard must not take the purchase action down with it.
-// ---------------------------------------------------------------------------
-
 test("a failing prepare_dashboard degrades to a hidden strip", async () => {
     onRpc("purchase.order", "prepare_dashboard", () => {
         throw new Error("AccessDenied");
@@ -152,15 +131,9 @@ test("a failing prepare_dashboard degrades to a hidden strip", async () => {
     const env = await makeMockEnv({ searchModel: { query: [], context: {} } });
     const board = await mountWithCleanup(PurchaseDashBoard, { env });
     await animationFrame();
-    // Before: the rejection escaped onWillStart and ActionDispatch.fail()
-    // rejected the whole action, so the purchase view did not open at all.
     expect(board.purchaseData).toBe(null);
     expect(document.querySelector(".o_purchase_dashboard")).toBe(null);
 });
-
-// ---------------------------------------------------------------------------
-// toaster_button — sends mail, so it must not fire twice on a double click.
-// ---------------------------------------------------------------------------
 
 test("toaster_button sends once per click even when clicked twice", async () => {
     let calls = 0;
@@ -196,10 +169,6 @@ test("toaster_button sends once per click even when clicked twice", async () => 
     releaseCall();
     await animationFrame();
 });
-
-// ---------------------------------------------------------------------------
-// Catalog line props are the server's payload contract; nothing else belongs.
-// ---------------------------------------------------------------------------
 
 test("purchase catalog line declares only props the server actually sends", () => {
     expect("packaging" in ProductCatalogPurchaseOrderLine.props).toBe(false, {

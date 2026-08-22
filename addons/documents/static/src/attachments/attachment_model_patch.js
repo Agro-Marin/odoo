@@ -63,21 +63,11 @@ const attachmentPatch = {
     documentEmailContent: null,
     documentTextContent: null,
 
-    /**
-     * Content urls for 'application/documents-email' docs are set so as
-     * browsers render strictly 'text/plain' (anti-phishing measure).
-     *
-     * Through the document service, which batches the read with whatever else
-     * asks in the same tick.
-     */
     async loadDocumentEmailContent() {
         this.documentEmailContent = await this.store.env.services[
             "document.document"
         ].loadEmailContent(this.documentId);
     },
-    /**
-     * Fetch the content and wraps it in a pre tag for nicer rendering
-     */
     async loadDocumentTextContent() {
         const response = await fetch(this.defaultSource);
         const result = await response.text();

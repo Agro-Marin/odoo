@@ -25,7 +25,6 @@ export class StockPickFrom extends Component {
         };
     }
 
-    /** The characteristics of the quant this line draws from, as one label. */
     _quantDisplayName() {
         const data = this.props.record.data;
         const parts = [data.location_id?.display_name];

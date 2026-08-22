@@ -31,7 +31,6 @@ export class MOListViewDropdown extends Component {
     }
 
     get statusColor() {
-        // Read the record's reactive state directly so the dot stays in sync.
         return this.colorIcons[this.props.record.data.state] || "";
     }
 
@@ -58,7 +57,6 @@ export class MOListViewDropdown extends Component {
         if (!ids) {
             ids = this.props.record.model.root.selection?.map((wo) => wo.resId);
         }
-        // if no records selected, take the current clicked one
         if (!ids || ids.length === 0) {
             ids = [this.props.record.resId];
         }

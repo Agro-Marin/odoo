@@ -28,7 +28,6 @@ export class SelectAddDocumentCreateDialog extends SelectCreateDialog {
     }
 
     get viewProps() {
-        // We force list view to be used in the dialog (even for smaller screens)
         const baseProps = super.viewProps;
         return {
             ...omit(baseProps, "forceGlobalClick", "display"),
@@ -54,8 +53,7 @@ export class SelectAddDocumentCreateDialog extends SelectCreateDialog {
     }
 
     /**
-     * Pastes document/s share links.
-     * @param {Array} resIds - List of resIDs of the selected records (documents).
+     * @param {Array} resIds
      */
     async pasteDocumentsLink(resIds) {
         let response;
@@ -88,14 +86,11 @@ export class SelectAddDocumentCreateDialog extends SelectCreateDialog {
     }
 
     /**
-     * Adds the document (as an attachment) to the composer.
-     * @param {Array} resIds - List of resIDs of the selected records (documents).
+     * @param {Array} resIds
      */
     async addDocumentsAttachment(resIds) {
         let processedAttachments;
         try {
-            // Temporary linked to the composer with id 0 to be garbage collected if not re-linked to the thread
-            // (similar to what is done when uploading a file)
             const attachmentRecords = await this.orm.call(
                 "documents.document",
                 "add_documents_attachment",
@@ -123,17 +118,13 @@ export class SelectAddDocumentCreateDialog extends SelectCreateDialog {
         this.props.close();
     }
 
-    /**
-     * Helper function: mainly used to convert odoo spreadsheet into .xlsx format
-     */
     async _processAttachments(attachmentRecords) {
         return attachmentRecords;
     }
 
     /**
-     * Helper method responsible to return the new thread object.
-     * @param {String} currentModel - Model of the current thread.
-     * @param {Number} currentChatterRecordId - ID of the current chatter record.
+     * @param {String} currentModel
+     * @param {Number} currentChatterRecordId
      */
     addToThread(currentModel, currentChatterRecordId) {
         return this.store.Thread.insert({

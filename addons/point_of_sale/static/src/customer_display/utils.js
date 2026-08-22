@@ -5,7 +5,6 @@ export function useSingleDialog() {
     const dialog = useService("dialog");
     return {
         open(dialogClass, props) {
-            // If the dialog is already open, we don't want to open a new one
             if (!close) {
                 close = dialog.add(dialogClass, props, {
                     onClose: () => {

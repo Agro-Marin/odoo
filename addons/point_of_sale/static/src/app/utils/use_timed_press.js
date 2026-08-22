@@ -2,16 +2,12 @@
 import { onMounted, onWillUnmount } from "@odoo/owl";
 
 /**
- * Hook that runs callbacks based on how long an element is pressed. Works with
- * mouse, touch and stylus via pointer events.
- *
- * @param {Ref} ref - OWL `useRef` pointing to the target element.
- * @param {Array<Object>} ranges - Press ranges, each with:
- *   @param {number} [ranges[].delay=0] - Minimum press duration (ms) to trigger.
- *   @param {number} [ranges[].maxDelay] - If set, only triggers below this duration.
- *   @param {Function} ranges[].callback - `(event: PointerEvent, duration: number) => void`.
- *   @param {string} [ranges[].type="release"] - `"hold"` fires while held past `delay`;
- *     `"release"` fires on release if duration is within `[delay, maxDelay)`.
+ * @param {Ref} ref
+ * @param {Array<Object>} ranges
+ * @param {number} [ranges[].delay=0]
+ * @param {number} [ranges[].maxDelay]
+ * @param {Function} ranges[].callback
+ * @param {string} [ranges[].type="release"]
  */
 export function useTimedPress(ref, ranges = []) {
     let timerStart = null;

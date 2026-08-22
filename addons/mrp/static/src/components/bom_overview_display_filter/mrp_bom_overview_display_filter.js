@@ -19,8 +19,6 @@ export class BomOverviewDisplayFilter extends Component {
         this.displayOptions = {};
     }
 
-    //---- Getters ----
-
     get displayableOptions() {
         return Object.keys(this.displayOptions).map((optionKey) => ({
             id: optionKey,

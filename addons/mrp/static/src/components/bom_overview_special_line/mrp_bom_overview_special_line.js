@@ -35,8 +35,6 @@ export class BomOverviewSpecialLine extends Component {
             formatMonetary(val, { currencyId: this.data.currency_id });
     }
 
-    //---- Getters ----
-
     get data() {
         return this.props.data;
     }

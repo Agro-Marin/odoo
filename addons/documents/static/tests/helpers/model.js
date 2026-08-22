@@ -2,8 +2,6 @@ import { getMockEnv, makeMockEnv, serverState } from "@web/../tests/web_test_hel
 import { getDocumentsModel } from "./data.js";
 
 /**
- * Create a mocked server environment
- *
  * @param {{ serverData?: Record<string, any[]> }} [params]
  */
 export async function makeDocumentsMockEnv(params) {

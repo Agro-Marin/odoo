@@ -5,7 +5,6 @@ import { redirect } from '@web/core/utils/urls';
 import { Interaction } from '@web/public/interaction';
 
 export class CustomerAddress extends Interaction {
-    // /my/address & /my/account
     static selector = '.o_customer_address_fill';
     dynamicContent = {
         'select[name="country_id"]': { 't-on-change': this.debounced(this.onChangeCountry, 500) },
@@ -24,17 +23,7 @@ export class CustomerAddress extends Interaction {
     }
 
     start() {
-        // Deliberately NOT in willStart: dynamicContent handlers are bound only
-        // once willStart resolves, so awaiting this round-trip there leaves
-        // `#save_address` unbound while the form is already on screen. An early
         // click (or Enter) then falls through to whatever native submission the
-        // markup allows instead of `saveAddress`.
-        //
-        // Nothing here is a prerequisite for submitting: QWeb already rendered
-        // the state list (`country_states`), the zip/city order (`zip_before_city`)
-        // and the base required fields from the same server data -- this call
-        // only *refines* that markup after a country change. So refine once the
-        // handlers exist, and let a mid-flight refinement land whenever it lands.
         this.waitFor(this._onChangeCountry(true));
     }
 
@@ -42,9 +31,6 @@ export class CustomerAddress extends Interaction {
         return this._onChangeCountry();
     }
 
-    /**
-     * Overridable hook.
-     */
     async onChangeState() {}
 
     async _onChangeCountry(init=false) {
@@ -56,29 +42,17 @@ export class CustomerAddress extends Interaction {
             {address_type: this.addressType},
         ));
 
-        // The phone input is not in every variant of this form (overrides drop
-        // it for flows that don't collect a phone), and a missing control here
-        // would abort the rest of the country refinement below.
         if (this.addressForm.phone) {
             this.addressForm.phone.placeholder = data.phone_code !== 0 ? `+${data.phone_code}` : '';
         }
 
-        // populate states and display
-        // Optional like every other control here: a form variant without a
-        // state select has no options to repopulate, and reading
-        // `.options.length` off the missing element threw before the
-        // field-order pass below could run.
         const selectStates = this.addressForm.state_id;
         if (selectStates && (!init || selectStates.options.length === 1)) {
-            // dont reload state at first loading (done in qweb)
             if (data.states.length || data.state_required) {
-                // empty existing options, only keep the placeholder.
                 selectStates.options.length = 1;
 
-                // create new options and append them to the select element
                 data.states.forEach((state) => {
                     const option = new Option(state[1], state[0]);
-                    // Used by localizations
                     option.setAttribute('data-code', state[2]);
                     selectStates.appendChild(option);
                 });
@@ -88,13 +62,10 @@ export class CustomerAddress extends Interaction {
             }
         }
 
-        // manage fields order / visibility
         if (data.fields) {
             const zipDivEl = this._getInputDiv('zip');
             const cityDivEl = this._getInputDiv('city');
             if (zipDivEl && cityDivEl) {
-                // Reordering needs both; with only one present there is no
-                // relative order to fix, and the visibility pass below still runs.
                 if (data.zip_before_city) {
                     zipDivEl.after(cityDivEl);
                 } else {
@@ -114,7 +85,6 @@ export class CustomerAddress extends Interaction {
 
         const required_fields = this.addressForm.querySelectorAll(':required');
         required_fields.forEach((element) => {
-            // remove requirement on previously required fields
             if (
                 !data.required_fields.includes(element.name)
                 && !this.requiredFields.includes(element.name)
@@ -128,17 +98,6 @@ export class CustomerAddress extends Interaction {
     }
 
     /**
-     * The div wrapping a field's label + input, or null when this form variant
-     * has no such field.
-     *
-     * Overrides drop inputs the flow does not collect (`_needs_address()` is
-     * false for quick event checkout, and localizations reshape the address
-     * block), so every field lookup here is optional -- as `_markRequired` and
-     * `_getInputLabel` already treated it. Dereferencing `.parentElement` on the
-     * missing control threw a TypeError that aborted the rest of the country
-     * refinement, leaving the form in a half-updated state (stale state list,
-     * stale required flags) with no visible error.
-     *
      * @param {string} name
      * @returns {HTMLElement|null}
      */
@@ -147,15 +106,11 @@ export class CustomerAddress extends Interaction {
     }
 
     _getInputLabel(name) {
-        // `?.` on parentElement too: the optional chain on `input` alone still
-        // threw for a control that exists but is not attached (a detached node
-        // during a re-render), which aborted the country refinement mid-way.
         const input = this.addressForm[name];
         return input?.parentElement?.querySelector(`label[for='${input.id}']`) ?? null;
     }
 
     _showInput(name) {
-        // show parent div, containing label and input
         const divEl = this._getInputDiv(name);
         if (divEl) {
             divEl.style.display = '';
@@ -163,7 +118,6 @@ export class CustomerAddress extends Interaction {
     }
 
     _hideInput(name) {
-        // hide parent div, containing label and input
         const divEl = this._getInputDiv(name);
         if (divEl) {
             divEl.style.display = 'none';
@@ -179,12 +133,10 @@ export class CustomerAddress extends Interaction {
     }
 
     /**
-     * Disable the button, submit the form and add a spinner while the submission is ongoing.
-     *
      * @param {Event} ev
      */
     async saveAddress(ev) {
-        ev.preventDefault();  // avoid potential redirect if href set on link
+        ev.preventDefault();
         if (!this.addressForm.reportValidity()) return;
 
         const result = await this.waitFor(this.http.post(
@@ -194,23 +146,15 @@ export class CustomerAddress extends Interaction {
         if (result.redirectUrl) {
             redirect(result.redirectUrl);
         } else {
-            // Highlight missing/invalid form values
             this.el.querySelectorAll('.is-invalid').forEach(element => {
                 if (!result.invalid_fields.includes(element.name)) {
                     element.classList.remove('is-invalid');
                 }
             })
             result.invalid_fields.forEach(
-                // Optional chaining: a server-flagged field may not have a
-                // matching control in this form variant (e.g. vat hidden).
                 fieldName => this.addressForm[fieldName]?.classList.add('is-invalid')
             );
 
-            // Display the error messages
-            // NOTE: setCustomValidity is not used as we would have to reset the error msg on
-            // input update, which is not worth catching for the rare cases where the
-            // server-side validation will catch validation issues (now that required inputs
-            // are also handled client-side)
             const newErrors = result.messages.map(message => {
                 const errorHeader = document.createElement('h5');
                 errorHeader.classList.add('text-danger');
@@ -222,11 +166,6 @@ export class CustomerAddress extends Interaction {
         }
     }
 
-    /**
-     * Gets the selected country code.
-     *
-     * Used in overrides.
-     */
     _getSelectedCountryCode() {
         const country = this.addressForm.country_id;
         return country.value ? country.selectedOptions[0].getAttribute('code') : '';

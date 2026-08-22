@@ -4,8 +4,8 @@ import { patch } from "@web/core/utils/patch";
 
 export const CW_LIVECHAT_STEP = {
     NONE: undefined,
-    CONFIRM_CLOSE: "CONFIRM_CLOSE", // currently showing confirm dialog to close/end livechat
-    FEEDBACK: "FEEDBACK", // currently showing feedback panel
+    CONFIRM_CLOSE: "CONFIRM_CLOSE",
+    FEEDBACK: "FEEDBACK",
 };
 
 /** @type {import("models").ChatWindow} */

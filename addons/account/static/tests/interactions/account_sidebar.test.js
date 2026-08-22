@@ -8,7 +8,7 @@ setupInteractionWhiteList("account.account_sidebar");
 
 describe.current.tags("interaction_dev");
 
-/** @param {string} [inner] the sidebar row's content */
+/** @param {string} [inner] */
 function portal(inner = "") {
     return `
         <div id="wrapwrap">
@@ -26,8 +26,6 @@ describe("AccountSidebar iframe sizing", () => {
     });
 
     test("survives an iframe whose document carries no #wrapwrap", async () => {
-        // The iframe holds a report served by another route; it is not this
-        // interaction's markup and need not contain a `#wrapwrap`.
         const { core } = await startInteractions(
             portal(
                 `<iframe id="invoice_html" srcdoc="&lt;p&gt;no wrapwrap&lt;/p&gt;"/>`,

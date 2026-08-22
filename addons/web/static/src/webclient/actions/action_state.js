@@ -81,11 +81,6 @@ function buildActiveContext(state) {
 }
 
 /**
- * Whether the action kept in session storage is the one the url names, so it can
- * be replayed with its domain and context instead of re-loaded by key. Embedded
- * actions are excluded: the stored copy carries the parent's own view, not the
- * embedded one the url is asking for.
- *
  * @param {Record<string, any>} lastAction
  * @param {Record<string, any>} state
  * @param {Context} context
@@ -107,7 +102,7 @@ function storedActionAnswersTo(lastAction, state, context) {
 /**
  * @param {Record<string, any>} state
  * @param {Record<string, any>} lastAction
- * @param {Record<string, any>} options mutated in place
+ * @param {Record<string, any>} options
  * @returns {ActionRequest | null}
  */
 function resolveActionFromKey(state, lastAction, options) {
@@ -140,15 +135,9 @@ function resolveActionFromKey(state, lastAction, options) {
 }
 
 /**
- * A url naming a model rather than an action can only be replayed exactly when
- * the stored action is for that same model. Failing that, a record still opens
- * as a bare form -- the id identifies it -- but a multi-record view does not:
- * rebuilding one without the original domain would show a wider set than the
- * url ever meant.
- *
  * @param {Record<string, any>} state
  * @param {Record<string, any>} lastAction
- * @param {Record<string, any>} options mutated in place
+ * @param {Record<string, any>} options
  * @returns {ActionRequest | null}
  */
 function resolveActionFromModel(state, lastAction, options) {

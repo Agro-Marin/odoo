@@ -9,7 +9,6 @@ test("pay() resets a wedged terminal line to 'retry' and rethrows on failure", a
     const store = await setupPosEnv();
     const order = await getFilledOrder(store);
     const paymentMethod = store.models["pos.payment.method"].get(1);
-    // Give the method a terminal whose request rejects (network/RPC failure).
     paymentMethod.payment_terminal = {
         sendPaymentRequest: async () => {
             throw new Error("terminal offline");
@@ -18,8 +17,6 @@ test("pay() resets a wedged terminal line to 'retry' and rethrows on failure", a
     const { data: payment } = order.addPaymentline(paymentMethod);
 
     await expect(payment.pay()).rejects.toThrow("terminal offline");
-    // The line must NOT stay in "waiting" (which renders no Retry button and
-    // blocks adding another electronic payment); it must be actionable again.
     expect(payment.getPaymentStatus()).toBe("retry");
 });
 
@@ -46,9 +43,6 @@ test("re-running setup with a partial payload preserves amount/ticket", async ()
     payment.ticket = "terminal-receipt";
     expect(payment.amount).toBe(42);
 
-    // setup() re-runs on every connectNewData update; a payload that omits
-    // amount/ticket (as a trimmed server push would) must not zero the
-    // existing values.
     payment.setup({ payment_status: "done" });
     expect(payment.amount).toBe(42);
     expect(payment.ticket).toBe("terminal-receipt");

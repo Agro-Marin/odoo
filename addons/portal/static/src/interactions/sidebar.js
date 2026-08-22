@@ -19,22 +19,11 @@ export class Sidebar extends Interaction {
         this.setDelayLabel();
     }
 
-    /**
-     * Set the due/delay information according to the given date
-     * like : <span class="o_portal_sidebar_timeago" t-att-datetime="invoice.date_due"/>
-     */
     setDelayLabel() {
         const timeagoEls = this.el.querySelectorAll(".o_portal_sidebar_timeago");
         for (const timeagoEl of timeagoEls) {
             const raw = timeagoEl.getAttribute("datetime");
             if (!raw) {
-                // The element is still emitted when its date field is empty (an
-                // invoice with no due date): QWeb drops a False `t-att-datetime`
-                // attribute entirely, so getAttribute returns null. Luxon parses
-                // that into an *invalid* DateTime rather than throwing, whose
-                // diff is NaN — and NaN fails both the `=== 0` and `> 0` tests,
-                // so it fell through to the overdue branch and rendered the
-                // literal "NaN days overdue".
                 continue;
             }
             const dateTime = deserializeDate(raw).startOf("day");
@@ -60,9 +49,6 @@ export class Sidebar extends Interaction {
         if (!this.printContent) {
             const iframeEl = document.createElement("iframe");
             iframeEl.setAttribute("id", "print_iframe_content");
-            // An <iframe> loads its document from ``src``, not ``href`` (which
-            // is not a valid iframe attribute). Using ``href`` left the frame on
-            // about:blank, so the ``load`` handler below printed a blank page.
             iframeEl.setAttribute("src", href);
             iframeEl.style.display = "none";
             this.printContent = iframeEl;
@@ -74,8 +60,6 @@ export class Sidebar extends Interaction {
     }
 
     /**
-     * Create a unique id and added as a attribute of spyWatched element
-     *
      * @param {string} prefix
      * @param {HTMLElement} el
      */
@@ -90,10 +74,6 @@ export class Sidebar extends Interaction {
         let lastUL = null;
         const bsSidenavEl = this.el.querySelector(".bs-sidenav");
         if (!bsSidenavEl || !this.spyWatched) {
-            // ``spyWatched`` is initialised to ``undefined`` in setup and is
-            // assigned by downstream subclasses (sale_management, account, ...).
-            // Bail out cleanly when a caller invokes ``generateMenu`` before a
-            // subclass has set it, instead of crashing on the removeAttribute below.
             return;
         }
 
@@ -117,8 +97,6 @@ export class Sidebar extends Interaction {
                     const linkEl = document.createElement("a");
                     linkEl.classList.add("nav-link", "p-0");
                     linkEl.href = `#${id}`;
-                    // Object.assign already mutates the live CSSStyleDeclaration;
-                    // assigning its return back into `.style` was a dead no-op.
                     Object.assign(linkEl.style, linkStyle);
                     linkEl.innerText = text;
 

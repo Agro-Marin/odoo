@@ -162,10 +162,6 @@ test("switching resModel and resIds together re-reads the avatar model", async (
     const parent = await mountWithCleanup(Parent);
     expect(".o_tag img.o_m2m_avatar").toHaveCount(1);
 
-    // Both move in the same update. `getTags` runs inside onWillUpdateProps,
-    // after an await, while `this.props` still holds the OUTGOING model -- so
-    // reading the model off `this.props` there paired the new id with the old
-    // model and kept an avatar the new model has no concept of.
     parent.state.resModel = "partner";
     parent.state.resIds = [1];
     await animationFrame();

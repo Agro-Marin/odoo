@@ -73,16 +73,12 @@ registry.category("web_tour.tours").add("TicketScreenTour", {
             TicketScreen.nthRowContains(1, "Partner Test 1", false),
             TicketScreen.search("Customer", "Partner Test 2"),
             TicketScreen.nthRowContains(1, "Partner Test 2", false),
-            // Close the TicketScreen to see the current order which is in ReceiptScreen.
-            // This is just to remove the search string in the search bar.
             Chrome.clickRegister(),
             ReceiptScreen.isShown(),
-            // Open again the TicketScreen to check the Paid filter.
             Chrome.clickOrders(),
             TicketScreen.selectFilter("Paid"),
             TicketScreen.nthRowContains(1, "003"),
             TicketScreen.selectOrder("003"),
-            // Pay the order that was in PaymentScreen.
             TicketScreen.selectFilter("Payment"),
             TicketScreen.selectOrder("002"),
             TicketScreen.loadSelectedOrder(),
@@ -91,12 +87,10 @@ registry.category("web_tour.tours").add("TicketScreenTour", {
             ReceiptScreen.isShown(),
             ReceiptScreen.clickNextOrder(),
             ProductScreen.isShown(),
-            // Check that the Paid filter will show the 2 synced orders.
             Chrome.clickOrders(),
             TicketScreen.selectFilter("Paid"),
             TicketScreen.nthRowContains(1, "Partner Test 2", false),
             TicketScreen.nthRowContains(2, "003"),
-            // Invoice order
             TicketScreen.selectOrder("003"),
             inLeftSide(Order.hasLine()),
             TicketScreen.clickControlButton("Invoice"),
@@ -104,14 +98,11 @@ registry.category("web_tour.tours").add("TicketScreenTour", {
             PartnerList.clickPartner("Partner Test 3"),
             TicketScreen.invoicePrinted(),
             TicketScreen.back(),
-            // When going back, the ticket screen should be in its previous state.
             TicketScreen.filterIs("Paid"),
-            // Test refund //
             Chrome.clickRegister(),
             ProductScreen.isShown(),
             ProductScreen.orderIsEmpty(),
             ...ProductScreen.clickRefund(),
-            //Filter should be automatically 'Paid'.
             TicketScreen.filterIs("Paid"),
             TicketScreen.selectOrder("003"),
             inLeftSide([
@@ -138,8 +129,6 @@ registry.category("web_tour.tours").add("TicketScreenTour", {
             inLeftSide([
                 ...ProductScreen.clickLine("Desk Pad"),
                 ...ProductScreen.selectedOrderlineHasDirect("Desk Pad", "-1"),
-                // Try changing the refund line's qty, price, discount but altering of refund line not allowed.
-                // Error popup should show.
                 Numpad.click("2"),
                 Dialog.confirm(),
                 ...["Price", "2"].map(Numpad.click),
@@ -147,19 +136,16 @@ registry.category("web_tour.tours").add("TicketScreenTour", {
                 ...["%", "5"].map(Numpad.click),
                 Dialog.confirm(),
             ]),
-            // Check if the amount being refunded changed to 2.
             ...ProductScreen.clickRefund(),
             TicketScreen.selectOrder("003"),
             TicketScreen.toRefundTextContains("Refunding 1.00"),
             Chrome.clickRegister(),
             { ...ProductScreen.back(), isActive: ["mobile"] },
-            // Pay the refund order.
             ProductScreen.clickPayButton(),
             PaymentScreen.clickPaymentMethod("Bank"),
             PaymentScreen.clickValidate(),
             ReceiptScreen.isShown(),
             ReceiptScreen.clickNextOrder(),
-            // Check refunded quantity.
             ...ProductScreen.clickRefund(),
             TicketScreen.selectOrder("003"),
             TicketScreen.refundedNoteContains("1.00 Refunded"),
@@ -275,7 +261,6 @@ registry.category("web_tour.tours").add("test_order_refund_flow", {
             PaymentScreen.clickValidate(),
             ReceiptScreen.isShown(),
             ReceiptScreen.clickNextOrder(),
-            // First refund order
             ProductScreen.clickRefund(),
             TicketScreen.selectOrder("001"),
             ProductScreen.clickNumpad("1"),
@@ -285,7 +270,6 @@ registry.category("web_tour.tours").add("test_order_refund_flow", {
             PaymentScreen.clickBack(),
             ProductScreen.isShown(),
             Order.hasLine("Desk Pad", "-1"),
-            // Second refund order
             Chrome.createFloatingOrder(),
             ProductScreen.clickRefund(),
             TicketScreen.selectOrder("001"),
@@ -297,9 +281,7 @@ registry.category("web_tour.tours").add("test_order_refund_flow", {
             PaymentScreen.isShown(),
             PaymentScreen.clickBack(),
             ProductScreen.isShown(),
-            // Verify refund order has only one line
             Order.hasLine("Letter Tray", "-1"),
-            // Delete both refunding orders
             Chrome.clickOrders(),
             TicketScreen.deleteOrder("002"),
             Dialog.confirm(),
@@ -386,7 +368,6 @@ registry.category("web_tour.tours").add("LotTour", {
                 trigger: ".info-list:contains('SN 3')",
             }),
 
-            // Verify if the serial number can be reused for the current order
             Chrome.createFloatingOrder(),
             ProductScreen.clickDisplayedProduct("Product A"),
             ProductScreen.enterLotNumber("5"),
@@ -395,7 +376,6 @@ registry.category("web_tour.tours").add("LotTour", {
             inLeftSide({
                 trigger: ".info-list:not(:contains('SN 3'))",
             }),
-            // Check auto assign lot number if there is only one available option
             ProductScreen.clickDisplayedProduct("Product B"),
             inLeftSide({
                 trigger: ".info-list:contains('Lot Number 1001')",

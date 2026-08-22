@@ -18,8 +18,6 @@ export function useLongPress(callback, delay = LONG_PRESS_DURATION) {
         }
     }
 
-    // If the component unmounts mid-press, cancel the pending timer so the
-    // callback can't fire against a torn-down component.
     onWillUnmount(cancelLongPress);
 
     return {

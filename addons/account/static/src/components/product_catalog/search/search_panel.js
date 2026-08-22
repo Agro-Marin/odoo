@@ -183,7 +183,7 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
             section && (section.sequence = sequence);
         }
         const noSection = sections.get(false);
-        noSection && (noSection.sequence = 0); // Reset the sequence of the "No Section"
+        noSection && (noSection.sequence = 0);
         this._sortSectionsBySequence(sections);
     }
 

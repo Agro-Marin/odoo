@@ -10,18 +10,10 @@ import { Record } from "./record.js";
 /** @typedef {import("./record").StoreModels} StoreModels */
 
 /**
- * Subscribe to one key (or several) of a reactive target and re-read it deeply
- * enough that adding to a collection notifies, not only replacing it.
- *
- * The callback is handed the re-observe function rather than being run after an
- * automatic re-observe, because a subscriber may need to defer: `Store.onChange`
- * queues its reaction until the update flushes, and the observation has to
- * happen then, not now.
- *
  * @param {Object} target
  * @param {string|string[]} key
  * @param {(observe: () => void) => any} callback
- * @returns {() => void} disposer
+ * @returns {() => void}
  */
 export function observeKey(target, key, callback) {
     if (Array.isArray(key)) {
@@ -35,7 +27,6 @@ export function observeKey(target, key, callback) {
     /** @type {Object<string, any>} */
     let proxy;
     function observe() {
-        // optional: a deferred subscriber can reach this after the disposer ran
         const val = proxy?.[key];
         if (typeof val === "object" && val !== null) {
             void Object.keys(val);
@@ -93,11 +84,6 @@ export class Store extends Record {
     }
 
     /**
-     * Route an error raised inside the update cycle. Inside an update it is
-     * collected and rethrown when the flush ends; outside one it is raised at
-     * once. Either way it is raised: `logErrors` only decides whether it is
-     * also printed.
-     *
      * @param {Error} err
      * @throws {Error}
      */
@@ -112,10 +98,6 @@ export class Store extends Record {
     }
 
     /**
-     * Print collected errors to the console before they are rethrown. Set it to
-     * false to keep a test that asserts a throw from also asserting the noise.
-     * It never decides whether an error throws.
-     *
      * @type {boolean}
      */
     logErrors = true;
@@ -333,21 +315,6 @@ export class Store extends Record {
         return res;
     }
     /**
-     * Upsert a `{modelName: rows}` payload.
-     *
-     * Rows are resolved per record identity in payload order, so a `_DELETE`
-     * row followed by a row that repopulates the same record leaves the record
-     * alive — the same last-write-wins resolution `Store.add_model_values`
-     * performs server-side (`tools/discuss.py`), where the rows of one model
-     * are a dict keyed by identity and re-adding values drops a pending
-     * `_DELETE`. Deletions are still applied after every model's inserts, so a
-     * row may reference a record another model's rows delete.
-     *
-     * A model whose rows fail does not abort the models after it: the error is
-     * collected and rethrown when the update flushes, as errors raised inside
-     * the flush already are. `insert()` is best-effort, not atomic — it can
-     * both apply part of a payload and throw.
-     *
      * @param {Object} [dataByModelName={}]
      * @param {Object} [options={}]
      * @returns {void}
@@ -381,8 +348,6 @@ export class Store extends Record {
                     try {
                         identity = `${modelName}:${models[modelName].localId(vals)}`;
                     } catch {
-                        // an identity this payload cannot express cannot be
-                        // matched against another row either: keep both.
                         identity = ++unresolvedIdentity;
                     }
                     if (vals._DELETE) {

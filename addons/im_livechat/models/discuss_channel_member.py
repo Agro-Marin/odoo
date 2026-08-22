@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from datetime import datetime, timedelta
 
 from odoo import api, models, fields
@@ -14,7 +12,6 @@ class DiscussChannelMember(models.Model):
     livechat_member_type = fields.Selection(
         [("agent", "Agent"), ("visitor", "Visitor"), ("bot", "Chatbot")],
         compute="_compute_livechat_member_type",
-        # sudo - reading the history of a member the user has access to is acceptable.
         compute_sudo=True,
         inverse="_inverse_livechat_member_type",
     )
@@ -27,7 +24,6 @@ class DiscussChannelMember(models.Model):
     agent_expertise_ids = fields.Many2many(
         "im_livechat.expertise",
         compute="_compute_agent_expertise_ids",
-        # sudo - reading the history of a member the user has access to is acceptable.
         compute_sudo=True,
         inverse="_inverse_agent_expertise_ids",
     )
@@ -39,15 +35,11 @@ class DiscussChannelMember(models.Model):
         for member in members.filtered(
             lambda m: m.channel_id.channel_type == "livechat" and not m.livechat_member_type
         ):
-            # After login, the guest cookie is still available, allowing us to
-            # reconcile the user with their previous guest member.
             if (
                 guest
                 and member.is_self
                 and guest in member.channel_id.livechat_customer_guest_ids
             ):
-                # sudo - discuss.channel.member: setting livechat member type
-                # after member creation is allowed.
                 member.sudo().livechat_member_type = "visitor"
                 continue
             member.sudo().livechat_member_type = "agent"
@@ -105,30 +97,22 @@ class DiscussChannelMember(models.Model):
                 history.write(values_by_member[member])
 
     def _inverse_livechat_member_type(self):
-        # sudo - im_livechat.channel.member: creating/updating history following
-        # "livechat_member_type" modification is acceptable.
         self.sudo()._create_or_update_history(
             {member: {"livechat_member_type": member.livechat_member_type} for member in self},
         )
 
     def _inverse_chatbot_script_id(self):
-        # sudo - im_livechat.channel.member: creating/updating history following
-        # "chatbot_script_id" modification is acceptable.
         self.sudo()._create_or_update_history(
             {member: {"chatbot_script_id": member.chatbot_script_id.id} for member in self}
         )
 
     def _inverse_agent_expertise_ids(self):
-        # sudo - im_livechat.channel.member.history: creating/udpating history following
-        # "agent_expetise_ids" modification is acceptable.
         self.sudo()._create_or_update_history(
             {member: {"agent_expertise_ids": member.agent_expertise_ids.ids} for member in self}
         )
 
     @api.autovacuum
     def _gc_unpin_livechat_sessions(self):
-        """ Unpin read livechat sessions with no activity for at least one day to
-            clean the operator's interface """
         members = self.env['discuss.channel.member'].search([
             ('is_pinned', '=', True),
             ('last_seen_dt', '<=', datetime.now() - timedelta(days=1)),

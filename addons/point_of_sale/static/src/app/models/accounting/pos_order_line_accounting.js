@@ -16,11 +16,6 @@ export class PosOrderlineAccounting extends Base {
         "price_extra",
     ]);
 
-    /**
-     * Display price in the currency format, depending on the tax configuration (included or excluded).
-     *
-     * All getters in this section are used in XML files, their goal is to be shown in the UI.
-     */
     get currencyDisplayPrice() {
         if (this.combo_parent_id) {
             return "";
@@ -39,15 +34,6 @@ export class PosOrderlineAccounting extends Base {
         return formatCurrency(this.displayPriceUnitExcl, this.currency.id);
     }
 
-    /**
-     * Display price depending on the tax configuration (included or excluded).
-     */
-    // A combo parent's shown price is the total of its child lines. Compute it
-    // the SAME way the order total is computed — a single GLOBAL tax summary
-    // over the combo's child lines (via the order's own price machinery) —
-    // instead of summing each child's already-rounded price. Line-by-line
-    // rounding accumulated a per-cent drift, so the parent could show e.g.
-    // 151.97 while the order charged the globally-rounded 151.98.
     _comboGlobalTotal({ noDiscount = false } = {}) {
         const opts = { lines: this.combo_line_ids };
         if (noDiscount) {
@@ -58,9 +44,6 @@ export class PosOrderlineAccounting extends Base {
             this.config.iface_tax_included === "total"
                 ? details.total_amount_no_rounding
                 : details.base_amount;
-        // Apply orderSign like every other line price getter (priceIncl/
-        // priceExcl). Without it a refund printed the combo header negative
-        // (-10.00) directly above its own children shown positive (+2.00/+8.00).
         return this.currency.round(raw * this.order_id.orderSign);
     }
     get displayPrice() {
@@ -114,28 +97,17 @@ export class PosOrderlineAccounting extends Base {
         );
     }
 
-    /**
-     * Return all prices details of an orderlines based on the order prices computation.
-     * This is the preferred way to get prices of an orderline since its rounded globally.
-     */
     get prices() {
         const data = this.order_id.prices.baseLineByLineUuids[this.uuid];
         return data.tax_details;
     }
 
-    /**
-     * Same as "get prices" but the prices are computed as if the quantity was 1.
-     */
     get unitPrices() {
         const data = this.order_id.unitPrices.baseLineByLineUuids[this.uuid];
         return data.tax_details;
     }
 
     get comboTotalPrice() {
-        // Line totals, tax-included — deliberately independent of the
-        // iface_tax_included display configuration: pos_loyalty uses this pair
-        // as "amount with tax"/"amount without tax" for rule thresholds and
-        // discount bases.
         const childLines = this.getAllLinesInCombo().filter(
             (line) => !line.combo_line_ids.length,
         );
@@ -143,9 +115,6 @@ export class PosOrderlineAccounting extends Base {
     }
 
     get comboTotalPriceWithoutTax() {
-        // Line totals, tax-excluded. Summing displayPriceUnitExcl here
-        // undercounted every combo child with a quantity above 1 (it is a
-        // quantity-1 price).
         const childLines = this.getAllLinesInCombo().filter(
             (line) => !line.combo_line_ids.length,
         );
@@ -168,19 +137,10 @@ export class PosOrderlineAccounting extends Base {
         ].join(" ");
     }
 
-    // NB: the delete() override that used to trigger an order price recompute
-    // is gone — prices are lazy getters invalidated by the raw x2many
-    // mutation itself. (Its `delete(record, opts)` signature also contradicted
-    // Base.delete(opts) and only worked because the options object landed in
-    // the `record` slot.)
-
     get basePrice() {
         return this.qty * this.price_unit * (1 - this.getDiscount() / 100);
     }
 
-    /**
-     * Prepare extra values for the base line used in taxes computation.
-     */
     prepareBaseLineForTaxesComputationExtraValues(customValues = {}) {
         const order = this.order_id;
         const currency = this.config.currency_id;
@@ -202,7 +162,6 @@ export class PosOrderlineAccounting extends Base {
             ...customValues,
         };
         if (order?.fiscal_position_id && product !== this.config.discount_product_id) {
-            // Recompute taxes based on product and fiscal position.
             values.tax_ids = order.fiscal_position_id.getTaxesAfterFiscalPosition(
                 values.tax_ids,
             );
@@ -210,9 +169,6 @@ export class PosOrderlineAccounting extends Base {
         return values;
     }
 
-    /**
-     * Get the base line for taxes computation.
-     */
     getBaseLine(opts = {}) {
         return accountTaxHelpers.prepare_base_line_for_taxes_computation(
             this,

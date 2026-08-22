@@ -108,11 +108,6 @@ const parseLimitDate = (value, defaultValue) =>
     );
 
 /**
- * `now` is passed in rather than read from `today()` here: a day grid is 42
- * cells, and `today()` is `DateTime.local().startOf("day")` — two luxon
- * objects per call, so reading it per cell allocated 84 of them to answer a
- * question that has one answer for the whole grid.
- *
  * @param {Object} params
  * @param {boolean} [params.isOutOfRange=false]
  * @param {boolean} [params.isValid=true]
@@ -373,8 +368,6 @@ export class DateTimePicker extends Component {
         /** @type {Item[]} */
         this.items = [];
         /**
-         * The undecorated grid `decorateGrid` reads from — memoised by
-         * `_gridKey`, and never handed to the template directly.
          * @type {Item[]}
          */
         this._grid = [];
@@ -488,25 +481,6 @@ export class DateTimePicker extends Component {
     }
 
     /**
-     * `isDateValid` and `dayCellClass` are answers, not identities: a consumer
-     * passes a closure over state the picker cannot see, so the same function
-     * can answer differently on two consecutive renders and no key over the
-     * props can tell. That is why they used to defeat the grid memo outright —
-     * and a range picker sets `hoveredDate` on every `pointerenter`, so moving
-     * the mouse across a month rebuilt 42 cells, each allocating a luxon
-     * `endOf("day")`, a `today()` and a `toISODate()` string, 0.33ms a cell
-     * sweep against 0.002ms for the decoration alone (measured on this repo's
-     * luxon under node 26, 2000 iterations).
-     *
-     * The split keeps both properties: the *skeleton* — ranges, labels,
-     * in-month and in-limits — depends only on what `_gridKey` covers and is
-     * built once; the two answers are re-asked every render, on a copy, so the
-     * cached skeleton is never poisoned by a decoration.
-     *
-     * Only the day grid is decorated. `months`, `years` and `decades` never
-     * consumed either callback, and passing them through here would newly
-     * disable month cells that used to stay clickable.
-     *
      * @param {Item[]} grid
      * @returns {Item[]}
      */

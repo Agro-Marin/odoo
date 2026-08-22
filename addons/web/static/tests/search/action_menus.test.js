@@ -282,12 +282,6 @@ test("static action items are properly ordered and styled", async () => {
 });
 
 test("no separator is drawn above the first action item", async () => {
-    // The template inserts a divider whenever the group changes, and read the
-    // "previous group" out of a variable nothing declared.  On the first pass
-    // that is `undefined`, which is neither `null` nor the item's own group
-    // number, so every one of these menus opened with a rule floating above
-    // its first entry.  `web.PivotHeader.menu` seeds `currentGroup` to null
-    // for exactly this reason; the other three copies had not.
     await mountView({
         type: "list",
         resModel: "foo",

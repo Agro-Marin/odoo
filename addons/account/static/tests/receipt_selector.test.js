@@ -36,13 +36,6 @@ class MoveKind extends models.Model {
 
 defineModels([Move, MoveKind]);
 
-/**
- * The read-only branch of the template prints `string`. The widget must inherit
- * it from `SelectionLikeField`, which resolves the label from the field's own
- * metadata for both selection and many2one; the override that used to live here
- * answered "" for every type but selection, blanking the label on the many2one
- * that `radio` also supports.
- */
 describe("ReceiptSelector label", () => {
     test("prints the unfiltered selection label", async () => {
         await mountView({

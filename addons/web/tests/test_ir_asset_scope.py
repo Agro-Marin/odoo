@@ -226,23 +226,6 @@ class TestUnitTestAssetScopeResolution(TransactionCase):
 class TestUnitTestAssetScopeRoutes(HttpCase):
     def setUp(self):
         super().setUp()
-        # Every request in this class needs a session, including the ones whose
-        # route is auth="public" and therefore look like they do not.
-        #
-        # A request carrying no session carries no database either, and
-        # `Request._get_session_and_dbname` (`odoo/http/request_class.py`) then
-        # falls back to the monodb rule: it picks a database only when exactly
-        # ONE survives `dbfilter` and `db_name`. That holds on a quiet cluster
-        # and stops holding the moment the listing is perturbed, and then the
-        # route answers 404 "no database" instead of doing its job.
-        #
-        # That cost this class twice. `test_lazily_loaded_bundles_inherit_the_
-        # scope` went red with a 404 nobody could reproduce in isolation, which
-        # read as a broken bundle route. Worse,
-        # `test_an_unknown_scope_is_not_served` asserts a 404 and so kept
-        # PASSING -- on the wrong 404, having never reached the scope check it
-        # exists to pin. Authenticating here pins `session.db` for all of them
-        # and changes nothing any assertion measures.
         self.authenticate("admin", "admin")
 
     def test_the_linked_bundle_is_served_at_its_own_url(self):

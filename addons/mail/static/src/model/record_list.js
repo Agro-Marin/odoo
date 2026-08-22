@@ -51,16 +51,8 @@ function recordByLocalIdFor(recordList, recordListFullProxy) {
 }
 
 /**
- * Everything a read method of a `RecordList` needs, resolved once.
- *
- * `data` and `byLocalId` must both be taken from the *downgraded* receiver: a
- * read arriving through `_proxy` should subscribe, a read the engine makes
- * internally should not, and getting that wrong in one method silently gives it
- * different reactivity from its neighbours. Reading them here is what keeps the
- * rule in one place instead of in fourteen copies of a three-line preamble.
- *
  * @template {Record} R
- * @param {RecordList<R>} receiver `this`, as the method was called
+ * @param {RecordList<R>} receiver
  * @returns {{list: RecordList<R>, proxy: RecordList<R>, byLocalId: Map<string, R>, data: string[]}}
  */
 function cursorOf(receiver) {
@@ -75,13 +67,8 @@ function cursorOf(receiver) {
 }
 
 /**
- * The raw list, the downgraded receiver and the store — what a mutator needs.
- *
- * Deliberately does NOT read `data`, unlike {@link cursorOf}: a method that only
- * writes must not pick up a read subscription on its way in.
- *
  * @template {Record} R
- * @param {RecordList<R>} receiver `this`, as the method was called
+ * @param {RecordList<R>} receiver
  * @returns {{list: RecordList<R>, proxy: RecordList<R>, store: import("models").Store}}
  */
 function mutatorOf(receiver) {

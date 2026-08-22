@@ -29,11 +29,6 @@ class Move extends models.Model {
 
 defineModels([Move]);
 
-/**
- * The field lists errors worst first. A level it does not know about must not
- * outrank the ones it does: `indexOf` answers -1 for an unknown level, which
- * used to sort it ahead of "danger".
- */
 describe("ActionableErrors ordering", () => {
     test("sorts by severity and puts an unknown level last", async () => {
         await mountView({

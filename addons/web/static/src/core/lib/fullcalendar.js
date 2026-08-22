@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/lib/fullcalendar */
-
 import { loadCSS } from "@web/core/assets";
 import { makeLazyFacade } from "@web/core/module_bridge";
 

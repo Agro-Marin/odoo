@@ -43,8 +43,6 @@ export class BomOverviewComponent extends Component {
         useSubEnv({
             overviewBus: new EventBus(),
         });
-        // Kept in sync (via the shared fold protocol) with the folded rows so the
-        // printed PDF reproduces the on-screen state.
         this.unfoldedIds = useUnfoldedIds();
 
         useBus(
@@ -58,8 +56,6 @@ export class BomOverviewComponent extends Component {
             await this.initBomData();
         });
     }
-
-    //---- Data ----
 
     async initBomData() {
         const variantId = this.props.action.context.active_product_id;
@@ -112,8 +108,6 @@ export class BomOverviewComponent extends Component {
         this.state.currentWarehouse = warehouses[0];
     }
 
-    //---- Handlers ----
-
     onChangeMode(mode) {
         this.state.showOptions.mode = mode;
     }
@@ -150,13 +144,9 @@ export class BomOverviewComponent extends Component {
         });
     }
 
-    //---- Getters ----
-
     get activeId() {
         return this.props.action.context.active_id;
     }
-
-    // ---- Helpers ----
 
     getReportName(printAll) {
         const params = new URLSearchParams({

@@ -10,8 +10,6 @@ export class AccountUploadListRenderer extends FileUploadListRenderer {
         BillGuide,
     };
 
-    // Highlight the ref cell of a record having duplicates: danger for an exact duplicate,
-    // warning for a draft.
     getCellClass(column, record) {
         const classNames = super.getCellClass(column, record);
         if (

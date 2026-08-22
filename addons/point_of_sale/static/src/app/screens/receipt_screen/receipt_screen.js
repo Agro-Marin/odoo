@@ -24,9 +24,6 @@ export class ReceiptScreen extends Component {
         this.renderer = useService("renderer");
         this.notification = useService("notification");
         this.dialog = useService("dialog");
-        // The order may be absent (stale bookmark / reload after eviction):
-        // useRouterParamsChecker schedules a redirect but does not abort this
-        // setup, so an unguarded dereference crashed before the redirect.
         const partner = this.currentOrder?.getPartner();
         const email = partner?.invoice_emails || partner?.email || "";
         this.state = useState({

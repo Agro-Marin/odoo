@@ -8,15 +8,12 @@ import {
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 
 export class Many2XTaxTagsAutocomplete extends Many2XAutocomplete {
-    // Always offer "Search More" for tax tags; the base gates the option on this
-    // hook and builds it via buildSearchMoreSuggestion (which wires onSearchMore).
     addSearchMoreSuggestion() {
         return true;
     }
 
     async onSearchMore(request) {
         const { getDomain, context, fieldString } = this.props;
-        // Don't mutate the shared props.context object; derive a copy instead.
         const searchContext = request.length
             ? { ...context, search_default_name: request }
             : context;

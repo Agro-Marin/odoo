@@ -111,9 +111,6 @@ class ApiChannelMixin(models.AbstractModel):
     def update_date_last_activity(self):
         self.write({"date_last_activity": fields.Datetime.now()})
 
-    #: Which half of the log a channel owns. Set by the concrete model, because it is
-    #: the one fact about its event log that an inbound endpoint and an outbound one do
-    #: not share -- everything below is identical between them and was written twice.
     _api_event_direction = None
 
     event_log_ids = fields.One2many(
@@ -122,12 +119,6 @@ class ApiChannelMixin(models.AbstractModel):
     )
 
     def _api_event_log_domain(self):
-        """The log rows belonging to these channels.
-
-        One definition because 'channel_id' is a reference field, so the domain is not
-        the obvious 'channel_id in self.ids' but a list of 'model,id' strings, and a
-        second hand-built copy of that is a silent way to read another channel's log.
-        """
         if not self._api_event_direction:
             raise NotImplementedError(
                 f"{self._name} inherits api.channel.mixin without declaring "

@@ -31,7 +31,6 @@ export class ProductTemplateAccounting extends Base {
 
         let taxes = this.taxes_id;
 
-        // Fiscal position.
         if (fiscalPosition) {
             taxes = fiscalPosition.getTaxesAfterFiscalPosition(taxes);
         }
@@ -46,16 +45,6 @@ export class ProductTemplateAccounting extends Base {
         };
     }
 
-    // Port of _get_product_price on product.pricelist.
-    //
-    // Anything related to UOM can be ignored, the POS will always use
-    // the default UOM set on the product and the user cannot change
-    // it.
-    //
-    // Pricelist items do not have to be sorted. All
-    // product.pricelist.item records are loaded with a search_read
-    // and were automatically sorted based on their _order by the
-    // ORM. After that they are added in this order to the pricelists.
     getPrice(
         pricelist,
         quantity,
@@ -65,11 +54,6 @@ export class ProductTemplateAccounting extends Base {
         original_line = false,
         related_lines = [],
     ) {
-        // In case of nested pricelists, it is necessary that all pricelists are made available in
-        // the POS. Display a basic alert to the user in the case where there is a pricelist item
-        // but we can't load the base pricelist to get the price when calling this method again.
-        // As this method is also call without pricelist available in the POS, we can't just check
-        // the absence of pricelist.
         if (recurring && !pricelist) {
             alert(
                 _t(
@@ -98,11 +82,6 @@ export class ProductTemplateAccounting extends Base {
             quantity = related_lines.reduce((sum, line) => sum + line.getQuantity(), 0);
         }
 
-        // Match python `_order = "applied_on, min_quantity desc, categ_id desc,
-        // id desc"`: applied_on is handled by the product/template/general
-        // tiering below, so within a tier break ties on min_quantity by id desc
-        // (otherwise two same-min_quantity rules resolved by backLink insertion
-        // order and could price differently from any backend recomputation).
         const byMinQtyThenId = (a, b) => b.min_quantity - a.min_quantity || b.id - a.id;
         const tmplRules = (
             productTmpl.backLink("<-product.pricelist.item.product_tmpl_id") || []
@@ -163,10 +142,6 @@ export class ProductTemplateAccounting extends Base {
             }
         }
 
-        // This return value has to be rounded with round_di before
-        // being used further. Note that this cannot happen here,
-        // because it would cause inconsistencies with the backend for
-        // pricelist that have base == 'pricelist'.
         return price;
     }
 

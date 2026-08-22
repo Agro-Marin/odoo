@@ -8,17 +8,6 @@ patch(Chatter.prototype, {
     setup() {
         super.setup(...arguments);
         this.topRef = useRef("top");
-        // Keep the composer position under the page header on scrolling unless
-        // the header is on the side. Creating the observer and calling observe()
-        // must happen in the SAME effect: the previous split (create in
-        // onWillPatch, observe in a useEffect keyed on topRef.el) re-created the
-        // observer on every re-render but only observed on the first appearance
-        // of the top element — so any later re-render (posting a message,
-        // opening the composer, searching, ...) replaced the live observer with
-        // an idle one and silently broke the sticky padding. Keyed on topRef.el
-        // (recreate when the top element appears/changes) and twoColumns (layout
-        // switch), the observer is created once, observes, and its cleanup
-        // disconnects it — surviving unrelated re-renders untouched.
         useEffect(
             (topEl) => {
                 if (!topEl) {

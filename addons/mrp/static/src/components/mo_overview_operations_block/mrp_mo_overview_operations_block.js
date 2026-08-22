@@ -47,7 +47,6 @@ export class MoOverviewOperationsBlock extends Component {
         this.formatFloatTime = formatFloatTime;
         this.getColorClass = getColorClass;
         this.state = useState({
-            // Unfold the main MO's operations by default
             isFolded: this.level > 0 && !this.props.unfoldAll,
         });
         if (this.props.unfoldAll) {
@@ -62,8 +61,6 @@ export class MoOverviewOperationsBlock extends Component {
         );
     }
 
-    //---- Handlers ----
-
     toggleFolded() {
         this.state.isFolded = !this.state.isFolded;
         this.env.overviewBus.trigger(FOLD_CHANGED, {
@@ -77,13 +74,9 @@ export class MoOverviewOperationsBlock extends Component {
         this.env.overviewBus.trigger(FOLD_CHANGED, { ids: [this.index], folded });
     }
 
-    //---- Helpers ----
-
     formatMonetary(val) {
         return formatMonetary(val, { currencyId: this.props.summary.currency_id });
     }
-
-    //---- Getters ----
 
     get hasOperations() {
         return this.props?.operations?.length > 0;
@@ -98,7 +91,6 @@ export class MoOverviewOperationsBlock extends Component {
     }
 
     get totalQuantity() {
-        // Float for Hours when displaying done productions, FloatTime for Minutes otherwise.
         return this.props.summary?.done
             ? formatFieldFloat(this.props.summary.quantity, {
                   digits: [false, this.props.operations[0].uom_precision || undefined],

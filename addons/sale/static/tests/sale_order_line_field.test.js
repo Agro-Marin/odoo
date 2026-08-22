@@ -252,7 +252,6 @@ test("test combo move up/down", async () => {
 });
 
 test("Test combo columns", async () => {
-    // Set different defaults for checking aggregation of columns on combo line
     SaleOrderLine._fields.price_unit = fields.Float({ default: 3.0 });
     SaleOrderLine._fields.price_total = fields.Float({ default: 3.0 });
     SaleOrderLine._fields.product_qty = fields.Float({ default: 3.0 });
@@ -307,10 +306,10 @@ test("Test combo columns", async () => {
         queryAllTexts(".o_data_row:contains(Test Combo1) > td").filter(Boolean),
     ).toEqual(
         [
-            "Test Combo1", // name
-            "3.00", // product_qty
-            "30", // discount
-            "9.00", // price_total
+            "Test Combo1",
+            "3.00",
+            "30",
+            "9.00",
         ],
         {
             message:
@@ -322,11 +321,11 @@ test("Test combo columns", async () => {
         queryAllTexts(".o_data_row:contains(Non Combo Line1) > td").filter(Boolean),
     ).toEqual(
         [
-            "Non Combo Line1", // name
-            "3.00", // price_unit
-            "3.00", // product_qty
-            "30", // discount
-            "3.00", // price_total
+            "Non Combo Line1",
+            "3.00",
+            "3.00",
+            "30",
+            "3.00",
         ],
         {
             message: "Non-combo line should have all columns",

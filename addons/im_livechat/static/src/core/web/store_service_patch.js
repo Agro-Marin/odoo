@@ -26,7 +26,7 @@ const storePatch = {
             this.livechatSelfExpertises.fetch();
         }
     },
-    /** @returns {boolean} Whether the livechat thread changed. */
+    /** @returns {boolean} */
     goToOldestUnreadLivechatThread() {
         const [oldestUnreadThread] = this.discuss.livechats
             .filter((thread) => thread.isUnread)

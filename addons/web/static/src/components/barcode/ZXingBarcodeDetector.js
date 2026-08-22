@@ -143,7 +143,6 @@ export function buildZXingBarcodeDetector(ZXing) {
     }
 
     /**
-     * @static
      * @returns {Promise<string[]>}
      */
     ZXingBarcodeDetector.getSupportedFormats = async () => allSupportedFormats;

@@ -6,7 +6,7 @@ import { _t } from "@web/core/translation";
 export class DocumentsActionHelper extends Component {
     static template = "documents.DocumentsActionHelper";
     static props = [
-        "noContentHelp", // Markup Object
+        "noContentHelp",
     ];
 
     setup() {
@@ -27,8 +27,7 @@ export class DocumentsActionHelper extends Component {
     }
 
     /**
-     * @returns {markup} If the current folder is an actual folder, the action's helper,
-     * otherwise a message depending on it being the "All" folder or the "Trash" folder
+     * @returns {markup}
      */
     get noContentHelp() {
         if (
@@ -56,14 +55,12 @@ export class DocumentsActionHelper extends Component {
 
     async updateShareInformation() {
         this.state.mailTo = undefined;
-        // Only load data if we are in a single folder and selected folder has a real id
         const filteredDomain = this.env.searchModel.domain.filter(
             (leaf) => Array.isArray(leaf) && leaf.includes("folder_id")
         );
         if (filteredDomain.length !== 1 || typeof this.selectedFolderId !== "number") {
             return;
         }
-        // make sure we have a mail.alias configured
         const selectedFolder = this.env.searchModel.getFolderById(this.selectedFolderId);
         if (
             !selectedFolder ||
@@ -72,9 +69,6 @@ export class DocumentsActionHelper extends Component {
         ) {
             return;
         }
-        // The server already stores this joined address (mail.alias.alias_full_name);
-        // rebuilding it here also meant indexing alias_domain_id as an [id, name]
-        // tuple, a shape the record model stopped producing.
         this.state.mailTo = selectedFolder.alias_email;
     }
 }

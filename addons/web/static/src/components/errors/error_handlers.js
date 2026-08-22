@@ -167,10 +167,6 @@ export function lostConnectionHandler(env, error, originalError) {
     const recovery = env.services.connection_recovery;
     error.unhandledRejectionEvent?.preventDefault();
     if (!recovery || recovery.isDestroyed) {
-        // The env is going away: swallow the rejection rather than opening a
-        // dialog nobody will see. Deliberately NOT the same thing as "recovery
-        // has been torn down once", which is why `isDestroyed` is now read off
-        // a live service instead of a module-level flag that never reset.
         return true;
     }
     if (originalError instanceof InvalidResponseError) {

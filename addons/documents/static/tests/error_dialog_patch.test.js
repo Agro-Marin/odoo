@@ -36,9 +36,6 @@ test("Shareable error dialog", async () => {
 
     mockService("file_upload", {
         bus: _bus,
-        // Honours `buildFormData` like the real service: the dialog stamps a
-        // marker into the payload and only adopts a FILE_UPLOAD_LOADED whose
-        // form data carries it.
         upload: (route, files, params) => {
             if (route === "/documents/upload_traceback") {
                 const data = new FormData();
@@ -96,8 +93,6 @@ test("an unrelated upload does not hijack the traceback link", async () => {
             if (route === "/documents/upload_traceback") {
                 const data = new FormData();
                 params?.buildFormData?.(data);
-                // A documents upload finishing first: same shape of response (a
-                // one-element array of new document ids), no traceback marker.
                 _bus.trigger("FILE_UPLOAD_LOADED", {
                     upload: {
                         data: new FormData(),
@@ -171,9 +166,6 @@ test("Multiple error dialogs", async () => {
 
     mockService("file_upload", {
         bus: _bus,
-        // Honours `buildFormData` like the real service: the dialog stamps a
-        // marker into the payload and only adopts a FILE_UPLOAD_LOADED whose
-        // form data carries it.
         upload: (route, files, params) => {
             if (route === "/documents/upload_traceback") {
                 const data = new FormData();

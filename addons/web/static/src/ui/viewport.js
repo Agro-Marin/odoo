@@ -65,12 +65,6 @@ export function sizeOf(medias) {
     return size;
 }
 
-/**
- * The viewport size, read live from the breakpoint queries on every call. It
- * stays live on purpose: a cache would have to be invalidated by the `change`
- * events, and `getSize` is also asked by callers -- tests among them -- that
- * move the viewport without any event being delivered.
- */
 export const utils = {
     getSize() {
         return sizeOf(getMediaQueryLists());

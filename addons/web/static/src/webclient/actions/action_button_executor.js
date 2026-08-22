@@ -60,8 +60,7 @@ export function filterActionContext(context) {
 /**
  * @param {ActionManager} am
  * @param {DoActionButtonParams} params
- * @param {Context} context mutated in place for `type="action"`, which is where
- * the active_* keys the loaded action reads are seeded
+ * @param {Context} context
  * @returns {Promise<any>}
  * @throws {InvalidButtonParamsError}
  */
@@ -99,15 +98,11 @@ async function resolveButtonAction(am, params, context) {
 }
 
 /**
- * A button whose action carries embedded actions re-enters `doActionButton` on
- * the user's preferred one instead of opening the parent.
- *
  * @param {ActionManager} am
  * @param {any} action
  * @param {DoActionButtonParams} params
  * @param {boolean} [newWindow]
- * @returns {Promise<boolean>} whether an embedded action was dispatched, in
- * which case the caller has nothing left to do
+ * @returns {Promise<boolean>}
  */
 async function dispatchPreferredEmbeddedAction(am, action, params, newWindow) {
     if (!action.embedded_action_ids?.length) {

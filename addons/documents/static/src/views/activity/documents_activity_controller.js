@@ -30,9 +30,6 @@ export class DocumentsActivityController extends ActivityController {
         return modelParams;
     }
 
-    /**
-     * Override this to add view options.
-     */
     documentsViewHelpers() {
         return {
             getSelectedDocumentsElements: () => [],
@@ -44,8 +41,6 @@ export class DocumentsActivityController extends ActivityController {
     }
 
     /**
-     * Select record for inspector.
-     *
      * @override
      */
     async openRecord(record) {
@@ -57,7 +52,7 @@ export class DocumentsActivityController extends ActivityController {
     }
 
     /**
-     * @returns {Boolean} whether the record can be previewed in the attachment viewer.
+     * @returns {Boolean}
      */
     isRecordPreviewable(record) {
         return this.model.activityData.activity_res_ids.includes(record.resId);

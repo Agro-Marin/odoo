@@ -1,7 +1,7 @@
 import { mountView } from "@web/../tests/web_test_helpers";
 import { getEnrichedSearchArch } from "@documents/../tests/helpers/views/search";
 
-export const basicDocumentsListArch = /* xml */ `
+export const basicDocumentsListArch = `
 <list js_class="documents_list">
     <field name="type" width="25px" widget="documents_type_icon" nolabel="1"/>
     <field name="name"/>

@@ -9,10 +9,6 @@ import {
 const fieldRegistry = registry.category("fields");
 
 export class ChatbotScriptTriggeringAnswersMany2Many extends Many2ManyTagsField {
-    /**
-     * Force the chatbot script ID we are currently editing into the context.
-     * This allows to filter triggering question answers on steps of this script.
-     */
     setup() {
         super.setup();
 

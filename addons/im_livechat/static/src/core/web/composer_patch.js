@@ -13,9 +13,6 @@ patch(Composer.prototype, {
         ) {
             const threadChanged = this.store.goToOldestUnreadLivechatThread();
             if (threadChanged) {
-                // prevent chat window from switching to the next thread: as
-                // we want to go to the oldest unread thread, not the next
-                // one.
                 ev.stopPropagation();
             }
         }

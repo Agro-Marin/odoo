@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from datetime import datetime, timedelta
 from freezegun import freeze_time
 from unittest.mock import patch
@@ -39,8 +37,6 @@ class TestImLivechatReport(TestImLivechatCommon):
         self._create_message(channel, self.operator, '2023-03-17 08:15:54')
         self._create_message(channel, self.operator, '2023-03-17 08:45:54')
 
-        # message with the same record id, but with a different model
-        # should not be taken into account for statistics
         partner_message = self._create_message(channel, self.operator, '2023-03-17 05:05:54')
         partner_message |= self._create_message(channel, self.operator, '2023-03-17 09:15:54')
         partner_message.model = 'res.partner'
@@ -55,15 +51,6 @@ class TestImLivechatReport(TestImLivechatCommon):
     def test_im_livechat_report_channel(self):
         report = self.env['im_livechat.report.channel'].search([('livechat_channel_id', '=', self.livechat_channel.id)])
         self.assertEqual(len(report), 1, 'Should have one channel report for this live channel')
-        # We have those messages, ordered by creation;
-        # 05:05:54: wrong model
-        # 06:05:54: session create
-        # 06:06:59: visitor message
-        # 08:15:54: operator first answer
-        # 08:45:54: operator second answer
-        # 09:15:54: wrong model
-        # So the duration of the session is: (09:20:54 - 06:05:54) = 3h15 = 195 minutes
-        # The time to answer of this session is: (08:15:54 - 06:05:54) = 2h10 = 7800 seconds
         self.assertEqual(report.time_to_answer, 7800 / 3600)
         self.assertEqual(int(report.duration), 195)
 
@@ -80,9 +67,6 @@ class TestImLivechatReport(TestImLivechatCommon):
 
     @classmethod
     def _create_message(cls, channel, author, date):
-        # `cr.now()` is annotated to return a datetime and callers rely on it --
-        # `mail_thread._is_notification_scheduled` reads `.tzinfo` off it -- so the
-        # mock returns one whether the caller passed a string or a datetime.
         posted_on = Datetime.to_datetime(date)
         with patch.object(cls.env.cr, 'now', lambda: posted_on):
             return channel.message_post(author_id=author.id, body=f'Message {date}')

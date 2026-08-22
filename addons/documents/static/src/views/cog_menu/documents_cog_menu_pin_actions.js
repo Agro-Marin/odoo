@@ -20,20 +20,14 @@ export class DocumentCogMenuPinAction extends Component {
         this.notification = useService("notification");
 
         this.documentsState = useState({ actions: [], isLoading: true });
-        // `useDebounced` rather than a bare `debounce`: the cog menu is a
-        // dropdown, so it is routinely destroyed within the 1.5s window. The
-        // uncancelled timer then fired `_reloadSearchModel` through the env of a
-        // component that no longer exists, reloading the search panel behind the
-        // user's back after they had closed the menu.
         this._reloadSearchModel = useDebounced(() => {
             this.env.searchModel._reloadSearchModel(true);
         }, 1500);
 
         const folderId = this.env.searchModel.getSelectedFolderId();
         this.documentService.getActions(folderId).then((actions) => {
-            // Do not block `onWillStart` to not create a lag when opening the cogwheel
             if (status(this) === "destroyed") {
-                return; // menu closed before the actions came back
+                return;
             }
             this.documentsState.actions = actions;
             this.documentsState.isLoading = false;
@@ -49,10 +43,9 @@ export class DocumentCogMenuPinAction extends Component {
             return;
         }
 
-        // Toggle immediately the action to not create a lag (will be restored in "catch" if it fails)
         const action = this.documentsState.actions.find((a) => a.id === actionId);
         if (!action) {
-            return; // the list was refreshed and no longer offers this action
+            return;
         }
         action.is_embedded = !action.is_embedded;
         try {

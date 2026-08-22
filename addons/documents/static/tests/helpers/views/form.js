@@ -1,4 +1,4 @@
-export const basicDocumentsOperationFormArch = /* xml */ `
+export const basicDocumentsOperationFormArch = `
 <form>
     <field name="display_name" invisible="1" force_save="1"/>
     <field name="user_permission" invisible="1" force_save="1"/>

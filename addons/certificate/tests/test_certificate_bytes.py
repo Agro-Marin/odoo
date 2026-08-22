@@ -40,7 +40,6 @@ class TestCertificateBytesAndLifecycle(TransactionCase):
         )
 
     def test_der_and_fingerprint_bytes_round_trip(self):
-        """DER bytes reload as the same cert; fingerprint hashes that DER."""
         der_raw = self.certificate._get_der_certificate_bytes(formatting="raw")
         reloaded = x509.load_der_x509_certificate(der_raw)
         common_names = reloaded.subject.get_attributes_for_oid(
@@ -52,7 +51,6 @@ class TestCertificateBytesAndLifecycle(TransactionCase):
         self.assertEqual(fingerprint, hashlib.sha256(der_raw).digest())
 
     def test_signature_and_public_numbers_bytes(self):
-        """Signature bytes match the cert; public exponent decodes to 65537."""
         signature = base64.b64decode(
             self.certificate._get_signature_bytes(formatting="base64")
         )
@@ -64,7 +62,6 @@ class TestCertificateBytesAndLifecycle(TransactionCase):
         self.assertEqual(int.from_bytes(base64.b64decode(e_bytes)), 65537)
 
     def test_cleared_content_resets_computed_fields(self):
-        """Blanking the content clears the parsed state without an error."""
         certificate = self.env["certificate.certificate"].create(
             {
                 "name": "To clear",
@@ -83,7 +80,6 @@ class TestCertificateBytesAndLifecycle(TransactionCase):
         self.assertFalse(certificate.loading_error)
 
     def test_garbage_content_sets_loading_error(self):
-        """Unparseable content surfaces loading_error and invalidates."""
         certificate = self.env["certificate.certificate"].create(
             {
                 "name": "Garbage",
@@ -95,7 +91,6 @@ class TestCertificateBytesAndLifecycle(TransactionCase):
         self.assertFalse(certificate.is_valid)
 
     def test_search_is_valid_domain(self):
-        """is_valid is searchable: valid certs match, broken ones do not."""
         garbage = self.env["certificate.certificate"].create(
             {
                 "name": "Search garbage",
@@ -107,6 +102,5 @@ class TestCertificateBytesAndLifecycle(TransactionCase):
         self.assertNotIn(garbage, found)
 
     def test_search_is_valid_unsupported_operator(self):
-        """Any operator other than 'in' is delegated back as NotImplemented."""
         result = self.env["certificate.certificate"]._search_is_valid("child_of", True)
         self.assertIs(result, NotImplemented)

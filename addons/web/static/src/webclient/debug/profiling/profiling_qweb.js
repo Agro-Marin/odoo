@@ -289,7 +289,7 @@ export class ProfilingQwebView extends Component {
      * @param {any[]} arch
      * @param {Record<string, any>} flat
      * @param {any} parent
-     * @param {string} xpath the parent's xpath, extended and returned
+     * @param {string} xpath
      * @param {any} rows
      * @returns {string}
      */

@@ -13,7 +13,6 @@ import { Domain } from "@web/core/domain";
 
 export class MailMessage extends models.ServerModel {
     _name = "mail.message";
-    /** Mirrors ``mail.message._SEARCH_COUNT_CAP``; a field so tests can patch it. */
     _search_count_cap = 1000;
 
     author_id = fields.Generic({ default: () => serverState.partnerId });

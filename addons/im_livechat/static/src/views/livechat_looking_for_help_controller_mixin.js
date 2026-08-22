@@ -45,8 +45,6 @@ export const LivechatLookingForHelpReloadMixin = (ViewController) =>
                 (rec) => (recordIdByResId[rec.resId] = rec.id),
             );
             if (added_channel_ids.some((resId) => !recordIdByResId[resId])) {
-                // Filter/Groups/Search are handled server side, it's easier to reload the data
-                // rather than trying to guess where/if the record should be inserted.
                 this.reloadDebounced();
                 return;
             }

@@ -22,7 +22,7 @@ test("Documents mixed selection field in form", async () => {
         ...getDocumentsTestServerModelsData(),
         "documents.sharing": testCases.map(
             ([originalAccessInternal, excludeNone, expectedOptions], idx) => ({
-                id: idx + 1, // id can't be 0
+                id: idx + 1,
                 access_internal: originalAccessInternal,
             })
         ),

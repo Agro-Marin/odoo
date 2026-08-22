@@ -14,7 +14,6 @@ registry
                 Chrome.startPoS(),
                 Dialog.confirm("Open Register"),
 
-                // Order.
                 ProductScreen.addOrderline("random_product", "1"),
                 ProductScreen.checkTaxAmount("2.03"),
                 ProductScreen.checkRoundingAmountIsNotThere(),
@@ -34,7 +33,6 @@ registry
                 ReceiptScreen.receiptChangeAmountIsNotThere(),
                 ReceiptScreen.clickNextOrder(),
 
-                // Refund.
                 Chrome.clickOrders(),
                 TicketScreen.selectFilter("Active"),
                 TicketScreen.selectFilter("Paid"),
@@ -71,7 +69,6 @@ registry
                     Chrome.startPoS(),
                     Dialog.confirm("Open Register"),
 
-                    // Order.
                     ProductScreen.addOrderline("random_product", "1"),
                     ProductScreen.checkTaxAmount("2.03"),
                     ProductScreen.checkRoundingAmountIsNotThere(),
@@ -96,7 +93,6 @@ registry
                     ReceiptScreen.receiptChangeAmountIsNotThere(),
                     ReceiptScreen.clickNextOrder(),
 
-                    // Refund.
                     Chrome.clickOrders(),
                     TicketScreen.selectFilter("Active"),
                     TicketScreen.selectFilter("Paid"),
@@ -137,7 +133,6 @@ registry
                 Chrome.startPoS(),
                 Dialog.confirm("Open Register"),
 
-                // Order.
                 ProductScreen.addOrderline("random_product", "1"),
                 ProductScreen.checkTaxAmount("2.05"),
                 ProductScreen.checkRoundingAmountIsNotThere(),
@@ -158,7 +153,6 @@ registry
                 ReceiptScreen.receiptChangeAmountIsNotThere(),
                 ReceiptScreen.clickNextOrder(),
 
-                // Refund.
                 Chrome.clickOrders(),
                 TicketScreen.selectFilter("Active"),
                 TicketScreen.selectFilter("Paid"),
@@ -196,7 +190,6 @@ registry
                     Chrome.startPoS(),
                     Dialog.confirm("Open Register"),
 
-                    // Order.
                     ProductScreen.addOrderline("random_product", "1"),
                     ProductScreen.checkTaxAmount("2.05"),
                     ProductScreen.checkRoundingAmountIsNotThere(),
@@ -221,7 +214,6 @@ registry
                     ReceiptScreen.receiptChangeAmountIsNotThere(),
                     ReceiptScreen.clickNextOrder(),
 
-                    // Refund.
                     Chrome.clickOrders(),
                     TicketScreen.selectFilter("Active"),
                     TicketScreen.selectFilter("Paid"),

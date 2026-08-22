@@ -6,8 +6,8 @@ import { RAW_SYMBOL } from "./utils.js";
 
 export class RecordStore {
     /**
-     * @param {Array<string>} models - List of model names to register.
-     * @param {object} indexes - A map from model name to an array of index keys.
+     * @param {Array<string>} models
+     * @param {object} indexes
      */
     constructor(models, indexes = {}) {
         this.indexes = {};
@@ -29,8 +29,7 @@ export class RecordStore {
     }
 
     /**
-     * Adds a record
-     * @param {Base} record - An instance of Base.
+     * @param {Base} record
      */
     add(record) {
         return this._updateIndex(record, (map, key, record, isArray = false) => {
@@ -47,17 +46,13 @@ export class RecordStore {
     }
 
     /**
-     * Removes a record
-     * @param {Base} record - An instance of Base.
+     * @param {Base} record
      */
     remove(record) {
         this._updateIndex(record, (map, key, record, isArray = false) => {
             if (isArray) {
                 map.get(key)?.delete(record.id);
             } else if (toRaw(map.get(key)) === toRaw(record)) {
-                // Single-value indexes (e.g. barcode) are not guaranteed
-                // unique: only delete the entry if this record owns it, or
-                // removing a hidden duplicate would evict the visible one.
                 map.delete(key);
             }
         });
@@ -69,7 +64,6 @@ export class RecordStore {
         }
         const model = record.model.name;
         this.indexes[model].forEach((index) => {
-            //Accessing raw data ensures that the lazy getter is not triggered prematurely
             const indexValue = record[RAW_SYMBOL][index];
             if (!indexValue) {
                 return;
@@ -85,16 +79,14 @@ export class RecordStore {
                 operation(map, indexValue, record);
             }
         });
-        // Returns the reactive instance
         return this.getById(model, record.id);
     }
 
     /**
-     * Retrieves a record by model name, index key, and value.
-     * @param {string} model - The name of the model.
-     * @param {string} index - The name of the index
-     * @param {*} value - The value to look up in the index.
-     * @returns {Base| Array<Base>|undefined} - The found record or undefined if not found.
+     * @param {string} model
+     * @param {string} index
+     * @param {*} value
+     * @returns {Base| Array<Base>|undefined}
      */
     get(model, index, value) {
         const result = this.getRecordsMap(model, index).get(value);
@@ -102,33 +94,29 @@ export class RecordStore {
     }
 
     /**
-     * Retrieves a record by model name, id.
-     * @param {string} model - The name of the model.
-     * @param {*} id - The value to look up in the index.
-     * @returns {Base|undefined} - The found record or undefined if not found.
+     * @param {string} model
+     * @param {*} id
+     * @returns {Base|undefined}
      */
     getById(model, id) {
         return this.getRecordsMap(model, "id").get(id);
     }
 
     /**
-     * Retrieves all records of a model
-     * @param {string} model - The name of the model.
-     * @param {Array<Base>} - Map of records by ids.
+     * @param {string} model
+     * @param {Array<Base>} -
      */
     getOrderedRecords(model) {
         return Array.from(this.getRecordsMap(model, "id").values());
     }
 
     /**
-     * Retrieves all records of a model
-     * @param {string} model - The name of the model.
-     * @param {string} index - The name of the index
-     * @param {object} - An object where keys are IDs and values are the corresponding records
+     * @param {string} model
+     * @param {string} index
+     * @param {object} -
      */
     getRecordsByIds(model, index = "id") {
         const indexMap = this.getRecordsMap(model, index);
-        //Check if the index is multivalued
         if (
             index !== "id" &&
             indexMap.get(indexMap.keys().next().value) instanceof Map
@@ -145,20 +133,18 @@ export class RecordStore {
     }
 
     /**
-     * Retrieves the number of records for a given model.
-     * @param {string} model - The name of the model.
-     * @param {string} index - The name of the index
-     * @returns {number} The total number of records.
+     * @param {string} model
+     * @param {string} index
+     * @returns {number}
      */
     getRecordCount(model, index = "id") {
         return this.getRecordsMap(model, index).size;
     }
 
     /**
-     * Validates whether a given index exists for a model.
-     * @param {string} model - The model name.
-     * @param {string} index - The index name.
-     * @returns {boolean} - True if the index exists, false otherwise.
+     * @param {string} model
+     * @param {string} index
+     * @returns {boolean}
      */
     hasIndex(model, index) {
         return this.indexes[model]?.has(index) || false;

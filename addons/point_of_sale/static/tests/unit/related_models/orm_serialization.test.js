@@ -37,7 +37,6 @@ test("basic", async () => {
         expect(result.relations_uuid_mapping).toBe(undefined);
     }
 
-    // Server results with ids
     models.connectNewData({
         "pos.order": [{ ...order.raw, id: 1, lines: [11, 12] }],
         "pos.order.line": [
@@ -57,7 +56,6 @@ test("basic", async () => {
         expect(result.lines[0][2].qty).toBe(99);
     }
 
-    // Delete line
     line1.delete();
     {
         const keepCommandResult = models.serializeForORM(order, { keepCommands: true });
@@ -288,7 +286,6 @@ test("nested lines relationship", async () => {
         ],
     });
 
-    // Update line: the uuid mapping must be present
     order = models["pos.order"].getBy("uuid", order.uuid);
     line1 = models["pos.order.line"].getBy("uuid", line1.uuid);
 
@@ -384,7 +381,6 @@ test("recursive relationship with group of lines", async () => {
         expect(result.relations_uuid_mapping).toBe(undefined);
     }
 
-    // Delete line
     line3.delete();
     {
         const keepCommandResult = models.serializeForORM(order, { keepCommands: true });
@@ -398,7 +394,6 @@ test("recursive relationship with group of lines", async () => {
     }
 
     {
-        //All update/delete have been cleared
         const keepCommandResult = models.serializeForORM(order, { keepCommands: true });
         const result = models.serializeForORM(order);
         expect(keepCommandResult).toEqual(result);

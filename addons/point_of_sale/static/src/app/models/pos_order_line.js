@@ -25,7 +25,6 @@ export class PosOrderline extends PosOrderlineAccounting {
 
     initState() {
         super.initState();
-        // Data that are not saved in the backend
         this.uiState = {
             hasChange: true,
             savedQuantity: 0,
@@ -166,7 +165,6 @@ export class PosOrderline extends PosOrderlineAccounting {
         }, {});
     }
 
-    // To be overrided
     getDisplayClasses() {
         return {};
     }
@@ -189,10 +187,6 @@ export class PosOrderline extends PosOrderlineAccounting {
         return isAllowOnlyOneLot ? [tempLines[0]] : tempLines;
     }
 
-    // What if a number different from 1 (or -1) is specified
-    // to an orderline that has product tracked by lot? Lot tracking (based
-    // on the current implementation) requires that 1 item per orderline is
-    // allowed.
     async editPackLotLines(editedPackLotLines) {
         if (!editedPackLotLines) {
             return;
@@ -213,7 +207,6 @@ export class PosOrderline extends PosOrderlineAccounting {
             }
         }
 
-        // Remove those that needed to be removed.
         for (const lotLine of lotLinesToRemove) {
             lotLine.delete();
         }
@@ -225,16 +218,12 @@ export class PosOrderline extends PosOrderlineAccounting {
             });
         }
 
-        // Set the qty of the line based on number of pack lots.
         if (!this.product_id.to_weight && setQuantity) {
             this.setQuantityByLot();
         }
     }
 
     setDiscount(discount) {
-        // `parseFloat` (from @web/core/parsers) throws on unparseable input, so
-        // the old `isNaN(parseFloat(...)) ? 0 : ...` fallback was dead and let the
-        // exception escape. Parse once, defensively, keeping locale-aware parsing.
         let parsed_discount;
         if (typeof discount === "number") {
             parsed_discount = discount;
@@ -249,9 +238,6 @@ export class PosOrderline extends PosOrderlineAccounting {
         this.discount = disc;
     }
 
-    // sets the qty of the product. The qty will be rounded according to the
-    // product's unity of measure properties. Quantities greater than zero will not get
-    // rounded to zero
     setQuantity(quantity, keep_price) {
         this.uiState.oldQty = this.qty;
         if (this.order_id.preset_id?.is_return) {
@@ -271,10 +257,6 @@ export class PosOrderline extends PosOrderlineAccounting {
 
         if (this.refunded_orderline_id?.uuid in allLineToRefundUuids) {
             const refundDetails = allLineToRefundUuids[this.refunded_orderline_id.uuid];
-            // refundedQty includes THIS draft line's current quantity; the new
-            // quantity replaces that contribution rather than adding to it, so
-            // add it back — otherwise raising an existing draft refund line to
-            // a perfectly refundable quantity was rejected.
             const maxQtyToRefund =
                 refundDetails.line.qty - refundDetails.line.refundedQty - this.qty;
             if (quant > 0) {
@@ -304,7 +286,6 @@ export class PosOrderline extends PosOrderlineAccounting {
 
         this.qty = rounder.round(quant);
 
-        // just like in sale.order changing the qty will recompute the unit price
         if (!keep_price && this.price_type === "original") {
             const productTemplate = this.product_id.product_tmpl_id;
             if (this.isLotTracked()) {
@@ -332,10 +313,6 @@ export class PosOrderline extends PosOrderlineAccounting {
             }
         }
         for (const comboLine of this.combo_line_ids) {
-            // If each combo contains 2 qty of a product, we wanna keep this ratio after setting the new quantity on the parent product.
-            // The `|| 1` guards a zero divisor, so it must wrap `oldQty`, not the
-            // whole quotient — otherwise `oldQty === 0` gives `qty/0 = Infinity`
-            // (truthy, guard skipped) and a bogus child quantity/price.
             comboLine.setQuantity(
                 (comboLine.qty / (this.uiState.oldQty || 1)) * quant,
                 true,
@@ -378,7 +355,6 @@ export class PosOrderline extends PosOrderlineAccounting {
                 Boolean(this.getCustomerNote()) === false) ||
             orderline.getCustomerNote() === this.getCustomerNote();
 
-        // only orderlines of the same product can be merged
         return (
             orderline.getNote() === this.getNote() &&
             this.getProduct().id === orderline.getProduct().id &&
@@ -424,10 +400,6 @@ export class PosOrderline extends PosOrderlineAccounting {
         const ProductPrice = this.models["decimal.precision"].find(
             (dp) => dp.name === "Product Price",
         );
-        // `parseFloat` (from @web/core/parsers) throws on unparseable input, so
-        // the old `isNaN(parseFloat(...)) ? 0 : ...` fallback was dead. `!isNaN`
-        // already handles numbers/numeric-strings/empty; only genuinely
-        // non-numeric strings reach the parse — do it defensively.
         let parsed_price;
         if (!isNaN(price)) {
             parsed_price = Number(price);
@@ -442,9 +414,6 @@ export class PosOrderline extends PosOrderlineAccounting {
     }
 
     displayDiscountPolicy() {
-        // Sales dropped `discount_policy`, and we only show discount if applied pricelist rule
-        // is a percentage discount. However we don't have that information in pos
-        // so this is heuristic used to imitate the same behavior.
         if (
             this.order_id.pricelist_id &&
             this.order_id.pricelist_id.item_ids
@@ -475,9 +444,6 @@ export class PosOrderline extends PosOrderlineAccounting {
 
     getAllLinesInCombo() {
         if (this.combo_parent_id) {
-            // having a `combo_parent_id` means that we are not
-            // at the root node of the combo tree.
-            // Thus, we first navigate to the root
             return this.combo_parent_id.getAllLinesInCombo();
         }
         const lines = [];
@@ -509,11 +475,9 @@ export class PosOrderline extends PosOrderlineAccounting {
         return this.discount || 0;
     }
 
-    // FIXME all below should be removed
     getValidLots() {
         return this.pack_lot_ids.filter((item) => item.lot_name);
     }
-    // FIXME what is the use of this ?
     updateSavedQuantity() {
         this.uiState.savedQuantity = this.qty;
     }
@@ -541,7 +505,6 @@ export class PosOrderline extends PosOrderlineAccounting {
     getUnit() {
         return this.product_id.uom_id;
     }
-    // return the product of this orderline
     getProduct() {
         return this.product_id;
     }

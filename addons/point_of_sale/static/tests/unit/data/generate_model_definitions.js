@@ -106,16 +106,7 @@ export const hootPosModels = [
 ];
 
 /**
- * Registers the POS mock-server models for a HOOT unit suite.
- *
- * Dependent modules (pos_restaurant, pos_loyalty, …) compose their own model
- * set on top of the base by passing their new model classes as `extraModels`
- * — see each module's `data/generate_model_definitions.js`. This replaced a
- * fragile pattern where each module's data file mutated the shared
- * `hootPosModels` array as an import-time side effect, which only worked if
- * the file happened to be imported before definePosModels ran.
- *
- * @param {Function[]} [extraModels=[]] additional mock-server model classes.
+ * @param {Function[]} [extraModels=[]]
  */
 export const definePosModels = (extraModels = []) => {
     const allPosModels = [...hootPosModels, ...extraModels];

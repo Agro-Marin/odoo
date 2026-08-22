@@ -26,10 +26,6 @@ export function getFirstAndLastTabableElements(el) {
 }
 
 /**
- * Keeps Tab inside the active element. Closes over nothing -- it reads the
- * element it is bound to off the event -- so it is one function for every
- * active element rather than one per `useActiveElement` call.
- *
  * @param {KeyboardEvent} e
  */
 function trapFocus(e) {
@@ -130,9 +126,6 @@ class UiService {
         this.blockCount = 0;
         this.activeElements = makeActiveElementStack();
         /**
-         * Withdraws the enclosing-scope resolver this service published into
-         * core, so a destroyed service stops answering for a live one.
-         *
          * @type {(() => void) | null}
          */
         this.withdrawScopeResolver = null;
@@ -141,13 +134,6 @@ class UiService {
         this.size = initialSize;
         /** @type {Document | HTMLElement} */
         this.activeElement = document;
-        // `isBlocked` and `isSmall` are stored, not derived from `blockCount`
-        // and `size`. The service is reactive, so each is its own subscription
-        // key: a component that wraps this service in `useState` and reads
-        // `isSmall` is invalidated when the answer flips, where a getter reading
-        // `this.size` would invalidate it on every breakpoint crossed. (Readers
-        // of `env.isSmall` gain nothing either way -- that is a plain getter on
-        // the env and subscribes nobody; they re-render on `AppEvent.RESIZE`.)
         this.isBlocked = false;
         this.isSmall = initialSize <= SIZES.SM;
     }
@@ -267,8 +253,6 @@ export const uiService = {
     start(env) {
         const service = reactive(new UiService(env));
         service.setup();
-        // core asks "which active element encloses this node" through a port it
-        // owns, because naming the ui service from core would invert the layers.
         service.withdrawScopeResolver = publishEnclosingScopeResolver((node) =>
             service.getScopeOf(node),
         );

@@ -17,22 +17,17 @@ import { makeDocumentsMockEnv } from "./helpers/model.js";
 import { basicDocumentsOperationFormArch } from "./helpers/views/form.js";
 import { getEnrichedSearchArch } from "./helpers/views/search.js";
 
-// Common Steps to select all files for control panel actions
 const commonSelectAllSteps = async () => {
-    // Select Folder 1
     await contains(`.o_has_treeEntry .o_toggle_fold`).click();
     await contains(`.o_search_panel_label[data-tooltip="Folder 1"] div`).click();
 
-    // reduce limit to 2
     await contains(".o_pager_value").click();
     await contains("input.o_pager_value").edit("1-2");
 
-    // Select records on current page
     await contains(`thead .o_list_record_selector input`).click();
     expect(`.o_selection_box .o_select_domain`).toHaveCount(1);
     expect(`.o_selection_box`).toHaveText("2\nselected\n Select all 3");
 
-    // // Select all records with domain selector
     await contains(".o_select_domain").click();
     expect(`.o_selection_box`).toHaveText("All 3 selected");
 };
@@ -50,7 +45,6 @@ defineActions([action1]);
 const actionSelector =
     ".o_control_panel_actions .o_cp_action_menus .o_dropdown_title:contains('Actions')";
 
-// Prepare data to perform select all actions
 const prepareSelectAllActionDataViews = () => {
     const serverData = getDocumentsTestServerModelsData([
         makeDocumentRecordData(2, "Request", {
@@ -115,8 +109,6 @@ test("Selected all records from current page are download correctly", async func
     const serverData = prepareSelectAllActionDataViews();
     onRpc("/documents/zip", async (request) => {
         const body = await request.formData();
-        // Record 2 is a request (no attachment): it cannot be zipped, so the
-        // download domain in onDownload correctly excludes it.
         expect(body.get("file_ids")).toEqual("3,4");
         expect.step("Documents downloaded");
         return new Blob([]);

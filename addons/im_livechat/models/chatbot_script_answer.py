@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import api, models, fields
 from odoo.fields import Domain
 
@@ -36,9 +34,7 @@ class ChatbotScriptAnswer(models.Model):
 
     @api.model
     def _search_display_name(self, operator, value):
-        """Search the records whose name or step message are matching the ``name`` pattern."""
         if value and operator == 'ilike':
-            # search on both name OR step's message (combined with passed args)
             return Domain('name', operator, value) | Domain('script_step_id.message', operator, value)
         return super()._search_display_name(operator, value)
 

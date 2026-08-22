@@ -46,7 +46,6 @@ export class InvoiceButton extends Component {
             if (error instanceof Error) {
                 throw error;
             } else {
-                // NOTE: error here is most probably undefined
                 this.dialog.add(AlertDialog, {
                     title: _t("Network Error"),
                     body: _t("Unable to download invoice."),
@@ -65,15 +64,12 @@ export class InvoiceButton extends Component {
         }
 
         const orderId = order.id;
-        // Part 0. If already invoiced, print the invoice.
         if (this.isAlreadyInvoiced) {
             await this._downloadInvoice(orderId);
             this.props.onInvoiceOrder(orderId);
             return;
         }
 
-        // Part 1: Handle missing partner.
-        // Write to pos.order the selected partner.
         let partner = order.getPartner();
         if (!partner) {
             const _confirmed = await ask(this.dialog, {
@@ -98,11 +94,8 @@ export class InvoiceButton extends Component {
             return;
         }
 
-        // Part 2: Invoice the order.
-        // FIXME POSREF timeout
         await this.pos.data.call("pos.order", "action_pos_order_invoice", [orderId]);
 
-        // Part 3: Download invoice.
         await this._downloadInvoice(orderId);
         this.props.onInvoiceOrder(orderId);
     }

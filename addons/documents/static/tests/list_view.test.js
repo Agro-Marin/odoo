@@ -25,8 +25,6 @@ describe.current.tags("desktop");
 defineModels(DocumentsModels);
 
 /**
- * Shortcut for details panel selector
- * @param selector
  * @return {`.o_documents_details_panel ${string}`}
  */
 const dp = (selector) => `.o_documents_details_panel ${selector}`;
@@ -75,38 +73,29 @@ test("Right panel shows and updates focused or container record only", async fun
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsListView();
 
-    // Open right panel
     await contains(".o_control_panel_navigation .o_documents_info_toggle").click();
     await waitFor(".documents_chatter_disabled_overlay");
-    // Focus without selection
     await contains(`.o_data_row td[name='name']:contains(${folder1Name})`).click();
     await animationFrame();
     expect(dp(".o_documents_details_panel_name input")).toHaveValue(folder1Name);
-    await contains(`.o_list_renderer`).click(); // de-focus
+    await contains(`.o_list_renderer`).click();
 
-    await waitFor(".documents_chatter_disabled_overlay"); // As we're in all/company
-    // Enter folder
+    await waitFor(".documents_chatter_disabled_overlay");
     await contains(`.o_data_row:contains(${folder1Name}) .fa-folder`).click();
     await animationFrame();
     expect(`.o_data_row .o_list_record_selector`).toHaveCount(3);
     expect(dp(".o_documents_details_panel_name input")).toHaveValue(folder1Name);
 
-    // Focus without selection
     await contains(".o_data_row :contains('File 1')").click();
     expect(dp(".o_documents_details_panel_name input")).toHaveValue("File 1");
-    // Unfocus
     await contains(`.o_list_renderer`).click();
     expect(dp(".o_documents_details_panel_name input")).toHaveValue(folder1Name);
 
-    // select record focuses it
     await contains(".o_data_row:contains('File 1') .o_list_record_selector").click();
     expect(dp(".o_documents_details_panel_name input")).toHaveValue("File 1");
-    // Focus without selection
     await contains(".o_data_row :contains('File 2')").click();
     expect(dp(".o_documents_details_panel_name input")).toHaveValue("File 2");
-    // Editing unselected File 2 only
     await contains(dp(".o_documents_details_panel_name input")).edit("File 4");
-    // Row is modified, not File 1
     await waitFor(".o_data_row :contains('File 4')");
     await waitFor(".o_data_row :contains('File 1')");
 
@@ -129,16 +118,11 @@ test("Document actions are hidden when focused record is not selected", async fu
     ];
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsListView();
-    // select record focuses it
     await contains(".o_data_row:contains('File 1') .o_list_record_selector").click();
-    // Actions are visible as selection is focused
     await waitFor(".o_control_panel_actions:contains('Download')");
-    // Focus without selection
     await contains(".o_data_row :contains('File 2')").click();
     await waitFor(".o_selection_container");
-    // Actions are no longer visible as focused is not selected
     await waitFor(".o_control_panel_actions:not(:contains('Download'))");
-    // Select it to show actions again
     await contains(".o_data_row:contains('File 2') .o_list_record_selector").click();
     await waitFor(".o_control_panel_actions:contains('Download')");
 });
@@ -174,14 +158,12 @@ test("Required document name", async function () {
         await contains(lr(documentName, ".o_data_cell[name='name']")).click();
         await expect(lr(documentName, ".o_data_cell[name='name'] input")).toHaveCount(1);
         await expect(lr(documentName, ".o_data_cell[name='name'] input")).toHaveValue(documentName);
-        // Set empty name
         await contains(lr(documentName, ".o_data_cell[name='name'] input")).edit("");
         await animationFrame();
         expect(".o_notification").toHaveCount(1);
         expect(".o_notification").toHaveText("Name cannot be empty.");
         await contains(".o_notification .o_notification_close").click();
         await expect(lr(documentName, ".o_data_cell[name='name'] input")).toHaveValue(documentName);
-        // Remove selection and close record edition
         await contains(".o_list_renderer").click();
         await contains(".o_list_button_discard").click();
         await animationFrame();
@@ -223,14 +205,11 @@ test("company_id field visibility for portal in multicompany", async function ()
         { id: 2, name: "Company 2", sequence: 2, parent_id: false, child_ids: [] },
     ];
     const testUserGroups = ["base.group_portal", "base.group_multi_company"];
-    // We need to do this here and not on the model because has_group("base.group_user")
-    // is already in cache before the model method is called the first time.
     patchWithCleanup(user, {
         hasGroup: (group) => testUserGroups.includes(group),
     });
     const serverData = getDocumentsTestServerModelsData();
     const currentUser = serverData["res.users"].find((u) => u.id === serverState.userId);
-    // Sync server data for consistency even if it is not really used.
     Object.assign(currentUser, { group_ids: [], share: true });
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsListView({
@@ -262,7 +241,6 @@ test("file sharing via link with multiple subfolders", async function () {
         return { reload: true };
     });
 
-    // Set active true/false to control the folders display
     const folder2 = makeDocumentRecordData(2, "Folder 2", {
         type: "folder",
         is_folder: true,
@@ -292,7 +270,6 @@ test("file sharing via link with multiple subfolders", async function () {
         folder3.active = accessFolder2;
         if (addFolder4) {
             folder4.active = accessFolder2;
-            // Ensure only one folder button available
             folder3.active = false;
         }
     };
@@ -300,10 +277,8 @@ test("file sharing via link with multiple subfolders", async function () {
     onRpc("web_search_read", activateFolders);
 
     const docService = docEnv.services["document.document"];
-    // Avoid logAccess 1000ms debounce timer
     patchWithCleanup(docService, {
         logAccess: (token) => docService._logAccess(token),
-        // Avoid duplicates due to focusRecord logAccess with no debounce
         focusRecord: () => false,
     });
     await mountDocumentsListView();
@@ -319,7 +294,6 @@ test("file sharing via link with multiple subfolders", async function () {
     expect.verifySteps(["touch 1", "touch 2"]);
 
     expect(`.o_search_panel_label[data-tooltip="Folder 4"]`).toHaveCount(0);
-    // New sub-folder added without reloading
     addFolder4 = true;
     await contains(`.o_search_panel_label_title:contains("Folder 2")`).click();
     expect(`.o_search_panel_label[data-tooltip="Folder 4"]`).toHaveCount(0);
@@ -339,17 +313,12 @@ test("Select all (Ctrl+A) in an empty folder does not crash", async function () 
     await mountDocumentsListView();
     await contains(`.o_search_panel_label[data-tooltip="Company"] .o_toggle_fold`).click();
 
-    // Control case: a folder holding one record -> Ctrl+A selects it.
     await contains(`.o_search_panel_label[data-tooltip="Folder 1"] div`).click();
     expect(".o_data_row").toHaveCount(1);
     await press(["control", "a"]);
     await animationFrame();
     expect(".o_data_row_selected").toHaveCount(1);
 
-    // Empty folder: the renderer stays mounted (the no-content helper renders
-    // *inside* it), so the Ctrl+A command is still registered. The record it
-    // would focus is the container folder, which is never rendered as one of our
-    // own rows -> querySelector returns null. That must not throw.
     await contains(`.o_search_panel_label[data-tooltip="Empty Folder"] div`).click();
     expect(".o_data_row").toHaveCount(0);
     expect(".o_list_renderer").toHaveCount(1);
@@ -358,7 +327,6 @@ test("Select all (Ctrl+A) in an empty folder does not crash", async function () 
     expect(".o_error_dialog").toHaveCount(0);
     expect(".o_data_row_selected").toHaveCount(0);
 
-    // Same for a virtual root with no documents in it.
     await contains(`.o_search_panel_label[data-tooltip="My Drive"] div`).click();
     expect(".o_data_row").toHaveCount(0);
     await press(["control", "a"]);

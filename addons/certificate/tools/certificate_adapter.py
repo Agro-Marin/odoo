@@ -19,10 +19,6 @@ class CertificateAdapter(requests.adapters.HTTPAdapter):
         super().__init__(*args, **kwargs)
 
     def init_poolmanager(self, *args, **kwargs):
-        """We need inject_into_urllib3 as it forces the adapter to use PyOpenSSL.
-        With PyOpenSSL, we can further patch the code to make it do what we want
-        (with the use of SSLContext)
-        """
         inject_into_urllib3()
 
         context = create_urllib3_context(**self._context_args)
@@ -40,16 +36,11 @@ class CertificateAdapter(requests.adapters.HTTPAdapter):
         super().init_poolmanager(*args, **kwargs)
 
     def cert_verify(self, conn, url, verify, cert):
-        """The original method wants to check for an existing file
-        at the cert location. As we use in-memory objects,
-        we skip the check and assign it manually.
-        """
         super().cert_verify(conn, url, verify, None)
         conn.cert_file = cert
         conn.key_file = None
 
     def get_connection_with_tls_context(self, request, verify, proxies=None, cert=None):
-        """Load certificate from a certificate.certificate record rather than from the filesystem."""
         conn = super().get_connection_with_tls_context(
             request, verify, proxies=proxies, cert=cert
         )

@@ -53,7 +53,6 @@ export class AddDocumentsAttachmentPlugin extends Plugin {
             const recordInfo = this.config.getRecordInfo();
             const resModel = recordInfo.resModel;
             const rawResId = recordInfo.resId;
-            // Process res_id to handle the attachment for plugin case
             const resId =
                 resModel === "ir.ui.view" || !rawResId ? false : parseInt(rawResId) || false;
             const attachmentRecords = await this.services.orm.call(
@@ -73,17 +72,12 @@ export class AddDocumentsAttachmentPlugin extends Plugin {
         if (this.config.onAttachmentChange) {
             processedAttachments.forEach(this.config.onAttachmentChange);
         }
-        // Render
         const fileCards = processedAttachments.map(this.renderDownloadBox.bind(this));
-        // Insert
         fileCards.forEach(this.dependencies.dom.insert);
         this.dependencies.history.addStep();
         this.services.notification.add(_t("Document(s) added!"), { type: "success" });
         closeDialog();
     }
-    /**
-     * Helper function: mainly used to convert odoo spreadsheet into .xlsx format
-     */
     async _processAttachments(attachmentRecords) {
         return attachmentRecords;
     }
@@ -105,7 +99,7 @@ export class AddDocumentsAttachmentPlugin extends Plugin {
         }
         recordData.forEach(({ display_name, access_url }) => {
             this.dependencies.link.insertLink(access_url, display_name);
-            this.dependencies.dom.insert(" "); // Add space after each link
+            this.dependencies.dom.insert(" ");
         });
         this.services.notification.add(_t("Link(s) pasted!"), { type: "success" });
         closeDialog();

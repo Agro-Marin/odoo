@@ -1,9 +1,6 @@
 /** @odoo-module native */
 import { Component, onMounted, onPatched, useState, useRef } from "@odoo/owl";
 
-/**
- * Represents the page of a PDF.
- */
 export class PdfPage extends Component {
     static defaultProps = {
         isPreview: false,
@@ -27,7 +24,6 @@ export class PdfPage extends Component {
         this.state = useState({
             isHover: false,
         });
-        // Used to append a canvas when it has been rendered.
         this.canvasWrapperRef = useRef("canvasWrapper");
         this.isRendered = false;
 
@@ -35,16 +31,7 @@ export class PdfPage extends Component {
         onPatched(() => this.renderPage(this.props.canvas));
     }
 
-    //--------------------------------------------------------------------------
-    // Public
-    //--------------------------------------------------------------------------
-
     /**
-     * The canvas is rendered asynchronously so it is only manually appended
-     * later when available. It should have been done through the natural owl
-     * re-rendering but it is currently causing unnecessary re-renderings of
-     * sibling components which would noticeably slows the behaviour down.
-     *
      * @public
      * @param {DomElement} canvas
      */
@@ -59,10 +46,6 @@ export class PdfPage extends Component {
         this.canvasWrapperRef.el.appendChild(canvas);
         this.isRendered = true;
     }
-
-    //--------------------------------------------------------------------------
-    // Handlers
-    //--------------------------------------------------------------------------
 
     /**
      * @public

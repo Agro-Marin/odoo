@@ -41,7 +41,6 @@ export class DocumentService {
         this.userIsInternal = false;
         this.multiCompany = false;
         this.hasFolderEditorAccess = false;
-        // Init data
         const urlSearch = parseSearchQuery(browser.location.search);
         const { documents_init } = session;
         const openPreview =
@@ -62,13 +61,6 @@ export class DocumentService {
     }
 
     /**
-     * Whether the right panel was left open, per local storage.
-     *
-     * Guarded because this runs inside `start()`, which the service registry
-     * awaits: a `JSON.parse` throw here takes the whole `document.document`
-     * service -- and so the app -- down until local storage is cleared by hand.
-     * `documents_search_model._ensureCategoryValue` guards the same way.
-     *
      * @returns {boolean}
      */
     _readChatterVisible() {
@@ -81,10 +73,6 @@ export class DocumentService {
         }
     }
 
-    /**
-     * @returns Document id to restore if there is one otherwise undefined.
-     * Note: To ensure the document is restored only once, it returns always undefined after the first call.
-     */
     getOnceDocumentIdToRestore() {
         const res = this.documentIdToRestoreOnce;
         this.documentIdToRestoreOnce = undefined;
@@ -105,13 +93,6 @@ export class DocumentService {
             user.hasGroup("base.group_user"),
             user.hasGroup("base.group_multi_company"),
         ]);
-        // An internal user always has somewhere to file a document, so short
-        // circuit before the round trip.
-        //
-        // `documents.operation` lives in `documents_enterprise`: on a community
-        // install this call answers with an error for every external user, and
-        // `start()` is awaited by the service registry, so an unguarded throw
-        // takes the whole app down.
         this.hasFolderEditorAccess = this.userIsInternal;
         if (!this.hasFolderEditorAccess) {
             try {
@@ -140,14 +121,8 @@ export class DocumentService {
     }
 
     /**
-     * Get or create the {@link Document} for a `documents.document` datapoint.
-     *
-     * Keyed by res id so the previewer keeps one object per document across
-     * re-opens. The attachment is refreshed on every call: that is what carries a
-     * rename made in the background into an open previewer.
-     *
      * @param {{id: number, attachment: Object, record: Object}} data
-     * @returns {Document} the reactive instance held by the store
+     * @returns {Document}
      */
     insert(data) {
         const cached = this.store.Document.records[data.id];
@@ -160,18 +135,10 @@ export class DocumentService {
         document.attachment = this.store["ir.attachment"].insert(data.attachment);
         document.record = data.record;
         this.store.Document.records[data.id] = document;
-        // Read back to hand out the store's reactive version.
         return this.store.Document.records[data.id];
     }
 
     /**
-     * Body of an `application/documents-email` document, for the thumbnail and
-     * previewer iframes.
-     *
-     * Calls issued in the same tick are coalesced into a single `read`: every
-     * email card asks for its own body as it mounts, so one request per card is
-     * one request too many.
-     *
      * @param {number} documentId
      * @returns {Promise<String>}
      */
@@ -227,13 +194,10 @@ export class DocumentService {
 
             const linkDocuments = documents.filter((el) => el.data.type === "url");
             const noLinkDocuments = documents.filter((el) => el.data.type !== "url");
-            // Manage link documents
             if (documents.length === 1 && linkDocuments.length) {
-                // Redirect to the link
                 openDocumentUrl(linkDocuments[0].data.url);
                 return;
             } else if (noLinkDocuments.length) {
-                // Download all documents which are not links
                 if (noLinkDocuments.length === 1) {
                     await download({
                         data: {},
@@ -361,12 +325,6 @@ export class DocumentService {
     }
 
     /**
-     * Fetch a session-constant server value once, per service instance.
-     *
-     * Per instance rather than per module: a module-level cache outlives the
-     * service, so a value fetched under one database (or in one test) would be
-     * handed to the next.
-     *
      * @param {String} key
      * @param {Function} factory
      * @returns {Promise<any>}
@@ -378,8 +336,6 @@ export class DocumentService {
     }
 
     /**
-     * Days a document stays in the trash before it is erased for good.
-     *
      * @returns {Promise<number>}
      */
     getDeletionDelay() {
@@ -388,14 +344,14 @@ export class DocumentService {
         );
     }
 
-    /** @returns {Promise<number>} bytes */
+    /** @returns {Promise<number>} */
     getMaxUploadSize() {
         return this._fetchOnce("maxUploadSize", () =>
             this.orm.call("documents.document", "get_document_max_upload_limit"),
         );
     }
 
-    /** @returns {Promise<String[]>} models the details panel offers for linking */
+    /** @returns {Promise<String[]>} */
     getDetailsPanelResModels() {
         return this._fetchOnce("detailsPanelResModels", () =>
             this.orm.call("documents.document", "get_details_panel_res_models"),
@@ -543,21 +499,9 @@ export class DocumentService {
     }
 
     /**
-     * Update the URL with the current folder/inspected document (as an access_token).
-     *
-     * Thanks to the provided arguments, this method adds the access_token of the currently
-     * viewed document in the URL to allow the user to share the document (or the folder)
-     * by simply sharing its URL.
-     * When multiple document are viewed, it removes the access_token from the URL as sharing
-     * multiple document with one URL is not supported.
-     * Similarly, when a document is focused but not selected, nor being previewed, the access
-     * token is not put in the URL either to avoid confusion about what record it is.
-     * Note that when the folderChange argument is null, the service use the preceding
-     * given value if needed.
-     *
-     * @param {object} folderChange the new folder or null if not changed
-     * @param {object[]} inspectedDocuments the currently inspected documents (can be undefined)
-     * @param {boolean} forceInspected force updating to single inspected document token, or ignored
+     * @param {object} folderChange
+     * @param {object[]} inspectedDocuments
+     * @param {boolean} forceInspected
      */
     updateDocumentURL(folderChange, inspectedDocuments, forceInspected) {
         let accessToken = undefined;
@@ -577,21 +521,9 @@ export class DocumentService {
         } else if (!inspectedDocuments || inspectedDocuments.length === 0) {
             accessToken = this.currentFolderAccessToken;
         }
-        // `|| undefined`, because the router only drops a key whose value is
-        // strictly `undefined` (`sanitizeSearch`); anything else is serialised as
-        // `key=${v ?? ""}`. The virtual roots (COMPANY, MY, RECENT, SHARED, TRASH)
-        // carry no token, and an empty `?access_token=` is what a user copying the
-        // URL would share.
         router.pushState({ access_token: accessToken || undefined });
     }
 
-    /**
-     * Refresh URL with the last folder (folderChange given to updateDocumentURL).
-     *
-     * Goal: When using an action the router loses its state.
-     * This method is used to push the state already saved in this service
-     * (the current folder) to the router state.
-     */
     updateDocumentURLRefresh() {
         const tokenToShow =
             this.focusedRecord?.data.access_token || this.currentFolderAccessToken;
@@ -601,16 +533,6 @@ export class DocumentService {
     }
 
     /**
-     * Record that the user visited this document/folder.
-     *
-     * Fire-and-forget: it runs on every focus change and folder selection, and
-     * most callers ignore the result, so it absorbs its own failure rather than
-     * escaping the floating promise as an unhandled rejection and raising the
-     * global error dialog. Losing an access timestamp is not worth interrupting.
-     *
-     * `undefined` on failure keeps the one caller that reads the result
-     * (`toggleCategoryValue`, watching for `reload`) correct: no result, no reload.
-     *
      * @param {String} accessToken
      * @returns {Promise<Object|undefined>}
      */
@@ -625,11 +547,6 @@ export class DocumentService {
         }
     }
 
-    /**
-     * Return all the actions, and the embedded action for the given folders.
-     *
-     * EG: [{id: 1337, name: "Create Activity", is_embedded: true}, ...]
-     */
     async getActions(folderId) {
         if (!this.userIsInternal) {
             return [];
@@ -639,9 +556,6 @@ export class DocumentService {
         ]);
     }
 
-    /**
-     * Enable the action for the given folder.
-     */
     async enableAction(folderId, actionId) {
         return await this.orm.call("documents.document", "action_folder_embed_action", [
             folderId,
@@ -653,12 +567,6 @@ export class DocumentService {
         return this.rightPanelReactive.focusedRecord;
     }
 
-    /**
-     * Support reactivity for focused record and update URL.
-     * @param record
-     * @param forceSelected to force updating the URL to record's token,
-     *   necessary because the service can't easily know if a record is selected.
-     */
     focusRecord(record, forceSelected) {
         if (this.focusedRecord !== record) {
             this.rightPanelReactive.focusedRecord = record;
@@ -669,15 +577,6 @@ export class DocumentService {
         }
     }
 
-    /**
-     * Drop the one-shot scroll observer, if any.
-     *
-     * Called on every toggle and by the documents renderer when it unmounts. The
-     * observer disconnects itself once its scroll conditions are met (chatter
-     * present, a record selected), but when they never are it keeps observing --
-     * and this service is a singleton that outlives every view, so it would hold
-     * a detached `.o_documents_content` subtree alive.
-     */
     stopRightPanelScrollObserver() {
         this.observer?.disconnect();
         this.observer = undefined;
@@ -720,9 +619,6 @@ export class DocumentService {
         }
     }
 
-    /**
-     * Set the previewed document and send an event to notify the change.
-     */
     setPreviewedDocument(document) {
         this.rightPanelReactive.previewedDocument = document;
         if (document) {
@@ -732,14 +628,10 @@ export class DocumentService {
 
     /**
      * @param {FileList|File[]} files
-     * @param {String} accessToken folder (create) or document (replace) token
+     * @param {String} accessToken
      * @param {Object} [context]
      * @param {Object} [param3]
-     * @param {number|String} [param3.targetFolderId] search-panel id of the
-     *   folder this upload lands in. Carried on the upload object rather than in
-     *   the form data: `/documents/upload` declares its parameters explicitly,
-     *   and the dispatcher silently drops anything else (with a "called
-     *   ignoring args" warning), so a form field would simply be lost.
+     * @param {number|String} [param3.targetFolderId]
      */
     async uploadDocument(files, accessToken, context, { targetFolderId } = {}) {
         const fileArray = [...files];
@@ -770,19 +662,10 @@ export class DocumentService {
                                 JSON.stringify(context.allowed_company_ids),
                             );
                         }
-                        // No `document_id`: the route has no such parameter --
-                        // which document is being written is what the access
-                        // token in the URL says. It was appended on every
-                        // "replace this version" upload and dropped by the
-                        // dispatcher, one warning per upload.
                     }
                 },
                 displayErrorNotification: false,
             });
-            // Through `uploads`, not the returned object: `uploads` is the
-            // reactive the search panel subscribes to, so writing the entry is
-            // what makes the spinner appear. The entry is gone already when the
-            // upload has settled by now (a mocked or instantly-failing xhr).
             const trackedUpload = upload && this.fileUpload.uploads[upload.id];
             if (trackedUpload && targetFolderId !== undefined) {
                 trackedUpload.targetFolderId = targetFolderId;
@@ -802,12 +685,6 @@ export class DocumentService {
 export const documentService = {
     dependencies: [
         "action",
-        // Nothing in this module reads busService: its only consumer is
-        // enterprise `ai_documents`, which patches DocumentService.prototype
-        // .start and calls this.busService.subscribe(). A JS audit read the
-        // dependency as dead and pruned it, which broke that patch and took
-        // the whole service down with it — the consumer lives in another repo,
-        // so grep this module alone and it looks unused.
         "bus_service",
         "dialog",
         "file_upload",

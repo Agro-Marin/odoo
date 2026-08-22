@@ -95,15 +95,6 @@ class TestRateLimiter(APITransportTestCase):
 
         client = get_api_client(self.env, "test_rate_per_second")
 
-        # FROZEN, and the freeze is load-bearing. This bucket holds 5 tokens over a
-        # one-second window, so it refills at one token per 200ms -- and
-        # '_drain_bucket' stamps 'last_refill' at the moment it empties it. Any
-        # wall-clock gap between that and the call below hands a token back and the
-        # limit does not fire, which makes the assertion a race against machine load
-        # rather than a statement about rate limiting. It lost that race once inside a
-        # 1235-test run and won it 4/4 in isolation on identical code. The bucket
-        # refills off 'fields.Datetime.now()', so freezing is enough to make the
-        # elapsed time exactly zero.
         with freeze_time(fields.Datetime.now()):
             self._drain_bucket(service_per_second)
 

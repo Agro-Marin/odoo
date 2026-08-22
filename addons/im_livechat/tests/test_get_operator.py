@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -118,13 +116,10 @@ class TestGetOperator(MailCommon, TestGetOperatorCommon):
         with freeze_all_time():
             self._create_conversation(livechat_channel, first_operator)
             self._create_conversation(livechat_channel, first_operator)
-            # Previous operator is not in a call so it should be available, even if
-            # he already has two ongoing chats.
             self.assertEqual(
                 first_operator, livechat_channel._get_operator(previous_operator_id=first_operator.partner_id.id)
             )
             self._create_conversation(livechat_channel, first_operator, in_call=True)
-            # Previous operator is in a call so it should not be available anymore.
             self.assertEqual(
                 second_operator, livechat_channel._get_operator(previous_operator_id=first_operator.partner_id.id)
             )
@@ -234,7 +229,6 @@ class TestGetOperator(MailCommon, TestGetOperatorCommon):
 
     @users("employee")
     def test_max_sessions_mode_limited(self):
-        """Test operator is not available when they reached the livechat channel limit."""
         operator = self._create_operator()
         livechat_channel_data = {
             "name": "Livechat Channel",
@@ -251,8 +245,6 @@ class TestGetOperator(MailCommon, TestGetOperatorCommon):
 
     @users("employee")
     def test_max_sessions_mode_limited_multi_operators(self):
-        """Test second operator is available when first operator reached the livechat channel
-        limit."""
         operator_1 = self._create_operator()
         operator_2 = self._create_operator()
         livechat_channel_data = {
@@ -271,8 +263,6 @@ class TestGetOperator(MailCommon, TestGetOperatorCommon):
 
     @users("employee")
     def test_block_assignment_during_call(self):
-        """Test operator is not available when they are in call, even below the livechat channel
-        limit."""
         operator = self._create_operator()
         livechat_channel_data = {
             "name": "Livechat Channel",
@@ -286,8 +276,6 @@ class TestGetOperator(MailCommon, TestGetOperatorCommon):
 
     @users("employee")
     def test_max_sessions_mode_multi_channel(self):
-        """Test operator is available in second channel even when they reached the livechat channel
-        limit on the first channel."""
         operator = self._create_operator()
         livechat_channels_data = [
             {
@@ -352,8 +340,6 @@ class TestGetOperator(MailCommon, TestGetOperatorCommon):
 
     @users("employee")
     def test_non_member_operator_availability(self):
-        """Test the availability of an operator not member of any livechat channel is properly
-        computed when explicitly passing them to _get_available_operators_by_livechat_channel."""
         operator = self._create_operator()
         livechat_channels_data = [
             {
@@ -395,8 +381,6 @@ class TestGetOperator(MailCommon, TestGetOperatorCommon):
 
     @users("employee")
     def test_get_non_member_operator(self):
-        """Test _get_operator works with a given list of operators that are not members of the
-        livechat channel"""
         operator_1 = self._create_operator(lang_code="fr_FR")
         operator_2 = self._create_operator(lang_code="en_US")
         all_operators = operator_1 + operator_2

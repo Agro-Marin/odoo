@@ -175,8 +175,6 @@ class InboundGateMixin(models.AbstractModel):
         try:
             return bool(self._authenticate_by_scheme(headers, body)), ""
         except ValidationError as e:
-            # Returned, not logged: the caller already reports every verdict,
-            # and logging here as well printed each refusal twice.
             return False, f"{self.display_name}: {e}"
 
     def _authenticate_by_scheme(
@@ -284,9 +282,6 @@ class InboundGateMixin(models.AbstractModel):
             return
 
         if not is_news:
-            # The same standing condition as the row already on file. It was
-            # counted; saying so again per request is what turned one fleet
-            # into five figures of identical log lines a day.
             return
 
         if outcome == "audit_accepted":
@@ -306,55 +301,16 @@ class InboundGateMixin(models.AbstractModel):
                 reason,
             )
 
-    # Outcomes whose repeat rate is set by the fleet or by the caller rather
-    # than by anything the gate can tell apart. Each folds onto one standing
-    # row within its window, carrying `attempt_count` and `last_seen_at`.
-    #
-    # `unauthenticated` is deliberately absent: two bad tokens are two facts,
-    # and an operator reading the trail needs to see both attempts. Its
-    # sibling `misconfigured` is present for the mirror-image reason -- the
-    # gate answers identically to every caller until somebody fixes it.
     _COALESCED_OUTCOMES = ("caller_limited", "audit_accepted", "misconfigured")
 
-    # Of those, the ones whose standing row is *counted*. Counting means an
-    # UPDATE of a row shared by concurrent requests, and this deployment has
-    # already measured what that costs on an ingest path: every Odoo cursor
-    # runs REPEATABLE READ, under which two transactions updating one row
-    # conflict whatever columns they touch, and serialising the writers does
-    # not help -- the waiter wakes holding a snapshot older than the winner's
-    # commit and conflicts anyway. Only not writing the row works.
-    #
-    # A caller-rate-limit refusal is rare and its count is the whole signal,
-    # so it keeps the counter. An audit-mode admission arrives once per
-    # position fix per device: its row is opened when the window opens and
-    # never written again, so the hot path only ever reads and inserts.
     _COUNTED_OUTCOMES = ("caller_limited",)
 
-    # Of those, the ones the caller's address is part of the identity of.
-    # Which address is being rate-limited *is* the fact, so two addresses
-    # hitting the limit are two rows. An audit-mode admission is the
-    # opposite: the fact is that this gate has no credential, and whichever
-    # address happened to arrive first is incidental. Keying it by address
-    # defeats the collapse outright against a sender behind a rotating
-    # egress pool -- measured on the GPS fleet, five consecutive fixes
-    # produced five rows from five addresses across two gates.
     _COALESCED_PER_CALLER = ("caller_limited",)
 
     STANDING_WINDOW_PARAM = "credential.inbound_standing_window_seconds"
     STANDING_WINDOW_DEFAULT = 3600
 
     def _inbound_coalesce_window(self, outcome: str) -> int:
-        """Seconds over which repeats of `outcome` fold onto one row.
-
-        A caller-rate-limit refusal is *about* the limiter's window, so it
-        uses that one. The other two are not about any window at all: an
-        audit-mode admission and a misconfigured gate each report a standing
-        state that will read identically on every request until somebody
-        changes the configuration. Their window is therefore an operator
-        granularity -- how often you want to be told -- and an hour by
-        default. A fleet reporting once per position fix would otherwise
-        write a row, and print a line, per fix.
-        """
         if outcome == "caller_limited":
             return self.rate_limit_window_seconds or 60
         window = (
@@ -362,10 +318,6 @@ class InboundGateMixin(models.AbstractModel):
             .sudo()
             .get_param_int(self.STANDING_WINDOW_PARAM, self.STANDING_WINDOW_DEFAULT)
         )
-        # The parameter tunes how often the condition is reported, not
-        # whether it is collapsed at all: a window of zero would put a row
-        # and a warning back on every position fix, which is the thing this
-        # exists to prevent.
         return max(60, window)
 
     def _store_inbound_verdict(
@@ -378,12 +330,6 @@ class InboundGateMixin(models.AbstractModel):
         remote_addr: str | None,
         mode: str,
     ) -> bool:
-        """Record the verdict. True when this opened a new row.
-
-        False means an identical standing condition was already on record and
-        only its counter moved -- which is also the signal the caller uses to
-        decide whether the verdict is worth a log line.
-        """
         logs = self.env["inbound.access.log"].sudo()
         now = fields.Datetime.now()
 

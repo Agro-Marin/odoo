@@ -421,11 +421,6 @@ export class EmojiPicker extends Component {
     }
 
     computeRecentEmojis() {
-        // The sort by descending usage is `getMostFrequent`'s whole job, and it
-        // was written out a second time here; the cache key was a string of
-        // every tracked codepoint and its count, rebuilt on every render to
-        // answer a yes/no. Both now come from the service: one ordering, and an
-        // integer that says whether it moved.
         const cacheKey = `${this.searchTerm}\x00${this.frequentEmojiService.revision}`;
         if (this._recentEmojisCache && this._recentEmojisCacheKey === cacheKey) {
             return this._recentEmojisCache;

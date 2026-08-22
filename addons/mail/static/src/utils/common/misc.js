@@ -21,13 +21,6 @@ export function assignDefined(obj, data, keys = Object.keys(data)) {
 }
 
 /**
- * Install computed properties on a plain object.
- *
- * The setter is a deliberate no-op rather than absent: the objects this is used
- * on are handed to OWL (as child sub-env), and a getter-only property throws on
- * assignment under strict mode as soon as anything copies or proxies the
- * object. Writes are meant to be ignored, not to fail.
- *
  * @param {Object} obj
  * @param {Object<string, () => any>} data
  */
@@ -116,13 +109,6 @@ export function isDragSourceExternalFile(dataTransfer) {
 }
 
 /**
- * Run `callback` whenever `key` of the reactive `target` changes.
- *
- * The subscription itself is {@link observeKey}; this is the eager form, which
- * re-observes and then reacts. Keeping one implementation matters more than it
- * looks: the two copies this replaced had already drifted, and only one of them
- * survived being reached after its disposer ran.
- *
  * @param {Object} target
  * @param {string|string[]} key
  * @param {Function} callback
@@ -367,11 +353,6 @@ export async function loadCssFromBundle(targetNode, bundleName) {
         }
     } catch (e) {
         if (e instanceof AssetsLoadingError && e.cause instanceof TypeError) {
-            // A TypeError from the fetch layer means the network went away --
-            // in practice, the page is being torn down. Returning a promise
-            // that never settles parks the caller instead of letting it carry
-            // on against a document that is going away. It is deliberate, and
-            // it does mean anything awaiting this never resumes.
             return new Promise(() => {});
         } else {
             throw e;
@@ -380,18 +361,6 @@ export async function loadCssFromBundle(targetNode, bundleName) {
 }
 
 /**
- * Serialise calls, keeping only the most recent pending one.
- *
- * At most two calls are ever live: the one running and the one queued behind
- * it. A third supersedes the queued one, whose function is **never invoked**
- * and whose promise resolves with `undefined` — indistinguishable, to its
- * awaiter, from a call that ran and returned nothing. That is the intended
- * contract for the typeahead-shaped callers this has (search, mention and gif
- * pickers, sub-channel and attachment panels, loadAround), where only the
- * latest request is worth issuing; it is pinned by "isSequential doesn't
- * execute intermediate call." in mail_utils.test.js. Do not await one of these
- * expecting the work to have happened.
- *
  * @returns {(func: () => Promise<any>) => Promise<any>}
  */
 export function makeSequential() {

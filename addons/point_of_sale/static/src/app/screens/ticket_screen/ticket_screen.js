@@ -51,8 +51,6 @@ export class TicketScreen extends Component {
         stateOverride: { type: Object, optional: true },
     };
     static defaultProps = {
-        // When passed as true, it will use the saved _state.ui as default
-        // value when this component is reinstantiated.
         reuseSavedUIState: false,
     };
 
@@ -88,9 +86,6 @@ export class TicketScreen extends Component {
                     await this.pos.getServerOrders();
                 } catch (error) {
                     if (error instanceof ConnectionLostError) {
-                        // Degrade gracefully offline — the bare Promise.reject
-                        // that used to sit here surfaced an unhandled-rejection
-                        // popup on top of the working local list.
                         return error;
                     }
                     throw error;
@@ -102,7 +97,6 @@ export class TicketScreen extends Component {
     }
     onMounted() {
         setTimeout(() => {
-            // Show updated list of synced orders when going back to the screen.
             this.onFilterSelected(this.state.filter);
         });
     }
@@ -127,7 +121,6 @@ export class TicketScreen extends Component {
             this.state.selectedPreset = preset;
         }
         if (this.state.filter === "SYNCED") {
-            // The preset filter is part of the server domain.
             this.state.page = 1;
             await this._fetchSyncedOrders();
         }
@@ -174,10 +167,6 @@ export class TicketScreen extends Component {
             });
             return;
         }
-        // `new URL()` throws on any scanned value that is not a URL (e.g. a
-        // plain product barcode captured while the camera scanner is open);
-        // this handler is the scanner's onResult callback, so an unhandled
-        // rejection surfaces as a traceback dialog instead of a friendly retry.
         let uuid;
         try {
             uuid = new URL(qrcode).searchParams.get("order_uuid");
@@ -209,7 +198,6 @@ export class TicketScreen extends Component {
             (!clickedOrder || clickedOrder.finalized) &&
             !this.getSelectedOrderlineId()
         ) {
-            // Automatically select the first orderline of the selected order.
             const firstLine = this.getSelectedOrder().getOrderlines()[0];
             if (firstLine) {
                 this.state.selectedOrderlineIds[clickedOrder.id] = firstLine.id;
@@ -249,13 +237,6 @@ export class TicketScreen extends Component {
     }
     onClickOrderline(orderline) {
         if (this.getSelectedOrder()?.finalized) {
-            // Flush before switching lines. number_buffer debounces keystrokes
-            // and resolves its target at FLUSH time, so a refund quantity typed
-            // against the currently selected line is still pending here;
-            // reset() discarded it outright, silently losing the quantity the
-            // cashier just entered whenever they tapped another line inside the
-            // debounce window. capture() applies it to the line it was typed
-            // against, then the reset starts the new line clean.
             this.numberBuffer.capture();
             const order = this.getSelectedOrder();
             this.state.selectedOrderlineIds[order.id] = orderline.id;
@@ -263,7 +244,6 @@ export class TicketScreen extends Component {
         }
     }
     onClickRefundOrderUid(orderUuid) {
-        // Open the refund order.
         const refundOrder = this.pos.models["pos.order"].find(
             (order) => order.uuid === orderUuid,
         );
@@ -272,7 +252,6 @@ export class TicketScreen extends Component {
         }
     }
     _setToRefundDetail(toRefundDetail, buffer) {
-        // When already linked to an order, do not modify the to refund quantity.
         if (toRefundDetail.destinationOrder) {
             return this.numberBuffer.reset();
         }
@@ -336,24 +315,17 @@ export class TicketScreen extends Component {
         }
     }
     async addAdditionalRefundInfo(order, destinationOrder) {
-        // used by L10N, e.g: add a refund reason using a specific L10N field
         return Promise.resolve();
     }
-    // Used to override inside `pos_blackbox_be` and `pos_urban_piper`
     async _doneOrder(order) {
         return;
     }
     async onDoRefund() {
-        // The refund quantities this method consumes are written by the
-        // debounced buffer handler, so the last quantity the cashier typed can
-        // still be pending when they hit Refund. Flush it first or that line is
-        // silently refunded at qty 0 (or dropped entirely).
         this.numberBuffer.capture();
         const order = this.getSelectedOrder();
 
         if (order && this._doesOrderHaveSoleItem(order)) {
             if (!this._prepareAutoRefundOnOrder(order)) {
-                // Don't proceed on refund if preparation returned false.
                 return;
             }
         }
@@ -362,9 +334,6 @@ export class TicketScreen extends Component {
             return;
         }
 
-        // Precondition: checked BEFORE building anything. This used to run
-        // after the refund lines were created and the refund details stamped,
-        // leaving a hidden half-built refund order that wedged later retries.
         if (order.fiscal_position_not_found) {
             this.dialog.add(AlertDialog, {
                 title: _t("Fiscal Position not found"),
@@ -376,24 +345,14 @@ export class TicketScreen extends Component {
         }
 
         const partner = order.getPartner();
-        // `getHasItemsToRefund()` counts to-refund details WITHOUT excluding
-        // those already linked to a destination order, whereas
-        // `_getRefundableDetails` DOES exclude them. On a repeat refund of a
-        // source order whose earlier refund was abandoned (payment left without
-        // deleting the draft), the guard above passes but there is nothing left
-        // to refund — building and navigating to an empty refund order then
-        // crashes PaymentScreen on mount. Bail out before creating anything.
         const refundableDetails = this._getRefundableDetails(partner, order);
         if (refundableDetails.length === 0) {
             return;
         }
-        // The order that will contain the refund orderlines.
-        // We select the order if it is empty, else we create a new one.
         const destinationOrder = this._getEmptyOrder(partner);
 
         destinationOrder.is_refund = true;
         destinationOrder.pricelist_id = order.pricelist_id;
-        // Add orderline for each toRefundDetail to the destinationOrder.
         const lines = [];
         for (const refundDetail of refundableDetails) {
             const refundLine = refundDetail.line;
@@ -412,7 +371,6 @@ export class TicketScreen extends Component {
                 discount: refundLine.discount,
                 tax_ids: refundLine.tax_ids.map((tax) => ["link", tax]),
                 refunded_orderline_id: refundLine,
-                // Only include as many pack_lot_ids as the refunded quantity requires.
                 pack_lot_ids: options
                     .slice(0, refundDetail.qty)
                     .map((lotName) => ["create", { lot_name: lotName }]),
@@ -425,7 +383,6 @@ export class TicketScreen extends Component {
             lines.push(line);
             refundDetail.destination_order_uuid = destinationOrder.uuid;
         }
-        // link the refund combo lines
         const refundComboParentLines = lines.filter(
             (l) => l.refunded_orderline_id.combo_line_ids.length > 0,
         );
@@ -439,7 +396,6 @@ export class TicketScreen extends Component {
         if (order.fiscal_position_id) {
             destinationOrder.fiscal_position_id = order.fiscal_position_id;
         }
-        // Set the partner to the destinationOrder.
         this.setPartnerToRefundOrder(partner, destinationOrder);
         destinationOrder.refunded_order_id = order;
         this.pos.setOrder(destinationOrder);
@@ -489,9 +445,6 @@ export class TicketScreen extends Component {
         const oScreen = o.getScreenData();
         return (!o.finalized || screen.includes(oScreen.name)) && o.uiState.displayed;
     }
-    // Full filtered + sorted order list, WITHOUT the pagination slice. Pure — no
-    // state writes — so it is safe to read repeatedly during render and to derive
-    // both the page slice and the count from it.
     _getFilteredOrders() {
         const orderModel = this.pos.models["pos.order"];
         let orders =
@@ -525,7 +478,6 @@ export class TicketScreen extends Component {
             );
         }
 
-        // SYNCED lists are shown newest-first, local (active) lists oldest-first.
         const ascending = this.state.filter !== "SYNCED";
         return orders.sort((a, b) => {
             const dateA = a.date_order;
@@ -541,9 +493,6 @@ export class TicketScreen extends Component {
 
     getFilteredOrderList() {
         if (this.state.filter === "SYNCED") {
-            // Server-paged: show exactly the fetched page (filters are part of
-            // the server domain). Records may still be loading into the cache
-            // right after a fetch — readMany + Boolean-filter tolerates that.
             return this.pos.models["pos.order"]
                 .readMany(this.pos.screenState.ticketScreen.syncedPageOrderIds || [])
                 .filter(Boolean);
@@ -554,12 +503,6 @@ export class TicketScreen extends Component {
         );
     }
 
-    // Grand total used by the pager. SYNCED pages are sliced on the server, so
-    // the total comes from the last fetch (screenState.totalCount); local orders
-    // are filtered in memory, so it is the full filtered length. This replaces a
-    // `screenState.totalCount = orders.length` write that used to run inside
-    // getFilteredOrderList during render — a getter must not mutate reactive
-    // state, and doing so could schedule an extra render pass.
     get filteredOrdersCount() {
         return this.state.filter === "SYNCED"
             ? this.pos.screenState.ticketScreen.totalCount
@@ -592,9 +535,6 @@ export class TicketScreen extends Component {
                 ?.text;
         }
     }
-    /**
-     * If the order is the only order and is empty
-     */
     isDefaultOrderEmpty(order) {
         const status = this._getScreenToStatusMap()[order.getScreenData().name];
         const productScreenStatus = this._getScreenToStatusMap().ProductScreen;
@@ -605,9 +545,6 @@ export class TicketScreen extends Component {
             order.payment_ids.length === 0
         );
     }
-    /**
-     * Hide the delete button if one of the payments is a 'done' electronic payment.
-     */
     shouldHideDeleteButton(order) {
         const orders = this.pos.models["pos.order"].filter((o) => !o.finalized);
         return (
@@ -675,10 +612,6 @@ export class TicketScreen extends Component {
         this.pos.switchPaneTicketScreen();
     }
     /**
-     * Find the empty order with the following priority:
-     * - The empty order with the same parter as the provided.
-     * - The first empty order without a partner.
-     * - If no empty order, create a new one.
      * @param {Object | null} partner
      * @returns {boolean}
      */
@@ -693,7 +626,6 @@ export class TicketScreen extends Component {
                     emptyOrderForPartner = order;
                     break;
                 } else if (!order.getPartner() && emptyOrder === null) {
-                    // If emptyOrderForPartner is not found, we will use the first empty order.
                     emptyOrder = order;
                 }
             }
@@ -730,7 +662,6 @@ export class TicketScreen extends Component {
         return true;
     }
     /**
-     * Returns the orderline's toRefundDetail, creating one if it doesn't exist.
      * @param {models.Orderline} orderline
      */
     getToRefundDetail(orderline) {
@@ -752,15 +683,9 @@ export class TicketScreen extends Component {
         return newToRefundDetail;
     }
     /**
-     * Select the lines from lineToRefund, as they can come from different orders.
-     * Returns only details that:
-     * - The quantity to refund is not zero
-     * - Filtered by partner (optional)
-     * - It's not yet linked to an active order (no destinationOrderUid)
-     *
-     * @param {Object} partner (optional)
+     * @param {Object} partner
      * @param {Order} order
-     * @returns {Array} refundableDetails
+     * @returns {Array}
      */
     _getRefundableDetails(partner, order) {
         return Object.values(this.pos.linesToRefund).filter(
@@ -850,9 +775,6 @@ export class TicketScreen extends Component {
 
         return fields;
     }
-    /**
-     * Maps the order screen params to order status.
-     */
     _getScreenToStatusMap() {
         return {
             ProductScreen: "ONGOING",
@@ -861,13 +783,10 @@ export class TicketScreen extends Component {
         };
     }
     _getOrderStates() {
-        // We need the items to be ordered, therefore, Map is used instead of normal object.
         const states = new Map();
         states.set("ACTIVE_ORDERS", {
             text: _t("Active"),
         });
-        // The spaces are important to make sure the following states
-        // are under the category of `Active`.
         states.set("ONGOING", {
             text: _t("Ongoing"),
             indented: true,
@@ -882,12 +801,7 @@ export class TicketScreen extends Component {
         });
         return states;
     }
-    //#region SEARCH SYNCED ORDERS
     _computeSyncedOrdersDomain() {
-        // Every filter the SYNCED list applies must be part of the server
-        // domain — the pages and totalCount come from the server, so a filter
-        // applied only locally desynchronizes the pager from the rows
-        // (partner-only and preset filters used to be local-only).
         const domain = [];
         if (this.state.search.partnerId && this.state.search.fieldName === "PARTNER") {
             domain.push(["partner_id.id", "in", [this.state.search.partnerId]]);
@@ -912,19 +826,9 @@ export class TicketScreen extends Component {
         }
         return domain;
     }
-    /**
-     * Fetches the done orders from the backend that needs to be shown.
-     * If the order is already in cache, the full information about that
-     * order is not fetched anymore, instead, we use info from cache.
-     */
     async _fetchSyncedOrders() {
         const screenState = this.pos.screenState.ticketScreen;
         const domain = this._computeSyncedOrdersDomain();
-        // Deterministic paging: fetch exactly the page being displayed. The
-        // old per-domain accumulator (offset += fetched) diverged from
-        // state.page — prev-page navigations fetched rows ahead of anything
-        // displayed, and page-size changes kept offsets accumulated under the
-        // old size.
         const offset = (this.state.page - 1) * this.state.nbrByPage;
         const config_id = this.pos.config.id;
         const { ordersInfo, totalCount } = await this.pos.data.call(
@@ -940,10 +844,6 @@ export class TicketScreen extends Component {
         );
 
         screenState.totalCount = totalCount;
-        // The display list is built from this page's ids (server order) —
-        // never by slicing the whole local cache, which also contains
-        // finalized orders cached by other flows (QR scans, refund lookups)
-        // that would shift the slice out of alignment with the server pages.
         screenState.syncedPageOrderIds = ordersInfo.map((info) => info[0]);
 
         const idsNotInCacheOrOutdated = ordersInfo
@@ -968,7 +868,6 @@ export class TicketScreen extends Component {
             ]);
         }
     }
-    //#endregion
     getPresetTimeColor(order) {
         const slot = order.preset_id.currentSlot;
         const presetTime = order.preset_time;

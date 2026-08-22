@@ -70,11 +70,11 @@ export function receiptIsThere() {
 export function totalAmountContains(value) {
     return [
         {
-            isActive: ["desktop"], // not rendered on mobile
+            isActive: ["desktop"],
             trigger: `.receipt-screen .o_payment_successful:contains("${value}")`,
         },
         {
-            isActive: ["mobile"], // On mobile, at least wait for the receipt screen to show
+            isActive: ["mobile"],
             trigger: `.receipt-screen`,
         },
     ];
@@ -82,11 +82,11 @@ export function totalAmountContains(value) {
 export function receiptAmountTotalIs(value) {
     return [
         {
-            isActive: ["desktop"], // not rendered on mobile
+            isActive: ["desktop"],
             trigger: `.receipt-screen .receipt-total:contains("${value}")`,
         },
         {
-            isActive: ["mobile"], // On mobile, at least wait for the receipt screen to show
+            isActive: ["mobile"],
             trigger: `.receipt-screen`,
         },
     ];
@@ -94,7 +94,7 @@ export function receiptAmountTotalIs(value) {
 export function receiptRoundingAmountIs(value) {
     return [
         {
-            isActive: ["desktop"], // not rendered on mobile
+            isActive: ["desktop"],
             trigger: `.receipt-screen .receipt-rounding:contains("${value}")`,
         },
     ];
@@ -110,7 +110,7 @@ export function paymentLineContains(paymentMethodName, amount) {
 export function receiptToPayAmountIs(value) {
     return [
         {
-            isActive: ["desktop"], // not rendered on mobile
+            isActive: ["desktop"],
             trigger: `.receipt-screen .receipt-to-pay:contains("${value}")`,
         },
     ];
@@ -118,7 +118,7 @@ export function receiptToPayAmountIs(value) {
 export function receiptToPayAmountIsNotThere() {
     return [
         {
-            isActive: ["desktop"], // not rendered on mobile
+            isActive: ["desktop"],
             trigger: ".receipt-screen",
             run: function () {
                 if (document.querySelector(".receipt-to-pay")) {
@@ -131,7 +131,7 @@ export function receiptToPayAmountIsNotThere() {
 export function receiptChangeAmountIs(value) {
     return [
         {
-            isActive: ["desktop"], // not rendered on mobile
+            isActive: ["desktop"],
             trigger: `.receipt-screen .receipt-change:contains("${value}")`,
         },
     ];
@@ -139,7 +139,7 @@ export function receiptChangeAmountIs(value) {
 export function receiptChangeAmountIsNotThere() {
     return [
         {
-            isActive: ["desktop"], // not rendered on mobile
+            isActive: ["desktop"],
             trigger: ".receipt-screen",
             run: function () {
                 if (document.querySelector(".receipt-change")) {
@@ -192,7 +192,6 @@ export function shippingDateExists() {
 }
 
 export function shippingDateIsToday() {
-    // format the date in US, the language used by the tests
     const expectedDelivery = new Date().toLocaleString(
         "en-US",
         luxon.DateTime.DATE_SHORT,

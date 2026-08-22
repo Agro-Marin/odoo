@@ -44,7 +44,6 @@ test("two domain updates in flight land in the order they were asked for", async
     const parent = await mountWithCleanup(Parent);
     expect(queryAllTexts(".o_tree_editor_condition").join(" ")).toInclude("first");
 
-    // From here every tree load is held open, so their resolution order is ours.
     const treeProcessor = getService("tree_processor");
     patchWithCleanup(treeProcessor, {
         async treeFromDomain(...args) {
@@ -62,17 +61,12 @@ test("two domain updates in flight land in the order they were asked for", async
     await animationFrame();
     expect(pending.length).toBe(2);
 
-    // Resolve the NEWER one first, then the older. Without a KeepLast the older
-    // answer lands last and wins, and the editor shows a domain the prop no
-    // longer describes.
     pending[1].deferred.resolve();
     await animationFrame();
     pending[0].deferred.resolve();
     await animationFrame();
     await animationFrame();
 
-    // A later render -- anything at all -- reads `this.tree` again. If the
-    // stale load won the write, this is where it becomes visible.
     selector.render(true);
     await animationFrame();
 

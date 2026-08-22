@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from datetime import timedelta
 from freezegun import freeze_time
 from unittest.mock import patch, PropertyMock
@@ -13,10 +11,6 @@ from odoo.tests import new_test_user, tagged
 @tagged("post_install", "-at_install")
 class TestGetDiscussChannel(TestImLivechatCommon, MailCommon):
     def test_get_discuss_channel(self):
-        """For a livechat with 5 available operators, we open 5 channels 5 times (25 channels total).
-        For every 5 channels opening, we check that all operators were assigned.
-        """
-
         for _i in range(5):
             discuss_channels = self._open_livechat_discuss_channel()
             channel_operator_ids = [
@@ -29,7 +23,6 @@ class TestGetDiscussChannel(TestImLivechatCommon, MailCommon):
         belgium = self.env.ref('base.be')
         test_user = self.env['res.users'].create({'name': 'Roger', 'login': 'roger', 'password': self.password, 'country_id': belgium.id})
 
-        # ensure visitor info are correct with anonymous
         operator = self.operators[0]
         with patch('odoo.http.GeoIP.country_code', new_callable=PropertyMock(return_value=belgium.code)):
             data = self.make_jsonrpc_request(
@@ -44,7 +37,6 @@ class TestGetDiscussChannel(TestImLivechatCommon, MailCommon):
         self.assertEqual(channel_info["country_id"], belgium.id)
         self.assertEqual(data["res.country"], [{"code": "BE", "id": belgium.id, "name": "Belgium"}])
 
-        # ensure persona info are hidden (in particular email and real name when livechat username is present)
         channel = self.env["discuss.channel"].browse(channel_info["id"])
         guest = channel.channel_member_ids.guest_id[0]
         self.assertEqual(
@@ -93,9 +85,6 @@ class TestGetDiscussChannel(TestImLivechatCommon, MailCommon):
         self.assertEqual(
             data["res.users"],
             self._filter_users_fields(
-                # `partner_id` since b432857478c widened `res.partner`'s
-                # `main_user_id` sub-fields from ["share"]; that commit updated
-                # mail's copy of this expectation and not this one.
                 {
                     "id": self.user_root.id,
                     "partner_id": self.user_root.partner_id.id,
@@ -103,7 +92,6 @@ class TestGetDiscussChannel(TestImLivechatCommon, MailCommon):
                 },
             ),
         )
-        # ensure visitor info are correct with real user
         self.authenticate(test_user.login, self.password)
         data = self.make_jsonrpc_request('/im_livechat/get_session', {
             'previous_operator_id': operator.partner_id.id,
@@ -223,7 +211,6 @@ class TestGetDiscussChannel(TestImLivechatCommon, MailCommon):
             ],
         )
         self.assertEqual(data["res.country"], [{"code": "BE", "id": belgium.id, "name": "Belgium"}])
-        # ensure visitor info are correct when operator is testing themselves
         operator = self.operators[0]
         self.authenticate(operator.login, self.password)
         data = self.make_jsonrpc_request('/im_livechat/get_session', {
@@ -330,7 +317,6 @@ class TestGetDiscussChannel(TestImLivechatCommon, MailCommon):
                     )
                 )
             )
-            # send a message to mark this channel as 'active'
             self.env["discuss.channel"].browse(data["channel_id"]).message_post(body="cc")
         return discuss_channels
 

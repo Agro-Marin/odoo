@@ -21,7 +21,6 @@ export function getComboRecords(listRecords, record) {
     const comboRecords = [];
 
     if (record.data.product_type === "combo") {
-        // if currernt record is combo then we move forward util we find non combo line
         comboRecords.push(record);
         let index = indexOfRecord(listRecords, record) + 1;
 
@@ -38,8 +37,6 @@ export function getComboRecords(listRecords, record) {
             index++;
         }
     } else if (record.data.combo_item_id?.id) {
-        // if current record is combo item then we move backward util we find associated combo line
-        // Here we assume that the record we get is the last item of the combo
         let index = indexOfRecord(listRecords, record);
         while (index >= 0) {
             const r = listRecords[index];
@@ -72,15 +69,9 @@ export class SaleOrderLineListRenderer extends ProductLabelSectionAndNoteListRen
     }
 
     /**
-     * The combo members the row template calls (see ListRowApi).
-     *
      * @override
      */
     buildRowApi() {
-        // Every entry resolves its record. The template asks `getPreviousRecords` whether
-        // to show "Move Up" and `moveCombo` to perform it, for the same row in the same
-        // dropdown; routing only one of them through `resolveRowRecord` meant the
-        // decision and the action could read different datapoints.
         const rec = (record) => this.resolveRowRecord(record);
         return {
             ...super.buildRowApi(),
@@ -93,10 +84,6 @@ export class SaleOrderLineListRenderer extends ProductLabelSectionAndNoteListRen
         };
     }
 
-    /**
-     * Little hack to make sure we get correct title field everytime
-     * while accessing comboColumns
-     */
     get comboColumns() {
         return [
             this.titleField,
@@ -106,12 +93,7 @@ export class SaleOrderLineListRenderer extends ProductLabelSectionAndNoteListRen
         ];
     }
 
-    /**
-     * Product description widget logic
-     */
     getCellTitle(column, record) {
-        // When using this list renderer, we don't want the product_id cell to have a tooltip with
-        // its label.
         if (column.name === "product_id" || column.name === "product_template_id") {
             return;
         }
@@ -126,7 +108,6 @@ export class SaleOrderLineListRenderer extends ProductLabelSectionAndNoteListRen
         const productCol = activeColumns.find((col) => col.name === "product_id");
 
         if (productCol && productTmplCol) {
-            // Hide the template column if the variant one is enabled.
             activeColumns = activeColumns.filter(
                 (col) => col.name !== "product_template_id",
             );
@@ -218,7 +199,6 @@ export class SaleOrderLineListRenderer extends ProductLabelSectionAndNoteListRen
         return super.canUseFormatter(column, record);
     }
 
-    // For totals on combo lines
     getFormattedValue(column, record) {
         if (this.isCombo(record) && this.props.aggregatedFields.includes(column.name)) {
             const total = getComboRecords(this.props.list.records, record).reduce(

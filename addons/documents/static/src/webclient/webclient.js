@@ -6,7 +6,7 @@ import { patch } from "@web/core/utils/patch";
 
 patch(WebClient.prototype, {
     /**
-     * @override to not open documents in form view.
+     * @override to
      */
     loadRouterState() {
         const { resId, model } = router.current.actionStack?.at(-1) || {};

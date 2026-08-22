@@ -13,9 +13,7 @@ defineMailModels();
 
 describe.current.tags("desktop");
 
-/** Resources released by the component, collected per test. */
 let destroyedPdfs;
-/** Object URLs passed to URL.revokeObjectURL, collected per test. */
 let revokedUrls;
 
 beforeEach(() => {
@@ -34,18 +32,9 @@ beforeEach(() => {
     });
 });
 
-/**
- * The stubs deliberately keep the real bookkeeping of the methods they replace:
- * `_getPdf` still pushes into `this._pdfDocuments` (otherwise the release loops
- * this suite is meant to protect iterate zero times), and the returned document
- * exposes a counting `destroy()`.
- */
 class PdfManagerForTest extends PdfManager {
-    /** Set per-test to make `_getPdf` reject. */
     static pdfError = null;
-    /** Number of pages of the stubbed documents. */
     static numPages = 6;
-    /** 1-based page numbers considered blank by `_isBlankPage`. */
     static blankPages = [];
 
     async _loadAssets() {}
@@ -59,7 +48,6 @@ class PdfManagerForTest extends PdfManager {
             numPages: this.constructor.numPages,
             destroy: () => destroyedPdfs.push(pdf),
         };
-        // Same bookkeeping as the real `_getPdf`.
         this._pdfDocuments.push(pdf);
         return pdf;
     }
@@ -111,7 +99,6 @@ function mountPdfManager(props = {}) {
 }
 
 /**
- * Every page id currently listed by a group, in display order.
  * @param {PdfManager} manager
  * @returns {String[]}
  */
@@ -238,7 +225,6 @@ test(`Pdf Manager: select pages with mouse area selection`, async () => {
         position: { x: left, y: top },
     });
     const position = { x: left + width, y: top + height };
-    // 2 test events are needed to trigger the changes in the DOM. Due to rerendering of state variables
     await moveTo({ position });
     await drop({ position });
     expect(".o_pdf_page_selected").toHaveCount(12, {
@@ -431,11 +417,6 @@ test(`Pdf Manager: page preview behaviour`, async () => {
     });
 });
 
-//------------------------------------------------------------------------------
-// Regression tests
-//------------------------------------------------------------------------------
-
-/** Mocks `/documents/pdf_split` with the given status / payload. */
 function mockPdfSplit({ status = 200, documentIds = [101] } = {}) {
     mockFetch((input) => {
         if (String(input).includes("/documents/pdf_split")) {
@@ -452,9 +433,6 @@ function mockPdfSplit({ status = 200, documentIds = [101] } = {}) {
 }
 
 test(`Pdf Manager: a failed split does not duplicate the ignored pages`, async () => {
-    // Deselecting the second group leaves 6 ignored pages, which the failure
-    // path re-gathers into a "Remaining Pages" group. It used to *copy* them
-    // there without detaching them from their current group.
     const manager = await mountPdfManager();
     await contains(".o_pdf_name_display:eq(1)").click();
     expect(".o_pdf_page_selected").toHaveCount(6, {
@@ -478,8 +456,6 @@ test(`Pdf Manager: a failed split does not duplicate the ignored pages`, async (
         message: "no duplicated card is rendered",
     });
 
-    // The retry is what made the original bug destructive: a second split sent
-    // every ignored page twice.
     mockPdfSplit({ status: 500 });
     await contains(".o_pdf_manager_button:eq(0)").click();
     await animationFrame();
@@ -492,8 +468,6 @@ test(`Pdf Manager: a failed split does not duplicate the ignored pages`, async (
 
 test(`Pdf Manager: deleting after a partial split does not crash`, async () => {
     const manager = await mountPdfManager();
-    // Select only the first 3 pages of the first file ("yop"), so that file is
-    // partially consumed by the split and survives it.
     await press(["ctrl", "a"]);
     await animationFrame();
     for (const index of [0, 1, 2]) {
@@ -509,8 +483,6 @@ test(`Pdf Manager: deleting after a partial split does not crash`, async () => {
     await animationFrame();
     expect.verifySteps(["pdf_split:200"]);
 
-    // The committed page is detached from every group but still in state.pages
-    // (its file is only partly consumed): the focus must not stay on it.
     expect(manager.store.pages[committedPageId]).toBeOfType("object", {
         message: "the committed page survives, its file is not fully consumed",
     });
@@ -519,7 +491,6 @@ test(`Pdf Manager: deleting after a partial split does not crash`, async () => {
         message: "the focus is released when the focused page is committed",
     });
 
-    // And `_removePage` must tolerate a detached page whatever the entry point.
     expect(() =>
         manager._removePage(committedPageId, { fromFile: true }),
     ).not.toThrow();
@@ -553,7 +524,6 @@ test(`Pdf Manager: a PDF that fails to load releases the toolbar`, async () => {
             message: `"${button.textContent.trim()}" stays usable after a load failure`,
         });
     }
-    // Reachable only once no page exists: must not throw on a missing card.
     expect(() => manager._focusNextPage("right", false)).not.toThrow();
 });
 
@@ -573,7 +543,6 @@ test(`Pdf Manager: forward drag inside a group lands on the target index`, async
     const manager = await mountPdfManager();
     const [p1, p2, p3, p4, p5, p6] = listedPageIds(manager);
 
-    // Forward: first page dropped onto the fourth one.
     await contains(".o_documents_pdf_canvas_wrapper:eq(0)").dragAndDrop(
         ".o_documents_pdf_canvas_wrapper:eq(3)",
         null,
@@ -583,7 +552,6 @@ test(`Pdf Manager: forward drag inside a group lands on the target index`, async
         message: "the dragged page takes the target's place, it does not land after it",
     });
 
-    // Backward drags were already correct: keep them covered.
     await contains(".o_documents_pdf_canvas_wrapper:eq(2)").dragAndDrop(
         ".o_documents_pdf_canvas_wrapper:eq(0)",
         null,
@@ -599,14 +567,11 @@ test(`Pdf Manager: forward drag inside a group lands on the target index`, async
 
 test(`Pdf Manager: pdf documents and object URLs are released`, async () => {
     const manager = await mountPdfManager();
-    // A third file added through the "add file" path, which goes through
-    // URL.createObjectURL and must be revoked when the file is consumed.
     await manager._addFile("extra.pdf", { file: new File([""], "extra.pdf") });
     await animationFrame();
     expect(manager._pdfDocuments).toHaveLength(3);
     expect(manager._objectUrls).toEqual(["blob:mock/extra.pdf"]);
 
-    // Consume the whole third file: `_removeFile` releases its resources.
     const extraFileId = Object.keys(manager._newFiles).at(-1);
     for (const pageId of [...manager._newFiles[extraFileId].pageIds]) {
         manager._removePage(pageId, { fromFile: true });
@@ -620,7 +585,6 @@ test(`Pdf Manager: pdf documents and object URLs are released`, async () => {
     });
     expect(manager._objectUrls).toEqual([]);
 
-    // The two remaining documents are released on unmount.
     manager.__owl__.app.destroy();
     expect(destroyedPdfs).toHaveLength(3, {
         message: "every remaining pdf.js document is destroyed on unmount",
@@ -632,7 +596,6 @@ test(`Pdf Manager: splitting on blank pages asks before discarding groups`, asyn
     PdfManagerForTest.blankPages = [3];
     const manager = await mountPdfManager();
     await animationFrame();
-    // Two documents => two groups => the shortcut is destructive.
     expect(manager.store.groupIds).toHaveLength(2);
 
     await press(["shift", "s"]);

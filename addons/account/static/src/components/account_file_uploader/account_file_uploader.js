@@ -31,7 +31,6 @@ export class AccountFileUploader extends DocumentFileUploader {
     }
 }
 
-// View-widget descriptor: uploader placed on an account.journal record.
 export const accountFileUploader = {
     component: AccountFileUploader,
     extractProps: ({ attrs }) => ({

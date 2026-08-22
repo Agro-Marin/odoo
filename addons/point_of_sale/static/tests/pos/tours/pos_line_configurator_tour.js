@@ -74,21 +74,17 @@ registry.category("web_tour.tours").add("test_line_configurators_combo", {
         [
             Chrome.startPoS(),
             ProductScreen.clickDisplayedProduct("Office Combo"),
-            // Select first combo (combo 1)
             combo.select("Combo Product 2"),
             combo.isSelected("Combo Product 2"),
 
-            // Open Product Configurator + Configure + Confirm (combo 2)
             combo.select("Configurable Chair"),
             ...setupProductConfigurator,
             Dialog.confirm(),
 
-            // Select it again
             combo.select("Configurable Chair"),
             ...setupProductConfigurator,
             Dialog.confirm(),
 
-            // Select last combo (combo 3)
             combo.select("Combo Product 6"),
             combo.isSelected("Combo Product 6"),
             Dialog.confirm(),
@@ -98,7 +94,6 @@ registry.category("web_tour.tours").add("test_line_configurators_combo", {
                 ...checkConfiguredLine(true),
                 ...ProductScreen.orderComboLineHas("Combo Product 6", "1.0"),
 
-                // Edit combo
                 ...ProductScreen.longPressOrderline("Office Combo"),
                 combo.isSelected("Combo Product 2"),
                 combo.isSelected("Configurable Chair"),

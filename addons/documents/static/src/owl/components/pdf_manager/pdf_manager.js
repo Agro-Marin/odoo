@@ -19,7 +19,6 @@ import { ConfirmationDialog, Dialog } from "@web/ui/dialog";
 
 const BLANK_PAGE_THRESHOLD = 2500;
 const BLANK_PIXEL_FILTER_VALUE = 220;
-/** Menu entries that open an overlay over the app rather than navigating away. */
 const NON_LEAVING_MENUS = ["shortcuts", "settings", "support", "documentation"];
 
 export class PdfManager extends Component {
@@ -42,8 +41,6 @@ export class PdfManager extends Component {
 
     setup() {
         this.root = useRef("root");
-        //setting the active element allows restricting the command palette to the context of this Component
-        //this is necessary because this Component is a modal in disguise but does not properly override "Dialog"
         useActiveElement("root");
         this.pageViewer = useRef("pageViewer");
         this.pagePreview = useRef("pagePreview");
@@ -51,30 +48,16 @@ export class PdfManager extends Component {
         this.addFileInput = useRef("addFileInput");
         this.notification = useService("notification");
         this.dialog = useService("dialog");
-        // Page/group bookkeeping (pages, groups, ordering, page count, focus and
-        // last selection) belongs to the store, which is the only thing allowed
-        // to mutate it. `useState` supplies the reactivity; the store's own
-        // logic knows nothing about the proxy. Nothing non-serialisable goes in
-        // there — see `pageCanvases` below, which stays out for that reason.
         this.store = new PdfPageStore(useState(makePdfPageStoreData()));
         this.state = useState({
-            // Disables upload button if currently uploading.
             uploadingLock: false,
-            // object pageCanvases[pageId] = { canvas, pageObject }
             pageCanvases: {},
-            // The page that is open as large preview.
             viewedPage: undefined,
-            // The page's name that is open as large preview.
             viewedPageName: undefined,
-            // The page's index that is open as large preview.
             viewedPageIndex: undefined,
-            // whether to archive the original documents.
             archive: true,
-            // Whether to keep the document(s) or not.
             keepDocument: true,
-            //name of the opened document
             fileName: "",
-            // edit on group name
             edit: false,
             isSelecting: false,
             selectionBoxArgs: { left: "0px", top: "0px", width: "0px", height: "0px" },
@@ -93,8 +76,6 @@ export class PdfManager extends Component {
         this._onShiftDown = this._onShiftDown.bind(this);
         this._setUseCommand = this._setUseCommand.bind(this);
         this._exitSplitTools = this._exitSplitTools.bind(this);
-        // Resources to release on unmount: object URLs created from uploaded
-        // files, and pdf.js document proxies (which hold worker-side state).
         this._objectUrls = [];
         this._pdfDocuments = [];
 
@@ -127,8 +108,6 @@ export class PdfManager extends Component {
                     document.removeEventListener("mouseup", this._onMouseUp, true);
                     document.removeEventListener("mousemove", this._onMouseMove, true);
                     document.removeEventListener("keydown", this._onShiftDown, true);
-                    // Release object URLs and pdf.js worker documents so exiting
-                    // the tool (especially with pages still loaded) does not leak.
                     for (const objectUrl of this._objectUrls) {
                         URL.revokeObjectURL(objectUrl);
                     }
@@ -142,7 +121,6 @@ export class PdfManager extends Component {
             () => [],
         );
 
-        // Shortcuts and navigation
         this._setUseCommand(
             _t("Focus previous page"),
             this._focusNextPage.bind(this, "left", false),
@@ -250,7 +228,6 @@ export class PdfManager extends Component {
     }
 
     /**
-     * Set the useCommand hook for shortcuts
      * @param {String} name
      * @param {Function} callback
      * @param {String} hotkey
@@ -264,10 +241,6 @@ export class PdfManager extends Component {
             hotkeyOptions: options,
         });
     }
-
-    //--------------------------------------------------------------------------
-    // Getters / Setters
-    //--------------------------------------------------------------------------
 
     /**
      * @return {String[]}
@@ -300,16 +273,7 @@ export class PdfManager extends Component {
         return this.store.sortedPageIds;
     }
 
-    //----------------------------------------------------------------------
-    // Handlers
-    //----------------------------------------------------------------------
-
     /**
-     * Enter or leave the group-name edit mode.
-     *
-     * Selection-neutral on purpose: this runs on entering the input *and* on
-     * leaving it (blur, Enter), so toggling the selection here would undo what the
-     * click that opened the input just did.
      * @public
      * @param {String} groupId
      * @param {Boolean} toggle
@@ -318,8 +282,6 @@ export class PdfManager extends Component {
         this.state.edit = toggle ? groupId : false;
     }
     /**
-     * Clicking a group's name selects the whole group (or deselects it if it
-     * already is fully selected) and opens the rename input.
      * @public
      * @param {String} groupId
      */
@@ -329,14 +291,11 @@ export class PdfManager extends Component {
         this.onToggleEdit(groupId, true);
     }
     /**
-     * Returns the number of cards per line
      * @private
      */
     _computeCardsPerLine() {
         const allPages = [...document.querySelectorAll(".o_documents_pdf_page_frame")];
         if (!allPages.length) {
-            // No card rendered yet (arrow key pressed before the first PDF
-            // finished loading, or after a load failure): nothing to measure.
             return 1;
         }
         const top = allPages[0].getBoundingClientRect().top;
@@ -344,14 +303,12 @@ export class PdfManager extends Component {
             .length;
     }
     /**
-     * Deselect every page
      * @private
      */
     _unSelectPages() {
         this.store.unselectAll();
     }
     /**
-     * Handles the activation/desactivation of the splitters in the active pages
      * @private
      */
     _splitSelectionHandler() {
@@ -381,9 +338,6 @@ export class PdfManager extends Component {
                 indexPage < sortedPagesIds.length - 1 &&
                 this.store.getPage(sortedPagesIds[indexPage + 1]).isSelected
             ) {
-                // Asked of the store, not scraped off the rendered splitter: the
-                // class agrees by construction, but only the store is right before
-                // the DOM has rendered.
                 const isSeparatorActive = this.store.isLastPageOfGroup(pageId);
                 toggleSeparatorBool = toggleSeparatorBool && isSeparatorActive;
                 if (isSeparatorActive) {
@@ -398,17 +352,8 @@ export class PdfManager extends Component {
             this.store.toggleSeparator(page.pageId, page.groupId);
         }
     }
-    /**
-     * Handles the split of all the whites pages in the document.
-     * This method will traverse all the pages sequentially and create groups
-     * delimited by a (or some) white page(s). It will ease the user experience
-     * when processing scanned documents.
-     */
     async _splitWhitePagesHandler() {
         if (this.store.groupIds.length > 1) {
-            // Destructive and undoable: it throws away every group the user has
-            // built so far. Only ask when there is actually something to lose
-            // (a single group is the untouched initial state).
             this.dialog.add(ConfirmationDialog, {
                 title: _t("Split on blank pages"),
                 body: _t(
@@ -422,7 +367,6 @@ export class PdfManager extends Component {
         await this._splitWhitePages();
     }
     /**
-     * Actual blank-page splitting, without the confirmation step.
      * @private
      */
     async _splitWhitePages() {
@@ -432,11 +376,10 @@ export class PdfManager extends Component {
         });
     }
     /**
-     * Add pdf file inside the split tools
      * @private
      * @param {String} name
      * @param {Object} param1
-     * @param {number} [param1.documentId] the id of the `documents.document` record.
+     * @param {number} [param1.documentId]
      * @param {Object} [param1.file]
      * @param {String} [param1.url]
      */
@@ -461,9 +404,6 @@ export class PdfManager extends Component {
                 this._newFiles[fileId] = { type: "document", documentId };
             }
             if (this._newFiles[fileId]) {
-                // Keep the per-file resources so `_removeFile` can release them
-                // as soon as the file is fully consumed, instead of holding a
-                // worker-side document alive until the whole tool is closed.
                 this._newFiles[fileId].pdf = pdf;
                 this._newFiles[fileId].objectUrl = objectUrl;
             }
@@ -474,12 +414,8 @@ export class PdfManager extends Component {
                 fileId,
                 name,
                 pageCount,
-                // A single document is exploded page by page; several documents
-                // each keep one group.
                 groupPerPage: this.props.documents.length <= 1,
             });
-            // Canvases stay out of the store: they are DOM nodes and pdf.js
-            // page proxies, which have no business inside a reactive.
             for (const pageId of pageIds) {
                 this.state.pageCanvases[pageId] = {};
             }
@@ -489,10 +425,6 @@ export class PdfManager extends Component {
 
             await this._loadCanvases({ newPages, pageCount, pdf });
         } catch (error) {
-            // pdf.js rejects on encrypted (PasswordException), corrupt
-            // (InvalidPDFException) and unreachable (Missing/UnexpectedResponse)
-            // PDFs. Unhandled, that reaches the global error handler and leaves
-            // `uploadingLock` on, disabling every top-bar button.
             this._displayErrorNotification(
                 error?.name === "PasswordException"
                     ? _t("%s is password protected and cannot be split.", displayName)
@@ -534,9 +466,6 @@ export class PdfManager extends Component {
         this.notification.add(_t("%s page(s) deleted", number), { type: "success" });
     }
     /**
-     * Ignored pages are not committed but are instead kept in the
-     * PDF Manager. If no ignored page remain, the PDF Manager closes and the
-     * view is reloaded.
      * @private
      * @param {number} [actionId]
      */
@@ -563,10 +492,6 @@ export class PdfManager extends Component {
             this._displayNumberCreatedDocuments(documentIds.length);
             if (!exit) {
                 this._embeddedActionApplied = true;
-                // The store releases the focus / last-selection references of
-                // every page it detaches, so a committed page (which survives
-                // in `pages` while its file still has uncommitted pages) can
-                // never be handed group-less to code expecting a group.
                 for (const pageId of processedPageIds) {
                     this._removePage(pageId, { fromFile: true });
                 }
@@ -583,27 +508,12 @@ export class PdfManager extends Component {
         }
     }
 
-    /**
-     * This method will check if the page contains any text (for computer
-     * generated pdf) and for the image pixels if it's a scanned pdf.
-     */
     async _isBlankPage(page, canvas) {
         const pageContent = await page.getTextContent();
         const hasText = pageContent.items.length > 0;
         return !hasText && this._hasBlankGraphics(canvas);
     }
 
-    /**
-     * This method will check the canvas for each pixel based on its color.
-     * If the sum of all the color code for each pixel doesn't exceed the
-     * empirically tested threshold the image is considered as blank.
-     * It's used to detect scanned blank page (they are never really empty...)
-     *
-     * Walks RGB and steps over the alpha byte `getImageData` interleaves: pdf.js
-     * paints onto an opaque fill, so alpha is always 255 and testing it is a
-     * quarter of the bytes scanned for nothing (295ms -> 132ms over 400 pages at
-     * the 160x230 size this renders).
-     */
     _hasBlankGraphics(canvas) {
         const pixels = canvas
             .getContext("2d")
@@ -626,13 +536,9 @@ export class PdfManager extends Component {
     }
 
     /**
-     * To be overwritten in tests (along with _renderCanvas()).
      * @private
      * @param {String} url
-     * @return {PdfJsObject} pdf
-     *    should be constructed as follow:
-     *        pdf.getPage(pageNumber) {function} return {pageObject}
-     *        pdf.numPages {number}
+     * @return {PdfJsObject}
      */
     async _getPdf(url) {
         const pdf = await pdfjsLib.getDocument(url).promise;
@@ -640,7 +546,6 @@ export class PdfManager extends Component {
         return pdf;
     }
     /**
-     * To be overwritten in tests.
      * @private
      */
     async _loadAssets() {
@@ -677,7 +582,7 @@ export class PdfManager extends Component {
      * @param {Object} param1
      * @param {number} param1.width
      * @param {number} param1.height
-     * @return {DomElement} canvas
+     * @return {DomElement}
      */
     async _renderCanvas(page, { width, height }) {
         const viewPort = page.getViewport({ scale: 1 });
@@ -699,8 +604,6 @@ export class PdfManager extends Component {
         return canvas;
     }
     /**
-     * Endpoint of the manager, sends the page structure to be split to the
-     * server and closes the manager.
      * @private
      */
     async _sendChanges() {
@@ -718,8 +621,6 @@ export class PdfManager extends Component {
         );
         let activePages = this.selectedPageIds;
         if (!activePages.length) {
-            // An array, not a bare string: `activePages` feeds `.includes(pageId)`
-            // below, where a string would match substrings ("page2" -> "page25").
             activePages = this.store.focusedPage ? [this.store.focusedPage] : [];
             this.store.focusedPage = false;
         }
@@ -745,9 +646,7 @@ export class PdfManager extends Component {
             }
             delete newFile.pageIds;
         }
-        // When splitting a file we want them displayed in the same order as they were in the file.
         newFiles.reverse();
-        // Http request
         const sourceDocument = this.props.documents[0];
         const data = new FormData();
         data.append("csrf_token", odoo.csrf_token);
@@ -776,21 +675,16 @@ export class PdfManager extends Component {
         return response.json();
     }
     /**
-     * Detach a page from its group, and optionally release the file resources
-     * it was the last consumer of.
      * @private
      * @param {String} pageId
      * @param {Object} [param1]
-     * @param {boolean} [param1.fromFile] whether to remove page from the file, in which case
-     * the file will be removed if none of its pages are used.
+     * @param {boolean} [param1.fromFile]
      */
     _removePage(pageId, { fromFile } = {}) {
         const page = this.store.getPage(pageId);
         if (!page) {
             return;
         }
-        // The store tolerates an already-detached page (committed by a partial
-        // split, say) and clears any focus reference to it.
         this.store.removePage(pageId);
         if (fromFile && page.fileId && this._newFiles[page.fileId]) {
             const selectedPageIds = this._newFiles[page.fileId].selectedPageIds;
@@ -800,9 +694,6 @@ export class PdfManager extends Component {
             if (this._newFiles[page.fileId].selectedPageIds.length === 0) {
                 this._removeFile(page.fileId);
             } else {
-                // Release this committed page's canvas/pdf-page proxy now instead
-                // of keeping every page of the file alive until it is fully
-                // consumed.
                 delete this.state.pageCanvases[pageId];
             }
             page.fileId = false;
@@ -821,8 +712,6 @@ export class PdfManager extends Component {
             delete this.state.pageCanvases[pageId];
             this.store.deletePage(pageId);
         }
-        // The file is fully consumed: release its worker-side pdf.js document
-        // and its object URL now rather than waiting for the unmount cleanup.
         if (fileData.pdf) {
             fileData.pdf.destroy();
             this._pdfDocuments = this._pdfDocuments.filter(
@@ -838,7 +727,6 @@ export class PdfManager extends Component {
         delete this._newFiles[fileId];
     }
     /**
-     * use to remove .pdf extention from file name
      * @private
      * @param {String} name
      */
@@ -846,7 +734,6 @@ export class PdfManager extends Component {
         return name.replace(/\.pdf$/gi, "");
     }
     /**
-     * Opens the exit dialog
      * @private
      */
     _exitSplitTools(formerTargetCallback = () => {}) {
@@ -864,7 +751,6 @@ export class PdfManager extends Component {
         });
     }
     /**
-     * Gather the remaining pages so they are kept into one document that is sent to the backend
      * @private
      */
     async _exitByGatheringRemainingPages() {
@@ -877,21 +763,16 @@ export class PdfManager extends Component {
         await this._applyChanges();
     }
     /**
-     * Adapt the scroll of the page viewer in order to keep the focused page visible
      * @private
      */
     _keepFocusedPageInScreen() {
         if (!this.store.focusedPage || !this.pageViewer.el) {
             return;
         }
-        // CSS.escape: the page id is interpolated raw into a selector, so an
-        // unquoted/unescaped value throws a SyntaxError instead of returning null.
         const card = document.querySelector(
             `[data-id="${CSS.escape(this.store.focusedPage)}"]`,
         );
         if (!card) {
-            // Focus set before the card exists (arrow key pressed while the PDF
-            // is still loading, or after a load failure).
             return;
         }
         const focusedCardCoordinates = card.getBoundingClientRect();
@@ -899,7 +780,6 @@ export class PdfManager extends Component {
         const bottomDifference =
             focusedCardCoordinates.bottom - pageViewerCoordinates.bottom;
         const topDifference = focusedCardCoordinates.top - pageViewerCoordinates.top;
-        // 60 and 10 are harcoded values to improve the UI when scrolling.
         if (bottomDifference > 0) {
             this.pageViewer.el.scrollBy(0, bottomDifference + 60);
         }
@@ -908,22 +788,12 @@ export class PdfManager extends Component {
         }
     }
 
-    //----------------------------------------------------------------------
-    // Keyboard events and handlers
-    //----------------------------------------------------------------------
-
     /**
-     * On shift pressed, the focused page is selected
      * @private
      * @param {Event} ev
      */
     _onShiftDown(ev) {
         if (document.activeElement.classList.contains("o_pdf_name_input")) {
-            // Do NOT stopPropagation here: this is a capture-phase listener on
-            // document, so it would prevent the rename input's own keydown
-            // handler (Enter to commit/exit) from ever running. The manager's
-            // command/hotkey shortcuts are already suppressed while an editable
-            // element is focused (editable protection), so simply bail out.
             return;
         }
         if (
@@ -938,7 +808,6 @@ export class PdfManager extends Component {
         }
     }
     /**
-     * Focus next targetted page
      * @private
      * @param {String} direction
      * @param {Boolean} doSelect
@@ -953,15 +822,12 @@ export class PdfManager extends Component {
             }
             return;
         }
-        // `_computeCardsPerLine` is the component's business (it measures the
-        // rendered cards); the store only asks for it when it needs the stride.
         this.store.focusNextPage(direction, doSelect, () =>
             this._computeCardsPerLine(),
         );
         this._keepFocusedPageInScreen();
     }
     /**
-     * Focus the first page of the next tragetted group
      * @private
      * @param {String} direction
      */
@@ -973,7 +839,6 @@ export class PdfManager extends Component {
         this._keepFocusedPageInScreen();
     }
     /**
-     * Opens or closes the previewer
      * @private
      */
     _togglePreviewer() {
@@ -985,7 +850,6 @@ export class PdfManager extends Component {
         }
     }
     /**
-     * On space key pressed, toogles the focused page
      * @private
      */
     _spaceKeySelect() {
@@ -994,8 +858,6 @@ export class PdfManager extends Component {
         }
     }
     /**
-     * select all the pages from focused page until beginning/end
-     * of the group according to the arrow key pressed
      * @private
      * @param {String} direction
      */
@@ -1006,7 +868,6 @@ export class PdfManager extends Component {
         this.store.selectUntilSplit(direction);
     }
     /**
-     * (De)select all active pages
      * @private
      */
     _selectAll() {
@@ -1016,27 +877,19 @@ export class PdfManager extends Component {
         this.store.toggleSelectAll();
     }
     /**
-     * Exit key pressing behaviour :
-     * - Exit previewer
-     * - Deselect pages
-     * - Loose focus
-     * - Exit split tools
      * @private
      */
     _onPushExit() {
-        // If we are in the previewer, exit the previewer and focus on previewed page
         if (this.state.viewedPage) {
             this.store.focusedPage = this.state.viewedPage;
             this.previewCanvas = undefined;
             this.state.viewedPage = undefined;
             return;
         }
-        // Deselect selected pages
         if (this.selectedPageIds.length) {
             this._unSelectPages();
             return;
         }
-        // If one page is focus, loose the focus
         if (this.store.focusedPage) {
             this.store.focusedPage = undefined;
             return;
@@ -1044,9 +897,6 @@ export class PdfManager extends Component {
         this._exitSplitTools();
     }
 
-    //--------------------------------------------------------------------------
-    // Click events and handlers
-    //--------------------------------------------------------------------------
     /**
      * @private
      * @param {Event} ev
@@ -1059,7 +909,7 @@ export class PdfManager extends Component {
             ev.target.closest(".o_main_navbar") ||
             ev.target.closest(".o_documents_pdf_page_preview") ||
             ev.target.closest(".o_pdf_group_name_block") ||
-            ev.button !== 0 // Main button pressed, usually the left button or the un-initialized state
+            ev.button !== 0
         ) {
             return;
         }
@@ -1081,9 +931,6 @@ export class PdfManager extends Component {
         }
     }
     /**
-     * On mouse move, the selection area expends according the cursor position
-     * If selection area enters into a page, the latter is selected except if shift key is pressed.
-     * In this case, it is unSelected
      * @private
      * @param {Event} ev
      */
@@ -1115,11 +962,6 @@ export class PdfManager extends Component {
         const boxBottom = boxTop + boxCoordinates.height;
         const boxLeft = boxCoordinates.left;
         const boxRight = boxLeft + boxCoordinates.width;
-        // Scoped to this manager's page viewer rather than the whole document.
-        // `.o_pdf_page` is rendered only by PdfPage, which only PdfManager
-        // mounts, so this is not a correctness fix -- it bounds the selector
-        // scan to the subtree that can possibly match, on a handler that runs
-        // on every mousemove of a drag-select.
         const cards = this.pageViewer.el.querySelectorAll(".o_pdf_page");
         for (const card of cards) {
             const cardCoordinates = card.getBoundingClientRect();
@@ -1141,8 +983,6 @@ export class PdfManager extends Component {
         }
     }
     /**
-     * On mouse up, end the drag-selection (the page selection itself is applied
-     * in _onMouseMove while the box is being dragged).
      * @private
      */
     _onMouseUp() {
@@ -1201,7 +1041,6 @@ export class PdfManager extends Component {
             this.state.viewedPage ||
             (this.store.focusedPage && !pagesToDelete.includes(this.store.focusedPage))
         ) {
-            // A previewed page is always focused
             pagesToDelete = [this.store.focusedPage];
             messageInput = this.state.viewedPage
                 ? _t("Are you sure that you want to delete this page ?")
@@ -1258,11 +1097,6 @@ export class PdfManager extends Component {
         this._exitSplitTools();
     }
     /**
-     * Whether a click would navigate out of the split tool.
-     *
-     * The four menu entries listed open an overlay over the app instead of
-     * leaving it, and a mobile dropdown is not a navigation either.
-     *
      * @private
      * @param {HTMLElement} target
      * @returns {boolean}
@@ -1281,15 +1115,6 @@ export class PdfManager extends Component {
         return !target.closest("[data-dropdown-is-mobile]");
     }
     /**
-     * Ask before letting a click navigate away, then replay it.
-     *
-     * `_exitSplitToolsClick` guards the replay against re-entering this handler.
-     * It now covers the burger-menu branch too, and is released once the replay
-     * has been dispatched: the exit dialog can leave the manager mounted (the
-     * "keep the remaining pages" answer commits them and stays if any are left),
-     * and both of those were one-way before -- the burger branch re-prompted on
-     * its own replayed click, and every later click skipped the prompt entirely.
-     *
      * @private
      * @param {Event} ev
      */
@@ -1306,7 +1131,6 @@ export class PdfManager extends Component {
         });
     }
     /**
-     * Open the previewer
      * @public
      * @param {String} pageId
      */
@@ -1316,7 +1140,6 @@ export class PdfManager extends Component {
         if (!page) {
             return;
         }
-        // Our own ref, not a document-wide query for a class only we render.
         const ratio = 18 / 13;
         const width = this.pagePreview.el.clientWidth - (30 * window.innerWidth) / 100;
         this.previewCanvas = await this._renderCanvas(toRaw(page), {
@@ -1361,8 +1184,6 @@ export class PdfManager extends Component {
         }
     }
     /**
-     * select clicked page.
-     * If shift key is pressed, trigger the range activation between last clicked page and current page
      * @public
      * @param {String} pageId
      * @param {Boolean} isRangeSelection

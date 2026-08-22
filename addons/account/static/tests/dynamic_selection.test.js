@@ -50,7 +50,6 @@ describe("DynamicSelection available options", () => {
 
         await contains("[name='kind'] .o_select_menu_toggler").click();
 
-        // " second" used to match no selection key, so the option disappeared.
         expect(queryAllTexts(".o_select_menu_item")).toEqual(["First", "Second"]);
     });
 });

@@ -12,13 +12,9 @@ import { registry } from "@web/core/registry";
 describe.current.tags("desktop");
 defineMrpModels();
 
-// formatMinutes is registered as the "mrp_timer" formatter (importing MrpTimer above
-// pulls in @mrp/widgets/timer, which performs the registration).
 const formatMinutes = registry.category("formatters").get("mrp_timer");
 
-// A view that loads `duration_live` alongside the bound field, as the work
-// order list does.
-const LIVE_ARCH = /* xml */ `
+const LIVE_ARCH = `
     <form>
         <field name="state" invisible="1"/>
         <field name="duration_live" invisible="1"/>
@@ -46,9 +42,7 @@ test("mrp_timer shows the live duration from the record, without an RPC", async 
     });
     await start();
     await openFormView("res.fake", fakeId, { arch: LIVE_ARCH });
-    // The running total, taken from the field the read already carried.
     expect(".o_field_mrp_timer").toHaveText("42:30");
-    // One HTTP round trip per row is exactly what this replaced.
     expect.verifySteps([]);
 });
 
@@ -72,10 +66,8 @@ test("mrp_timer falls back to get_duration when the view omits duration_live", a
         return 42.5;
     });
     await start();
-    // The default arch loads neither `state` nor `duration_live`; the shop
-    // floor assembles its own field set the same way.
     await openFormView("res.fake", fakeId, {
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="state" invisible="1"/>
                 <field name="duration" widget="mrp_timer" readonly="1"/>
@@ -87,7 +79,6 @@ test("mrp_timer falls back to get_duration when the view omits duration_live", a
 
 test("formatMinutes renders mm:ss and carries a rounded-up second into the minutes", () => {
     expect(formatMinutes(150.5)).toBe("150:30");
-    // A fractional minute >= 59.5s rounds to 60s and must carry, not render ":60".
     expect(formatMinutes(2.999)).toBe("03:00");
     expect(formatMinutes(0.999)).toBe("01:00");
     expect(formatMinutes(10.0083)).toBe("10:00");
@@ -101,7 +92,6 @@ test("getStateDecorator maps a model+state to a bootstrap contextual class", () 
     expect(getStateDecorator("mrp.workorder", "progress")).toBe("text-bg-info");
     expect(getStateDecorator("stock.picking", "assigned")).toBe("text-bg-info");
     expect(getStateDecorator("purchase.order", "purchase")).toBe("text-bg-info");
-    // Unknown model -> no class; known model + unknown state -> "text-bg-undefined".
     expect(getStateDecorator("no.such.model", "done")).toBe("");
 });
 
@@ -124,11 +114,8 @@ test("MrpTimer ticks while ongoing and cleans up (no leaked timers)", async () =
     }
     await mountWithCleanup(Parent);
     expect(".test-timer").toHaveText("00:00");
-    // Each real second advances the displayed duration by one second (1/60 min).
     await advanceTime(3000);
     expect(".test-timer").toHaveText("00:03");
-    // Teardown destroys the component; the fixed _stopTimers() clears BOTH the tick
-    // and sleep chains, so no orphan timer survives (asserted by hoot's teardown).
 });
 
 test("MrpTimer stays frozen when not ongoing", async () => {

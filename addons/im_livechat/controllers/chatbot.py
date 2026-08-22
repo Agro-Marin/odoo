@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import fields, http
 from odoo.http import request
 from odoo.addons.mail.tools.discuss import add_guest_to_context, Store
@@ -45,7 +43,6 @@ class LivechatChatbotScriptController(http.Controller):
             return None
 
         next_step = False
-        # sudo: chatbot.script.step - visitor can access current step of the script
         if current_step := discuss_channel.sudo().chatbot_current_step_id:
             if (
                 current_step.is_forward_operator
@@ -59,10 +56,9 @@ class LivechatChatbotScriptController(http.Controller):
                 ("model", "=", "discuss.channel"),
                 ("res_id", "=", channel_id),
             ]
-            # sudo: mail.message - accessing last message to process answer is allowed
             user_answer = self.env["mail.message"].sudo().search(domain, order="id desc", limit=1)
             next_step = current_step._process_answer(discuss_channel, user_answer.body)
-        elif chatbot_script_id:  # when restarting, we don't have a "current step" -> set "next" as first step of the script
+        elif chatbot_script_id:
             chatbot = request.env['chatbot.script'].sudo().browse(chatbot_script_id).with_context(lang=chatbot_language)
             if chatbot.exists():
                 next_step = chatbot.script_step_ids[:1]
@@ -70,12 +66,10 @@ class LivechatChatbotScriptController(http.Controller):
         store = Store(bus_channel=partner or guest)
         store.data_id = data_id
         if not next_step:
-            # sudo - discuss.channel: marking the channel as closed as part of the chat bot flow
             discuss_channel.sudo().livechat_end_dt = fields.Datetime.now()
             store.resolve_data_request()
             store.bus_send()
             return None
-        # sudo: discuss.channel - updating current step on the channel is allowed
         discuss_channel.sudo().chatbot_current_step_id = next_step.id
         posted_message = next_step._process_step(discuss_channel)
         store.add(posted_message).add(next_step)
@@ -124,14 +118,12 @@ class LivechatChatbotScriptController(http.Controller):
         if not discuss_channel or not discuss_channel.chatbot_current_step_id:
             return None
 
-        # sudo: chatbot.script - visitor can access chatbot script of their channel
         chatbot = discuss_channel.sudo().chatbot_current_step_id.chatbot_script_id
         domain = [
             ("author_id", "!=", chatbot.operator_partner_id.id),
             ("model", "=", "discuss.channel"),
             ("res_id", "=", channel_id),
         ]
-        # sudo: mail.message - accessing last message to validate email is allowed
         last_user_message = self.env["mail.message"].sudo().search(domain, order="id desc", limit=1)
         result = {}
         if last_user_message:

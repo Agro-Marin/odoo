@@ -86,8 +86,6 @@ export function doesNotHaveLine(options = {}) {
     return [{ ...step, trigger: negate(step.trigger) }];
 }
 
-// TODO: there are instances where we have no selected orderline. Fix those instances
-
 export function hasTotal(amount) {
     return [
         {

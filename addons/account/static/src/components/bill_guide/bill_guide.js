@@ -32,10 +32,6 @@ export class BillGuide extends Component {
                 active_model: rec.resModel,
                 active_ids: [rec.resId],
             };
-            // `alias_email` is the journal's alias address, empty unless the alias
-            // has both a name and a domain. Reading `alias_id` instead gave a
-            // display name -- and indexing it with [1] assumed the pre-19 [id, name]
-            // tuple, so this was permanently undefined and the block never rendered.
             this.alias = rec.data.alias_email || false;
         } else if (!ctx?.default_journal_id && ctx?.active_id) {
             this.context = {

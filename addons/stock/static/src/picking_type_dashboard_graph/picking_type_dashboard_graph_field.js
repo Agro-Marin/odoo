@@ -6,21 +6,8 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { JournalDashboardGraphField } from "@web/fields/specialized/journal_dashboard_graph/journal_dashboard_graph_field";
 
-/**
- * The search filter each bar stands for, by position, for payloads that predate
- * `values[].category`. Positional and therefore fragile, which is why the
- * per-value `category` is preferred wherever the server sends one.
- */
 const BAR_CATEGORIES = ["before", "yesterday", "today", "day_1", "day_2", "after"];
 
-/**
- * Heights for the placeholder bars an all-sample dashboard draws.
- *
- * This was `Math.random()`, which put a generator in a render path: the same
- * card drew a different shape on every reload, and nothing about it could be
- * asserted. Hashing the record and the bar index gives the same visual variety
- * and the same picture twice.
- */
 export function shapeSampleBars(values, seed = 0) {
     values.forEach((value, index) => {
         value.value = ((Math.imul(seed + index + 1, 2654435761) >>> 0) % 9) + 1;
@@ -36,8 +23,6 @@ export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
     renderChart() {
         if (this.chart) {
             this.chart.destroy();
-            // Chart.js tolerates a second destroy, but leaving a destroyed
-            // instance reachable makes `if (this.chart)` mean nothing.
             this.chart = null;
         }
         this.data = this.getGraphData();
@@ -71,7 +56,6 @@ export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
         return this._graphData;
     }
 
-    /** Values, labels and per-bar colours, in one pass over the series. */
     _barSeries() {
         const byType = {
             past: getColor(8),
@@ -91,7 +75,6 @@ export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
         return { data, labels, backgroundColor };
     }
 
-    /** The search filter a clicked bar stands for. */
     _categoryOfBar(columnIndex) {
         return (
             this.data[0].values?.[columnIndex]?.category ?? BAR_CATEGORIES[columnIndex]
@@ -135,7 +118,6 @@ export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
                 plugins: {
                     legend: { display: false },
                     tooltip: {
-                        // Placeholder bars carry no real figure to show.
                         enabled: !this._isAllSample,
                         intersect: false,
                         position: "nearest",

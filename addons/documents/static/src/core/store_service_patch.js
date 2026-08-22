@@ -7,9 +7,6 @@ patch(Store.prototype, {
     hasDocumentsUserGroup: false,
     setup() {
         super.setup();
-        // An own property, not a patch property: a patch property lives on
-        // `Store.prototype`, so every store instance would share one `records`
-        // map and previewed documents would accumulate across stores.
         this.Document = {
             /** @type {Object.<number, import("@documents/core/document_model").Document>} */
             records: {},

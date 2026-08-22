@@ -18,7 +18,6 @@ export class ColorsResetButton extends Component {
 export const colorsResetButton = {
     component: ColorsResetButton,
     extractProps: ({ options }) => ({
-        // Note: `options` should have `default_colors`. It's specified when using the widget.
         default_colors: options.default_colors,
     }),
 };

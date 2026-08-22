@@ -3,12 +3,9 @@ import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";
 import { _t } from "@web/core/translation";
 import { AlertDialog } from "@web/ui/dialog";
 
-const BATCH_SIZE = 500; // Can be adjusted based on performance testing
-const TRANSACTION_TIMEOUT = 5000; // 5 seconds timeout for transactions
+const BATCH_SIZE = 500;
+const TRANSACTION_TIMEOUT = 5000;
 const CONSOLE_COLOR = "#3ba9ff";
-// Reconnect backoff. A reopen that never settles (upgrade blocked by another
-// tab that is never closed) must still be treated as a failure, or the
-// reconnect latch is held forever.
 const RECONNECT_BASE_DELAY = 3000;
 const RECONNECT_MAX_DELAY = 60000;
 const MAX_RECONNECT_ATTEMPTS = 5;
@@ -52,10 +49,6 @@ export default class IndexedDB {
         } else {
             dbInstance = indexedDB.open(this.dbName);
         }
-        // Exactly one of success / failure may act on this open request: a
-        // request declared failed (errored, or blocked past the timeout) may
-        // still fire onsuccess later, by which time a retry owns the
-        // connection.
         let settled = false;
         const openFailed = (reason) => {
             if (settled) {
@@ -75,9 +68,6 @@ export default class IndexedDB {
                 `Error opening IndexedDB: ${err?.message || event.target.errorCode}`,
                 CONSOLE_COLOR,
             );
-            // Known iOS/Safari WebKit bug: the IDB server process was killed
-            // by the OS. No reconnect will succeed — only a page reload
-            // restores the daemon (upstream 00da82dbb99).
             if (err?.message?.includes("Connection to Indexed Database server lost")) {
                 settled = true;
                 clearTimeout(blockedTimeoutId);
@@ -88,9 +78,6 @@ export default class IndexedDB {
             openFailed(err?.message || "open failed");
         };
         dbInstance.onblocked = () => {
-            // A versioned reopen (schema upgrade) is blocked by another tab
-            // holding the database open. Without this handler the open request
-            // waited forever and the whole POS hung on a blank loader.
             logPosMessage(
                 "IndexedDB",
                 "databaseEventListener",
@@ -104,22 +91,12 @@ export default class IndexedDB {
         };
         dbInstance.onsuccess = (event) => {
             if (settled) {
-                // A retry already took over; close this late arrival so it does
-                // not hold the database open and block the live connection's
-                // upgrades.
                 event.target.result.close();
                 return;
             }
             settled = true;
             clearTimeout(blockedTimeoutId);
             this.db = event.target.result;
-            // Yield to schema upgrades initiated by another (newer) tab, so a
-            // versioned reopen there is never blocked by this connection.
-            // Then reconnect: without this the connection stayed null forever
-            // (getNewTransaction's `!this.db` branch neither reconnects nor
-            // warns), so every subsequent read/write silently no-op'd and the
-            // tab traded on with local persistence permanently dead. The
-            // reconnect is deferred so the upgrading tab finishes first.
             this.db.onversionchange = () => {
                 this.db?.close();
                 this.db = null;
@@ -183,8 +160,6 @@ export default class IndexedDB {
             return;
         }
 
-        // Batch processing for large arrays to avoid performance issues
-        // or transaction failures due to large data sets
         const results = [];
         for (let i = 0; i < arrData.length; i += BATCH_SIZE) {
             let timeoutId;
@@ -194,8 +169,6 @@ export default class IndexedDB {
             const transaction = this.getNewTransaction([storeName], "readwrite");
 
             if (!transaction) {
-                // A raw rejected Promise in the results array is never awaited
-                // by any caller — it only produced an unhandledrejection.
                 results.push({
                     status: "rejected",
                     reason: "Transaction could not be created",
@@ -222,13 +195,6 @@ export default class IndexedDB {
                     );
                 };
 
-                // IndexedDB only guarantees durability at COMMIT time, not when
-                // the last request reports success — QuotaExceededError in
-                // particular is raised while committing. Resolving from
-                // request.onsuccess therefore reported batches as written that
-                // then aborted and rolled back, and callers that check the
-                // per-batch status (data_service's data-loss guard) were told a
-                // paid order was durable when it existed nowhere.
                 transaction.oncomplete = () => {
                     doneMethod();
                     resolve();
@@ -240,7 +206,7 @@ export default class IndexedDB {
                     if (!finished) {
                         firstError = new Error("IndexedDB transaction timeout");
                         try {
-                            transaction.abort(); // onabort rejects
+                            transaction.abort();
                         } catch (e) {
                             logPosMessage(
                                 "IndexedDB",
@@ -273,21 +239,13 @@ export default class IndexedDB {
                                 `Error processing ${method} for ${storeName}: ${event.target?.error}`,
                                 CONSOLE_COLOR,
                             );
-                            // Make a failed batch all-or-nothing. Rejecting
-                            // without aborting let the records that already
-                            // succeeded commit anyway, so a partial write was
-                            // reported to the caller as a total failure.
                             try {
-                                transaction.abort(); // onabort rejects
+                                transaction.abort();
                             } catch {
-                                fail(firstError); // transaction already finishing
+                                fail(firstError);
                             }
                         };
                     } catch {
-                        // Skip the unserializable item rather than abort: the
-                        // transaction still commits the rest of the batch, and
-                        // no counter has to be kept in sync now that resolution
-                        // comes from the commit itself.
                         logPosMessage(
                             "IndexedDB",
                             method,
@@ -324,8 +282,6 @@ export default class IndexedDB {
                 CONSOLE_COLOR,
             );
             if (e.name === "InvalidStateError") {
-                // The connection silently died (iOS backgrounding): drop it
-                // and try to reconnect.
                 this.db = null;
                 this._attemptReconnect();
             }
@@ -346,10 +302,6 @@ export default class IndexedDB {
             }
             this.db = null;
         }
-        // Reopen at whatever version is on disk: a previous self-upgrade pinned
-        // this.dbVersion, and reopening at that now-stale version after another
-        // tab upgraded further raises VersionError — a dead end that used to
-        // leave the latch set and local persistence permanently dead.
         this.dbVersion = false;
 
         const delay = Math.min(
@@ -360,15 +312,9 @@ export default class IndexedDB {
         setTimeout(() => this.databaseEventListener(), delay);
     }
 
-    /**
-     * A reopen attempt failed. The latch MUST be released here: clearing it
-     * only on success meant one failed reopen poisoned it forever, and every
-     * later _attemptReconnect() returned immediately while the POS traded on
-     * with zero local persistence.
-     */
     _openFailed(reason) {
         if (!this._isReconnecting) {
-            return; // initial open, not a reconnect: nothing to release
+            return;
         }
         this._isReconnecting = false;
 
@@ -379,12 +325,10 @@ export default class IndexedDB {
                 `Giving up reconnecting to IndexedDB after ${this._reconnectAttempts} attempts (${reason})`,
                 CONSOLE_COLOR,
             );
-            // Out of retries and no local persistence left — the user must know
-            // rather than keep trading against a dead database.
             this._showReloadDialog();
             return;
         }
-        this._attemptReconnect(); // backs off, so this cannot hot-loop
+        this._attemptReconnect();
     }
 
     _setupVisibilityProbe() {
@@ -392,8 +336,6 @@ export default class IndexedDB {
             return;
         }
         this._visibilityProbeAttached = true;
-        // iOS/Safari can kill the IDB server while the tab is backgrounded:
-        // probe the connection when the tab becomes visible again.
         document.addEventListener("visibilitychange", () => {
             if (document.visibilityState !== "visible" || !this.db) {
                 return;
@@ -493,11 +435,6 @@ export default class IndexedDB {
         const transaction = this.getNewTransaction(storeNames, "readonly");
 
         if (!transaction) {
-            // NB: the synchronous 5x retry that used to sit here was a no-op
-            // (nothing changes between two synchronous attempts), and
-            // `new Promise((reject) => reject(false))` actually RESOLVED with
-            // false — callers survived by accident. Keep that contract
-            // explicitly.
             return Promise.resolve(false);
         }
 

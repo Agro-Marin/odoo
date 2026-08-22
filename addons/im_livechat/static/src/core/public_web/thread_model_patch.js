@@ -27,9 +27,6 @@ patch(Thread.prototype, {
                 }
                 if (this.wasLookingForHelp) {
                     this.wasLookingForHelp = false;
-                    // Still the active thread; keep it pinned after leaving "need help" status.
-                    // The agent may interact with the thread, keeping it pinned, or it will be
-                    // unpinned on the next thread switch to avoid bloating the sidebar.
                     this.unpinOnThreadSwitch = this.eq(this.store.discuss?.thread);
                 }
             },

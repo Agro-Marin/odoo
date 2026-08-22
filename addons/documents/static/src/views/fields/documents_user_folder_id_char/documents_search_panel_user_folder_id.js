@@ -7,10 +7,6 @@ import { DocumentsSearchPanel } from "@documents/views/search/documents_search_p
 
 import { Component, onWillStart, useRef, useState } from "@odoo/owl";
 
-/**
- * This class is used to merge the required parts of the search model and search panel
- * to allow selecting a folder in a tree-like view.
- */
 export class DocumentsSearchPanelUserFolderId extends Component {
     static excludedValues = ["RECENT", "TRASH"];
     static template = "documents.SearchPanelUserFolderId";
@@ -27,7 +23,6 @@ export class DocumentsSearchPanelUserFolderId extends Component {
         this.orm = useService("orm");
         const activeValueId = toFolderValueId(this.props.value);
         this.state = useState({
-            // 1 is section/category Id as there is only one, but we use a template that needs this.
             active: { 1: activeValueId },
             expanded: { 1: {} },
         });
@@ -91,12 +86,6 @@ export class DocumentsSearchPanelUserFolderId extends Component {
     }
 
     /**
-     * `aria-expanded` for a category row, or false to leave the attribute off a
-     * leaf. This component reuses `web.SearchPanel.Category` through
-     * `documents.SearchPanel.Category` but is a plain Component rather than a
-     * SearchPanel subclass, so the accessor the template gained has to be
-     * provided here too -- without it the whole folder picker fails to render.
-     *
      * @param {Object} category
      * @param {Object} value
      * @returns {string|false}
@@ -120,11 +109,9 @@ export class DocumentsSearchPanelUserFolderId extends Component {
     }
 
     /**
-     * Extend Search Panel's method to filter folders on search query
-     *
-     * @param { Object[] } values Fetched values from search_panel_select_range
-     * @param { String? } query Show folders and parents fuzzy matching `query`
-     * @param { Number } initialValue expand to this id
+     * @param { Object[] } values
+     * @param { String? } query
+     * @param { Number } initialValue
      */
     _createCategoryTree({ values, query, initialValue }) {
         const category = this.category;
@@ -164,7 +151,6 @@ export class DocumentsSearchPanelUserFolderId extends Component {
 
             const relevantIds = new Set(matchingIds);
 
-            // Identify and expand results ancestors
             for (const id of matchingIds) {
                 let current = newCategoryValues.get(id);
                 while (current?.parentId && newCategoryValues.has(current.parentId)) {
@@ -175,7 +161,6 @@ export class DocumentsSearchPanelUserFolderId extends Component {
                 }
             }
 
-            // Add descendants
             const collectDescendants = (id) => {
                 const node = newCategoryValues.get(id);
                 if (!node) {
@@ -192,7 +177,6 @@ export class DocumentsSearchPanelUserFolderId extends Component {
                 collectDescendants(id);
             }
 
-            // Always show available roots in "My Drive", "Company"
             for (const [id, node] of newCategoryValues.entries()) {
                 if (!node.parentId) {
                     relevantIds.add(id);
@@ -200,13 +184,11 @@ export class DocumentsSearchPanelUserFolderId extends Component {
             }
             idsToInclude = relevantIds;
         } else {
-            // No query, include everything, expand roots
             for (const [id, node] of newCategoryValues.entries()) {
                 if (!node.parentId) {
                     newExpanded[id] = true;
                 }
             }
-            // expand ancestors if there is an initial value
             const ancestors = this.getFolderAndParents(newCategoryValues, initialValue);
             for (const folder of ancestors) {
                 if (!newExpanded[folder.id]) {
@@ -219,7 +201,6 @@ export class DocumentsSearchPanelUserFolderId extends Component {
 
         this._setCategoryValues(category, idsToInclude, newCategoryValues);
 
-        // collect rootIds
         category.rootIds = [false];
         for (const [id, node] of category.values.entries()) {
             if (!node.parentId || !category.values.has(node.parentId)) {
@@ -237,7 +218,7 @@ export class DocumentsSearchPanelUserFolderId extends Component {
         for (const id of idsToInclude) {
             if (categoryMap.has(id)) {
                 const node = Object.assign({}, categoryMap.get(id), {
-                    childrenIds: [], // to be rebuilt below
+                    childrenIds: [],
                 });
                 category.values.set(id, node);
             }

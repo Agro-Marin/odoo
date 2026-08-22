@@ -4,9 +4,6 @@ import { patch } from "@web/core/utils/patch";
 
 patch(DomainSelector.prototype, {
     /**
-     * Hides the 'Include Archived' checkbox from the domain selector for 'documents' model
-     * since it is no longer relevant.
-     *
      * @override
      */
     getShowArchivedCheckBox(_, props) {

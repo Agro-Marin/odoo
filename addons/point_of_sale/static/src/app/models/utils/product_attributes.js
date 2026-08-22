@@ -1,14 +1,6 @@
 /** @odoo-module native */
 
-// Product-template-attribute exclusion logic extracted from PosStore. Pure
-// functions of the store; PosStore keeps thin delegating methods so patchers and
-// the product configurator (which reads `pos.doHaveConflictWith`) are unaffected.
-// The exclusion map itself stays on the store as `pos.productAttributesExclusion`.
-
 export function computeProductAttributesExclusion(pos, excl = false) {
-    // A full recompute (no incremental `excl` payload) starts fresh:
-    // accumulating onto the existing map kept exclusions deleted in the
-    // backend blocking valid combinations until reload.
     const exclusions = excl ? pos.productAttributesExclusion || new Map() : new Map();
 
     const addExclusion = (key, value) => {

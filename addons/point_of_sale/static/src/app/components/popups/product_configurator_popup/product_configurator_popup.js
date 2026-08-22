@@ -136,11 +136,6 @@ export class ProductConfiguratorPopup extends Component {
     }
 
     get product() {
-        // Undefined (not null) when there is no matching variant: the
-        // ProductInfoBanner `product` prop is an OPTIONAL Object, which accepts
-        // an absent (undefined) value but rejects null — a storable product with
-        // no variants (this getter's default) crashed the configurator on the
-        // props check. `find()` below already yields undefined on no match.
         let product;
         const hasVariants = this.attributes.some(
             (line) => line.attribute_id.create_variant !== "no_variant",
@@ -244,10 +239,6 @@ export class ProductConfiguratorPopup extends Component {
             attribute_value_ids: this.selectedValues.map((val) => val.id),
             attribute_custom_values: Object.values(this.state.attributes)
                 .filter((attribute) => attribute.selected.is_custom)
-                // A plain object as accumulator, like the combo configurator
-                // builds: the id-keyed Array was sparse (length = max PTAV id)
-                // and only avoided exploding over RPC because every consumer
-                // happens to use Object.entries.
                 .reduce((acc, { selected, custom_value }) => {
                     acc[selected.id] = custom_value;
                     return acc;

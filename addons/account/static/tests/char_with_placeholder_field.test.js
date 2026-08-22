@@ -29,7 +29,7 @@ class Account extends models.Model {
     ];
 
     _views = {
-        list: /* xml */ `
+        list: `
             <list editable="top" create="1" delete="1">
                 <field name="placeholder_code" column_invisible="1" />
                 <field name="code" widget="char_with_placeholder_field" options="{'placeholder_field': 'placeholder_code'}" />

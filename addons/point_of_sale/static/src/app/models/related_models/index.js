@@ -41,23 +41,13 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
     }
     const disabler = new TrapDisabler();
 
-    // A cache for the backlink indexed maps: Map<RelationName, Map<ParentId, Record[]>>
     const backlinkIndexes = new Map();
 
-    /**
-     * A model (e.g. pos.order) points to an instance of this class.
-     */
     class Model {
         constructor(name) {
             this.name = name;
-            // Ensures reactivity by accessing the recordStore directly from the instance
             this[STORE_SYMBOL] = store;
-            this.records = store.getRecordsMap(this.name); // Used by some modules...
-            // Reactive per-backLink-key version counters. The backLink cache
-            // is a plain Map invisible to OWL reactivity; the version is read
-            // through `record.model` (a non-symbol path, so it carries the
-            // caller's reactive binding) on every backLink call, giving
-            // warm-cache reads a subscription that invalidation can bump.
+            this.records = store.getRecordsMap(this.name);
             this.backlinkVersions = {};
         }
 
@@ -112,7 +102,7 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
         }
 
         read(value) {
-            const id = /^\d+$/.test(value) ? parseInt(value) : value; // In case of ID came from an input
+            const id = /^\d+$/.test(value) ? parseInt(value) : value;
             return this[STORE_SYMBOL].getById(this.name, id);
         }
 
@@ -136,7 +126,6 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
             return ids.map((value) => this.read(value)).filter(Boolean);
         }
 
-        // aliases
         getAllBy() {
             return this.readAllBy(...arguments);
         }
@@ -161,7 +150,6 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
             return this.readFirst(...arguments);
         }
 
-        // array prototype
         map(fn) {
             return this.orderedRecords.map(fn);
         }
@@ -216,7 +204,6 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
             });
         }
 
-        // External callbacks
         addEventListener(event, callback) {
             if (!AVAILABLE_EVENT.includes(event)) {
                 throw new Error(`Event '${event}' is not available`);
@@ -240,11 +227,6 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                 return;
             }
 
-            // Iterate a snapshot: a Map iterator is live, so a listener that
-            // (indirectly) registers another listener for the same event —
-            // e.g. a backLink cleanup whose version bump makes a reactive
-            // consumer rebuild the index — would be visited within the same
-            // dispatch, looping forever.
             for (const callback of [...callbacks[this.name][event].values()]) {
                 callback(data);
             }
@@ -275,14 +257,6 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                         `'${fieldName}' field is required when creating '${this.name}' record.`,
                     );
                 }
-                // When updating an existing record, a field that is absent
-                // from `vals` means "unchanged" — never "clear". Without this
-                // guard an omitted x2many was turned into `[["clear"]]`, an
-                // omitted many2one into a `_disconnect`, and an omitted SCALAR
-                // was wiped to undefined (`_loadData` wholesale-replaces the
-                // record's raw store with this `rawData`), silently resetting
-                // e.g. a paid order's state on partial payloads. loadData
-                // payloads are merge-patches.
                 if (existingRecord && !(fieldName in vals)) {
                     rawData[fieldName] = existingRecord[RAW_SYMBOL][fieldName];
                     continue;
@@ -295,9 +269,6 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                     const rawValue = isX2Many ? new Set(value) : value;
                     const data = existingRecord?.[field.name];
                     let localIds = [];
-                    // `database`, not `opts.databaseTable`: the latter is
-                    // optional (line 28 falls back to {}), so dereferencing it
-                    // live threw a TypeError for any caller that omitted it.
                     if (isX2Many && existingRecord && database[field.relation]?.key) {
                         localIds =
                             data
@@ -323,14 +294,8 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                         }
 
                         if (isX2Many) {
-                            rawData[field.name] = new Set(); //Default value
+                            rawData[field.name] = new Set();
                         } else if (existingRecord) {
-                            // Preserve the previous many2one id through the
-                            // wholesale RAW_SYMBOL replacement so _connect can
-                            // read prevConnectedRecordId and clean the OLD
-                            // parent's inverse when a snapshot reparents this
-                            // record. Without it the old parent keeps a stale
-                            // o2m entry (record listed under two parents).
                             rawData[field.name] =
                                 existingRecord[RAW_SYMBOL][field.name];
                         }
@@ -349,7 +314,6 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                         : value;
                 }
             }
-            //Add other backend fields
             const fieldNames = new Set(fieldKeys);
             let uiState;
             let extraFields;
@@ -393,7 +357,6 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                 createExtraField(record, extraFields, serverData, vals);
             }
 
-            //The record store is assigned to each instance to enable store detection changes in the lazy getters
             record[STORE_SYMBOL] = this[STORE_SYMBOL];
             record = this[STORE_SYMBOL].add(record);
 
@@ -410,12 +373,8 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
         }
 
         _connectRecords(record, data) {
-            // Connect related records
             this._update(record, data.updateFields, { silent: true });
 
-            // Make sure RAW contains all the ids (some records may not be already loaded)
-            // Must be done after connecting related records to ensure correct disconnection from previous records
-            // and connection to new ones.
             if (data.rawValues) {
                 Object.assign(record[RAW_SYMBOL], data.rawValues);
             }
@@ -425,12 +384,6 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
             const ownFields = getFields(this.name);
             const aggregatedUpdates = new AggregatedUpdates();
 
-            // Re-indexing must operate on the OLD raw values: the record is
-            // removed from the store indexes BEFORE the mutation and re-added
-            // after. Removing after the mutation walked the NEW values —
-            // deleting the new key (evicting another record that legitimately
-            // owned it, e.g. a shared barcode) while the old key stayed
-            // pointing at this record forever.
             const reIndexRecord = Object.keys(vals).some(
                 (name) =>
                     name !== "id" &&
@@ -445,7 +398,6 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
             try {
                 for (const name in vals) {
                     if (name === "id" || (name === "uuid" && ownFields[name])) {
-                        // id can be only updated using loadData
                         continue;
                     }
 
@@ -588,13 +540,6 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                     }
                 }
             } finally {
-                // ALWAYS re-add: five `throw` sites sit between the
-                // remove above and this re-add (unknown field, bad
-                // relation command, a nested coModel.create…). Without
-                // finally, a throw mid-update left the record removed
-                // from every store index while other records still
-                // referenced it by id — it vanished from getAll()/getBy()
-                // and the owning relation silently resolved to undefined.
                 if (reIndexRecord) {
                     this[STORE_SYMBOL].add(record);
                 }
@@ -630,16 +575,6 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                 if (X2MANY_TYPES.has(field.type)) {
                     const records = record[name];
                     if (records) {
-                        // No handleCommand here: an x2many field records the
-                        // unlink on the CHILD's side, via the many2one branch
-                        // below when that child is itself deleted. Calling it
-                        // here passed the parent instead of the child, so it
-                        // wrote {id: <parent id>, parentId: undefined} once per
-                        // child, under the child model's m2o field name. Those
-                        // entries can never match serialization's
-                        // `parentId === record.id` test, so they were neither
-                        // emitted nor cleared and simply accumulated for the
-                        // lifetime of the session.
                         for (const record2 of [...records]) {
                             models._disconnect(
                                 field,
@@ -679,12 +614,6 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                 return undefined;
             }
             const backLinkKey = this.name + field.name;
-            // Subscribe on EVERY call (warm or cold): without this, only the
-            // caller that built the index tracked anything reactive — every
-            // other lazy getter / render composing backLink() read the warm
-            // cache with zero subscriptions and went permanently stale.
-            // `this` is reached through `record.model`, so it carries the
-            // caller's reactive binding (symbol-keyed paths do not).
             void this.backlinkVersions[backLinkKey];
 
             let index = backlinkIndexes.get(backLinkKey);
@@ -701,8 +630,6 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                 );
                 backlinkIndexes.set(backLinkKey, index);
 
-                // Listeners live as long as the index does: it is now kept in
-                // sync instead of being thrown away and rebuilt.
                 record.model.addEventListener("delete", (data) =>
                     index.onParentDeleted(data.id),
                 );
@@ -726,9 +653,6 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
         }
         serializeForIndexedDB(record) {
             const serialized = { ...record.raw };
-            // Persist the dirty marker so unsynced edits survive a reload
-            // (setup() restores it; serializeForORM never sends it — it only
-            // iterates declared python fields).
             serialized.__dirty = !!record._dirty;
             const state = record.serializeState();
             if (state) {
@@ -752,12 +676,9 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
         }
 
         /**
-         * Loads already-connected data (no relationships to compute), typically
-         * the initial dataset from the backend.
-         *
-         * @param {Object} data - The dataset to load.
-         * @param {Array<string>} [modelsToLoad=[]] - The names of the models to be loaded.
-         * @returns {Array<Base>} - The list of loaded records.
+         * @param {Object} data
+         * @param {Array<string>} [modelsToLoad=[]]
+         * @returns {Array<Base>}
          */
         loadConnectedData(data, modelsToLoad = []) {
             return disabler.call(
@@ -767,41 +688,23 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                 {
                     connectRecords: false,
                     serverData: true,
-                    // Trusted local path (an order's own sync echo, IndexedDB
-                    // restore): a line deleted locally while its unlink command
-                    // is still pending must not be resurrected by the echo.
                     preserveLocalDeletions: true,
                 },
             );
         }
 
         /**
-         * Loads not-fully-connected data, recomputing relationships against
-         * already-loaded records to keep them consistent.
-         *
-         * @param {Object} data - The dataset to load.
-         * @param {boolean} [serverData=true] - If true, data not declared as a model field is stored as raw.
-         *                                      If false, such data is ignored.
-         * @returns {Array<Base>} - The list of loaded records.
+         * @param {Object} data
+         * @param {boolean} [serverData=true]
+         * @returns {Array<Base>}
          */
         connectNewData(data, serverData = true) {
-            // Snapshot ingestion from other devices / the server
-            // (devices_synchronisation.readDataFromServer, loadServerOrders,
-            // callRelated) is SERVER-AUTHORITATIVE by design: shared orders are
-            // edited concurrently across devices, so an incoming snapshot must
-            // override local uncommitted edits (see the
-            // "Data from other devices overrides local data" restaurant test).
-            // The narrow case of an edit made during an order's OWN sync RPC is
-            // preserved separately on the echo path (see PosStore._syncAllOrders).
             return disabler.call((...args) => this._loadData(...args), data, [], {
                 connectRecords: true,
                 serverData: serverData,
             });
         }
 
-        // True when `id` (a server id of `modelName`) is referenced by a
-        // pending unlink/delete command — i.e. it was deleted locally and the
-        // deletion has not been acknowledged by the server yet.
         _isPendingDeletion(modelName, key, id) {
             for (const parentModel in commands) {
                 const parentFields = getFields(parentModel);
@@ -822,11 +725,6 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
 
         _loadData(rawData, modelsToLoad = [], opts = {}) {
             this._loadingData = true;
-            // Phase-2 update/create events are deferred until _loadingData is
-            // reset: listeners commonly react by mutating records (e.g.
-            // setPricelist on a new pricelist item), and _markDirty is a no-op
-            // while the flag is up — their changes were silently never marked
-            // dirty, so the next sync skipped them.
             const deferredEvents = [];
             try {
                 const results = {};
@@ -855,13 +753,6 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                             !existingRecord &&
                             dynamicModels.includes(model)
                         ) {
-                            // Echo/restore path only: a record deleted locally
-                            // (pending unlink/delete command) must not be
-                            // resurrected by the order's own sync echo (the
-                            // line was serialized before the mid-flight
-                            // deletion). Device-sync snapshots (connectNewData)
-                            // are server-authoritative and deliberately do not
-                            // set this flag.
                             if (
                                 this._isPendingDeletion(model, vals[modelKey], vals.id)
                             ) {
@@ -879,7 +770,6 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                                 existingRecord,
                             });
 
-                            // Remove olds references (id string -> id number)
                             recordStore.remove(existingRecord);
                             existingRecord[RAW_SYMBOL] = rawData;
                             recordStore.add(existingRecord);
@@ -902,7 +792,6 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                         results[model].push({ record, vals, uiState, isUpdate });
                     }
                 }
-                //  Call setup and restore UI state after all records are loaded / connected
                 const finalResults = {};
                 for (const model in results) {
                     const entries = results[model];
@@ -924,8 +813,6 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                         }
                         resultsArray.push(record);
                     }
-                    // Upstream guard restored: an update-only load must not
-                    // fire a bogus create event with empty ids.
                     if (createdIds.length) {
                         deferredEvents.push([
                             modelEvents,
@@ -949,7 +836,6 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
 
         _connect(field, ownerRecord, recordOrId, aggregatedUpdates) {
             if (!this[STORE_SYMBOL].hasIndex(field.relation, "id")) {
-                // Not supported model
                 return;
             }
             const inverse = inverseMap.get(field);
@@ -1008,7 +894,6 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
 
         _disconnect(field, ownerRecord, recordOrId, aggregatedUpdates) {
             if (!this[STORE_SYMBOL].hasIndex(field.relation, "id")) {
-                // Not supported model
                 return;
             }
 
@@ -1109,10 +994,6 @@ function setupRecord(record, vals, uiState, isUpdate = false) {
     }
 }
 
-/**
- * Wraps values into x2many commands: array values are kept as-is, individual
- * values are grouped into a "set" command, and [] becomes ["clear"].
- */
 function convertToX2ManyCommands(values, strict = false) {
     const commands = [];
     let defaultCommand;

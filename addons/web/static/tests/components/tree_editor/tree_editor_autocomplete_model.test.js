@@ -39,8 +39,6 @@ test("the tag list reads the avatar model from the incoming props, not the outgo
     const parent = await mountWithCleanup(Parent);
     expect(".o_tag img").toHaveCount(1);
 
-    // Both move in one update. `getTags` runs after an await inside
-    // onWillUpdateProps, where `this.props` still holds "res.users".
     parent.state.resModel = "product";
     parent.state.resIds = [37];
     await animationFrame();

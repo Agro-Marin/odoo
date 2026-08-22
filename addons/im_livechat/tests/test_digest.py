@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.addons.digest.tests.common import TestDigestCommon
 from odoo.tools import mute_logger
 from odoo.tests import tagged
@@ -59,5 +56,4 @@ class TestLiveChatDigest(TestDigestCommon):
         }])
 
     def test_kpi_livechat_rating_value(self):
-        # 1/3 of the ratings have 5/5 note (0 are ignored)
         self.assertEqual(round(self.digest_1.kpi_livechat_rating_value, 2), 33.33)

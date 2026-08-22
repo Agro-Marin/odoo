@@ -24,7 +24,6 @@ export class DocumentFileUploader extends Component {
         this.extraContext = this.getExtraContext();
     }
 
-    // To pass extra context while creating record
     getExtraContext() {
         return {};
     }
@@ -35,7 +34,6 @@ export class DocumentFileUploader extends Component {
             mimetype: file.type,
             datas: file.data,
         };
-        // clean the context to ensure the `create` call doesn't fail from unknown `default_*` context
         const cleanContext = Object.fromEntries(
             Object.entries(this.env.searchModel.context).filter(
                 ([key]) => !key.startsWith("default_"),
@@ -47,18 +45,11 @@ export class DocumentFileUploader extends Component {
         this.attachmentIdsToProcess.push(att_id);
     }
 
-    // To define a specific resModel from another model
     getResModel() {
         return this.props.resModel;
     }
 
     /**
-     * Model method that turns the uploaded attachments into a document.
-     *
-     * Overridable so a subclass does not have to reimplement the whole upload
-     * flow — the context cleaning, per-file notifications and markup handling
-     * below are the same wherever the documents come from.
-     *
      * @returns {string}
      */
     getUploadMethod() {
@@ -66,11 +57,6 @@ export class DocumentFileUploader extends Component {
     }
 
     /**
-     * Recordset ids the upload method is bound to, i.e. the `self` it runs on.
-     *
-     * The base uploads against no records; a subclass that creates documents
-     * *from* existing records (purchase orders, say) returns their ids.
-     *
      * @returns {Promise<number[]|string>}
      */
     async getUploadIds() {
@@ -88,7 +74,6 @@ export class DocumentFileUploader extends Component {
                 { context: { ...this.extraContext, ...this.env.searchModel.context } },
             );
         } finally {
-            // ensures attachments are cleared on success as well as on error
             this.attachmentIdsToProcess = [];
         }
         if (!action) {

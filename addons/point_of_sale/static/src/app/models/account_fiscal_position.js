@@ -7,10 +7,6 @@ export class AccountFiscalPosition extends Base {
 
     getTaxesAfterFiscalPosition(taxes) {
         if (!this.tax_ids?.length) {
-            // Mirror Python's account.fiscal.position.map_tax: a position with no
-            // tax mapping keeps only the taxes that are not themselves scoped to a
-            // fiscal position (the tax-units pattern), dropping the scoped ones.
-            // This is a per-tax filter, not an all-or-nothing decision.
             return taxes.filter((tax) => !tax.fiscal_position_ids?.length);
         }
 
@@ -26,11 +22,6 @@ export class AccountFiscalPosition extends Base {
             }
         }
 
-        // Resolve by id (readMany) instead of scanning every tax, and warn
-        // loudly when a mapped destination tax is not loaded in this POS: it
-        // used to vanish silently, under-taxing the line in the frontend
-        // while backend invoicing applied it — a JS/python total mismatch at
-        // invoice time.
         const resolved = this.models["account.tax"].readMany(newTaxIds);
         const missingIdx = resolved.findIndex((tax) => !tax);
         if (missingIdx !== -1) {

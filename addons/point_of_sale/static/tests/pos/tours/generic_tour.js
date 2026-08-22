@@ -6,7 +6,6 @@ import * as ProductScreen from "@point_of_sale/../tests/pos/tours/utils/product_
 import * as ReceiptScreen from "@point_of_sale/../tests/pos/tours/utils/receipt_screen_util";
 import { registry } from "@web/core/registry";
 
-//This tour is meant to be run on all localizations
 registry.category("web_tour.tours").add("generic_localization_tour", {
     steps: () =>
         [

@@ -172,8 +172,6 @@ test("dynamic placeholder properties", async () => {
 });
 
 test("opening a second popover is not blocked by the first", async () => {
-    // Asserted as a non-editor: the allow-list only constrains those, and the
-    // popover no longer spends the RPC on a user it cannot constrain.
     onRpc("has_group", () => false);
     const def = new Deferred();
     let willStarts = 0;
@@ -237,10 +235,6 @@ test("the model reference field is loaded without the view naming it", async () 
 });
 
 test("a datetime is localised in a subject, as it already was in a body", async () => {
-    // The popover has always sent the field type as a third argument; the
-    // char/text path declared two parameters and dropped it, so the same field
-    // rendered as `08/17/2026 09:43 PM` in a body and as
-    // `2026-08-18 03:43:39.788945` in a subject.
     onRpc("mail_get_partner_fields", () => ["product_id"]);
     await mountView({ type: "form", resModel: "partner", resId: 1 });
     await contains(".o_field_char input").edit("#", { confirm: false });
@@ -255,13 +249,6 @@ test("a datetime is localised in a subject, as it already was in a body", async 
 });
 
 test("the timezone lookup is called as the model method it is", async () => {
-    // `mail_get_partner_fields` is `@api.model`, and `call_kw` hands a model
-    // method its arguments straight through rather than peeling an id list off
-    // the front. Sending `[[]]` therefore reached the server as a second
-    // positional and died `takes 1 positional argument but 2 were given`, so
-    // no datetime placeholder ever got a timezone. Every other test of this
-    // path stubs the response and never looks at the request, which is why a
-    // tour was the only thing that could see it.
     const calls = [];
     onRpc("mail_get_partner_fields", ({ args }) => {
         calls.push(args);
@@ -274,8 +261,6 @@ test("the timezone lookup is called as the model method it is", async () => {
     ).click();
     await contains(".o_model_field_selector_popover button:contains('Insert')").click();
     await animationFrame();
-    // One call, with no arguments at all -- not one whose argument happens to
-    // be an empty list.
     expect(calls).toEqual([[]]);
 });
 
@@ -309,9 +294,6 @@ test("fields no placeholder can render are not offered", async () => {
 });
 
 test("a non-editor is offered only what the server will accept", async () => {
-    // The allow-list holds paths; the picker used to test the path and the
-    // server the expression, so a datetime could be offered and then refused
-    // on save. Both sides now judge the expression.
     onRpc("has_group", () => false);
     mockService("allowed_qweb_expressions", () => async () => [
         "object.char",

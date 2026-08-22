@@ -20,7 +20,7 @@ import { getEnrichedSearchArch } from "@documents/../tests/helpers/views/search"
 
 const archWithTags = basicDocumentsKanbanArch.replace(
     '<field name="name"/>',
-    /* xml */ `
+     `
         <field name="name"/>
         <field name="tag_ids" class="d-block text-wrap" widget="many2many_tags" options="{'color_field': 'color'}"/>
         <field name="alias_domain_id"/>
@@ -32,9 +32,7 @@ const archWithTags = basicDocumentsKanbanArch.replace(
 );
 
 /**
- * Shortcut for details panel selector
- * @param selector
- * @return {string} `selector` prefixed with `".o_documents_details_panel "`.
+ * @return {string}
  */
 const dp = (selector) => `.o_documents_details_panel ${selector}`;
 
@@ -122,9 +120,9 @@ test("Details panel rendering for viewers - m2o/m2m values", async () => {
     expect(dp(".o_field_tags input")).toHaveCount(0);
     expect(dp(".o_field_tags span:contains('Colorless')")).toHaveCount(1);
     expect(dp(".o_field_tags span:contains('Colorful')")).toHaveCount(1);
-    expect(dp("div:contains('alias@odoo.com')")).toHaveCount(3); // nested wrappers
-    expect(dp("span:contains('Email')")).toHaveCount(1); // activity type
-    expect(dp("span:contains('No activity assignee')")).toHaveCount(1); // activity type
+    expect(dp("div:contains('alias@odoo.com')")).toHaveCount(3);
+    expect(dp("span:contains('Email')")).toHaveCount(1);
+    expect(dp("span:contains('No activity assignee')")).toHaveCount(1);
 });
 
 test("Details panel rendering for viewers - m2o/m2m pseudo-placeholders", async () => {
@@ -164,7 +162,7 @@ test("Details panel required document name", async () => {
     await mountDocumentsKanbanView({ arch: archWithTags });
     await contains(".o_control_panel_navigation .o_documents_info_toggle").click();
     for (const documentName of [
-        "Folder 1", // Container
+        "Folder 1",
         "Testing folder",
         "Testing file",
     ]) {
@@ -172,7 +170,6 @@ test("Details panel required document name", async () => {
         await animationFrame();
         expect(dp(".o_documents_details_panel_name input")).toHaveCount(1);
         expect(dp(".o_documents_details_panel_name input")).toHaveValue(documentName);
-        // Set empty name
         await contains(".o_documents_details_panel_name input").edit("");
         await animationFrame();
         expect(".o_notification").toHaveCount(1);
@@ -192,7 +189,6 @@ test("Details panel root folder placeholders", async () => {
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsKanbanView({ arch: archWithTags });
     await contains(".o_control_panel_navigation .o_documents_info_toggle").click();
-    // Edit mode
     for (const [documentName, rootPlaceholder] of [
         ["In COMPANY", "Company"],
         ["In MY DRIVE", "My Drive"],
@@ -208,7 +204,6 @@ test("Details panel root folder placeholders", async () => {
             { message: "Document should have correct root folder placeholder (editors)." }
         );
     }
-    // Readonly mode
     await contains(".o_kanban_record:contains('In COMPANY (readonly)')").click();
     await animationFrame();
     expect(dp(".o_documents_details_panel_name span")).toHaveCount(1);
@@ -232,7 +227,6 @@ test("Details panel should be updated when clearing a selection", async function
         expect(dp(".o_documents_details_panel_name input")).toHaveCount(1);
         expect(dp(".o_documents_details_panel_name input")).toHaveValue(documentName);
     }
-    // Clearing a selection.
     await contains(".o_unselect_all").click();
     expect(dp(".o_documents_details_panel_name input")).toHaveCount(1);
     expect(dp(".o_documents_details_panel_name input")).toHaveValue("Folder 1");
@@ -270,13 +264,11 @@ test("Details panel changes to folders are immediately saved and visible in the 
         expect("span.o_search_panel_label_title:contains('Folder 1')").toHaveCount(1);
     };
 
-    // From container Record
     await contains(`.o_kanban_record:contains('Folder 1')`).click({ ctrlKey: true });
     await animationFrame();
     await renameTwice("container");
     expect(counter).toBe(2);
 
-    // From KanbanRecord
     await contains(`.o_kanban_record:contains('Folder 1')`).click();
     await animationFrame();
     await renameTwice("kanban record");
@@ -375,13 +367,10 @@ test("Add from document from log a note", async () => {
     await contains(
         ".o_select_create_dialog_content .o_search_panel_label_title:contains('Folder 2')"
     ).click();
-    // As defining a list view interferes with the view behind the modal, we select "File 2" as only child of Folder 2.
     await contains(".o_select_create_dialog_content .o_data_row .o-checkbox input").click();
     await contains(".o_select_create_dialog_content button:contains('Add from Documents')").click();
 
-    // The attachment has been added in the composer.
     expect(".o-mail-Composer .o-mail-Attachment-hoverImageText:contains('File 2')").toHaveCount(1);
-    // But the attachment is not linked to the thread.
     expect(".o-mail-Chatter-topbar .o-mail-Chatter-attachFiles:contains('1')").toHaveCount(0);
     await expect.waitForSteps(["add_documents_attachment"]);
 });
@@ -402,7 +391,6 @@ test("Details panel move to the root removes the document from the current folde
     await contains(`.o_search_panel_label[data-tooltip="Folder 1"] div`).click();
     expect(".o_kanban_record:not(.o_kanban_ghost)").toHaveCount(2);
 
-    // Control case: moving to another (non-root) folder drops the card right away.
     await contains(".o_kanban_record:contains('Moved to Folder 2')").click();
     await animationFrame();
     await contains(dp(".fa-folder + .o_field_many2one input")).click();
@@ -412,9 +400,6 @@ test("Details panel move to the root removes the document from the current folde
     expect(".o_kanban_record:contains('Moved to Folder 2')").toHaveCount(0);
     expect(".o_kanban_record:not(.o_kanban_ghost)").toHaveCount(1);
 
-    // Clearing the field moves the document to the root: `folder_id` becomes the
-    // boolean `false` rather than a m2o object, which used to make the "did the
-    // folder change?" check short-circuit and leave the card behind.
     await contains(".o_kanban_record:contains('Moved to root')").click();
     await animationFrame();
     await contains(dp(".fa-folder + .o_field_many2one input")).edit("", { confirm: "blur" });

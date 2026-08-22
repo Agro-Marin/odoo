@@ -58,9 +58,6 @@ export class DocumentsListController extends DocumentsControllerMixin(ListContro
         return ["company_id"];
     }
 
-    /**
-     * Override this to add view options.
-     */
     documentsViewHelpers() {
         return {
             getSelectedDocumentsElements: () =>

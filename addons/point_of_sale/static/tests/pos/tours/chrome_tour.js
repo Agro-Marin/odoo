@@ -22,12 +22,10 @@ registry.category("web_tour.tours").add("ChromeTour", {
             Dialog.confirm(),
             Chrome.clickMenuButton(),
 
-            // Order 1 is at Product Screen
             ProductScreen.addOrderline("Desk Pad", "1", "2", "2.0"),
             Chrome.clickOrders(),
             TicketScreen.checkStatus("001", "Ongoing"),
 
-            // Order 2 is at Payment Screen
             Chrome.createFloatingOrder(),
             ProductScreen.addOrderline("Monitor Stand", "3", "4", "12.0"),
             ProductScreen.clickPayButton(),
@@ -35,7 +33,6 @@ registry.category("web_tour.tours").add("ChromeTour", {
             Chrome.clickOrders(),
             TicketScreen.checkStatus("002", "Payment"),
 
-            // Order 3 is at Receipt Screen
             Chrome.createFloatingOrder(),
             ProductScreen.addOrderline("Whiteboard Pen", "5", "6", "30.0"),
             ProductScreen.clickPayButton(),
@@ -46,7 +43,6 @@ registry.category("web_tour.tours").add("ChromeTour", {
             Chrome.clickOrders(),
             TicketScreen.checkStatus("003", "Receipt"),
 
-            // Select order 1, should be at Product Screen
             TicketScreen.selectOrder("001"),
             TicketScreen.loadSelectedOrder(),
             ProductScreen.productIsDisplayed("Desk Pad"),
@@ -55,20 +51,17 @@ registry.category("web_tour.tours").add("ChromeTour", {
                 ...ProductScreen.selectedOrderlineHasDirect("Desk Pad", "1", "2.0"),
             ]),
 
-            // Select order 2, should be at Payment Screen
             Chrome.clickOrders(),
             TicketScreen.selectOrder("002"),
             TicketScreen.loadSelectedOrder(),
             PaymentScreen.emptyPaymentlines("12.0"),
             PaymentScreen.validateButtonIsHighlighted(false),
 
-            // Select order 3, should be at Receipt Screen
             Chrome.clickOrders(),
             TicketScreen.selectOrder("003"),
             TicketScreen.loadSelectedOrder(),
             ReceiptScreen.totalAmountContains("30.0"),
 
-            // Pay order 1, with change
             Chrome.clickOrders(),
             TicketScreen.selectOrder("001"),
             TicketScreen.loadSelectedOrder(),
@@ -82,31 +75,23 @@ registry.category("web_tour.tours").add("ChromeTour", {
             PaymentScreen.clickValidate(),
             ReceiptScreen.totalAmountContains("2.0"),
 
-            // Order 1 now should have Receipt status
             Chrome.clickOrders(),
             TicketScreen.checkStatus("001", "Receipt"),
 
-            // Select order 3, should still be at Receipt Screen
-            // and the total amount doesn't change.
             TicketScreen.selectOrder("003"),
             TicketScreen.loadSelectedOrder(),
             ReceiptScreen.totalAmountContains("30.0"),
 
-            // click next screen on order 3
-            // then delete the new empty order
             ReceiptScreen.clickNextOrder(),
             ProductScreen.orderIsEmpty(),
             Chrome.clickOrders(),
             TicketScreen.deleteOrder("004"),
 
-            // After deleting order 1 above, order 2 became
-            // the 1st-row order and it has payment status
             TicketScreen.nthRowContains(1, "Payment"),
             TicketScreen.deleteOrder("002"),
             Dialog.confirm(),
             Chrome.clickRegister(),
 
-            // Invoice an order
             ProductScreen.addOrderline("Whiteboard Pen", "5", "6"),
             ProductScreen.clickPartnerButton(),
             ProductScreen.clickCustomer("Partner Test 1"),
@@ -117,7 +102,6 @@ registry.category("web_tour.tours").add("ChromeTour", {
             ReceiptScreen.isShown(),
             { trigger: ".receipt-screen .pos-config-name:contains(Shop)" },
 
-            // Cancelling a floating order should remove it from the floating orders list.
             ReceiptScreen.clickNextOrder(),
             Chrome.hasFloatingOrder("004"),
         ].flat(),
@@ -133,14 +117,12 @@ registry.category("web_tour.tours").add("OrderModificationAfterValidationError",
             PaymentScreen.clickPaymentMethod("Bank", true, { remaining: "0.0" }),
             PaymentScreen.clickValidate(),
 
-            // Dialog showing the error
             Dialog.confirm(),
 
             PaymentScreen.clickBack(),
             { ...ProductScreen.back(), isActive: ["mobile"] },
             ProductScreen.isShown(),
 
-            // Allow order changes after the error
             ProductScreen.clickDisplayedProduct("Test Product", true, "2"),
         ].flat(),
 });
@@ -311,7 +293,7 @@ registry.category("web_tour.tours").add("test_ctrl_number_ignored", {
                 trigger: "body",
                 run: () =>
                     new Promise((resolve) => {
-                        setTimeout(resolve, 300); // wait 300ms so NumberBuffer timeout runs
+                        setTimeout(resolve, 300);
                     }),
             },
             inLeftSide([

@@ -79,9 +79,6 @@ export class CashMovePopup extends Component {
             sequence_number: 0,
             pos_reference: "",
         });
-        // This throwaway order exists only to render the receipt. Delete it in a
-        // finally so a printer/hardware-proxy error can't leave an orphan draft
-        // order polluting the order tabs and next-order numbering.
         try {
             await this.printer.print(CashMoveReceipt, {
                 reason,
@@ -94,17 +91,10 @@ export class CashMovePopup extends Component {
             this.pos.models["pos.order"].delete(order);
         }
 
-        // Signal a successful move so an awaiting caller (the closing popup's
-        // cashMove flow) resolves truthy and refreshes its figures. Without
-        // this the awaitable resolves undefined — identical to cancel/dismiss —
-        // and the post-move closeSession refresh never runs, leaving stale
-        // expected-cash amounts in the closing popup.
         this.props.getPayload?.(true);
         this.props.close();
         this.notification.add(
             _t("Successfully made a cash %s of %s.", type, formattedAmount),
-            // Second arg is an options object; a bare `3000` was spread into
-            // nothing, so the intended 3s auto-close never applied.
             { autocloseDelay: 3000 },
         );
     }

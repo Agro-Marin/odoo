@@ -10,8 +10,8 @@ import {
 export class LivechatChannel extends models.ServerModel {
     _name = "im_livechat.channel";
 
-    available_operator_ids = fields.Many2many({ relation: "res.users" }); // FIXME: somehow not fetched properly
-    user_ids = fields.Many2many({ relation: "res.users" }); // FIXME: somehow not fetched properly
+    available_operator_ids = fields.Many2many({ relation: "res.users" });
+    user_ids = fields.Many2many({ relation: "res.users" });
 
     /** @param {integer} id */
     action_join(id) {
@@ -102,10 +102,6 @@ export class LivechatChannel extends models.ServerModel {
         };
     }
     /**
-     * Simplified mock implementation: returns
-     * the previous operator if he is still available
-     * or the first available operator.
-     *
      * @param {integer} id
      */
     _get_operator(id, previous_operator_id) {

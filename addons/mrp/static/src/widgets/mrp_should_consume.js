@@ -4,14 +4,6 @@ import { formatFieldFloat } from "@web/core/formatters";
 import { registry } from "@web/core/registry";
 import { FloatField, floatField } from "@web/fields/basic/float/float_field";
 
-/**
- * This widget is used to display alongside the total quantity to consume of a production order,
- * the exact quantity that the worker should consume depending on the BoM. Ex:
- * 2 components to make 1 finished product.
- * The production order is created to make 5 finished product and the quantity producing is set to 3.
- * The widget will be '3.000 / 5.000'.
- */
-
 export class MrpShouldConsumeOwl extends FloatField {
     static template = "mrp.ShouldConsume";
     setup() {

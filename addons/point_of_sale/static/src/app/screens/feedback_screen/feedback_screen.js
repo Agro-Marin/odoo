@@ -47,10 +47,6 @@ export class FeedbackScreen extends Component {
                         this.state.loading = false;
                     }
                     if (result && result.ok === false) {
-                        // The background finalization failed (the order was
-                        // reset to draft): do not show 5 seconds of success
-                        // and wipe the order — bring the cashier back to the
-                        // payment screen to resolve it.
                         this.notification.add(
                             _t("The order could not be validated. Please try again."),
                             { type: "danger" },
@@ -76,7 +72,7 @@ export class FeedbackScreen extends Component {
     }
 
     scaleText() {
-        const containerWidth = this.containerRef.el.offsetWidth * 0.8; // 80% of the container width to have some space on the sides
+        const containerWidth = this.containerRef.el.offsetWidth * 0.8;
         const textWidth = this.amountRef.el.scrollWidth;
 
         const scale = Math.min(1, containerWidth / textWidth);

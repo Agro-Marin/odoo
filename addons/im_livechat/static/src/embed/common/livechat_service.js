@@ -52,8 +52,6 @@ export class LivechatService {
     }
 
     /**
-     * Open a new live chat thread.
-     *
      * @returns {Promise<import("models").Thread|undefined>}
      */
     async open(options = {}) {
@@ -63,9 +61,6 @@ export class LivechatService {
     }
 
     /**
-     * Persist the livechat thread if it is not done yet and swap it with the
-     * temporary thread.
-     *
      * @returns {Promise<import("models").Thread|undefined>}
      */
     async persist(thread) {
@@ -89,19 +84,12 @@ export class LivechatService {
             return;
         }
         savedThread.fetchNewMessages();
-        // Whether this actually re-initialises depends on nobody having done it
-        // already: `Store.initialize()` memoises on `_initializePromise`. In the
-        // embed it is the first call and fetches; under a mounted WebClient it
-        // is a silent no-op. `model.store` logs which.
         livechatLog("service:persist:store-initialize", `thread=${savedThread.id}`);
         this.env.services["mail.store"].initialize();
         savedThread.readyToSwapDeferred.then(async () => {
             if (!savedThread?.exists()) {
                 return;
             }
-            // Do not load unread messaes: new messages were loaded to avoid
-            // flickering, we do not want another load that would result in the
-            // same issue.
             savedThread.scrollUnread = false;
             deleteTemporary();
             savedThread.openChatWindow({ focus: true });
@@ -111,7 +99,7 @@ export class LivechatService {
 
     /**
      * @param {object} param0
-     * @param {boolean} param0.notifyServer Whether to call the `visitor_leave_session` route.
+     * @param {boolean} param0.notifyServer
      */
     async leave(thread) {
         await rpc("/im_livechat/visitor_leave_session", { channel_id: thread.id });

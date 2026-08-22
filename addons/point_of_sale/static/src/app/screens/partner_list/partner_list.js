@@ -83,9 +83,6 @@ export class PartnerList extends Component {
         }
     }
     async onEnter() {
-        // The search input uses a debounce, so state.query may lag behind what
-        // the user typed. Read the live DOM value and sync it before
-        // triggering the server search (upstream 757a5be7661).
         if (this.searchInputRef?.el) {
             this.state.query = this.searchInputRef.el.value;
         }
@@ -134,21 +131,14 @@ export class PartnerList extends Component {
         const isSearchWordNumber = /^[0-9]+$/.test(numberString);
 
         const patternBase = isSearchWordNumber ? numberString : searchWord;
-        // Build a RegExp that mimics SQL ILIKE behavior:
-        // 1) Escape all RegExp metacharacters so user input is treated literally
-        //    (e.g. '.', '+', '[', ']' should not change regex meaning or cause errors)
-        // 2) Replace SQL wildcard '%' with RegExp wildcard '.*'
         const regex = new RegExp(
             patternBase
-                .replace(/[.*+?^${}()|[\]\\]/g, "\\$&") // escape regex special characters
-                .replace(/%/g, ".*"), // convert SQL wildcard to regex wildcard
+                .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+                .replace(/%/g, ".*"),
         );
 
         const availablePartners = searchWord
-            ? // Cap rendered lines during search: with thousands of cached
-              // partners a broad pattern could match them all and mount an
-              // equal number of PartnerLine components, freezing/crashing the
-              // browser. The first 50 matches are enough to pick from.
+            ?
               partners.filter((p) => regex.test(normalize(p.searchString))).slice(0, 50)
             : partners
                   .slice(0, 1000)

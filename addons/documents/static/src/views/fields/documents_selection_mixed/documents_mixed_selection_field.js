@@ -25,12 +25,9 @@ export class DocumentsMixedSelectionField extends SelectionField {
     get options() {
         return super.options.filter(
             ([code, __]) =>
-                // Keep the original value
                 code === this.originalValue ||
-                // Keep only the ${WRITE_VALUE_PREFIX}_xx options except the one for original value
                 (code.startsWith(WRITE_VALUE_PREFIX) &&
                     code !== `${WRITE_VALUE_PREFIX}${this.originalValue}` &&
-                    // Remove ${WRITE_VALUE_PREFIX}_none if excludeNone is set
                     (code !== `${WRITE_VALUE_PREFIX}none` || !this.props.excludeNone))
         );
     }

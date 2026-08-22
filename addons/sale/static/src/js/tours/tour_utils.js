@@ -38,7 +38,7 @@ function addProduct(productName, rowNumber = 1) {
             trigger: `.o_data_row:nth-child(${rowNumber})`,
         },
         {
-            trigger: 'div[name="product_template_id"] input', // TODO VFE o_selected_row
+            trigger: 'div[name="product_template_id"] input',
             run: `edit ${productName}`,
         },
         {
@@ -50,10 +50,9 @@ function addProduct(productName, rowNumber = 1) {
 
 function clickSomewhereElse() {
     return [
-        // TODO find a way for onchange to finish first ?
         {
             content: "click somewhere else to exit cell focus",
-            trigger: "a[name=order_lines]", // click on notebook tab to stop the sol edit mode.
+            trigger: "a[name=order_lines]",
             run: "click",
         },
         {
@@ -64,7 +63,6 @@ function clickSomewhereElse() {
 }
 
 function checkSOLDescriptionContains(productName, text) {
-    // TODO in the future: look directly into the textarea value
     let trigger = ".o_field_product_label_section_and_note_cell";
     if (productName) {
         trigger = `${trigger}:has(:contains("${productName}"), input:value("${productName}"))`;
@@ -83,10 +81,6 @@ function editLineMatching(productName, text) {
 
 function editConfiguration() {
     return {
-        // The edit-configuration pencil renders on the line's product widget
-        // regardless of which product field the list shows. This fork defaults
-        // the variant column (product_id) visible and hides product_template_id,
-        // so match the pencil in either field.
         trigger:
             "[name=product_id] button.fa-pencil, [name=product_template_id] button.fa-pencil",
         run: "click",

@@ -1,13 +1,3 @@
-/**
- * Audit claim 11 — `PurchaseFileUploader.getIds()` returns
- * `this.props.record.data.id` on the form-view branch.
- *
- * `parseServerValues` drops any server key that is not an active field, so
- * `record.data.id` resolves only because the purchase order form arch declares
- * `<field name="id" invisible="1"/>` (views/purchase_order_views.xml:541).
- * Nothing links the two. `record.resId` has no such dependency.
- */
-
 import { expect, test } from "@odoo/hoot";
 import { Component, xml } from "@odoo/owl";
 import {

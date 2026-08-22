@@ -28,12 +28,6 @@ export function makePopover(addFn, component, options) {
     }
     return {
         open(target, props) {
-            // Not awaited, and it does not need to be: the wrapper installed
-            // below clears `removeFn` as its first statement, synchronously,
-            // before `options.onClose` is given a chance to be slow. So the
-            // assignment at the end of this function always wins, whatever the
-            // outgoing popover's `onClose` does afterwards. The two overlays do
-            // coexist for a tick.
             close();
             const newOptions = Object.create(options);
             newOptions.onClose = (/** @type {any} */ removeParams) => {

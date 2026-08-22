@@ -43,14 +43,6 @@ export const frequentEmojiService = {
                 fallback: /** @type {Record<string, number>} */ ({}),
                 validate: isPlainObject,
             }),
-            /**
-             * Bumped on every change to `all`. Consumers that cache a
-             * derivation of it need a cheap "has this moved" answer;
-             * without one, `EmojiPicker` was building a string of every
-             * tracked codepoint and its count on every render to compare
-             * against the last -- O(tracked) work, up to `MAX_TRACKED`, to
-             * answer a question an integer answers.
-             */
             revision: 0,
             /**
              * @param {string} codepoints

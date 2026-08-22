@@ -10,16 +10,10 @@ import { ask } from "./make_awaitable_dialog.js";
 import { logPosMessage } from "./pretty_console_log.js";
 
 /**
- * This class contains all methods related to order validation. Previously,
- * these methods were only used on the payment screen, but now that we have quick
- * order validation, they are used in different places.
- *
- * All behaviors related to order validation must be found in this class.
- *
- * @param {Object} params - The parameters for the order validation.
- * @param {Object} params.pos - The pos_store instance.
- * @param {Object} params.order - The order to validate.
- * @param {Object} [params.fastPaymentMethod=null] - The payment method to use for fast payment validation.
+ * @param {Object} params
+ * @param {Object} params.pos
+ * @param {Object} params.order
+ * @param {Object} [params.fastPaymentMethod=null]
  */
 export default class OrderPaymentValidation {
     constructor({ pos, orderUuid, fastPaymentMethod = null }) {
@@ -32,10 +26,6 @@ export default class OrderPaymentValidation {
         this.payment_methods_from_config = this.pos.config.payment_method_ids
             .slice()
             .sort((a, b) => a.sequence - b.sequence);
-        // The fast payment line is added by validateOrder, not here: adding it
-        // at construction left the order carrying an unconfirmed full-amount
-        // payment line whenever validation bailed on a precondition (and a
-        // second attempt piled on another line).
         this.fastPaymentMethod = vals.fastPaymentMethod || null;
     }
 
@@ -56,9 +46,6 @@ export default class OrderPaymentValidation {
             };
         }
 
-        // NB: a `!this.error` ternary used to sit here — nothing in this class
-        // or any override ever assigned `error`, so the defaultPage arm was
-        // unreachable and only misled subclass authors.
         return {
             page: "ReceiptScreen",
             params: {
@@ -71,16 +58,10 @@ export default class OrderPaymentValidation {
         return this.order.payment_ids;
     }
 
-    /**
-     * Override to run checks after the order has been pushed to the server.
-     */
     async beforePostPushOrderResolve(order, order_server_ids) {
         return true;
     }
 
-    /**
-     * Override to control whether the invoice is downloaded.
-     */
     shouldDownloadInvoice() {
         if (!this.pos.config.canInvoice) {
             return false;
@@ -91,11 +72,6 @@ export default class OrderPaymentValidation {
     async shouldHideValidationBehindFeedbackScreen() {
         const nextPage = this.nextPage;
         if (nextPage.page === "FeedbackScreen") {
-            // The FeedbackScreen inspects the settled value: it must not show
-            // a success screen and auto-advance when the background
-            // finalization actually failed (RPC rejection resets the order to
-            // draft). The promise never rejects — a rejection here used to be
-            // unhandled.
             const waitForFn = async () => {
                 try {
                     const response = await this.finalizeValidation();
@@ -136,8 +112,6 @@ export default class OrderPaymentValidation {
             fastPaymentLine = res?.data || null;
             this.fastPaymentMethod = null;
         }
-        // Roll the fast payment line back on every failed precondition — the
-        // customer never confirmed it.
         const rollbackFastPayment = () => {
             if (fastPaymentLine) {
                 this.order.removePaymentline(fastPaymentLine);
@@ -161,7 +135,6 @@ export default class OrderPaymentValidation {
             this.order.removeOrderline(line);
         }
         if (await this.isOrderValid(isForceValidate)) {
-            // remove pending payments before finalizing the validation
             const toRemove = [];
             for (const line of this.paymentLines) {
                 if (!line.isDone() || line.amount === 0) {
@@ -195,16 +168,9 @@ export default class OrderPaymentValidation {
 
         this.pos.addPendingOrder([this.order.id]);
         this.order.state = "paid";
-        // Guard the just-paid order against tab close/reload until it is
-        // durable in IndexedDB or acknowledged by the server.
         this.pos.data.localUnsyncedPaidOrderUuids.add(this.order.uuid);
 
         try {
-            // 1. Save order to server. Sync exactly this order, forced: with
-            // the sync mutex, a background sync that ran first would leave the
-            // order clean and the un-forced pending-list sync would skip it —
-            // returning undefined and aborting the invoice/post-push steps for
-            // an order that validated fine.
             const syncOrderResult = await this.pos.syncAllOrders({
                 orders: [this.order],
                 throw: true,
@@ -214,8 +180,6 @@ export default class OrderPaymentValidation {
                 return false;
             }
 
-            // 2. Invoice, should not stop the validation process but a dialog is shown if an
-            // error occured.
             if (this.shouldDownloadInvoice() && this.order.isToInvoice()) {
                 if (this.order.raw.account_move) {
                     await this.pos.env.services.account_move.downloadPdf(
@@ -231,7 +195,6 @@ export default class OrderPaymentValidation {
                 }
             }
 
-            // 3. Post process.
             const postPushOrders = syncOrderResult.filter((order) =>
                 order.waitForPushOrder(),
             );
@@ -241,8 +204,6 @@ export default class OrderPaymentValidation {
                 );
             }
 
-            // afterOrderValidation is declared with no parameters — the
-            // argument that used to be passed here was silently dropped.
             return await this.afterOrderValidation();
         } catch (error) {
             return this.handleValidationError(error);
@@ -265,10 +226,6 @@ export default class OrderPaymentValidation {
     }
 
     async afterOrderValidation() {
-        // Always show the next screen regardless of error since pos has to
-        // continue working even offline. Deliberately not awaited, so the
-        // rejection must be handled here — it used to become an unhandled
-        // promise rejection and the kitchen silently never got the ticket.
         if (!this.pos.config.module_pos_restaurant) {
             this.pos
                 .checkPreparationStateAndSentOrderInPreparation(this.order, {
@@ -295,23 +252,13 @@ export default class OrderPaymentValidation {
         }
     }
 
-    /**
-     * Override to prompt or run checks before order validation.
-     */
     async askBeforeValidation() {
         return true;
     }
 
     handleValidationError(error) {
         if (error instanceof ConnectionLostError) {
-            // Bypass the 300ms IndexedDB debounce and persist the paid order
-            // NOW: a reload inside the debounce window would lose an order
-            // that only exists in memory.
             this.pos.data.synchronizeLocalDataInIndexedDB();
-            // Offline: the order is validated locally, so still show its receipt
-            // (returning normally lets the ReceiptScreen navigation proceed;
-            // rejecting here would skip it) and surface the limited-functionality
-            // warning explicitly.
             this.afterOrderValidation();
             showLimitedFunctionalityWarning(this.pos);
             return error;
@@ -372,12 +319,6 @@ export default class OrderPaymentValidation {
             return false;
         }
 
-        // Never validate while a payment terminal transaction is live: the
-        // pending-payment cleanup in validateOrder() deletes any not-done line
-        // *without* a terminal cancel, so the terminal could still capture
-        // funds with no local record of the payment. "pending" (never sent)
-        // and "retry" (failed) lines are safe to clean up; anything else
-        // (waiting, waitingCard, waitingCancel, ...) is in flight.
         const inFlightPayment = this.order.payment_ids.find(
             (p) =>
                 p.isElectronic() &&
@@ -452,12 +393,10 @@ export default class OrderPaymentValidation {
             return false;
         }
 
-        // (`|| this.invoicing` used to sit here — never assigned anywhere.)
         if (!this.order.isPaid()) {
             return false;
         }
 
-        // The exact amount must be paid if there is no cash payment method defined.
         if (
             Math.abs(
                 this.order.priceIncl -
@@ -476,7 +415,6 @@ export default class OrderPaymentValidation {
             }
         }
 
-        // if the change is too large, it's probably an input error, make the user confirm.
         if (
             !isForceValidate &&
             this.order.priceIncl > 0 &&

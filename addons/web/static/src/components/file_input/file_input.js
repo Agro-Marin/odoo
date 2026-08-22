@@ -4,7 +4,6 @@
 import { Component, onMounted, useRef, useState } from "@odoo/owl";
 import { useFileUploader } from "@web/core/utils/files";
 /**
- * @extends Component
  * @param {string} [props.acceptedFileExtensions='*']
  * @param {string} [props.route='/web/binary/upload_attachment']
  * @param {string} [props.resId]

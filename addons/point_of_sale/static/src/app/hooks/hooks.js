@@ -8,14 +8,7 @@ import {
     useState,
 } from "@odoo/owl";
 import { KeepLast } from "@web/core/utils/concurrency";
-// NB: useErrorHandlers/_handlePushOrderError was removed: nothing invoked the
-// handler since the validation flow moved to OrderPaymentValidation +
-// error_handlers.js (and its "Odoo Server Errors" branch dereferenced a
-// traceback string, so it would have thrown if it ever ran).
 
-/**
- * Assumes t-ref="root" in the root element of the component that uses this hook.
- */
 export function useAutoFocusToLast() {
     const root = useRef("root");
     let target = null;
@@ -49,26 +42,13 @@ export function useAsyncLockedMethod(method) {
 }
 
 /**
- * Wrapper for an async function that exposes the status of the function call.
- *
- * Sample use case:
- * ```js
- * {
- *   // inside in a component
- *   this.doPrint = useTrackedAsync(() => this.printReceipt())
- *   this.doPrint.status === 'idle'
- *   this.doPrint.call() // triggers the given async function
- *   this.doPrint.status === 'loading'
- *   ['success', 'error].includes(this.doPrint.status) && this.doPrint.result
- * }
- * ```
  * @param {(...args: any[]) => Promise<any>} asyncFn
- * @param {{ keepLast?: boolean }} [options] - Options for managing concurrency.
+ * @param {{ keepLast?: boolean }} [options]
  */
 export function useTrackedAsync(asyncFn, options = {}) {
     /**
      * @type {{
-     *  status: 'idle' | 'loading' | 'error' | 'success',
+     * status: 'idle' | 'loading' | 'error' | 'success',
      * result: any,
      * lastArgs: any[]
      * }}
@@ -81,10 +61,6 @@ export function useTrackedAsync(asyncFn, options = {}) {
 
     const { keepLast = false } = options;
 
-    // KeepLast only guards the promise returned to the caller — baseMethod
-    // mutates the reactive state when it settles regardless, so a slow stale
-    // call would overwrite the newer call's result. The call token makes the
-    // state writes themselves last-caller-only.
     let lastCallId = 0;
     const baseMethod = async (...args) => {
         const callId = ++lastCallId;

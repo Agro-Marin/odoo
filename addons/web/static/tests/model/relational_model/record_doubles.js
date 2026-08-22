@@ -25,7 +25,7 @@ export { RECORD_CONTRACT_SURFACE };
 /**
  * @param {Record<string, any>} target
  * @param {{ changes?: Record<string, any>, textValues?: Record<string, any>,
- *           initialTextValues?: Record<string, any>, dirty?: boolean }} [seed]
+ * initialTextValues?: Record<string, any>, dirty?: boolean }} [seed]
  * @returns {Record<string, any>}
  */
 export function installEditState(target, seed = {}) {

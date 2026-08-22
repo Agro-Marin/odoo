@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import models
 
 
@@ -7,7 +5,7 @@ class IrWebsocket(models.AbstractModel):
     _inherit = "ir.websocket"
 
     def _build_bus_channel_list(self, channels):
-        channels = list(channels)  # do not alter original list
+        channels = list(channels)
         if any(
             channel == "im_livechat.looking_for_help"
             for channel in channels

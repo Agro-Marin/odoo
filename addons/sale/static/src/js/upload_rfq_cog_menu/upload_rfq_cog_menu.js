@@ -5,11 +5,6 @@ import { exprToBoolean } from "@web/core/utils/format/strings";
 
 const cogMenuRegistry = registry.category("cogMenu");
 
-/**
- * 'Upload Request for Quotation' Menu
- *
- * This menu allows users to import requests for quotation.
- */
 export class QuotationRequestUploader extends DocumentFileUploader {
     static template = "upload_rfq_cog_menu.QuotationRequestUploader";
 

@@ -27,20 +27,16 @@ registry.category("web_tour.tours").add("PaymentScreenTour", {
                 remaining: "41.8",
             }),
             PaymentScreen.validateButtonIsHighlighted(false),
-            // remove the selected paymentline with multiple backspace presses
             PaymentScreen.clickNumpad("⌫ ⌫"),
             PaymentScreen.fillPaymentLineAmountMobile("Cash", "0"),
             PaymentScreen.selectedPaymentlineHas("Cash", "0.00"),
             PaymentScreen.clickPaymentlineDelButton("Cash", "0", true),
             PaymentScreen.emptyPaymentlines("52.8"),
 
-            // Pay with bank, the selected line should have full amount
             PaymentScreen.clickPaymentMethod("Bank", true, { remaining: "0.0" }),
             PaymentScreen.validateButtonIsHighlighted(true),
-            // remove the line using the delete button
             PaymentScreen.clickPaymentlineDelButton("Bank", "52.8"),
 
-            // Use +10 and +50 to increment the amount of the paymentline
             PaymentScreen.clickPaymentMethod("Cash"),
             PaymentScreen.clickNumpad("⌫"),
             PaymentScreen.clickNumpad("+10"),
@@ -57,7 +53,6 @@ registry.category("web_tour.tours").add("PaymentScreenTour", {
             PaymentScreen.validateButtonIsHighlighted(true),
             PaymentScreen.clickPaymentlineDelButton("Cash", "155.0"),
 
-            // Multiple paymentlines
             PaymentScreen.clickPaymentMethod("Cash"),
             PaymentScreen.clickNumpad("1"),
             PaymentScreen.fillPaymentLineAmountMobile("Cash", "1"),
@@ -82,11 +77,9 @@ registry.category("web_tour.tours").add("PaymentScreenTour2", {
             ProductScreen.addOrderline("Letter Tray", "1", "10"),
             ProductScreen.clickPayButton(),
 
-            // check that ship later button is present
             { trigger: ".payment-buttons button:contains('Ship Later')" },
 
             PaymentScreen.enterPaymentLineAmount("Bank", "99"),
-            // trying to put 99 as an amount should throw an error. We thus confirm the dialog.
             Dialog.confirm(),
             PaymentScreen.remainingIs("0.0"),
         ].flat(),
@@ -106,10 +99,6 @@ registry.category("web_tour.tours").add("PaymentScreenRoundingUp", {
                 amount: "2.00",
             }),
             PaymentScreen.clickValidate(),
-            // Validation is async (sync to server, then navigate). Without this
-            // wait the tour clicks "Orders" while the order is still syncing and
-            // the ReceiptScreen navigation that ends validation clobbers the
-            // TicketScreen that was just opened.
             ReceiptScreen.isShown(),
 
             Chrome.clickOrders(),
@@ -124,7 +113,6 @@ registry.category("web_tour.tours").add("PaymentScreenRoundingUp", {
             ]),
             TicketScreen.confirmRefund(),
 
-            // To get negative of existing quantity just send -
             PaymentScreen.isShown(),
             PaymentScreen.totalIs("-1.96"),
             PaymentScreen.clickPaymentMethod("Cash", true, {
@@ -148,8 +136,6 @@ registry.category("web_tour.tours").add("PaymentScreenRoundingDown", {
                 amount: "1.95",
             }),
             PaymentScreen.clickValidate(),
-            // See PaymentScreenRoundingUp: wait for validation to land before
-            // navigating away, otherwise the two navigations race.
             ReceiptScreen.isShown(),
 
             Chrome.clickOrders(),
@@ -164,7 +150,6 @@ registry.category("web_tour.tours").add("PaymentScreenRoundingDown", {
             ]),
             TicketScreen.confirmRefund(),
 
-            // To get negative of existing quantity just send -
             PaymentScreen.isShown(),
             PaymentScreen.totalIs("-1.98"),
             PaymentScreen.clickPaymentMethod("Cash", true, {
@@ -219,10 +204,6 @@ registry.category("web_tour.tours").add("PaymentScreenInvoiceOrder", {
             PaymentScreen.clickPaymentMethod("Bank"),
             PaymentScreen.clickInvoiceButton(),
             PaymentScreen.clickValidate(),
-            // Wait for the receipt, as every other validating tour in this file
-            // does. Ending on the click alone let the tour report success while
-            // `sync_from_ui` was still in flight, so the Python assertions that
-            // follow raced it and found no order.
             ReceiptScreen.isShown(),
         ].flat(),
 });

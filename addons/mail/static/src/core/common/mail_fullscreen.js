@@ -42,9 +42,7 @@ export const fullscreenService = {
             }
         }
         /**
-         * @param component
          * @param {object} [options]
-         * @param [options.props]
          * @param {any} [options.id]
          * @param {boolean} [options.keepBrowserHeader]
          * @param {string} [options.rootId]

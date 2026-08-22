@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from urllib.parse import urlsplit
 
 from markupsafe import Markup
@@ -15,15 +13,9 @@ from odoo.addons.mail.tools.discuss import Store, add_guest_to_context
 
 class LivechatController(http.Controller):
 
-    # Note: the `cors` attribute on many routes is meant to allow the livechat
-    # to be embedded in an external website.
 
     @http.route('/im_livechat/external_lib.<any(css,js):ext>', type='http', auth='public', cors='*')
     def external_lib(self, ext, **kwargs):
-        """ Preserve compatibility with legacy livechat imports. Only
-        serves javascript since the css will be fetched by the shadow
-        DOM of the livechat to avoid conflicts.
-        """
         if ext == 'css':
             raise request.not_found()
         return self.assets_embed(ext, **kwargs)
@@ -38,8 +30,6 @@ class LivechatController(http.Controller):
 
     @http.route('/im_livechat/assets_embed.<any(css, js):ext>', type='http', auth='public', cors='*')
     def assets_embed(self, ext, **kwargs):
-        # If the request comes from a different origin, we must provide the CORS
-        # assets to enable the redirection of routes to the CORS controller.
         bundle = "im_livechat.assets_embed_cors" if self._is_cors_request() else "im_livechat.assets_embed_external"
         if ext not in ('css', 'js'):
             raise request.not_found()
@@ -50,23 +40,8 @@ class LivechatController(http.Controller):
         return stream.get_response()
 
     def _assets_embed_js_response(self, bundle):
-        """Serve the embed as one self-contained ES module.
-
-        Not ``AssetsBundle.js()``: that concatenates the bundle's *legacy*
-        scripts, and every file in an ESM bundle is a native module instead, so
-        it answered with an empty body -- a third-party page embedding the
-        widget loaded nothing at all, silently.  The bundle is declared in
-        ``esm.standalone_bundles`` precisely because the receiving page has no
-        import map to resolve ``@odoo/owl`` against, and
-        ``_get_standalone_bundle`` is what builds that shape.
-        """
         built = request.env["ir.qweb"]._get_standalone_bundle(bundle)
         if not built:
-            # esbuild declined (lock contention, circuit breaker, ...). There is
-            # no raw-file fallback here as there is for the websocket worker:
-            # the embed is a 756-module graph whose relative imports a foreign
-            # page cannot resolve. Answer 503 so the caller retries rather than
-            # caching an empty script forever.
             raise ServiceUnavailable
         url, code = built
         response = request.make_response(
@@ -76,14 +51,12 @@ class LivechatController(http.Controller):
                 ("Cache-Control", "no-cache"),
             ],
         )
-        # The URL's path segment is the content hash -- a build-stable ETag.
         response.set_etag(url.rsplit("/", 2)[-2])
         response.make_conditional(request.httprequest)
         return response
 
     @http.route('/im_livechat/font-awesome', type='http', auth='none', cors="*")
     def fontawesome(self, **kwargs):
-        """Serve FA7 solid webfont for cross-origin livechat embeds."""
         return http.Stream.from_path('web/static/src/libs/fontawesome7/webfonts/fa-solid-900.woff2').get_response()
 
     @http.route('/im_livechat/odoo_ui_icons', type='http', auth='none', cors="*")
@@ -110,7 +83,6 @@ class LivechatController(http.Controller):
         return request.render('im_livechat.loader', {'info': info}, headers=[('Content-Type', 'application/javascript')])
 
     def _process_extra_channel_params(self, **kwargs):
-        # non_persisted_channel_params, persisted_channel_params
         return {}, {}
 
     def _get_guest_name(self):
@@ -152,7 +124,7 @@ class LivechatController(http.Controller):
         non_persisted_channel_params, persisted_channel_params = self._process_extra_channel_params(**kwargs)
 
         if not persisted:
-            channel_id = -1  # only one temporary thread at a time, id does not matter.
+            channel_id = -1
             chatbot_data = None
             if is_chatbot_script:
                 welcome_steps = chatbot_script._get_welcome_steps()
@@ -201,8 +173,6 @@ class LivechatController(http.Controller):
             if guest:
                 store.add_global_values(guest_token=guest.sudo()._format_auth_cookie())
         request.env["res.users"]._init_store_data(store)
-        # Make sure not to send "isLoaded" value on the guest bus, otherwise it
-        # could be overwritten.
         if channel:
              store.add(
                  channel,
@@ -231,7 +201,6 @@ class LivechatController(http.Controller):
             "rating_url": rating.rating_image_url,
             "reason": nl2br("\n" + reason) if reason else "",
         }
-        # sudo: discuss.channel - not necessary for posting, but necessary to update related rating
         channel.sudo().message_post(
             body=body,
             message_type="notification",
@@ -243,30 +212,23 @@ class LivechatController(http.Controller):
     @add_guest_to_context
     def feedback(self, channel_id, rate, reason=None, **kwargs):
         if channel := request.env["discuss.channel"].search([("id", "=", channel_id)]):
-            # limit the creation : only ONE rating per session
             values = {
                 'rating': rate,
                 'consumed': True,
                 'feedback': reason,
                 'is_internal': False,
             }
-            # sudo: rating.rating - visitor can access rating to check if
-            # feedback was already given
             if not channel.sudo().rating_ids:
                 values.update({
                     'res_id': channel.id,
                     'res_model_id': request.env['ir.model']._get_id('discuss.channel'),
                 })
-                # sudo: res.partner - visitor must find the operator to rate
                 if channel.sudo().channel_partner_ids:
                     values['rated_partner_id'] = channel.channel_partner_ids[0].id
-                # if logged in user, set its partner on rating
                 values['partner_id'] = request.env.user.partner_id.id if request.session.uid else False
-                # create the rating
                 rating = request.env['rating.rating'].sudo().create(values)
             else:
                 rating = channel.rating_ids[0]
-                # sudo: rating.rating - guest or portal user can update their livechat rating
                 rating.sudo().write(values)
             self._post_feedback_message(channel, rating, reason)
             return rating.id
@@ -314,9 +276,5 @@ class LivechatController(http.Controller):
     @http.route("/im_livechat/visitor_leave_session", type="jsonrpc", auth="public")
     @add_guest_to_context
     def visitor_leave_session(self, channel_id):
-        """Called when the livechat visitor leaves the conversation.
-        This will clean the chat request and warn the operator that the conversation is over.
-        This allows also to re-send a new chat request to the visitor, as while the visitor is
-        in conversation with an operator, it's not possible to send the visitor a chat request."""
         if channel := request.env["discuss.channel"].search([("id", "=", channel_id)]):
             channel._close_livechat_session()

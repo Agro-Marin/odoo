@@ -42,13 +42,6 @@ class ConnectionManager(BaseLRUCache):
         if connection is None:
             return
 
-        # Stop the background network loop BEFORE the protocol-level disconnect.
-        # paho's loop_start() thread survives disconnect() and reconnects on its
-        # own, so dropping our last reference does not stop it -- it only makes
-        # it unreachable, and it keeps reconnecting under the same client_id
-        # until the broker refuses every connection. Order is safe: after
-        # loop_stop() paho has cleared _thread, so the disconnect below takes the
-        # synchronous loop_write() path and still sends DISCONNECT.
         loop_stop = getattr(connection, "loop_stop", None)
         if callable(loop_stop):
             try:
@@ -79,22 +72,12 @@ _managers_lock = threading.Lock()
 
 
 def get_connection_manager(env, max_connections: int = 1000) -> ConnectionManager:
-    # Process-global and keyed by database, NOT a registry_singleton: this
-    # manager owns connections backed by real OS threads, whose lifetime is the
-    # process. On the registry it leaked one live client per device per rebuild
-    # -- a paho client is wired to bound methods of the recordset that opened it,
-    # so recordset -> env -> registry -> manager -> client is a cycle anchored by
-    # the live thread, the old registry stays reachable and __del__ never runs.
-    # Keying by database keeps the isolation the registry gave; consumers that
-    # need teardown on upgrade call invalidate_all() from their _register_hook.
     dbname = env.cr.dbname
     manager = _managers.get(dbname)
     if manager is not None:
         return manager
 
     with _managers_lock:
-        # Re-check inside the lock: losing the creation race must not discard
-        # the winner's live connections.
         manager = _managers.get(dbname)
         if manager is None:
             manager = ConnectionManager(max_connections=max_connections)

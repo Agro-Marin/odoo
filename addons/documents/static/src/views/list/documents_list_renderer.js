@@ -38,7 +38,6 @@ export class DocumentsListRenderer extends DocumentsRendererMixin(DocumentsSecon
         super.setup();
         this.root = useRef("root");
         const { uploads } = useService("file_upload");
-        // See the kanban renderer: the raw service reactive subscribes nobody.
         this.documentUploads = useState(uploads);
         useCommand(
             _t("Select all"),
@@ -49,10 +48,6 @@ export class DocumentsListRenderer extends DocumentsRendererMixin(DocumentsSecon
                     record.toggleSelection(!allSelected);
                 });
                 const focusedRecord = this.setDefaultFocus();
-                // The focused record may be the container folder (or nothing at
-                // all), which is never rendered as one of our own rows: only
-                // records *inside* the folder carry a data-value-id. Queried on
-                // this renderer's own subtree, as the kanban counterpart does.
                 this.root.el
                     ?.querySelector(
                         `.o_data_row[data-value-id="${focusedRecord?.resId}"] .o_data_cell`
@@ -92,10 +87,6 @@ export class DocumentsListRenderer extends DocumentsRendererMixin(DocumentsSecon
     }
 
     /**
-     * The right panel's focus state is reactive renderer state the row
-     * template renders from; passing it as a prop re-targets it per row, so
-     * a focus change re-renders the rows whose ``focused`` attribute flips.
-     *
      * @override
      */
     getRowProps(record, group, groupId) {
@@ -109,9 +100,6 @@ export class DocumentsListRenderer extends DocumentsRendererMixin(DocumentsSecon
         return { previewStore: this.props.previewStore };
     }
 
-    /**
-     * Called when a keydown event is triggered.
-     */
     onGlobalKeydown(ev) {
         if ((ev.key !== "Enter" && ev.key !== " ") || this.editedRecord) {
             return;
@@ -129,12 +117,6 @@ export class DocumentsListRenderer extends DocumentsRendererMixin(DocumentsSecon
         this.toggleRecordSelection(record);
     }
 
-    /**
-     * Upon clicking on a record, opens the folder/preview the file.
-     * If ctrl or shift key pressed, selects/unselects the record.
-     * If the column is editable, the record is selected and click
-     * without ctrl or shift pressed, edits the column.
-     */
     onCellClicked(record, column, ev) {
         ev.stopPropagation();
         const isIcon = ev.target.closest(".o_field_documents_type_icon");
@@ -160,22 +142,12 @@ export class DocumentsListRenderer extends DocumentsRendererMixin(DocumentsSecon
         return ["name", "tag_ids", "partner_id", "owner_id", "company_id", "folder_id"];
     }
 
-    /**
-     * Called when a click event is triggered.
-     */
     onGlobalClick(ev) {
-        // NB: this intentionally does NOT leave edit mode on a background click.
-        // The documents list keeps an in-progress inline edition open when the
-        // user clicks the renderer background (deselect only), offering an
-        // explicit discard button instead — see the "Required document name"
-        // test. Adding leaveEditMode() here would discard the edit and break that.
-        // We have to check that we are indeed clicking in the list view as on mobile,
-        // the inspector renders above the renderer but it still triggers this event.
         if (ev.target.closest(".o_data_row") || !ev.target.closest(".o_list_renderer")) {
             return;
         }
         if (ev.target.closest(".o_documents_view thead")) {
-            return; // We then have to check that we are not clicking on the header
+            return;
         }
         this.documentService.focusRecord(this.getContainerRecord());
         this.props.list.selection.forEach((el) => el.toggleSelection(false));
@@ -189,7 +161,7 @@ export class DocumentsListRenderer extends DocumentsRendererMixin(DocumentsSecon
     }
 
     /**
-     * @override to update focusedRecord when navigating with arrow keys
+     * @override to
      */
     findFocusFutureCell(cell, cellIsInGroupRow, direction) {
         const futureCell = super.findFocusFutureCell(cell, cellIsInGroupRow, direction);
@@ -204,7 +176,6 @@ export class DocumentsListRenderer extends DocumentsRendererMixin(DocumentsSecon
     }
 
     onCellKeydown(ev) {
-        // Enter is handled by `onGlobalKeydown`, which previews or selects.
         if (getActiveHotkey(ev) === "enter") {
             return;
         }

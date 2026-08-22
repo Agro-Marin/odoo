@@ -3,10 +3,6 @@ import { advanceTime } from "@odoo/hoot-mock";
 import IndexedDB from "@point_of_sale/app/models/utils/indexed_db";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 
-/**
- * Minimal IDBOpenDBRequest stand-in: the test decides when (and how) an open
- * request settles, which is exactly what a real browser will not let us do.
- */
 class FakeOpenRequest {
     constructor(name, version) {
         this.name = name;
@@ -34,8 +30,6 @@ class FakeFactory {
     }
     open(name, version) {
         const request = new FakeOpenRequest(name, version);
-        // The POS console logger opens a database of its own through this same
-        // factory; only the database under test is tracked.
         if (name === this.dbName) {
             this.requests.push(request);
         }
@@ -63,7 +57,6 @@ const makeIndexedDB = ({ dialog = null } = {}) => {
     return { db, factory };
 };
 
-/** Stand-in for IDBTransaction: requests never settle on their own. */
 const fakeTransaction = () => ({
     error: null,
     aborted: false,
@@ -85,14 +78,11 @@ const fakeTransaction = () => ({
 describe("indexed_db", () => {
     test("a failed reopen does not latch _isReconnecting forever", async () => {
         const { db, factory } = makeIndexedDB();
-        // A previous self-upgrade pinned dbVersion; another tab has since
-        // upgraded further, so reopening at that version raises VersionError.
         db.dbVersion = 7;
         db.db = null;
 
         db._attemptReconnect();
         expect(db._isReconnecting).toBe(true);
-        // The reopen must adopt whatever version is on disk now.
         expect(db.dbVersion).toBe(false);
 
         await advanceTime(3000);
@@ -100,9 +90,6 @@ describe("indexed_db", () => {
         expect(factory.last.version).toBe(undefined);
 
         factory.last.fail("VersionError");
-        // The latch is released on failure too, so a later attempt still runs.
-        // Before the fix no further open request was ever issued and the POS
-        // traded on with local persistence permanently dead.
         await advanceTime(6000);
         expect(factory.requests).toHaveLength(3);
     });
@@ -115,8 +102,8 @@ describe("indexed_db", () => {
         expect(factory.requests).toHaveLength(2);
 
         factory.last.block();
-        await advanceTime(10000); // OPEN_BLOCKED_TIMEOUT
-        expect(db._isReconnecting).toBe(true); // already retrying, not wedged
+        await advanceTime(10000);
+        expect(db._isReconnecting).toBe(true);
         await advanceTime(6000);
         expect(factory.requests).toHaveLength(3);
     });
@@ -127,12 +114,11 @@ describe("indexed_db", () => {
         db.db = null;
 
         db._attemptReconnect();
-        // 3s, 6s, 12s, 24s, 48s — bounded backoff, never a hot loop.
         for (const delay of [3000, 6000, 12000, 24000, 48000]) {
             await advanceTime(delay);
             factory.last.fail("VersionError");
         }
-        expect(factory.requests).toHaveLength(6); // initial open + 5 attempts
+        expect(factory.requests).toHaveLength(6);
         expect(added).toHaveLength(1);
         expect(db._isReconnecting).toBe(false);
     });
@@ -157,8 +143,6 @@ describe("indexed_db", () => {
         const promise = db.create("store", [{ id: 1 }, { id: 2 }]);
         expect(transaction.requests).toHaveLength(2);
 
-        // Every request succeeded — but IndexedDB only guarantees durability at
-        // commit, and QuotaExceededError is raised while committing.
         for (const request of transaction.requests) {
             request.onsuccess?.();
         }
@@ -193,8 +177,6 @@ describe("indexed_db", () => {
         transaction.requests[0].onsuccess?.();
         transaction.requests[1].onerror({ target: { error: { name: "DataError" } } });
 
-        // Without the abort the record that already succeeded still committed,
-        // while the caller was told the whole batch failed.
         expect(transaction.aborted).toBe(true);
         transaction.onabort();
 

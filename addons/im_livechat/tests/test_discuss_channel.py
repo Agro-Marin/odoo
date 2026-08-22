@@ -30,7 +30,7 @@ class TestDiscussChannel(TestImLivechatCommon, TestGetOperatorCommon, MailCase):
             "/im_livechat/get_session", {"channel_id": self.livechat_channel.id}
         )
         chat = self.env["discuss.channel"].browse(data["channel_id"])
-        self.assertFalse(chat.chatbot_current_step_id)  # assert there is no chatbot
+        self.assertFalse(chat.chatbot_current_step_id)
         self.assertEqual(chat.livechat_failure, "no_answer")
         chat.with_user(chat.livechat_operator_id.main_user_id).message_post(
             body="I am here to help!",
@@ -55,9 +55,9 @@ class TestDiscussChannel(TestImLivechatCommon, TestGetOperatorCommon, MailCase):
             {"chatbot_script_id": chatbot_script.id, "channel_id": self.livechat_channel.id},
         )
         chat = self.env["discuss.channel"].browse(data["channel_id"])
-        self.assertTrue(chat.chatbot_current_step_id)  # assert there is a chatbot
+        self.assertTrue(chat.chatbot_current_step_id)
         self.assertEqual(chat.livechat_failure, "no_failure")
-        self.livechat_channel.user_ids = False  # remove operators so forwarding will fail
+        self.livechat_channel.user_ids = False
         chat._forward_human_operator(chat.chatbot_current_step_id)
         self.assertEqual(chat.livechat_failure, "no_agent")
         self.livechat_channel.user_ids += bob_operator
@@ -73,7 +73,6 @@ class TestDiscussChannel(TestImLivechatCommon, TestGetOperatorCommon, MailCase):
         self.assertEqual(chat.livechat_failure, "no_failure")
 
     def test_livechat_description_sync_to_internal_user_bus(self):
-        """Test the description of a livechat conversation is sent to the internal user bus."""
         data = self.make_jsonrpc_request(
             "/im_livechat/get_session",
             {"channel_id": self.livechat_channel.id},
@@ -98,7 +97,6 @@ class TestDiscussChannel(TestImLivechatCommon, TestGetOperatorCommon, MailCase):
             channel.description = "Description of the conversation"
 
     def test_livechat_note_sync_to_internal_user_bus(self):
-        """Test that a livechat note is sent to the internal user bus."""
         data = self.make_jsonrpc_request(
             "/im_livechat/get_session",
             {"channel_id": self.livechat_channel.id},
@@ -126,7 +124,6 @@ class TestDiscussChannel(TestImLivechatCommon, TestGetOperatorCommon, MailCase):
             channel.livechat_note = "This is a note for the internal user."
 
     def test_livechat_status_sync_to_internal_user_bus(self):
-        """Test that a livechat status is sent to the internal user bus."""
         data = self.make_jsonrpc_request(
             "/im_livechat/get_session",
             {"channel_id": self.livechat_channel.id},
@@ -151,8 +148,6 @@ class TestDiscussChannel(TestImLivechatCommon, TestGetOperatorCommon, MailCase):
             channel.livechat_status = "waiting"
 
     def test_livechat_status_switch_on_operator_joined_batch(self):
-        """Test that the livechat status switches to 'in_progress' when an operator joins multiple channels in a batch,
-        and ensure re-adding the same member does not change the status."""
         channel_1 = self.env["discuss.channel"].create({
             "name": "Livechat Channel 1",
             "channel_type": "livechat",
@@ -171,14 +166,12 @@ class TestDiscussChannel(TestImLivechatCommon, TestGetOperatorCommon, MailCase):
         self.assertFalse(channel_1.livechat_end_dt)
         self.assertFalse(channel_2.livechat_end_dt)
 
-        # Add the operator to both channels in a batch, which should switch their status to 'in_progress'
         (channel_1 | channel_2).with_user(channel_1.livechat_operator_id.main_user_id).add_members(
             partner_ids=bob_operator.partner_id.ids
         )
         self.assertEqual(channel_1.livechat_status, "in_progress")
         self.assertEqual(channel_2.livechat_status, "in_progress")
 
-        # Re-add the same operator and ensure the status does not change
         channel_1.livechat_status = "need_help"
         self.assertEqual(channel_1.livechat_status, "need_help")
         channel_1.with_user(channel_1.livechat_operator_id.main_user_id).add_members(
@@ -205,7 +198,6 @@ class TestDiscussChannel(TestImLivechatCommon, TestGetOperatorCommon, MailCase):
 
     @users("michel")
     def test_livechat_conversation_history(self):
-        """Test livechat conversation history formatting"""
         def _convert_attachment_to_html(attachment):
             attachment_data = {
                 "id": attachment.id,

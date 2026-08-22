@@ -12,11 +12,7 @@ export class SaleSidebar extends Sidebar {
 
     start() {
         super.start();
-        // Nav Menu ScrollSpy
         this.generateMenu();
-        // After signature, automatically open the popup for payment.
-        // `URLSearchParams` strips a leading "?" itself, so no `.substring(1)` is
-        // needed (and `portal_prepayment.js` parses it the same way).
         const searchParams = new URLSearchParams(window.location.search);
         if (searchParams.get("allow_payment") === "yes") {
             this.el.querySelector("#o_sale_portal_paynow")?.click();

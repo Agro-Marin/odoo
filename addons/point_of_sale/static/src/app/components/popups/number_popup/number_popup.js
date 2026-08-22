@@ -33,8 +33,6 @@ export class NumberPopup extends Component {
         this.numberBuffer = useService("number_buffer");
         this.numberBuffer.use({
             triggerAtInput: ({ buffer }) => (this.state.buffer = buffer),
-            // This popup is itself an overlay: it must keep receiving global
-            // keyboard input while it is open.
             captureWithOverlay: true,
         });
         useHotkey("enter", () => this.confirm());
@@ -49,15 +47,7 @@ export class NumberPopup extends Component {
     }
 
     confirm() {
-        // Flush any key/click still sitting in the number buffer's debounce
-        // window before reading the value. `_bufferEvents` defers handling to a
-        // `setTimeout`, so a confirm that lands in the same task as the last
-        // input (fast click, Enter right after a digit, tours) used to submit
-        // the *previous* buffer — typing "0" then confirming yielded "".
         this.numberBuffer.capture();
-        // The confirm button is disabled when invalid, but the Enter hotkey also
-        // routes here — gate it so both share one validity check and an invalid
-        // buffer can't be submitted via the keyboard.
         if (!this.props.isValid(this.state.buffer)) {
             return;
         }

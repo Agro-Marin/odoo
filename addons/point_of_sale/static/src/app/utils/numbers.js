@@ -59,13 +59,6 @@ export class AbstractNumbers extends Base {
         return this.comp(a, b) === EQ;
     }
 
-    /**
-     * Symmetric rounding.
-     * ```
-     * round(1.23, { precision: 0.1, method: "UP" }) // 1.3
-     * round(-1.23, { precision: 0.1, method: "UP" }) // -1.3
-     * ```
-     */
     round(a) {
         return roundPrecision(a, this.precision, this.method);
     }
@@ -74,12 +67,6 @@ export class AbstractNumbers extends Base {
         return roundPrecision(
             a,
             this.precision,
-            // If negative, invert the rounding method. The plain sign is used
-            // deliberately: isNegative() rounds before comparing, so a small
-            // negative (|a| < half the precision) was classified non-negative
-            // and, with method UP, rounded AWAY from zero — a customer
-            // overpaying by less than half the rounding unit was handed a full
-            // unit of change.
             a < 0 ? invertMethod(this.method) : this.method,
         );
     }

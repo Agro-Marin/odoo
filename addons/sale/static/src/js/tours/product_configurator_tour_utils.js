@@ -82,7 +82,6 @@ function setProductQuantity(productName, quantity) {
 }
 
 function setProductUoM(productName, uomName) {
-    // UoM must be enabled
     return {
         content: `Set the uom of ${productName} to ${uomName}`,
         trigger: `

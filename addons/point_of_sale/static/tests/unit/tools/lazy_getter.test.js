@@ -21,10 +21,6 @@ function unorderedStep(value) {
 }
 
 /**
- * Makes multiple assertions:
- * - Are all items in `vals` in steps?
- * - Are the items in `steps` ordered according to each item in `stepOrders`?
- * Then it clears the `steps`.
  * @param {string[]} expectedSteps
  * @param {Iterable<string[]>} [stepOrders=[]]
  */
@@ -169,7 +165,6 @@ test("each getter should only be called once and only when needed", async () => 
 
     store.a = 1;
 
-    // Getters should only be called after an interface re-render
     verifyUnorderedSteps([]);
     await animationFrame();
     verifyUnorderedSteps(["ab", "abc"]);
@@ -325,11 +320,9 @@ test("dynamically creates a lazy getter", () => {
     expect(reactiveObj.hello).toBe("Hello demo");
     expect(computeCallCount).toBe(1);
 
-    // On the second call, the computed method is not executed again.
     expect(reactiveObj.hello).toBe("Hello demo");
     expect(computeCallCount).toBe(1);
 
-    // Modifying the value will invalidate the computed value
     expect(computeCallCount).toBe(1);
     reactiveObj.name = "World";
     expect(reactiveObj.hello).toBe("Hello World");

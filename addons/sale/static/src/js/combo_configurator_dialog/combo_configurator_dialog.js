@@ -45,9 +45,6 @@ export class ComboConfiguratorDialog extends Component {
         this.dialog = useService("dialog");
         this.env.dialogData.dismiss = !this.props.edit && this.props.discard.bind(this);
         this.state = useState({
-            // Maps combo ids to selected combo items.
-            // Note that selected combo items can be modified (i.e. their `no_variant` PTAVs can be
-            // updated), so this map stores deep copies to avoid modifying the props.
             selectedComboItems: new Map(),
             quantity: this.props.quantity,
             basePrice: this.props.price,
@@ -55,17 +52,9 @@ export class ComboConfiguratorDialog extends Component {
         });
         this._initSelectedComboItems();
         this.getPriceUrl = "/sale/combo_configurator/get_price";
-        // Same reasoning as the product configurator: the quantity buttons can outrun the
-        // price round trip, and without sequencing a stale response overwrites the base
-        // price the total is computed from.
         this._priceRequests = new KeepLast();
         useSubEnv({ currency: { id: this.props.currency_id } });
 
-        // A combo whose items were all filtered out server-side (their products are
-        // archived) has nothing to choose from, so it is neither "included" nor
-        // configurable. Left in `configurableCombos` it renders a heading with no cards
-        // while still counting towards `areAllCombosSelected`, i.e. a dialog the user
-        // can never complete and cannot diagnose.
         this.emptyCombos = this.props.combos.filter((combo) => combo.isEmpty);
         this.unconfigurableCombos = this.props.combos.filter(
             (combo) => !combo.isEmpty && !combo.isConfigurable,
@@ -76,14 +65,10 @@ export class ComboConfiguratorDialog extends Component {
     }
 
     /**
-     * Select the provided combo item, and open the product configurator iff the combo item's
-     * product is configurable.
-     *
-     * @param {Number} comboId The id of the combo to which the combo item belongs.
-     * @param {ProductComboItem} comboItem The combo item to select.
+     * @param {Number} comboId
+     * @param {ProductComboItem} comboItem
      */
     async selectComboItem(comboId, comboItem) {
-        // Use up-to-date selected PTAVs and custom values to populate the product configurator.
         comboItem = this.getSelectedOrProvidedComboItem(comboId, comboItem);
         const product = comboItem.product;
         if (comboItem.is_configurable) {
@@ -96,7 +81,7 @@ export class ComboConfiguratorDialog extends Component {
                 pricelistId: this.props.pricelist_id,
                 currencyId: this.props.currency_id,
                 soDate: this.props.date,
-                edit: true, // Hide the optional products, if any.
+                edit: true,
                 options: {
                     canChangeVariant: false,
                     showQuantity: false,
@@ -121,9 +106,7 @@ export class ComboConfiguratorDialog extends Component {
     }
 
     /**
-     * Sets the quantity of this combo product.
-     *
-     * @param {Number} quantity The new quantity of this combo product.
+     * @param {Number} quantity
      */
     async setQuantity(quantity) {
         if (quantity <= 0) {
@@ -144,15 +127,9 @@ export class ComboConfiguratorDialog extends Component {
     }
 
     /**
-     * Return the selected or provided combo item.
-     *
-     * If the provided combo item was already selected, then it may contain stale data (i.e.
-     * selected PTAVs, custom values), and we should rely on the data in `state.selectedComboItems`
-     * instead. Otherwise, the data in the provided combo item is up-to-date and can be used.
-     *
-     * @param {Number} comboId The id of the combo to which the combo item belongs.
-     * @param {ProductComboItem} comboItem The provided combo item.
-     * @return {ProductComboItem} The selected or provided combo item.
+     * @param {Number} comboId
+     * @param {ProductComboItem} comboItem
+     * @return {ProductComboItem}
      */
     getSelectedOrProvidedComboItem(comboId, comboItem) {
         const selectedComboItem = this.state.selectedComboItems.get(comboId);
@@ -165,9 +142,7 @@ export class ComboConfiguratorDialog extends Component {
     }
 
     /**
-     * Return the total price for all units, formatted using the provided currency.
-     *
-     * @return {String} The formatted total price.
+     * @return {String}
      */
     get formattedTotalPrice() {
         return formatCurrency(
@@ -177,13 +152,9 @@ export class ComboConfiguratorDialog extends Component {
     }
 
     /**
-     * Check whether a combo item has been selected for each combo.
-     *
-     * @return {Boolean} Whether a combo item has been selected for each combo.
+     * @return {Boolean}
      */
     get areAllCombosSelected() {
-        // Count against the combos that can actually be selected: an empty combo offers
-        // no card, so requiring a selection for it would deadlock the dialog.
         return (
             this.state.selectedComboItems.size ===
             this.props.combos.length - this.emptyCombos.length
@@ -193,9 +164,6 @@ export class ComboConfiguratorDialog extends Component {
     async confirm(options) {
         this.state.isLoading = true;
         try {
-            // `save` is typed `Function`, not `() => Promise`: overriding modules are
-            // free to return nothing, and calling `.finally` straight on the result
-            // turned that into a TypeError instead of a save.
             await this.props.save(
                 this._comboProductData,
                 this._selectedComboItems,
@@ -214,9 +182,6 @@ export class ComboConfiguratorDialog extends Component {
         this.props.close();
     }
 
-    /**
-     * Initialize the selected combo item in each combo.
-     */
     _initSelectedComboItems() {
         for (const combo of this.props.combos) {
             const comboItem = combo.selectedComboItem;
@@ -227,14 +192,7 @@ export class ComboConfiguratorDialog extends Component {
     }
 
     /**
-     * Return the total price per unit.
-     *
-     * The total price is the sum of:
-     * - The combo product's price,
-     * - The selected combo items' extra price,
-     * - The selected `no_variant` attributes' extra price.
-     *
-     * @return {Number} The total price.
+     * @return {Number}
      */
     get _comboPrice() {
         const extraPrice = Array.from(this.state.selectedComboItems.values()).reduce(
@@ -245,18 +203,14 @@ export class ComboConfiguratorDialog extends Component {
     }
 
     /**
-     * Return data about the combo product.
-     *
-     * @return {Object} Data about the combo product.
+     * @return {Object}
      */
     get _comboProductData() {
         return { quantity: this.state.quantity };
     }
 
     /**
-     * Return the selected combo items, in the same order as the combos given as props.
-     *
-     * @return {ProductComboItem[]} The sorted selected combo items.
+     * @return {ProductComboItem[]}
      */
     get _selectedComboItems() {
         const sortedItems = new Map(
@@ -270,18 +224,14 @@ export class ComboConfiguratorDialog extends Component {
     }
 
     /**
-     * Hook to append additional RPC params in overriding modules.
-     *
-     * @return {Object} The additional RPC params.
+     * @return {Object}
      */
     _getAdditionalRpcParams() {
         return {};
     }
 
     /**
-     * Hook to append additional props in overriding modules.
-     *
-     * @return {Object} The additional props.
+     * @return {Object}
      */
     _getAdditionalDialogProps() {
         return {};

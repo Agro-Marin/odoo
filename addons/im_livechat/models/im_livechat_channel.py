@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from collections import defaultdict
 from datetime import timedelta
 import random
@@ -12,20 +10,14 @@ from odoo.fields import Domain
 from odoo.addons.bus.websocket import WebsocketConnectionHandler
 from odoo.addons.mail.tools.discuss import Store
 
-BUFFER_TIME = 120  # Time in seconds between two sessions assigned to the same operator. Not enforced if the operator is the best suited.
+BUFFER_TIME = 120
 
 
 class Im_LivechatChannel(models.Model):
-    """ Livechat Channel
-        Define a communication channel, which can be accessed with 'script_external' (script tag to put on
-        external website), 'script_internal' (code to be integrated with odoo website) or via 'web_page' link.
-        It provides rating tools, and access rules for anonymous people.
-    """
-
     _name = 'im_livechat.channel'
     _inherit = ['mixin.rating.parent']
     _description = 'Livechat Channel'
-    _rating_satisfaction_days = 14  # include only last 14 days to compute satisfaction
+    _rating_satisfaction_days = 14
 
     def _default_user_ids(self):
         return [(6, 0, [self.env.uid])]
@@ -36,7 +28,6 @@ class Im_LivechatChannel(models.Model):
     def _default_default_message(self):
         return _('How may I help you?')
 
-    # attribute fields
     name = fields.Char('Channel Name', required=True)
     button_text = fields.Char('Text of the Button', default=_default_button_text, translate=True)
     default_message = fields.Char('Welcome Message', default=_default_default_message,
@@ -59,7 +50,6 @@ class Im_LivechatChannel(models.Model):
     block_assignment_during_call = fields.Boolean("No Chats During Call", help="While on a call, agents will not receive new conversations.")
     review_link = fields.Char("Review Link", help="Visitors who leave a positive review will be redirected to this optional link.")
 
-    # computed fields
     web_page = fields.Char('Web Page', compute='_compute_web_page_link', store=False, readonly=True,
         help="URL to a static page where you client can discuss with the operator of the channel.")
     are_you_inside = fields.Boolean(string='Are you inside the matrix?',
@@ -68,7 +58,6 @@ class Im_LivechatChannel(models.Model):
     script_external = fields.Html('Script (external)', compute='_compute_script_external', store=False, readonly=True, sanitize=False)
     nbr_channel = fields.Integer('Number of conversation', compute='_compute_nbr_channel', store=False, readonly=True)
 
-    # relationnal fields
     user_ids = fields.Many2many('res.users', 'im_livechat_channel_im_user', 'channel_id', 'user_id', string='Agents', default=_default_user_ids)
     channel_ids = fields.One2many('discuss.channel', 'livechat_channel_id', 'Sessions')
     chatbot_script_count = fields.Integer(string='Number of Chatbot', compute='_compute_chatbot_script_count')
@@ -145,17 +134,6 @@ class Im_LivechatChannel(models.Model):
                 )
 
     def _get_available_operators_by_livechat_channel(self, users=None):
-        """Return a dictionary mapping each livechat channel in ``self`` to the users that are
-        available for that livechat channel, according to the user status and the optional
-        limit of concurrent sessions of the livechat channel.
-
-        When ``users`` are provided, each user is attempted to be mapped for each livechat
-        channel. Otherwise, only the users of each respective livechat channel are considered.
-
-        :param users: Optional list of users to consider. Every agent in ``self`` will be
-         considered if omitted.
-
-        """
         counts = {}
         if livechat_channels := self.filtered(lambda c: c.max_sessions_mode == "limited"):
             counts = livechat_channels._get_ongoing_session_count_by_agent_livechat_channel(
@@ -164,13 +142,11 @@ class Im_LivechatChannel(models.Model):
 
         def is_available(user, channel):
             return (
-                #  sudo - res.users: can access agent presence to determine if they are available.
                 user.sudo().presence_ids.status == "online"
                 and (
                     channel.max_sessions_mode == "unlimited"
                     or counts.get((user.partner_id, channel), 0) < channel.max_sessions
                 )
-                # sudo: res.users - it's acceptable to check if the user is in call
                 and (not channel.block_assignment_during_call or not user.sudo().is_in_call)
             )
 
@@ -183,21 +159,10 @@ class Im_LivechatChannel(models.Model):
         return operators_by_livechat_channel
 
     def _get_ongoing_session_count_by_agent_livechat_channel(self, users=None, filter_online=False):
-        """Return a dictionary mapping each ``(user, livechat_channel)`` pair to the number of
-        ongoing livechat sessions.
-
-        :param users: List of users to consider for the session count.
-        :param filter_online: If ``True``, only online agents will be considered.
-        :type filter_online: bool
-        :returns: A dictionary mapping ``(partner_id, livechat_channel_id)`` to the session count.
-        :rtype: dict
-
-        """
         user_domain = Domain(False)
         for channel in self:
             active_users = users if users is not None else channel.user_ids
             if filter_online:
-                # sudo - res.users: can access agent presence to determine if they are available.
                 active_users = active_users.filtered(lambda u: u.sudo().presence_ids.status == "online")
             user_domain |= Domain(
                 [
@@ -244,28 +209,19 @@ class Im_LivechatChannel(models.Model):
         for record in self:
             record.nbr_channel = channel_count.get(record.id, 0)
 
-    # --------------------------
-    # Action Methods
-    # --------------------------
     def action_join(self):
         self.ensure_one()
         if not self.env.user.has_group("im_livechat.im_livechat_group_user"):
             raise AccessError(_("Only Live Chat operators can join Live Chat channels"))
-        # sudo: im_livechat.channel - operators can join channels
         self.sudo().user_ids = [Command.link(self.env.user.id)]
         Store(bus_channel=self.env.user).add(self, ["are_you_inside", "name"]).bus_send()
 
     def action_quit(self):
         self.ensure_one()
-        # sudo: im_livechat.channel - users can leave channels
         self.sudo().user_ids = [Command.unlink(self.env.user.id)]
         Store(bus_channel=self.env.user).add(self.sudo(), ["are_you_inside", "name"]).bus_send()
 
     def action_view_rating(self):
-        """ Action to display the rating relative to the channel, so all rating of the
-            sessions of the current channel
-            :returns : the ir.action 'action_view_rating' with the correct context
-        """
         self.ensure_one()
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "im_livechat.discuss_channel_action_from_livechat_channel"
@@ -288,11 +244,7 @@ class Im_LivechatChannel(models.Model):
             action['domain'] = [('id', 'in', chatbot_script_ids.ids)]
         return action
 
-    # --------------------------
-    # Channel Methods
-    # --------------------------
     def _get_livechat_discuss_channel_vals(self, /, *, chatbot_script=None, agent=None, operator_partner, operator_model, **kwargs):
-        # use the same "now" in the whole function to ensure unpin_dt > last_interest_dt
         now = fields.Datetime.now()
         last_interest_dt = now - timedelta(seconds=1)
         members_to_add = [Command.create(self._get_agent_member_vals(
@@ -365,8 +317,6 @@ class Im_LivechatChannel(models.Model):
         agent = self.env['res.users']
         chatbot_script = self.env['chatbot.script']
         operator_partner = self.env['res.partner']
-        # The operator_model establishes the priority among potential operators (e.g., chatbot_script or ai_agent) for a live chat channel.
-        # It dictates which operator model is selected when multiple are configured.
         operator_model = ''
 
         if chatbot_script_id and chatbot_script_id in self.rule_ids.chatbot_script_id.ids:
@@ -391,36 +341,18 @@ class Im_LivechatChannel(models.Model):
         return {'agent': agent, 'chatbot_script': chatbot_script, 'operator_partner': operator_partner, 'operator_model': operator_model}
 
     def _get_less_active_operator(self, operator_statuses, operators):
-        """ Retrieve the most available operator based on the following criteria:
-        - Lowest number of active chats.
-        - Not in  a call.
-        - If an operator is in a call and has two or more active chats, don't
-          give priority over an operator with more conversations who is not in a
-          call.
-
-        :param operator_statuses: list of dictionaries containing the operator's
-            id, the number of active chats and a boolean indicating if the
-            operator is in a call. The list is ordered by the number of active
-            chats (ascending) and whether the operator is in a call
-            (descending).
-        :param operators: recordset of :class:`ResUsers` operators to choose from.
-        :return: the :class:`ResUsers` record for the chosen operator
-        """
         if not operators:
             return False
 
-        # 1) only consider operators in the list to choose from
         operator_statuses = [
             s for s in operator_statuses if s['partner_id'] in set(operators.partner_id.ids)
         ]
 
-        # 2) try to select an inactive op, i.e. one w/ no active status (no recent chat)
         active_op_partner_ids = {s['partner_id'] for s in operator_statuses}
         candidates = operators.filtered(lambda o: o.partner_id.id not in active_op_partner_ids)
         if candidates:
             return random.choice(candidates)
 
-        # 3) otherwise select least active ops, based on status ordering (count + in_call)
         best_status = operator_statuses[0]
         best_status_op_partner_ids = {
             s['partner_id']
@@ -433,31 +365,7 @@ class Im_LivechatChannel(models.Model):
     def _get_operator(
         self, previous_operator_id=None, lang=None, country_id=None, expertises=None, users=None
     ):
-        """ Return an operator for a livechat. Try to return the previous
-        operator if available. If not, one of the most available operators be
-        returned.
-
-        A livechat is considered 'active' if it has at least one message within
-        the 30 minutes. This method will try to match the given lang, expertises
-        and country_id.
-
-        (Some annoying conversions have to be made on the fly because this model
-        holds 'res.users' as available operators and the discuss_channel model
-        stores the partner_id of the randomly selected operator)
-
-        :param previous_operator_id: partner id of the previous operator with
-            whom the visitor was chatting.
-        :param lang: code of the preferred lang of the visitor.
-        :param country_id: id of the country of the visitor.
-        :param expertises: preferred expertises for filtering operators.
-        :param users: recordset of available users to use as candidates instead
-            of the users of the livechat channel.
-        :return : user
-        :rtype : res.users
-        """
         self.ensure_one()
-        # FIXME: remove inactive call sessions so operators no longer in call are available
-        # sudo: required to use garbage collecting function.
         self.env["discuss.channel.rtc.session"].sudo()._gc_inactive_sessions()
         users = users if users is not None else self.available_operator_ids
         if not users:
@@ -487,7 +395,6 @@ class Im_LivechatChannel(models.Model):
             (list(users.partner_id.ids),),
         )
         operator_statuses = self.env.cr.dictfetchall()
-        # Try to match the previous operator
         if previous_operator_id in users.partner_id.ids:
             previous_operator_status = next(
                 (
@@ -534,8 +441,6 @@ class Im_LivechatChannel(models.Model):
         def same_country(operator):
             return operator.partner_id.country_id.id == country_id
 
-        # List from most important to least important. Order on each line is irrelevant, all
-        # elements of a line must be satisfied together or the next line is checked.
         preferences_list = [
             [same_language, all_expertises],
             [same_language, one_expertise],
@@ -592,11 +497,6 @@ class Im_LivechatChannel(models.Model):
 
 
 class Im_LivechatChannelRule(models.Model):
-    """ Channel Rules
-        Rules defining access to the channel (countries, and url matching). It also provide the 'auto pop'
-        option to open automatically the conversation.
-    """
-
     _name = 'im_livechat.channel.rule'
     _description = 'Livechat Channel Rules'
     _order = 'sequence asc'
@@ -633,17 +533,8 @@ class Im_LivechatChannelRule(models.Model):
         help="Given the order to find a matching rule. If 2 rules are matching for the given url/country, the one with the lowest sequence will be chosen.")
 
     def match_rule(self, channel_id, url, country_id=False):
-        """ determine if a rule of the given channel matches with the given url
-            :param channel_id : the identifier of the channel_id
-            :param url : the url to match with a rule
-            :param country_id : the identifier of the country
-            :returns the rule that matches the given condition. False otherwise.
-            :rtype : im_livechat.channel.rule
-        """
         def _match(rules):
             for rule in rules:
-                # url might not be set because it comes from referer, in that
-                # case match the first rule with no regex_url
                 if not re.search(rule.regex_url or "", url or ""):
                     continue
                 if rule.chatbot_script_id and (
@@ -659,13 +550,11 @@ class Im_LivechatChannelRule(models.Model):
                     continue
                 return rule
             return self.env["im_livechat.channel.rule"]
-        # first, search the country specific rules (the first match is returned)
-        if country_id: # don't include the country in the research if geoIP is not installed
+        if country_id:
             domain = [('country_ids', 'in', [country_id]), ('channel_id', '=', channel_id)]
             rule = _match(self.search(domain))
             if rule:
                 return rule
-        # second, fallback on the rules without country
         domain = [('country_ids', '=', False), ('channel_id', '=', channel_id)]
         return _match(self.search(domain))
 

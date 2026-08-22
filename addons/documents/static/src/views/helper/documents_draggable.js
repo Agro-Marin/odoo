@@ -7,19 +7,12 @@ import { closestScrollableX, closestScrollableY } from "@web/core/utils/dom/scro
 import { toFolderValueId } from "@documents/views/utils";
 
 /**
- * Why `targetFolder` cannot receive a drag of `draggedRecords`, or "" when it
- * can.
- *
- * Pure and exported so the hover feedback and `onDrop` share one answer -- two
- * lists would drift -- and so the rules are testable without a drag, a DOM or a
- * component.
- *
  * @param {Object} params
  * @param {{movableRecordIds: number[], nonMovableRecordIds: number[]}} params.draggedRecords
  * @param {Object|false} params.targetFolder
  * @param {boolean} params.userIsDocumentManager
  * @param {(folder: Object) => Object[]} params.getFolderAndParents
- * @returns {String} translated reason, empty when the drop is allowed
+ * @returns {String}
  */
 export function dropRejectionReason({
     draggedRecords,
@@ -33,9 +26,6 @@ export function dropRejectionReason({
     if (draggedRecords.nonMovableRecordIds.length && targetFolder.id === "TRASH") {
         return _t("There is at least one document you cannot move to trash in your selection.");
     }
-    // Real folders are checked too, not only COMPANY: `documents.document.write`
-    // raises AccessError when the destination is not `edit`, so without this a
-    // read-only folder shows a normal drop badge and fails on release.
     const canWrite =
         targetFolder.id === "COMPANY"
             ? targetFolder.user_permission === "edit" || userIsDocumentManager
@@ -43,8 +33,6 @@ export function dropRejectionReason({
     if (!canWrite) {
         return _t("You don't have the rights to write in this folder.");
     }
-    // Hoisted out of the `some()`: the ancestor chain is a property of the
-    // target, not of each dragged record.
     const ancestorIds = getFolderAndParents(targetFolder).map((folder) => folder.id);
     if (draggedRecords.movableRecordIds.some((id) => ancestorIds.includes(id))) {
         return _t("You cannot move a folder into itself or a children.");
@@ -66,9 +54,6 @@ export const useDraggableDocuments = makeDraggableHook({
         ctx.followCursor = false;
     },
 
-    // NB: per-drag state lives on `ctx` (one object per hook *instance*), never on
-    // `this`: handlers are invoked as `hookParams[name]({...})`, so `this` is the
-    // module-level hook definition, shared by every component using this hook.
     onWillStartDrag({ ctx }) {
         ctx.tempDraggedElements = [];
         ctx.initialPositions = [];
@@ -87,11 +72,9 @@ export const useDraggableDocuments = makeDraggableHook({
         const currentElementId = parseInt(element.dataset.valueId);
         const currentRecord = model.root.records.find((r) => r.data.id === currentElementId);
         if (!currentRecord) {
-            // The dragged record is not on the current page (paginated out / removed).
             return;
         }
 
-        // Reinitialize the selection if drag action is on an unselected document
         if (
             !model.root.selection.length ||
             !model.root.selection.map((r) => r.data.id).includes(currentElementId)
@@ -148,7 +131,6 @@ export const useDraggableDocuments = makeDraggableHook({
             ];
         };
 
-        // Search Panel Event Handlers
         const onSearchPanelFolderPointerOver = (ev) => {
             const targetClasses = ev.target.classList;
             if (
@@ -201,7 +183,6 @@ export const useDraggableDocuments = makeDraggableHook({
             }
         };
 
-        // Target Folders Event Handlers
         const onTargetFolderPointerEnter = (ev) => {
             const targetFolder = model.env.searchModel.getFolderById(
                 toFolderValueId(ev.currentTarget.dataset.valueId)
@@ -260,8 +241,6 @@ export const useDraggableDocuments = makeDraggableHook({
         const { model, ref } = ctx;
 
         if (!ctx.current.dragMessage) {
-            // Drag was never properly initialized (see onDragStart early return),
-            // so draggedRecords is stale/undefined — do not issue any move.
             return;
         }
         if (ctx.isInvalidTarget) {
@@ -298,10 +277,6 @@ export const useDraggableDocuments = makeDraggableHook({
             return;
         }
 
-        // Hover feedback only fires on folder elements, but a drop can land on a
-        // non-folder card/row, on a virtual folder that cannot receive documents,
-        // on a folder the user cannot write to, or on a dragged folder itself.
-        // Re-run the predicate the feedback used rather than a second list.
         if (
             ["RECENT", "SHARED", "TRASH"].includes(targetFolder?.id) ||
             ctx.draggedRecords.all.includes(targetFolder?.id) ||
@@ -318,7 +293,7 @@ export const useDraggableDocuments = makeDraggableHook({
 
         let expectedAccessRightsChanges = false;
         if (
-            !isNaN(targetFolder.id) && // no change for these fields
+            !isNaN(targetFolder.id) &&
             this._getMovableRecords(model).some(
                 (record) =>
                     record.data.access_internal !== targetFolder.access_internal ||
@@ -338,9 +313,6 @@ export const useDraggableDocuments = makeDraggableHook({
             expectedAccessRightsChanges
         );
 
-        // Awaited, in this order: `RelationalModel.load` does not notify, so a
-        // `notify()` racing an un-awaited `load()` renders the pre-move root. Same
-        // sequence as `DocumentsModelMixin._notifyChange`.
         await model.load();
         await model.notify();
         await model.env.searchModel._reloadSearchModel(true);
@@ -384,7 +356,6 @@ export const useDraggableDocuments = makeDraggableHook({
     },
 
     /**
-     * Adapter from the hook's `ctx`/`model` onto {@link dropRejectionReason}.
      * @returns {String}
      */
     _dropRejectionReason(ctx, targetFolder, model) {
@@ -421,8 +392,6 @@ export const useDraggableDocuments = makeDraggableHook({
     _updateDragInfoPosition(ctx, addStyle) {
         const { dragMessage } = ctx.current;
         if (!dragMessage) {
-            // onDragStart bailed out (record paginated out / removed) without
-            // building a drag badge; nothing to position.
             return;
         }
         addStyle(dragMessage, {
@@ -436,9 +405,6 @@ export const useDraggableDocuments = makeDraggableHook({
         if (!dragMessage) {
             return;
         }
-        // Measured once, outside the loop: reading the rect after writing
-        // `clone.style` forces a synchronous layout, so leaving it inside costs N
-        // reflows per animation tick of a multi-selection drag.
         const { width, height } = dragMessage.getBoundingClientRect();
         ctx.tempDraggedElements.forEach((clone, index) => {
             const initialPos = ctx.initialPositions[index];

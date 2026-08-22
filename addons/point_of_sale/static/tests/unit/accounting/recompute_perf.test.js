@@ -7,10 +7,6 @@ import { getFilledOrder, setupPosEnv } from "../utils.js";
 
 definePosModels();
 
-// Instruments the tax engine entry point to count how many full passes an order
-// action costs. `_computeAllPrices` is the real cost centre: it maps every line
-// to a base line and runs the account tax helpers. Prices are computed lazily on
-// read, so a realistic count spans "mutate, then read the displayed prices".
 function countComputes() {
     const counter = { n: 0 };
     patchWithCleanup(PosOrderAccounting.prototype, {
@@ -30,16 +26,12 @@ test("no-discount order: one recompute, no redundant no-discount pass", async ()
 
     counter.n = 0;
     order.lines[0].qty = 10;
-    // Reading the memoized prices is what triggers the (single) recompute.
     const details = order.prices.taxDetails;
     void order.unitPrices;
     void order.lines[0].prices;
 
-    // original + unit datasets, one tax pass each (no-discount skips the second)
-    // => 2 total. Extra reads do not recompute.
     expect(counter.n).toBe(2);
 
-    // Fresh: the new quantity is reflected, not a stale cached total.
     expect(order.lines[0].qty).toBe(10);
     expect(details.total_amount).toBeGreaterThan(before);
 
@@ -59,7 +51,6 @@ test("discounted order still runs the no-discount pass and reports the discount"
     void order.prices;
     void order.unitPrices;
 
-    // With a discount present, both datasets need the extra no-discount pass => 4.
     expect(counter.n).toBe(4);
 
     const line = order.lines[0].prices;
@@ -90,12 +81,9 @@ test("combo parent setQuantity coalesces child updates into one recompute", asyn
 
     counter.n = 0;
     parent.setQuantity(3);
-    // Cascaded child qty/price writes all mark dirty; the read recomputes once.
     const total = order.prices.taxDetails.total_amount;
     void order.unitPrices;
 
-    // Was 10 full passes (one per cascaded write) before coalescing; now the
-    // whole action collapses to a single recompute (original + unit).
     expect(counter.n).toBe(2);
     expect(parent.qty).toBe(3);
     expect(total).toBeGreaterThan(0);

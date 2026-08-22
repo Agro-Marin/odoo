@@ -45,15 +45,6 @@ def _apply_registered_secrets(value: str) -> str:
     return value
 
 
-# Matched against key names lowercased and with '-' folded to '_', so one spelling
-# covers both the JSON convention ('api_key') and the header one ('X-API-Key'). Write
-# new entries with underscores.
-#
-# This is a denylist and is known to be incomplete for arbitrary caller-chosen names;
-# test_api_client_logging.py pins that gap by name rather than pretending otherwise.
-# Header names the *credential* contributes do not rely on it at all -- they are
-# redacted by provenance in '_redact_headers', because 'api_key_header' is free text
-# and no list can be right about it.
 _SENSITIVE_FIELD_PATTERNS = (
     "password",
     "passwd",
@@ -179,11 +170,6 @@ class OutboundAPIClient:
         self.endpoint_code = endpoint_code
         self.company_id = company_id or env.company.id
         self.user_id = env.user.id
-        # Which header names this client's credential fills in. Client-scoped rather than
-        # request-scoped because the credential is: the names are a property of how this
-        # endpoint authenticates, not of any one call. Captured in '_build_headers' from
-        # the same call that produces the values, so the two cannot drift -- deriving them
-        # a second time from 'auth_type' would be a copy of 'get_auth_headers' that could.
         self._credential_header_names = frozenset()
 
         self.service = (
@@ -387,19 +373,6 @@ class OutboundAPIClient:
             raise CommError(_("Unexpected error: %s") % error) from _masked_cause(e)
 
     def _prepare_request(self, url, kwargs):
-        """ Complete 'kwargs' into the request that will be sent, in place.
-
-        Every logging path downstream describes the exchange from this same dict, so what
-        is recorded is what was sent by construction rather than by a second, parallel
-        reconstruction. Header merging used to be the one part that broke that: it popped
-        'headers' out and returned it alongside, so the request travelled to
-        'session.request' as two values and reached '_queue_event_log' as one -- the half
-        without the headers. 'api.event.log.request_headers' was therefore empty for every
-        outbound call ever made, and the redaction beside it never ran once.
-
-        Timeout, TLS verification and auth were already completed in place here. Headers
-        now are too, which is the invariant the rest of this method always assumed.
-        """
         kwargs["headers"] = self._build_headers(kwargs.pop("headers", {}))
 
         if "timeout" not in kwargs:
@@ -673,30 +646,9 @@ class OutboundAPIClient:
 
         return headers
 
-    #: The two schemes 'requests' carries in its 'auth' argument. Everything else
-    #: this endpoint model offers -- bearer, api_key, hmac, oauth2, custom -- travels
-    #: in headers, which is '_build_headers'' business.
     _HTTP_AUTH_TYPES = ("basic", "digest")
 
     def _get_auth(self):
-        """The 'auth' handler requests should use, or None if this endpoint uses none.
-
-        GATED ON 'auth_type', WHICH IT WAS NOT. It asked only whether the credential
-        happened to carry a username and a password, so a credential attached to an
-        endpoint declaring 'auth_type = none' had that pair put into an
-        'Authorization: Basic' header and sent to the vendor -- who never asked for it
-        and, for the ten services in this workspace that declare 'none', would not know
-        what to do with it.
-
-        That is not hypothetical bookkeeping: a service can legitimately hold a
-        credential it does not authenticate *with*. The Mexican PACs are the case that
-        found this -- their username and password travel inside the SOAP body the
-        driver builds, so the vault is their custodian and the transport must put
-        nothing in the headers on their behalf.
-
-        'get_auth_headers' on the credential already branched on 'auth_type'. This is
-        the same rule on the other half of the request.
-        """
         if self.service.auth_type not in self._HTTP_AUTH_TYPES:
             return None
         if not self.credential:
@@ -972,19 +924,6 @@ class OutboundAPIClient:
         self.env.cr.precommit.data["api.event.log.values"].append(vals)
 
     def _redact_headers(self, headers):
-        """ Redact the request headers for the audit row.
-
-        Two rules, because two kinds of header end up in one dict and only one of them
-        can be reasoned about. Anything the *credential* contributed is redacted on
-        provenance, whatever it is called: 'api_key_header' is free text an administrator
-        chooses and 'custom_headers' is arbitrary JSON, so no list of names can be right
-        about them. Everything else -- what the caller passed, and the version headers --
-        falls back to the name denylist, which is best effort and known to be.
-
-        The value of the row is that it says which content type, which API version and
-        which caller headers went out; redaction is what makes keeping it safe, so this
-        never returns the raw dict.
-        """
         if not isinstance(headers, dict):
             return {}
         by_provenance = {

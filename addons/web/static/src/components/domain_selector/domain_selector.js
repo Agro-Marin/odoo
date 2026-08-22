@@ -59,12 +59,6 @@ export class DomainSelector extends Component {
         this.tree = null;
         this.showArchivedCheckbox = false;
         this.state = useState({ includeArchived: false });
-        // Same guard, same reason, as `TreeEditor.prepareInfo`: `onPropsUpdated`
-        // awaits two loads and then writes `this.tree`, and owl will start a
-        // second `onWillUpdateProps` while the first is still pending. Without
-        // this the two land in the order they resolved rather than the order
-        // they were asked for, and the editor shows a tree the `domain` prop no
-        // longer describes.
         this.keepLastTree = new KeepLast({ rejectSuperseded: true });
 
         onWillStart(() => this.onPropsUpdated(this.props));
@@ -80,8 +74,6 @@ export class DomainSelector extends Component {
             isSupported = false;
         }
         if (!isSupported) {
-            // Cancel too, or an older load still in flight resolves after this
-            // and puts a tree back on an unparseable domain.
             this.keepLastTree.cancel();
             this.tree = null;
             this.showArchivedCheckbox = false;

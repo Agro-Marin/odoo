@@ -26,11 +26,9 @@ test("the allowlist is fetched once per model and shared by every caller", async
     ]);
     expect(a).toEqual(["object.name"]);
     expect(b).toEqual(["object.name"]);
-    // a second read of the same model must not reach the server again
     expect(await getAllowed("res.partner")).toEqual(["object.name"]);
     expect.verifySteps(["res.partner"]);
 
-    // a different model is a different entry
     expect(await getAllowed("res.users")).toEqual(["object.login"]);
     expect.verifySteps(["res.users"]);
 });

@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.tests import common
 
 
@@ -122,17 +120,17 @@ class ChatbotCase(common.HttpCase):
         }, {
             'step_type': 'free_input_single',
             'message': 'Would you mind providing your website address?',
-            'sequence': 97,  # makes it easier for other modules to add steps before this one
+            'sequence': 97,
             'chatbot_script_id': cls.chatbot_script.id,
         }, {
             'step_type': 'free_input_multi',
             'message': 'Great, do you want to leave any feedback for us to improve?',
-            'sequence': 98,  # makes it easier for other modules to add steps before this one
+            'sequence': 98,
             'chatbot_script_id': cls.chatbot_script.id,
         }, {
             'step_type': 'text',
             'message': "Ok bye!",
-            'sequence': 99,  # makes it easier for other modules to add steps before this one
+            'sequence': 99,
             'chatbot_script_id': cls.chatbot_script.id,
         }])
 

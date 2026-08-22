@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.http import route
 from odoo.addons.im_livechat.controllers.chatbot import LivechatChatbotScriptController
 from odoo.addons.im_livechat.tools.misc import force_guest_env

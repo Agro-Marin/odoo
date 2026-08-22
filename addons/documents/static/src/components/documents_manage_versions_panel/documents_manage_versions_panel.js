@@ -33,12 +33,6 @@ export class DocumentsManageVersions extends Component {
         });
 
         onWillStart(async () => await this.load());
-        // `file_upload`'s bus is application-wide, so this fires for every
-        // upload in the session. `DocumentService.uploadDocument` puts
-        // `document_id` in the form data when replacing a document's content
-        // (which is exactly what `onReplace` below asks for), so the panel can
-        // tell its own new version from an unrelated upload finishing behind the
-        // dialog -- and stop re-reading the whole version history for it.
         useBus(this.fileUploadService.bus, "FILE_UPLOAD_LOADED", async (ev) => {
             const uploadedFor = ev.detail.upload.data?.get("document_id");
             if (Number(uploadedFor) !== this.props.documentId) {
@@ -97,12 +91,6 @@ export class DocumentsManageVersions extends Component {
         });
     }
 
-    /**
-     * Make an earlier version current again.
-     *
-     * Without this the only way back was Delete, one version at a time, which
-     * destroys everything newer to get there.
-     */
     async onRestore(attachmentId) {
         await this.orm.call("documents.document", "action_restore_version", [
             this.props.documentId,

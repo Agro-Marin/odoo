@@ -5,9 +5,6 @@ import { Component, status, useRef } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { useSyncedInputProperty } from "@web/core/utils/hooks";
-/**
- * @extends Component
- */
 
 export class CheckBox extends Component {
     static template = "web.CheckBox";

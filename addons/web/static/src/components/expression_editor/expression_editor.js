@@ -69,15 +69,6 @@ export class ExpressionEditor extends Component {
     }
 
     /**
-     * Deliberately ignores the `fieldDefs` argument `TreeEditor` passes
-     * (`tree_editor.js:115`), unlike `DomainSelector.getDefaultCondition`.
-     * That argument is `fieldService.loadFields(resModel)` -- every field on the
-     * model -- whereas an expression may only name the curated set the caller
-     * handed in `props.fields`. Honouring it was tried and is wrong: it lets the
-     * default condition name a field the editor then reports as unsupported,
-     * which is what `no special fields in fields` and `no field of type
-     * properties in model field selector` catch.
-     *
      * @returns {Object}
      */
     getDefaultCondition() {

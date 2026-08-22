@@ -39,9 +39,6 @@ test("useTrackedAsync keepLast ignores a stale slow response", async () => {
     expect(comp.tracked.status).toBe("success");
     expect(comp.tracked.result).toBe("fast");
 
-    // The superseded first call settles late: its state writes must be
-    // dropped — they used to overwrite the newer result ("keepLast" only
-    // guarded the returned promise, not the reactive state).
     slow.resolve("slow");
     await Promise.resolve();
     await Promise.resolve();

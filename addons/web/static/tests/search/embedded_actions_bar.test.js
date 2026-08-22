@@ -564,21 +564,12 @@ describe("EmbeddedActions.isVisible", () => {
     });
 
     test("showAllEmbeddedActions shows one the saved set omits", () => {
-        // The account-return check panel asks for every action regardless of
-        // the user's saved set. It used to say so by overriding
-        // ControlPanel._isEmbeddedActionVisible; when that member moved to
-        // EmbeddedActionsBar the override went dead and the panel silently
-        // fell back to the saved set, with no error and no failing test --
-        // this is that test.
         const infos = { visibleEmbeddedActions: [7], showAllEmbeddedActions: true };
         expect(EmbeddedActions.isVisible(infos, { id: 7 })).toBe(true);
         expect(EmbeddedActions.isVisible(infos, { id: 8 })).toBe(true);
     });
 
     test("the flag is read per call, so it survives a set that arrives later", () => {
-        // Seeding visibleEmbeddedActions in setup() would snapshot an empty
-        // list: the actions load asynchronously. The flag is read when the
-        // question is asked instead.
         const infos = { visibleEmbeddedActions: [], showAllEmbeddedActions: true };
         expect(EmbeddedActions.isVisible(infos, { id: 8 })).toBe(true);
         infos.visibleEmbeddedActions = [7];

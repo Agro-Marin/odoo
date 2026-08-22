@@ -33,14 +33,6 @@ def _log_operation_failure(operation: str, exc: BaseException) -> None:
     if isinstance(exc, REJECTED_INPUT_ERRORS):
         _logger.warning("%s: %s", operation, exc)
     else:
-        # `exc_info=exc` rather than `.exception()`: every caller today is
-        # inside an `except` block, so `.exception()` happens to find the
-        # traceback through `sys.exc_info()` -- but that makes the helper
-        # correct only by virtue of where it is called from, which its
-        # signature does not say. The exception is already a parameter; naming
-        # it logs the right traceback from anywhere, and a caller that ever
-        # logs a stored exception outside a handler gets a traceback instead
-        # of "NoneType: None".
         _logger.error(operation, exc_info=exc)
 
 

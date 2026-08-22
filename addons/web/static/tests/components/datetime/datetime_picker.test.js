@@ -1401,13 +1401,7 @@ test("hovering re-asks the day callbacks without rebuilding the grid", async () 
     await hover(getPickerCell("10"));
     await animationFrame();
 
-    // The callback is an answer, not an identity: it has to be re-asked on
-    // every render, and the pinned test above depends on that.
     expect(asked.length).toBeGreaterThan(firstPass);
-    // But it must be re-asked about the SAME DateTime objects -- identity here
-    // is the observable proof that the 42-cell skeleton was reused rather than
-    // rebuilt (each rebuild allocates a fresh `plus()`, `endOf("day")` and
-    // `toISODate()` per cell).
     expect(asked[firstPass]).toBe(asked[0]);
     expect(asked[firstPass + 41]).toBe(asked[41]);
 });

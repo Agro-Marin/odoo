@@ -150,9 +150,7 @@ export function checkStatus(orderName, status) {
     ];
 }
 /**
- * Check if the nth row contains the given string.
- * Note that 1st row is the header-row.
- * @param {boolean | undefined} viewMode true if in mobile view, false if in desktop, undefined if in both views.
+ * @param {boolean | undefined} viewMode
  */
 export function nthRowContains(n, string, viewMode) {
     return [
@@ -162,14 +160,6 @@ export function nthRowContains(n, string, viewMode) {
         },
     ];
 }
-/**
- * Assert on the row identified by `rowText`, whatever position it is in.
- *
- * Prefer this to `nthRowContains` whenever the rows being compared do not all
- * carry the same clock: an order that has been synced is dated by the server,
- * one that has not keeps the client's date, and a tour that freezes
- * `DateTime.now` therefore sorts them by two different notions of "now".
- */
 export function rowWithContains(rowText, string, viewMode) {
     return [
         {

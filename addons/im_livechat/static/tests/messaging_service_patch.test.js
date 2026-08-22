@@ -17,12 +17,6 @@ describe.current.tags("desktop");
 defineLivechatModels();
 
 test("push notifications are Odoo toaster on Android", async () => {
-    // Notifications without ServiceWorker in Chrome Android no longer work.
-    // This simulates Android Notification behavior by throwing a
-    // ServiceWorkerRegistration error as a fallback.
-    // `out_of_focus_service` constructs `browser.Notification`, and `browser`
-    // snapshots `window.Notification` at import time -- patching the global no
-    // longer reaches it.  Consistent with `mail`'s own notification tests.
     patchWithCleanup(browser, {
         Notification: class Notification {
             static get permission() {
@@ -49,7 +43,6 @@ test("push notifications are Odoo toaster on Android", async () => {
     listenStoreFetch("init_messaging");
     await start();
     await waitStoreFetch("init_messaging");
-    // send after init_messaging because bus subscription is done after init_messaging
     await withGuest(guestId, () =>
         rpc("/mail/message/post", {
             post_data: {

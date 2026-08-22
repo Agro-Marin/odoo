@@ -2,7 +2,6 @@ import * as ProductConfigurator from "@point_of_sale/../tests/pos/tours/utils/pr
 
 export function addOptionalProduct(productName, quantity, configurable) {
     const step = [
-        // Verify that the optional product is visible in the list
         {
             content: `Verify that the optional product "${productName}" is available in the list.`,
             trigger: `.optional-product-line .product-name:contains("${productName}")`,
@@ -14,16 +13,11 @@ export function addOptionalProduct(productName, quantity, configurable) {
         },
     ];
 
-    // Handle configuration steps for configurable optional products
     if (configurable) {
         step.push(
-            // Choose the color attribute for the configurable product
             ...ProductConfigurator.pickColor("Blue"),
-            // Select the material type from dropdown options
             ...ProductConfigurator.pickSelect("Metal"),
-            // Choose the texture or fabric type via radio buttons
             ...ProductConfigurator.pickRadio("wool"),
-            // confirm Attribute Selection dialogue
             {
                 trigger:
                     ".o-overlay-item:nth-child(2) .modal-footer button:contains('Add')",
@@ -34,7 +28,6 @@ export function addOptionalProduct(productName, quantity, configurable) {
 
     if (quantity > 1) {
         for (let i = 1; i < quantity; i++) {
-            // Increment the product quantity by clicking the "+" button
             step.push(
                 {
                     content: `Verify the quantity of "${productName}" is updated to ${i}.`,

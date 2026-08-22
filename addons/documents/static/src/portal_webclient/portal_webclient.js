@@ -17,7 +17,7 @@ export class PortalWebclientWebClient extends Component {
         const initData = this.documentService.initData;
         onMounted(async () => {
             const action = await this.action.loadAction("documents.document_action_portal");
-            action.path = "documents"; // To get the standard URL
+            action.path = "documents";
             this.action.doAction(action, {
                 additionalContext: initData.userFolderId
                     ? { searchpanel_default_user_folder_id: initData.userFolderId }

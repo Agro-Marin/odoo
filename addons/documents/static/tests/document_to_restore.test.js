@@ -11,23 +11,12 @@ import { DocumentsModels, makeDocumentRecordData } from "./helpers/data.js";
 import { makeDocumentsMockEnv } from "./helpers/model.js";
 import { mountDocumentsKanbanView } from "./helpers/views/kanban.js";
 
-/**
- * "Open the app on this document" — the `documents_init_document_id` /
- * `/odoo/documents/<token>` entry point.
- *
- * `_loadDocumentToRestore` hoists the target to the top of the first page and
- * flags it so `DocumentsRecordMixin.setup` starts it selected. That flag used to
- * be an undeclared property written onto the shared `document.document` service
- * and read back from it by the record mixin; it now lives on the model driving
- * the load, which is what these tests pin.
- */
 describe.current.tags("desktop");
 
 defineModels(DocumentsModels);
 
 /**
- * Mount a kanban of `count` documents, asking to restore `restoreId`.
- * @returns {Promise<Object>} the model instance
+ * @returns {Promise<Object>}
  */
 async function mountRestoring(restoreId, count = 4) {
     const records = [];

@@ -16,7 +16,6 @@ export class ReceiptHeader extends Component {
     }
 
     get partnerAddress() {
-        // TODO : REMOVE ME IN MASTER
         return this.order.partner_id.pos_contact_address
             .split("\n")
             .filter((line) => line.trim() !== "")

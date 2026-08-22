@@ -11,26 +11,19 @@ registry.category("web_tour.tours").add("test_optional_product", {
             Chrome.startPoS(),
             Dialog.confirm("Open Register"),
 
-            // Select a product without configurable options
             ProductScreen.clickDisplayedProduct("Desk Pad", false),
             Dialog.is({ title: "Optional Products" }),
-            // Cancel the popup; no optional product should be added to the cart
             Dialog.cancel(),
             ProductScreen.selectedOrderlineHas("Desk Pad", "1.0", "1.98"),
 
-            // Add a product with optional products
             ProductScreen.clickDisplayedProduct("Desk Pad", false),
             Dialog.is({ title: "Optional Products" }),
-            // Check image of optional product
             OptionalProduct.checkImage("Small Shelf", true),
-            // Add a specific optional product
             OptionalProduct.addOptionalProduct("Small Shelf", 5),
             ProductScreen.selectedOrderlineHas("Small Shelf", "5.0"),
 
             ProductScreen.clickDisplayedProduct("Letter Tray"),
-            // Add an optional product with configurations
             OptionalProduct.addOptionalProduct("Configurable Chair", 5, true),
-            // Verify the configurable product is added with correct attributes and quantity
             ProductScreen.selectedOrderlineHas(
                 "Configurable Chair",
                 "5.0",
@@ -38,12 +31,9 @@ registry.category("web_tour.tours").add("test_optional_product", {
                 "Blue, Metal, wool",
             ),
 
-            // Scan a product with optional products
             scan_barcode("lettertray"),
             Dialog.is({ title: "Optional Products" }),
-            // Add an optional product
             OptionalProduct.addOptionalProduct("Configurable Chair", 2, true),
-            // Verify the configurable product is added with correct attributes and quantity
             ProductScreen.selectedOrderlineHas(
                 "Configurable Chair",
                 "7.0",

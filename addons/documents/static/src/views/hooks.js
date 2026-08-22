@@ -17,10 +17,6 @@ import {
     useSubEnv,
 } from "@odoo/owl";
 
-/**
- * Controller/View hooks
- */
-
 export const DETAIL_PANEL_REQUIRED_FIELDS = [
     "lock_uid",
     "shortcut_document_id",
@@ -51,11 +47,7 @@ export function preSuperSetupFolder() {
     });
 }
 
-/**
- * To be executed before calling super.setup in view controllers.
- */
 export function preSuperSetup() {
-    // Otherwise not available in model.env
     useSubEnv({
         documentsView: {
             bus: new EventBus(),
@@ -63,7 +55,6 @@ export function preSuperSetup() {
     });
     const component = useComponent();
     const props = component.props;
-    // Root state is shared between views to keep the selection
     if (props.globalState && props.globalState.sharedSelection) {
         if (!props.state) {
             props.state = {};
@@ -75,10 +66,6 @@ export function preSuperSetup() {
     }
 }
 
-/**
- * Sets up the env required by documents view, as well as any other hooks.
- * Returns properties to be applied to the calling component. The code assumes that those properties are assigned to the component.
- */
 export function useDocumentView(helpers) {
     const component = useComponent();
     const props = component.props;
@@ -89,24 +76,18 @@ export function useDocumentView(helpers) {
     const action = useService("action");
     const documentService = useService("document.document");
 
-    // Env setup
     useSubEnv({
         model: component.model,
     });
     const env = useEnv();
     const bus = env.documentsView.bus;
 
-    // Open Automation rules
     const _openAutomations = async ({ folderId, folderDisplayName }) => {
         const checkBaseAutomation = await orm.call(
             "documents.document",
             "check_automation_available"
         );
         if (!checkBaseAutomation) {
-            // No automation engine installed. `documents_enterprise` registers a
-            // Studio upsell dialog here; without it there is nothing to offer, so
-            // say so rather than importing an enterprise component this module
-            // cannot depend on.
             const UpsellDialog = registry
                 .category("documents_automation_upsell")
                 .get("dialog", null);
@@ -145,13 +126,6 @@ export function useDocumentView(helpers) {
     };
 
     /**
-     * The selected folder's id when it is a real `documents.document` folder.
-     *
-     * The search panel's "folder id" is a union: a database id for a real
-     * folder, or one of the virtual roots ("COMPANY", "MY", "SHARED", "RECENT",
-     * "TRASH"), or `false` for "All". Only the first kind is meaningful as a
-     * `default_folder_id` for a Many2one.
-     *
      * @returns {number|false}
      */
     const selectedRealFolderId = () => {
@@ -159,7 +133,6 @@ export function useDocumentView(helpers) {
         return typeof folderId === "number" ? folderId : false;
     };
 
-    // Keep selection between views
     useSetupAction({
         rootRef: root,
         getGlobalState: () => ({
@@ -176,21 +149,15 @@ export function useDocumentView(helpers) {
     });
 
     return {
-        // Refs
         root,
-        // Services
         orm,
         notification,
         dialogService,
         actionService: action,
-        // Document preview
         ...useDocumentsViewFilePreviewer(helpers),
-        // Document upload
         canUploadInFolder: (folder) => documentService.canUploadInFolder(folder),
         ...useDocumentsViewFileUpload(),
-        // Trigger rule
         ...useEmbeddedAction(),
-        // Helpers
         hasShareDocuments: () => {
             const folder = env.searchModel.getSelectedFolder();
             const selectedRecords = env.model.root.selection.length;
@@ -198,14 +165,10 @@ export function useDocumentView(helpers) {
         },
         userIsInternal: documentService.userIsInternal,
         userIsDocumentManager: documentService.userIsDocumentManager,
-        // Listeners
         onClickDocumentsRequest: () => {
             action.doAction("documents.action_request_form", {
                 additionalContext: {
                     default_partner_id: props.context.default_partner_id || false,
-                    // `folder_id` is a Many2one, so only a real folder id means
-                    // anything here -- the ORM drops "MY"/"COMPANY"/... on the
-                    // floor. Prefill the folder the user is standing in, or nothing.
                     default_folder_id: selectedRealFolderId(),
                     default_res_id: props.context.default_res_id || false,
                     default_res_model: props.context.default_res_model || false,
@@ -241,7 +204,7 @@ export function useDocumentView(helpers) {
             action.doAction("documents.action_folder_form", {
                 additionalContext: {
                     default_type: "folder",
-                    default_user_folder_id: currentFolder ? currentFolder.toString() : "MY", // false for "All"
+                    default_user_folder_id: currentFolder ? currentFolder.toString() : "MY",
                     ...(currentFolder === "COMPANY" ? { default_access_internal: "edit" } : {}),
                 },
                 fullscreen: env.isSmall,
@@ -268,9 +231,6 @@ export function useDocumentView(helpers) {
     };
 }
 
-/**
- * Hook to setup the file previewer
- */
 function useDocumentsViewFilePreviewer({
     getSelectedDocumentsElements,
     setPreviewStore,
@@ -321,8 +281,6 @@ function useDocumentsViewFilePreviewer({
                         await component.model.load();
                         for (const record of documents) {
                             if (!newDocumentIds.includes(record.resId)) {
-                                // An array: `deleteRecords` reads `.length`, and
-                                // treats an empty list as "the whole domain".
                                 await record.model.root.deleteRecords([record]);
                             }
                         }
@@ -336,7 +294,7 @@ function useDocumentsViewFilePreviewer({
             );
         };
         if (isPdfSplit) {
-            setPreviewStore({}); // Close preview
+            setPreviewStore({});
             openPdfSplitter(documents);
             return;
         }
@@ -349,8 +307,6 @@ function useDocumentsViewFilePreviewer({
                 const getRecordAttachment = (rec) => {
                     rec = rec.shortcutTarget;
                     return {
-                        // A negative ID prevents a reload from resolving to a real record, ensuring that the document name
-                        // is always shown instead of the potentially non renamed attachment name.
                         id: -rec.resId,
                         name: rec.data.name,
                         mimetype: rec.data.mimetype,
@@ -365,12 +321,8 @@ function useDocumentsViewFilePreviewer({
                     record: rec,
                 });
             });
-        // The scrollable ".o_documents_view" element may already be detached when
-        // the preview is closed after a delete, so both toggling sites go through
-        // one null-safe accessor.
         const documentsViewEl = () =>
             component.root?.el?.querySelector(".o_documents_view");
-        // If there is a scrollbar we don't want it whenever the previewer is opened
         documentsViewEl()?.classList.add("overflow-hidden");
         const selectedDocument = documentsRecords.find(
             (rec) => rec.id === (mainDocument || documents[0]).resId
@@ -380,7 +332,6 @@ function useDocumentsViewFilePreviewer({
             folderId: env.searchModel.getSelectedFolderId(),
             initialRecordSelectionLength: documents.length,
             onDeleteCallback: () => {
-                // We want to focus on the first selected document's element
                 const elements = getSelectedDocumentsElements();
                 if (elements.length) {
                     elements[0].focus();
@@ -392,11 +343,6 @@ function useDocumentsViewFilePreviewer({
                 documentsViewEl()?.classList.remove("overflow-hidden");
 
                 setPreviewStore({});
-                // Released because this object closes over `setPreviewStore`,
-                // `getSelectedDocumentsElements` and `component.root` -- the whole
-                // controller that opened the preview, plus every previewed record
-                // -- and the service holding it is a singleton. `?.` at both call
-                // sites makes a second close a no-op.
                 documentService.documentList = null;
             },
             selectedDocument,
@@ -426,9 +372,6 @@ function useDocumentsViewFilePreviewer({
     };
 }
 
-/**
- * Hook to setup file upload
- */
 function useDocumentsViewFileUpload() {
     const component = useComponent();
     const env = useEnv();
@@ -472,9 +415,6 @@ function useDocumentsViewFileUpload() {
             });
             return;
         }
-        // Depending on the controller called, the response is different:
-        // /documents/upload/xx: returns an array of document ids
-        // /mail/attachment/upload: returns an object { "ir.attachment": ... }
         let response;
         try {
             response = JSON.parse(xhr.response);
@@ -485,8 +425,6 @@ function useDocumentsViewFileUpload() {
             return;
         }
         const newDocumentIds = Array.isArray(response) ? response : undefined;
-        // Argument-less, like every other call site: `computeNextConfig` reads
-        // only context/domain/groupBy/orderBy, all of which `this.config` holds.
         await env.model.load();
         if (!newDocumentIds) {
             return;
@@ -497,18 +435,8 @@ function useDocumentsViewFileUpload() {
         documentService.focusRecord(newRecords[0]);
     });
 
-    /**
-     * Create several new documents inside a given folder (folder accessToken) or replace
-     * the document's attachment by the given single file (binary accessToken).
-     */
     const uploadFiles = async ({ files, accessToken, context }) => {
-        const selectedUserFolderId = env.searchModel.getSelectedFolderId() || "MY"; // False='ALL'
-        // A copy: `onFileInputChange` hands in `component.props.context`, so
-        // stamping the destination onto it mutates the controller's props --
-        // and through `computeNextConfig`, `this.config.context` with it, so a
-        // `default_user_folder_id` picked up from one upload kept travelling
-        // with every later read and record creation from that view.
-        // `documents_model_mixin.load` copies for exactly this reason.
+        const selectedUserFolderId = env.searchModel.getSelectedFolderId() || "MY";
         const uploadContext = ["COMPANY", "MY"].includes(selectedUserFolderId)
             ? { ...context, default_user_folder_id: selectedUserFolderId }
             : context;
@@ -543,10 +471,6 @@ function useDocumentsViewFileUpload() {
     };
 }
 
-/**
- * Trigger embedded action hook.
- * NOTE: depends on env.model being set
- */
 export function useEmbeddedAction() {
     const env = useEnv();
     const orm = useService("orm");

@@ -128,8 +128,6 @@ test("a component rendering a dialog is outside it until it says otherwise", asy
 
     const modal = document.querySelector(".modal");
     expect(getService("ui").activeElement).toBe(modal);
-    // it wraps the dialog rather than sitting inside it, so the ambient answer
-    // is the surrounding scope -- which is why CommandPalette passes `scope`
     expect(ambient()).toBe(document);
     expect(declared()).toBe(modal);
 });
@@ -183,8 +181,6 @@ test("isSmall is its own reactive key, so a same-band resize does not invalidate
     const env = await makeMockEnv(undefined, { makeNew: true });
     const ui = /** @type {any} */ (env.services.ui);
 
-    // the reactive path: `env.isSmall` is a plain getter and subscribes nobody,
-    // so a component that must follow the size wraps the service in useState
     class Reader extends Component {
         static template = xml`<div class="reader" t-esc="ui.isSmall"/>`;
         static props = {};
@@ -196,14 +192,12 @@ test("isSmall is its own reactive key, so a same-band resize does not invalidate
     await mountWithCleanup(Reader, { env });
     expect.verifySteps(["render false"]);
 
-    // LG -> XL: `size` moves, `isSmall` does not, and neither does the reader
     width = 1300;
     listeners.forEach((cb) => cb());
     await animationFrame();
     expect(ui.size).toBe(SIZES.XL);
     expect.verifySteps([]);
 
-    // XL -> XS: `isSmall` flips, and only now is the reader stale
     width = 400;
     listeners.forEach((cb) => cb());
     await animationFrame();
@@ -224,7 +218,6 @@ test("popover content inherits the opener's scope only when the opener passes en
             scopes[this.props.tag] = useActiveElementScope();
         }
     }
-    // a dialog whose body opens two popovers, one carrying the opener's env
     class Body extends Component {
         static template = xml`<div class="body"/>`;
         static props = ["*"];
@@ -251,10 +244,6 @@ test("popover content inherits the opener's scope only when the opener passes en
 
     const modal = document.querySelector(".modal");
     expect(getService("ui").activeElement).toBe(modal);
-    // a popover that does not take the active element renders outside the modal,
-    // so the DOM alone would put its content outside the dialog. The env the
-    // opener hands over is what carries the dialog in -- Dropdown passes it,
-    // which is why its menus keep working inside a dialog.
     expect(scopes.withEnv()).toBe(modal);
     expect(scopes.withoutEnv()).toBe(document);
 });

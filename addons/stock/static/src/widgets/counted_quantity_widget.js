@@ -32,10 +32,6 @@ export class CountedQuantityWidgetField extends FloatField {
         try {
             value = this.parse(ev.target.value);
         } catch {
-            // Unparseable input leaves the field alone: the inline field error
-            // the parse already raised is what tells the user, and writing
-            // `inventory_quantity_set` here would claim a count that was never
-            // entered.
             return;
         }
         this.props.record.update({

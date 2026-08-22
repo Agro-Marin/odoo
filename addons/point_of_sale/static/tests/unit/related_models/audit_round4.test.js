@@ -14,8 +14,6 @@ test("changing an indexed value re-keys the index with the old value", async () 
     const p1 = models["res.partner"].create({ id: 1, name: "A", barcode: "AAA" });
     const p2 = models["res.partner"].create({ id: 2, name: "B", barcode: "BBB" });
 
-    // The re-index used to run AFTER the raw mutation: remove() walked the
-    // NEW value, evicting p2 from "BBB" while "AAA" kept pointing at p1.
     p1.update({ barcode: "CCC" });
     expect(models["res.partner"].getBy("barcode", "AAA")).toBe(undefined);
     expect(models["res.partner"].getBy("barcode", "CCC").id).toBe(1);
@@ -47,9 +45,6 @@ test("record mutations made by load listeners are marked dirty", async () => {
         "pos.order": [{ id: 22, uuid: sampleUUID, amount_total: 5 }],
     });
 
-    // Events used to fire while _loadingData was still true, so a listener
-    // reacting to a load by mutating a record (e.g. the pricelist-item
-    // listener repricing orders) had its _markDirty silently swallowed.
     let listenerRan = false;
     models["pos.order"].addEventListener("update", ({ id }) => {
         const rec = models["pos.order"].get(id);
@@ -78,11 +73,8 @@ test("backLink results are reactive on a warm cache", async () => {
         attribute_value_ids: [["link", att]],
     });
 
-    // Warm the cache outside any reactive context.
     expect(att.backLink("<-pos.order.line.attribute_value_ids")).toHaveLength(1);
 
-    // A reactive consumer reading the warm cache used to subscribe to
-    // nothing — it never recomputed when the relation changed.
     let seen = 0;
     effect(
         (a) => {
@@ -104,10 +96,6 @@ test("a throw mid-update must not leave the record out of the store indexes", as
     const models = getRelatedModelsInstance(false);
     const p1 = models["res.partner"].create({ id: 1, name: "A", barcode: "AAA" });
 
-    // `barcode` is indexed, so _update removes p1 from the indexes before
-    // mutating and re-adds it afterwards. An unknown field throws in between:
-    // without a try/finally the re-add never ran and p1 disappeared from the
-    // store while other records still referenced it by id.
     let threw = false;
     try {
         p1.update({ barcode: "CCC", __nope__: 1 });
@@ -118,8 +106,6 @@ test("a throw mid-update must not leave the record out of the store indexes", as
 
     expect(models["res.partner"].get(1)?.id).toBe(1);
     expect(models["res.partner"].getAll().map((p) => p.id)).toInclude(1);
-    // Whatever the barcode ended up as, exactly one key must resolve to p1 and
-    // no stale key may survive.
     const found = ["AAA", "CCC"].filter(
         (code) => models["res.partner"].getBy("barcode", code)?.id === 1,
     );

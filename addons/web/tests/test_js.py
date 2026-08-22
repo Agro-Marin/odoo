@@ -14,10 +14,6 @@ import odoo.addons
 
 RE_FORBIDDEN_STATEMENTS = re.compile(r"test.*\.(only|debug)\(")
 
-# Every `@web/views/*` suite with no runner of its own. The four views that do
-# have one -- calendar, form, kanban, list -- are named directly in
-# ALL_WEB_SUITE_PREFIXES instead. Parallel to MISC_SUITES below, which is the
-# same catch-all one level up the tree.
 MISC_VIEW_SUITES = (
     "@web/views/graph",
     "@web/views/pivot",

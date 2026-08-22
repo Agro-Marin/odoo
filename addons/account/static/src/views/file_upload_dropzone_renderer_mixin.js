@@ -9,10 +9,7 @@ import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 
 /**
- * Adds paste-to-upload and drag-dropzone behaviour to the file-upload list and
- * kanban renderers.
- *
- * @param {typeof import("@odoo/owl").Component} Base list/kanban renderer to extend.
+ * @param {typeof import("@odoo/owl").Component} Base
  */
 export const FileUploadDropzoneRendererMixin = (Base) =>
     class extends Base {

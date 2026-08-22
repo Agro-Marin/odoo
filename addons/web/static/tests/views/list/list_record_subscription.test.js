@@ -32,19 +32,6 @@ defineModels([Partner, User]);
 
 const ARCH = `<list><field name="foo"/></list>`;
 
-/**
- * `ListGridState._materialize` walks `toRaw(list.records)` and reads the reactive
- * `records[i]` only for a row it has to rebuild, which is what took its cost on
- * 4000 rows from 4.23ms to 0.147ms. It therefore no longer registers a
- * subscription on every index key of the array.
- *
- * Those subscriptions still exist, from `useListAggregates.getAggregationValues`,
- * which does `list.records.map(...)` and is reached from the unconditional
- * `<tfoot><ListAggregatesRow/>`. Both mutations below are ones the model really
- * performs in place with no change of length - `resequence.js` reverses and
- * splices, `static_list._applyServerValues` assigns an index - so if that walk
- * ever stops being reactive, these fail and name the coupling.
- */
 test.tags("desktop");
 test("an in-place reverse of list.records repaints the rows", async () => {
     const view = await mountView({ type: "list", resModel: "partner", arch: ARCH });

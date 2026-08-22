@@ -14,17 +14,6 @@ import { makeDocumentsMockEnv } from "./helpers/model.js";
 import { basicDocumentsKanbanArch } from "./helpers/views/kanban.js";
 import { getEnrichedSearchArch } from "./helpers/views/search.js";
 
-/**
- * Lifetime of `documentService.documentList`.
- *
- * That object is built by `useDocumentsViewFilePreviewer` and closes over the
- * controller that opened the preview: `setPreviewStore`,
- * `getSelectedDocumentsElements` and the component's `root` ref, plus every
- * previewed record. The service is a singleton and never released it, so a
- * closed preview left a whole dead controller and its record set reachable, and
- * the next view's "documents-close-preview" ran the *previous* controller's
- * callback.
- */
 describe.current.tags("desktop");
 
 defineModels(DocumentsModels);
@@ -38,9 +27,6 @@ defineActions([
     },
 ]);
 
-/**
- * Mount a documents kanban holding one previewable image document.
- */
 async function mountWithPreviewableDocument() {
     const serverData = getDocumentsTestServerModelsData([
         {
@@ -97,9 +83,6 @@ test("closing twice is a no-op", async () => {
     await press("escape");
     await waitForNone(".o-FileViewer");
 
-    // Every close path goes through `documentList?.onDeleteCallback()`, and a
-    // documents model reload fires "documents-close-preview" on each load -- so
-    // the second call has to land on an already-released list without throwing.
     await getService("action").currentController.props.resModel;
     expect(documentService.documentList).toBe(null);
     expect(() => documentService.bus.trigger("DOCUMENT_RELOAD")).not.toThrow();

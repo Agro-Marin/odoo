@@ -67,7 +67,6 @@ export class PosSession extends models.ServerModel {
         ];
     }
 
-    // These methods are designed to be overridden to customize the POS data loading behavior using the provided `opts`.
     getModelsToLoad(opts) {
         return this._load_pos_data_models();
     }

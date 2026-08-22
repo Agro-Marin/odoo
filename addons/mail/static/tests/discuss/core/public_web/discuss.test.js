@@ -36,7 +36,6 @@ test("open channel in discuss from push notification", async () => {
 });
 
 test("notify message to user as non member", async () => {
-    // global no longer reaches it. Consistent with messaging_menu.test.js.
     patchWithCleanup(browser, {
         Notification: class Notification {
             static get permission() {

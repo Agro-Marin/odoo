@@ -20,8 +20,7 @@ export class DocumentsHtmlComposerMessageField extends HtmlComposerMessageField 
     }
 
     /**
-     * Formats the links to valid HTML so to paste the links to the `body` (html) field.
-     * @param {Array} response - The response containing document details.
+     * @param {Array} response
      */
     formatLinks(response) {
         const html = response

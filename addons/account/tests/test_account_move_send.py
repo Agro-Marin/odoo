@@ -1330,9 +1330,6 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
                 raise ValueError("boom")
             return real_send_mail(self, move, *args, **kwargs)
 
-        # From the cron the failure is swallowed and logged rather than raised, so
-        # one bad move cannot abort the batch. Assert the log instead of letting
-        # the traceback escape into the suite's output as unattributed noise.
         with (
             self.enter_registry_test_mode(),
             patch.object(MixinAccountMoveSend, "_send_mail", _send_mail_maybe_fail),

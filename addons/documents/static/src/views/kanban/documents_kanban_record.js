@@ -20,12 +20,9 @@ export class DocumentsKanbanRecord extends KanbanRecord {
 
     setup() {
         super.setup();
-        // File upload
         const { bus, uploads } = useService("file_upload");
         this.documentUploads = uploads;
         useBus(bus, "FILE_UPLOAD_ADDED", (ev) => {
-            // `Number()`, because `FormData.get()` always answers a string while
-            // `resId` is a number.
             if (Number(ev.detail.upload.data.get("document_id")) === this.props.record.resId) {
                 this.render(true);
             }
@@ -42,7 +39,6 @@ export class DocumentsKanbanRecord extends KanbanRecord {
             () => [this.props.record?.data.attachment_id?.id]
         );
 
-        // Activity updates from Chatter
         useBus(this.documentService.bus, "DOCUMENT_CHATTER_ACTIVITY_CHANGED", ({ detail }) => {
             if (this.props.record.data.id === detail.recordId) {
                 this.props.record.load();
@@ -90,9 +86,6 @@ export class DocumentsKanbanRecord extends KanbanRecord {
         context.documentEmailContent = this.contentState.documentEmailContent;
         return context;
     }
-    /**
-     * Get the current file upload for this record if there is any
-     */
     getFileUpload() {
         return Object.values(this.documentUploads).find(
             (upload) =>
@@ -108,8 +101,6 @@ export class DocumentsKanbanRecord extends KanbanRecord {
             return;
         }
         const selectionLength = this.props.getSelection().length;
-        // We can enable selection mode when only one item is selected if a key is pressed,
-        // or if we have more than one item selected
         const isSelectionModeActive = selectionLength === 1 ? ev.shiftKey : selectionLength > 1;
         const selectionKeyActive = ev.altKey || ev.ctrlKey;
         if (
@@ -124,7 +115,6 @@ export class DocumentsKanbanRecord extends KanbanRecord {
             this.env.searchModel.getSelectedFolderId() === "TRASH" ||
             this.props.record.data.type !== "folder"
         ) {
-            // Select only one document record
             this.props.getSelection().forEach((r) => r.toggleSelection(false));
             this.rootRef.el.focus();
             this.props.toggleSelection(this.props.record);
@@ -138,8 +128,6 @@ export class DocumentsKanbanRecord extends KanbanRecord {
         if (target.data.mimetype !== "application/documents-email") {
             return;
         }
-        // The thumbnail is decoration: a body that fails to load leaves the card
-        // showing the watermark rather than raising at the user.
         try {
             this.contentState.documentEmailContent =
                 await this.documentService.loadEmailContent(target.resId);

@@ -9,9 +9,6 @@ test("uiState", async () => {
     const store = await setupPosEnv();
     const order = store.addNewOrder();
 
-    // Assert the point_of_sale-owned defaults with a subset match: other installed
-    // modules (e.g. pos_enterprise adds `noteHistory`) legitimately extend uiState,
-    // and their patches are always present in the shared unit-test bundle.
     expect(order.uiState).toMatchObject({
         unmerge: {},
         lastPrints: [],
@@ -76,7 +73,6 @@ test("removeOrderline", async () => {
     expect(order.general_customer_note).toBe("Some note");
     expect(order.getSelectedOrderline()).toBe(line1);
     order.removeOrderline(line1);
-    // General customer note should be removed when removing the last order line
     expect(order.general_customer_note).toBe("");
 });
 
@@ -84,7 +80,6 @@ test("addPaymentline", async () => {
     const store = await setupPosEnv();
     const order = await getFilledOrder(store);
     const cashPaymentMethod = store.models["pos.payment.method"].get(1);
-    // Test that the payment line is correctly created
     const result = order.addPaymentline(cashPaymentMethod);
     expect(result.data.payment_method_id.id).toBe(cashPaymentMethod.id);
     expect(result.data.amount).toBe(17.85);
@@ -100,7 +95,6 @@ test("getTotalDiscount", async () => {
     expect(taxTotals.total_amount).toBe(17.85);
     expect(taxTotals.tax_amount_currency).toBe(2.85);
 
-    //Compute total of discount on the order
     const line1 = order.lines[0];
     const line2 = order.lines[1];
     line1.setDiscount(20);
@@ -115,19 +109,17 @@ test("getTotalDiscount", async () => {
 
 test("customer requirements", async () => {
     const store = await setupPosEnv();
-    const preset = store.models["pos.preset"].get(3); // Address Required Preset
-    const partner = store.models["res.partner"].get(3); // Customer Without Address
+    const preset = store.models["pos.preset"].get(3);
+    const partner = store.models["res.partner"].get(3);
     const order = store.addNewOrder();
     order.preset_id = preset;
 
-    // No partner
     expect(order.presetRequirementsFilled).toBe(false);
     expect(order.getMissingPresetRequirement().field).toBe("Customer");
     expect(order.getMissingPresetRequirement().message).toBe(
         "Please add a valid customer to the order.",
     );
 
-    // Partner
     order.partner_id = partner;
     expect(order.presetRequirementsFilled).toBe(true);
     expect(order.getMissingPresetRequirement()).toBe(null);
@@ -135,8 +127,8 @@ test("customer requirements", async () => {
 
 test("Address requirements", async () => {
     const store = await setupPosEnv();
-    const preset = store.models["pos.preset"].get(4); // Address Required Preset
-    const partner = store.models["res.partner"].get(3); // Customer Without Address
+    const preset = store.models["pos.preset"].get(4);
+    const partner = store.models["res.partner"].get(3);
     const order = store.addNewOrder();
     order.preset_id = preset;
     order.partner_id = partner;
@@ -147,25 +139,22 @@ test("Address requirements", async () => {
         "The selected customer needs an address.",
     );
 
-    // Partner with address
     partner.street = "test abc";
     expect(order.presetRequirementsFilled).toBe(true);
 });
 
 test("slot requirement preset", async () => {
     const store = await setupPosEnv();
-    const preset = store.models["pos.preset"].get(2); // Time Slot Preset
+    const preset = store.models["pos.preset"].get(2);
     const order = store.addNewOrder();
     order.preset_id = preset;
 
-    // No slot
     expect(order.presetRequirementsFilled).toBe(false);
     expect(order.getMissingPresetRequirement().field).toBe("Slot");
     expect(order.getMissingPresetRequirement().message).toBe(
         "Please select a time slot before proceeding.",
     );
 
-    // Slot set
     order.preset_time = "2025-08-11 14:00:00";
     expect(order.presetRequirementsFilled).toBe(true);
 });
@@ -177,38 +166,31 @@ test("isCustomerRequired", async () => {
 
     expect(order.isCustomerRequired).toBe(false);
     {
-        // preset - name identification
         const namePreset = posStore.models["pos.preset"].get(3);
         order.preset_id = namePreset;
         expect(order.isCustomerRequired).toBe(true);
-        // with floating order name
         order.floating_order_name = "TEST-P";
         expect(order.isCustomerRequired).toBe(false);
         order.floating_order_name = "";
-        // with assigned partner
         order.partner_id = existingPartner;
         expect(order.isCustomerRequired).toBe(false);
         order.partner_id = false;
     }
     {
-        // preset - address identification
         const addressPreset = posStore.models["pos.preset"].get(4);
         order.preset_id = addressPreset;
         expect(order.isCustomerRequired).toBe(true);
-        // with assigned partner
         order.partner_id = existingPartner;
         expect(order.isCustomerRequired).toBe(false);
         order.partner_id = false;
     }
     {
-        // order invoicing
         order.preset_id = false;
         order.to_invoice = true;
         expect(order.isCustomerRequired).toBe(true);
         order.to_invoice = false;
     }
     {
-        // split payment (customer account)
         const customerAccountMethod = posStore.models["pos.payment.method"].get(3);
         order.addPaymentline(customerAccountMethod);
         expect(order.isCustomerRequired).toBe(true);
@@ -238,26 +220,21 @@ test("[get prices] check prices and taxes", async () => {
     const order = await getFilledOrder(store);
     const data = order.prices;
 
-    // Check taxes on order base_amount is 15 with 15% taxes
     const orderTaxes = data.taxDetails;
     expect(orderTaxes.base_amount).toBe(15.0);
     expect(orderTaxes.total_amount).toBe(17.85);
     expect(orderTaxes.tax_amount).toBe(2.85);
 
-    // Order prices data also return the prices of all lines
-    // Check first line with a price_unit of 3 and 3 qty
     const line1Data = data.baseLineByLineUuids[order.lines[0].uuid].tax_details;
     expect(line1Data.total_excluded).toBe(9.0);
     expect(line1Data.total_included).toBe(10.35);
     expect(line1Data.taxes_data[0].tax_amount).toBe(1.35);
 
-    // Check second line with a price_unit of 3 and 2 qty
     const line2Data = data.baseLineByLineUuids[order.lines[1].uuid].tax_details;
     expect(line2Data.total_excluded).toBe(6.0);
     expect(line2Data.total_included).toBe(7.5);
     expect(line2Data.taxes_data[0].tax_amount).toBe(1.5);
 
-    // Check with a discount on first line of 30%
     order.lines[0].setDiscount(30);
     const dataWDiscount = order.prices;
     const orderTaxesWDiscount = dataWDiscount.taxDetails;
@@ -265,7 +242,6 @@ test("[get prices] check prices and taxes", async () => {
     expect(orderTaxesWDiscount.total_amount).toBe(14.75);
     expect(orderTaxesWDiscount.tax_amount).toBe(2.45);
 
-    // Check first line with a price_unit of 3, 3 qty and 30% discount
     const line1DataWDiscount =
         dataWDiscount.baseLineByLineUuids[order.lines[0].uuid].tax_details;
     expect(line1DataWDiscount.total_excluded).toBe(6.3);
@@ -273,7 +249,6 @@ test("[get prices] check prices and taxes", async () => {
     expect(line1DataWDiscount.taxes_data[0].tax_amount).toBe(0.95);
     expect(line1DataWDiscount.discount_amount).toBe(3.1);
 
-    // No discount values should still represent the line without discount
     expect(line1DataWDiscount.no_discount_total_excluded).toBe(9.0);
     expect(line1DataWDiscount.no_discount_total_included).toBe(10.35);
     expect(line1DataWDiscount.no_discount_taxes_data[0].tax_amount).toBe(1.35);
@@ -294,7 +269,7 @@ test("showChange remains true when change line name is translated", async () => 
         payment_method_id: cashPaymentMethod,
     });
     changeLine.setAmount(-changeAmount);
-    changeLine.name = "Retour"; // Simulate translated "return"
+    changeLine.name = "Retour";
     changeLine.is_change = true;
 
     order.state = "paid";
@@ -317,7 +292,6 @@ test("priceDoesntChangeWhenChangingPreset", async () => {
     const order3 = store.addNewOrder();
     const order4 = store.addNewOrder();
 
-    // Normal flow with extras
     await store.addLineToOrder(
         {
             product_tmpl_id: template,
@@ -335,7 +309,6 @@ test("priceDoesntChangeWhenChangingPreset", async () => {
     order.setOrderPrices();
     expect(order.amount_total).toBe(total);
 
-    // Normal flow
     await store.addLineToOrder(
         {
             product_tmpl_id: template,
@@ -350,7 +323,6 @@ test("priceDoesntChangeWhenChangingPreset", async () => {
     order2.setOrderPrices();
     expect(order2.amount_total).toBe(total);
 
-    // Flow with products with extra price
     await store.addLineToOrder(
         {
             product_tmpl_id: template,
@@ -368,7 +340,6 @@ test("priceDoesntChangeWhenChangingPreset", async () => {
     order3.setOrderPrices();
     expect(order3.amount_total).toBe(total);
 
-    // Flow with all the same product
     await store.addLineToOrder(
         {
             product_tmpl_id: template,

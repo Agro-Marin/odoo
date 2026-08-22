@@ -1,11 +1,5 @@
 /** @odoo-module native */
 
-// Cashier / connected-user logic extracted from PosStore. Pure functions of the
-// store; PosStore keeps thin delegating methods (patchers override e.g.
-// checkPreviousLoggedCashier, and 66 consumers read `pos.getCashier()`). The
-// `pos.cashier` state stays on the store. Cross-calls go through `pos.<method>()`
-// so a module's patch still applies.
-
 export function getCashier(pos) {
     return pos.user;
 }

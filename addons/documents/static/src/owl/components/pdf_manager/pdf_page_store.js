@@ -3,72 +3,26 @@ import { _t } from "@web/core/translation";
 import { uniqueId } from "@web/core/utils/functions";
 
 /**
- * Build the plain data container a {@link PdfPageStore} operates on.
- *
- * Kept separate from the store so the caller decides whether the container is
- * plain (unit tests) or wrapped in an OWL `reactive`/`useState` proxy (the
- * component). The store itself never creates or inspects a proxy.
- *
- * Only serialisable bookkeeping lives in here: no canvas, no pdf.js proxy, no
- * DOM node. That is deliberate — `state.pageCanvases` holds both of those
- * inside a reactive and is the reason `toRaw()` has to be sprinkled over the
- * render paths.
- *
  * @returns {Object}
  */
 export function makePdfPageStoreData() {
     return {
-        /** pages[pageId] = { pageId, groupId, fileId, localPageNumber, isSelected, isBlank } */
         pages: {},
-        /** groupData[groupId] = { groupId, name, pageIds } */
         groupData: {},
-        /** Ordered list of group ids. */
         groupIds: [],
-        /** Number of *grouped* pages. Maintained incrementally, never recomputed. */
         numberOfPages: 0,
-        /** Id of the page that currently has the focus, if any. */
         focusedPage: undefined,
-        /** Id of the last page the user selected, if any. */
         lastSelectedPage: undefined,
     };
 }
 
-/**
- * Sole owner of the PDF split tool's page/group bookkeeping.
- *
- * `pages`, `groupData`, `groupIds` and `numberOfPages` are four mutually
- * dependent structures, and every way they can drift apart produces a user
- * visible defect (pages duplicated across groups after a failed split, a crash on
- * an already-detached page, forward drags landing one slot late, a quadratic page
- * counter). This class is their single writer, so those states are not
- * representable.
- *
- * Invariants, all enforced here and checked by {@link checkInvariants}:
- *  1. a page belongs to at most one group — attaching detaches first;
- *  2. `numberOfPages` equals the number of grouped pages, maintained by +/- 1
- *     on every attach/detach (never by recounting: that made the callers that
- *     loop over pages quadratic);
- *  3. a group's `pageIds` holds no unknown id and no duplicate, and every
- *     listed page points back at the group;
- *  4. a group that loses its last page is removed from `groupIds`;
- *  5. `focusedPage` / `lastSelectedPage` never reference a detached page.
- *
- * Deliberately absent: DOM access, pdf.js, component props, OWL. The owning
- * component keeps rendering, canvases, hotkeys, drag-and-drop DOM, the preview
- * lightbox and the upload.
- */
 export class PdfPageStore {
     /**
-     * @param {Object} [data] container to operate on, see
-     *   {@link makePdfPageStoreData}. Pass a reactive proxy to drive a render.
+     * @param {Object} [data]
      */
     constructor(data = makePdfPageStoreData()) {
         this.data = data;
     }
-
-    //--------------------------------------------------------------------------
-    // Reads
-    //--------------------------------------------------------------------------
 
     /** @returns {Object} */
     get pages() {
@@ -101,7 +55,6 @@ export class PdfPageStore {
         this.data.lastSelectedPage = pageId;
     }
     /**
-     * Every grouped page id, in display order.
      * @returns {String[]}
      */
     get sortedPageIds() {
@@ -110,7 +63,6 @@ export class PdfPageStore {
         ]);
     }
     /**
-     * Grouped pages the user has selected: the ones a split commits.
      * @returns {String[]}
      */
     get selectedPageIds() {
@@ -120,7 +72,6 @@ export class PdfPageStore {
         );
     }
     /**
-     * Grouped pages the user left out: the ones a split keeps in the tool.
      * @returns {String[]}
      */
     get ignoredPageIds() {
@@ -148,7 +99,6 @@ export class PdfPageStore {
         return this.data.groupData[groupId];
     }
     /**
-     * The group a page belongs to, if any.
      * @param {String} pageId
      * @returns {Object|undefined}
      */
@@ -157,14 +107,6 @@ export class PdfPageStore {
         return page && page.groupId ? this.data.groupData[page.groupId] : undefined;
     }
     /**
-     * Whether a page closes its group, i.e. whether a separator is drawn right
-     * after it.
-     *
-     * The model-side truth behind the `o_pdf_separator_selected` class the template
-     * puts on the splitter after a group's last page. Asked here rather than read
-     * back off the DOM: grouping is this store's to answer, and a DOM round trip
-     * needs a mounted component to be testable.
-     *
      * @param {String} pageId
      * @returns {boolean}
      */
@@ -173,17 +115,13 @@ export class PdfPageStore {
         return Boolean(group) && group.pageIds[group.pageIds.length - 1] === pageId;
     }
 
-    //--------------------------------------------------------------------------
-    // Groups
-    //--------------------------------------------------------------------------
-
     /**
      * @param {Object} [param0]
      * @param {String} [param0.name]
-     * @param {String[]} [param0.pageIds] pages to move into the new group
-     * @param {number} [param0.index] position in `groupIds` (appended if absent)
-     * @param {boolean} [param0.isSelected] forces the moved pages' selection
-     * @returns {String} the new group id
+     * @param {String[]} [param0.pageIds]
+     * @param {number} [param0.index]
+     * @param {boolean} [param0.isSelected]
+     * @returns {String}
      */
     createGroup({ name, pageIds, index, isSelected } = {}) {
         const groupId = uniqueId("group");
@@ -192,8 +130,6 @@ export class PdfPageStore {
             name: name || _t("New Group"),
             pageIds: [],
         };
-        // Register before filling: `addPage` resolves the group through
-        // `groupData`, so it has to be reachable first.
         if (index !== undefined) {
             this.data.groupIds.splice(index, 0, groupId);
         } else {
@@ -206,13 +142,7 @@ export class PdfPageStore {
         }
         return groupId;
     }
-    /**
-     * Drop every group, detaching all pages. `pages` itself is untouched.
-     */
     clearGroups() {
-        // Clearing `page.groupId` matters: a page still pointing at a group
-        // that no longer exists is exactly what let `createGroup` adopt a page
-        // twice and inflate the counter.
         for (const page of Object.values(this.data.pages)) {
             page.groupId = false;
         }
@@ -221,11 +151,10 @@ export class PdfPageStore {
         this.data.numberOfPages = 0;
     }
     /**
-     * Gather every page into one fresh group.
      * @param {Object} [param0]
      * @param {String} [param0.name]
      * @param {boolean} [param0.isSelected]
-     * @returns {String} the new group id
+     * @returns {String}
      */
     regroupAll({ name, isSelected } = {}) {
         const allPageIds = this.sortedPageIds;
@@ -233,8 +162,6 @@ export class PdfPageStore {
         return this.createGroup({ name, pageIds: allPageIds, isSelected });
     }
     /**
-     * Toggle the separator that follows `pageId` inside `groupId`: either split
-     * the group there, or merge the next group back in when `pageId` is last.
      * @param {String} pageId
      * @param {String} groupId
      */
@@ -249,18 +176,14 @@ export class PdfPageStore {
         }
         const groupIndex = this.data.groupIds.indexOf(groupId);
         if (pageIndex === group.pageIds.length - 1) {
-            // Last page of the group: merge the following group into this one.
             const targetGroupId = this.data.groupIds[groupIndex + 1];
             if (!targetGroupId) {
                 return;
             }
-            // Snapshot: `addPage` detaches each page from the target group as
-            // it goes, which rewrites that group's `pageIds`.
             for (const movedPageId of [...this.data.groupData[targetGroupId].pageIds]) {
                 this.addPage(movedPageId, groupId);
             }
         } else {
-            // Split: everything after `pageId` moves to a new following group.
             const followingPageIds = group.pageIds.slice(pageIndex + 1);
             const newGroupId = this.createGroup({ index: groupIndex + 1 });
             for (const movedPageId of followingPageIds) {
@@ -269,10 +192,9 @@ export class PdfPageStore {
         }
     }
     /**
-     * Rebuild the grouping from the blank pages, in display order.
      * @param {Object} param0
-     * @param {String} param0.blankName name given to a run of blank pages
-     * @param {Function} param0.subDocName (count) => name of a sub-document
+     * @param {String} param0.blankName
+     * @param {Function} param0.subDocName
      */
     splitOnBlankPages({ blankName, subDocName }) {
         const allPageIds = this.sortedPageIds;
@@ -288,9 +210,6 @@ export class PdfPageStore {
                 ? blankName
                 : subDocName(docCount++),
         });
-        // Walk in display order (the snapshot above), not `pages` insertion
-        // order, so drag-and-drop reordering is honoured and detached pages
-        // left over from a partial split are never visited.
         for (const pageId of allPageIds) {
             const page = this.data.pages[pageId];
             const splitHere = (name) => {
@@ -308,9 +227,6 @@ export class PdfPageStore {
             page.isSelected = !page.isBlank;
             precedingPageIsBlank = page.isBlank;
         }
-        // Drop whatever stayed empty (the initial catch-all when the first page
-        // is blank). A lingering empty group makes focus navigation land on an
-        // undefined page.
         for (const groupId of [...this.data.groupIds]) {
             this._removeGroupIfEmpty(groupId);
         }
@@ -326,19 +242,13 @@ export class PdfPageStore {
         }
     }
 
-    //--------------------------------------------------------------------------
-    // Pages
-    //--------------------------------------------------------------------------
-
     /**
-     * Create one page record per page of a freshly loaded file, and group them.
      * @param {Object} param0
      * @param {String} param0.fileId
-     * @param {String} param0.name base name for the generated groups
+     * @param {String} param0.name
      * @param {number} param0.pageCount
-     * @param {boolean} [param0.groupPerPage] one group per page instead of one
-     *   group for the whole file
-     * @returns {Object} { pageIds: String[], newPages: {pageNumber: pageId} }
+     * @param {boolean} [param0.groupPerPage]
+     * @returns {Object}
      */
     createPagesForFile({ fileId, name, pageCount, groupPerPage }) {
         let groupId;
@@ -353,9 +263,6 @@ export class PdfPageStore {
             const pageId = uniqueId("page");
             this.data.pages[pageId] = {
                 pageId,
-                // Attached through `addPage` below rather than set here, so the
-                // page goes through the one code path that keeps the counter,
-                // the group listing and `page.groupId` in agreement.
                 groupId: false,
                 fileId,
                 localPageNumber: pageNumber + 1,
@@ -368,24 +275,18 @@ export class PdfPageStore {
         return { pageIds, newPages };
     }
     /**
-     * Attach a page to a group, detaching it from its current one first.
      * @param {String} pageId
      * @param {String} groupId
      * @param {Object} [param2]
-     * @param {number} [param2.index] position inside the group (appended if absent)
-     * @returns {boolean} whether the page was attached
+     * @param {number} [param2.index]
+     * @returns {boolean}
      */
     addPage(pageId, groupId, { index } = {}) {
         const group = this.data.groupData[groupId];
         const page = this.data.pages[pageId];
         if (!group || !page) {
-            // An unknown page id would otherwise be pushed into `pageIds` and
-            // then dereferenced, i.e. a group listing a page that does not
-            // exist — or a TypeError, depending on the call site.
             return false;
         }
-        // `keepGroup`: a same-group move must not let the group vanish between
-        // the detach and the re-attach.
         this._detach(pageId, { keepGroup: groupId });
         if (index !== undefined) {
             group.pageIds.splice(index, 0, pageId);
@@ -393,18 +294,13 @@ export class PdfPageStore {
             group.pageIds.push(pageId);
         }
         page.groupId = groupId;
-        // Incremental. Recomputing from `sortedPageIds` here (a flatMap over
-        // every group) is what made the callers that loop over pages quadratic:
-        // 400 pages went from 998ms to 64ms when this became a +1.
         this.data.numberOfPages += 1;
         return true;
     }
     /**
-     * Move a page to the position currently held by another page. Used by
-     * drag-and-drop.
-     * @param {String} pageId the dragged page
-     * @param {String} targetPageId the page it is dropped onto
-     * @returns {boolean} whether the page was moved
+     * @param {String} pageId
+     * @param {String} targetPageId
+     * @returns {boolean}
      */
     movePage(pageId, targetPageId) {
         const targetPage = this.data.pages[targetPageId];
@@ -415,18 +311,13 @@ export class PdfPageStore {
         let index = targetGroup.pageIds.indexOf(targetPageId);
         const sourceIndex = targetGroup.pageIds.indexOf(pageId);
         if (sourceIndex !== -1 && sourceIndex < index) {
-            // Same-group forward drag: the detach in `addPage` shifts
-            // everything after the source one slot left, so the target's index
-            // is stale by one. Without this the page landed *after* its target.
             index -= 1;
         }
         return this.addPage(pageId, targetPage.groupId, { index });
     }
     /**
-     * Detach a page from its group. The page record survives; the tool keeps
-     * showing nothing for it until it is re-attached or deleted.
      * @param {String} pageId
-     * @returns {boolean} whether the page exists
+     * @returns {boolean}
      */
     removePage(pageId) {
         if (!this.data.pages[pageId]) {
@@ -437,17 +328,12 @@ export class PdfPageStore {
         return true;
     }
     /**
-     * Detach a page and drop its record entirely.
      * @param {String} pageId
      */
     deletePage(pageId) {
         this.removePage(pageId);
         delete this.data.pages[pageId];
     }
-
-    //--------------------------------------------------------------------------
-    // Selection
-    //--------------------------------------------------------------------------
 
     /**
      * @param {String} pageId
@@ -476,22 +362,15 @@ export class PdfPageStore {
             page.isSelected = isSelected;
         }
     }
-    /**
-     * Select everything, or deselect everything if it already is all selected.
-     */
     toggleSelectAll() {
         this.selectAll(!this.allSelected);
     }
-    /**
-     * Deselect the grouped pages.
-     */
     unselectAll() {
         for (const pageId of this.selectedPageIds) {
             this.data.pages[pageId].isSelected = false;
         }
     }
     /**
-     * Select the whole group, or deselect it if it already is fully selected.
      * @param {String} groupId
      */
     toggleGroupSelection(groupId) {
@@ -507,8 +386,6 @@ export class PdfPageStore {
         }
     }
     /**
-     * Toggle a page's selection through a user click, extending the selection
-     * from the last clicked page when asked to.
      * @param {String} pageId
      * @param {Object} [param1]
      * @param {boolean} [param1.isRangeSelection]
@@ -534,9 +411,7 @@ export class PdfPageStore {
         this.data.lastSelectedPage = pageId;
     }
     /**
-     * Select every page from the focused one to the group's edge, or deselect
-     * them if that range already is fully selected.
-     * @param {String} direction "left" or "right"
+     * @param {String} direction
      */
     selectUntilSplit(direction) {
         if (this.data.focusedPage) {
@@ -563,17 +438,10 @@ export class PdfPageStore {
         }
     }
 
-    //--------------------------------------------------------------------------
-    // Focus
-    //--------------------------------------------------------------------------
-
     /**
-     * Move the focus by one step in display order.
-     * @param {String} direction "left", "right", "up" or "down"
-     * @param {boolean} doSelect also drag the selection along
-     * @param {Function} [getCardsPerLine] how many cards a rendered line holds;
-     *   only called for the vertical steps' stride, and only when it is needed
-     *   (it is the component's single DOM measurement in this path)
+     * @param {String} direction
+     * @param {boolean} doSelect
+     * @param {Function} [getCardsPerLine]
      */
     focusNextPage(direction, doSelect, getCardsPerLine = () => 1) {
         const { focusedPage, lastSelectedPage, pages } = this.data;
@@ -607,7 +475,6 @@ export class PdfPageStore {
         } else {
             const firstPageId = this.sortedPageIds[0];
             if (!firstPageId) {
-                // No page at all (nothing loaded yet, or every load failed).
                 return;
             }
             this.data.focusedPage = firstPageId;
@@ -617,8 +484,7 @@ export class PdfPageStore {
         }
     }
     /**
-     * Move the focus to the first page of the neighbouring group.
-     * @param {String} direction "left" or "right"
+     * @param {String} direction
      */
     focusNextGroup(direction) {
         if (this.data.focusedPage) {
@@ -637,14 +503,8 @@ export class PdfPageStore {
         }
     }
 
-    //--------------------------------------------------------------------------
-    // Consistency
-    //--------------------------------------------------------------------------
-
     /**
-     * Assert every invariant this class exists to hold. Not on any hot path:
-     * it is O(pages + groups) and meant for tests and debugging.
-     * @throws {Error} listing every violation found
+     * @throws {Error}
      */
     checkInvariants() {
         const errors = [];
@@ -708,22 +568,11 @@ export class PdfPageStore {
         }
     }
 
-    //--------------------------------------------------------------------------
-    // Private
-    //--------------------------------------------------------------------------
-
     /**
-     * Remove a page from whatever group holds it, without touching the focus.
-     *
-     * Split from {@link removePage} on purpose: re-attaching a page (a reorder,
-     * a merge) detaches it first, and that must not cost the user their focus.
-     * Only a real removal releases the focus references.
-     *
      * @private
      * @param {String} pageId
      * @param {Object} [param1]
-     * @param {String} [param1.keepGroup] group to leave in place even if the
-     *   detach empties it (the caller is about to fill it again)
+     * @param {String} [param1.keepGroup]
      */
     _detach(pageId, { keepGroup } = {}) {
         const page = this.data.pages[pageId];
@@ -731,17 +580,11 @@ export class PdfPageStore {
             return;
         }
         const groupId = page.groupId;
-        // A page is legitimately group-less: already committed by a partial split,
-        // or freshly created.
         const group = groupId && this.data.groupData[groupId];
         page.groupId = false;
         if (!group) {
             return;
         }
-        // filter + reassign rather than an in-place splice: the reactive proxy
-        // fires a set trap per shifted index, and splice measured ~2x slower on
-        // a 400-group document. Callers rely on the reassignment too — it turns
-        // a `pageIds` reference held across a loop into a stable snapshot.
         group.pageIds = group.pageIds.filter((listedPageId) => listedPageId !== pageId);
         this.data.numberOfPages -= 1;
         if (groupId !== keepGroup) {
@@ -757,9 +600,6 @@ export class PdfPageStore {
         if (!group || group.pageIds.length > 0) {
             return;
         }
-        // No scan over `pages` here: the group is empty, and `_detach` clears
-        // `page.groupId` before getting here. The scan was O(all pages) on
-        // every single page removal.
         this.data.groupIds = this.data.groupIds.filter(
             (listedGroupId) => listedGroupId !== groupId,
         );

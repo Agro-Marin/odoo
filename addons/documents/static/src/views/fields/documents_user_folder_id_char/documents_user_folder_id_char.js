@@ -16,10 +16,7 @@ export class DocumentsUserFolderIdCharField extends Component {
     static template = "documents.DocumentsUserFolderIdChar";
 
     /**
-     * Change current value and optionally other fields
-     *
-     * @param val
-     * @param {Object} extra Additional fields values to update
+     * @param {Object} extra
      * @return {Promise<void>}
      */
     async onChange(val, extra = {}) {

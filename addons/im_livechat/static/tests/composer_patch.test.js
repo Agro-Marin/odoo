@@ -65,7 +65,6 @@ test('Receives visitor typing status "is typing"', async () => {
     await openDiscuss(channelId);
     await contains(".o-discuss-Typing", { text: "" });
     const channel = pyEnv["discuss.channel"].search_read([["id", "=", channelId]])[0];
-    // simulate receive typing notification from livechat visitor "is typing"
     withGuest(guestId, () =>
         rpc("/discuss/channel/notify_typing", {
             is_typing: true,

@@ -1,18 +1,6 @@
 /** @odoo-module native */
-// This file is just a "static" class to store the options for the DataService class.
-// We are now able to override options from others modules
 export class DataServiceOptions {
     get databaseTable() {
-        // A pos.order is purged from IndexedDB once it is finalized, synced, and
-        // belongs to a PAST session. Its children (lines, payments, custom
-        // attribute values) must follow the SAME predicate on their parent order
-        // — otherwise a kept current-session order has its lines/payments purged
-        // and reloads as a corrupt header with no lines and a zero total.
-        // Boolean() matters: a broken parent chain yields undefined, and
-        // _synchronizeLocalDataInIndexedDB treats undefined as "remove".
-        // NB: the JS field is session_id (pos_session_id does not exist on the
-        // model — the old clause was always true, so the condition silently
-        // degenerated to `finalized && isSynced`).
         const orderIsPurgeable = (order) =>
             Boolean(
                 order?.finalized &&
@@ -34,7 +22,6 @@ export class DataServiceOptions {
             },
             "product.attribute.custom.value": {
                 key: "id",
-                // order_id is a two-hop getter (pos_order_line_id?.order_id).
                 condition: (record) => orderIsPurgeable(record.order_id),
             },
         };
@@ -56,8 +43,6 @@ export class DataServiceOptions {
             "pos.order": ["uuid"],
             "pos.order.line": ["uuid"],
             "pos.payment": ["uuid"],
-            // NB: no "write_date" index — it had zero consumers and a
-            // same-second bulk import guarantees collisions on it.
             "product.template": ["pos_categ_ids"],
             "product.product": ["pos_categ_ids", "barcode"],
             "account.fiscal.position": ["tax_ids"],
@@ -84,12 +69,12 @@ export class DataServiceOptions {
 
     get prohibitedAutoLoadedModels() {
         return [
-            "pos.order", // Cannot be auto-loaded can cause infinite loop
-            "pos.order.line", // Cannot be auto-loaded can cause infinite loop
+            "pos.order",
+            "pos.order.line",
             "pos.session",
             "pos.config",
             "res.users",
-            "account.tax", // Cannot be auto-loaded because the record needs adaptions
+            "account.tax",
         ];
     }
 

@@ -92,7 +92,6 @@ export class TestEPos extends Component {
                     return;
                 }
             }
-            // Parse response
             const result = await fetch(this.address, params);
             const body = await result.text();
             const parser = new DOMParser();

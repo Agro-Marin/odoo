@@ -17,16 +17,11 @@ import DeviceIdentifierSequence from "../utils/devices_identifier_sequence.js";
 import { logPosMessage } from "../utils/pretty_console_log.js";
 const { DateTime } = luxon;
 const CONSOLE_COLOR = "#28ffeb";
-// IndexedDB store persisting network.unsyncData across reloads.
 const UNSYNC_QUEUE_STORE = "pos.unsync.queue";
-// How many times a queued offline operation may fail with a CLIENT-side error
-// before it is dead-lettered. Server rejections (RPCError) are dead-lettered on
-// the first failure; connection loss is not counted at all, since it is the
-// normal offline case the queue exists for.
 const MAX_SYNC_ATTEMPTS = 5;
 
 export class PosData extends SignalStore {
-    static modelToLoad = []; // When empty all models are loaded
+    static modelToLoad = [];
     static serviceDependencies = ["orm", "bus_service", "dialog"];
 
     constructor() {
@@ -55,21 +50,11 @@ export class PosData extends SignalStore {
             offline: false,
             loading: true,
             unsyncData: [],
-            // Queued offline operations the server definitively rejected on
-            // replay: kept out of the retry loop but preserved for diagnosis.
             deadSyncData: [],
         };
 
-        // UUIDs of paid orders not yet confirmed durable (IndexedDB) nor
-        // synced to the server. Consumed by the beforeunload guard in main.js
-        // to prevent data loss on accidental page close/reload (adapted from
-        // upstream 8070239c9a3).
         this.localUnsyncedPaidOrderUuids = new Set();
 
-        // Always probe: navigator.onLine misses e.g. Chrome DevTools offline
-        // mode, and the offline-boot restore path depends on network.offline
-        // being accurate before intializeDataRelation runs (upstream
-        // 5ef07075b62).
         await this.checkConnectivity();
 
         this.initializeWebsocket();
@@ -90,9 +75,6 @@ export class PosData extends SignalStore {
         try {
             clearTimeout(this.checkConnectivityTimeout);
             this.checkConnectivityTimeout = null;
-            // The browser reports itself offline when no interface is connected,
-            // even though a local/runbot Odoo server may still be reachable. Ping
-            // it to tell a real outage apart from that case.
             this.network.offline = false;
             this.network.warningTriggered = false;
 
@@ -147,7 +129,6 @@ export class PosData extends SignalStore {
     }
 
     async resetIndexedDB() {
-        // Remove data_server_date since it's used to determine the last time the data was loaded
         await this.indexedDB.reset();
     }
 
@@ -156,9 +137,6 @@ export class PosData extends SignalStore {
     }
 
     async initIndexedDB(relations) {
-        // This method initializes indexedDB with all models loaded into the PoS. The default key is ID.
-        // But some models have another key configured in data_service_options.js. These models are
-        // generally those that can be created in the frontend.
         const allModelNames = Array.from(
             new Set([
                 ...Object.keys(relations),
@@ -169,9 +147,6 @@ export class PosData extends SignalStore {
             const key = this.opts.databaseTable[model]?.key || "id";
             return [key, model];
         });
-        // Synthetic store for the offline retry queue: without persistence a
-        // reload silently dropped every queued mutation. Existing databases
-        // gain the store through the auto-upgrade flow.
         models.push(["uuid", UNSYNC_QUEUE_STORE]);
 
         return new Promise((resolve) => {
@@ -186,19 +161,10 @@ export class PosData extends SignalStore {
     }
 
     async synchronizeLocalDataInIndexedDB() {
-        // Serialized on a mutex to avoid concurrent IndexedDB access
-        // (upstream 800cbd474b7).
         return this.indexedDBMutex.exec(() => this._synchronizeLocalDataInIndexedDB());
     }
 
-    /**
-     * Private method that synchronizes local data and state in indexedDB.
-     * DO NOT CALL THIS METHOD DIRECTLY, use synchronizeLocalDataInIndexedDB instead.
-     */
     async _synchronizeLocalDataInIndexedDB() {
-        // This methods will synchronize local data and state in indexedDB. This methods is mostly
-        // used with models like pos.order, pos.order.line, pos.payment etc. These models are created
-        // in the frontend and are not loaded from the backend.
         const modelsParams = Object.entries(this.opts.databaseTable);
         const data = {};
         for (const [model, params] of modelsParams) {
@@ -230,17 +196,6 @@ export class PosData extends SignalStore {
             }
 
             if (model === "pos.order") {
-                // Release the beforeunload data-loss guard for paid orders that
-                // are now durable in IndexedDB (safe on reload) or synced to the
-                // server; warn loudly for a tracked order that vanished.
-                //
-                // Durability must be judged by whether the write SUCCEEDED, not
-                // merely attempted. `create()` resolves per-batch {status}
-                // objects and never throws, so a rejected batch (transaction
-                // timeout, quota, dead connection on iOS) previously still
-                // released the guard because the order was in the `put` array —
-                // suppressing the only close-time warning for an order that was
-                // neither on the server nor in IndexedDB. Consume the result.
                 const writeSucceeded =
                     !put.length ||
                     (Array.isArray(writeResults) &&
@@ -250,11 +205,8 @@ export class PosData extends SignalStore {
                     const written = writtenByUuid.get(trackedUuid);
                     const localRecord = this.models[model].getBy("uuid", trackedUuid);
                     if (!localRecord?.isUnsyncedPaid) {
-                        // Synced to the server (or no longer paid): durable
-                        // regardless of the IndexedDB outcome.
                         this.localUnsyncedPaidOrderUuids.delete(trackedUuid);
                     } else if (written?.state === "paid" && writeSucceeded) {
-                        // Confirmed written to IndexedDB in paid state.
                         this.localUnsyncedPaidOrderUuids.delete(trackedUuid);
                     } else {
                         logPosMessage(
@@ -297,8 +249,6 @@ export class PosData extends SignalStore {
     }
 
     async getLocalDataFromIndexedDB(data = false) {
-        // Used to retrieve models containing states from the indexedDB.
-        // This method will load the records directly via loadData.
         const models = Object.keys(this.opts.databaseTable);
 
         if (!data) {
@@ -319,8 +269,6 @@ export class PosData extends SignalStore {
         missing["pos.order.line"] = restoredLines.filter((line) =>
             loadedProductIds.has(line.product_id),
         );
-        // Dropping a line silently leaves its order restored as a header with a
-        // wrong total, which is indistinguishable from a correct restore. Say so.
         const droppedLines = restoredLines.length - missing["pos.order.line"].length;
         if (droppedLines) {
             logPosMessage(
@@ -339,16 +287,11 @@ export class PosData extends SignalStore {
     }
 
     async getCachedServerDataFromIndexedDB() {
-        // Used to load models that have not yet been loaded into related_models.
-        // These models have been sent to the indexedDB directly after the RPC load_data.
         const data = await this.indexedDB.readAll();
         const modelToIgnore = new Set(Object.keys(this.opts.databaseTable));
         const results = {};
 
         for (const name in data) {
-            // `modelToIgnore` is a list of model names — `name in modelToIgnore`
-            // tests array indices ("0", "1", …), never model names, so the filter
-            // never fired. Use a Set membership test instead.
             if (modelToIgnore.has(name)) {
                 continue;
             }
@@ -444,8 +387,6 @@ export class PosData extends SignalStore {
     }
 
     async initData() {
-        // loadInitialData() takes no arguments; the two that used to be
-        // forwarded here were silently dropped.
         const data = await this.loadInitialData();
         const order = data["pos.order"] || [];
         const orderlines = data["pos.order.line"] || [];
@@ -492,9 +433,6 @@ export class PosData extends SignalStore {
     }
 
     async intializeDataRelation() {
-        // Here the order is important. loadFieldsAndRelations will load all the information
-        // about the models loaded in the PoS. Then initIndexedDB needs it to update/create
-        // the indexedDB. loadInitialData needs indexedDB, so it comes at the end.
         const modelClasses = {};
         const fields = {};
         const relations = {};
@@ -531,9 +469,6 @@ export class PosData extends SignalStore {
         await this.initData();
         await this.getLocalDataFromIndexedDB();
         this.initListeners();
-        // Only now is the data layer complete (fields/relations/models assigned
-        // above, records loaded). Replaying the restored offline queue any
-        // earlier destroyed it — see restoreUnsyncQueue.
         this.drainRestoredQueue();
 
         if (odoo.debug === "assets") {
@@ -571,12 +506,6 @@ export class PosData extends SignalStore {
                 this.debouncedSynchronizeLocalDataInIndexedDB.bind(this),
             );
 
-            // Prune the row when the record is deleted: the local sync only
-            // iterates records still in the store, so rows of deleted lines /
-            // payments were never removed — unbounded growth plus phantom
-            // records recreated on every reload. Only models persisted in
-            // IndexedDB (databaseTable) have a store to prune; a module can
-            // declare dynamic models that are not persisted.
             if (databaseTable[dynamicModel]) {
                 this.models[dynamicModel].addEventListener("delete", (params) => {
                     if (params.key !== undefined) {
@@ -599,12 +528,8 @@ export class PosData extends SignalStore {
             this.models[model].addEventListener("update", (params) => {
                 const record = this.models[model].get(params.id)?.raw;
                 if (!record) {
-                    return; // the record may be deleted
+                    return;
                 }
-                // `record` is `.raw` — a deep-immutable clone whose values are
-                // already ids / arrays of ids / scalars, never Base instances, so
-                // the old id-normalization loop here was unreachable (and would
-                // have thrown on the immutable proxy if it ever ran).
                 this.synchronizeServerDataInIndexedDB({ [model]: [record] });
             });
         }
@@ -623,9 +548,6 @@ export class PosData extends SignalStore {
         options = [],
         uuid = "",
     }) {
-        // Counted, not a boolean: execute() is called concurrently, and the
-        // first call to finish used to clear the flag for every other in-flight
-        // request, hiding the loading indicator while work was still running.
         this._inFlight = (this._inFlight ?? 0) + 1;
         this.network.loading = true;
 
@@ -640,9 +562,6 @@ export class PosData extends SignalStore {
                 fields = this.fields[model] || [];
             }
 
-            // Compare on copies: Array.prototype.sort mutates in place, so this
-            // test used to permanently reorder both the caller's array and the
-            // canonical this.fields[model].
             const modelFields = this.fields[model];
             if (
                 modelFields &&
@@ -767,7 +686,6 @@ export class PosData extends SignalStore {
             }
 
             if (result === null || result === undefined) {
-                // if request does not return something, we consider it went well
                 return true;
             }
             return result;
@@ -802,10 +720,6 @@ export class PosData extends SignalStore {
     }
 
     async missingRecursive(recordMap, idsMap = {}, acc = {}) {
-        // Fold the input into the accumulator before the offline check: being
-        // offline only means missing *relations* cannot be fetched — the records
-        // we already have (e.g. the IndexedDB restore payload on an offline
-        // boot) must still be returned, or the whole input is discarded.
         for (const [model, records] of Object.entries(recordMap)) {
             if (!acc[model]) {
                 acc[model] = records;
@@ -923,11 +837,6 @@ export class PosData extends SignalStore {
         }
     }
 
-    // ---- Offline retry-queue persistence -------------------------------
-    // The queue lives in memory (network.unsyncData) and is mirrored into a
-    // dedicated IndexedDB store so a reload does not silently drop queued
-    // mutations. All mirror operations are best-effort fire-and-forget.
-
     _persistQueueEntry(entry) {
         this.indexedDB
             ?.create(UNSYNC_QUEUE_STORE, [
@@ -959,14 +868,6 @@ export class PosData extends SignalStore {
                     });
                 }
             }
-            // NB: do NOT drain here. This runs from intializeDataRelation
-            // BEFORE `this.fields`/`this.models` are assigned, and syncData ->
-            // execute() dereferences `this.fields[model]`. The resulting
-            // TypeError is not a ConnectionLostError, so syncData's catch
-            // treated it as a hard server rejection and dead-lettered the
-            // entry — every restored offline write was destroyed on the very
-            // reload that was supposed to replay it. The drain now happens in
-            // drainRestoredQueue(), called once the data layer is ready.
         } catch {
             logPosMessage(
                 "DataService",
@@ -977,11 +878,6 @@ export class PosData extends SignalStore {
         }
     }
 
-    /**
-     * Replay a queue restored from IndexedDB, once the data layer is ready.
-     * Deliberately fire-and-forget (boot must not block on it) but never
-     * silently: a failure here means offline writes are still pending.
-     */
     drainRestoredQueue() {
         if (!this.network.unsyncData.length || this.network.offline) {
             return;
@@ -1005,8 +901,6 @@ export class PosData extends SignalStore {
                     await this.execute({ ...data.args[0], uuid: data.uuid });
                     this.network.unsyncData.shift();
                     this._unpersistQueueEntry(data.uuid);
-                    // Notify other devices now that the queued write landed
-                    // (ormWrite skips the dispatch for queued entries).
                     const params = data.args[0];
                     if (params?.type === "write" && this.deviceSync?.dispatch) {
                         Promise.resolve(
@@ -1017,21 +911,9 @@ export class PosData extends SignalStore {
                     }
                 } catch (error) {
                     if (error instanceof ConnectionLostError) {
-                        // Still offline: keep the entry and stop draining; the
-                        // next connectivity check retries it.
                         throw error;
                     }
                     if (!(error instanceof RPCError)) {
-                        // A client-side fault (TypeError from a not-yet-ready
-                        // data layer, a bug in execute, …) is NOT evidence that
-                        // the server refused this write. Dead-lettering it here
-                        // silently destroyed queued offline edits. Keep the
-                        // entry queued so it can be retried — but bounded: the
-                        // `try` counter has always been carried on the entry and
-                        // never incremented, so without this a permanently
-                        // failing entry would block everything behind it for the
-                        // rest of the session. Past the cap it dead-letters like
-                        // a server rejection.
                         data.try = (data.try ?? 1) + 1;
                         if (data.try <= MAX_SYNC_ATTEMPTS) {
                             this._persistQueueEntry(data);
@@ -1045,10 +927,6 @@ export class PosData extends SignalStore {
                             [error, data],
                         );
                     }
-                    // Hard server rejection: this entry would fail on every
-                    // reconnect forever and block everything queued behind it.
-                    // Dead-letter it (kept for the debug widget / log export)
-                    // and keep draining.
                     this.network.unsyncData.shift();
                     this._unpersistQueueEntry(data.uuid);
                     this.network.deadSyncData.push({ ...data, error });
@@ -1077,10 +955,6 @@ export class PosData extends SignalStore {
         const session = this.models["pos.session"].get(odoo.pos_session_id);
         const orders = result["pos.order"] || [];
         for (const order of orders) {
-            // Consume stale commands for orders the server just handed back —
-            // but never for a locally-dirty order: its pending unlink/delete
-            // commands are exactly the edits the next sync must still send
-            // (serializeForORM's clearing side effect would discard them).
             if (!order.isDirty()) {
                 order.serializeForORM();
             }
@@ -1113,19 +987,11 @@ export class PosData extends SignalStore {
         for (const id of ids) {
             const record = this.models[model].get(id);
             if (!record) {
-                // execute()'s write branch guards the same lookup; without this
-                // a stale id threw a TypeError straight out of a sync method.
                 continue;
             }
             delete vals.id;
 
             const keysToUpdate = Object.keys(vals);
-            // Snapshot before mutating so a rejected ORM write can be undone.
-            // The update is optimistic and used to be left applied on failure —
-            // the ORM call was fired unawaited and uncaught, so the tab stayed
-            // diverged from the server for the rest of the session with no
-            // retry and no queue entry. x2many values are live arrays; copy
-            // them or the "revert" would re-apply the new value.
             const previous = {};
             for (const key of keysToUpdate) {
                 const value = record[key];
@@ -1141,9 +1007,6 @@ export class PosData extends SignalStore {
             records.push(record);
             if (typeof id === "number") {
                 try {
-                    // ormWrite queues the operation instead of throwing when
-                    // offline, so only a real rejection (AccessError, RPCError,
-                    // a validation failure) reaches this handler.
                     await this.ormWrite(model, [record.id], dataToUpdate);
                 } catch (error) {
                     record.update(previous, { omitUnknownField: true });
@@ -1160,18 +1023,12 @@ export class PosData extends SignalStore {
         for (const id of ids) {
             const record = this.models[model].get(id);
             if (!record) {
-                // A stale id threw a TypeError straight out of this sync
-                // method; write() already guards the same lookup. The id is
-                // still sent to the server, which may well still hold it.
                 continue;
             }
             deleted.push(id);
             record.delete();
         }
 
-        // Fire-and-forget by contract (the method is synchronous), but never
-        // an unhandled rejection: ormDelete queues on connection loss and
-        // rejects on a real refusal.
         Promise.resolve(this.ormDelete(model, ids)).catch((error) => {
             logPosMessage(
                 "DataService",
@@ -1217,7 +1074,6 @@ export class PosData extends SignalStore {
         });
     }
 
-    // In a silent call we ignore the error and return false instead
     async silentCall(model, method, args = [], kwargs = {}, queue = false) {
         try {
             return await this.execute({
@@ -1282,10 +1138,6 @@ export class PosData extends SignalStore {
             values,
             queue,
         });
-        // execute() returns undefined when the write was queued offline: the
-        // dispatch is replayed from syncData instead — calling it here threw
-        // an unhandled ConnectionLostError per offline write and other devices
-        // were never notified when the queued write finally landed.
         if (result !== undefined && this.deviceSync?.dispatch) {
             Promise.resolve(
                 this.deviceSync.dispatch({ [model]: ids.map((id) => ({ id })) }),
@@ -1301,9 +1153,6 @@ export class PosData extends SignalStore {
     localDeleteCascade(record, removeFromServer = false) {
         const recordModel = record.model.name;
 
-        // Read the option getters ONCE: both rebuild a fresh object (and
-        // databaseTable four fresh closures) on every access, and idbKey below
-        // runs per record.
         const cascadeDeleteModels = new Set(this.opts.cascadeDeleteModels);
         const databaseTable = this.opts.databaseTable;
 
@@ -1314,10 +1163,6 @@ export class PosData extends SignalStore {
             (relation) => record[relation] || [],
         );
 
-        // Delete all children records before main record. Delete by each store's
-        // configured key path (not a hard-coded `uuid`): id-keyed stores such as
-        // `product.attribute.custom.value` would otherwise never match a `uuid` and
-        // leave orphaned rows behind.
         const idbKey = (rec) => rec[databaseTable[rec.model.name]?.key || "id"];
         this.deleteRecordsInIndexedDB(recordModel, [idbKey(record)]);
         for (const item of recordsToDelete) {
@@ -1325,7 +1170,6 @@ export class PosData extends SignalStore {
             item.delete({ silent: !removeFromServer });
         }
 
-        // Delete the main record
         const result = record.delete({ silent: !removeFromServer });
         return result;
     }

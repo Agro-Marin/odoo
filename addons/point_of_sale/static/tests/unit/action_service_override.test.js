@@ -11,12 +11,6 @@ import {
     onRpc,
 } from "@web/../tests/web_test_helpers";
 
-/**
- * The PoS override reroutes actions to a dialog. It must do so without
- * narrowing the service: it used to hand back a spread of the ActionManager
- * instance, which copies own properties only and therefore dropped every
- * method the manager keeps on its prototype.
- */
 describe.current.tags("desktop");
 
 class Thing extends models.Model {

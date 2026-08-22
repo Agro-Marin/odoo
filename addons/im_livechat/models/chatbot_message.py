@@ -1,15 +1,7 @@
-# -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import models, fields
 
 
 class ChatbotMessage(models.Model):
-    """ Chatbot Mail Message
-        We create a new model to store the related step to a mail.message and the user's answer.
-        We do this in a new model to avoid bloating the 'mail.message' model.
-    """
-
     _name = 'chatbot.message'
     _description = 'Chatbot Message'
     _order = 'create_date desc, id desc'

@@ -29,20 +29,9 @@ export class AccountTypeSelection extends SelectionField {
     }
 
     /**
-     * Group the account types by the section of the report they land in.
-     *
-     * Getters, not fields built in `setup()`: `choices` derives from the record,
-     * and buckets frozen at setup outlive the record they were computed from.
-     *
-     * `Other` takes whatever the prefixes do not claim — `off_balance` today —
-     * because a type matching no prefix would otherwise be absent from the
-     * selector with nothing said about it.
-     *
      * @returns {Array<{label: string, choices: Array, section: string}>}
      */
     get groups() {
-        // One read, and keyed by value: `choices` rebuilds its objects on every
-        // access, so identities do not survive a second read.
         const choices = this.choices;
         const claimed = new Set();
         const groups = PREFIXED_GROUPS.map(({ label, prefix, section }) => {

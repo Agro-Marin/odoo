@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/lib/chartjs */
-
 import { makeLazyFacade } from "@web/core/module_bridge";
 
 /** @type {any} */

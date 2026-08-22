@@ -19,7 +19,7 @@ export class DocumentsMany2OneAvatarField extends Component {
 
 export const documentsMany2OneAvatarField = {
     component: DocumentsMany2OneAvatarField,
-    supportedTypes: ["many2one"], // res.partner or res.users
+    supportedTypes: ["many2one"],
     relatedFields: [
         { name: "active", type: "boolean" },
         { name: "email", type: "char" },

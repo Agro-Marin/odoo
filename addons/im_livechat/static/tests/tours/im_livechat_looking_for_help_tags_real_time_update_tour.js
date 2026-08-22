@@ -42,7 +42,6 @@ registry
                     [tagId] = await orm.create("im_livechat.conversation.tag", [
                         { name: "Discuss" },
                     ]);
-                    // Simulate other user adding a tag
                     await rpc("/im_livechat/conversation/update_tags", {
                         channel_id: bobChatId,
                         tag_ids: [tagId],
@@ -54,7 +53,6 @@ registry
                 trigger:
                     '.o_data_cell[name="livechat_conversation_tag_ids"]:has(.o_tag:contains(Discuss))',
                 async run() {
-                    // Simulate other user removing a tag
                     await rpc("/im_livechat/conversation/update_tags", {
                         channel_id: bobChatId,
                         tag_ids: [tagId],

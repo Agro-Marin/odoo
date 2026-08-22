@@ -22,15 +22,7 @@ const ControllerComponentTemplate = xml`<t t-component="Component" t-props="comp
 /** @import { ActionManager } from "./action_service.js" */
 
 /**
- * The three recorders a controller exposes to whatever it renders: what to run
- * before leaving, and the two state exporters. A dialog has none -- it is never
- * left, restored or pushed to the url.
- *
- * `View` is the exception to the sub-env: it takes the recorders as props
- * instead, so handing them down twice would give its descendants two paths to
- * the same object.
- *
- * @param {any} component the ControllerComponent being set up
+ * @param {any} component
  * @param {any} action
  * @param {ActionManager} am
  */

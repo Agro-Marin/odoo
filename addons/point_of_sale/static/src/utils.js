@@ -4,25 +4,15 @@
 import { deserializeDateTime } from "@web/core/l10n/dates";
 import { getDataURLFromFile } from "@web/core/utils/urls";
 import { session } from "@web/session";
-/*
- * comes from o_spreadsheet.js
- * https://stackoverflow.com/questions/105034/create-guid-uuid-in-javascript
- * */
 export function uuidv4() {
-    // Prefer the CSPRNG. These uuids are not only record keys: pos.order's
-    // access_token is minted from one, and it is the sole credential for the
-    // public /pos/ticket/validate route. Math.random (V8: xorshift128+) is not
-    // a CSPRNG and its output is not a safe basis for a security token.
-    // The Math.random branch below is kept only as a last-resort fallback for
-    // runtimes without crypto (it is never reached in a browser POS session).
     if (typeof crypto !== "undefined") {
         if (typeof crypto.randomUUID === "function") {
             return crypto.randomUUID();
         }
         if (typeof crypto.getRandomValues === "function") {
             const bytes = crypto.getRandomValues(new Uint8Array(16));
-            bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
-            bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 10xx
+            bytes[6] = (bytes[6] & 0x0f) | 0x40;
+            bytes[8] = (bytes[8] & 0x3f) | 0x80;
             const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0"));
             return [
                 hex.slice(0, 4).join(""),
@@ -41,8 +31,6 @@ export function uuidv4() {
 }
 
 /**
- * Formats the given `url` with correct protocol and port.
- * Useful for communicating to local iot box instance.
  * @param {string} url
  * @returns {string}
  */
@@ -96,7 +84,6 @@ export function constructFullProductName(line) {
         : `${line?.product_id?.name}`;
 }
 /**
- * Returns a random 5 digits alphanumeric code
  * @returns {string}
  */
 export function random5Chars() {
@@ -107,11 +94,6 @@ export function random5Chars() {
     return code;
 }
 
-/**
- * Stable per-browser identifier for a customer-display device. The
- * /pos_customer_display route takes it as a path segment and authenticates
- * separately via an access_token query parameter.
- */
 export function getDeviceUuid() {
     if (!localStorage.getItem("device_uuid")) {
         localStorage.setItem("device_uuid", uuidv4());
@@ -124,12 +106,11 @@ export function qrCodeSrc(url, { size = 200 } = {}) {
 }
 
 /**
- * Returns the entry with the highest `criterion` value (lowest if `inverted`).
  * @template T
- * @param {T[]} entries - The entries to search.
- * @param {Function} [criterion=(x) => x] - Maps an entry to a comparable number.
- * @param {boolean} [inverted=false] - Return the minimum instead of the maximum.
- * @returns {T} The selected entry.
+ * @param {T[]} entries
+ * @param {Function} [criterion=(x) => x]
+ * @param {boolean} [inverted=false]
+ * @returns {T}
  */
 export function getMax(entries, { criterion = (x) => x, inverted = false } = {}) {
     return entries.reduce((prev, current) => {
@@ -145,9 +126,6 @@ export function getOnNotified(bus, channel) {
     return (notif, callback) => bus.subscribe(`${channel}-${notif}`, callback);
 }
 
-/**
- * Awaitable image loading: resolves to the loaded image, or false on error.
- */
 export function loadImage(url, options = {}) {
     return new Promise((resolve, reject) => {
         const img = new Image();
@@ -163,7 +141,6 @@ export function loadImage(url, options = {}) {
 }
 
 /**
- * Load all images in the given element.
  * @param {HTMLElement} el
  */
 
@@ -242,16 +219,14 @@ export function orderUsageUTCtoLocalUtil(data) {
 }
 
 /**
- * Generates a QR code as a data URL in SVG format for a given URL.
- *
- * @param {string} url - The URL or text to encode in the QR code.
- * @param {Object} [options={}] - Optional configuration for the QR code.
- * @param {number} [options.width=150] - The width of the QR code.
- * @param {number} [options.height=150] - The height of the QR code.
- * @param {number} [options.correctLevel=QRCode.CorrectLevel.L] - The error correction level for the QR code.
- * @param {boolean} [options.useSVG=true] - Whether to generate the QR code as SVG.
- * @param {Object} [options.rest] - Additional options to pass to the QRCode constructor.
- * @returns {string} The QR code as a data URL in SVG format.
+ * @param {string} url
+ * @param {Object} [options={}]
+ * @param {number} [options.width=150]
+ * @param {number} [options.height=150]
+ * @param {number} [options.correctLevel=QRCode.CorrectLevel.L]
+ * @param {boolean} [options.useSVG=true]
+ * @param {Object} [options.rest]
+ * @returns {string}
  */
 export function generateQRCodeDataUrl(
     url,

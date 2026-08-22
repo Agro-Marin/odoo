@@ -19,23 +19,12 @@ export class SelectionPopup extends Component {
     };
 
     /**
-     * Value of the `item` key of the selected element in the Selection
-     * Array is the payload of this popup.
-     *
      * @param {Object} props
      * @param {String} [props.title='Select']
      * @param {Array<Selection>} [props.list=[]]
-     *      Selection {
-     *          id: integer,
-     *          label: string,
-     *          isSelected: boolean,
-     *          item: any,
-     *      }
      */
     setup() {
         this.state = useState({
-            // computePayload compares selectedId === item.id: storing the item
-            // OBJECT here made a pre-selected default unresolvable.
             selectedId: this.props.list.find((item) => item.isSelected)?.id,
         });
     }

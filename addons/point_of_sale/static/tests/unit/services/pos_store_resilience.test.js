@@ -16,8 +16,6 @@ describe("pos_store.js resilience", () => {
             await store.syncAllOrders({ orders: [order1, order2, order3] });
             expect(order2.isSynced).toBe(true);
 
-            // Simulates the order another device already invoiced: the server
-            // rejects its cancellation while the other two succeed.
             const call = store.data.call.bind(store.data);
             store.data.call = async (model, method, args, kwargs) => {
                 if (
@@ -36,17 +34,14 @@ describe("pos_store.js resilience", () => {
                 },
             };
 
-            // Must resolve, not reject: the caller is a `t-on-click` handler.
             const result = await store.deleteOrders([order1, order2, order3]);
 
             expect(result).toBe(false);
             expect(store.models["pos.order"].getBy("uuid", order1.uuid)).toBeEmpty();
             expect(store.models["pos.order"].getBy("uuid", order3.uuid)).toBeEmpty();
-            // The order that could not be cancelled must survive locally...
             expect(
                 store.models["pos.order"].getBy("uuid", order2.uuid),
             ).not.toBeEmpty();
-            // ...and be named to the cashier.
             expect(dialogs).toHaveLength(1);
             expect(dialogs[0].body).toInclude(order2.getName());
         });
@@ -74,8 +69,6 @@ describe("pos_store.js resilience", () => {
             await store.printReceipt({ order });
 
             expect(order.isDirty()).toBe(false);
-            // _dirty and _dirtyFields must agree: a cleared flag with a
-            // leftover field set is replayed as a phantom edit by the sync.
             expect([...order._dirtyFields]).toEqual([]);
         });
 
@@ -86,8 +79,6 @@ describe("pos_store.js resilience", () => {
             expect(order.nb_print || 0).toBe(0);
 
             store.printer = { print: async () => true };
-            // A real, gated promise: the RPC is still in flight when the second
-            // print starts, which is exactly when the read-modify-write raced.
             const gate = new Deferred();
             store.data.write = async (model, ids, vals) => {
                 await gate;
@@ -114,8 +105,6 @@ describe("pos_store.js resilience", () => {
             store.setOrder(order);
             expect(store.getOrder().uuid).toBe(order.uuid);
 
-            // What the browser back button produces on /ticket, /login, /saver
-            // or /action/{name}: a route carrying no orderUuid.
             delete store.router.state.params.orderUuid;
             await store.handleUrlParams();
 
@@ -167,8 +156,6 @@ describe("pos_store.js resilience", () => {
                 await store.sendOrderInPreparation(order);
             }
 
-            // uiState is serialized to IndexedDB on every debounced sync, so an
-            // unbounded history is carried on every write of a long-lived order.
             expect(order.uiState.lastPrints.length).toBeLessThan(14);
             expect(order.uiState.lastPrints).toHaveLength(10);
         });

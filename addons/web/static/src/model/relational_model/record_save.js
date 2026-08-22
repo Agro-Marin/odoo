@@ -148,7 +148,7 @@ function collectOrderBys(record, nextId) {
 /**
  * @param {RelationalRecord} record
  * @param {{ reload: boolean, nextId: number | undefined, orderBys: Record<string, any>,
- *           concurrencyBaseline: Record<string, any> }} params
+ * concurrencyBaseline: Record<string, any> }} params
  * @returns {Record<string, any>}
  */
 function buildSaveKwargs(record, { reload, nextId, orderBys, concurrencyBaseline }) {
@@ -175,7 +175,7 @@ function buildSaveKwargs(record, { reload, nextId, orderBys, concurrencyBaseline
  * @param {RelationalRecord} record
  * @param {Record<string, any>[]} records
  * @param {{ reload: boolean, nextId: number | undefined, creation: boolean,
- *           changes: Record<string, any>, orderBys: Record<string, any> }} params
+ * changes: Record<string, any>, orderBys: Record<string, any> }} params
  * @returns {Promise<void>}
  */
 async function applySaveResult(

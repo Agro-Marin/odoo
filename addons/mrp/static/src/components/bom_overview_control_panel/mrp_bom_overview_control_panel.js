@@ -52,8 +52,6 @@ export class BomOverviewControlPanel extends Component {
         }
     }
 
-    //---- Handlers ----
-
     updateQuantity(ev) {
         const newVal = isNaN(ev.target.value)
             ? 1

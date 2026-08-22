@@ -18,33 +18,14 @@ import {
 import { makeDocumentsMockEnv } from "./helpers/model.js";
 import { mountDocumentsKanbanView } from "./helpers/views/kanban.js";
 
-/**
- * Failure handling of the background thumbnail generation.
- *
- * Thumbnails are cosmetic and generated off the render path. The service's own
- * contract says a failure should mark the thumbnail and move on -- never
- * interrupt the user. But `enqueueRecords` dropped the promise returned by
- * `mutex.exec(...)` on the floor, so anything that rejected inside
- * `makeThumbnail` (the `update_thumbnail` RPC, or a PDF whose first page fails
- * to render -- `generatePdfThumbnail` has a `finally` around that block but no
- * `catch`) became an unhandled rejection, which the webclient turns into the
- * global error dialog.
- */
 describe.current.tags("desktop");
 
 defineModels(DocumentsModels);
 
-/**
- * Wait for the service's queue to drain. `enqueueRecords` returns the mutex's
- * unlocked deferred, so an empty call is a clean "await whatever is queued".
- */
 function drainThumbnailQueue() {
     return getService("documents_client_thumbnail").enqueueRecords([]);
 }
 
-/**
- * Mount a kanban holding one webp document awaiting a client-side thumbnail.
- */
 async function mountWithPendingThumbnail() {
     const serverData = getDocumentsTestServerModelsData([
         makeDocumentRecordData(3, "Test Document", {
@@ -78,8 +59,6 @@ test("a failing update_thumbnail RPC does not surface to the user", async () => 
     await drainThumbnailQueue();
 
     expect.verifySteps(["update_thumbnail attempted"]);
-    // No `expect.errors(...)` here on purpose: the assertion is precisely that
-    // the run produced no unhandled error for HOOT to report.
     expect(".o_kanban_record:contains('Test Document')").toHaveCount(1, {
         message: "the view is still usable after the thumbnail failed",
     });
@@ -130,10 +109,6 @@ test("a thumbnail failure does not stop the queue for later records", async () =
 });
 
 test("a PDF the route refuses is marked failed, not retried forever", async () => {
-    // 415 means the server will not render a first page from this document, so
-    // the status has to leave `client_generated` -- otherwise every page load
-    // re-requests a thumbnail that can never arrive (measured: two requests per
-    // load, indefinitely).
     const serverData = getDocumentsTestServerModelsData([
         makeDocumentRecordData(3, "Broken PDF", {
             thumbnail_status: "client_generated",
@@ -151,8 +126,6 @@ test("a PDF the route refuses is marked failed, not retried forever", async () =
     });
     await makeDocumentsMockEnv({ serverData });
     patchWithCleanup(documentsClientThumbnailService, {
-        // Stand in for the route answering 415, which is what makes
-        // `generatePdfThumbnail` report `isPdfValid: false`.
         _getPdfThumbnail() {
             return { thumbnail: undefined, isPdfValid: false, pdfEnabled: true };
         },

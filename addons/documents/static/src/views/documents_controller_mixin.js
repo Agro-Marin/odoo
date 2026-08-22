@@ -21,11 +21,6 @@ export const DocumentsControllerMixin = (component) =>
             this.firstLoadSelectId = this.documentService.initData?.documentId;
         }
 
-        /**
-         * Open document preview when the view is loaded for a specific document such as in:
-         *  * Direct access to the app via a document URL / _get_access_action
-         *  * In-app redirection from shortcut
-         */
         openInitialPreview() {
             if (!this.firstLoadSelectId) {
                 return;
@@ -39,11 +34,6 @@ export const DocumentsControllerMixin = (component) =>
                 doc.selected = true;
                 if (initData.openPreview) {
                     initData.openPreview = false;
-                    // Opening the preview is immediately followed by a model
-                    // reload; without this guard that reload emits
-                    // "documents-close-preview" (see documents_model_mixin.load)
-                    // and closes the preview we just opened for the URL-targeted
-                    // document.
                     this.env.searchModel.skipLoadClosePreview = true;
                     doc.onClickPreview(new Event("click"));
                 }
@@ -54,7 +44,6 @@ export const DocumentsControllerMixin = (component) =>
             const modelParams = super.modelParams;
             modelParams.multiEdit = true;
 
-            // activeFields for DocumentsDetailsPanel
             const activeFields = Object.keys(modelParams.config.activeFields);
 
             DETAIL_PANEL_REQUIRED_FIELDS.forEach((field) => {
@@ -109,9 +98,6 @@ export const DocumentsControllerMixin = (component) =>
             return modelParams;
         }
 
-        /**
-         * Return the common list of actions for the selected / previewed document folders.
-         */
         getEmbeddedActions() {
             const embeddedActions = getCommonEmbeddedActions(this.model.targetRecords);
             return Object.fromEntries(

@@ -27,26 +27,16 @@ export class ProductComboItem {
     }
 
     /**
-     * Return the combo item's "total" extra price.
-     *
-     * The total extra price is the sum of:
-     * - The combo item's extra price,
-     * - The extra price of the selected `no_variant` PTAVs of the combo item's product.
-     *
-     * @return {Number} The combo item's "total" extra price.
+     * @return {Number}
      */
     get totalExtraPrice() {
         return this.extra_price + this.product.selectedNoVariantPtavsPriceExtra;
     }
 
     /**
-     * Return a deep copy of this combo item.
-     *
-     * @return {ProductComboItem} A deep copy of this combo item.
+     * @return {ProductComboItem}
      */
     deepCopy() {
-        // `structuredClone` over a JSON round trip: it does not silently drop members
-        // whose value is `undefined`, which is exactly what an unset `custom_value` is.
         return new ProductComboItem(structuredClone({ ...this }));
     }
 }

@@ -85,8 +85,6 @@ test("focus on unread livechat marks it as read", async () => {
     await click(".o-livechat-LivechatButton");
     await insertText(".o-mail-Composer-input", "Hello World!");
     await triggerHotkey("Enter");
-    // Wait for bus subscription to be done after persisting the thread:
-    // presence of the message is not enough (temporary message).
     await waitUntilSubscribe();
     await contains(".o-mail-Message-content", { text: "Hello World!" });
     const [channelId] = pyEnv["discuss.channel"].search([
@@ -101,7 +99,6 @@ test("focus on unread livechat marks it as read", async () => {
     ]);
     await waitStoreFetch("init_messaging");
     queryFirst(".o-mail-Composer-input").blur();
-    // send after init_messaging because bus subscription is done after init_messaging
     await withUser(userId, () =>
         rpc("/mail/message/post", {
             post_data: { body: "Are you there?", message_type: "comment" },

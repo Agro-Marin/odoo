@@ -16,13 +16,9 @@ export const changesToOrder = (
         if (lineChange["quantity"] > 0 && !cancelled) {
             toAdd.push(lineChange);
         } else {
-            // Copy before flipping the sign: when cancelled, lineChange aliases
-            // an entry in the persisted order.last_order_preparation_change.lines,
-            // so writing Math.abs() back corrupted the stored quantity (negative
-            // for refund lines) and skewed every subsequent prep-change diff.
             toRemove.push({
                 ...lineChange,
-                quantity: Math.abs(lineChange["quantity"]), // we need always positive values.
+                quantity: Math.abs(lineChange["quantity"]),
             });
         }
     }
@@ -38,9 +34,6 @@ export const changesToOrder = (
 
 /**
  * @returns {{ [lineKey: string]: { product_id: number, name: string, note: string, quantity: number } }}
- * This function recalculates the information to be sent to the preparation tools,
- * it uses the variable last_order_preparation_change which contains the last changes sent
- * to perform this calculation.
  */
 export const getOrderChanges = (order, orderPreparationCategories) => {
     const prepaCategoryIds = orderPreparationCategories;
@@ -57,8 +50,6 @@ export const getOrderChanges = (order, orderPreparationCategories) => {
         return product.parentPosCategIds.some((id) => prepaCategoryIds.has(id));
     };
 
-    // Compares the orderlines of the order with the last ones sent.
-    // When one of them has changed, we add the change.
     for (const orderline of order.getOrderlines()) {
         const product = orderline.getProduct();
         const note = orderline.getNote();
@@ -76,10 +67,10 @@ export const getOrderChanges = (order, orderPreparationCategories) => {
         if (hasPrepaCategory) {
             const key = Object.keys(order.last_order_preparation_change.lines).find(
                 (k) => k.startsWith(orderline.uuid),
-            ); // find old data but note changed
+            );
             const quantity = orderline.getQuantity();
 
-            const relatedKey = key !== lineKey ? key : lineKey; // if note update key would be different
+            const relatedKey = key !== lineKey ? key : lineKey;
             const quantityDiff =
                 (oldChanges[relatedKey]
                     ? quantity - oldChanges[relatedKey].quantity
@@ -111,11 +102,6 @@ export const getOrderChanges = (order, orderPreparationCategories) => {
                 changesCount += quantityDiff;
                 changeAbsCount += Math.abs(quantityDiff);
                 if (noteChange) {
-                    // The note-update entry must be a COPY: mutating the
-                    // shared lineDetails here retroactively overwrote the NEW
-                    // quantity in changes[lineKey] with the previously-sent
-                    // one, so the kitchen ticket printed the old quantity
-                    // whenever qty and note changed together.
                     noteUpdate[lineKey] = {
                         ...lineDetails,
                         quantity: oldChanges[relatedKey].quantity || 0,
@@ -124,9 +110,6 @@ export const getOrderChanges = (order, orderPreparationCategories) => {
 
                 orderline.setHasChange(true);
             } else if (noteChange) {
-                // Only the note was updated. Counted in changeAbsCount too so
-                // consumers gating on nbrOfChanges (order button, floor plan
-                // badges) see the pending note-update ticket.
                 lineDetails.quantity = orderline.qty;
                 noteUpdate[lineKey] = lineDetails;
                 orderline.setHasChange(true);
@@ -139,8 +122,6 @@ export const getOrderChanges = (order, orderPreparationCategories) => {
             orderline.setHasChange(false);
         }
     }
-    // Checks whether an orderline has been deleted from the order since it
-    // was last sent to the preparation tools. If so we add this to the changes.
     for (const [lineKey, lineResume] of Object.entries(
         order.last_order_preparation_change.lines,
     )) {
@@ -176,7 +157,6 @@ export const getOrderChanges = (order, orderPreparationCategories) => {
         count: changesCount,
     };
 
-    // if `generalCustomerNote` key is present, then there is a change in the generalCustomerNote
     const lastGeneralCustomerNote =
         order.last_order_preparation_change.general_customer_note || "";
     if (lastGeneralCustomerNote !== order.general_customer_note) {

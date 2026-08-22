@@ -316,10 +316,6 @@ export class StoreInternal extends RecordInternal {
         }
     }
     /**
-     * Apply one relational command. The `.noinv` variants skip inverse
-     * maintenance — they are what the inverse side emits, so honouring them
-     * again would recurse.
-     *
      * @param {RecordList} recordList
      * @param {"ADD"|"DELETE"|"ADD.noinv"|"DELETE.noinv"} cmd
      * @param {any[]} args

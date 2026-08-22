@@ -78,7 +78,6 @@ export class ForecastedHeader extends Component {
         });
     }
 
-    /** Sum one figure across every product the report covers. */
     _total(field) {
         return Object.values(this.products).reduce(
             (sum, product) => sum + product[field],

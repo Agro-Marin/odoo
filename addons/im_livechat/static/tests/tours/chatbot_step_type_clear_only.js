@@ -33,7 +33,6 @@ registry.category("web_tour.tours").add("change_chatbot_step_type", {
             run: "click",
         },
         {
-            // Ensure form is properly saved, in which case the save button is hidden.
             trigger: ".o_form_button_save:not(:visible)",
         },
     ],

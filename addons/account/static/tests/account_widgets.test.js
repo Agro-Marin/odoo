@@ -171,7 +171,6 @@ describe("PaymentTermsLineWidget", () => {
         await contains(".o_field_x2many_list_row_add > a").click();
         expect(".o_data_row").toHaveCount(3);
         await contains(".o_form_view").click();
-        // The row added above must survive the click outside the list
         expect(".o_data_row").toHaveCount(3);
         await contains(".o_field_x2many_list_row_add > a").click();
         expect(".o_data_row").toHaveCount(4);

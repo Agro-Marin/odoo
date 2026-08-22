@@ -28,14 +28,9 @@ export class ProductInfoPopup extends Component {
         this.props.close();
     }
     get allowProductEdition() {
-        return true; // Overrided in pos_hr
+        return true;
     }
     async toggleFavorite() {
-        // Through a dedicated server method, not a plain write: cashiers hold
-        // read-only access to product.template, so the direct write raised
-        // AccessError for the very group this button is drawn for. Awaited and
-        // caught -- it used to be a fire-and-forget promise whose rejection
-        // surfaced as an unhandled error with the star already flipped.
         const template = this.props.productTemplate;
         const next = !template.is_favorite;
         try {

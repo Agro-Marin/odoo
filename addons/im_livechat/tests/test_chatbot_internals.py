@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from freezegun import freeze_time
 
 from odoo import Command, fields
@@ -15,10 +13,6 @@ from odoo.addons.mail.tools.discuss import Store
 class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
 
     def test_chatbot_duplicate(self):
-        """ In this test we make sure that 'triggering_answer_ids' are correctly duplicated and
-        reference the answers from the copied script steps.
-        See chatbot.script#copy for more details. """
-
         chatbot_copy = self.chatbot_script.copy()
 
         step_pricing_contact_us_copy = chatbot_copy.script_step_ids.filtered(
@@ -71,9 +65,6 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
         self.assertEqual(discuss_channel.chatbot_current_step_id, self.step_email_validated)
 
     def test_chatbot_steps_sequence(self):
-        """ Ensure sequence is correct when creating chatbots and adding steps to an existing one.
-        See chatbot.script.step#create for more details. """
-
         chatbot_1, chatbot_2 = self.env['chatbot.script'].create([{
             'title': 'Chatbot 1',
             'script_step_ids': [
@@ -102,8 +93,6 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
         self.assertEqual([0, 1, 2, 3, 4, 5, 6], chatbot_1.script_step_ids.mapped('sequence'))
 
     def test_chatbot_welcome_steps(self):
-        """ see '_get_welcome_steps' for more details. """
-
         welcome_steps = self.chatbot_script._get_welcome_steps()
         self.assertEqual(len(welcome_steps), 3)
         self.assertEqual(welcome_steps, self.chatbot_script.script_step_ids[:3])
@@ -139,7 +128,6 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
 
     @freeze_time("2020-03-22 10:42:06")
     def test_forward_to_specific_operator(self):
-        """Test _forward_operator takes into account the given users as candidates."""
         data = self.make_jsonrpc_request(
             "/im_livechat/get_session",
             {
@@ -172,13 +160,11 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
 
         def get_forward_op_bus_params():
             messages = self.env["mail.message"].search([], order="id desc", limit=3)
-            # only data relevant to the test are asserted for simplicity
             transfer_message_data = Store(bus_channel=discuss_channel).add(messages[1]).get_result()
             transfer_message_data["mail.message"][0].update(
                 {
                     "author_id": self.chatbot_script.operator_partner_id.id,
                     "body": ["markup", "<p>I will transfer you to a human.</p>"],
-                    # thread not renamed yet at this step
                     "default_subject": "Testing Bot",
                     "record_name": "Testing Bot",
                 }
@@ -195,7 +181,6 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
                             f'{self.partner_employee.id}">@Ernest Employee</a> to the channel</div>'
                         ),
                     ],
-                    # thread not renamed yet at this step
                     "default_subject": "Testing Bot",
                     "record_name": "Testing Bot",
                 }
@@ -204,7 +189,6 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
             member_emp = discuss_channel.channel_member_ids.filtered(
                 lambda m: m.partner_id == self.partner_employee
             )
-            # data in-between join and leave
             channel_data_join = (
                 Store(bus_channel=member_emp._bus_channel()).add(discuss_channel).get_result()
             )
@@ -439,7 +423,6 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
             chatbot_no_operator,
         )
         self.env["mail.presence"]._update_presence(bob_user)
-        # Force the recomputation of `available_operator_ids` after bob becomes online
         self.livechat_channel.invalidate_recordset(["available_operator_ids"])
         self.assertTrue(self.livechat_channel.available_operator_ids)
         self.assertEqual(
@@ -451,7 +434,6 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
 
     def test_chatbot_enabled_condition(self):
         cases = [
-            # condition - operator_available - expected_result
             ("only_if_no_operator", False, True),
             ("only_if_no_operator", True, False),
             ("only_if_operator", True, True),
@@ -489,7 +471,6 @@ class ChatbotCase(MailCommon, chatbot_common.ChatbotCase):
             )
 
     def test_chatbot_member_type(self):
-        """Ensure livechat_member_type are correctly set when using chatbot with a logged in user."""
         self.authenticate(self.user_employee.login, self.user_employee.login)
         data = self.make_jsonrpc_request(
             "/im_livechat/get_session",

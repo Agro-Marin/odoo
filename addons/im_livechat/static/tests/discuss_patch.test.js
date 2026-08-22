@@ -19,7 +19,7 @@ describe.current.tags("desktop");
 defineLivechatModels();
 
 test("add livechat in the sidebar on visitor sending first message", async () => {
-    mockDate("2023-01-03 12:00:00"); // so that it's after last interest (mock server is in 2019 by default!)
+    mockDate("2023-01-03 12:00:00");
     const pyEnv = await startServer();
     pyEnv["res.users"].write([serverState.userId], { im_status: "online" });
     const countryId = pyEnv["res.country"].create({ code: "be", name: "Belgium" });
@@ -45,7 +45,6 @@ test("add livechat in the sidebar on visitor sending first message", async () =>
     await start();
     await openDiscuss();
     await contains(".o-mail-DiscussSidebar");
-    // simulate livechat visitor sending a message
     withGuest(guestId, () =>
         rpc("/mail/message/post", {
             post_data: {
@@ -85,7 +84,7 @@ test("invite button should be present on livechat", async () => {
 });
 
 test("livechats are sorted by last activity time in the sidebar: most recent at the top", async () => {
-    mockDate("2023-01-03 12:00:00"); // so that it's after last interest (mock server is in 2019 by default!)
+    mockDate("2023-01-03 12:00:00");
     const pyEnv = await startServer();
     const guestId_1 = pyEnv["mail.guest"].create({ name: "Visitor 11" });
     const guestId_2 = pyEnv["mail.guest"].create({ name: "Visitor 12" });

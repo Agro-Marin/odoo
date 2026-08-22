@@ -11,10 +11,6 @@ import {
 } from "@odoo/owl";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 
-/**
- * @extends Component
- */
-
 export class Notebook extends Component {
     static template = "web.Notebook";
     static defaultProps = {

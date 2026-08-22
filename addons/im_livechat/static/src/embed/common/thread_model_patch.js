@@ -15,7 +15,6 @@ const threadStaticPatch = {
         if (thread) {
             return thread;
         }
-        // wait for restore of livechatService.savedState as channel might be inserted from there
         await this.store.isReady;
         return super.getOrFetch(...arguments);
     },
@@ -52,10 +51,6 @@ patch(Thread.prototype, {
             },
         });
         /**
-         * Deferred that resolves once a newly persisted thread is ready to swap
-         * with its temporary counterpart (i.e. when the actions following the
-         * persist call are done to avoid flickering).
-         *
          * @type {Deferred}
          */
         this.readyToSwapDeferred = new Deferred();
@@ -122,10 +117,6 @@ patch(Thread.prototype, {
             this.chatbot.isProcessingAnswer = true;
         }
         if (this.channel_type === "livechat" && this.isTransient) {
-            // For smoother transition: post the temporary message and set the
-            // selected chat bot answer if any. Then, simulate the chat bot is
-            // typing (2 ** 31 - 1 is the greatest value supported by
-            // `setTimeout`).
             if (this.chatbot && extraData.selected_answer_id) {
                 this.chatbot.currentStep.selectedAnswer = this.store[
                     "chatbot.script.answer"
@@ -148,7 +139,7 @@ patch(Thread.prototype, {
             const thread =
                 await this.store.env.services["im_livechat.livechat"].persist(this);
             if (this.store.self_partner) {
-                temporaryMsg.author_id = this.store.self_partner; // Might have been created after persist.
+                temporaryMsg.author_id = this.store.self_partner;
             } else {
                 temporaryMsg.author_guest_id = this.store.self_guest;
             }

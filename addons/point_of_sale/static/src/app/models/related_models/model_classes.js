@@ -10,22 +10,8 @@ import {
     X2MANY_TYPES,
 } from "./utils.js";
 
-// Records, per record class, the field names whose getter/setter THIS module
-// installed on the prototype. Field getters are defined ADDITIVELY across
-// createRelatedModels() calls: a record class is a module-level singleton (from
-// the `pos_available_models` registry) reused by every store, so it must carry
-// the UNION of every store's fields — a store that loads a reduced field set
-// (e.g. the preparation display, which drops `taxes_id`/`product_variant_ids`)
-// must not permanently strip getters a later full-POS store needs. Tracking our
-// own getters lets a re-process add the missing ones while still rejecting a
-// field name that collides with an author-defined class member (own or
-// inherited), which a bare `in ...prototype` check could not tell apart.
 const OWN_FIELD_GETTERS = new WeakMap();
 
-/**
- * Processes model definitions to dynamically define getter and setter properties
- * on model fields, providing controlled access to the raw data.
- */
 export function processModelClasses(modelDefs, modelClasses = {}) {
     const modelNames = new Set(Object.keys(modelDefs));
     for (const modelName of modelNames) {
@@ -33,9 +19,6 @@ export function processModelClasses(modelDefs, modelClasses = {}) {
         const ModelRecordClass =
             modelClasses[modelName] || class ModelRecord extends Base {};
 
-        // Always register the class for this call, even if its prototype was
-        // already processed in a previous call — otherwise _create() would later
-        // do `new undefined`.
         modelClasses[modelName] = ModelRecordClass;
 
         let ownGetters = OWN_FIELD_GETTERS.get(ModelRecordClass);
@@ -51,7 +34,6 @@ export function processModelClasses(modelDefs, modelClasses = {}) {
             if (field.dummy || fieldName === "id") {
                 continue;
             }
-            // A getter we installed on a previous call is fine to leave in place.
             if (ownGetters.has(fieldName)) {
                 continue;
             }
@@ -101,7 +83,7 @@ export function processModelClasses(modelDefs, modelClasses = {}) {
                                             relationModel,
                                             recordID,
                                         ),
-                                ).filter((s) => s), //avoid empty records,
+                                ).filter((s) => s),
                                 updateErrorMessage,
                             );
                         },
@@ -140,14 +122,12 @@ export function createExtraField(record, extraFields, serverData, vals) {
         return;
     }
     if (!serverData) {
-        // Assign the value to the instance (not in raw data)
         for (let i = 0; i < extraFields.length; i++) {
             const field = extraFields[i];
             record[field] = vals[field];
         }
         return;
     }
-    // Create raw data shortcuts getter for the given fields
     for (let i = 0; i < extraFields.length; i++) {
         const fieldName = extraFields[i];
         if (fieldName in record) {

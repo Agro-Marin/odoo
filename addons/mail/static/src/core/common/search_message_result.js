@@ -19,9 +19,6 @@ export class SearchMessageResult extends Component {
         if (this.props.messageSearch.messages.length === 0) {
             return false;
         }
-        // The server reports whether its own cap truncated the total; a second
-        // copy of that cap here would silently print a truncated count as exact
-        // the moment the two drifted apart.
         const { count, countIsCapped } = this.props.messageSearch;
         if (countIsCapped) {
             return _t("%s+ messages found", count);

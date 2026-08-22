@@ -4,20 +4,6 @@
 import { registry } from "@web/core/registry";
 
 /**
- * Per-model allowlist of QWeb expressions a non-template-editor may insert into
- * a mail template.
- *
- * This lives in `mail` because the model method it calls does:
- * `mail_allowed_qweb_expressions` is declared in `mail/models/base.py`, so a
- * database without `mail` answers the call with
- * `AttributeError: The method '<model>.mail_allowed_qweb_expressions' does not
- * exist`. It used to be registered from `web/core`, which depends on `base`
- * alone -- the service was therefore present, and faulting, on every install
- * that had `html_editor` (auto-installed) but not `mail`.
- *
- * Consumers in `web` must treat this service as optional and skip the allowlist
- * check when it is absent; see `dynamic_placeholder_popover.js`.
- *
  * @type {{
  * dependencies: string[],
  * async: boolean,

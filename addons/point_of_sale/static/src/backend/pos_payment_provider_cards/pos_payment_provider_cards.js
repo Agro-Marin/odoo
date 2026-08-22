@@ -78,7 +78,6 @@ export class PosPaymentProviderCards extends Component {
     }
 }
 
-// Selection, module_name, friendly name
 const providers = [
     ["ingenico", "pos_iot_ingenico", "Ingenico"],
     ["six_iot", "pos_iot_six", "SIX"],

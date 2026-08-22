@@ -37,7 +37,6 @@ export class PosCategory extends Base {
             (catId) =>
                 this.models["product.template"].getBy("pos_categ_ids", catId) || [],
         );
-        // Remove duplicates since owl doesn't like them.
         return Array.from(new Set(products));
     }
 

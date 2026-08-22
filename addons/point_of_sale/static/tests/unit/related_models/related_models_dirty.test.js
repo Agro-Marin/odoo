@@ -19,7 +19,6 @@ describe("Dirty record", () => {
         order.amount_total = 23.5;
         models.serializeForORM(order, { orm: true });
 
-        // Setting the same value must not mark the record as dirty.
         expect(order.isDirty()).toBe(false);
         order.amount_total = 23.5;
         expect(order.isDirty()).toBe(false);
@@ -33,7 +32,6 @@ describe("Dirty record", () => {
     });
 
     test("model creation", async () => {
-        // Models created with a numeric ID are not considered dirty by default
         await makeMockServer();
         const models = getRelatedModelsInstance(false);
         const order = models["pos.order"].create({ id: 12 });
@@ -48,7 +46,6 @@ describe("Dirty record", () => {
         const models = getRelatedModelsInstance(false);
         const sampleUUID = uuidv4();
 
-        // When loading data, the dirty flag must not be updated.
         models.loadConnectedData({
             "pos.order": [
                 {
@@ -76,7 +73,6 @@ describe("Dirty record", () => {
             expect(order.isDirty()).toBe(false);
         }
 
-        // Add new line to the order
         const line = models["pos.order.line"].create({
             qty: 1,
             order_id: order,
@@ -86,7 +82,6 @@ describe("Dirty record", () => {
         clearOrder();
         expect(line.isDirty()).toBe(false);
 
-        // Assign a product to the line
         const sampleProduct = models["product.product"].create({
             name: "demo_product",
             id: 111,
@@ -97,7 +92,6 @@ describe("Dirty record", () => {
         clearOrder();
         expect(line.isDirty()).toBe(false);
 
-        // Update line quantity
         line.qty = 10;
         expect(line.isDirty()).toBe(true);
         expect(order.isDirty()).toBe(true);
@@ -108,7 +102,6 @@ describe("Dirty record", () => {
         expect(order.isDirty()).toBe(true);
         clearOrder();
 
-        // Delete product from line
         line.product_id = null;
         expect(order.isDirty()).toBe(true);
         clearOrder();
@@ -161,22 +154,18 @@ describe("Dirty record", () => {
         order.date_order = undefined;
         expect(order.isDirty()).toBe(false);
 
-        // Other valid DateTime
         clearOrder();
         order.date_order = DateTime.local(2025, 1, 1, 9, 30);
         expect(order.isDirty()).toBe(true);
 
-        // Same DateTime
         clearOrder();
         order.date_order = DateTime.local(2025, 1, 1, 9, 30);
         expect(order.isDirty()).toBe(false);
 
-        // Different DateTime
         clearOrder();
         order.date_order = DateTime.local(2028, 1, 1, 10, 30);
         expect(order.isDirty()).toBe(true);
 
-        // Set to false / null
         clearOrder();
         order.date_order = false;
         expect(order.isDirty()).toBe(true);
@@ -193,16 +182,12 @@ describe("Dirty record", () => {
         order.amount_total = 10;
         expect(order.isDirty()).toBe(true);
 
-        // Serialize the way syncAllOrders does (deferClear), edit the record
-        // while the "RPC" is in flight, then commit the clear actions: the
-        // mid-flight edit must keep the record dirty for the next sync.
         const clearActions = [];
         models.serializeForORM(order, { deferClear: true, clearActions });
         order.amount_total = 20;
         clearActions.forEach((fn) => fn());
         expect(order.isDirty()).toBe(true);
 
-        // Without a mid-flight edit, the commit marks the record clean.
         const clearActions2 = [];
         models.serializeForORM(order, {
             deferClear: true,
@@ -228,12 +213,9 @@ describe("Dirty record", () => {
         });
         expect(serialized.lines).toInclude([2, 101]);
 
-        // The user deletes another line while the sync RPC is in flight.
         line2.delete({ backend: true });
         clearActions.forEach((fn) => fn());
 
-        // The commit must only consume the command it serialized: the second
-        // deletion still has to reach the server on the next sync.
         const again = models.serializeForORM(order, {});
         expect(again.lines).toInclude([2, 102]);
         expect(again.lines).not.toInclude([2, 101]);

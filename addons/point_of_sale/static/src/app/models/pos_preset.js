@@ -14,8 +14,6 @@ export class PosPreset extends Base {
             availabilities: {},
         };
 
-        // This will compute availabilities locally
-        // when selecting a preset it will be updated with the server data
         this.computeAvailabilities();
     }
 
@@ -53,13 +51,6 @@ export class PosPreset extends Base {
                 if (!order.preset_time) {
                     return acc;
                 }
-                // Key by the SQL datetime string that generateSlots() uses for
-                // its slot keys. preset_time is a luxon DateTime; using it
-                // directly as an object key coerces to an ISO string
-                // ("...T10:30:00.000-06:00") that never matches the SQL-format
-                // slot keys ("... 10:30:00"), so locally created (unsynced)
-                // orders were silently dropped from slot occupancy — a full
-                // slot could be oversold offline.
                 const key = order.preset_time.toFormat("yyyy-MM-dd HH:mm:ss");
                 if (!acc[key]) {
                     acc[key] = [];
@@ -108,7 +99,6 @@ export class PosPreset extends Base {
         const interval = this.interval_time;
         const slots = {};
 
-        // Compute slots for next 7 days
         for (const i of [...Array(7).keys()]) {
             const dateNow = now.plus({ days: i });
             const getDateTime = (hour) =>
@@ -124,8 +114,6 @@ export class PosPreset extends Base {
             const attToday = this.attendance_ids.filter(
                 (a) => a.dayofweek === dayOfWeek,
             );
-            // A plain object, not an Array: string-keyed expandos on an Array
-            // serialized to [] (losing every slot) and confused consumers.
             slots[date] = {};
 
             for (const attendance of attToday) {
@@ -138,9 +126,6 @@ export class PosPreset extends Base {
                         const sqlDatetime = start.toFormat("yyyy-MM-dd HH:mm:ss");
 
                         if (slots[date][sqlDatetime]) {
-                            // Set.add takes ONE value — spreading several ids
-                            // silently dropped all but the first, undercounting
-                            // slot occupancy (a full slot could be oversold).
                             for (const id of usage[sqlDatetime] || []) {
                                 slots[date][sqlDatetime].order_ids.add(id);
                             }

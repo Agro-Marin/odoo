@@ -79,8 +79,6 @@ export const mailPopoutService = {
         }
 
         /**
-         * @param id
-         * @param component
          * @param {Object} param2
          * @param {Object} [param2.props]
          * @param {Object} [param2.options]
@@ -209,7 +207,6 @@ export const mailPopoutService = {
                 },
 
                 /**
-                 * @param component - The component to be mounted.
                  * @param {Object} [props]
                  * @returns {Promise<Window|null>}
                  */
@@ -218,7 +215,6 @@ export const mailPopoutService = {
                 },
 
                 /**
-                 * @param component - The component to be mounted.
                  * @param {Object} props
                  * @returns {Window}
                  */

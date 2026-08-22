@@ -15,9 +15,6 @@ export class PopoverWidgetField extends Component {
     static template = "stock.popoverButton";
     static components = { Popover: PopoverComponent };
     static props = { ...standardFieldProps };
-    // What the payload falls back to. A subclass that only wants a different
-    // look overrides these rather than the getters below -- StockRescheduling
-    // used to re-implement both bodies verbatim to change two literals.
     static defaultColor = "text-primary";
     static defaultIcon = "fa-circle-info";
 
@@ -37,7 +34,6 @@ export class PopoverWidgetField extends Component {
 
     get icon() {
         const rawIcon = this.jsonValue.icon || this.constructor.defaultIcon;
-        // A payload may name a full Font Awesome class pair or just the glyph.
         return rawIcon.includes(" ") ? rawIcon : `fa-solid ${rawIcon}`;
     }
 

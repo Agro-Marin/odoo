@@ -21,7 +21,6 @@ class AccountMove extends models.Model {
     ref = fields.Char({ string: "Bill Reference" });
 
     _records = [
-        // for the sake of mocking data, we don't care about the consistency of duplicated refs across records
         { id: 1, display_name: "Bill 1", duplicated_ref_ids: [2, 3], ref: "b1" },
         { id: 2, display_name: "Bill 2", duplicated_ref_ids: [1], ref: "b2" },
         { id: 3, display_name: "Bill 3", duplicated_ref_ids: [1], ref: "b3" },
@@ -90,8 +89,6 @@ test("edit record and check if edits get discarded when click on one of the butt
     onRpc("account.move", "action_view_business_doc", ({ args }) => {
         expect.step("action_view_business_doc");
         expect(args.length).toBe(1);
-        // A recordset, not a bare id: the widget goes through the button
-        // protocol now, which is what `ensure_one()` on the other side expects.
         expect(args[0]).toEqual([2]);
         return {
             res_model: "account.move",

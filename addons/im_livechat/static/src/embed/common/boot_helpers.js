@@ -5,7 +5,6 @@ import { url } from "@web/core/utils/urls";
 async function loadFont(name, url, targetDocument) {
     await targetDocument.fonts.ready;
     if ([...targetDocument.fonts].some(({ family }) => family === name)) {
-        // Font already loaded.
         return;
     }
     const link = document.createElement("link");
@@ -74,9 +73,6 @@ export async function loadAssets(styleTarget) {
 }
 
 /**
- * Initialize the livechat container by loading the styles and
- * the fonts.
- *
  * @param {HTMLElement} root
  * @returns {ShadowRoot}
  */

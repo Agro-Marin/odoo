@@ -40,11 +40,6 @@ const THREE_FIELD_ARCH = `
 `;
 
 /**
- * Arms the structured sink, runs `body`, and returns what was recorded.
- *
- * The sink lives on globalThis, so it is reset before and disarmed after —
- * otherwise one test's counts are visible to the next.
- *
  * @param {() => Promise<void>} body
  * @returns {Promise<Record<string, number>>}
  */
@@ -97,8 +92,6 @@ describe("choke points fire on a real view mount", () => {
         const trace = await readTrace(async () => {
             await mountView({ type: "list", resModel: "foo", arch: TWO_FIELD_ARCH });
         });
-        // The absolute count moves whenever a service is added, so the invariant
-        // is the one worth pinning: a service that enters a wave must resolve.
         expect(trace["service.start"]).toBeGreaterThan(0);
         expect(trace["service.started"]).toBe(trace["service.start"]);
         expect(trace["service.failed"]).toBe(undefined);
@@ -107,11 +100,6 @@ describe("choke points fire on a real view mount", () => {
 
 describe("what this harness can and cannot observe", () => {
     test("component.mount does not fire: the test harness builds its own App", async () => {
-        // mountWithCleanup constructs `new App(...)` directly rather than going
-        // through env.js's mountComponent, so the component probe is a
-        // production-only reading. Asserting its ABSENCE here means the day the
-        // harness is changed to share that path, this test says so instead of
-        // the gap being rediscovered from scratch.
         const trace = await readTrace(async () => {
             await mountView({ type: "list", resModel: "foo", arch: TWO_FIELD_ARCH });
         });
@@ -119,12 +107,6 @@ describe("what this harness can and cannot observe", () => {
     });
 
     test("rpc.request DOES fire: the mock server dispatches through rpcBus", async () => {
-        // Recorded as a correction. While both listeners in core/network/rpc.js
-        // guarded on rpcLog.enabled() -- the console gate -- this read undefined,
-        // and the obvious reading was "the mock server replaces the rpc layer".
-        // It does not: it dispatches RpcEvent.REQUEST like the real one, and the
-        // guard was simply blind to the sink. Widening it to active() made the
-        // traffic visible in BOTH harnesses.
         const trace = await readTrace(async () => {
             await mountView({ type: "list", resModel: "foo", arch: TWO_FIELD_ARCH });
         });

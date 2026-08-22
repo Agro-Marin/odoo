@@ -24,7 +24,6 @@ registry.category("web_tour.tours").add("account_tax_group", {
             trigger: ".o_control_panel_main_buttons .o_list_button_add",
             run: "click",
         },
-        // Set a vendor
         {
             content: "Add vendor",
             trigger:
@@ -36,7 +35,6 @@ registry.category("web_tour.tours").add("account_tax_group", {
             trigger: '.ui-menu-item a:contains("Account Tax Group Partner")',
             run: "click",
         },
-        // Show product column
         {
             content: "Open line fields list",
             trigger: ".o_optional_columns_dropdown_toggle",
@@ -52,7 +50,6 @@ registry.category("web_tour.tours").add("account_tax_group", {
             trigger: ".o_optional_columns_dropdown_toggle",
             run: "click",
         },
-        // Add a product line
         {
             content: "Add items",
             trigger:
@@ -90,13 +87,11 @@ registry.category("web_tour.tours").add("account_tax_group", {
                 this.anchor.blur();
             },
         },
-        // Check new value for total (with modified tax_group_amount).
         {
             content: "Valid total amount",
             trigger: 'span[name="amount_total"]:contains("800")',
             run: "click",
         },
-        // Modify the invoice line quantity
         {
             content: "Select item quantity",
             trigger:
@@ -121,7 +116,6 @@ registry.category("web_tour.tours").add("account_tax_group", {
             run: "click",
         },
         ...stepUtils.saveForm(),
-        // The recomputed amount must survive the save
         {
             content: "Check new value of tax group",
             trigger: '.o_tax_group_amount_value:contains("120")',

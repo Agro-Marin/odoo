@@ -22,8 +22,6 @@ test("changesToOrder(cancelled) does not mutate the persisted prep-change lines"
 
     const result = changesToOrder(order, categIds, true);
 
-    // The cancelled items must be COPIES, not aliases of the persisted entries —
-    // Math.abs() used to be written through and corrupt subsequent diffs.
     for (const item of result.cancelled) {
         expect(persistedEntries.includes(item)).toBe(false);
     }
@@ -43,10 +41,7 @@ test("qty + note changed together keeps the qty delta on the ticket", async () =
     line.setNote("extra sauce");
 
     const changes = getOrderChanges(order, categIds);
-    // The NEW-items entry must carry the qty delta — the shared-object
-    // aliasing bug overwrote it with the previously-sent quantity.
     expect(changes.orderlines[line.uuid].quantity).toBe(1);
-    // The note-update entry carries the previously sent quantity.
     expect(changes.noteUpdate[line.uuid].quantity).toBe(sentQty);
 });
 
@@ -60,8 +55,6 @@ test("a note-only edit counts as a pending change", async () => {
     line.setNote("no onions");
 
     const changes = getOrderChanges(order, categIds);
-    // Consumers gate the order button / floor badges on nbrOfChanges; a
-    // note-only edit used to leave it at 0 while still printing a ticket.
     expect(changes.nbrOfChanges).toBe(1);
     expect(changes.noteUpdate[line.uuid].quantity).toBe(line.getQuantity());
 });

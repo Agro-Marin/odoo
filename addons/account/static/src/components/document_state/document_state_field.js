@@ -23,9 +23,6 @@ export class DocumentState extends SelectionField {
 
     setup() {
         super.setup();
-        // `usePopover` owns the open/closed state and closes on unmount. Tracking
-        // it by hand missed the click-away close, which left the widget believing
-        // the popover was still open and refusing to reopen it.
         this.popover = usePopover(DocumentStatePopover, {
             closeOnClickAway: true,
             position: "top",

@@ -12,7 +12,7 @@ patch(Thread.prototype, {
     setup() {
         super.setup(...arguments);
         this.IM_STATUS_DELAY = 1500;
-        Object.assign(this.state, { isVisitorOffline: false }); // starting online avoids flickering
+        Object.assign(this.state, { isVisitorOffline: false });
         useEffect(
             () => {
                 if (!this.props.thread.livechatVisitorMember?.im_status) {

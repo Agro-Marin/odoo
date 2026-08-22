@@ -76,23 +76,12 @@ class TestOAuthTokenExchange(EncryptionKeyCase, TransactionCase):
 
 
 class TestOAuthClientIdResolution(EncryptionKeyCase, TransactionCase):
-    """The credential's own `oauth_client_id` was offered by the UI and read by nothing.
-
-    `api.endpoint.outbound` and `credential.credential` both declare a field of that
-    name. Every call site in the OAuth flow read the endpoint's, so a client id entered
-    on the credential form -- stored encrypted, audited, carried through key rotation --
-    was silently ignored, and the authorize step then refused with "not configured for
-    service", naming the model the value was not on.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.category_oauth2 = cls.env.ref("credential.credential_category_oauth2")
 
     def _setup(self, service_client_id, credential_client_id):
-        # 'code' is constrained to an identifier by '_check_code_format', so it is
-        # derived from which side supplies the value rather than from the value.
         slug = f"{'svc' if service_client_id else 'nosvc'}_"
         slug += "cred" if credential_client_id else "nocred"
         service = self.env["api.endpoint.outbound"].create(
@@ -130,7 +119,6 @@ class TestOAuthClientIdResolution(EncryptionKeyCase, TransactionCase):
         )
 
     def test_the_service_still_wins(self):
-        """A fallback, not a new precedence -- no configured deployment changes."""
         credential = self._setup("from-service", "from-credential")
         self.assertEqual(credential._oauth_client_id(), "from-service")
 

@@ -12,7 +12,7 @@ export function scan_barcode(barcode) {
     return [
         {
             content: `PoS model scan barcode '${barcode}'`,
-            trigger: "body", // The element here does not really matter as long as it is present
+            trigger: "body",
             run: () => {
                 simulateBarCode([...barcode, "Enter"]);
             },

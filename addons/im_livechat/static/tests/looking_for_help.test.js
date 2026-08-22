@@ -215,7 +215,6 @@ test("Show join button when help is required and self is not a member", async ()
     await contains(".o-livechat-LivechatStatusSelection .active", {
         text: "Looking for help",
     });
-    // Now that we are members, the button is not shown, even if help is required.
     await contains("button[name='join-livechat-needing-help']", { count: 0 });
 });
 
@@ -225,8 +224,6 @@ test("Show notification when joining a channel that already received help", asyn
         name: "bob",
         user_ids: [Command.create({ name: "bob" })],
     });
-    // Simulate another agent attempting to join the channel to provide help at the same time,
-    // but succeeding just before the current agent (server returns false when it happens).
     onRpc("discuss.channel", "livechat_join_channel_needing_help", () => false);
     const channel = pyEnv["discuss.channel"].create({
         channel_type: "livechat",
@@ -252,8 +249,6 @@ test("Hide 'help already received' notification when channel is not visible", as
         name: "bob",
         user_ids: [Command.create({ name: "bob" })],
     });
-    // Simulate another agent attempting to join the channel to provide help at the same time,
-    // but succeeding just before the current agent (server returns false when it happens).
     let canRespondDeferred;
     onRpc("discuss.channel", "livechat_join_channel_needing_help", async () => {
         await canRespondDeferred;

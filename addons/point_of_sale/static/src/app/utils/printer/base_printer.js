@@ -2,9 +2,6 @@
 import { htmlToCanvas } from "@point_of_sale/app/services/render_service";
 import { ConnectionLostError } from "@web/core/network";
 import { _t } from "@web/core/translation";
-/**
- * Implements basic printer functions.
- */
 export class BasePrinter {
     constructor() {
         this.setup(...arguments);
@@ -15,15 +12,10 @@ export class BasePrinter {
     }
 
     /**
-     * Add the receipt to the queue of receipts to be printed and process it.
-     * We clear the print queue if printing is not successful.
-     * @param {String} receipt: The receipt to be printed, in HTML
+     * @param {String} receipt:
      * @returns {{ successful: boolean; message?: { title: string; body?: string }}}
      */
     async printReceipt(receipt) {
-        // Serialize jobs per printer: two overlapping calls used to drain the
-        // same shared queue — one caller printed (or, on failure, discarded)
-        // the other's receipt and returned the other job's result.
         const run = () => this._printReceiptImpl(receipt);
         const result = (this._jobLock ?? Promise.resolve()).then(run, run);
         this._jobLock = result.catch(() => {});
@@ -43,15 +35,12 @@ export class BasePrinter {
             try {
                 printResult = await this.sendPrintingJob(image);
             } catch (error) {
-                // Error in communicating to the IoT box.
                 this.receiptQueue.length = 0;
                 if (error instanceof ConnectionLostError) {
                     return this.getOfflineError();
                 }
                 return this.getActionError();
             }
-            // rpc call is okay but printing failed because
-            // IoT box can't find a printer.
             if (!printResult || printResult.result === false) {
                 this.receiptQueue.length = 0;
                 return this.getResultsError(printResult);
@@ -72,17 +61,12 @@ export class BasePrinter {
     }
 
     /**
-     * Generate a jpeg image from a canvas
      * @param {DOMElement} canvas
      */
     processCanvas(canvas) {
         return canvas.toDataURL("image/jpeg").replace("data:image/jpeg;base64,", "");
     }
 
-    /**
-     * Return value of this method will be the result of calling `printReceipt`
-     * if it failed to connect to the IoT box.
-     */
     getActionError() {
         return {
             successful: false,
@@ -96,10 +80,6 @@ export class BasePrinter {
         };
     }
 
-    /**
-     * Return value of this method will be the result of calling `printReceipt`
-     * if it failed due to the client being offline.
-     */
     getOfflineError() {
         return {
             successful: false,
@@ -113,10 +93,6 @@ export class BasePrinter {
         };
     }
 
-    /**
-     * Return value of this method will be the result of calling `printReceipt`
-     * if the result coming from the IoT box is empty.
-     */
     getResultsError(_printResult) {
         return {
             successful: false,

@@ -15,7 +15,7 @@ export class Product extends Component {
         id: { type: [Number, { value: false }], optional: true },
         product_tmpl_id: Number,
         display_name: String,
-        description_sale: [Boolean, String], // backend sends 'false' when there is no description
+        description_sale: [Boolean, String],
         price: Number,
         quantity: Number,
         uom: { type: Object, optional: true },
@@ -43,32 +43,22 @@ export class Product extends Component {
         show_extra_price: true,
     };
 
-    //--------------------------------------------------------------------------
-    // Private
-    //--------------------------------------------------------------------------
-
     /**
-     * Return the price, in the format of the given currency.
-     *
-     * @return {String} - The price, in the format of the given currency.
+     * @return {String}
      */
     getFormattedPrice() {
         return formatCurrency(this.props.price, this.env.currency.id);
     }
 
     /**
-     * Check whether this product is the main product.
-     *
-     * @return {Boolean} - Whether this product is the main product.
+     * @return {Boolean}
      */
     get isMainProduct() {
         return this.env.mainProductTmplId === this.props.product_tmpl_id;
     }
 
     /**
-     * Return this product's image URL.
-     *
-     * @return {String} This product's image URL.
+     * @return {String}
      */
     get imageUrl() {
         const modelPath = this.props.id
@@ -78,9 +68,7 @@ export class Product extends Component {
     }
 
     /**
-     * Check whether the provided PTAL should be shown.
-     *
-     * @return {Boolean} Whether the PTAL should be shown.
+     * @return {Boolean}
      */
     shouldShowPtal(ptal) {
         return (

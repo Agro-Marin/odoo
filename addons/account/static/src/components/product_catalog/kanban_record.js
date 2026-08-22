@@ -8,17 +8,12 @@ import { patch } from "@web/core/utils/patch";
 
 import { ProductCatalogAccountMoveLine } from "./account_move_line.js";
 
-// Declared rather than tested for: account shares the catalog view with sale and
-// purchase, so it cannot own a Record subclass the way a module with its own
-// view does. Registering keeps the lookup O(1) and off every other module's
-// `super` chain.
 productCatalogOrderLines.add("account.move", ProductCatalogAccountMoveLine);
 
 patch(ProductCatalogKanbanRecord.prototype, {
     setup() {
         super.setup();
 
-        // useSubEnv already layers onto the parent env; no need to spread it.
         useSubEnv({
             selectedSectionId: this.env.searchModel.selectedSection.sectionId,
         });
@@ -38,14 +33,12 @@ patch(ProductCatalogKanbanRecord.prototype, {
             this.productCatalogData.quantity === 0 &&
             qty < this.productCatalogData.min_qty
         ) {
-            qty = this.productCatalogData.min_qty; // Take seller's minimum if trying to add less
+            qty = this.productCatalogData.min_qty;
         }
         super.addProduct(qty);
     },
 
     updateQuantity(quantity) {
-        // The base updateQuantity is a no-op on a read-only card (no line added or
-        // removed), so notifying there would desync the sidebar counter.
         if (!this.productCatalogData.readOnly) {
             const lineCountChange =
                 (quantity > 0) - (this.productCatalogData.quantity > 0);

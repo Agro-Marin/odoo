@@ -1,11 +1,6 @@
 // @odoo-module ignore
 
 /**
- * `self` is typed `WorkerGlobalScope` by `lib.webworker` — the generic worker
- * scope, which carries neither `skipWaiting` nor `clients` nor `registration`.
- * A script cannot have `self` re-typed from outside it, so the narrowing is
- * stated once here; the `any` hop is what the two scopes not overlapping costs.
- *
  * @type {ServiceWorkerGlobalScope}
  */
 const sw = /** @type {any} */ (self);
@@ -16,10 +11,6 @@ const fetchCacheRespond = async (event) => {
     const cache = await caches.open(cacheName);
     try {
         const response = await fetch(event.request);
-        // Only cache successful responses: a transient 500/redirect-to-login
-        // used to overwrite the good cached copy, so the next offline boot
-        // served the error page instead of the bundle. waitUntil keeps the
-        // worker alive until the write lands (and swallows its rejection).
         if (response.ok) {
             event.waitUntil?.(
                 cache.put(event.request, response.clone()).catch(() => {}),
@@ -45,7 +36,6 @@ const cacheResources = async (event) => {
 sw.addEventListener("fetch", (event) => {
     const url = event.request.url;
 
-    // Ignore Chrome extensions and dataset. Dataset will be cached in indexedDB.
     if (
         url.includes("extension") ||
         url.includes("web/dataset") ||
@@ -58,7 +48,6 @@ sw.addEventListener("fetch", (event) => {
     event.respondWith(fetchCacheRespond(event));
 });
 
-// Handle notification
 sw.addEventListener("message", (event) => {
     const data = event.data;
     if (data.urlsToCache && navigator.onLine) {

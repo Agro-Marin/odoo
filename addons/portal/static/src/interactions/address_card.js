@@ -17,8 +17,6 @@ export class AddressCard extends Interaction {
     }
 
     /**
-     * Archive the address.
-     *
      * @param {Event} ev
      */
     async removeAddress(ev) {
@@ -27,9 +25,6 @@ export class AddressCard extends Interaction {
                 partner_id: ev.currentTarget.dataset.partnerId,
             }));
         } catch (error) {
-            // The route raises UserError (archiving the main address) or
-            // Forbidden (not the customer's address); surface it instead of
-            // failing silently, and don't reload on failure.
             if (error instanceof RPCError) {
                 this.services.notification.add(
                     error.data?.message || _t("The address could not be removed."),
@@ -43,10 +38,6 @@ export class AddressCard extends Interaction {
     }
 
     /**
-     * Show/hide the billing address row when the user toggles the "use delivery as billing" input.
-     *
-     * The URLs of the "create address" buttons are updated to propagate the value of the input.
-     *
      * @param {Event} ev
      */
     toggleBillingAddressRow(ev) {
@@ -55,21 +46,12 @@ export class AddressCard extends Interaction {
         const addDeliveryAddressButton = this.el.querySelector(
             '.o_address_card_add_new[data-address-type="delivery"]'
         );
-        if (addDeliveryAddressButton) {  // If `Add address` button for delivery.
-            // Update the `use_delivery_as_billing` query param for a new delivery address URL.
-            // No encodeURIComponent: `searchParams.set` percent-encodes the value
-            // itself, so pre-encoding double-encodes it. Harmless for the two
-            // boolean literals this ever carries, but the pattern is a bug waiting
-            // for a value that needs escaping.
+        if (addDeliveryAddressButton) {
             const addDeliveryUrl = new URL(addDeliveryAddressButton.href);
             addDeliveryUrl.searchParams.set('use_delivery_as_billing', useDeliveryAsBilling);
             addDeliveryAddressButton.href = addDeliveryUrl.toString();
         }
 
-        // Toggle the billing address row and its "Add billing address" button together.
-        // Both are optional, like the delivery button above: the billing block is
-        // absent from template variants that only collect a delivery address, and
-        // an unguarded `.classList` there threw before the URL update could be seen.
         this.billingContainer?.classList.toggle('d-none', useDeliveryAsBilling);
         this.addBillingAddressBtn?.classList.toggle('d-none', useDeliveryAsBilling);
     }

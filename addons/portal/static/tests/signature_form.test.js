@@ -12,23 +12,10 @@ class DummySignature extends Component {
     static props = ["*"];
 }
 
-/**
- * Replace the real NameAndSignature (which pulls the /web/sign/get_fonts route
- * and the signature_pad ESM lib) with a stub. These tests exercise
- * SignatureForm's own state rendering + onClickSubmit, not the signature canvas.
- */
 function stubSignatureInput() {
     patchWithCleanup(SignatureForm.components, { NameAndSignature: DummySignature });
 }
 
-/**
- * Regression guard for the post-sign success link.
- *
- * The template (portal.SignatureForm) reads ``state.success.redirect_url`` /
- * ``state.success.redirect_message``; ``onClickSubmit`` must publish the server
- * payload under those exact (snake_case) keys. A camelCase regression silently
- * hides the "see your document" link.
- */
 test("successful signature renders the server redirect link", async () => {
     stubSignatureInput();
     onRpc(SIGN_URL, () => ({
@@ -49,11 +36,6 @@ test("successful signature renders the server redirect link", async () => {
     expect(".alert-success a").toHaveText("See your document");
 });
 
-/**
- * Regression guard for the submit button on RPC failure: the loading state must
- * be reverted (icon restored, control usable) so the user can retry instead of
- * being stuck with a permanently spinning button.
- */
 test("a failing signature RPC restores the submit button", async () => {
     stubSignatureInput();
     onRpc(SIGN_URL, () => {
@@ -73,7 +55,6 @@ test("a failing signature RPC restores the submit button", async () => {
     await animationFrame();
 
     expect(rejected).toBe(true);
-    // Button still present, its icon restored (removed for the loading state).
     expect(".o_portal_sign_submit").toHaveCount(1);
     expect(".o_portal_sign_submit i.fa-check").toHaveCount(1);
 });

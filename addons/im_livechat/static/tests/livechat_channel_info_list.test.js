@@ -120,10 +120,10 @@ test("editing livechat note is synced between tabs", async () => {
     );
     document
         .querySelector(`${tab1.selector} .o-livechat-ChannelInfoList textarea`)
-        .blur(); // Trigger the blur event to save the note
+        .blur();
     await contains(`${tab2.selector} .o-livechat-ChannelInfoList textarea`, {
         value: "Updated note",
-    }); // Note should be synced with bus
+    });
 });
 
 test("shows live chat status in discuss sidebar", async () => {
@@ -161,7 +161,6 @@ test("shows live chat status in discuss sidebar", async () => {
         text: "Looking for help",
     });
     await contains(".o-mail-DiscussSidebar-item span[title='Looking for help']");
-    // live chat status icon also in messaging menu item
     await click(".o_menu_systray i[aria-label='Messages']");
     await contains(
         ".o-mail-MessagingMenu .o-mail-NotificationItem:contains('Visitor #20') [title='Looking for help']",
@@ -210,7 +209,7 @@ test("editing livechat status is synced between tabs", async () => {
     });
     await contains(`${tab2.selector} .o-livechat-ChannelInfoList button.active`, {
         text: "Waiting for customer",
-    }); // Status should be synced with bus
+    });
 });
 
 test("Manage expertises from channel info list", async () => {

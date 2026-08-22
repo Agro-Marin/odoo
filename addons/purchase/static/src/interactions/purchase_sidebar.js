@@ -12,7 +12,6 @@ export class PurchaseSidebar extends Sidebar {
 
     start() {
         super.start();
-        // Nav Menu ScrollSpy
         this.generateMenu({ "max-width": "200px" });
     }
 }

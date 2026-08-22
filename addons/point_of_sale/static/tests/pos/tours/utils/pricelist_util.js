@@ -44,11 +44,9 @@ function assertProductPrice(product, pricelist_name, quantity, expected_price) {
 
 export function setUp() {
     return [
-        // The global posmodel is only present when the posmodel is instantiated
-        // So, wait for everything to be loaded
         {
             content: "waiting for loading to finish",
-            trigger: "body:not(:has(.pos-loader))", // Pos has finished loading
+            trigger: "body:not(:has(.pos-loader))",
             run: function () {
                 const product_wall_shelf = posmodel.data.models["product.template"]
                     .getAll()

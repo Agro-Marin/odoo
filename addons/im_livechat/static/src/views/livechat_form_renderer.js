@@ -33,9 +33,6 @@ export class LivechatSessionFormRenderer extends FormRenderer {
     }
 
     /**
-     * Restore the discuss thread according to record id in the props if
-     * necessary.
-     *
      * @param {Props} props
      */
     async getChannel(props) {

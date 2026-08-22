@@ -41,7 +41,6 @@ async function get_session(request) {
     if (this.env.user && !ResUsers._is_public(this.env.uid)) {
         country_id = this.env.user.country_id;
     } else if (context.mockedCountryCode) {
-        // simulate geoip
         const country = ResCountry._filter([
             ["code", "=", context.mockedCountryCode],
         ])[0];

@@ -1,7 +1,7 @@
 import { escapeRegExp } from "@web/core/utils/format/strings";
 
 export const buttonTriger = (buttonValue) =>
-    `div.numpad button:contains(/^${escapeRegExp(buttonValue)}$/)`; // regex to match the exact button value ( for ex: avoids matching "+10" instead of "1")
+    `div.numpad button:contains(/^${escapeRegExp(buttonValue)}$/)`;
 
 export const click = (buttonValue) => ({
     content: `click numpad button: ${buttonValue}`,

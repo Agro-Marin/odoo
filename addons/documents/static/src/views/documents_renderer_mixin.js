@@ -29,9 +29,6 @@ export const DocumentsRendererMixin = (component) =>
             this.component = useComponent();
             this.refreshFocus = false;
 
-            // The singleton service's scroll observer watches OUR
-            // `.o_documents_content` and only disconnects itself once its
-            // conditions are met, so it would outlive this subtree.
             onWillUnmount(() => this.documentService.stopRightPanelScrollObserver());
 
             useCommand(
@@ -58,9 +55,6 @@ export const DocumentsRendererMixin = (component) =>
                 }
             );
 
-            // Holding Control turns a drag into "create a shortcut" instead of
-            // "move": `useDraggableDocuments` reads the class off our root and the
-            // stylesheet paints the cursor from it.
             const setShortcutModifier = (active) => {
                 this.root?.el?.classList.toggle("o_documents_dnd_shortcut", active);
             };
@@ -74,9 +68,6 @@ export const DocumentsRendererMixin = (component) =>
                     setShortcutModifier(false);
                 }
             });
-            // No keyup arrives when the window loses focus with Control still
-            // down (alt-tab, devtools, a native file dialog), so the class stuck
-            // and the next drag silently created shortcuts instead of moving.
             useExternalListener(window, "blur", () => setShortcutModifier(false));
 
             onWillUpdateProps((nextProps) => {
@@ -94,10 +85,6 @@ export const DocumentsRendererMixin = (component) =>
                 this.documentService.focusRecord(this.getContainerRecord());
             });
         }
-        /**
-         * Default focus on first record (fallback on container record)
-         * if there is no focused record or current focused record is out of the record list.
-         */
         setDefaultFocus() {
             const focusedRecord = this.documentService.focusedRecord;
             const records = this.props.list ? this.props.list.records : this.props.records;
@@ -110,9 +97,6 @@ export const DocumentsRendererMixin = (component) =>
             }
             return this.documentService.focusedRecord;
         }
-        /**
-         * Record for showing/modifying details of containing folder
-         */
         getContainerRecord() {
             const folder = this.env.searchModel.getSelectedFolder();
             const folderData = this.env.searchModel.getFolderAndParents(folder);
@@ -127,14 +111,14 @@ export const DocumentsRendererMixin = (component) =>
                 folder_id: folderId,
                 name: folder.display_name,
                 type: "folder",
-                file_size: (this.props.list?.model.fileSize || 0) * 1e6, // from MB to B to be precise on single doc.
+                file_size: (this.props.list?.model.fileSize || 0) * 1e6,
             });
             const config = { ...this.env.model.config, resId: data.id };
             const record = new this.env.model.constructor.Record(this.env.model, config, data);
             record.isContainer = true;
 
             /**
-             * @override making sure we only save fields for which we have fetched data.
+             * @override making
              */
             record._update = async (changes) => {
                 record.dirty = true;
@@ -158,16 +142,14 @@ export const DocumentsRendererMixin = (component) =>
                 );
             };
             /**
-             * @override to reload the document's data via the search panel update, required
-             * to avoid crashes as the record is not in the view.
+             * @override to
              */
             record.load = async () => {
                 await this.env.searchModel._reloadSearchPanel();
                 this.component.render();
             };
             /**
-             * @override skip to avoid raising validity error for fields that
-             * don't belong to the record container. Data saving is handled in our _update override.
+             * @override skip
              */
             record._save = async () => true;
             return record;
@@ -182,9 +164,6 @@ export const DocumentsRendererMixin = (component) =>
             return this.env.model.isDomainSelected;
         }
 
-        /**
-         * Number of documents in the current (container) folder
-         */
         getNbViewItems() {
             if (!this.props.list) {
                 return this.props.records.length;
@@ -199,11 +178,6 @@ export const DocumentsRendererMixin = (component) =>
             return this.props.list.selection;
         }
 
-        /**
-         * Booleans on purpose: an array here reads as truthy when empty, and
-         * `canDeleteRecords` is an `every()` that is vacuously true on an empty
-         * selection -- together they offer Delete with nothing selected.
-         */
         get hasRecordsToDelete() {
             return this.documentService.userIsInternal
                 ? this.selection.some((r) => !r.data.active)

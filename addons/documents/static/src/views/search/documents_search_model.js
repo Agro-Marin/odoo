@@ -15,21 +15,12 @@ export class DocumentsSearchModel extends SearchModel {
         this.skipLoadClosePreview = false;
         useSetupAction({
             beforeLeave: () => {
-                // The key `load()` reads back. Nothing in this module writes it,
-                // so this only matters for an externally supplied link
-                // (`/odoo/documents?user_folder_id=...`), which `load()` honours.
                 this._updateRouteState({ user_folder_id: undefined });
             },
         });
     }
 
     /**
-     * The folder category section, resolved by field name.
-     *
-     * The one way this file reaches that section: a positional `getSections()[0]`
-     * or a hardcoded `sections.get(1)` stops being the folder section as soon as
-     * the searchpanel arch gains a section or hides one.
-     *
      * @returns {Object|undefined}
      */
     get folderCategory() {
@@ -38,12 +29,10 @@ export class DocumentsSearchModel extends SearchModel {
 
     async load(config) {
         if (this.documentService.initData.documentId || config.context.documents_init_document_id) {
-            // Make sure target document is found (if accessible).
             config.irFilters.forEach((fil) => {
                 fil.is_default = false;
             });
             for (const key in config.context) {
-                // logic used in takeSearchDefaultsFromGlobalContext, here to group with above
                 const searchDefaultMatch = /^search_default_(.*)$/.exec(key);
                 if (searchDefaultMatch) {
                     delete config.context[key];
@@ -69,15 +58,10 @@ export class DocumentsSearchModel extends SearchModel {
     }
 
     /**
-     * Override to add rootId
-     *
      * @override
      */
     _createCategoryTree(sectionId) {
         const category = this.sections.get(sectionId);
-        // No need to evict the numeric (real folder) keys first to 'forget'
-        // archived folders: the base builder replaces `category.values` with a new
-        // Map on every call, preserving only the synthetic `false` ("All") root.
         super._createCategoryTree(...arguments);
         const findRootId = (folder) => {
             if (!folder.parentId) {
@@ -109,7 +93,6 @@ export class DocumentsSearchModel extends SearchModel {
         const { searchDefaults, searchPanelDefaults } =
             super.takeSearchDefaultsFromGlobalContext(...arguments);
         if (searchPanelDefaults.user_folder_id) {
-            // The panel keys real folders by number, the virtual roots by string.
             searchPanelDefaults.user_folder_id = toFolderValueId(
                 searchPanelDefaults.user_folder_id
             );
@@ -121,12 +104,7 @@ export class DocumentsSearchModel extends SearchModel {
         return { searchDefaults, searchPanelDefaults };
     }
 
-    //---------------------------------------------------------------------
-    // Actions / Getters
-    //---------------------------------------------------------------------
-
     /**
-     * Returns a description of each folder (record of documents.document, type === 'folder').
      * @returns {Object[]}
      */
     getFolders() {
@@ -134,7 +112,6 @@ export class DocumentsSearchModel extends SearchModel {
     }
 
     /**
-     * Returns the folder corresponding to the provided id, if any, false otherwise.
      * @returns {Object | false}
      */
     getFolderById(folderId) {
@@ -142,8 +119,6 @@ export class DocumentsSearchModel extends SearchModel {
     }
 
     /**
-     * Returns the id of the current selected folder, if any, false
-     * otherwise.
      * @returns {number | string | false}
      */
     getSelectedFolderId() {
@@ -151,7 +126,6 @@ export class DocumentsSearchModel extends SearchModel {
     }
 
     /**
-     * Returns the current selected folder, if any, false otherwise.
      * @returns {Object | false}
      */
     getSelectedFolder() {
@@ -159,7 +133,6 @@ export class DocumentsSearchModel extends SearchModel {
     }
 
     /**
-     * Returns the folder and all its parents, if any.
      * @returns {Object[]}
      */
     getFolderAndParents(folder) {
@@ -172,7 +145,6 @@ export class DocumentsSearchModel extends SearchModel {
     }
 
     /**
-     * Returns the current selected folder and all its parents, if any.
      * @returns {Object[]}
      */
     getSelectedFolderAndParents() {
@@ -180,8 +152,6 @@ export class DocumentsSearchModel extends SearchModel {
     }
 
     /**
-     * Overridden to write the new value in the local storage.
-     * And to write the folder_id in the url.
      * @override
      */
     toggleCategoryValue(sectionId, valueId) {
@@ -205,12 +175,7 @@ export class DocumentsSearchModel extends SearchModel {
         }
     }
 
-    //---------------------------------------------------------------------
-    // Private
-    //---------------------------------------------------------------------
-
     async _reloadSearchModel(reloadCategories) {
-        // By default, categories are not reloaded.
         if (reloadCategories) {
             await this._reloadSearchPanel(true);
         }
@@ -228,7 +193,6 @@ export class DocumentsSearchModel extends SearchModel {
     }
 
     /**
-     * Optimize searches
      * @override
      */
     _getCategoryDomain() {
@@ -241,7 +205,7 @@ export class DocumentsSearchModel extends SearchModel {
         }
         if (userFolderCategory.activeValueId === "SHARED") {
             return Domain.and([
-                [["shortcut_document_id", "=", false]], // no need to show them, the target will be here (or nested)
+                [["shortcut_document_id", "=", false]],
                 [["user_folder_id", "=", "SHARED"]],
             ]).toList();
         }
@@ -266,8 +230,7 @@ export class DocumentsSearchModel extends SearchModel {
     }
 
     /**
-     * @override Force specific ordering in RECENT and TRASH
-     * and fall back to create_date desc as default otherwise.
+     * @override Force
      */
     get orderBy() {
         const activeFolderId = this.folderCategory?.activeValueId;
@@ -284,18 +247,8 @@ export class DocumentsSearchModel extends SearchModel {
                 { name: "write_date", asc: false },
             ];
         }
-        // Never mutate what `super.orderBy` hands back: it memoizes the array in
-        // `this._orderBy` (which, with no favorite ordering, IS `globalOrderBy`)
-        // and freezes it in debug mode. Pushing the default onto it threw
-        // "Cannot add property 0, object is not extensible" and the documents
-        // kanban failed to mount under `?debug=1`.
         const orderBy = super.orderBy;
         if (!orderBy.length) {
-            // super.orderBy is the base search model's memoized getter —
-            // frozen in dev mode ("consumers only read or rebuild it"), so
-            // mutating it in place with push() throws
-            // "Cannot add property 0, object is not extensible". Build a
-            // fresh array instead.
             return [{ name: "create_date", asc: false }];
         }
         return orderBy;
@@ -310,14 +263,6 @@ export class DocumentsSearchModel extends SearchModel {
     }
 
     /**
-     * Whether `valueId` is reachable by walking down from the category roots.
-     *
-     * Neither an unresolvable id nor a cycle is reachable today -- the arch parser
-     * seeds `values[false]`, `search_panel_fetch` builds `rootIds`/`childrenIds`
-     * out of `values`, and the ORM rejects a folder cycle outright. The `seen` set
-     * is kept anyway: those invariants live in `web`, nothing enforces them from
-     * here, and the cost of getting them wrong is a hung browser tab.
-     *
      * @param {Object} category
      * @param {number|string|false} valueId
      * @returns {boolean}
@@ -357,14 +302,9 @@ export class DocumentsSearchModel extends SearchModel {
             category.activeValueId = this.context.documents_init_folder_id || false;
             return;
         }
-        // If not set in context, or set to an unknown value, set active value
-        // from localStorage
         const storageItem = browser.localStorage.getItem("searchpanel_documents_document");
         if (storageItem && !["COMPANY", "MY", "RECENT", "SHARED", "TRASH"].includes(storageItem)) {
             try {
-                // Usually a folder id serialized as JSON, but a bad URL param can
-                // have been persisted verbatim, and an unguarded parse would throw
-                // on every load until localStorage is cleared.
                 category.activeValueId = JSON.parse(storageItem);
             } catch {
                 category.activeValueId = false;
@@ -379,9 +319,7 @@ export class DocumentsSearchModel extends SearchModel {
         ) {
             return;
         }
-        // valueIds might contain different values than category.values
         if (category.values.has(category.activeValueId)) {
-            // We might be in a deleted subfolder, try to find the parent.
             let newSection = category.values.get(
                 category.values.get(category.activeValueId).parentId
             );
@@ -397,7 +335,6 @@ export class DocumentsSearchModel extends SearchModel {
             }
             browser.localStorage.setItem("searchpanel_documents_document", category.activeValueId);
         } else {
-            // If still not a valid value, default to All (id=false)
             category.activeValueId = false;
         }
     }

@@ -14,41 +14,28 @@ export class ProductCombo {
     }
 
     /**
-     * Return the selected combo item, if any.
-     *
-     * @return {ProductComboItem|undefined} The selected combo item, if any.
+     * @return {ProductComboItem|undefined}
      */
     get selectedComboItem() {
         return this.combo_items.find((item) => item.is_selected);
     }
 
     /**
-     * Return the preselected combo item, if any.
-     *
-     * @return {ProductComboItem|undefined} The preselected combo items, if any.
+     * @return {ProductComboItem|undefined}
      */
     get preselectedComboItem() {
         return this.combo_items.find((item) => item.is_preselected);
     }
 
     /**
-     * Check whether this combo is configurable.
-     *
-     * @return {Boolean} Whether this combo is configurable.
+     * @return {Boolean}
      */
     get isConfigurable() {
         return !this.combo_items.some((item) => item.is_preselected);
     }
 
     /**
-     * Check whether this combo offers no choice at all.
-     *
-     * The server drops combo items whose product is archived, so a combo can arrive with
-     * an empty `combo_items`. That is neither "included" (there is nothing to include)
-     * nor configurable (there is nothing to configure), and `isConfigurable` alone
-     * reports it as the latter.
-     *
-     * @return {Boolean} Whether this combo has no items.
+     * @return {Boolean}
      */
     get isEmpty() {
         return this.combo_items.length === 0;

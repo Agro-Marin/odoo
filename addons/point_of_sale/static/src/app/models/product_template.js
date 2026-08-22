@@ -4,14 +4,6 @@ import { normalize } from "@web/core/l10n/utils";
 import { registry } from "@web/core/registry";
 
 import { ProductTemplateAccounting } from "./accounting/product_template_accounting.js";
-/**
- * ProductProduct, shadow of product.product in python.
- * To works properly, this model needs to be registered in the registry
- * with the key "pos_available_models". And to be instanciated with the
- * method createRelatedModels from related_models.js
- *
- * Models to load: product.product, uom.uom
- */
 
 export class ProductTemplate extends ProductTemplateAccounting {
     static pythonModel = "product.template";
@@ -103,10 +95,8 @@ export class ProductTemplate extends ProductTemplateAccounting {
                 attributeValueIds.includes(ptav),
             );
             if (ptavCommon.length === attributeValueIds.length) {
-                // all attributes must be disabled from each other
                 archivedCombination.forEach((ptav) => excludedPTAV.add(ptav));
             } else if (ptavCommon.length === attributeValueIds.length - 1) {
-                // In this case we only need to disable the remaining ptav
                 const disablePTAV = archivedCombination.find(
                     (ptav) => !attributeValueIds.includes(ptav),
                 );

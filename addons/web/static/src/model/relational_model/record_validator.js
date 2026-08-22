@@ -106,7 +106,7 @@ function pruneUnreachableInvalidFields(record) {
  * @param {RelationalRecord} record
  * @param {{ silent?: boolean, removeInvalidOnly?: boolean }} mode
  * @returns {{ isInvisible: (f: string) => boolean, isRequired: (f: string) => boolean,
- *             isChildListValid: (f: string, list: any) => boolean }}
+ * isChildListValid: (f: string, list: any) => boolean }}
  */
 function makeValidityCallbacks(record, { silent, removeInvalidOnly }) {
     return {

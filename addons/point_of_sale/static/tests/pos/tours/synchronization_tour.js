@@ -16,7 +16,6 @@ registry.category("web_tour.tours").add("test_sync_from_ui_one_by_one", {
                 trigger: "body",
                 content: "Create fake orders",
                 run: async () => {
-                    // Create 5 orders that will be synced one by one
                     for (let i = 0; i < 5; i++) {
                         const product = posmodel.models["product.template"].find(
                             (p) => p.name === "Desk Pad",
@@ -30,7 +29,6 @@ registry.category("web_tour.tours").add("test_sync_from_ui_one_by_one", {
                     }
                 },
             },
-            // Create one more order to be able to trigger the sync from the UI
             ProductScreen.clickDisplayedProduct("Desk Pad"),
             ProductScreen.clickPayButton(),
             PaymentScreen.clickPaymentMethod("Bank"),
@@ -39,11 +37,6 @@ registry.category("web_tour.tours").add("test_sync_from_ui_one_by_one", {
             {
                 trigger: "body",
                 content: "Flush the five orders left pending",
-                // Validating an order syncs exactly that order and no other
-                // (order_payment_validation.js says why), so the queue built
-                // above is still local at this point. Flush it explicitly: what
-                // this test exists to pin is that each order costs its own
-                // sync_from_ui call, not that validation drains the queue.
                 run: async () => {
                     await posmodel.syncAllOrders();
                 },

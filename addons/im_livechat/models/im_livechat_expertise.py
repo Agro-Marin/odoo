@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from collections import defaultdict
 
 from odoo import Command, fields, models
@@ -8,8 +6,6 @@ from odoo.addons.base.models.mixin_catalog import name_uniq_index
 
 
 class Im_LivechatExpertise(models.Model):
-    """Expertise of Live Chat users."""
-
     _name = "im_livechat.expertise"
     _description = "Live Chat Expertise"
     _order = "name"
@@ -36,16 +32,13 @@ class Im_LivechatExpertise(models.Model):
         users_by_expertise = self._get_users_by_expertise()
         for expertise in self:
             for user in expertise.user_ids - users_by_expertise[expertise]:
-                # sudo: res.users: livechat manager can add expertise on users
                 user.sudo().livechat_expertise_ids = [Command.link(expertise.id)]
             for user in users_by_expertise[expertise] - expertise.user_ids:
-                # sudo: res.users: livechat manager can remove expertise on users
                 user.sudo().livechat_expertise_ids = [Command.unlink(expertise.id)]
 
     def _get_users_by_expertise(self):
         users_by_expertise = defaultdict(lambda: self.env["res.users"])
         settings_domain = [("livechat_expertise_ids", "in", self.ids)]
-        # sudo: res.users.settings: livechat manager can read expertise on users
         user_settings = self.env["res.users.settings"].sudo().search(settings_domain)
         for user_setting in user_settings:
             for expertise in user_setting.livechat_expertise_ids:

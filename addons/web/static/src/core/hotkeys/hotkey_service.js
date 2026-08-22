@@ -22,10 +22,7 @@ export { getActiveHotkey };
  * @property {() => HTMLElement} [area]
  * @property {(target: HTMLElement) => boolean} [isAvailable]
  * @property {() => HTMLElement} [withOverlay]
- * @property {() => Document | HTMLElement | null} [scope] the active element
- * this hotkey belongs to. Supplied by `useHotkey` from the component's place in
- * the DOM; pass it yourself only when that place is not where the hotkey
- * belongs -- a component rendering the very dialog it registers hotkeys for.
+ * @property {() => Document | HTMLElement | null} [scope]
  * @typedef {HotkeyOptions & {
  * hotkey: string,
  * callback: HotkeyCallback,
@@ -363,12 +360,6 @@ export class HotkeyService {
         const registration = {
             hotkey: [...modifiers, ...keys].join("+"),
             callback,
-            // Decided once, here. A deferred read of `ui.activeElement` binds the
-            // hotkey to whichever element is active when the deferral fires, so a
-            // dialog opening in the same task silently steals every hotkey
-            // registered beside it. `useHotkey` supplies a resolver derived from
-            // the component tree; a direct service call has no tree, so its scope
-            // is the element active at the moment it asks.
             getScope: options?.scope ?? (() => capturedScope),
             allowRepeat: options?.allowRepeat,
             bypassEditableProtection: options?.bypassEditableProtection,

@@ -305,10 +305,10 @@ let discussAsTabId = 0;
 
 /**
  * @param {{
- *   asTab?: boolean;
- *   authenticateAs?: any | { login: string; password: string; };
- *   env?: Partial<OdooEnv>;
- *   root?: typeof Component;
+ * asTab?: boolean;
+ * authenticateAs?: any | { login: string; password: string; };
+ * env?: Partial<OdooEnv>;
+ * root?: typeof Component;
  * }} [options]
  */
 export async function start(options) {
@@ -366,13 +366,6 @@ export async function start(options) {
         env = getMockEnv() || (await makeMockEnv({}));
     }
     env.testEnv = true;
-    // `root` defaults to the backend shell, which is what almost every caller
-    // wants -- but mounting `WebClient` is not neutral: `webclient.js` calls
-    // `store.initialize()`, and `mail/core/web`'s store patch turns that into
-    // `failures` + `systray_get_activities` + `init_messaging`.  A caller
-    // testing something that does NOT run inside the backend -- the livechat
-    // embed mounts `MainComponentsContainer` -- measures a different
-    // application unless it can say so.
     await mountWithCleanup(options?.root ?? WebClient, { env, target });
     await loadEmoji();
     return Object.assign(env, { ...options?.env, target });

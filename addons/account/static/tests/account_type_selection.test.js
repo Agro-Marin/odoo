@@ -21,8 +21,6 @@ class Account extends models.Model {
             ["income", "Income"],
             ["expense", "Expenses"],
             ["off_balance", "Off-Balance Sheet"],
-            // No prefix claims this one. A localisation adding an account type
-            // must not have it silently vanish from the selector.
             ["memorandum", "Memorandum"],
         ],
     });

@@ -9,17 +9,14 @@ describe("printer_service.js", () => {
     test("print should work whith printer in hardware_proxy", async () => {
         const store = await setupPosEnv();
         const printerService = store.env.services.printer;
-        // Mock renderer
         printerService.renderer = {
             toHtml: async () => document.createElement("div"),
             whenMounted: ({ callback, el }) => callback(el),
         };
-        // Mock printer
         const mockPrinter = {
             printReceipt: async () => ({ successful: true }),
         };
         store.env.services.hardware_proxy.printer = mockPrinter;
-        // Spy log
         const originalConsoleLog = console.log;
         const consoleLogCalls = [];
         console.log = (...args) => {

@@ -41,11 +41,6 @@ export class PortalSearchPanel extends Interaction {
             "search",
             this.el.querySelector("input[name=search]")?.value || "",
         );
-        // Drop the `/page/<n>` suffix: portal list routes carry the page in the
-        // path, and assigning only `location.search` kept it. A new search from
-        // page 3 landed on page 3 of a result set that usually has fewer pages
-        // -- an empty table, with the pager offering no way back to page 1
-        // (`portal.pager` renders nothing when there is a single page).
         url.pathname = url.pathname.replace(/\/page\/\d+\/?$/, "");
         window.location.href = url.toString();
     }

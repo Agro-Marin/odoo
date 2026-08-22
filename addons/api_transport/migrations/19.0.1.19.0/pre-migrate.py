@@ -1,22 +1,3 @@
-"""Drop 'session_id' and 'user_agent' from 'credential.access.log'.
-
-Both were declared by this module and written by nothing -- not by the access-log path,
-not by any controller, not by a test. 'user_agent' reads like an oversight because the
-sibling model DOES capture it: 'inbound.access.log.user_agent' is filled by
-'inbound_gate_mixin', where a User-Agent header actually exists. Credential access is a
-server-side event, frequently from cron, so there is usually no request to read one from
-and no second implementation is wanted.
-
-'session_id' is dropped on its own merits as well as for being dead: a session
-identifier is bearer material, and an audit table read by everyone with access-log
-rights is the wrong place to keep it.
-
-DEFENSIVE. A column on an audit table is not dropped on the strength of a grep. If any
-row carries a value, the drop is skipped and the fact is logged at WARNING -- an empty
-column is the premise, and a deployment that falsifies it should be looked at rather
-than truncated.
-"""
-
 import logging
 
 from odoo.db.schema import column_exists, table_exists

@@ -37,7 +37,6 @@ export function logPosMessage(
         try {
             log.args = JSON.parse(JSON.stringify(args));
         } catch {
-            // In case the args are not serializable
             log.args = args.toString();
         }
     }

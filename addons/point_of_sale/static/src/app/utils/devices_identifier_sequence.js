@@ -7,10 +7,6 @@ export default class DeviceIdentifierSequence {
         this.device_identifier = "";
     }
 
-    /**
-     * The shape every consumer can rely on. Used whenever nothing valid is
-     * persisted (yet, or any more).
-     */
     get defaultData() {
         return {
             device_identifier: this.device_identifier ?? "",
@@ -19,29 +15,17 @@ export default class DeviceIdentifierSequence {
         };
     }
 
-    /**
-     * Never returns null. `localStorage.getItem` yields null for a missing key
-     * and `JSON.parse(null)` is null, so every `this.data.x` consumer below
-     * used to throw a TypeError the moment the entry went away — which happens
-     * whenever the user clears site data, storage is evicted, or another tab
-     * resets it. `identifier` is read on EVERY order sync
-     * (getSyncAllOrdersContext), so that turned a recoverable storage loss into
-     * permanently broken syncing with an opaque error. Only saveUnusedNumber
-     * guarded for it; the rest did not.
-     */
     get data() {
         const localStorageKey = DeviceIdentifierSequence.uniqueDeviceIdentifierKey;
         let parsed;
         try {
             parsed = JSON.parse(localStorage.getItem(localStorageKey));
         } catch {
-            // Corrupt blob: treat exactly like a missing one.
             parsed = null;
         }
         if (!parsed || typeof parsed !== "object") {
             return this.defaultData;
         }
-        // Merge so a partially-written entry still exposes every key.
         return { ...this.defaultData, ...parsed };
     }
 
@@ -80,10 +64,6 @@ export default class DeviceIdentifierSequence {
                 unsynced_number_stack: [],
             });
         } else {
-            // Also mirror an ALREADY-persisted identifier into memory. Without
-            // this the in-memory copy stayed "" on every normal boot, so it
-            // could not serve as the fallback when the storage entry later
-            // disappears mid-session.
             this.device_identifier = this.data.device_identifier;
         }
     }
@@ -98,7 +78,7 @@ export default class DeviceIdentifierSequence {
         this.save({
             device_identifier: this.data.device_identifier,
             next_number: this.data.next_number,
-            unsynced_number_stack: sorted.slice(1), // Remove the first element from the stack
+            unsynced_number_stack: sorted.slice(1),
         });
 
         return sorted[0];
@@ -115,7 +95,7 @@ export default class DeviceIdentifierSequence {
         const newData = {
             device_identifier: data.device_identifier,
             next_number: number + 1,
-            unsynced_number_stack: [], // In case of order deletion, its identifier will be added to this stack to be reused later
+            unsynced_number_stack: [],
         };
 
         this.save(newData);
@@ -139,18 +119,12 @@ export default class DeviceIdentifierSequence {
 
     saveUnusedNumber(orders) {
         const data = this.data;
-        // `data` is now total, so guard on the thing that actually matters:
-        // never persist a sequence under a blank device identifier (that would
-        // collide with another device's stack). Compare against "" rather than
-        // using falsiness — the identifier is numeric and 0 is legitimate.
         if (data.device_identifier === "" || data.device_identifier == null) {
             return;
         }
         const numbers = orders
             .filter((o) => !o.isSynced)
             .map((o) => this.extractNumberFromReference(o.pos_reference))
-            // One malformed pos_reference would poison the stack with NaN,
-            // which then corrupted the next-number sorting for the session.
             .filter(Number.isInteger);
         const unsyncedNumberStack = new Set([
             ...data.unsynced_number_stack,

@@ -13,34 +13,9 @@ const INITIAL_DELAY = 2000;
 const MAX_DELAY = 60_000;
 
 /**
- * Recovery from a lost connection: one sticky notification, one back-off poll
- * of a cheap route, and one "you are back online" when it answers.
- *
- * It is a service and not a closure inside the error handler because it owns
- * three things that outlive a single error -- a timer, a notification handle,
- * and a "give up, we are shutting down" flag -- and something has to be able to
- * stop them. It used to keep exactly those three in a module-level WeakMap
- * keyed by env, created lazily by the handler rather than by the service. Two
- * consequences followed. The handler and the service talked through a side
- * channel instead of through `env.services`. And `destroy()` set a `destroyed`
- * flag on that shared entry which nothing ever cleared, so a service torn down
- * and started again on the same env came back **silently broken**: measured, a
- * second start still reported the error as handled -- `preventDefault()` called,
- * rejection swallowed -- while showing the user nothing and scheduling no retry.
- * State that outlives the thing whose lifecycle governs it can only fail that
- * way, so it now lives in the closure `destroy()` closes over.
- *
- * It owns the state, not the telling. Announcing to the user is the caller's,
- * passed to `reportLost` -- core cannot reach the notification service without
- * inverting the layers, and the caller that reports a lost connection is by
- * construction one that can speak to the user. `openSessionExpired` has taken
- * its dialog the same way since before this service existed.
- */
-
-/**
  * @typedef {object} ConnectionAnnouncer
- * @property {() => (() => void)} lost shows "connection lost"; returns its remover
- * @property {() => void} restored shows "you are back online"
+ * @property {() => (() => void)} lost
+ * @property {() => void} restored
  */
 export const connectionRecoveryService = {
     /** @param {OdooEnv} env */
@@ -88,8 +63,7 @@ export const connectionRecoveryService = {
                 return destroyed;
             },
             /**
-             * @returns {boolean} whether a session-expired dialog is already up,
-             * so the caller does not stack a second one.
+             * @returns {boolean}
              */
             get isSessionExpiredOpen() {
                 return sessionExpiredOpen;
@@ -106,9 +80,6 @@ export const connectionRecoveryService = {
                 sessionExpiredOpen = false;
             },
             /**
-             * Announce the connection as lost and start polling. Idempotent:
-             * while a notification is up, further losses are absorbed.
-             *
              * @param {ConnectionAnnouncer} announce
              */
             reportLost(announce) {

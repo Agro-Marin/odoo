@@ -698,12 +698,9 @@ test("the footer's namespace switches are controls, not click handlers on text",
     const switches = queryAll(".o_command_palette_footer .o_namespace");
     expect(switches.length).toBeGreaterThan(0);
     for (const el of switches) {
-        // a click handler on a <span> is a control no keyboard reaches and no
-        // assistive technology names -- in the palette, of all places
         expect(el.tagName).toBe("BUTTON");
         expect(/** @type {HTMLButtonElement} */ (el).type).toBe("button");
     }
-    // and it is inside the dialog's focus trap, so Tab can actually land on it
     expect(getTabableElements(queryOne(".o_command_palette"))).toInclude(switches[0]);
 });
 

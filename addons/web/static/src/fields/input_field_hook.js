@@ -17,8 +17,8 @@ import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
  * @property {() => boolean} shouldSave
  * @property {(isDirty: boolean) => void} setFieldDirty
  * @property {{
- *   isDirty: boolean,
- *   lastSetValue: string | null,
+ * isDirty: boolean,
+ * lastSetValue: string | null,
  * }} edit
  */
 

@@ -14,7 +14,7 @@ export class DiscussChannel extends mailModels.DiscussChannel {
     livechat_channel_id = fields.Many2one({
         relation: "im_livechat.channel",
         string: "Channel",
-    }); // FIXME: somehow not fetched properly
+    });
     livechat_lang_id = fields.Many2one({ relation: "res.lang", string: "Language" });
     livechat_note = fields.Html({ sanitize: true });
     livechat_status = fields.Selection({
@@ -113,11 +113,8 @@ export class DiscussChannel extends mailModels.DiscussChannel {
                       name: country.name,
                   }
                 : false;
-            // add the last message date
             if (channel.channel_type === "livechat") {
-                // add the operator id
                 if (channel.livechat_operator_id) {
-                    // livechat_username ignored for simplicity
                     channelInfo.livechat_operator_id = mailDataHelpers.Store.one(
                         ResPartner.browse(channel.livechat_operator_id),
                         makeKwArgs({

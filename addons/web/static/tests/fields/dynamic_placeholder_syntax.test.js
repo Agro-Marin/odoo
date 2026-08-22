@@ -55,9 +55,6 @@ describe("escapeInlineDefault", () => {
     });
 
     test("`|||` in a default is left exactly as typed", () => {
-        // The old hook stripped the first occurrence and only the first, which
-        // guarded against nothing: the grammar always splits on the separator
-        // the builder itself writes.
         expect(
             buildInlinePlaceholder({ path: "x", defaultValue: "a ||| b ||| c" }),
         ).toBe("{{object.x ||| a ||| b ||| c}}");

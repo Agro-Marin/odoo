@@ -33,8 +33,6 @@ export class StockDashboardKanbanRenderer extends KanbanRenderer {
     }
 
     _parseGraph(record) {
-        // Keyed on the record, so a card that did not change is not re-parsed
-        // when a sibling does.
         return readJsonValue(
             record,
             record.data.kanban_dashboard_graph,

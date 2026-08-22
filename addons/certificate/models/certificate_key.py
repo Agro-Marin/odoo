@@ -158,12 +158,6 @@ class CertificateKey(models.Model):
 
     @api.depends("content", "password")
     def _compute_key_metadata(self):
-        """Compute the two stored flags, and nothing else.
-
-        Kept apart from ``_compute_pem_key`` because ``pem_key`` is not stored:
-        assigning it from the same method would make every read of it dirty
-        ``public`` and ``loading_error`` and write them back.
-        """
         for key in self:
             _pem_key, public, loading_error = self._load_pem_key(
                 key.with_context(bin_size=False).content,
@@ -173,12 +167,6 @@ class CertificateKey(models.Model):
             key.loading_error = loading_error
 
     def _search_pem_key(self, operator, value):
-        """Answer ``pem_key`` domains from the stored parse outcome.
-
-        ``pem_key`` is non-empty exactly when the key material parsed, which
-        ``loading_error`` already records, so the views' Private/Public/Invalid
-        filters keep working now that nothing is persisted.
-        """
         if operator not in ("in", "not in") or set(value) != {False}:
             return NotImplemented
 
@@ -194,17 +182,6 @@ class CertificateKey(models.Model):
         return ["!", *loaded]
 
     def _sign(self, message, hashing_algorithm="sha256", formatting="encodebytes"):
-        """Compute and return the message's signature.
-
-        :param str|bytes message: The message to sign
-        :param optional,default='sha256' hashing_algorithm: The digest algorithm to use. Currently, only 'sha1' and 'sha256' are available.
-        :param optional,default='encodebytes' formatting: The formatting of the returned bytes
-            - 'encodebytes' returns a base64-encoded block of 76 characters lines
-            - 'base64' returns the raw base64-encoded data
-            - other returns non-encoded data
-        :return: The formatted signature bytes of the message
-        :rtype: bytes
-        """
         self.ensure_one()
 
         if self.public:
@@ -223,7 +200,6 @@ class CertificateKey(models.Model):
         )
 
     def _verify(self, signed_message, signature, hashing_algorithm="sha256"):
-        """Return the verification of the signature"""
         self.ensure_one()
 
         if not self.public:
@@ -243,15 +219,6 @@ class CertificateKey(models.Model):
         )
 
     def _get_public_key_numbers_bytes(self, formatting="encodebytes"):
-        """Get the public key's public numbers bytes.
-
-        :param optional,default='encodebytes' formatting: The formatting of the returned bytes
-            - 'encodebytes' returns a base64-encoded block of 76 characters lines
-            - 'base64' returns the raw base64-encoded data
-            - other returns non-encoded data
-        :return: A tuple containing formatted public number bytes of the public key
-        :rtype: tuple(bytes,bytes)
-        """
         self.ensure_one()
 
         return self._numbers_public_key_bytes_with_key(
@@ -260,18 +227,6 @@ class CertificateKey(models.Model):
         )
 
     def _get_public_key_bytes(self, encoding="der", formatting="encodebytes"):
-        """Get the public key bytes.
-
-        :param optional,default='der' encoding: The formatting of the returned bytes
-            - 'der' returns DER public key bytes
-            - other returns PEM public key bytes
-        :param optional,default='encodebytes' formatting: The formatting of the returned bytes
-            - 'encodebytes' returns a base64-encoded block of 76 characters lines
-            - 'base64' returns the raw base64-encoded data
-            - other returns non-encoded data
-        :return: The formatted public key bytes in the corresponding format
-        :rtype: bytes
-        """
         self.ensure_one()
 
         if self.public:
@@ -301,20 +256,6 @@ class CertificateKey(models.Model):
         )
 
     def _get_unencrypted_pem_key(self, formatting="base64"):
-        """Get the private key PEM with any password protection stripped.
-
-        ``pem_key`` re-serializes a password-protected key *under that same
-        password* (BestAvailableEncryption), so consumers that hand the PEM to
-        something which cannot prompt for one — an SSL context, paho's
-        ``tls_set(keyfile=...)``, an external signer — need this instead.
-
-        :param optional,default='base64' formatting: The formatting of the returned bytes
-            - 'encodebytes' returns a base64-encoded block of 76 characters lines
-            - 'base64' returns the raw base64-encoded data
-            - other returns non-encoded data
-        :return: The formatted unencrypted private key PEM bytes
-        :rtype: bytes
-        """
         self.ensure_one()
 
         if self.public:
@@ -397,13 +338,6 @@ class CertificateKey(models.Model):
         return pem_key, public, ""
 
     def _decrypt(self, message, hashing_algorithm="sha256"):
-        """Decrypt the given message using the provided digest.
-
-        :param str|bytes message: The message to encode
-        :param optional,default='sha256' hashing_algorithm: The digest algorithm to use. Currently, only 'sha1' and 'sha256' are available.
-        :return: The decrypted text
-        :rtype: str
-        """
         self.ensure_one()
 
         if not isinstance(message, bytes):
@@ -445,20 +379,6 @@ class CertificateKey(models.Model):
         hashing_algorithm="sha256",
         formatting="encodebytes",
     ):
-        """Compute and return the message's signature for a given private key.
-
-        :param str|bytes message: The message to sign
-        :param str|bytes pem_key: A base64 encoded private key in the PEM format
-        :param str|bytes pwd: A password to decrypt the PEM key
-        :param optional,default='sha1' hashing_algorithm: The digest algorithm to use. Currently, only 'sha1' and 'sha256' are available.
-        :param optional,default='encodebytes' formatting: The formatting of the returned bytes
-            - 'encodebytes' returns a base64-encoded block of 76 characters lines
-            - 'base64' returns the raw base64-encoded data
-            - other returns non-encoded data
-        :return: The formatted signature bytes of the message
-        :rtype: bytes
-        """
-
         if not isinstance(message, bytes):
             message = message.encode("utf-8")
         if not isinstance(pem_key, bytes):
@@ -503,8 +423,6 @@ class CertificateKey(models.Model):
     def _check_with_key(
         self, signed_message, signature, pem_key, signature_algorithm="sha256"
     ):
-        """Return the verification of the signature"""
-
         def check_valid_signature_algorithm():
             if signature_algorithm not in STR_TO_HASH:
                 raise UserError(  # pylint: disable=missing-gettext
@@ -565,16 +483,6 @@ class CertificateKey(models.Model):
 
     @api.model
     def _numbers_public_key_bytes_with_key(self, pem_key, formatting="encodebytes"):
-        """Get the given public key's public numbers bytes.
-
-        :param str|bytes pem_key: A base64 encoded public key in the PEM format
-        :param optional,default='encodebytes' formatting: The formatting of the returned bytes
-            - 'encodebytes' returns a base64-encoded block of 76 characters lines
-            - 'base64' returns the raw base64-encoded data
-            - other returns non-encoded data
-        :return: A tuple containing the formatted public number bytes of the public key
-        :rtype: tuple(bytes,bytes)
-        """
         if not isinstance(pem_key, bytes):
             pem_key = pem_key.encode("utf-8")
 
@@ -606,15 +514,6 @@ class CertificateKey(models.Model):
     def _generate_ec_private_key(
         self, company, name="id_ec", curve="SECP256R1", password=None
     ):
-        """Generate an elliptic curve private key.
-
-        :param res.company company: A company record
-        :param str,optional,default='id_ec' name: The name of the newly created key.
-        :param optional,default='SECP256R1' curve: The type of elliptic curve algorithm. Currently, only SECP256R1 is supported.
-        :param str | bytes | None password: Encrypts (best available algorithm) the key with the given password
-        :return: A certificate.key record
-        :rtype: certificate.key
-        """
         if curve not in STR_TO_CURVE:
             raise UserError(  # pylint: disable=missing-gettext
                 f"Unsupported curve algorithm '{curve}'. Currently supported: SECP256R1."
@@ -653,16 +552,6 @@ class CertificateKey(models.Model):
         key_size=2048,
         password=None,
     ):
-        """Generate an RSA private key.
-
-        :param res.company company: A company record
-        :param str,optional,default='id_rsa' name: The name of the newly created key.
-        :param int,optional,default=65537 public_exponent: The public exponent of the new key: either 65537 or 3 (for legacy purposes)
-        :param int,optional,default=2048 key_size: The length of the modulus in bits; it is strongly recommended to be at least 2048 and must not be less than 512
-        :param str | bytes | None password: Encrypts (best available algorithm) the key with the given password
-        :return: A certificate.key record
-        :rtype: certificate.key
-        """
         if public_exponent not in [65537, 3]:
             raise UserError(
                 _("The public exponent should be 65537 (or 3 for legacy purposes).")
@@ -698,14 +587,6 @@ class CertificateKey(models.Model):
         )
 
     def _generate_ed25519_private_key(self, company, name="id_ed25519", password=None):
-        """Generate an Ed25519 private key.
-
-        :param res.company company: A company record
-        :param str,optional,default='id_ed25519' name: The name of the newly created key.
-        :param str | bytes | None password: Encrypts (best available algorithm) the key with the given password
-        :return: A certificate.key record
-        :rtype: certificate.key
-        """
         private_key = ed25519.Ed25519PrivateKey.generate()
 
         if password and not isinstance(password, bytes):

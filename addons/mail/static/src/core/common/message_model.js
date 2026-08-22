@@ -421,7 +421,6 @@ export class Message extends Record {
             this.body &&
             this.body.startsWith("<a") &&
             this.body.endsWith("/a>") &&
-            // global flag: a non-global match() returns the single match plus
             this.body.match(/<\/a>/gi)?.length === 1 &&
             this.message_link_preview_ids.length === 1 &&
             this.message_link_preview_ids[0].link_preview_id.isImage

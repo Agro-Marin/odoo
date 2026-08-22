@@ -4,18 +4,6 @@ import { _t } from "@web/core/translation";
 import { SaleActionHelper } from "../js/sale_action_helper/sale_action_helper.js";
 
 /**
- * Class factories shared by the sale RFQ-upload and onboarding kanban/list views.
- *
- * The kanban and list variants differ only in the account base class they extend, so
- * the (identical) behaviour is defined once here and applied to each base. Crucially,
- * this keeps the translated drop-zone copy in a single place instead of duplicating
- * the `msgid` across four source files.
- */
-
-/**
- * Extend a file-upload controller to hide the "Upload" button (the RFQ import flow
- * uses the drop zone instead).
- *
  * @param {typeof import("@web/views/kanban/kanban_controller").KanbanController} Controller
  */
 export const saleFileUploadController = (Controller) =>
@@ -27,8 +15,6 @@ export const saleFileUploadController = (Controller) =>
     };
 
 /**
- * Extend a file-upload renderer with the RFQ-import drop-zone title and description.
- *
  * @param {typeof import("@web/views/kanban/kanban_renderer").KanbanRenderer} Renderer
  */
 export const saleFileUploadRenderer = (Renderer) =>
@@ -36,10 +22,6 @@ export const saleFileUploadRenderer = (Renderer) =>
         setup() {
             super.setup();
             this.dropZoneTitle = _t("Import a request for quotation from a customer");
-            // One flat msgid. The template literal that used to be here carried its own
-            // newlines and source indentation into the catalogue, so every translation
-            // was invalidated by any reindent of this file — and the rendered text
-            // depended on where the string happened to sit in the source.
             this.dropZoneDescription = _t(
                 "If your customer runs on Odoo 18 or higher, customer data and sales" +
                     " order lines will be automatically created. Any other pdf" +
@@ -50,11 +32,8 @@ export const saleFileUploadRenderer = (Renderer) =>
     };
 
 /**
- * Extend a renderer to display the onboarding action helper (the "no content" video
- * preview) and use the given onboarding template.
- *
  * @param {typeof import("@web/views/kanban/kanban_renderer").KanbanRenderer} Renderer
- * @param {String} template The onboarding renderer template name.
+ * @param {String} template
  */
 export const saleOnboardingRenderer = (Renderer, template) =>
     class extends Renderer {

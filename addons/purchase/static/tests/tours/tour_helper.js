@@ -13,7 +13,6 @@ export const purchaseForm = {
             const getFieldValue = (fieldName) => {
                 let selector = `td[name="${fieldName}"]`;
                 if (fieldName === "product_id") {
-                    // Special case for the product field because it can be replace by another field
                     selector += ",td[name='product_template_id']";
                 }
                 const fieldEl = anchor.querySelector(selector);
@@ -54,9 +53,6 @@ export const purchaseForm = {
         ];
     },
 
-    /**
-     * Clicks on the "Catalog" button below the purchase order lines.
-     */
     openCatalog() {
         return [
             {
@@ -69,8 +65,7 @@ export const purchaseForm = {
     },
 
     /**
-     * Sets the vendor on a purchase order (must already on PO).
-     * @param {string} vendorName An existing partner.
+     * @param {string} vendorName
      */
     selectVendor(vendorName) {
         return [
@@ -89,8 +84,7 @@ export const purchaseForm = {
     },
 
     /**
-     * Sets the WH on a purchase order (must already on PO).
-     * @param {string} warehouseName An existing warehouse.
+     * @param {string} warehouseName
      */
     selectWarehouse(warehouseName) {
         return [
@@ -121,7 +115,6 @@ export const productCatalog = {
         return [{ trigger, run: "click" }];
     },
 
-    /** Remove a product from the PO by clicking the "trash" button */
     removeProduct(productName) {
         const trigger = `.o_kanban_record:contains("${productName}") button:has(.fa-trash)`;
         return [{ trigger, run: "click" }];
@@ -150,30 +143,16 @@ export const productCatalog = {
         return [{ content, trigger, run: "click" }];
     },
 
-    /**
-     * Clicks on the "Back to Order" button from the Catalog view
-     */
     goBackToOrder() {
         const content = "Go back to the Order";
         const trigger = "button.o-kanban-button-back";
         return [{ content, trigger, run: "click" }];
     },
 
-    /**
-     * Leaves the catalog through the breadcrumb rather than the button.
-     *
-     * Not the same exit: the button is the catalog's own handler, the
-     * breadcrumb goes straight through the action service. A pending quantity
-     * write has to survive both.
-     */
     goBackToOrderViaBreadcrumb() {
         return [
             {
                 content: "Leave the catalog through the breadcrumb",
-                // The immediate parent crumb -- the order form -- is the one
-                // marked `o_back_button`; the class is on the <li> on desktop
-                // and on a <button> when the screen is small. Any other crumb
-                // would land on the list instead of the order.
                 trigger: ".o_breadcrumb .o_back_button",
                 run: "click",
             },

@@ -8,9 +8,6 @@ import { getRelatedModelsInstance } from "../data/get_model_definitions.js";
 definePosModels();
 
 describe("AUDIT_CHALLENGE A2 reparenting stale inverse", () => {
-    // Claim: connectNewData wholesale-replaces RAW_SYMBOL but never writes the
-    // changed many2one into rawData, so _connect can't clean the old parent's
-    // o2m. Reparenting a line from orderA to orderB leaves it in BOTH.
     test("A2: reparenting a line via connectNewData clears the old parent o2m", async () => {
         await makeMockServer();
         const models = getRelatedModelsInstance(false);
@@ -22,9 +19,6 @@ describe("AUDIT_CHALLENGE A2 reparenting stale inverse", () => {
         expect(lineIds(orderA)).toEqual([201]);
         expect(lineIds(orderB)).toEqual([]);
 
-        // A server/device snapshot reparents the line to orderB. Match the
-        // existing record by BOTH keys (databaseTable key for pos.order.line is
-        // uuid) so we hit the existing-record update branch, not a create.
         models.connectNewData({
             "pos.order.line": [{ id: 201, uuid: line.uuid, order_id: 102 }],
         });
@@ -37,13 +31,7 @@ describe("AUDIT_CHALLENGE A2 reparenting stale inverse", () => {
     });
 });
 
-// CHALLENGE tests: each asserts the CORRECT behavior. A FAILURE confirms the
-// audit finding is a real bug; a PASS falsifies my claim.
-
 describe("AUDIT_CHALLENGE A3 purge asymmetry", () => {
-    // Claim: pos.order keeps current-session paid orders, but pos.order.line /
-    // pos.payment conditions lack the session check, so children are purged
-    // while the parent order is kept -> header-with-no-lines corruption.
     test("A3: current-session paid order and its line/payment purge symmetrically", () => {
         const CUR = 1;
         globalThis.odoo = globalThis.odoo || {};
@@ -54,7 +42,6 @@ describe("AUDIT_CHALLENGE A3 purge asymmetry", () => {
         const lineCond = tables["pos.order.line"].condition;
         const payCond = tables["pos.payment"].condition;
 
-        // A paid+synced order IN THE CURRENT session.
         const order = {
             finalized: true,
             isSynced: true,
@@ -67,25 +54,17 @@ describe("AUDIT_CHALLENGE A3 purge asymmetry", () => {
         const linePurged = lineCond(line);
         const payPurged = payCond(payment);
 
-        // The order is (correctly) KEPT because it's the current session.
         expect(orderPurged).toBe(false);
-        // Children MUST follow the parent: if the order is kept, its line and
-        // payment must be kept too. If these purge while the order stays, the
-        // order reloads as a header with no lines/payments.
-        expect(linePurged).toBe(orderPurged); // line purge must match parent
-        expect(payPurged).toBe(orderPurged); // payment purge must match parent
+        expect(linePurged).toBe(orderPurged);
+        expect(payPurged).toBe(orderPurged);
     });
 
-    // product.attribute.custom.value used the degenerate `finalized && isSynced`
-    // form the three other entries were fixed out of, so a current-session
-    // order's custom values were purged while the order itself was kept.
     test("A3b: all four purge conditions agree with the parent order", () => {
         const CUR = 1;
         globalThis.odoo = globalThis.odoo || {};
         odoo.pos_session_id = CUR;
 
         const tables = new DataServiceOptions().databaseTable;
-        // custom value reaches the order through pos_order_line_id.order_id.
         const purgeAll = (order) => ({
             order: tables["pos.order"].condition(order),
             line: tables["pos.order.line"].condition({ order_id: order }),
@@ -95,7 +74,6 @@ describe("AUDIT_CHALLENGE A3 purge asymmetry", () => {
             }),
         });
 
-        // Paid + synced, but the session is still open: keep the whole family.
         expect(
             purgeAll({
                 finalized: true,
@@ -105,7 +83,6 @@ describe("AUDIT_CHALLENGE A3 purge asymmetry", () => {
             }),
         ).toEqual({ order: false, line: false, payment: false, customValue: false });
 
-        // Same order once its session is closed: purge the whole family.
         expect(
             purgeAll({
                 finalized: true,
@@ -115,13 +92,10 @@ describe("AUDIT_CHALLENGE A3 purge asymmetry", () => {
             }),
         ).toEqual({ order: true, line: true, payment: true, customValue: true });
 
-        // An unsynced draft is always kept — it exists only in IndexedDB.
         expect(
             purgeAll({ finalized: false, isSynced: false, session_id: { id: CUR } }),
         ).toEqual({ order: false, line: false, payment: false, customValue: false });
 
-        // A broken parent chain must resolve to a definite false:
-        // _synchronizeLocalDataInIndexedDB treats undefined as "remove".
         expect(purgeAll(undefined)).toEqual({
             order: false,
             line: false,

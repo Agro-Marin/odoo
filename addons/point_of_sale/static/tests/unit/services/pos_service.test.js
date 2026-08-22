@@ -15,13 +15,13 @@ definePosModels();
 describe("pos_store.js", () => {
     test("setTip", async () => {
         const store = await setupPosEnv();
-        const order = await getFilledOrder(store); // Should have 2 lines
+        const order = await getFilledOrder(store);
         expect(order.lines.length).toBe(2);
 
         await store.setTip(50);
         expect(order.is_tipped).toBe(true);
         expect(order.tip_amount).toBe(50);
-        expect(order.lines.length).toBe(3); // 2 original lines + 1 tip line
+        expect(order.lines.length).toBe(3);
     });
 
     test("orderNoteFormat", async () => {
@@ -103,7 +103,6 @@ describe("pos_store.js", () => {
             expect(order.lines[1].id).toBeOfType("string");
 
             await store.syncAllOrders();
-            // Object should be updated in place
             expect(store.getPendingOrder().orderToCreate).toHaveLength(0);
             expect(order.lines).toHaveLength(2);
             expect(order.lines[0].id).toBeOfType("number");
@@ -115,12 +114,6 @@ describe("pos_store.js", () => {
         });
 
         test("a synced order stops blocking tab close", async () => {
-            // `localUnsyncedPaidOrderUuids` drives the beforeunload guard in
-            // main.js. It used to be cleared only as a side effect of the
-            // debounced IndexedDB routine, so an order the server had already
-            // acknowledged still claimed to be unsaved -- warning the cashier
-            // about data loss that had not happened, and cancelling the
-            // navigation out of the point of sale.
             const store = await setupPosEnv();
             const order = await getFilledOrder(store);
             store.data.localUnsyncedPaidOrderUuids.add(order.uuid);
@@ -181,10 +174,6 @@ describe("pos_store.js", () => {
         });
 
         test("pushOrdersWithClosingPopup fails when offline", async () => {
-            // syncAllOrders RESOLVES with a ConnectionLostError when offline;
-            // the closing flow must still treat that as a failed push, or the
-            // session-close warning never shows in the most common failure
-            // mode and the session closes with unsynced orders.
             const store = await setupPosEnv();
             await getFilledOrder(store);
             store.data.network.offline = true;
@@ -209,8 +198,6 @@ describe("pos_store.js", () => {
             store.removeOrder(order);
             expect(store.getOrderIdsToDelete()).toHaveLength(1);
             await store.syncAllOrders();
-            // The successful action_pos_order_cancel must consume the pending
-            // delete id — it used to be re-sent on every sync forever.
             expect(store.getOrderIdsToDelete()).toHaveLength(0);
         });
 
@@ -237,7 +224,6 @@ describe("pos_store.js", () => {
         const store = await setupPosEnv();
         store.setOrder(null);
         expect(store.getOrder()).toBe(undefined);
-        // Should create order if none exist
         const product = store.models["product.product"].get(5);
         await store.addLineToCurrentOrder({ product_tmpl_id: product.product_tmpl_id });
         expect(store.getOrder()).not.toBe(undefined);
@@ -448,18 +434,15 @@ describe("pos_store.js", () => {
     test("productToDisplayByCateg", async () => {
         const store = await setupPosEnv();
 
-        // Case 1: Grouping disabled
         store.config.iface_group_by_categ = false;
         let grouped = store.productToDisplayByCateg;
-        expect(grouped.length).toBe(1); //Only one group
+        expect(grouped.length).toBe(1);
         expect(grouped[0][0]).toBe("0");
         expect(grouped[0][1].length).toBe(14);
 
-        // Case 2: Grouping enabled
         store.config.iface_group_by_categ = true;
         grouped = store.productToDisplayByCateg;
         expect(grouped.length).toBe(6);
-        // Confirm grouping structure
         for (const [catId, prods] of grouped) {
             expect(Array.isArray(prods)).toBe(true);
             expect(prods.length).toBeGreaterThan(0);
@@ -473,7 +456,6 @@ describe("pos_store.js", () => {
             }
         }
 
-        // Case 3: Grouping with search filtering
         store.searchProductWord = "TEST";
         grouped = store.productToDisplayByCateg;
         expect(grouped.length).toBe(3);
@@ -482,7 +464,6 @@ describe("pos_store.js", () => {
         expect(grouped[2][1][0].name).toBe("Accounting Test Product 1");
         expect(grouped[2][1][1].name).toBe("Accounting Test Product 2");
 
-        // Case 4: Grouping with category filtering
         store.searchProductWord = "";
         store.selectedCategory = store.models["pos.category"].get(1);
         grouped = store.productToDisplayByCateg;
@@ -491,7 +472,6 @@ describe("pos_store.js", () => {
         expect(grouped[0][1][0].name).toBe("Multi Category Product");
         expect(grouped[0][1][1].name).toBe("TEST");
 
-        // Case 5: Grouping with category 'Food' selected (parent of 'Burger' & 'Pizza')
         store.selectedCategory = store.models["pos.category"].get(3);
         grouped = store.productToDisplayByCateg;
         expect(grouped.length).toBe(3);
@@ -598,18 +578,15 @@ describe("pos_store.js", () => {
         const order = await getFilledOrder(store);
         ({ orderToCreate } = store.getPendingOrder());
         expect(order.id).toBe(orderToCreate[0].id);
-        // After sync, order should be in 'orderToUpdate'
         await store.syncAllOrders({ orders: [order] });
         store.addPendingOrder([order.id]);
         ({ orderToCreate, orderToUpdate } = store.getPendingOrder());
         expect(orderToCreate).toHaveLength(0);
         expect(orderToUpdate).toHaveLength(1);
-        // Remove pending order
         store.addPendingOrder([order.id], true);
         ({ orderToUpdate, orderToDelete } = store.getPendingOrder());
         expect(orderToUpdate).toHaveLength(0);
         expect(orderToDelete).toHaveLength(1);
-        // Clear pending orders
         store.clearPendingOrder();
         ({ orderToDelete } = store.getPendingOrder());
         expect(orderToDelete).toHaveLength(0);
@@ -622,10 +599,8 @@ describe("pos_store.js", () => {
             (pm) => pm.is_cash_count,
         );
 
-        // Case 1: No rounding enabled
         expect(store.getPaymentMethodFmtAmount(cashPm, order)).toBeEmpty();
 
-        // Case 2: Rounding enabled, not limited to cash
         const { cashPm: cash1, cardPm: card1 } = prepareRoundingVals(
             store,
             0.05,
@@ -635,7 +610,6 @@ describe("pos_store.js", () => {
         expect(store.getPaymentMethodFmtAmount(cash1, order)).toBe("$ 17.85");
         expect(store.getPaymentMethodFmtAmount(card1, order)).toBe("$ 17.85");
 
-        // Case 3: Rounding enabled, only for cash
         const { cashPm: cash2, cardPm: card2 } = prepareRoundingVals(
             store,
             0.05,
@@ -693,7 +667,6 @@ describe("pos_store.js", () => {
         });
 
         test("preSyncAllOrders", async () => {
-            // This test check prices sign on preSyncAllOrders for refunds
             const store = await setupPosEnv();
             const order = await getFilledOrder(store);
 

@@ -55,7 +55,7 @@ export function buildActionInfo(action, props, am) {
 }
 
 /**
- * @param {BaseView} view the view being opened, marked `active`
+ * @param {BaseView} view
  * @param {BaseView[]} views
  * @returns {Record<string, any>[]}
  */
@@ -78,10 +78,6 @@ function buildViewSwitcherEntries(view, views) {
 }
 
 /**
- * Switch to the action's own form view when it declares one, and fall back to a
- * bare act_window otherwise -- but only to create, unless `force` says the
- * caller wants an existing record opened that way too.
- *
  * @param {ActWindowAction} action
  * @param {string|undefined} target
  * @param {ActionManager} am
@@ -114,10 +110,7 @@ function makeFormViewOpener(action, target, am) {
 }
 
 /**
- * Keys an act_window may override on the view's props, plus the two defaults
- * that depend on the action rather than on the view.
- *
- * @param {ActionProps} viewProps mutated in place
+ * @param {ActionProps} viewProps
  * @param {ActWindowAction} action
  * @param {Record<string, any>} context
  */
@@ -141,9 +134,6 @@ function applyActionOverrides(viewProps, action, context) {
 }
 
 /**
- * Embedded actions belong to the multi-record view that owns the switcher; a
- * form opened from one carries none of its own.
- *
  * @param {BaseView} view
  * @param {ActWindowAction} action
  * @param {Record<string, any>} context

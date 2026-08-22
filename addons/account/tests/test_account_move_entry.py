@@ -138,10 +138,6 @@ class TestAccountMove(AccountTestInvoicingCommon):
         cron = self.env.ref("account.ir_cron_auto_post_draft_entry")
         move_cls = type(self.test_move)
 
-        # The cron splits its failures: a business error is reported on the move's
-        # own thread and deliberately not logged, an unexpected one is logged for
-        # the operator. Assert that split here rather than let the warning escape
-        # into the suite's output as unattributed noise.
         for error, is_logged in (
             (UserError("boom"), False),
             (ValueError("unexpected"), True),

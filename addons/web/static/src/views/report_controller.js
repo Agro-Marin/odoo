@@ -12,9 +12,6 @@ import { ActionHelper } from "@web/views/action_helper";
 import { standardViewProps } from "@web/views/standard_view_props";
 import { computeModelOptions } from "@web/views/view_utils";
 
-/**
- * @extends Component
- */
 export class ReportController extends Component {
     static components = { Layout, SearchBar, CogMenu, ActionHelper };
     static props = {

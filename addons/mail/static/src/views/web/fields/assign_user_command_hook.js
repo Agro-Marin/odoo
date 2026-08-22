@@ -16,8 +16,6 @@ export function useAssignUserCommand() {
         return;
     }
 
-    // One search in flight at a time: a newer keystroke aborts the previous rpc
-    // AND settles its promise, which abort(false) alone does not do.
     const keepLast = new KeepLast({ rejectSuperseded: true });
 
     const getCurrentIds = () => {
@@ -88,12 +86,6 @@ export function useAssignUserCommand() {
                 }),
             );
         } catch (error) {
-            // A later keystroke replaced this search. Returning ends this frame;
-            // the previous shape aborted the superseded rpc with abort(false),
-            // which drops the request WITHOUT settling its promise, so the
-            // `await` above never resumed and one suspended frame -- with its
-            // domain, context and closure over the component -- was retained per
-            // keystroke for the life of the page.
             if (error instanceof SupersededError) {
                 return [];
             }

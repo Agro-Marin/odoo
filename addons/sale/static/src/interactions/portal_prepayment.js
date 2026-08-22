@@ -45,7 +45,6 @@ export class PortalPrepayment extends Interaction {
     }
 
     start() {
-        // When updating the amount re-open the modal.
         if (this.showPaymentModal) {
             this.el.querySelector("#o_sale_portal_paynow")?.click();
         }

@@ -27,8 +27,6 @@ class LineOpenMoveWidget extends Component {
 
     openAction() {
         return this.accountMove.openBusinessDoc({
-            // The field's own relation, rather than the one model this widget
-            // happens to be used on today.
             resModel: this.props.record.fields[this.props.name].relation,
             resId: this.props.record.data[this.props.name].id,
         });

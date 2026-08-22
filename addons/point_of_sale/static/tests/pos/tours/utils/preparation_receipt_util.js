@@ -24,17 +24,12 @@ export async function generateReceiptsToPrint(order, orderChange) {
     );
 }
 
-// Return rendered order change receipts that will be printed when clicking "Order" button
 export async function generatePreparationReceipts() {
     const order = posmodel.getOrder();
-    // The module function, not `posmodel.changesToOrder`: it stopped being a
-    // store method and this helper was never updated, so every tour asserting
-    // on a preparation ticket died on `is not a function` at its first check.
     const orderChange = changesToOrder(order, posmodel.config.printerCategories, false);
     return await generateReceiptsToPrint(order, orderChange);
 }
 
-// Return rendered fire course receipts that will be printed when clicking "Fire course" button
 export async function generateFireCourseReceipts() {
     const order = posmodel.getOrder();
     const course = order.getSelectedCourse();

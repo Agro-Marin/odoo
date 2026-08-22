@@ -292,11 +292,6 @@ export function colorFieldOption(help, { isRelationalField = false } = {}) {
  * @returns {NonNullable<FieldsRegistryItemShape["fieldDependencies"]>}
  */
 export function dynamicPlaceholderDependency() {
-    // `useDynamicPlaceholder.updateModel` reads these out of `record.data` to
-    // decide which model's fields the picker offers. `render_model` is the
-    // server's own answer (`mixin.mail.render._compute_render_model`) and needs
-    // no declaration in the view; a view may still name a field, which wins.
-    // Each is `optional`, so a model that has neither simply drops it.
     return ({ options }) => [
         ...(options?.dynamic_placeholder
             ? [

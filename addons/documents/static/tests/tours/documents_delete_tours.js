@@ -33,7 +33,6 @@ function restoreDocumentSteps() {
 
 registry.category("web_tour.tours").add("document_delete_tour", {
     steps: () => [
-        // Archive a file in a folder and restore it
         {
             trigger: '.o_search_panel_field header.active:contains("Folder1")',
             content: "Check that we are in Folder1",
@@ -65,7 +64,6 @@ registry.category("web_tour.tours").add("document_delete_tour", {
             content: "Check that the document is no longer visible",
         },
         ...restoreDocumentSteps(),
-        // 2) Archive a folder (and this its documents) and restore the archived document
         {
             trigger: '.o_search_panel_field span:contains("Folder1")',
             content: "Go back to folder",

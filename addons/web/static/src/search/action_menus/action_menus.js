@@ -15,9 +15,6 @@ import { session } from "@web/session";
 export const STATIC_ACTIONS_GROUP_NUMBER = 1;
 export const ACTIONS_GROUP_NUMBER = 100;
 
-/**
- * @extends Component
- */
 export class ActionMenus extends Component {
     static template = "web.ActionMenus";
     static components = {

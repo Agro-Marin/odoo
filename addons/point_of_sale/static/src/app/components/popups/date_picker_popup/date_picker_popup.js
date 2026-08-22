@@ -32,8 +32,6 @@ export class DatePickerPopup extends Component {
         this.props.close();
     }
     _today() {
-        // Local date, not UTC: toISOString() put evening users west of UTC on
-        // tomorrow's date (and early-morning users east of UTC on yesterday's).
         return luxon.DateTime.now().toISODate();
     }
 }

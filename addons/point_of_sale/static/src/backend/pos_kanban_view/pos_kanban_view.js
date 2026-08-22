@@ -54,7 +54,6 @@ export class PosKanbanRenderer extends KanbanRenderer {
                         !isInstalledWithDemo ||
                         (isInstalledWithDemo && !this.posState.is_main_company)
                     ) {
-                        // load onboarding scenario without demo data
                         const result = await this.orm.call("pos.config", functionName, [
                             false,
                         ]);

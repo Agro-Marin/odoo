@@ -220,11 +220,6 @@ export class Store extends BaseStore {
                     if (!tmpMessage) {
                         throw err;
                     }
-                    // The optimistic message stays on screen with a retry
-                    // attached, so the failure is not raised -- but it must
-                    // still be traceable: returning undefined and saying
-                    // nothing makes a failed post indistinguishable from a
-                    // post that returned no data.
                     console.warn("Failed to post message, retry offered", err);
                     tmpMessage.postFailRedo = async () => {
                         tmpMessage.postFailRedo = undefined;
@@ -253,7 +248,7 @@ export class Store extends BaseStore {
      * @param {boolean} [options.requestData=false]
      * @param {boolean} [options.readonly=true]
      * @param {boolean} [options.silent=true]
-     * @returns {Promise<any>} what the server resolved this request with
+     * @returns {Promise<any>}
      */
     async fetchStoreData(
         name,
@@ -271,10 +266,6 @@ export class Store extends BaseStore {
 
     async initialize() {
         if (this._initializePromise) {
-            // Not a no-op worth hiding: `im_livechat`'s
-            // `livechat_service.persist()` calls this expecting a
-            // re-initialisation, and inside a mounted WebClient it silently
-            // gets the memoised promise instead.
             log("initialize:memoized");
             return this._initializePromise;
         }
@@ -348,11 +339,6 @@ export class Store extends BaseStore {
 
     _fetchStoreDataDebounced() {
         const fetchParams = this.fetchParams;
-        // The batch is the unit that reaches the server, and its ORDER is what
-        // the mail/livechat suites' `verifySteps` assert on -- so log the route
-        // and the ordered names together.  Reconstructing this by hand from
-        // failing step diffs is what an embed-ordering investigation costs
-        // without it.
         if (log.active()) {
             log(
                 "fetchStoreData:batch",
@@ -430,7 +416,6 @@ export class Store extends BaseStore {
 
     /**
      * @param {string} tab
-     * @returns Thread types matching the given tab.
      */
     setup() {
         super.setup();
@@ -549,8 +534,6 @@ export class Store extends BaseStore {
                 user = this.users[userId];
             }
             if (!user.partner_id) {
-                // Two callers wanting the same user at once each saw an empty
-                // cache and each issued the read. Share the in-flight one.
                 let fetch = this._partnerIdByUserIdFetches.get(userId);
                 if (!fetch) {
                     fetch = this.env.services.orm.silent

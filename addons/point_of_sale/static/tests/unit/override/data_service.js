@@ -1,12 +1,6 @@
 import { PosData } from "@point_of_sale/app/services/data_service";
 import { patch } from "@web/core/utils/patch";
 
-/**
- * Disable IndexedDB in Hoot tests to avoid creating to much IndexedDB databases
- * when running the full test suite.
- *
- * IndexedDB is still tested in dedicated tours.
- */
 patch(PosData.prototype, {
     setup() {
         this.indexedDB = {

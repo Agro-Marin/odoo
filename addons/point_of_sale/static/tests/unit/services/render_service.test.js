@@ -7,7 +7,7 @@ import { allowTranslations, mountWithCleanup } from "@web/../tests/web_test_help
 import { definePosModels } from "../data/generate_model_definitions.js";
 
 definePosModels();
-odoo.pos_session_id = 1; // Ensure the session ID is set for lazy getters
+odoo.pos_session_id = 1;
 
 test("test the render service", async () => {
     class ComponentToBeRendered extends Component {
@@ -17,7 +17,7 @@ test("test the render service", async () => {
         `;
     }
 
-    allowTranslations(); // this is needed because we are not loading the localization service
+    allowTranslations();
     const comp = await mountWithCleanup("none");
     const renderedComp = await comp.env.services.renderer.toHtml(
         ComponentToBeRendered,
@@ -29,7 +29,6 @@ test("test the render service", async () => {
 });
 
 test("htmlToCanvas", async () => {
-    // htmlToCanvas fetches some fonts useless for the test, we mock it to avoid warnings
     mockFetch(() => "");
     const target = getFixture();
     const node = document.createElement("div");
@@ -45,8 +44,6 @@ test("htmlToCanvas", async () => {
     try {
         canvas = await htmlToCanvas(node, { addClass: "pos-receipt-print" });
     } catch (error) {
-        // htmlToCanvas create an <img> by setting a svg to its src attribute
-        // if this fails, an Event of type "error" is thrown
         if (error.constructor.name !== "Event") {
             throw error;
         }

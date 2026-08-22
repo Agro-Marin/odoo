@@ -36,8 +36,6 @@ export class AccountTax extends models.ServerModel {
             company_id: 250,
             sequence: 1,
             tax_group_id: 1,
-            // Scoped to a fiscal position (tax-units pattern): a position with no
-            // tax mapping (fp 2, "No tax fp") drops it, mirroring Python map_tax.
             fiscal_position_ids: [2],
         },
         {

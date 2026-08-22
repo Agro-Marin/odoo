@@ -50,8 +50,6 @@ export class ReceptionReportMain extends Component {
                     ];
                 } catch (error) {
                     // Restored from a URL someone edited; fall through to the
-                    // context defaults below rather than showing an empty report
-                    // with no explanation of why.
                     console.warn("[stock] unreadable reception report ids:", error);
                 }
             }
@@ -146,8 +144,6 @@ export class ReceptionReportMain extends Component {
 
     _changeAssignedState(options) {
         const { isAssigned, tableIndex, lineIndex } = options;
-        // No line named means the whole table (or every table). `isNaN` said the
-        // same thing by accident and would also have swallowed a malformed index.
         const isBulk = lineIndex === undefined;
 
         for (const [tabIndex, lines] of Object.entries(this.state.sourcesToLines)) {

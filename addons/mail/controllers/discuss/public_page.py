@@ -93,20 +93,6 @@ class PublicPageController(http.Controller):
     def discuss_channel(
         self, channel_id: int, highlight_message_id: str | None = None
     ) -> Response:
-        # `highlight_message_id` is declared because this URL is routinely built
-        # with it: `/mail/message/<id>` appends it to whatever
-        # `discuss.channel._get_access_action()` returned, and for a non-internal
-        # user that is exactly this route (`mail/controllers/mail.py`). Undeclared,
-        # `route_wrapper` logged "called ignoring args" on every notification deep
-        # link into a public channel.
-        #
-        # Accepted and not read here: the client takes it off the URL, in
-        # `DiscussClientAction.restoreDiscussThread`. That reader used to be
-        # unreachable from this page -- it sat inside the `notEq` guard that also
-        # decides whether to switch threads, and `_response_discuss_public_template`
-        # below arrives with the channel already on `DiscussApp.thread`, so the
-        # guard was false and nothing was ever highlighted. The two questions are
-        # now separated there.
         channel = get_channel_or_404(channel_id)
         return self._response_discuss_public_template(Store(), channel)
 

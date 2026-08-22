@@ -35,12 +35,12 @@ function scrollable({ vertical = true } = {}) {
 
 /**
  * @param {{
- *  box: HTMLElement,
- *  pointer: {x: number, y: number},
- *  speed?: number,
- *  threshold?: number,
- *  direction?: string,
- *  vertical?: boolean,
+ * box: HTMLElement,
+ * pointer: {x: number, y: number},
+ * speed?: number,
+ * threshold?: number,
+ * direction?: string,
+ * vertical?: boolean,
  * }} spec
  */
 function scrollCtx({

@@ -15,13 +15,6 @@ export class PosConfig extends Base {
         this.uiState = {};
     }
 
-    // NB: the event-driven price-recompute wiring (handlePricesComputation)
-    // was removed: `prices`/`unitPrices` are lazy class getters on
-    // PosOrderAccounting — the lazy-getter machinery re-invalidates them
-    // automatically whenever any base data they read changes, which is what
-    // the create/update listeners here approximated (eagerly, four tax passes
-    // per field write).
-
     get hasCashRounding() {
         return this.cash_rounding && this.only_round_cash_method;
     }

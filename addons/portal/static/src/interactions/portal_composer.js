@@ -5,9 +5,6 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { Interaction } from "@web/public/interaction";
 
-/**
- * Display the composer (according to access right)
- */
 export class PortalComposer extends Interaction {
     static selector = ".o_portal_chatter_composer";
     static selectorHas = ".o_portal_chatter_composer_input";
@@ -86,17 +83,12 @@ export class PortalComposer extends Interaction {
             (attachment) => attachment.id === attachmentId
         );
         if (!attachment) {
-            // Stale DOM data-id with no matching in-memory attachment: nothing
-            // to remove, and dereferencing `.access_token` would throw.
             return;
         }
         const accessToken = attachment.access_token;
 
         this.sendButtonEl.disabled = true;
         try {
-            // The route raises UserError for a non-pending / already-linked
-            // attachment or a bad token; without the finally the Send button
-            // would stay disabled forever (dead composer until reload).
             await this.waitFor(
                 rpc("/portal/attachment/remove", {
                     attachment_id: attachmentId,
@@ -140,7 +132,6 @@ export class PortalComposer extends Interaction {
                 )
             );
         } finally {
-            // ensures any selection triggers a change, even if the same files are selected again
             this.fileInputEl.value = null;
             this.sendButtonEl.disabled = false;
         }
@@ -161,8 +152,6 @@ export class PortalComposer extends Interaction {
             this.attachments.push(attachment);
             this.updateAttachments();
         } catch (error) {
-            // Surface RPC errors as toasts; swallow other errors so one bad
-            // file doesn't reject the whole Promise.all batch.
             if (error instanceof RPCError) {
                 this.services.notification.add(
                     _t("Could not save file %s", markup`<strong>${file.name}</strong>`),
@@ -223,8 +212,6 @@ export class PortalComposer extends Interaction {
     }
 
     /**
-     * post message using rpc call and display new message and message count
-     *
      * @param {String} route
      * @returns {Promise}
      */

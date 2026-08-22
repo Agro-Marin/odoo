@@ -6,10 +6,6 @@ import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 
-// Looking for help subscription is triggered when the sidebar category is
-// opened, and when the discuss app is active. To avoid unsubscribing right away
-// when the user closes the sidebar or switches to another app, wait for 5
-// minutes before unsubscribing.
 export const LFH_UNSUBSCRIBE_DELAY = 5 * 60 * 1000;
 export const LIVECHAT_INFO_DEFAULT_OPEN_LS = "im_livechat.isInfoPanelOpenByDefault";
 

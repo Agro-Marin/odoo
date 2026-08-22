@@ -29,9 +29,6 @@ export class DocumentsControlPanel extends ControlPanel {
         });
     }
 
-    /**
-     * Return the current folder ID.
-     */
     get currentFolderId() {
         return this.env.searchModel.getSelectedFolderId();
     }
@@ -50,7 +47,6 @@ export class DocumentsControlPanel extends ControlPanel {
     }
 
     get pathBreadcrumbs() {
-        // users come from another app
         if (this.env.model.config.context.active_model) {
             return [
                 ...this.env.config.breadcrumbs.slice(0, -1),

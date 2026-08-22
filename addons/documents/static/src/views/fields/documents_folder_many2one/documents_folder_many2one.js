@@ -25,9 +25,6 @@ export class DocumentsFolderMany2One extends Component {
         };
     }
 
-    /**
-     * Open the documents kanban/list view, in the folder instead of redirecting to the form view.
-     */
     async openAction() {
         const value = this.props.record.data[this.props.name];
         await this.action.doAction("documents.document_action_preference", {

@@ -27,18 +27,14 @@ import {
 /**
  * @typedef {Object} Ongoing
  * @property {Object<string, RecordData[]>} storeData
- * @property {Set<string>} seenRecords breaks cycles in depth mode
- * @property {Set<string>} emittedRecords one row per record, whatever the path
+ * @property {Set<string>} seenRecords
+ * @property {Set<string>} emittedRecords
  * @property {boolean} depth
  * @property {string[]|undefined} fields
  */
 const Markup = markup("").constructor;
 
 /**
- * The value an id field takes when it arrived as a relational command: a
- * `DELETE` clears it, the `.noinv` variants are kept in command form so inverse
- * maintenance stays skipped, and a plain `ADD` contributes its data.
- *
  * @param {[string, any][]} command
  * @returns {any}
  */
@@ -489,11 +485,6 @@ export class Record {
         }
 
         this._cleanupData(data);
-        // A record reachable by more than one path is serialised once. Its row
-        // does not depend on the path taken — only which *further* records that
-        // path expands does — so emitting it again would repeat an identical
-        // row. Traversal is deliberately not skipped: two prefixes may select
-        // different sub-fields, and the union of them is what was asked for.
         if (ongoing.emittedRecords.has(this.localId)) {
             return;
         }

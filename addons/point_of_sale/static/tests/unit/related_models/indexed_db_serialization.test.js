@@ -65,9 +65,7 @@ test("Restore serialized data", async () => {
         "pos.order.line": serializedLines,
     });
 
-    // UI state is restored
     expect(data["pos.order"][0].uiState.demoValue).toBe(999);
-    // UIState must be excluded from the raw data
     expect(data["pos.order"][0].raw.uiState).toBeEmpty();
 });
 
@@ -78,8 +76,6 @@ test("dirty marker round-trips through IndexedDB serialization", async () => {
     expect(order.isDirty()).toBe(false);
     expect(order.serializeForIndexedDB().__dirty).toBe(false);
 
-    // A local edit marks the order dirty; the marker must survive the
-    // IndexedDB round-trip so a reload does not orphan the edit.
     order.general_customer_note = "edited offline";
     expect(order.isDirty()).toBe(true);
     const serialized = order.serializeForIndexedDB();

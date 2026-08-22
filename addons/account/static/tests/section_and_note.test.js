@@ -1480,7 +1480,6 @@ test("check collapse_ fields' duplicating logic", async () => {
 
         const [, { invoice_line_ids }] = args;
 
-        // Filter section/subsection records created via (0, 0, values)
         const createdSectionRecords = invoice_line_ids.filter(
             ([cmd, , values]) =>
                 cmd === 0 &&

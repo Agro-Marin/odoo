@@ -16,14 +16,9 @@ function ePOSPrint(children) {
     ePOSLayout = ePOSLayout.cloneNode(true);
     const [eposPrintEl] = ePOSLayout.getElementsByTagName("epos-print");
     append(eposPrintEl, children);
-    // IMPORTANT: Need to remove `xmlns=""` in the image and cut elements.
-    // > Otherwise, the print request will succeed but it the printer device won't actually do the printing.
     return ePOSLayout.innerHTML.replaceAll(`xmlns=""`, "");
 }
 
-/**
- * Sends print request to ePos printer that is directly connected to the local network.
- */
 export class EpsonPrinter extends BasePrinter {
     setup({ ip }) {
         super.setup(...arguments);
@@ -37,8 +32,7 @@ export class EpsonPrinter extends BasePrinter {
     }
 
     /**
-     * @override
-     * Create the raster data from a canvas
+     * @override Create
      */
     processCanvas(canvas) {
         const rasterData = this.canvasToRaster(canvas);
@@ -100,10 +94,6 @@ export class EpsonPrinter extends BasePrinter {
         }
     }
 
-    /**
-     * Transform a (potentially colored) canvas into a monochrome raster image.
-     * We will use Floyd-Steinberg dithering.
-     */
     canvasToRaster(canvas) {
         const imageData = canvas
             .getContext("2d")
@@ -111,11 +101,6 @@ export class EpsonPrinter extends BasePrinter {
         const pixels = imageData.data;
         const width = imageData.width;
         const height = imageData.height;
-        // Each raster row must be padded to a byte boundary: the ePOS <image>
-        // format expects ceil(width / 8) bytes per row, and encodeRaster
-        // chunks the whole stream by 8 — a width that is not a multiple of 8
-        // (a restyled receipt, or html-to-image's 16384px clamp rescaling the
-        // width) produced diagonally-sheared prints.
         const paddedWidth = Math.ceil(width / 8) * 8;
         const errors = Array.from(Array(width), (_) => Array(height).fill(0));
         const rasterData = new Array(paddedWidth * height).fill(0);
@@ -124,47 +109,35 @@ export class EpsonPrinter extends BasePrinter {
             for (let x = 0; x < width; x++) {
                 let oldColor, newColor;
 
-                // Compute grayscale level. Those coefficients were found online
-                // as R, G and B have different impacts on the darkness
-                // perception (e.g. pure blue is darker than red or green).
                 const idx = (y * width + x) * 4;
                 oldColor =
                     pixels[idx] * 0.299 +
                     pixels[idx + 1] * 0.587 +
                     pixels[idx + 2] * 0.114;
 
-                // Propagate the error from neighbor pixels
                 oldColor += errors[x][y];
                 oldColor = Math.min(255, Math.max(0, oldColor));
 
                 if (oldColor < 128) {
-                    // This pixel should be black
                     newColor = 0;
                     rasterData[y * paddedWidth + x] = 1;
                 } else {
-                    // This pixel should be white
                     newColor = 255;
                     rasterData[y * paddedWidth + x] = 0;
                 }
 
-                // Propagate the error to the following pixels, based on
-                // Floyd-Steinberg dithering.
                 const error = oldColor - newColor;
                 if (error) {
                     if (x < width - 1) {
-                        // Pixel on the right
                         errors[x + 1][y] += (7 / 16) * error;
                     }
                     if (x > 0 && y < height - 1) {
-                        // Pixel on the bottom left
                         errors[x - 1][y + 1] += (3 / 16) * error;
                     }
                     if (y < height - 1) {
-                        // Pixel below
                         errors[x][y + 1] += (5 / 16) * error;
                     }
                     if (x < width - 1 && y < height - 1) {
-                        // Pixel on the bottom right
                         errors[x + 1][y + 1] += (1 / 16) * error;
                     }
                 }
@@ -174,9 +147,6 @@ export class EpsonPrinter extends BasePrinter {
         return rasterData.join("");
     }
 
-    /**
-     * Base 64 encode a raster image
-     */
     encodeRaster(rasterData) {
         let encodedData = "";
         for (let i = 0; i < rasterData.length; i += 8) {
@@ -201,7 +171,6 @@ export class EpsonPrinter extends BasePrinter {
     }
 
     hasStatus(status, attribute) {
-        //The status is a bit field
         return (status & attribute) === attribute;
     }
 
@@ -212,7 +181,6 @@ export class EpsonPrinter extends BasePrinter {
         const errorCode = printResult.errorCode;
         const status = printResult.status;
         let message;
-        // https://download4.epson.biz/sec_pubs/pos/reference_en/epos_print/ref_epos_print_xml_en_xmlforcontrollingprinter_response.html
         if (errorCode === "DeviceNotFound") {
             message = _t(
                 "Check the printer configuration for the 'Device ID' setting.\nIt should be set to: local_printer",

@@ -206,14 +206,6 @@ class PwaService {
                     onDone(res);
                 }
             } finally {
-                // A `beforeinstallprompt` event is single-use: it is dropped
-                // above before it is shown, and `prompt()` rejects if it is
-                // called twice or without a user gesture. Clearing this only on
-                // the way out through success left the two halves of the state
-                // disagreeing after a rejection -- no prompt left to show, and
-                // `canPromptToInstall` still true -- so every install
-                // affordance in the UI stayed lit while `show()` had nothing
-                // left to do.
                 this.canPromptToInstall = false;
             }
         } else if (isBrowserSafari()) {

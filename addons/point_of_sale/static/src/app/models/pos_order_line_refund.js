@@ -1,7 +1,4 @@
 /** @odoo-module native */
-// Little class to manage the refund of a line
-// This will be also usefull when needed to save
-// the refund in indexedDB
 export class PosOrderLineRefund {
     constructor() {
         this.setup(...arguments);
@@ -39,9 +36,6 @@ export class PosOrderLineRefund {
         }
 
         const line = this.line;
-        // `refundedQty` lives on the order line, not on this refund detail — reading
-        // `this.refundedQty` yielded `undefined`, so maxQty was NaN and the one-tap
-        // refund default (`qty = 1` for a single-available-unit line) never fired.
         return line.qty - line.refundedQty;
     }
 }

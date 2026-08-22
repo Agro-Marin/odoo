@@ -6,7 +6,6 @@ import {
 } from "@web/fields/basic/boolean_favorite/boolean_favorite_field";
 
 export class DocumentFavoriteField extends BooleanFavoriteField {
-  /** Override **/
   async update() {
     if (this.props.readonly) {
       return;

@@ -257,8 +257,6 @@ class TestConnectionManager(BaseCase):
 class TestConnectionManagerRegistry(BaseCase):
     def setUp(self):
         super().setUp()
-        # get_connection_manager keys managers by database in a module-level
-        # dict, so tests would otherwise leak managers into one another.
         connection_manager._managers.clear()
         self.addCleanup(connection_manager._managers.clear)
 
@@ -289,11 +287,6 @@ class TestConnectionManagerRegistry(BaseCase):
         self.assertIsNot(get_connection_manager(env_a), get_connection_manager(env_b))
 
     def test_manager_survives_registry_rebuild(self):
-        # Connections here are backed by real OS threads that outlive the
-        # registry. When the manager hung off env.registry, every rebuild handed
-        # out a fresh empty manager while the previous clients kept running
-        # unreachable -- one leaked MQTT client per rebuild, reconnecting forever
-        # under a duplicate client_id.
         env = Mock()
         env.cr.dbname = "test_db"
         manager = get_connection_manager(env)

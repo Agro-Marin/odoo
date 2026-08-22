@@ -12,11 +12,6 @@ definePosModels();
 
 const LINK = "product.template.pos_categ_ids";
 
-/**
- * A backLink index build registers exactly three listeners on the RELATION
- * model, so counting those is a cold-path-only signal. Spying on the record
- * store instead would also count getById, which reads the same map.
- */
 function countIndexBuilds(models) {
     const model = models["product.template"];
     const state = { builds: 0 };
@@ -67,8 +62,6 @@ describe("backLink index", () => {
             templates[i].name = `renamed-${i}`;
             expect(category.backLink(LINK)).toHaveLength(50);
         }
-        // Previously each write dropped the index and the next read rescanned
-        // every product.template.
         expect(builds.value).toBe(0);
     });
 
@@ -92,7 +85,6 @@ describe("backLink index", () => {
         models["product.template"].delete(first);
         expect(catA.backLink(LINK)).toEqual([]);
 
-        // A record can sit under several parents at once (many2many).
         const shared = models["product.template"].create({
             pos_categ_ids: [catA, catB],
         });
@@ -114,9 +106,6 @@ describe("backLink index", () => {
         const second = models["product.template"].create({ pos_categ_ids: [category] });
         expect(category.backLink(LINK)).toEqual([first, second]);
 
-        // Detaching and re-attaching must NOT move `first` behind `second`:
-        // the full-rescan implementation rebuilt buckets in store order, and
-        // callers (and the Backref lazy loading suite) depend on it.
         first.pos_categ_ids = [];
         expect(category.backLink(LINK)).toEqual([second]);
         first.pos_categ_ids = [category];
@@ -131,8 +120,6 @@ describe("backLink index", () => {
         const models = getRelatedModelsInstance(false);
         const category = models["pos.category"].create({});
         const first = models["product.template"].create({ pos_categ_ids: [category] });
-        // Present in the store when the index is built, but with no parent, so
-        // it is absent from every bucket at that point.
         const middle = models["product.template"].create({ pos_categ_ids: [] });
         const last = models["product.template"].create({ pos_categ_ids: [category] });
         expect(category.backLink(LINK)).toEqual([first, last]);
@@ -189,8 +176,6 @@ describe("delete command bookkeeping", () => {
 
         models["pos.order"].delete(order);
 
-        // Used to hold [{id: 1}, {id: 1}, {id: 1}] — the PARENT's id, with no
-        // parentId, once per child. Nothing could ever consume or clear them.
         expect([...models.commands["pos.order.line"].unlink.entries()]).toEqual([]);
         expect(models._isPendingDeletion("pos.order", "o1", 1)).toBe(false);
     });
@@ -217,8 +202,6 @@ describe("createRelatedModels options", () => {
             "pos.order": [{ id: 3, uuid: "o3", lines: [31] }],
             "pos.order.line": [{ id: 31, uuid: "l31", order_id: 3 }],
         });
-        // Used to throw: `opts.databaseTable[field.relation]` on the x2many
-        // update path, despite the constructor defaulting it to {}.
         expect(() =>
             models.connectNewData({
                 "pos.order": [{ id: 3, uuid: "o3", lines: [31] }],

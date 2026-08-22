@@ -14,7 +14,6 @@ import { describe, expect, test } from "@odoo/hoot";
 
 describe("section_and_note_helpers", () => {
     const rec = (id, displayType) => ({ id, data: { display_type: displayType } });
-    // section -> line -> subsection -> line -> note -> section -> line
     const makeList = () => ({
         records: [
             rec("s1", DISPLAY_TYPES.SECTION),

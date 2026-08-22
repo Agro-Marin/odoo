@@ -7,9 +7,6 @@ import { useClickAway } from "@web/core/utils/dom/click_away";
 import { clamp } from "@web/core/utils/format/numbers";
 import { useAutofocus } from "@web/core/utils/hooks";
 
-/**
- * @extends Component
- */
 export class Pager extends Component {
     static template = "web.Pager";
     static defaultProps = {

@@ -8,8 +8,6 @@ import { setupPosEnv } from "../utils.js";
 
 definePosModels();
 
-// First unit coverage for the number buffer's numeric core (_updateBuffer):
-// the service previously had no tests at all despite its edge-case surface.
 const mountBufferHolder = async () => {
     class Dummy extends Component {
         static template = xml`<div/>`;

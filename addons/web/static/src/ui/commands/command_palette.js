@@ -243,10 +243,6 @@ export class CommandPalette extends Component {
         this.activeElement = useService("ui").activeElement;
         this.inputRef = useAutofocus();
 
-        // The palette renders its own Dialog, so it sits *around* the element
-        // that dialog activates rather than inside it. Its hotkeys belong to
-        // the dialog all the same, and saying so explicitly is what keeps them
-        // from being read as the surrounding scope's.
         this.modalRef = useChildRef();
         /** @type {import("@web/core/hotkeys/hotkey_service").HotkeyOptions} */
         const inPalette = {
@@ -330,14 +326,6 @@ export class CommandPalette extends Component {
     }
 
     /**
-     * A command whose render throws is dropped and remembered, so that it is not
-     * offered again. Remembered *per config*: the palette stays mounted across
-     * `setCommandPaletteConfig`, and the next config brings different providers
-     * and different commands, so the previous config's casualties say nothing
-     * about it. Binding this once in `setup` left the set pointing at the first
-     * config for the palette's whole life -- filtering commands that never
-     * broke, and recording breakages against a config that was no longer shown.
-     *
      * @param {CommandPaletteConfig} config
      */
     adoptBrokenCommandsOf(config) {
@@ -604,10 +592,6 @@ export class CommandPalette extends Component {
     }
 
     /**
-     * Keeps `searchValuePromise` pointing at the search actually in flight. A
-     * failing search must not clear a handle that a newer one has since
-     * installed, or `executeSelectedCommand` stops waiting for the newer one.
-     *
      * @param {Promise<any>} promise
      * @returns {Promise<any>}
      */

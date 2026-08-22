@@ -20,9 +20,7 @@ export class DynamicPlaceholderPopover extends Component {
         resModel: String,
         validate: Function,
         close: Function,
-        /** the placeholder lands in a char/text field, so markup shows as tags */
         plainText: { type: Boolean, optional: true },
-        /** the expression the caller will write for a path; see below */
         expressionFor: { type: Function, optional: true },
     };
     static defaultProps = {
@@ -60,8 +58,6 @@ export class DynamicPlaceholderPopover extends Component {
             "mail.group_mail_template_editor",
         );
         if (/** @type {any} */ (this).isTemplateEditor) {
-            // An editor may write any expression, so the allow-list has no say
-            // and fetching it is one RPC per model spent on nothing.
             return;
         }
         /** @type {any} */ (this).allowedQwebExpressions =
@@ -70,14 +66,6 @@ export class DynamicPlaceholderPopover extends Component {
             );
     }
 
-    /**
-     * The server tests the *expression* a placeholder will carry
-     * (`ir_qweb._is_expression_allowed`), not the path it was picked from. A
-     * datetime is written as `format_datetime(object.x, tz=...)`, which no
-     * allow-list holds, so filtering on `object.x` offered fields whose
-     * placeholder the save would then refuse -- with an error naming a string
-     * the user never wrote.
-     */
     filter(fieldDef, path) {
         if (!isRenderableFieldType(fieldDef, { plainText: this.props.plainText })) {
             return false;

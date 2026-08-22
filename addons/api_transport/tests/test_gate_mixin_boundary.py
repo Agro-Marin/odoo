@@ -14,10 +14,6 @@ INBOUND_ONLY_FIELDS = (
 
 IDENTITY_FIELDS = ("credential_id", "auth_type", "credential_fingerprint")
 
-#: Admission both directions spend from, so it lives on 'credential.auth.mixin' by the
-#: same argument IDENTITY_FIELDS does. These were declared on both mixins at once --
-#: byte for byte apart from 'rate_limit_strict''s default -- and 'api.endpoint.inbound'
-#: inherits both, so the duplication was invisible from either side.
 SHARED_ADMISSION_FIELDS = (
     "rate_limit_enabled",
     "rate_limit_requests",

@@ -20,9 +20,6 @@ export class PortalChatter extends Component {
         });
         this.overlayService = useService("overlay");
         this.store = useService("mail.store");
-        // Keep a handle on the bound listener so it can be removed on destroy;
-        // an anonymous handler would leak (and stack duplicate reloads) every
-        // time a PortalChatter is mounted and torn down.
         this._onReloadChatterContent = (ev) => this._reloadChatterContent(ev.detail);
         this.env.bus.addEventListener("reload_chatter_content", this._onReloadChatterContent);
         onWillDestroy(() =>

@@ -53,7 +53,6 @@ export class PosOrder extends models.ServerModel {
                 orderIds.push(id);
             }
             for (const [modelName, mapping] of Object.entries(record_uuid_mapping)) {
-                // Search for owner records by UUID
                 const ownerRecords = this.env[modelName].search_read(
                     [["uuid", "in", Object.keys(mapping)]],
                     ["id", "uuid"],
@@ -62,7 +61,6 @@ export class PosOrder extends models.ServerModel {
                     for (const [name, uuids] of Object.entries(fields)) {
                         const field = this.env[modelName]._fields[name];
                         if (["one2many", "many2many"].includes(field.type)) {
-                            // Get all related records by uuids
                             const relatedRecords = this.env[field.relation].search_read(
                                 [["uuid", "in", uuids]],
                                 ["id", "uuid"],
@@ -78,7 +76,6 @@ export class PosOrder extends models.ServerModel {
                                 });
                             }
                         } else {
-                            // single record relation (many2one)
                             const record = this.env[field.relation].search([
                                 ["uuid", "=", uuids],
                             ]);

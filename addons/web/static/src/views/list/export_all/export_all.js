@@ -11,7 +11,6 @@ import { STATIC_ACTIONS_GROUP_NUMBER } from "@web/search/action_menus/action_men
 
 const cogMenuRegistry = registry.category("cogMenu");
 
-/** @extends Component */
 export class ExportAll extends Component {
     static template = "web.ExportAll";
     static components = { DropdownItem };

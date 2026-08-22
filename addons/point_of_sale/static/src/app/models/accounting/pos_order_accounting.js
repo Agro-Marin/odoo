@@ -7,9 +7,6 @@ import { Base } from "../related_models/index.js";
 const CONSOLE_COLOR = "#4EFF4D";
 
 export class PosOrderAccounting extends Base {
-    // is_refund is accounting-relevant: the cached order_sign in the price
-    // memo flips every serialized amount, so flipping the flag after lines
-    // exist must trigger a recompute.
     static accountingFields = new Set([
         "pricelist_id",
         "fiscal_position_id",
@@ -20,21 +17,8 @@ export class PosOrderAccounting extends Base {
         super.setup(vals);
     }
 
-    /**
-     * Deprecated no-op kept for API compatibility (several modules call it
-     * after mutating an order). `prices`/`unitPrices` are lazy class getters:
-     * the lazy-getter machinery caches them and re-invalidates automatically
-     * whenever any base data they read (lines, quantities, prices, taxes,
-     * fiscal position, is_refund, config…) changes — the previous
-     * event-driven eager recompute ran four full-order tax passes per field
-     * write (O(n²) on repricing) and still left staleness windows.
-     */
     triggerRecomputeAllPrices() {}
 
-    /**
-     * Currency formatted prices, these getters already handle included/excluded tax configuration.
-     * They must be used each time a price is displayed to the user.
-     */
     get currencyDisplayPrice() {
         return formatCurrency(this.displayPrice, this.currency.id);
     }
@@ -51,28 +35,17 @@ export class PosOrderAccounting extends Base {
         return formatCurrency(this.amountTaxes, this.currency.id);
     }
 
-    /**
-     * Display price depending on the tax configuration (included or excluded).
-     */
     get displayPrice() {
         return this.config.iface_tax_included === "total"
             ? this.currency.round(this.priceIncl)
             : this.currency.round(this.priceExcl);
     }
 
-    /**
-     * Remaining due, applying the order's cash rounding when within tolerance.
-     * Depending on config, rounding applies either only when a cash payment line
-     * exists, or to every order regardless of payment method.
-     *
-     * Note: since 19.0 an order can hold only one cash payment line.
-     */
     get remainingDue() {
         const isNegative = this.totalDue < 0;
         const total = this.totalDue;
         const remaining = total - this.amountPaid;
 
-        // Amount paid covers the total due
         if ((isNegative && remaining >= 0) || (!isNegative && remaining <= 0)) {
             return 0;
         }
@@ -91,7 +64,6 @@ export class PosOrderAccounting extends Base {
         const roundingSanatizer = this.orderIsRounded ? this.appliedRounding : 0;
         const remaining = this.totalDue - this.amountPaid;
 
-        // Amount paid covers the total due
         if ((isNegative && remaining <= 0) || (!isNegative && remaining >= 0)) {
             return 0;
         }
@@ -109,12 +81,6 @@ export class PosOrderAccounting extends Base {
             : amount;
     }
     get shouldRoundChange() {
-        // Gate on whether THIS order is actually rounded, not on the raw config
-        // flag. `cash_rounding` alone ignores `only_round_cash_method` and the
-        // absence of any cash line, so a card-only order whose total was left
-        // unrounded (orderIsRounded === false, appliedRounding === 0) still had
-        // its change rounded — shorting the customer a cent that nothing in the
-        // accounting entry accounted for.
         return this.orderIsRounded;
     }
     get orderIsRounded() {
@@ -135,10 +101,6 @@ export class PosOrderAccounting extends Base {
         return isNegative ? this.currency.round(amount) : this.currency.round(-amount);
     }
 
-    /**
-     * Cached price getters. Always read order prices through these; never
-     * recompute prices elsewhere.
-     */
     get prices() {
         return this._constructPriceData();
     }
@@ -165,8 +127,6 @@ export class PosOrderAccounting extends Base {
     get amountPaid() {
         return this.currency.round(
             this.payment_ids.reduce(function (sum, paymentLine) {
-                // Return lines are created after the sync, should not be taken into account in
-                // the paid amount otherwise, the change would be wrong.
                 if (paymentLine.isDone() && !paymentLine.is_change) {
                     sum += paymentLine.getAmount();
                 }
@@ -175,92 +135,39 @@ export class PosOrderAccounting extends Base {
         );
     }
     get orderSign() {
-        // Pure function of the flag — never read the cached copy in the price
-        // memo, which could lag a just-flipped is_refund.
         return this.isRefund ? -1 : 1;
     }
 
-    /**
-     * Determine if the amount to pay should be rounded depending on the payment method
-     * and the cash rounding configuration.
-     *
-     * Rounding on payment methods happen only when cash_rounding is enabled and
-     * only_round_cash_method is enabled too. In this case only cash payment methods
-     * will have a rounded amount to pay.
-     *
-     * If only_round_cash_method is disabled, no payment method will have a rounded amount to pay.
-     * The whole order is rounded instead.
-     */
     shouldRound(paymentMethod) {
         return paymentMethod.is_cash_count && this.config.hasCashRounding;
     }
 
-    /**
-     * Get the amount to pay by default when creating a new payment.
-     * @param paymentMethod: The payment method of the payment to be created.
-     * @returns A monetary value.
-     */
     getDefaultAmountDueToPayIn(paymentMethod) {
-        // Use `this.config` (the always-loaded session config) like every other
-        // rounding site here, not `this.config_id`: an order from a trusted
-        // shared config may reference a rounding_method record that isn't loaded,
-        // which threw `Cannot read 'round' of undefined`.
         const amount = this.shouldRound(paymentMethod)
             ? this.config.rounding_method.round(this.remainingDue)
             : this.remainingDue;
         return amount || this.change;
     }
 
-    /**
-     * Since prices are computed on the fly, we need to set them before sending
-     * the order to the backend.
-     *
-     * This method is called when the order is pushed to the backend.
-     */
     setOrderPrices() {
-        this.amount_paid = this.amountPaid; // Already rounded by the getter
-        this.amount_tax = this.amountTaxes; // Already rounded by the getter
-        // `totalDue`, not `priceIncl`: Python stores the POST-cash-rounding
-        // total (pos_order.py `_recompute_prices` -> total_amount_currency), and
-        // `_recompute_prices` is not re-run on the create path unless
-        // amount_return != 0. Writing the pre-rounding `priceIncl` therefore
-        // persisted a total one rounding step below amount_paid on every
-        // exactly-paid rounded order, leaving a permanent amount_difference.
+        this.amount_paid = this.amountPaid;
+        this.amount_tax = this.amountTaxes;
         this.amount_total = this.currency.round(this.totalDue);
-        this.amount_return = this.change; // Already rounded by the getter
+        this.amount_return = this.change;
         this.lines.forEach((line) => {
             line.price_subtotal = line.priceExcl;
             line.price_subtotal_incl = line.priceIncl;
         });
     }
-    /**
-     * This method is used when extra options need to be passed to the price computation.
-     * All these options will finally reach these methods:
-     * - prepareBaseLineForTaxesComputationExtraValues
-     * - prepare_base_line_for_taxes_computation (accounting helpers)
-     *
-     * For example you can pass a specific set of lines to compute the price of
-     * only these lines instead of the whole order.
-     */
     getPriceWithOptions(opts = {}) {
         return this._constructPriceData(opts);
     }
 
     /**
-     * @private
-     * Compute all prices and tax details. Do not use outside this file.
+     * @private Compute
      */
     _constructPriceData(opts = {}) {
         const data = this._computeAllPrices(opts);
-        // The "no discount" dataset only differs from `data` when a line actually
-        // carries a discount; it exists to derive the discount amount and the
-        // pre-discount subtotals. When nothing is discounted it equals `data`, so
-        // skip the second full tax computation and reuse it — halving the passes
-        // per recompute in the common (no-discount) case. When it IS needed,
-        // baseLineOpts must be MERGED, not replaced: the unit-price dataset passes
-        // { baseLineOpts: { quantity: 1 } }, and a plain spread would drop that
-        // override — every no_discount_* unit price would then be computed at the
-        // real quantity instead of 1.
         const lines = opts.lines || this.lines;
         const noDiscount = lines.some((l) => l.getDiscount() > 0)
             ? this._computeAllPrices({
@@ -275,12 +182,6 @@ export class PosOrderAccounting extends Base {
             const dData = data.baseLineByLineUuids[key].tax_details;
 
             Object.assign(data.baseLineByLineUuids[key].tax_details, {
-                // Follow the display mode and the order sign, exactly like the
-                // line's own displayPrice/priceIncl getters. Hard-wiring the
-                // tax-INCLUDED delta made the receipt's "Discounts" total
-                // disagree with the per-line figures in tax-excluded display
-                // mode (lines showed 1000 -> 900 while the total read 125), and
-                // left it positive on refunds where every other amount flips.
                 discount_amount: currency.round(
                     (this.config.iface_tax_included === "total"
                         ? ndData.total_included - dData.total_included
@@ -298,9 +199,6 @@ export class PosOrderAccounting extends Base {
         }
 
         if (odoo.debug) {
-            // logPosMessage JSON-serializes its args (circular `record` refs
-            // throw and fall back to toString) — never pay that on the hot
-            // recompute path outside debug mode.
             logPosMessage(
                 "Accounting",
                 "_constructPriceData",
@@ -313,8 +211,7 @@ export class PosOrderAccounting extends Base {
     }
 
     /**
-     * @private
-     * Compute all prices and tax details. Do not use outside this file.
+     * @private Compute
      */
     _computeAllPrices(opts = {}) {
         const currency = this.currency;
@@ -332,9 +229,6 @@ export class PosOrderAccounting extends Base {
         accountTaxHelpers.add_tax_details_in_base_lines(baseLines, company);
         accountTaxHelpers.round_base_lines_tax_details(baseLines, company);
 
-        // Cash rounding is added only if the document needs to be globally
-        // rounded (mirrors python _recompute_prices: with only_round_cash_method
-        // the rounding applies per cash payment, never to the tax summary).
         const cashRounding = this.config.hasGlobalRounding
             ? this.config.rounding_method
             : null;

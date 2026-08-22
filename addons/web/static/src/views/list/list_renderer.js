@@ -147,7 +147,6 @@ const perfMeasure = (/** @type {string} */ name, /** @type {string} */ start) =>
  * }} ListRowApi
  */
 
-/** @extends Component */
 export class ListRenderer extends Component {
     static template = "web.ListRenderer";
     static rowsTemplate = "web.ListRenderer.Rows";

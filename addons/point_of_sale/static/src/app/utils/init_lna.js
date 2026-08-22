@@ -1,10 +1,8 @@
 /** @odoo-module native */
 /**
- * Initialize Local Network Access permission handling.
- *
  * @returns {Promise<{
- *  type: "warning" | "danger" | "success" | "info"
- *  message: string
+ * type: "warning" | "danger" | "success" | "info"
+ * message: string
  * }>}
  */
 import { _t } from "@web/core/translation";

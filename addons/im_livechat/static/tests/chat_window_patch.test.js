@@ -163,9 +163,6 @@ test("do not ask confirmation if other operators are present", async () => {
 
 test.tags("desktop");
 test("Show livechats with new message in chat hub even when in discuss app)", async () => {
-    // Chat hub show conversations with new message only when outside of discuss app by default.
-    // Live chats are special in that agents are expected to see their ongoing conversations at all
-    // time. Closing chat window ends the conversation. Hence the livechat always are shown on chat hub.
     const pyEnv = await startServer();
     const guestId = pyEnv["mail.guest"].create({ name: "Visitor 11" });
     const [livechatId, channelId] = pyEnv["discuss.channel"].create([
@@ -193,7 +190,6 @@ test("Show livechats with new message in chat hub even when in discuss app)", as
     await start();
     await openDiscuss(channelId);
     await contains(".o-mail-Message:contains('Test')");
-    // simulate livechat visitor sending a message
     await withGuest(guestId, () =>
         rpc("/mail/message/post", {
             post_data: {

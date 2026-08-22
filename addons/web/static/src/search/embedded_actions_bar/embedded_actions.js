@@ -248,15 +248,6 @@ export class EmbeddedActions {
     }
 
     /**
-     * Whether the bar shows this action.
-     *
-     * `visibleEmbeddedActions` is the user's saved set, so a view that wants
-     * every action regardless -- the account-return check panel is the one --
-     * cannot express that by seeding the set: it loads asynchronously and is
-     * empty until it arrives, so a value read in `setup()` snapshots nothing.
-     * `showAllEmbeddedActions` is read here instead, per action per render,
-     * which is when the question is actually asked.
-     *
      * @param {{visibleEmbeddedActions: (number|false)[], showAllEmbeddedActions?: boolean}} embeddedInfos
      * @param {EmbeddedAction} action
      * @returns {boolean}

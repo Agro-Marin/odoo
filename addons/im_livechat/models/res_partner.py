@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import ast
 from markupsafe import Markup
 
@@ -9,7 +7,6 @@ from odoo.tools.misc import OrderedSet
 from odoo.fields import Domain
 
 class ResPartner(models.Model):
-    """Update of res.partner class to take into account the livechat username."""
     _inherit = 'res.partner'
 
     user_livechat_username = fields.Char(compute='_compute_user_livechat_username')
@@ -34,7 +31,6 @@ class ResPartner(models.Model):
         for partner in self:
             languages = list(OrderedSet([
                 lang_name_by_code[partner.lang],
-                # sudo: res.users.settings - operator can access other operators languages
                 *partner.user_ids.sudo().livechat_lang_ids.mapped("name")
             ]))
             store.add(
@@ -43,14 +39,10 @@ class ResPartner(models.Model):
                     "invite_by_self_count": invite_by_self_count_by_partner.get(partner, 0),
                     "is_available": partner in active_livechat_partners,
                     "lang_name": languages[0],
-                    # sudo: res.users.settings - operator can access other operators expertises
                     "livechat_expertise": partner.user_ids.sudo().livechat_expertise_ids.mapped("name"),
                     "livechat_languages": languages[1:],
-                    # sudo: res.users.settings - operator can access other operators livechat usernames
                     "user_livechat_username": partner.sudo().user_livechat_username,
                 },
-                # sudo - res.partner: checking if operator is in call for live
-                # chat invitation is acceptable.
                 extra_fields=[Store.Attr("is_in_call", sudo=True)]
             )
 
@@ -71,7 +63,6 @@ class ResPartner(models.Model):
             partner.livechat_channel_count = livechat_count_by_partner.get(partner, 0)
 
     def _get_fields_store_livechat_username(self):
-        """Return the fields to be stored for live chat username."""
         return [
             Store.Attr("name", predicate=lambda p: not p.user_livechat_username),
             "user_livechat_username",

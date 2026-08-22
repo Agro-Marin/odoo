@@ -32,13 +32,11 @@ import { registry } from "@web/core/registry";
 registry.category("web_tour.tours").add("ProductScreenTour", {
     steps: () =>
         [
-            // Go by default to home category
 
             Chrome.startPoS(),
             Dialog.confirm("Open Register"),
             OfflineUtil.setOfflineMode(),
             ProductScreen.firstProductIsFavorite("Whiteboard Pen"),
-            // Make sure we don't have any scroll bar on the product list
             {
                 trigger: ".product-list",
                 run: function () {
@@ -55,7 +53,6 @@ registry.category("web_tour.tours").add("ProductScreenTour", {
             ProductScreen.clickDisplayedProduct("Letter Tray", true, "1", "5.28"),
             ProductScreen.clickDisplayedProduct("Desk Organizer", true, "3", "15.30"),
 
-            // Check effects of clicking numpad buttons
             inLeftSide([
                 ...ProductScreen.clickLine("Letter Tray"),
                 ...ProductScreen.selectedOrderlineHasDirect("Letter Tray", "1"),
@@ -98,10 +95,8 @@ registry.category("web_tour.tours").add("ProductScreenTour", {
                     "629.85",
                 ),
             ]),
-            // Check effects of numpad on product card quantity
             ProductScreen.productCardQtyIs("Desk Organizer", "123.5"),
             inLeftSide([
-                // Re-select the order line after switching to the product screen
                 {
                     ...ProductScreen.clickLine("Desk Organizer", "123.5")[0],
                     isActive: ["mobile"],
@@ -133,7 +128,6 @@ registry.category("web_tour.tours").add("ProductScreenTour", {
                 ...["⌫", "⌫"].map(Numpad.click),
                 ...Order.doesNotHaveLine(),
             ]),
-            // Check different subcategories
             ProductScreen.clickSubcategory("Desk test"),
             ProductScreen.productIsDisplayed("Desk Pad"),
             ProductScreen.clickSubcategory("Misc test"),
@@ -142,7 +136,6 @@ registry.category("web_tour.tours").add("ProductScreenTour", {
             ProductScreen.productIsDisplayed("Letter Tray"),
             ProductScreen.clickSubcategory("Chair test"),
 
-            // Add two orderlines and update quantity
             ProductScreen.clickDisplayedProduct("Whiteboard Pen"),
             ProductScreen.clickDisplayedProduct("Wall Shelf Unit"),
             inLeftSide([
@@ -162,7 +155,6 @@ registry.category("web_tour.tours").add("ProductScreenTour", {
                 ...Order.doesNotHaveLine(),
             ]),
 
-            // Add multiple orderlines then delete each of them until empty
             ProductScreen.clickDisplayedProduct("Whiteboard Pen"),
             ProductScreen.clickDisplayedProduct("Wall Shelf Unit"),
             ProductScreen.clickDisplayedProduct("Small Shelf"),
@@ -195,7 +187,6 @@ registry.category("web_tour.tours").add("ProductScreenTour", {
                 ...Order.doesNotHaveLine(),
             ]),
 
-            // Test Customer notes
             ProductScreen.clickDisplayedProduct("Desk Organizer", true, "1"),
             inLeftSide([
                 {
@@ -214,7 +205,6 @@ registry.category("web_tour.tours").add("ProductScreenTour", {
                 ...Order.hasCustomerNote("Test customer note on order"),
             ]),
 
-            // Test Internal notes
             inLeftSide([
                 ...ProductScreen.clickLine("Desk Organizer"),
                 ...ProductScreen.addInternalNote("Test internal note"),
@@ -309,7 +299,6 @@ registry.category("web_tour.tours").add("test_reuse_empty_floating_order", {
             PaymentScreen.clickValidate(),
             ReceiptScreen.isShown(),
             ReceiptScreen.clickNextOrder(),
-            // Should reuse previously created empty floating order
             ProductScreen.checkFloatingOrderCount(1),
         ].flat(),
 });
@@ -340,7 +329,6 @@ registry.category("web_tour.tours").add("FiscalPositionIncl", {
             ProductScreen.totalAmountIs("100.00"),
             ProductScreen.clickFiscalPosition("Incl. to Incl."),
             ProductScreen.totalAmountIs("100.00"),
-            // changed fiscal position to Incl. to Excl.
             ProductScreen.clickFiscalPosition("Incl. to Excl."),
             ProductScreen.totalAmountIs("110.00"),
             ProductScreen.clickPayButton(),
@@ -359,7 +347,6 @@ registry.category("web_tour.tours").add("FiscalPositionExcl", {
             ProductScreen.totalAmountIs("120.00"),
             ProductScreen.clickFiscalPosition("Excl. to Excl."),
             ProductScreen.totalAmountIs("110.00"),
-            // changed fiscal position to Excl. to Incl.
             ProductScreen.clickFiscalPosition("Excl. to Incl."),
             ProductScreen.totalAmountIs("100.00"),
             ProductScreen.clickPayButton(),
@@ -374,7 +361,7 @@ registry.category("web_tour.tours").add("CashClosingDetails", {
             Chrome.startPoS(),
             ProductScreen.enterOpeningAmount("0"),
             Dialog.confirm("Open Register"),
-            ProductScreen.addOrderline("Desk Organizer", "10"), //5.1 per item
+            ProductScreen.addOrderline("Desk Organizer", "10"),
             ProductScreen.totalAmountIs("51.00"),
             ProductScreen.clickPayButton(),
             PaymentScreen.clickPaymentMethod("Cash"),
@@ -404,7 +391,7 @@ registry.category("web_tour.tours").add("ShowTaxExcludedTour", {
             Dialog.confirm("Open Register"),
 
             ProductScreen.clickDisplayedProduct("Test Product", true, "1", "100.0"),
-            ProductScreen.totalAmountIs("110.0"), // Order total is also displayed excluding tax
+            ProductScreen.totalAmountIs("110.0"),
             ProductScreen.subtotalAmountIs("100.0"),
             Chrome.endTour(),
         ].flat(),
@@ -581,13 +568,11 @@ registry.category("web_tour.tours").add("CheckProductInformation", {
             Chrome.startPoS(),
             Dialog.confirm("Open Register"),
 
-            // Check that the product form is shown.
             Chrome.clickMenuButton(),
             Chrome.clickMenuDropdownOption("Create Product"),
             Dialog.is({ title: "New Product" }),
             Dialog.cancel(),
 
-            // Check margin on a product.
             ProductScreen.clickInfoProduct("product_a", [
                 {
                     trigger: ".section-financials :contains('Margin')",
@@ -615,7 +600,6 @@ registry.category("web_tour.tours").add("PosCustomerAllFieldsDisplayed", {
                 ...back(),
             },
 
-            // Check searches
             ProductScreenPartnerList.searchCustomerValueAndClear("John Doe"),
             ProductScreenPartnerList.searchCustomerValueAndClear("1 street of astreet"),
             ProductScreenPartnerList.searchCustomerValueAndClear("26432685463"),
@@ -747,10 +731,8 @@ registry.category("web_tour.tours").add("SortOrderlinesByCategories", {
             Chrome.startPoS(),
             Dialog.confirm("Open Register"),
 
-            // Verify categories sequence
             ProductScreen.verifyCategorySequence(["Misc test", "Chair test"]),
 
-            // Add products category wise
             ProductScreen.selectCategoryAndAddProduct(
                 "Misc test",
                 "Product_1 Category sequence 1",
@@ -770,7 +752,6 @@ registry.category("web_tour.tours").add("SortOrderlinesByCategories", {
 
             ProductScreen.clickReview(),
 
-            // Verify orderlines sequence
             ProductScreen.verifyOrderlineSequence([
                 "Product_1 Category sequence 1",
                 "Product_2 Category sequence 1",
@@ -860,8 +841,6 @@ registry.category("web_tour.tours").add("AddMultipleSerialsAtOnce", {
             [
                 {
                     content: "remove the first serial number of the line",
-                    // FA6: the popup's delete icon is `fa-trash-can`; the FA4
-                    // name `fa-trash-o` no longer exists anywhere in POS.
                     trigger: ".lot-container .lot-item .btn:has(.fa-trash-can)",
                     run: "click",
                 },
@@ -894,10 +873,8 @@ registry.category("web_tour.tours").add("test_product_create_update_from_fronten
             Dialog.confirm("Open Register"),
             Chrome.clickMenuOption("Create Product"),
 
-            // Verify that the "New Product" dialog is displayed.
             Dialog.is({ title: "New Product" }),
 
-            // Create a new product from frontend.
             ProductScreen.createProductFromFrontend(
                 "Test Frontend Product",
                 "710535977349",
@@ -909,15 +886,12 @@ registry.category("web_tour.tours").add("test_product_create_update_from_fronten
                 trigger: ".product-list article:contains(Test Frontend Product)",
             },
 
-            // Click on the category button for "Chair test" to verify the product's addition.
             ProductScreen.clickSubcategory("Chair test"),
 
             ProductScreen.longPressProduct("Test Frontend Product"),
             Dialog.confirm("Edit", ".btn-secondary"),
-            // Verify that the "Edit Product" dialog is displayed.
             Dialog.is({ title: "Edit Product" }),
 
-            // Edit the product with new details.
             ProductScreen.editProductFromFrontend(
                 "Test Frontend Product Edited",
                 "710535977348",
@@ -937,7 +911,6 @@ registry.category("web_tour.tours").add("test_product_create_update_from_fronten
             ProductScreen.longPressProduct("Test Frontend Product Edited"),
             Dialog.confirm("Edit", ".btn-secondary"),
             Dialog.is({ title: "Edit Product" }),
-            // Product 'taxes_id' field should be reaonly (cause already in the cart)
             ProductScreen.ensureTaxesInputIsReadonly(),
             Chrome.endTour(),
         ].flat(),
@@ -1039,7 +1012,6 @@ registry.category("web_tour.tours").add("test_barcode_search_attributes_preset",
             Chrome.startPoS(),
             Dialog.confirm("Open Register"),
 
-            // Step 1: Search and add first variant
             ProductScreen.searchProduct("12341357"),
             ProductScreen.productIsDisplayed("Product with Attributes", 0),
             ProductScreen.clickDisplayedProduct("Product with Attributes"),
@@ -1049,7 +1021,6 @@ registry.category("web_tour.tours").add("test_barcode_search_attributes_preset",
                 "10.0",
                 "Value 1, Value 3, Value 5, Value 7",
             ),
-            // Step 2: Search and add product without attributes (used to delay UI update)
             ProductScreen.searchProduct("987654321"),
             {
                 content: "Wait for the product without attributes to be visible",
@@ -1058,7 +1029,6 @@ registry.category("web_tour.tours").add("test_barcode_search_attributes_preset",
             ProductScreen.clickDisplayedProduct("Product without Attributes"),
             ProductScreen.selectedOrderlineHas("Product without Attributes", "1.0"),
 
-            // Step 3: Search and add second variant of the original product
             ProductScreen.searchProduct("123424689"),
             ProductScreen.productIsDisplayed("Product with Attributes", 0).map(
                 negateStep,
@@ -1118,7 +1088,6 @@ registry
                 BackendUtils.openShopSession("Shop"),
                 Dialog.confirm("Open Register"),
                 ProductScreen.productIsDisplayed("A Test Product").map(negateStep),
-                // Refund.
                 Chrome.clickOrders(),
                 TicketScreen.selectFilter("Paid"),
                 TicketScreen.selectOrder("0001"),
@@ -1132,7 +1101,7 @@ registry
 registry.category("web_tour.tours").add("test_preset_timing_retail", {
     steps: () =>
         [
-            Chrome.freezeDateTime(1764583200000), // 1 dec 2025 - 10:00
+            Chrome.freezeDateTime(1764583200000),
             Chrome.startPoS(),
             Dialog.confirm("Open Register"),
             ProductScreen.clickDisplayedProduct("Desk Organizer"),
@@ -1144,11 +1113,6 @@ registry.category("web_tour.tours").add("test_preset_timing_retail", {
             Chrome.createFloatingOrder(),
             ProductScreen.clickDisplayedProduct("Desk Organizer"),
             Chrome.clickOrders(),
-            // By row identity, not row position: the first order has been
-            // synced and so is dated by the server, while the floating one
-            // still carries the frozen client date above. Their relative order
-            // therefore depends on where the real clock happens to sit, which
-            // made this pass until the real date overtook the frozen one.
             TicketScreen.rowWithContains("001", "A simple PoS man!"),
             TicketScreen.rowWithContains("001", "Delivery", false),
             TicketScreen.rowWithContains("002", "Dine in", false),
@@ -1373,7 +1337,7 @@ registry
                     "High Precision Product",
                     "2.0",
                     "16.49",
-                ), // 8.245 * 2 = 16.49
+                ),
                 Chrome.endTour(),
             ].flat(),
     });

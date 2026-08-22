@@ -1737,10 +1737,6 @@ class TestChartTemplate(AccountTestInvoicingCommon):
                 return io.StringIO(csv_content)
             raise FileNotFoundError(path)
 
-        # Dropping the column silently would turn a typo in a localization's CSV
-        # into data quietly missing from the chart, so the warning naming it is
-        # part of the contract -- assert it rather than let it escape into the
-        # suite's output as unattributed noise.
         with (
             patch(
                 "odoo.addons.account.models.chart_template.file_open", fake_file_open

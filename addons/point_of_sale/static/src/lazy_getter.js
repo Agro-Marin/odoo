@@ -45,11 +45,9 @@ function _defineLazyGetter(name, func) {
 }
 
 /**
- /**
- * Creates a lazy getter for an object instance, ensuring the value is (re)computed only when needed.
- * @param {Object} object - The object on which to define the lazy getter.
- * @param {string} name - The name of the getter
- * @param {Function} func - The function that computes the property value when needed.
+ * @param {Object} object
+ * @param {string} name
+ * @param {Function} func
  */
 export function createLazyGetter(object, name, func) {
     if (!(object instanceof WithLazyGetterTrap)) {
@@ -60,8 +58,6 @@ export function createLazyGetter(object, name, func) {
     const getter = function () {
         const disabler = getDisabler(object, name);
         if (disabler.isDisabled()) {
-            // Keep `this` bound like the class-getter path does — a bare
-            // func() lost the receiver for method-style getters.
             return func.call(object);
         }
         return object[lazyName];
@@ -76,11 +72,6 @@ export function createLazyGetter(object, name, func) {
 function defineLazyGetterTrap(Class) {
     const getters = getLazyGetters(Class);
     return function get(target, prop, receiver) {
-        // Cheap check first: this trap runs on EVERY property read of every
-        // record (the hottest path in the POS). getDisabler permanently
-        // allocates a TrapDisabler + Map entry per (record, prop) — doing it
-        // before the getters check paid that cost for plain fields, methods
-        // and symbols that will never be lazy.
         if (!getters.has(prop)) {
             return Reflect.get(target, prop, receiver);
         }
@@ -90,12 +81,6 @@ function defineLazyGetterTrap(Class) {
         }
         return disabler.call(() => {
             const [lazyName] = getters.get(prop);
-            // For a getter, we should get the value from the receiver.
-            // Because the receiver is linked to the reactivity.
-            // We want to read the getter from it to make sure that the getter
-            // is part of the reactivity as well.
-            // To avoid infinite recursion, we disable this proxy trap
-            // during the time the lazy getter is accessed.
             return receiver[lazyName];
         });
     };
@@ -110,11 +95,6 @@ function lazyComputed(obj, propName, compute) {
         configurable: true,
     });
 
-    /**
-     * - `recompute` depends on the dependencies of `compute`.
-     * - When one of the dependencies of `compute` changed, `recompute` invalidates the cache of the `compute`.
-     * - The cache of `compute` is saved in `value`.
-     */
     effect(
         function recompute(obj) {
             const value = [];

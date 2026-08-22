@@ -2,7 +2,6 @@
 import { _t } from "@web/core/translation";
 import { openDocumentUrl, toFolderValueId } from "@documents/views/utils";
 
-/** Mimetypes the file viewer can render. */
 const VIEWABLE_MIMETYPES = new Set([
     "image/bmp",
     "image/gif",
@@ -33,11 +32,6 @@ const VIEWABLE_MIMETYPES = new Set([
 ]);
 
 /**
- * Deliberately as loose as `FileModel.isYoutubeVideo`
- * (`web/static/src/components/file_viewer/file_model.js`), which is what decides
- * whether the viewer renders an embed: a stricter test here would call URLs the
- * viewer can show non-viewable.
- *
  * @param {String|false} url
  * @returns {boolean}
  */
@@ -49,7 +43,6 @@ export const DocumentsRecordMixin = (component) =>
     class extends component {
         setup(config, data) {
             super.setup(...arguments);
-            // Set by `_loadDocumentToRestore` on the model driving this load.
             if (data.id === this.model.documentIdToRestore) {
                 this.selected = true;
             }
@@ -68,36 +61,24 @@ export const DocumentsRecordMixin = (component) =>
                 this._setEvalContext();
             }
             const modelMultiEdit = this.model.multiEdit;
-            // Only move the whole selection when this record is actually part of a
-            // multi-edit; editing an unselected row (e.g. inline) must move that
-            // row alone, not the current selection.
             let movedRecordsIds =
                 this.selected && this.model.multiEdit
                     ? this.model.root.selection.map((rec) => rec.id)
                     : [this.id];
             if (this.isDetailsPanelRecord) {
-                // As previewed/focused documents are not necessarily selected,
-                // force `save=true` to save any changes as the record is updated
                 options.save = true;
-                // Prevent multiEditing/moving the (whole) selection as it is not what we intend to modify when previewing.
                 this.model.multiEdit = false;
                 movedRecordsIds = [this.id];
             }
-            // A document at the root has `folder_id === false`, not a m2o object,
-            // so normalize both sides: `false.id` is `undefined`, which would make
-            // a move to or from the root look like "no change".
             const originalFolderId = this.data.folder_id?.id ?? false;
             let ret;
             try {
                 ret = await super.update(changes, options);
             } finally {
-                // Restore multiEdit even if the save rejects, otherwise a single
-                // failed details-panel edit disables multi-edit for the session.
                 this.model.multiEdit = modelMultiEdit;
             }
             if ((this.data.folder_id?.id ?? false) !== originalFolderId) {
                 this.model.root._removeRecords(movedRecordsIds);
-                // Same as moving when not in preview
                 this.model.env.documentsView.bus.trigger("documents-close-preview");
             }
             if (this.isDetailsPanelRecord && this.data.type === "folder") {
@@ -129,9 +110,6 @@ export const DocumentsRecordMixin = (component) =>
             return !this.data.shortcut_document_id && this.data.type === "url";
         }
 
-        /**
-         * Return the source Document if this is a shortcut and self if not.
-         */
         get shortcutTarget() {
             if (!this.isShortcut()) {
                 return this;
@@ -158,7 +136,6 @@ export const DocumentsRecordMixin = (component) =>
         async onClickPreview(ev) {
             if (this.isRequest()) {
                 ev.stopPropagation();
-                // kanban view support
                 ev.target.querySelector(".o_kanban_replace_document")?.click();
             } else if (this.isViewable()) {
                 ev.stopPropagation();
@@ -168,7 +145,6 @@ export const DocumentsRecordMixin = (component) =>
                     selection.find((rec) => rec === this) &&
                     selection.filter((rec) => rec.isViewable())) || [this];
 
-                // Load the embeddedActions in case we open the split tool
                 const embeddedActions =
                     this.data.available_embedded_actions_ids?.records.map((rec) => ({
                         id: rec.resId,
@@ -192,25 +168,17 @@ export const DocumentsRecordMixin = (component) =>
             await this._goToFolder(folderId);
         }
 
-        /**
-         * Jump to shortcut targeted file / open targeted folder.
-         */
         async jumpToTarget() {
             const target = this.shortcutTarget;
             let folderId;
             if (!target.data.active) {
                 folderId = "TRASH";
             } else if (target.data.type === "folder") {
-                // Using doc data shortcut_document_id because isContainer record does not (need to) load shortcutTarget.
                 folderId = this.data.shortcut_document_id?.id || target.data.id;
             } else {
                 folderId = toFolderValueId(target.data.user_folder_id);
             }
             if (!folderId) {
-                // `_compute_user_folder_id` answers `false` for a document the
-                // user cannot access, so a shortcut can point at a target whose
-                // location is not disclosed. Say so instead of navigating to a
-                // folder id that matches nothing.
                 this.model.notification.add(_t("Document not found or inaccessible."), {
                     type: "danger",
                 });
@@ -220,9 +188,6 @@ export const DocumentsRecordMixin = (component) =>
         }
 
         /**
-         * Select `folderId` in the search panel and unfold its chain, reloading
-         * the panel first when it does not hold that folder yet.
-         *
          * @param {number|String} folderId
          */
         async _goToFolder(folderId) {

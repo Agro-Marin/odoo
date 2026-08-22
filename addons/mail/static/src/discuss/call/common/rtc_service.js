@@ -251,11 +251,6 @@ export class Rtc extends Record {
         this.dialog = services.dialog;
         this.soundEffectsService = services["mail.sound_effects"];
         this.pttExtService = services["discuss.ptt_extension"];
-        // p2pService is assigned by rtcService.start(), which is the one that
-        // declares "discuss.p2p" as a dependency. Rtc.start() runs from
-        // Store.onStarted(), i.e. while mail.store starts, so the service is not
-        // guaranteed to exist here yet. Nothing below needs it before then --
-        // CallTransport reads it lazily through getP2p().
         this.transport = new CallTransport({
             getP2p: () => this.p2pService,
             state: this.state,
@@ -1483,10 +1478,6 @@ export class Rtc extends Record {
             updateAndBroadcastDebounce: undefined,
             channel: undefined,
         });
-        // The server hands out ICE servers per join, TURN ones carrying
-        // short-lived credentials. Dropping them returns the field to its
-        // computed STUN default until the next join replaces it, rather than
-        // keeping one call's credentials for the life of the page.
         this.update({ iceServers: undefined });
         this.pipService?.closePip();
     }

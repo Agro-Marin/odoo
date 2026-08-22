@@ -34,7 +34,6 @@ beforeEach(async () => {
 
 function makeSearchModel(context = {}) {
     const model = new StockReportSearchModel(env, { orm: env.services.orm });
-    // `context` is a getter memoised on `_context`, normally filled by load().
     model._context = context;
     return model;
 }

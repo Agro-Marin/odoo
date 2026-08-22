@@ -15,9 +15,6 @@ const cogMenuRegistry = registry.category("cogMenu");
 
 cogMenuRegistry.addValidation(MENU_REGISTRY_VALIDATION);
 
-/**
- * @extends ActionMenus
- */
 // @ts-expect-error - static props/defaultProps shapes differ from parent (OWL pattern)
 export class CogMenu extends ActionMenus {
     static template = "web.CogMenu";

@@ -1,4 +1,3 @@
-// Import for its registration side effect so the interaction exists in the registry.
 import "@sale/interactions/portal_prepayment";
 
 import { describe, expect, test } from "@odoo/hoot";
@@ -25,9 +24,6 @@ test("interaction starts on .o_portal_sale_sidebar", async () => {
 });
 
 test("defaults to down payment, resolving buttons within the sidebar", async () => {
-    // No amount_selection/payment_amount in the test URL -> down payment by default.
-    // The buttons are resolved via `this.el` (not `document`); a scoping regression
-    // would leave them unfound and the active/d-none classes unapplied.
     await startInteractions(template);
     expect(`button[name="o_sale_portal_amount_prepayment_button"]`).toHaveClass(
         "active",

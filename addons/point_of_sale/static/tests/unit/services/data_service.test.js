@@ -20,8 +20,6 @@ describe("data_service", () => {
     });
 
     test("missingRecursive keeps its input when offline", async () => {
-        // Regression: the offline early-return used to discard the whole input
-        // map, so an offline boot restored zero orders from IndexedDB.
         const store = await setupPosEnv();
         const data = store.data;
         data.network.offline = true;
@@ -37,9 +35,6 @@ describe("data_service", () => {
     });
 
     test("loadConnectedData tolerates an undefined model payload", async () => {
-        // Regression: `rawData[model]` without the upstream `|| []` fallback
-        // crashed the IndexedDB restore path when a model key was assigned
-        // undefined (e.g. no pos.order.line rows on an offline boot).
         const store = await setupPosEnv();
         const results = store.models.loadConnectedData(
             { "pos.order.line": undefined },
@@ -54,9 +49,6 @@ describe("data_service", () => {
         data.network.unsyncData = [];
         data.network.deadSyncData = [];
 
-        // A client-side fault (e.g. the TypeError raised when the data layer is
-        // not ready) is not evidence the server refused the write, so the entry
-        // must survive for a later retry instead of being dead-lettered...
         let calls = 0;
         data.execute = async () => {
             calls++;
@@ -76,8 +68,6 @@ describe("data_service", () => {
             }
         }
 
-        // ...but not forever: without a cap one permanently failing entry would
-        // block everything queued behind it for the rest of the session.
         expect(data.network.unsyncData).toHaveLength(0);
         expect(data.network.deadSyncData).toHaveLength(1);
         expect(calls).toBe(5);

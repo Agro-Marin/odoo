@@ -1,26 +1,13 @@
 import { dropRejectionReason } from "@documents/views/helper/documents_draggable";
 import { describe, expect, test } from "@odoo/hoot";
 
-/**
- * Drop-acceptance rules of the documents drag-and-drop hook.
- *
- * `_dropRejectionReason` is the single predicate behind both the hover badge and
- * the drop itself. Before it existed, the hover path evaluated one chain of
- * conditions and `onDrop` re-derived a shorter one, so the two could disagree
- * about the same target -- and neither checked write permission on a real
- * folder, which the server does enforce (`documents.document.write` raises
- * AccessError when the destination folder is not `edit`).
- *
- * The hook definition is a plain object, so the predicate is called directly off
- * it with hand-built context/model stubs: no DOM, no drag, no component.
- */
 describe.current.tags("headless");
 
 /**
  * @param {Object} [param0]
  * @param {number[]} [param0.movable]
  * @param {number[]} [param0.nonMovable]
- * @returns {Object} a `ctx` carrying only what the predicate reads
+ * @returns {Object}
  */
 function makeCtx({ movable = [1], nonMovable = [] } = {}) {
     return {
@@ -49,8 +36,6 @@ describe("_dropRejectionReason", () => {
     });
 
     test("rejects a real folder the user may only view", () => {
-        // The case the hover feedback used to miss entirely: the badge stayed
-        // green and the move only failed server-side, after the drop.
         expect(reject({ id: 42, user_permission: "view" })).not.toBe("");
     });
 
@@ -78,8 +63,6 @@ describe("_dropRejectionReason", () => {
     });
 
     test("MY is not permission-checked as a real folder", () => {
-        // Virtual roots carry no meaningful `user_permission` of their own; only
-        // numeric ids and COMPANY are gated.
         expect(reject({ id: "MY" })).toBe("");
     });
 

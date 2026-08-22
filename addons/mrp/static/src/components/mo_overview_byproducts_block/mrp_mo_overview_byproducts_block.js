@@ -6,10 +6,6 @@ export class MoOverviewByproductsBlock extends MoOverviewOperationsBlock {
     static components = {
         MoOverviewLine,
     };
-    // Reuse the operations block props, minus "operations", plus "byproducts".
-    // The "summary" prop is rebuilt (fresh object + fresh shape) rather than
-    // mutated in place: it is shared by reference with MoOverviewOperationsBlock.props,
-    // so mutating it would leak "product_cost" into the operations block's schema.
     static props = (() => {
         const { summary } = MoOverviewOperationsBlock.props;
         const props = { ...MoOverviewOperationsBlock.props };
@@ -23,8 +19,6 @@ export class MoOverviewByproductsBlock extends MoOverviewOperationsBlock {
     })();
 
     static template = "mrp.MoOverviewByproductsBlock";
-
-    //---- Getters ----
 
     get hasByproducts() {
         return this.props?.byproducts?.length > 0;

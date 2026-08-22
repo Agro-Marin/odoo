@@ -84,9 +84,6 @@ export class ControlButtons extends Component {
             : false;
     }
     /**
-     * Create the list to be passed to the SelectionPopup on the `click` function.
-     * Pricelist object is passed as item in the list because it
-     * is the object that will be returned when the popup is confirmed.
      * @returns {Array}
      */
     getPricelistList() {

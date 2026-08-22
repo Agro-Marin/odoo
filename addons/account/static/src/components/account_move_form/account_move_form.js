@@ -65,7 +65,6 @@ export class AccountMoveFormRenderer extends FormRenderer {
 
     setup() {
         super.setup();
-        // The ref the form compiler puts on this view's root element.
         this.rootRef = useRef("compiled_view_root");
     }
 

@@ -353,8 +353,6 @@ describe("connection recovery is per env", () => {
             error.unhandledRejectionEvent = { preventDefault: () => {} };
             return error;
         };
-        // One service instance per env is now what makes this per-env, rather
-        // than a module-level WeakMap keyed by env that nothing owned.
         const makeEnv = (opened) => {
             const env = { services: { dialog: { add: () => opened.push(1) } } };
             env.services.connection_recovery = connectionRecoveryService.start(env);

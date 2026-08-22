@@ -25,9 +25,6 @@ export function useDynamicPlaceholder(elementRef) {
     const orm = useService("orm");
 
     let model = null;
-    // Where the placeholder goes once the popover comes back. Kept here rather
-    // than on the input: the two closures that need it are both in this hook,
-    // and a DOM attribute is not a variable.
     let pendingRangeIndex = null;
 
     /**
@@ -47,8 +44,6 @@ export function useDynamicPlaceholder(elementRef) {
         if (!element || !path) {
             return;
         }
-        // The type table lives in the syntax module so that a subject and a
-        // body format the same field the same way.
         const tzPath =
             fieldType === "datetime" ? await resolveTzPath(orm, model) : undefined;
         const dynamicPlaceholder = ` ${buildInlinePlaceholder({
@@ -63,9 +58,6 @@ export function useDynamicPlaceholder(elementRef) {
             start -= 1;
         }
         element.setRangeText(dynamicPlaceholder, start, rangeIndex, "end");
-        // A synthetic KeyboardEvent carries no `key`, so getActiveHotkey()
-        // returns "" and every branch in useInputField's keydown handler
-        // misses: dispatching one only looked like it committed the change.
         element.dispatchEvent(new InputEvent("input"));
     };
 
@@ -103,8 +95,6 @@ export function useDynamicPlaceholder(elementRef) {
         popover.open(elementRef?.el, {
             resModel: model,
             validate: opts.validateCallback,
-            // A char or text field shows markup as tags, and the server judges
-            // the expression this hook will write, not the bare path.
             plainText: true,
             expressionFor: (path, fieldDef) =>
                 placeholderExpression(path, { fieldType: fieldDef?.type }),
@@ -122,11 +112,6 @@ export function useDynamicPlaceholder(elementRef) {
     }
     function updateModel(modelNameLocation) {
         const recordData = ownerField.props.record.data;
-        // `render_model` is the server's own answer to "which model do these
-        // placeholders resolve against", computed per model by
-        // `mixin.mail.render._compute_render_model`. A view may still name a
-        // field explicitly -- `sms.composer` is not a render mixin and has no
-        // `render_model` -- and that declaration wins.
         model =
             (modelNameLocation && recordData[modelNameLocation]) ||
             recordData.render_model ||

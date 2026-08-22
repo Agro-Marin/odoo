@@ -153,7 +153,6 @@ test("visitor leaving ends the livechat conversation", async () => {
     setupChatHub({ opened: [channel_id] });
     await start();
     await contains(".o-mail-ChatWindow");
-    // simulate visitor leaving
     await withGuest(guestId, () =>
         rpc("/im_livechat/visitor_leave_session", { channel_id }),
     );

@@ -11,7 +11,7 @@ import {
 
 describe.current.tags("desktop");
 
-/** @param {number} taxAmount the single tax group's amount */
+/** @param {number} taxAmount */
 function totals(taxAmount) {
     return {
         currency_id: 1,
@@ -52,7 +52,6 @@ const ARCH = `
         <field name="tax_totals" widget="account-tax-totals-field"/>
     </form>`;
 
-/** Type `value` into the editable tax-group amount and commit it. */
 async function editTaxGroup(value) {
     await contains(".o_tax_group_edit").click();
     await contains(".o_tax_group_edit_input input").edit(value);
@@ -76,7 +75,6 @@ describe("TaxTotalsComponent editing", () => {
             expect(written.subtotals[0].tax_groups[0].tax_amount_currency).toBe(20);
             expect(written.subtotals[0].tax_amount_currency).toBe(20);
             expect(written.tax_amount_currency).toBe(20);
-            // 100 untaxed + 20 tax: the grand total moves by the same delta.
             expect(written.total_amount_currency).toBe(120);
         });
         await mountView({ type: "form", resModel: "move", resId: 1, arch: ARCH });
@@ -97,8 +95,6 @@ describe("TaxTotalsComponent editing", () => {
         });
         await mountView({ type: "form", resModel: "move", resId: 1, arch: ARCH });
 
-        // `_inverse_tax_totals` derives a delta from whatever arrives, 0 included;
-        // the widget used to treat 0 as "no change" and drop the edit silently.
         await editTaxGroup("0");
         await contains(".o_form_button_save").click();
 
@@ -120,7 +116,6 @@ describe("TaxTotalsComponent editing", () => {
 
         await editTaxGroup("not a number");
 
-        // Put back as the input showed it, not as a bare float.
         expect(queryOne(".o_tax_group_edit_input input").value).toBe("15.00");
     });
 });

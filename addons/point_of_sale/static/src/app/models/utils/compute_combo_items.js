@@ -20,11 +20,6 @@ export const computeComboItems = (
         const originalPrice = conf.combo_item_id.combo_id.base_price * conf.qty;
         return acc + originalPrice;
     }, 0);
-    // Every selected combo choice may legitimately have base_price 0 (the price
-    // lives on the parent product). Guard the divisor so priceUnit stays 0 for
-    // each line and the whole parent price flows to the last line via
-    // remainingTotal, instead of producing NaN/Infinity unit prices that would
-    // make the order un-payable and serialize NaN to the backend.
     originalTotal = originalTotal || 1;
 
     const getAttributesPriceExtra = (attributeValueIds) =>
@@ -52,11 +47,6 @@ export const computeComboItems = (
         remainingTotal -= (priceUnit * conf.qty) / parentCoef;
 
         if (conf === childLineConf[childLineConf.length - 1]) {
-            // Scale the residual so the TOTAL absorbs exactly remainingTotal:
-            // the last conf is not always a single unit (the qty-split above
-            // only runs in the creation flow, parentQty === 1) — adding the
-            // raw remainder to a multi-qty line's unit price multiplied the
-            // correction by its quantity.
             priceUnit += (remainingTotal * parentCoef) / conf.qty;
             remainingTotal = 0;
         }
@@ -85,7 +75,6 @@ export const computeComboItems = (
             }, 0) || 1;
     }
 
-    // Process extra child lines using combo 'base_price'
     for (const extra of childLineExtra) {
         const comboItem = extra.combo_item_id;
         const combo = comboItem.combo_id;

@@ -95,8 +95,6 @@ test("PTAL.fromProductConfiguratorPtal maps configurator shape", () => {
         create_variant: "no_variant",
         selected_attribute_value_ids: [12],
         customValue: "custom",
-        // `is_custom` is part of every configurator payload: the controller reads it in
-        // `_get_basic_product_information` and `Product` declares it non-optional.
         attribute_values: [
             { id: 11, name: "Red", price_extra: 1, is_custom: false },
             { id: 12, name: "Blue", price_extra: 2, is_custom: true },
@@ -108,11 +106,6 @@ test("PTAL.fromProductConfiguratorPtal maps configurator shape", () => {
 });
 
 test("PTAL.fromProductConfiguratorPtal: multi-select keeps the custom value on its own PTAV", () => {
-    // `multi` is constrained to `no_variant` (product_attribute.py), i.e. exactly the
-    // lines the combo configurator shows, and one of its values may be `is_custom`.
-    // Attributing the PTAL-level custom value to every selected value made the server
-    // create a `product.attribute.custom.value` per selection, each of which it prints
-    // as its own line in the order line description.
     const ptal = ProductTemplateAttributeLine.fromProductConfiguratorPtal({
         id: 5,
         attribute: { name: "Toppings" },
@@ -130,8 +123,6 @@ test("PTAL.fromProductConfiguratorPtal: multi-select keeps the custom value on i
         [13, "extra spicy"],
     ]);
     expect(ptal.selectedCustomPtav.id).toBe(13);
-    // The custom value is not the first selected value: reading `selected_ptavs[0]`
-    // would have shown "Toppings: Cheese, Other (undefined)".
     expect(ptal.ptalDisplayName).toBe("Toppings: Cheese, Other (extra spicy)");
 
     const product = new ProductProduct({
@@ -147,9 +138,6 @@ test("PTAL.fromProductConfiguratorPtal: multi-select keeps the custom value on i
 });
 
 test("ProductCombo.isEmpty separates 'no items' from 'configurable'", () => {
-    // The server filters out combo items whose product is archived, so `combo_items`
-    // can arrive empty. `isConfigurable` alone calls that configurable, which renders a
-    // heading with no cards and blocks `areAllCombosSelected` forever.
     const empty = new ProductCombo({ id: 1, name: "c", combo_items: [] });
     expect(empty.isEmpty).toBe(true);
     expect(empty.isConfigurable).toBe(true);

@@ -5,12 +5,6 @@ import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 
 describe.current.tags("desktop");
 
-/**
- * Two bits gate the zone and the owner supplies both: `dragging` for "a drag is
- * in flight" and `visible` for "the pointer is over this one". The component
- * itself reads no env — one of its five mount sites used to provide a
- * `setDragging` the other four did not, and it threw in those four.
- */
 describe("UploadDropZone", () => {
     test("shows while a drag is in flight, with no pointer over it", async () => {
         await mountWithCleanup(UploadDropZone, { props: { dragging: true } });
@@ -47,8 +41,6 @@ describe("UploadDropZone", () => {
         await mountWithCleanup(UploadDropZone, {
             props: { visible: true, hideZone: () => expect.step("hideZone") },
         });
-        // The uploader input the zone hands files to; in the product it is the
-        // FileUploader's, rendered as a sibling of the drop area's parent.
         const input = document.createElement("input");
         input.type = "file";
         input.className = "document_file_uploader o_input_file";

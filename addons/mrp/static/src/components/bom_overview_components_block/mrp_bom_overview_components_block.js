@@ -66,7 +66,6 @@ export class BomOverviewComponentsBlock extends Component {
             }
         });
     }
-    //---- Handlers ----
 
     onToggleFolded(foldId) {
         const newState = !this.state[foldId];
@@ -81,8 +80,6 @@ export class BomOverviewComponentsBlock extends Component {
         allChildIds.forEach((id) => (this.state[id] = folded));
         this.env.overviewBus.trigger(FOLD_CHANGED, { ids: allChildIds, folded });
     }
-
-    //---- Getters ----
 
     get data() {
         return this.props.data;
@@ -101,8 +98,6 @@ export class BomOverviewComponentsBlock extends Component {
     get identifier() {
         return this.getIdentifier(this.data);
     }
-
-    //---- Utils ----
 
     getHasComponents(data) {
         return data.components && data.components.length > 0;

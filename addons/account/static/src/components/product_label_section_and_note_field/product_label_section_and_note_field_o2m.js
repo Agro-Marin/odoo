@@ -18,21 +18,12 @@ export class ProductLabelSectionAndNoteListRender extends SectionAndNoteListRend
 
     processAllColumns(allColumns, list) {
         allColumns = allColumns.map((column) => {
-            // Only recompute the move_type-dependent default for columns the arch
-            // marks optional="conditional"; concrete show/hide values are respected.
             if (
                 column["optional"] !== "conditional" ||
                 !this.conditionalColumns.includes(column["name"])
             ) {
                 return column;
             }
-            /**
-             * The preference should be different whether:
-             *     - It's a Vendor Bill or an Invoice
-             *     - Sale module is installed
-             * Vendor Bills -> Product should be hidden by default
-             * Invoices -> conditionalColumns should be hidden by default if Sale module is not installed
-             */
             const isBill = ["in_invoice", "in_refund", "in_receipt"].includes(
                 this.props.list.evalContext.parent.move_type,
             );
@@ -56,8 +47,6 @@ export class ProductLabelSectionAndNoteListRender extends SectionAndNoteListRend
         if (![...this.productColumns, "name"].includes(column.name)) {
             return super.isCellReadonly(column, record);
         }
-        // The isCellReadonly method from the ListRenderer is used to determine the classes to apply to the cell.
-        // We need this override to make sure some readonly classes are not applied to the cell if it is still editable.
         const isReadonly = super.isCellReadonly(column, record);
         return (
             isReadonly &&

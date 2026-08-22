@@ -138,10 +138,6 @@ test("follower subtype apply", async () => {
 });
 
 test("apply keeps the subtypes the dialog does not manage", async () => {
-    // `_mail_get_message_subtypes` hides some of a follower's subtypes
-    // (`hidden`, or a model-specific exclusion such as `project.task`'s rating
-    // subtype). Apply rewrites the whole subscription, so a dialog that submits
-    // only what it rendered silently revokes the rest.
     const pyEnv = await startServer();
     const shownId = pyEnv["mail.message.subtype"].create({ name: "Shown" });
     const hiddenId = pyEnv["mail.message.subtype"].create({
@@ -230,11 +226,6 @@ test("unchecking every subtype unsubscribes the follower", async () => {
 });
 
 test("apply keeps unmanaged subtypes when the server sends them as bare ids", async () => {
-    // The real `/mail/read_subscription_data` builds its payload with
-    // `.add(follower, ["subtype_ids"])`, which emits the relation as plain ids and adds NO
-    // record for a subtype the dialog does not render. The mock uses `Store.many(...)`
-    // instead, which adds full records -- so the mock-shaped test above does not pin the
-    // production contract on its own.
     const pyEnv = await startServer();
     const shownId = pyEnv["mail.message.subtype"].create({ name: "Shown" });
     const hiddenId = pyEnv["mail.message.subtype"].create({

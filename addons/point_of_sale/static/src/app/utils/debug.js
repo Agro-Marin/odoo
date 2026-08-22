@@ -1,13 +1,10 @@
 /** @odoo-module native */
 /* eslint-disable no-console -- developer debug utility */
 /**
- * Builds a shallow copy of an object, capped at `maxDepth`, so circular
- * structures that would break `JSON.stringify` can be safely inspected.
- *
- * @param {Object} obj - The object or array to represent.
- * @param {number} [depth=0] - Current recursion depth (internal).
- * @param {number} [maxDepth=2] - Depth beyond which nested objects are left as-is.
- * @returns {Object|Array} The depth-limited copy.
+ * @param {Object} obj
+ * @param {number} [depth=0]
+ * @param {number} [maxDepth=2]
+ * @returns {Object|Array}
  */
 function buildRepresentativeObject(obj, depth = 0, maxDepth = 2) {
     if (depth > maxDepth || obj === null || typeof obj !== "object") {
@@ -32,27 +29,21 @@ function buildRepresentativeObject(obj, depth = 0, maxDepth = 2) {
 }
 
 /**
- * Logs the depth-limited representation of `obj` (via `buildRepresentativeObject`),
- * safe for objects that would break a direct `console.log`.
- *
- * @param {Object} obj - The object to log.
- * @param {number} [depth=0] - Current recursion depth (internal).
- * @param {number} [maxDepth=2] - Depth beyond which nested objects are left as-is.
+ * @param {Object} obj
+ * @param {number} [depth=0]
+ * @param {number} [maxDepth=2]
  */
 function log(obj, depth = 0, maxDepth = 2) {
     return console.log(buildRepresentativeObject(obj, depth, maxDepth));
 }
 
 /**
- * Recursively diffs two objects, handling circular references and capping depth.
- *
- * @param {Object} obj1 - First object.
- * @param {Object} obj2 - Second object, typically a later state of the first.
- * @param {Map} [visited=new Map()] - Tracks visited objects (internal).
- * @param {number} [depth=0] - Current recursion depth (internal).
- * @param {number} [maxDepth=10] - Maximum recursion depth.
- * @returns {Object} The differences; empty when equal. A circular reference or
- *   the depth limit adds an `error` entry.
+ * @param {Object} obj1
+ * @param {Object} obj2
+ * @param {Map} [visited=new Map()]
+ * @param {number} [depth=0]
+ * @param {number} [maxDepth=10]
+ * @returns {Object}
  */
 function compareObjects(obj1, obj2, visited = new Map(), depth = 0, maxDepth = 10) {
     if (depth > maxDepth) {

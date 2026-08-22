@@ -18,7 +18,6 @@ export class PosConfig extends models.ServerModel {
     }
 
     read_config_open_orders(configId) {
-        // We can read everything since its only related to the current test.
         const orderIds = this.env["pos.order"]
             .search_read([], ["id"])
             .map((order) => order.id);

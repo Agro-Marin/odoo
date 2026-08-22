@@ -145,15 +145,6 @@ test("Tab livechat picks ended livechats last", async () => {
             res_id: channelIds[idx],
         })),
     );
-    /**
-     * channel id | last_interest_dt    | livechat_end_dt | unread
-     * -----------+---------------------+-----------------+--------
-     *          0 | 2021-01-02 10:00:00 | false           | true
-     *          1 | 2021-01-02 10:00:01 | false           | true
-     *          2 | 2021-01-02 10:00:02 | false           | true
-     *          3 | 2021-01-02 10:00:03 | false           | true
-     *          4 | 2021-01-02 10:00:04 | false           | true
-     */
     patchUiSize({ width: 1920 });
     setupChatHub({
         folded: [channelIds[0], channelIds[1], channelIds[2], channelIds[3]],
@@ -199,15 +190,6 @@ test("Tab livechat picks ended livechats last", async () => {
     await waitFor(".o-mail-ChatBubble[name='Visitor 3'] .badge:contains('2')", {
         timeout: 3000,
     });
-    /**
-     * channel id | last_interest_dt    | livechat_end_dt | unread
-     * -----------+---------------------+-----------------+--------
-     *          0 | 2021-01-02 10:00:00 | false           | true
-     *          1 | 2021-01-02 10:05:10 | now()           | true
-     *          2 | 2021-01-02 10:00:02 | false           | true
-     *          3 | 2021-01-02 10:05:15 | false           | true
-     *          4 | 2021-01-02 10:00:04 | false           | false
-     */
     await press("Tab");
     await contains(".o-mail-ChatWindow", { count: 2 });
     await contains(
@@ -241,15 +223,6 @@ test("Tab livechat picks ended livechats last", async () => {
     await waitFor(".o-mail-ChatWindow:contains('Visitor 0') .badge:contains('1')", {
         timeout: 3000,
     });
-    /**
-     * channel id | last_interest_dt    | livechat_end_dt | unread
-     * -----------+---------------------+-----------------+--------
-     *          0 | 2021-01-02 10:05:20 | false           | true
-     *          1 | 2021-01-02 10:05:10 | now()           | true
-     *          2 | 2021-01-02 10:00:02 | false           | false
-     *          3 | 2021-01-02 10:05:15 | false           | true
-     *          4 | 2021-01-02 10:00:04 | false           | false
-     */
     await press("Tab");
     await contains(
         ".o-mail-ChatWindow:contains('Visitor 3') .o-mail-Message:contains('Hello')",
@@ -376,9 +349,8 @@ test("switching to hidden chat window unhides it", async () => {
         res_id: livechat_1,
     });
     setupChatHub({ opened: channelIds.reverse() });
-    patchUiSize({ width: 900 }); // enough for 2 chat windows max
+    patchUiSize({ width: 900 });
     await start();
-    // FIXME: expected order: general, 12, 11
     await contains(".o-mail-ChatWindow", { count: 2 });
     await contains(".o-mail-ChatWindow", { count: 0, text: "Visitor 11" });
     await focus(".o-mail-Composer-input", {

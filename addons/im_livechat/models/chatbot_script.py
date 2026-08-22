@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import api, Command, models, fields
 from odoo.http import request
 from odoo.tools import email_normalize, get_lang, html2plaintext, is_html_empty, plaintext2html
@@ -15,7 +12,6 @@ class ChatbotScript(models.Model):
     _rec_name = 'title'
     _order = 'title, id'
 
-    # we keep a separate field for UI since name is manipulated by 'mixin.utm.source'
     title = fields.Char('Title', required=True, translate=True, default="Chatbot")
     active = fields.Boolean(default=True)
     image_1920 = fields.Image(related='operator_partner_id.image_1920', readonly=False)
@@ -72,21 +68,12 @@ class ChatbotScript(models.Model):
         return [dict(vals, title=self.env._("%s (copy)", script.title)) for script, vals in zip(self, vals_list)]
 
     def copy_translations(self, new, excluded=()):
-        # ``copy_data`` renames ``title`` in the duplicating user's language
-        # only; without this the copy would keep the source record's exact
-        # ``title`` in every other language.
         super().copy_translations(new, excluded=(*excluded, "title"))
         self._copy_translations_of_renamed_field(
             new, "title", lambda record, term: record.env._("%s (copy)", term)
         )
 
     def copy(self, default=None):
-        """ Correctly copy the 'triggering_answer_ids' field from the original script_step_ids to the clone.
-        This needs to be done in post-processing to make sure we get references to the newly created
-        answers from the copy instead of references to the answers of the original.
-
-        This implementation assumes that the order of created steps and answers will be kept between
-        the original and the clone, using 'zip()' to match the records between the two. """
         default = default or {}
         new_scripts = super().copy(default=default)
         if 'question_ids' in default:
@@ -141,28 +128,6 @@ class ChatbotScript(models.Model):
         return res
 
     def _get_welcome_steps(self):
-        """ Returns a sub-set of script_step_ids that only contains the "welcoming steps".
-        We consider those as all the steps the bot will say before expecting a first answer from
-        the end user.
-
-        Example 1:
-        - step 1 (question_selection): What do you want to do? - Create a Lead, -Create a Ticket
-        - step 2 (text): Thank you for visiting our website!
-        -> The welcoming steps will only contain step 1, since directly after that we expect an
-        input from the user
-
-        Example 2:
-        - step 1 (text): Hello! I'm a bot!
-        - step 2 (text): I am here to help lost users.
-        - step 3 (question_selection): What do you want to do? - Create a Lead, -Create a Ticket
-        - step 4 (text): Thank you for visiting our website!
-        -> The welcoming steps will contain steps 1, 2 and 3.
-        Meaning the bot will have a small monologue with himself before expecting an input from the
-        end user.
-
-        This is important because we need to display those welcoming steps in a special fashion on
-        the frontend, since those are not inserted into the discuss.channel as actual mail.messages,
-        to avoid bloating the channels with bot messages if the end-user never interacts with it. """
         self.ensure_one()
 
         welcome_steps = self.env['chatbot.script.step']
@@ -174,12 +139,6 @@ class ChatbotScript(models.Model):
         return welcome_steps
 
     def _post_welcome_steps(self, discuss_channel):
-        """ Welcome messages are only posted after the visitor's first interaction with the chatbot.
-        See 'chatbot.script#_get_welcome_steps()' for more details.
-
-        Side note: it is important to set the 'chatbot_current_step_id' on each iteration so that
-        it's correctly set when going into 'discuss_channel#_message_post_after_hook()'. """
-
         self.ensure_one()
         posted_messages = self.env['mail.message']
 
@@ -202,9 +161,6 @@ class ChatbotScript(models.Model):
         action['domain'] = [('rule_ids.chatbot_script_id', 'in', self.ids)]
         return action
 
-    # --------------------------
-    # Tooling / Misc
-    # --------------------------
 
     def _to_store_defaults(self, target):
         return [Store.One("operator_partner_id", ["name"]), "title"]

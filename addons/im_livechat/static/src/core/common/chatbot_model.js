@@ -9,8 +9,6 @@ export class Chatbot extends Record {
     static id = AND("script", "thread");
     static MESSAGE_DELAY = 400;
     static TYPING_DELAY = 500;
-    // Time to wait without user input before considering a multi line step as
-    // completed.
     static MULTILINE_STEP_DEBOUNCE_DELAY = 10000;
 
     forwarded;
@@ -52,11 +50,6 @@ export class Chatbot extends Record {
         },
     });
 
-    /**
-     * Start the chatbot. Either from the beginning if the user just started the
-     * session or from where we left off if the session was restored after a
-     * page load.
-     */
     async start() {
         if (this.completed) {
             return;
@@ -118,8 +111,6 @@ export class Chatbot extends Record {
             return;
         }
         if (this.thread.isTransient) {
-            // Thread is not persisted thus messages do not exist on the server,
-            // create them now on the client side.
             this.currentStep.message = this.store["mail.message"].insert({
                 id: this.store.getNextTemporaryId(),
                 author_id: this.script.operator_partner_id,
@@ -145,9 +136,6 @@ export class Chatbot extends Record {
         return this.completed && !this.currentStep?.operatorFound;
     }
 
-    /**
-     * Go to the next step of the chatbot, fetch it if needed.
-     */
     async _goToNextStep() {
         if (!this.thread) {
             return;
@@ -172,10 +160,6 @@ export class Chatbot extends Record {
         }
     }
 
-    /**
-     * Trigger chat bot steps recursively until the script is completed or a user
-     * input is required.
-     */
     async _runUntilUserInputStep() {
         await this._triggerNextStep();
         if (
@@ -191,9 +175,6 @@ export class Chatbot extends Record {
         );
     }
 
-    /**
-     * Simulate the typing of the chatbot.
-     */
     async _simulateTyping(duration = Chatbot.MESSAGE_DELAY) {
         this.isTyping = true;
         await new Promise((res) =>
@@ -227,15 +208,13 @@ export class Chatbot extends Record {
 
     async _delayThenProcessAnswerAgain(message) {
         this.tmpAnswer = this.thread.composer.composerText;
-        await Promise.resolve(); // Ensure that it's properly debounced when called again
+        await Promise.resolve();
         return this._processAnswerDebounced(message);
     }
 
     /**
-     * Process the user answer for a question selection step.
-     *
-     * @param {import("models").Message} message Answer posted by the user.
-     * @returns {Promise<boolean>} Whether the script is ready to go to the next step.
+     * @param {import("models").Message} message
+     * @returns {Promise<boolean>}
      */
     async _processAnswerQuestionSelection(message) {
         const answer = this.currentStep.selectedAnswer;
@@ -275,9 +254,7 @@ export class Chatbot extends Record {
     }
 
     /**
-     * Process the user answer for a question email step.
-     *
-     * @returns {Promise<boolean>} Whether the script is ready to go to the next step.
+     * @returns {Promise<boolean>}
      */
     async _processAnswerQuestionEmail() {
         const { success, data } = await rpc("/chatbot/step/validate_email", {

@@ -165,24 +165,6 @@ export class SelectMenu extends Component {
         /** @type {{ revision: number, byValue: Map<any, any> } | null} */
         this._choiceIndex = null;
 
-        // Deriving from inside a render costs a second render -- measured at
-        // exactly 2 per `choices` change with the menu open, against 1 for a
-        // prop change that leaves `derivationKey` alone -- and both halves of
-        // that are load-bearing, so it stays.
-        //
-        // `syncChoicesRevision` cannot move to `onWillUpdateProps`: the contract
-        // here allows a caller to mutate `props.choices` **in place**, which
-        // raises no props update at all, so the only way to notice is to scan
-        // the signature every render. Tried, and it is what `choices mutated in
-        // place are re-sorted on the next open` and three siblings catch.
-        //
-        // `filterOptions` cannot stop writing reactive state either: the option
-        // list is rendered inside the popover's fiber, not this component's, and
-        // owl reactivity is the only channel that crosses that boundary. Tried
-        // with plain fields, and the list never appeared -- at 3, 4 or 5 frames.
-        //
-        // So the second pass is the transport, not waste. What it must stay is
-        // *conditional*: `_derivedKey` keeps it to renders where an input moved.
         onWillRender(() => {
             this._selectedValueSet = null;
             this.syncChoicesRevision();

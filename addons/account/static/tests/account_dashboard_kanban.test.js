@@ -19,7 +19,7 @@ const ARCH = `
         </templates>
     </kanban>`;
 
-/** @param {Object} [dragDropSettings] extra keys for the `drag_drop_settings` blob */
+/** @param {Object} [dragDropSettings] */
 function dashboardBlob(dragDropSettings) {
     return JSON.stringify({
         company_name: "Test Company",
@@ -33,9 +33,6 @@ function dashboardBlob(dragDropSettings) {
 }
 
 /**
- * Step only the membership question under test: the kanban asks about unrelated
- * groups (export rights) whose number is not this test's business.
- *
  * @param {boolean} isMember
  */
 function mockDropGroup(isMember) {
@@ -50,11 +47,6 @@ function mockDropGroup(isMember) {
     });
 }
 
-/**
- * `_fill_general_dashboard_data` gates the drop-to-upload affordance on a group.
- * The card must honour it: the point of sending the group is that a user outside
- * it never gets the uploader.
- */
 describe("dashboard drop group", () => {
     test("hides the uploader when the user is not in drag_drop_settings.group", async () => {
         const pyEnv = await startServer();
@@ -100,8 +92,6 @@ describe("dashboard drop group", () => {
 
         await openKanbanView("account.journal", { arch: ARCH });
 
-        // Both bits gate the zone: the renderer's "a drag is in flight" and the
-        // card's "the pointer is over me". Clearing one alone left it up.
         const record = queryOne(".o_kanban_record:not(.o_kanban_ghost)");
         record.dispatchEvent(
             new DragEvent("dragenter", { bubbles: true, cancelable: true }),
@@ -126,7 +116,6 @@ describe("dashboard drop group", () => {
 
         await openKanbanView("account.journal", { arch: ARCH });
 
-        // No group in the blob: no membership question is asked at all.
         expect.verifySteps([]);
         expect(".document_file_uploader").toHaveCount(1);
     });

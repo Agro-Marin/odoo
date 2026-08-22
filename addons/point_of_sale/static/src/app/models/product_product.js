@@ -3,12 +3,7 @@ import { normalize } from "@web/core/l10n/utils";
 import { registry } from "@web/core/registry";
 
 import { Base } from "./related_models/index.js";
-// When adding a method to this class, please pay attention to naming.
-// As in the backend, when trying to access taxes_id on product.product,
-// taxes_id will be taken from the template.
 
-// This means that if you declare a method that exists in the product.template
-// class, it will override this path.
 export class ProductProduct extends Base {
     static pythonModel = "product.product";
 

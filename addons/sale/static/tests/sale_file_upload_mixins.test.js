@@ -1,6 +1,4 @@
 import { expect, test } from "@odoo/hoot";
-// Importing the concrete classes forces the factory invocations in those modules to
-// run at load time — a broken factory application would fail this file's import.
 import { SaleFileUploadKanbanRenderer } from "@sale/views/sale_file_upload_kanban/sale_file_upload_kanban_renderer";
 import { SaleFileUploadListRenderer } from "@sale/views/sale_file_upload_list/sale_file_upload_list_renderer";
 import {
@@ -43,18 +41,13 @@ test("saleOnboardingRenderer adds the action helper and sets the template", () =
     }
     const Onboarding = saleOnboardingRenderer(Base, "sale.SomeTemplate");
     expect(Onboarding.template).toBe("sale.SomeTemplate");
-    // The onboarding action helper is added...
     expect(!!Onboarding.components.SaleActionHelper).toBe(true);
-    // ...without dropping the base's components.
     expect(Onboarding.components.Foo).toBe(Foo);
 });
 
 test("concrete file-upload/onboarding view classes are produced correctly", () => {
-    // File-upload renderers are classes (produced by the renderer factory).
     expect(typeof SaleFileUploadKanbanRenderer).toBe("function");
     expect(typeof SaleFileUploadListRenderer).toBe("function");
-    // Onboarding renderers carry the template + action helper, extending the
-    // file-upload renderers.
     expect(SaleKanbanRenderer.template).toBe("sale.SaleKanbanRenderer");
     expect(SaleListRenderer.template).toBe("sale.SaleListRenderer");
     expect(!!SaleKanbanRenderer.components.SaleActionHelper).toBe(true);

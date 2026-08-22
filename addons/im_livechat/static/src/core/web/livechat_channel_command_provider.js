@@ -28,7 +28,6 @@ registry.category("command_provider").add("im_livechat.channel_join_leave", {
                 .filter((c) => c.threads.length > 0)
                 .map((c) => c.id),
         );
-        // Show live chat channels with ongoing conversations first
         return Object.values(store["im_livechat.channel"].records)
             .sort((c) => (activeChannels.has(c.id) ? -1 : 1))
             .map((c) => ({

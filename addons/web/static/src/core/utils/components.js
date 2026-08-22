@@ -14,12 +14,7 @@ export class ErrorHandler extends Component {
 }
 
 /**
- * The first DOM element a rendered Owl block produces, or null for a block that
- * rendered no element at all. Private: every caller wants a *component's*
- * element, which is what `getComponentElement` below answers -- exporting the
- * recursion as well only invites a second spelling of the same question.
- *
- * @param {any} node a bdom node, or a component's internal node
+ * @param {any} node
  * @returns {HTMLElement | null}
  */
 export function getFirstElementOfNode(node) {
@@ -44,8 +39,6 @@ export function getFirstElementOfNode(node) {
 }
 
 /**
- * Where a mounted component sits in the DOM. Null before it is mounted.
- *
  * @param {import("@odoo/owl").Component} component
  * @returns {HTMLElement | null}
  */

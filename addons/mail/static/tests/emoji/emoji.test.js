@@ -33,11 +33,6 @@ test("emoji picker correctly handles translations with special characters", asyn
             "heavy dollar sign": `Symbole du dollar\nlourd`,
         },
     });
-    // Both emoji caches are module-level, so an earlier suite that opened a
-    // picker leaves them populated with untranslated names. Reset statically
-    // and unconditionally: reaching for the module through the loader and
-    // calling the reset with `?.` made a wrong path silently do nothing, and
-    // the test then only passed when it happened to run first.
     await resetLoadedEmojiData();
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "" });

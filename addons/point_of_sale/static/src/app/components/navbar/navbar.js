@@ -23,7 +23,6 @@ import { AlertDialog } from "@web/ui/dialog";
 export class Navbar extends Component {
     static template = "point_of_sale.Navbar";
     static components = {
-        // FIXME POSREF remove some of these components
         CashierName,
         ProxyStatus,
         SaleDetailsButton,
@@ -149,9 +148,6 @@ export class Navbar extends Component {
     }
 
     openCustomerDisplay() {
-        // Carry the config access_token so the public customer-display route
-        // can authenticate the caller instead of serving its payload to any
-        // enumerable id (t23962 / R6-3).
         const customer_display_url = `/pos_customer_display/${
             this.pos.config.id
         }/${getDeviceUuid()}?access_token=${encodeURIComponent(this.pos.config.access_token)}`;

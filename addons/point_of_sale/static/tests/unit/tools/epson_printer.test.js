@@ -10,9 +10,6 @@ test("epson raster rows are byte-aligned for non-multiple-of-8 widths", async ()
     ctx.fillStyle = "#000000";
     ctx.fillRect(0, 0, 10, 2);
 
-    // The ePOS <image> format expects ceil(width/8) bytes per row: a 10px-wide
-    // all-black canvas must yield rows of 10 ink bits + 6 padding bits. The
-    // unpadded encoding produced diagonally-sheared prints.
     const raster = printer.canvasToRaster(canvas);
     expect(raster.length).toBe(32);
     expect(raster.slice(0, 16)).toBe("1111111111000000");

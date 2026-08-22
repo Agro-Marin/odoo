@@ -113,8 +113,6 @@ test("_DELETE is resolved per identity in payload order, not deferred past it", 
     }).register(localRegistry);
     const store = await start();
     store.Doc.insert({ name: "d1", label: "before" });
-    // a delete followed by a row that repopulates the same record: the record
-    // survives, as it does server-side where re-adding values drops _DELETE.
     store.insert({
         Doc: [
             { name: "d1", _DELETE: true },
@@ -122,7 +120,6 @@ test("_DELETE is resolved per identity in payload order, not deferred past it", 
         ],
     });
     expect(store.Doc.get({ name: "d1" })?.label).toBe("after");
-    // the other order still deletes
     store.insert({
         Doc: [
             { name: "d1", label: "again" },
@@ -130,7 +127,6 @@ test("_DELETE is resolved per identity in payload order, not deferred past it", 
         ],
     });
     expect(store.Doc.get({ name: "d1" })).toBe(undefined);
-    // an unrelated record is not cancelled by another record's insert
     store.Doc.insert({ name: "d2", label: "x" });
     store.insert({ Doc: [{ name: "d2", _DELETE: true }, { name: "d3" }] });
     expect(store.Doc.get({ name: "d2" })).toBe(undefined);
@@ -162,7 +158,6 @@ test("one model's rows failing does not abort the models after it", async () => 
             Late: [{ name: "l1" }, { name: "l2" }],
         }),
     ).toThrow("compute exploded");
-    // insert() is best-effort: the models after the failing one are still applied
     expect(Boolean(store.Late.get({ name: "l1" }))).toBe(true);
     expect(Boolean(store.Late.get({ name: "l2" }))).toBe(true);
 });

@@ -9,7 +9,7 @@ export class DocumentsFileViewer extends Component {
         FileViewer,
     };
     static props = [
-        "parentRoot", // Parent's root element, used to know the zone to use.
+        "parentRoot",
         "previewStore",
     ];
 
@@ -25,9 +25,7 @@ export class DocumentsFileViewer extends Component {
                 if (!iframe) {
                     return;
                 }
-                // We need to wait until the iframe is loaded to be able to bind our keydown handler.
                 const onLoad = () => {
-                    // In case of youtube links contentDocument might be null.
                     if (!iframe.contentDocument) {
                         return;
                     }
@@ -67,8 +65,6 @@ export class DocumentsFileViewer extends Component {
     }
 
     onGlobalKeydown(ev) {
-        // Some keydown events are not handled by the fileViewer as we want them too
-        // making it possible to interact with the background.
         const cancelledKeys = ["ArrowUp", "ArrowDown"];
         if (cancelledKeys.includes(ev.key)) {
             ev.stopPropagation();

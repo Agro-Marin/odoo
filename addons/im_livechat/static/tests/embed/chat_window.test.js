@@ -88,7 +88,6 @@ test("Portal users should not be able to start a call", async () => {
         ".o-mail-ChatWindow-header .o-mail-ActionList-button[title*='Close']",
     );
     await contains(".o-discuss-Call", { count: 0 });
-    // simulate operator starts call
     const [channelId] = pyEnv["discuss.channel"].search([
         ["channel_type", "=", "livechat"],
         [
@@ -103,7 +102,6 @@ test("Portal users should not be able to start a call", async () => {
     await contains(".o-discuss-Call button", { count: 2 });
     await contains(".o-discuss-Call button[title='Join Video Call']");
     await contains(".o-discuss-Call button[title='Join Call']");
-    // still same actions in header
     await contains(".o-mail-ChatWindow-header .o-mail-ActionList-button", { count: 2 });
     await contains(".o-mail-ChatWindow-header .o-mail-ActionList-button[title='Fold']");
     await contains(

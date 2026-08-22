@@ -5,7 +5,6 @@ registry
     .add("im_livechat.looking_for_help_discuss_category_tour", {
         steps: () => [
             {
-                // Two live chats are looking for help, they are both in the "Looking for help" category.
                 trigger:
                     ".o-mail-DiscussSidebarCategory-livechatNeedHelp + .o-mail-DiscussSidebarChannel-container:contains(Visitor Accounting) + .o-mail-DiscussSidebarChannel-container:contains(Visitor Sales)",
             },

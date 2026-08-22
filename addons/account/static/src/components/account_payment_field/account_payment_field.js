@@ -32,8 +32,6 @@ export class AccountPaymentField extends Component {
             title: "",
             move_id: this.props.record.resId,
         };
-        // Derive display fields into new objects instead of mutating the record's
-        // data in place on every render.
         const lines = info.content.map((line) => ({
             ...line,
             amount_formatted: formatMonetary(line.amount, {

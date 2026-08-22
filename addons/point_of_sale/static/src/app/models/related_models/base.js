@@ -32,28 +32,15 @@ export class Base extends WithLazyGetterTrap {
     }
 
     /**
-     * Called during instantiation when the instance is fully-populated with field values.
-     * This method is called when the instance is created or updated
      * @param {*} _vals
      */
     setup(vals) {
-        // __dirty is the persisted dirty marker written by
-        // serializeForIndexedDB: without it, offline edits to a synced record
-        // come back "clean" after a reload and are never synced.
         this._dirty = vals?.__dirty ?? !this.isSynced;
-        // A (re)setup starts a fresh divergence-tracking window; a restored
-        // dirty record re-serializes in full anyway.
         this._dirtyFields = new Set();
     }
 
-    /**
-     *  This method is invoked only during instance creation to preserve the state across updates.
-     */
     initState() {}
 
-    /**
-     *  Restore state serialized from indexedDB
-     */
     restoreState(uiState) {
         this.uiState = uiState;
     }
@@ -112,11 +99,6 @@ export class Base extends WithLazyGetterTrap {
             return;
         }
 
-        // Track WHICH fields diverged since the last clean state: the
-        // sync-response processing needs them to re-apply edits made while
-        // the RPC was in flight (the server echo reflects the serialized,
-        // pre-edit state). Only the record itself accumulates field names —
-        // parents are merely marked dirty.
         if (fields?.length) {
             this._dirtyFields ??= new Set();
             for (const field of fields) {
@@ -124,13 +106,6 @@ export class Base extends WithLazyGetterTrap {
             }
         }
 
-        // The epoch is bumped on EVERY dirtying write, even when the record is
-        // already dirty: a deferred serialization clear (serializeForORM with
-        // deferClear) only marks a record clean when its epoch is unchanged
-        // since serialize time, so edits made while a sync RPC is in flight
-        // survive the commit instead of being silently consumed. The bump is
-        // propagated to parents for the same reason (the visited set guards
-        // against relation cycles).
         const visited = new Set();
         const walk = (rec) => {
             const raw = toRaw(rec);

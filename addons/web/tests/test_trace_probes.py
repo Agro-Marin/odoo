@@ -5,10 +5,6 @@ import odoo.tests
 
 _logger = logging.getLogger(__name__)
 
-# Probes HOOT structurally cannot record: its runner mounts no webclient and
-# mocks the transport, so only a real browser session ever reaches them. The
-# name says "browser", not "boot", because reaching them is not something boot
-# alone guarantees -- see the comment in the test below.
 BROWSER_ONLY_PROBES = ("component.mount", "rpc.request")
 
 SHARED_PROBES = ("service.start", "service.started")

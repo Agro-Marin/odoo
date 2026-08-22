@@ -35,9 +35,6 @@ export class PosScaleService extends SignalStore {
         this.isMeasuring = false;
         this.product = null;
         this.onError = null;
-        // Cancel the pending poll: reopening the scale within the delay used
-        // to leave the old loop's timeout alive — it saw the new session's
-        // isMeasuring flag and kept polling alongside the new loop.
         clearTimeout(this._pollHandle);
         this._pollHandle = null;
     }
@@ -52,7 +49,6 @@ export class PosScaleService extends SignalStore {
             return;
         }
         await this.readWeight();
-        // Re-check after the await: reset() may have run during the read.
         if (!this.isMeasuring) {
             return;
         }
@@ -113,8 +109,6 @@ export class PosScaleService extends SignalStore {
     }
 
     get isWeightValid() {
-        // LNE requires that the weight changes from the previously
-        // added value before another product is allowed to be added.
         return (
             !this.lastWeight ||
             roundDecimals(this.weight, this.product.decimalAccuracy) !==
@@ -123,8 +117,6 @@ export class PosScaleService extends SignalStore {
     }
 
     get isManualMeasurement() {
-        // In Community we don't know anything about the connected scale,
-        // so we assume automatic measurement.
         return false;
     }
 

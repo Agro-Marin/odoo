@@ -92,10 +92,10 @@ export function withDayCellClassNames(info, extras) {
 
 /**
  * @param {{
- *  el: HTMLElement,
- *  fcOptions: Record<string, any> | undefined,
- *  weekNumbers: boolean,
- *  weekNumbersWithinDays: boolean,
+ * el: HTMLElement,
+ * fcOptions: Record<string, any> | undefined,
+ * weekNumbers: boolean,
+ * weekNumbersWithinDays: boolean,
  * }} params
  * @returns {void}
  */

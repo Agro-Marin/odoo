@@ -11,7 +11,6 @@ export function processModelDefs(modelDefs) {
         for (const fieldName in fields) {
             const field = fields[fieldName];
 
-            // Make sure that the field has a name and consistent with the key.
             if (field.name) {
                 if (fieldName !== field.name) {
                     throw new Error(
@@ -33,7 +32,6 @@ export function processModelDefs(modelDefs) {
             const relationModel = modelDefs[field.relation];
             if (!relationModel) {
                 continue;
-                // throw new Error(`Model ${field.relation} not found`);
             }
 
             if (field.type === "many2many") {
@@ -90,7 +88,6 @@ export function processModelDefs(modelDefs) {
         const relationModel = modelDefs[field.relation];
         if (!relationModel) {
             continue;
-            // throw new Error(`Model ${field.relation} not found`);
         }
 
         const dummyName = getBackRef(model, field.name);

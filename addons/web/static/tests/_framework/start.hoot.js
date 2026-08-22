@@ -79,8 +79,6 @@ setupTestEnvironment();
 
 patchBrowserLocation();
 patchBrowserStorage();
-// IndexedDB is real here and outlives every test, so a translations cache
-// written by one test is read by the next -- see mock_localization_cache.hoot.js.
 isolateLocalizationCache();
 
 odoo.loader._reloadPage = () => {};

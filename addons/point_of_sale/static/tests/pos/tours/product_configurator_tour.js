@@ -14,20 +14,16 @@ registry.category("web_tour.tours").add("ProductConfiguratorTour", {
             Chrome.startPoS(),
             Dialog.confirm("Open Register"),
 
-            // Click on Configurable Chair product
             ProductScreen.clickDisplayedProduct("Configurable Chair"),
             ProductConfigurator.selectedColor("Red"),
             ProductConfigurator.selectedSelect("Metal"),
             ProductConfigurator.selectedRadio("Leather"),
 
-            // Cancel configuration, not product should be in order
             Dialog.cancel(),
             ProductScreen.orderIsEmpty(),
 
-            // Click on Configurable Chair product
             ProductScreen.clickDisplayedProduct("Configurable Chair"),
 
-            // Select attributes
             ProductConfigurator.pickRadio("Other"),
             ProductConfigurator.fillCustomAttribute("Custom Fabric"),
             ProductConfigurator.pickMulti("Cushion"),
@@ -40,7 +36,6 @@ registry.category("web_tour.tours").add("ProductConfiguratorTour", {
             ProductConfigurator.selectedMulti("Cushion"),
             ProductConfigurator.selectedMulti("Headrest"),
 
-            // Check that the product has been added to the order with correct attributes and price
             Dialog.confirm(),
             ProductScreen.selectedOrderlineHas(
                 "Configurable Chair",
@@ -49,7 +44,6 @@ registry.category("web_tour.tours").add("ProductConfiguratorTour", {
                 "Red, Metal, Fabrics: Other: Custom Fabric, Cushion, Headrest",
             ),
 
-            // Orderlines with the same attributes should be merged
             ProductScreen.clickDisplayedProduct("Configurable Chair"),
             ProductConfigurator.pickRadio("Other"),
             ProductConfigurator.fillCustomAttribute("Custom Fabric"),
@@ -63,7 +57,6 @@ registry.category("web_tour.tours").add("ProductConfiguratorTour", {
                 "Red, Metal, Fabrics: Other: Custom Fabric, Cushion, Headrest",
             ),
 
-            // Orderlines with different attributes shouldn't be merged
             ProductScreen.clickDisplayedProduct("Configurable Chair"),
             ProductConfigurator.pickColor("Blue"),
             Dialog.confirm(),
@@ -74,13 +67,10 @@ registry.category("web_tour.tours").add("ProductConfiguratorTour", {
                 "Blue, Metal, Leather",
             ),
 
-            // Inactive variant attributes should not be displayed
             ProductScreen.clickDisplayedProduct("Configurable Chair"),
-            // Active: Other and Leather, Inactive: Wool
             ProductConfigurator.numberRadioOptions(2),
             Dialog.cancel(),
 
-            // Reopen configuration and discard changes --> Come back to previous attributes
             ProductScreen.openCartMobile(),
             ProductScreen.longPressOrderline("Configurable Chair"),
             ProductConfigurator.selectedColor("Red"),
@@ -158,7 +148,6 @@ registry.category("web_tour.tours").add("test_combo_variant_mix", {
             Chrome.startPoS(),
             Dialog.confirm("Open Register"),
 
-            // Click on Configurable Chair product
             ProductScreen.clickDisplayedProduct("Test Product Combo"),
             combo.select("Test Product (Large)"),
             Dialog.is("Attribute selection"),
@@ -245,29 +234,29 @@ registry.category("web_tour.tours").add("test_product_configurator_price", {
             Chrome.startPoS(),
             Dialog.confirm("Open Register"),
             ProductScreen.clickDisplayedProduct("Configurable Product"),
-            ProductConfigurator.priceIs("13.20"), // 10 (Small) + 2 (Red) + 1.2 (10% tax)
+            ProductConfigurator.priceIs("13.20"),
             ProductConfigurator.pickRadio("Large"),
-            ProductConfigurator.priceIs("14.30"), // 10 + 1 (Large) + 2 (Red) + 1.3 (10% tax)
+            ProductConfigurator.priceIs("14.30"),
             ProductConfigurator.pickRadio("Blue"),
-            ProductConfigurator.priceIs("15.40"), // 10 + 1 (Large) + 3 (Blue) + 1.4 (10% tax)
+            ProductConfigurator.priceIs("15.40"),
             Dialog.confirm(),
             ProductScreen.totalAmountIs("15.40"),
             ProductScreen.clickPriceList("Pricelist 2"),
             ProductScreen.totalAmountIs("22.00"),
             ProductScreen.clickDisplayedProduct("Configurable Product"),
-            ProductConfigurator.priceIs("22.00"), // 20 (pricelist 2) + 2 (10% tax)
+            ProductConfigurator.priceIs("22.00"),
             ProductConfigurator.pickRadio("Blue"),
-            ProductConfigurator.priceIs("22.00"), // 20 (pricelist 2) + 2 (10% tax)
+            ProductConfigurator.priceIs("22.00"),
             Dialog.confirm(),
             ProductScreen.totalAmountIs("44.00"),
             Chrome.createFloatingOrder(),
             ProductScreen.clickFiscalPosition("Include to Exclude"),
             ProductScreen.clickDisplayedProduct("Configurable Product"),
-            ProductConfigurator.priceIs("12.00"), // 10 (Small) + 2 (Red)
+            ProductConfigurator.priceIs("12.00"),
             ProductConfigurator.pickRadio("Large"),
-            ProductConfigurator.priceIs("13.00"), // 10 + 1 (Large) + 2 (Red)
+            ProductConfigurator.priceIs("13.00"),
             ProductConfigurator.pickRadio("Blue"),
-            ProductConfigurator.priceIs("14.00"), // 10 + 1 (Large) + 3 (Blue)
+            ProductConfigurator.priceIs("14.00"),
             Dialog.confirm(),
             ProductScreen.totalAmountIs("14.00"),
             Chrome.endTour(),

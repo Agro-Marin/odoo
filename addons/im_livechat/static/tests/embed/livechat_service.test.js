@@ -116,8 +116,8 @@ test("Only necessary requests are made when creating a new chat", async () => {
     const [threadId] = pyEnv["discuss.channel"].search([], { order: "id DESC" });
     await waitStoreFetch(
         [
-            "failures", // called because mail/core/web is loaded in test bundle
-            "systray_get_activities", // called because mail/core/web is loaded in test bundle
+            "failures",
+            "systray_get_activities",
             "init_messaging",
         ],
         {

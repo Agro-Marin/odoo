@@ -3,12 +3,6 @@ import { onPatched, useRef, useState } from "@odoo/owl";
 import { TModelInput } from "@point_of_sale/app/components/inputs/t_model_input";
 import { useAutofocus } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
-/**
- *   This component is meant to provide a "batteries included" api for working
- *   with inputs. It is well suited to work as a search bar or as a monetary input.
- *   Optional props allow handling debouncing, toggling between mobile and desktop views,
- *   autofocus, validation, and more.
- */
 export class Input extends TModelInput {
     static template = "point_of_sale.input";
     static props = {
@@ -45,7 +39,6 @@ export class Input extends TModelInput {
     };
     setup() {
         this.state = useState({ isOpen: false });
-        // Bind setValue to ensure that 'this' remains the component instance.
         this.setValue = debounce(this.setValue.bind(this), this.props.debounceMillis);
         const ref =
             (this.props.autofocus &&

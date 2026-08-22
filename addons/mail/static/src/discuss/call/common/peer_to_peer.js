@@ -458,9 +458,6 @@ export class PeerToPeer extends EventTarget {
         try {
             notification = JSON.parse(content);
         } catch {
-            // `content` is whatever a peer put on the data channel, so a frame
-            // that does not parse is a remote input, not a local bug: drop it
-            // rather than reject out of the `message` listener that awaits us.
             this._emitLog(id, `discarded unparsable notification`, LOG_LEVEL.WARN);
             return;
         }
@@ -893,9 +890,6 @@ export class PeerToPeer extends EventTarget {
             ...options,
             connection: peerConnection,
             dataChannel,
-            // derived, never an option: glare resolution only works if exactly
-            // one of the two sides yields, so both must compute it the same way
-            // from the pair of ids.
             hasPriority: id > this.selfId,
         });
         this._emitUpdate({

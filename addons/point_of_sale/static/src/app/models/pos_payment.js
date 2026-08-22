@@ -13,10 +13,6 @@ export class PosPayment extends Base {
         if (!this.payment_date) {
             this.payment_date = DateTime.now();
         }
-        // setup() re-runs on every connectNewData update. Fall back to the
-        // current value (already merge-preserved in raw by _sanitizeRawData)
-        // when the payload omits the field — a partial push must not zero an
-        // existing payment's amount or wipe accumulated terminal receipt info.
         this.amount = vals.amount ?? this.amount ?? 0;
         this.ticket = vals.ticket ?? this.ticket ?? "";
     }
@@ -64,10 +60,6 @@ export class PosPayment extends Base {
     async pay() {
         this.setPaymentStatus("waiting");
 
-        // A terminal that throws (network/RPC failure) must not leave the line
-        // wedged in "waiting" forever: that status renders no Retry button and
-        // blocks adding another electronic payment. Reset to "retry" so the
-        // cashier can act, and re-surface the error to the caller.
         let response;
         try {
             response = await this.payment_method_id.payment_terminal.sendPaymentRequest(
@@ -94,8 +86,7 @@ export class PosPayment extends Base {
     }
 
     /**
-     * @param {object} - refundedPaymentLine
-     * Override in dependent modules to update the refund payment line with the refunded payment line
+     * @param {object} -
      */
     updateRefundPaymentLine(refundedPaymentLine) {}
 }

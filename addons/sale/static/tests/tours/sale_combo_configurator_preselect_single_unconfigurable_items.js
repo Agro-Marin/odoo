@@ -13,12 +13,10 @@ registry
             ...tourUtils.createNewSalesOrder(),
             ...tourUtils.selectCustomer("Test Partner"),
             ...tourUtils.addProduct("Combo product"),
-            // Assert that only single unconfigurable items are preselected.
             comboConfiguratorTourUtils.assertPreselectedComboItemCount(2),
             comboConfiguratorTourUtils.assertComboItemPreselected("Product A"),
             comboConfiguratorTourUtils.assertComboItemPreselected("Product C"),
             comboConfiguratorTourUtils.assertConfirmButtonDisabled(),
-            // Configure the remaining combos.
             comboConfiguratorTourUtils.selectComboItem("Product B"),
             productConfiguratorTourUtils.selectAttribute(
                 "Product B",
@@ -37,7 +35,6 @@ registry
             comboConfiguratorTourUtils.selectComboItem("Product E1"),
             comboConfiguratorTourUtils.assertConfirmButtonEnabled(),
             ...comboConfiguratorTourUtils.saveConfigurator(),
-            // Don't end the tour with a form in edition mode.
             ...stepUtils.saveForm(),
         ],
     });

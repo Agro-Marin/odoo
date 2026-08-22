@@ -39,8 +39,6 @@ class X2ManyButtons extends Component {
     }
 
     async openFormAndDiscard(id) {
-        // Read the model before discarding: the discard reloads the record this
-        // field hangs off.
         const resModel = this.currentField.resModel;
         await this.props.record.discard();
         return this.accountMove.openBusinessDoc({ resModel, resId: id });

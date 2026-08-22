@@ -6,19 +6,6 @@ import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 
 /**
- * Which bucket a forecast line falls in.
- *
- * These were five near-identical grouping loops over four boolean predicates,
- * and reading them as a table showed the predicates are mutually exclusive but
- * NOT exhaustive: an incoming document with no matched outgoing demand
- * (`document_in` set, `document_out` unset, replenishment filled) satisfies none
- * of them. It is not rare -- 17 of 169 lines on an ordinary product -- it simply
- * had no name, so it was invisible. Naming it is the point of this function; the
- * membership tests it enables are O(1) rather than a scan, which is a by-product.
- *
- * Returns null for the combinations that remain unclassified, which is what the
- * scans returned for them too.
- *
  * @param {object} line
  * @returns {"inTransit"|"onHand"|"reconciled"|"freeStock"|"notAvailable"|"incoming"|null}
  */
@@ -41,7 +28,6 @@ export function classifyLine(line) {
     return null;
 }
 
-/** The identity `_sameDocument` compares, as a single indexable value. */
 function documentKey(document) {
     return document ? `${document._name}|${document.id}|${document.name}` : null;
 }
@@ -69,10 +55,6 @@ export class ForecastedDetails extends Component {
     _deriveLinesData(docs) {
         this.docs = docs;
         this._prepareLines();
-        // Indexed, then pruned, then indexed again: `_dropEmptyFreeStockLine`
-        // needs the index to decide, and mutating `this._lines` behind an index
-        // built from it is what used to leave a removed line reachable through
-        // the groups. One extra linear pass buys the invariant.
         this._indexLines();
         this._dropEmptyFreeStockLine();
         this._indexLines();
@@ -87,11 +69,6 @@ export class ForecastedDetails extends Component {
         }
     }
 
-    /**
-     * One pass over the lines, producing everything the template asks per row:
-     * the category of a line, the lines of a product, the lines of a product in
-     * a category, and the outgoing documents covered by a product's category.
-     */
     _indexLines() {
         this._categoryByLine = new Map();
         this._linesByProduct = new Map();
@@ -119,10 +96,6 @@ export class ForecastedDetails extends Component {
         }
     }
 
-    /**
-     * A product whose only free-stock line carries nothing, alongside other
-     * lines, contributes an empty row. Drop it.
-     */
     _dropEmptyFreeStockLine() {
         for (const productId of this.productIds) {
             const all = this._linesByProduct.get(productId);
@@ -181,8 +154,6 @@ export class ForecastedDetails extends Component {
         );
     }
 
-    // -- membership -------------------------------------------------------
-
     /** @returns {string | null} */
     categoryOf(line) {
         return this._categoryByLine.get(line) ?? null;
@@ -201,7 +172,6 @@ export class ForecastedDetails extends Component {
         return this.categoryOf(line) === "reconciled";
     }
 
-    /** Does any line of this product/category cover the same outgoing document? */
     _coversSameDocumentOut(productId, category, line) {
         const outKey = documentKey(line.document_out);
         return Boolean(
@@ -209,8 +179,6 @@ export class ForecastedDetails extends Component {
             this._outDocsByProductCategory.get(`${productId}|${category}`)?.has(outKey),
         );
     }
-
-    // -- rendering --------------------------------------------------------
 
     displayReserve(line, lineIndex) {
         let splittedLine = true;
@@ -262,8 +230,6 @@ export class ForecastedDetails extends Component {
         return Boolean(key && key === documentKey(line2[docField]));
     }
 
-    // -- actions ----------------------------------------------------------
-
     async _reserve(move_id) {
         await this.orm.call(
             "stock.forecasted_product_product",
@@ -288,8 +254,6 @@ export class ForecastedDetails extends Component {
         await this.orm.call(modelName, "write", [[record.id], { priority: value }]);
         this.props.reloadReport();
     }
-
-    // -- template helpers -------------------------------------------------
 
     get freeStockLabel() {
         return _t("Free Stock");

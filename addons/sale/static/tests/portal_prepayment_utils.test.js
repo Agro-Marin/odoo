@@ -14,7 +14,6 @@ test("explicit amount_selection wins", () => {
 });
 
 test("malformed amount_selection falls through to the heuristic (server parity)", () => {
-    // The old JS treated any non-'down_payment' value as full amount; the server
     // falls through to the payment_amount / default heuristic.
     expect(
         computeIsDownPayment(
@@ -34,7 +33,5 @@ test("no amount_selection: payment_amount is compared to the order total", () =>
 });
 
 test("no choice and no amount defaults to a down payment", () => {
-    // These controls only render when prepayment is available (prepayment_percent <
-    // 1.0), where the server default is likewise a down payment.
     expect(computeIsDownPayment(params(""), ORDER_TOTAL)).toBe(true);
 });

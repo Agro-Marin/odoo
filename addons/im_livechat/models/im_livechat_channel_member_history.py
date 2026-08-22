@@ -39,7 +39,6 @@ class ImLivechatChannelMemberHistory(models.Model):
     )
     avatar_128 = fields.Binary(compute="_compute_avatar_128")
 
-    # REPORTING FIELDS
 
     session_country_id = fields.Many2one("res.country", related="channel_id.country_id")
     session_livechat_channel_id = fields.Many2one(
@@ -94,8 +93,6 @@ class ImLivechatChannelMemberHistory(models.Model):
 
     @api.constrains("channel_id")
     def _constraint_channel_id(self):
-        # sudo: im_livechat.channel.member.history - skipping ACL for
-        # constraint, more performant and no sensitive information is leaked.
         if failing_histories := self.sudo().filtered(
             lambda h: h.channel_id.channel_type != "livechat"
         ):
@@ -133,9 +130,6 @@ class ImLivechatChannelMemberHistory(models.Model):
         for history in self:
             history.avatar_128 = history.partner_id.avatar_128 or history.guest_id.avatar_128
 
-    # ===================================================================
-    # REPORTING
-    # ===================================================================
 
     @api.depends("call_history_ids")
     def _compute_has_call(self):
@@ -167,7 +161,7 @@ class ImLivechatChannelMemberHistory(models.Model):
         for history in agent_histories:
             history.rating_id = history.channel_id.rating_ids.filtered(
                 lambda r: r.rated_partner_id == history.partner_id
-            )[:1]  # Live chats only allow one rating.
+            )[:1]
 
     @api.depends("create_date", "channel_id.livechat_end_dt", "channel_id.message_ids")
     def _compute_session_duration_hour(self):

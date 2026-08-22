@@ -249,13 +249,6 @@ class CommandService {
             );
         }
 
-        // The scope a command belongs to is decided here, once, and never by a
-        // later reader of `ui.activeElement`: a deferred read binds the command
-        // to whatever element happens to be active when the deferral fires,
-        // which is not the same thing and is not even the same element when an
-        // overlay opens in between. `useCommand` supplies a resolver derived
-        // from the component tree; a direct service call has no tree, so its
-        // scope is the element active at the moment it asks.
         const captured = options.activeElement ?? this.ui.activeElement;
         registration.getScope = options.scope ?? (() => captured);
 

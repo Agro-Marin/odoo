@@ -343,7 +343,6 @@ test("Rouding sale HALF-UP 0.05 with two payment method", async () => {
 
     expect(order.displayPrice).toBe(52.54);
 
-    // only_round_cash_method is false so the order due is 52.55
     order.addPaymentline(cardPm);
     order.payment_ids[0].setAmount(2.54);
     expect(order.payment_ids[0].amount).toBe(2.54);
@@ -351,14 +350,12 @@ test("Rouding sale HALF-UP 0.05 with two payment method", async () => {
     expect(order.remainingDue).toBe(50.01);
     order.addPaymentline(cashPm);
 
-    // Cash rounding is not applied on the cash payment line but on the order due
     expect(order.payment_ids[1].amount).toBe(50.01);
     expect(order.remainingDue).toBe(0);
     expect(order.canBeValidated()).toBe(true);
     expect(order.appliedRounding).toBe(0.01);
     expect(order.change).toBe(0);
 
-    // Set only_round_cash_method to true and check that the order due is now 52.54
     order.config_id.only_round_cash_method = true;
     order.payment_ids = [];
     order.addPaymentline(cardPm);

@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from freezegun import freeze_time
 from markupsafe import Markup
 
@@ -233,8 +231,6 @@ class TestImLivechatMessage(ChatbotCase, MailCommon):
     @users("portal_test")
     @freeze_time("2020-03-22 10:42:06")
     def test_feedback_message(self):
-        """Test posting a feedback message as a portal user, and ensure the proper bus
-        notifications are sent."""
         livechat_channel_vals = {"name": "support", "user_ids": [Command.link(self.users[0].id)]}
         im_livechat_channel = self.env["im_livechat.channel"].sudo().create(livechat_channel_vals)
         self.env["mail.presence"]._update_presence(self.users[0])
@@ -254,9 +250,7 @@ class TestImLivechatMessage(ChatbotCase, MailCommon):
             rating = self.env["rating.rating"].sudo().search([], order="id desc", limit=1)
             return (
                 [
-                    # unread counter/new message separator (not asserted below)
                     (self.env.cr.dbname, "res.partner", self.env.user.partner_id.id),
-                    # new_message
                     (self.env.cr.dbname, "discuss.channel", channel.id),
                 ],
                 [
@@ -279,11 +273,6 @@ class TestImLivechatMessage(ChatbotCase, MailCommon):
                                         "date": fields.Datetime.to_string(message.date),
                                         "default_subject": "Chell Gladys Ernest Employee",
                                         "id": message.id,
-                                        # No envelope fields: `_is_envelope_visible`
-                                        # hides them from a non-internal target on an
-                                        # authored message, which is what this portal
-                                        # user is.  `email_from` is absent for the
-                                        # same reason.
                                         "message_link_preview_ids": [],
                                         "message_type": "notification",
                                         "model": "discuss.channel",

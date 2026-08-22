@@ -5,11 +5,6 @@ import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";
 
 const CONSOLE_COLOR = "#FF8269";
 
-/**
- * This module provides functions to format order and order line data for customer display.
- * The goal is to format data in a way that avoids loading all models in the customer display.
- */
-
 export class CustomerDisplayPosAdapter {
     constructor() {
         this.setup();
@@ -22,11 +17,6 @@ export class CustomerDisplayPosAdapter {
 
     dispatch(pos) {
         this.channel.postMessage(JSON.parse(JSON.stringify(this.data)));
-        // The server call only re-notifies the bus channel
-        // "UPDATE_CUSTOMER_DISPLAY-<device_uuid>". The uuid is created when a
-        // remote display is provisioned from this device's navbar; without it
-        // no display can be listening, so the RPC (per order mutation!) would
-        // be pure overhead.
         const deviceUuid = localStorage.getItem("device_uuid");
         if (!deviceUuid) {
             return;
@@ -49,8 +39,6 @@ export class CustomerDisplayPosAdapter {
     }
 
     formatEmpty() {
-        // Payload shown when no order is selected: without it the display
-        // kept rendering the previous order after it was closed/deleted.
         this.data = {
             finalized: false,
             general_customer_note: "",

@@ -24,8 +24,6 @@ export class FieldMany2ManyTagsBanks extends Many2ManyTagsFieldColorEditable {
         super.setup();
         this.actionService = useService("action");
         onMounted(async () => {
-            // Needed when you create a partner (from a move for example), we want the partner to be saved to be able
-            // to have it as account holder
             const isDirty = await this.props.record.model.root.isDirty();
             if (isDirty) {
                 this.props.record.model.root.save();
@@ -72,8 +70,6 @@ export const fieldMany2ManyTagsBanks = {
     ],
     relatedFields: ({ options }) => [
         ...many2ManyTagsFieldColorEditable.relatedFields({ options }),
-        // The option is not required, and a related field named `undefined` is
-        // asked of the server as readily as a real one.
         ...(options.allow_out_payment_field
             ? [
                   {

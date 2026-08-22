@@ -27,12 +27,9 @@ test("getNewLine reuses the paired decrease line instead of spawning new ones", 
     const linesBefore = order.lines.length;
 
     const first = orderSummary.getNewLine();
-    // A fresh decrease line was created and remembered on the saved line.
     expect(order.lines.length).toBe(linesBefore + 1);
     expect(selectedLine.uiState.decreaseLineUuid).toBe(first.uuid);
 
-    // A second decrease of the same line must reuse that line, not create
-    // another (the old total-matching logic spawned a new one every time).
     const second = orderSummary.getNewLine();
     expect(second.uuid).toBe(first.uuid);
     expect(order.lines.length).toBe(linesBefore + 1);
@@ -62,9 +59,6 @@ test("+/- with no selected line does not crash", async () => {
     const order = await getFilledOrder(store);
     const orderSummary = await mountWithCleanup(OrderSummary, {});
     order.deselectOrderline();
-    // The "-0" negation branch used to dereference the selected line before
-    // any null check — the numpad +/- key crashed the screen right after
-    // entering it (deselection is the default state).
     await orderSummary.updateSelectedOrderline({ buffer: "-0", key: "-" });
     expect(order.getSelectedOrderline()).toBe(undefined);
 });

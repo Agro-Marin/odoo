@@ -26,27 +26,13 @@ export const DocumentsModelMixin = (component) =>
         }
 
         /**
-         * Also load the total file size
          * @override
          */
         async load(params = {}) {
             const selection = this.root?.selection;
-            // `=== undefined`, not a truthiness test: `sharedSelection` arrives
-            // as an empty array when the view is switched with nothing selected,
-            // and `![]` is false -- a truthiness test would never re-capture
-            // again, so that `[]` would wipe the selection on every later load.
             if (this.originalSelection === undefined && selection && selection.length > 0) {
                 this.originalSelection = selection.map((rec) => rec.resId);
             }
-            // A copy: `params.context` is the controller's own `props.context`
-            // object, so stamping the flag onto it would mutate component props
-            // (and, through `computeNextConfig`, `this.config` with it).
-            //
-            // The flag itself is inert for this model -- every
-            // `ir.attachment._search` a documents read triggers is an
-            // `[('id','in',[...])]` batch, which `ir_attachment._search` already
-            // exempts. Kept because upstream sets it and a future domain could
-            // stop being id-scoped.
             const nextParams =
                 this.config.resModel === "documents.document"
                     ? {
@@ -69,9 +55,6 @@ export const DocumentsModelMixin = (component) =>
             this.shortcutTargetRecords = this.orm.isSample
                 ? []
                 : await this._loadShortcutTargetRecords();
-            // Consumed by now: `_loadDocumentToRestore` set it during
-            // `_loadData`, and the records built from that data read it in
-            // `DocumentsRecordMixin.setup` to start selected.
             this.documentIdToRestore = undefined;
             return res;
         }
@@ -79,7 +62,6 @@ export const DocumentsModelMixin = (component) =>
         _reapplySelection() {
             const records = this.root.records;
             if (!records) {
-                // Nothing to restore onto yet: keep the buffer for the next load.
                 return;
             }
             if (this.originalSelection?.length) {
@@ -88,8 +70,6 @@ export const DocumentsModelMixin = (component) =>
                     record.selected = originalSelection.has(record.resId);
                 });
             }
-            // Released even when empty, otherwise it blocks the re-capture in
-            // `load()` above forever.
             delete this.originalSelection;
         }
 
@@ -103,7 +83,7 @@ export const DocumentsModelMixin = (component) =>
             } else if (this.root.records) {
                 size = this.root.records.reduce((size, rec) => size + rec.data.file_size, 0);
             }
-            size /= 1000 * 1000; // in MB
+            size /= 1000 * 1000;
             this.fileSize = Math.round(size * 100) / 100;
         }
 
@@ -152,7 +132,6 @@ export const DocumentsModelMixin = (component) =>
             await this.load();
             await this.notify();
             await this.env.searchModel._reloadSearchModel(true);
-            // The preview will be closed, just update the state for now
             this.documentService.setPreviewedDocument(null);
         }
 
@@ -194,7 +173,6 @@ export const DocumentsModelMixin = (component) =>
         }
 
         get canDeleteRecords() {
-            // Portal user can delete their own documents while internal user can only delete document in the Trash.
             const documents = this.targetRecords.map((r) => r.data);
             if (this.documentService.userIsInternal) {
                 return documents.some((d) => !d.active);
@@ -222,12 +200,7 @@ export const DocumentsModelMixin = (component) =>
             );
         }
 
-        /**
-         * Copy the links (comma-separated) of the selected documents.
-         */
         async onCopyLinks() {
-            // A domain ("select all") selection covers more than the loaded
-            // page, so `targetRecords` alone would act on the page only.
             const urls = this.isDomainSelected
                 ? (
                       await this.orm.read(
@@ -247,9 +220,6 @@ export const DocumentsModelMixin = (component) =>
             this.notification.add(message, { type: "success" });
         }
 
-        /**
-         * Lock / unlock the selected record.
-         */
         async onToggleLock() {
             if (this.targetRecords.length !== 1) {
                 return;
@@ -276,16 +246,10 @@ export const DocumentsModelMixin = (component) =>
             }
         }
 
-        /**
-         * Open/Close the chatter (the info will be stored in the local storage of the current user).
-         */
         async onToggleRightPanel() {
             await this.documentService.toggleRightPanelVisibility();
         }
 
-        /**
-         * Open dialog to create shortcut(s) for the selected document(s).
-         */
         async onCreateShortcut() {
             const documents = this.targetRecords;
             await this.documentService.openOperationDialog({
@@ -300,15 +264,7 @@ export const DocumentsModelMixin = (component) =>
             });
         }
 
-        /**
-         * Unlink the selected documents if they are archived.
-         */
         async onDelete() {
-            // Resolved before asking: `DynamicList.deleteRecords([])` means "the
-            // whole selection, or the whole domain" (see its `_deleteRecords`),
-            // so an empty list must never reach it. It also stops the dialog from
-            // opening on a selection that holds nothing erasable -- an internal
-            // user only ever erases what is already in the trash.
             const records = this.isDomainSelected
                 ? null
                 : this.documentService.userIsInternal
@@ -351,24 +307,16 @@ export const DocumentsModelMixin = (component) =>
             await this._notifyChange();
         }
 
-        /**
-         * Send the selected documents to the trash.
-         */
         async onArchive() {
             const records = this.targetRecords.filter((r) => r.data.active && !r.data.lock_uid);
             const recordIds = this.isDomainSelected
                 ? await this.getResIds([["lock_uid", "=", false]])
                 : records.map((rec) => rec.data.id);
-            // Skip the reload (and preview close) when the user cancels the
-            // confirmation dialog — moveToTrash returns false in that case.
             if (await this.documentService.moveToTrash(recordIds)) {
                 await this._notifyChange();
             }
         }
 
-        /**
-         * Duplicate the selected documents.
-         */
         async onDuplicate() {
             const documents = this.targetRecords;
             await this.documentService.openOperationDialog({
@@ -383,16 +331,10 @@ export const DocumentsModelMixin = (component) =>
             });
         }
 
-        /**
-         * Open the "Version" modal.
-         */
         async onManageVersions() {
             await this.documentService.openDialogManageVersions(this.targetRecords[0].data.id);
         }
 
-        /**
-         * Restore the selected documents.
-         */
         async onRestore() {
             const records = this.targetRecords.filter((r) => !r.data.active);
             const recordIds = this.isDomainSelected
@@ -402,9 +344,6 @@ export const DocumentsModelMixin = (component) =>
             await this.env.searchModel._reloadSearchModel(true);
         }
 
-        /**
-         * Open the split / merge tool on the selected PDFs.
-         */
         onSplitPDF() {
             const documents = this.targetRecords;
             if (!documents?.length || !documents.every((d) => d.isPdf())) {
@@ -419,9 +358,6 @@ export const DocumentsModelMixin = (component) =>
             });
         }
 
-        /**
-         * Open the "rename" form view on the selected record.
-         */
         async onRename() {
             if (this.targetRecords.length !== 1) {
                 return;
@@ -430,20 +366,13 @@ export const DocumentsModelMixin = (component) =>
             await this._notifyChange();
         }
 
-        /**
-         * Open the permission panel of the selected document.
-         */
         async onShare() {
-            // Domain selection: see `onCopyLinks`.
             const documentIds = this.isDomainSelected
                 ? await this.getResIds()
                 : this.targetRecords.map((d) => d.data.id);
             await this.documentService.openSharingDialog(documentIds);
         }
 
-        /**
-         * Open dialog to move the selected document(s).
-         */
         async onMove() {
             const documents = this.targetRecords.filter((r) => r.data.user_can_move);
             await this.documentService.openOperationDialog({
@@ -458,11 +387,7 @@ export const DocumentsModelMixin = (component) =>
             });
         }
 
-        /**
-         * Execute the given `ir.embedded.action` on the current selected documents.
-         */
         async onDoAction(actionId) {
-            // Domain selection: see `onCopyLinks`.
             const documentIds = this.isDomainSelected
                 ? await this.getResIds()
                 : this.targetRecords.map((record) => record.data.id);
@@ -478,7 +403,6 @@ export const DocumentsModelMixin = (component) =>
                 { context }
             );
             if (action) {
-                // We might need to do a client action (e.g. to open the "Link Record" wizard)
                 await this.action.doAction(action, {
                     onClose: () => {
                         this._notifyChange();
@@ -491,9 +415,6 @@ export const DocumentsModelMixin = (component) =>
             await this._notifyChange();
         }
 
-        /**
-         * Download the selected documents.
-         */
         async onDownload() {
             if (this.isDomainSelected) {
                 const domain = Domain.and([
@@ -510,29 +431,15 @@ export const DocumentsModelMixin = (component) =>
                 this.documentService.downloadDocuments(this.targetRecords);
             }
         }
-        /**
-         * Make sure that when coming for a specific document, it is present as the first
-         * document on the first page. Notify the user if the requested document wasn't found.
-         *
-         * Mutates `data.records` in place and returns nothing; the callers
-         * (`DocumentsListModel` / `DocumentsKanbanModel` `_loadData`) return
-         * their own `data`.
-         *
-         * The id lands on `this.documentIdToRestore`: load-scoped state, consumed
-         * by `DocumentsRecordMixin.setup` on the records this very load builds and
-         * cleared at the end of `load`, so it belongs to the model rather than to
-         * the process-wide service.
-         */
         async _loadDocumentToRestore(config, data) {
-            // This getter resets the DocumentIdToRestore, we'll restore it if we do have the record.
             const documentIdToRestore = this.documentService.getOnceDocumentIdToRestore();
             if (!documentIdToRestore) {
                 return;
             }
             const idxToRestore = data.records.findIndex((r) => r.id === documentIdToRestore);
             if (idxToRestore !== -1) {
-                const recordToRestore = data.records.splice(idxToRestore, 1)[0]; // take it out
-                data.records.splice(0, 0, recordToRestore); // put it at the top of the list
+                const recordToRestore = data.records.splice(idxToRestore, 1)[0];
+                data.records.splice(0, 0, recordToRestore);
                 this.documentIdToRestore = documentIdToRestore;
             } else {
                 const missingData = await super._loadData({
@@ -544,8 +451,8 @@ export const DocumentsModelMixin = (component) =>
                     limit: 1,
                 });
                 if (missingData?.records?.length) {
-                    data.records.splice(0, 0, missingData.records[0]); // put it at the top of the list
-                    data.records.pop(); // Remove the last item to not overflow page
+                    data.records.splice(0, 0, missingData.records[0]);
+                    data.records.pop();
                     this.documentIdToRestore = documentIdToRestore;
                 } else {
                     this.notification.add(_t("Document not found or inaccessible."), {

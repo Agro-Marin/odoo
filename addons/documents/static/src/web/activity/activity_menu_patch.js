@@ -5,10 +5,7 @@ import { patch } from "@web/core/utils/patch";
 
 patch(ActivityMenu.prototype, {
     /**
-     * @override
-     * This is necessary because the generic action loads a standard Action View,
-     * whereas the specific action defines the 'js_class' required to initialize
-     * the custom Documents view controller.
+     * @override This
      */
     async executeActivityAction(group, domain, views, context, newWindow) {
         if (group.model === "documents.document") {

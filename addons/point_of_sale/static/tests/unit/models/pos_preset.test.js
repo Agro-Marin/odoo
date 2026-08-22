@@ -11,24 +11,18 @@ definePosModels();
 test("generateSlots", async () => {
     const store = await setupPosEnv();
     const presetIn = store.models["pos.preset"].get(1);
-    // expect all presetIn.availabilities to be empty slot maps (plain objects:
-    // the previous Array-with-string-keys shape serialized to [] and lost
-    // every slot)
     for (const key in presetIn.availabilities) {
         expect(Array.isArray(presetIn.availabilities[key])).toBe(false);
         expect(Object.keys(presetIn.availabilities[key]).length).toBe(0);
     }
-    // expect days of week of presetOut.availabilities to contains slots
     const presetOut = store.models["pos.preset"].get(2);
     let daysWithSlot = 0;
     for (const key in presetOut.availabilities) {
         if (Object.keys(presetOut.availabilities[key]).length > 0) {
             daysWithSlot++;
-            // each day should contains 23 slots of 20 minutes (12:00 to 15:00, and 18:00 to 22:00)
             expect(Object.keys(presetOut.availabilities[key]).length).toBe(23);
         }
     }
-    // expect at least 5 days with slots (Monday to Friday)
     expect(daysWithSlot).toBe(5);
 });
 
@@ -50,8 +44,6 @@ test("slotsUsage keys local orders by SQL datetime, not the DateTime's ISO strin
 
     const usage = preset.slotsUsage;
     const sqlKey = presetTime.toFormat("yyyy-MM-dd HH:mm:ss");
-    // The key must be the SQL-format string that generateSlots() looks up —
-    // NOT the ISO string a DateTime coerces to when used directly as a key.
     expect(usage[sqlKey]).toEqual([order.id]);
     expect(Object.keys(usage)).toEqual([sqlKey]);
     expect(usage[presetTime.toISO()]).toBe(undefined);

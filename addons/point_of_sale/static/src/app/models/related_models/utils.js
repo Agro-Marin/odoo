@@ -24,10 +24,9 @@ export function clone(obj) {
 }
 
 /**
- * Returns a new object with the same keys and values mapped through `fn`.
- * @param {Object} obj - The input object.
- * @param {Function} fn - `(key, value, index) => newValue`.
- * @returns {Object} The new object.
+ * @param {Object} obj
+ * @param {Function} fn
+ * @returns {Object}
  */
 export function mapObj(obj, fn) {
     return Object.fromEntries(Object.entries(obj).map(([k, v], i) => [k, fn(k, v, i)]));
@@ -50,7 +49,6 @@ export function convertDateTimeToRaw(value) {
     if (!value) {
         return undefined;
     }
-    // Verify if is already a valid date object
     if (typeof value !== "string") {
         return serializeDateTime(value);
     }
@@ -74,7 +72,6 @@ export function convertDateToRaw(value) {
     if (!value) {
         return undefined;
     }
-    // Verify if is already a valid date object
     if (typeof value !== "string") {
         return serializeDate(value);
     }
@@ -82,15 +79,9 @@ export function convertDateToRaw(value) {
 }
 
 /**
- * Creates a deep immutable proxy for the given object or array.
- * Any attempts to modify, delete, or redefine properties will throw an error.
- *
- * Note: This function only supports plain objects and arrays.
- * It does NOT support Map, Set, or other complex data structures.
- *
- * @param {Object|Array} obj - The object or array to make immutable.
- * @param {string} errorMsg - The error message to throw on modification attempts.
- * @returns {Proxy} A Proxy that enforces deep immutability.
+ * @param {Object|Array} obj
+ * @param {string} errorMsg
+ * @returns {Proxy}
  */
 export function deepImmutable(obj, errorMsg) {
     return new Proxy(obj, {
@@ -121,9 +112,8 @@ export class AggregatedUpdates {
     }
 
     /**
-     * Adds a field update for the given record.
-     * @param {Object} record - The record
-     * @param {string} fieldName - The name of the field that was updated.
+     * @param {Object} record
+     * @param {string} fieldName
      */
     add(record, fieldName) {
         if (!this.updates.has(record)) {
@@ -133,10 +123,8 @@ export class AggregatedUpdates {
     }
 
     /**
-     * Iterates over all updated records, fires the update event (unless silenced), and marks the records as dirty.
-     *
-     * @param {Object} opts - Options for controlling the update behavior.
-     * @param {string[]} [opts.silentModels=[]] - List of model names to exclude from triggering update events.
+     * @param {Object} opts
+     * @param {string[]} [opts.silentModels=[]]
      */
     fireEventAndDirty(opts = {}) {
         const { silentModels = [] } = opts;
@@ -151,9 +139,6 @@ export class AggregatedUpdates {
         }
     }
 
-    /**
-     *  Remove record updated
-     */
     remove(record) {
         this.updates.delete(record);
     }

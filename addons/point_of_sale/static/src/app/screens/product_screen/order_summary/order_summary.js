@@ -62,12 +62,10 @@ export class OrderSummary extends Component {
         const order = this.currentOrder;
         order.assertEditable();
 
-        // If combo line, edit its parent instead
         if (orderline.combo_parent_id) {
             orderline = orderline.combo_parent_id;
         }
 
-        // Prevent if already sent to kitchen
         if (typeof order.id === "number") {
             const preparation_data = await this.pos.data.call(
                 "pos.order",
@@ -91,7 +89,6 @@ export class OrderSummary extends Component {
             }
         }
 
-        // Init orderline
         const productTemplate = orderline.product_id.product_tmpl_id;
         const values = {
             product_tmpl_id: productTemplate,
@@ -100,7 +97,6 @@ export class OrderSummary extends Component {
             price_extra: 0,
         };
 
-        // Configurable product
         let keepGoing = await this.pos.handleConfigurableProduct(
             values,
             productTemplate,
@@ -113,7 +109,6 @@ export class OrderSummary extends Component {
             return false;
         }
 
-        // Combo product
         keepGoing = await this.pos.handleComboProduct(values, order, true, {
             line: orderline,
         });
@@ -121,10 +116,8 @@ export class OrderSummary extends Component {
             return false;
         }
 
-        // Price unit
         this.pos.handlePriceUnit(values, order, undefined);
 
-        // Update orderline
         if (values.attribute_value_ids !== undefined) {
             orderline.attribute_value_ids = values.attribute_value_ids.map((a) => a[1]);
         }
@@ -151,7 +144,6 @@ export class OrderSummary extends Component {
         }
         orderline.setFullProductName();
 
-        // Try to merge the orderline
         this.pos.tryMergeOrderline(order, orderline, orderline.price_type !== "manual");
         return true;
     }
@@ -160,13 +152,9 @@ export class OrderSummary extends Component {
         const order = this.pos.getOrder();
         const selectedLine = order.getSelectedOrderline();
         if (!selectedLine) {
-            // No line selected (the default state right after entering the
-            // screen): there is nothing to update, and the `-0` branch below
-            // dereferences the line.
             this.numberBuffer.reset();
             return;
         }
-        // Handling negation of value on first input
         if (buffer === "-0" && key === "-") {
             if (
                 this.pos.numpadMode === "quantity" &&
@@ -180,17 +168,11 @@ export class OrderSummary extends Component {
             }
             this.numberBuffer.state.buffer = buffer.toString();
         }
-        // This validation must not be affected by `disallowLineQuantityChange`
         if (
             selectedLine &&
             selectedLine.isTipLine() &&
             this.pos.numpadMode !== "price"
         ) {
-            /**
-             * You can actually type numbers from your keyboard, while a popup is shown, causing
-             * the number buffer storage to be filled up with the data typed. So we force the
-             * clean-up of that buffer whenever we detect this illegal action.
-             */
             this.numberBuffer.reset();
             if (key === "Backspace") {
                 this._setValue("remove");
@@ -334,11 +316,6 @@ export class OrderSummary extends Component {
         if (selectedLine.combo_parent_id) {
             selectedLine = selectedLine.combo_parent_id;
         }
-        // Track the paired decrease line by uuid rather than re-identifying it
-        // by matching qty-dependent line totals with `===`: the decrease line
-        // always has the opposite sign to the saved line, so their totals could
-        // never be equal and the old match was dead — every successive decrease
-        // spawned another negative line and mis-summed the already-decreased qty.
         let current_saved_quantity = selectedLine.uiState.savedQuantity;
         const decreaseLineUuid = selectedLine.uiState.decreaseLineUuid;
         if (decreaseLineUuid) {

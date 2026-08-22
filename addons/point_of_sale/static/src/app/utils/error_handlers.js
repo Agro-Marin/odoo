@@ -34,9 +34,6 @@ function rpcErrorHandler(env, error, originalError) {
 }
 registry.category("error_handlers").add("pos-rpcErrorHandler", rpcErrorHandler);
 
-// Shows the "operating with limited functionality" warning once per offline
-// episode (reset when connectivity is restored). Shared so both the global
-// offline error handler and the order-validation flow surface the same dialog.
 export function showLimitedFunctionalityWarning(pos) {
     if (!pos.data.network.warningTriggered) {
         pos.dialog.add(AlertDialog, {

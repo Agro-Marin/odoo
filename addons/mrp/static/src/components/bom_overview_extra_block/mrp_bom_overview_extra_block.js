@@ -45,15 +45,12 @@ export class BomOverviewExtraBlock extends Component {
         });
 
         onWillUnmount(() => {
-            // Need to notify main component that the block was folded so it doesn't appear on the PDF.
             this.env.overviewBus.trigger(FOLD_CHANGED, {
                 ids: [this.identifier],
                 folded: true,
             });
         });
     }
-
-    //---- Handlers ----
 
     onToggleFolded() {
         const newState = !this.state.isFolded;
@@ -68,8 +65,6 @@ export class BomOverviewExtraBlock extends Component {
         this.state.isFolded = folded;
         this.env.overviewBus.trigger(FOLD_CHANGED, { ids: [this.identifier], folded });
     }
-
-    //---- Getters ----
 
     get identifier() {
         return `${this.props.type}_${this.props.data.index}`;

@@ -141,10 +141,6 @@ test("Search result count renders exactly when the server did not cap it", async
 });
 
 test("Search result count renders as N+ when the server says it capped", async () => {
-    // The cap lives on the server (`mail.message._SEARCH_COUNT_CAP`); the client
-    // is told *that* it bit, never the number. Holding a second copy of 1000
-    // here is what this test exists to prevent, so the cap is patched rather
-    // than reproduced -- the python twin patches the same attribute.
     const pyEnv = await startServer();
     const partnerId = pyEnv["res.partner"].create({ name: "John Doe" });
     for (let i = 0; i < 3; i++) {

@@ -1,10 +1,6 @@
 /** @odoo-module native */
 /**
- * Checks whether the 2 provided sale order lines are linked.
- *
- * @param linkingSaleOrderLine The line that is linking to the other line.
- * @param linkedSaleOrderLine The line that is linked by the other line.
- * @return {Boolean} Whether the 2 lines are linked.
+ * @return {Boolean}
  */
 export function areSaleOrderLinesLinked(linkingSaleOrderLine, linkedSaleOrderLine) {
     const linkingId = linkedSaleOrderLine.isNew
@@ -17,24 +13,18 @@ export function areSaleOrderLinesLinked(linkingSaleOrderLine, linkedSaleOrderLin
 }
 
 /**
- * Gets the linked lines of the provided sale order line.
- *
- * @param saleOrderLine The line whose linked lines to get.
- * @return {Object[]} The list of linked lines.
+ * @return {Object[]}
  */
 export function getLinkedSaleOrderLines(saleOrderLine) {
     const saleOrder = saleOrderLine.model.root;
-    // TODO(loti): this leaves out any combo items that are on another page.
     return saleOrder.data.line_ids.records.filter((record) =>
         areSaleOrderLinesLinked(record, saleOrderLine),
     );
 }
 
 /**
- * Serialize a combo item into a format understandable by the server.
- *
- * @param {ProductComboItem} comboItem The combo item to serialize.
- * @return {Object} The serialized combo item.
+ * @param {ProductComboItem} comboItem
+ * @return {Object}
  */
 export function serializeComboItem(comboItem) {
     return {
@@ -51,14 +41,8 @@ export function serializeComboItem(comboItem) {
 }
 
 /**
- * Get the selected custom PTAV in the provided PTAL, if any.
- *
- * Note: a PTAL can have at most one selected custom PTAV, by design.
- *
- * @param {ProductTemplateAttributeLine.props} ptal The PTAL in which to look for the selected
- *     custom PTAV.
- * @return {Object|undefined} The selected custom PTAV, if any.
- *
+ * @param {ProductTemplateAttributeLine.props} ptal
+ * @return {Object|undefined}
  */
 export function getSelectedCustomPtav(ptal) {
     const selectedPtavIds = new Set(ptal.selected_attribute_value_ids);

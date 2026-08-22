@@ -31,10 +31,6 @@ export class FieldSelectorField extends FieldComponent {
             return false;
         }
         if (this.props.comodel && fieldDef.relation !== this.props.comodel) {
-            // Relations stay: the wanted model may be several hops away, and
-            // the chevron is the only way to get there. Everything else can
-            // never be the field being asked for, so offering it is offering a
-            // choice whose only outcome is a validation error later.
             if (!fieldDef.relation || !this.props.followRelations) {
                 return false;
             }

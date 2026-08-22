@@ -61,7 +61,7 @@ describe(`Related models Events`, () => {
             "pos.order": [
                 {
                     id: 1,
-                    uuid: order1.uuid, //Update
+                    uuid: order1.uuid,
                 },
                 {
                     id: 2,
@@ -106,7 +106,7 @@ describe(`Related models Events`, () => {
             ],
         });
 
-        expect(orderUpdates.length).toBe(1); // The new line is connected to the order and updates it
+        expect(orderUpdates.length).toBe(1);
         expect(lineUpdates.length).toBe(0);
         expect(lineCreates.length).toBe(1);
     });
@@ -133,7 +133,7 @@ describe(`Related models Events`, () => {
             linesUpdates.push(data);
         });
 
-        expect(orderUpdates.length).toBe(2); // connecting lines to order
+        expect(orderUpdates.length).toBe(2);
         expect(orderDeletes.length).toBe(0);
         expect(linesUpdates.length).toBe(0);
 

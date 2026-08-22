@@ -1,14 +1,9 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import fields, models, api
 from odoo.addons.mail.tools.discuss import Store
 from odoo.fields import Command
 
 
 class ResUsers(models.Model):
-    """ Update of res.users class
-        - add a preference about username for livechat purpose
-    """
     _inherit = 'res.users'
 
     livechat_channel_ids = fields.Many2many(
@@ -70,7 +65,6 @@ class ResUsers(models.Model):
     @api.depends("livechat_channel_ids", "is_in_call")
     def _compute_livechat_is_in_call(self):
         for user in self:
-            # sudo - res.users: checking if user is in call is allowed if the user is member of a live chat channel.
             user.livechat_is_in_call = user.sudo().is_in_call if user.livechat_channel_ids else None
 
     @api.depends_context("im_livechat_channel_id")
@@ -95,7 +89,6 @@ class ResUsers(models.Model):
     @api.depends('res_users_settings_id.livechat_username')
     def _compute_livechat_username(self):
         for user in self:
-            # sudo: livechat user can see the livechat username of any other user
             user.livechat_username = user.sudo().res_users_settings_id.livechat_username
 
     def _inverse_livechat_username(self):
@@ -106,7 +99,6 @@ class ResUsers(models.Model):
     @api.depends('res_users_settings_id.livechat_lang_ids')
     def _compute_livechat_lang_ids(self):
         for user in self:
-            # sudo: livechat user can see the livechat languages of any other user
             user.livechat_lang_ids = user.sudo().res_users_settings_id.livechat_lang_ids
 
     def _inverse_livechat_lang_ids(self):
@@ -117,7 +109,6 @@ class ResUsers(models.Model):
     @api.depends("res_users_settings_id.livechat_expertise_ids")
     def _compute_livechat_expertise_ids(self):
         for user in self:
-            # sudo: livechat user can see the livechat expertise of any other user
             user.livechat_expertise_ids = user.sudo().res_users_settings_id.livechat_expertise_ids
 
     def _inverse_livechat_expertise_ids(self):
@@ -134,17 +125,6 @@ class ResUsers(models.Model):
         if vals.get("group_ids"):
             operator_group = self.env.ref("im_livechat.im_livechat_group_user")
             if operator_group in self.all_group_ids:
-                # Losing the group is a *difference*, not a snapshot of the end
-                # state: `self` can carry users who never had it, and they must
-                # not be unlinked from channels a manager put them in.  Same
-                # shape as `res.groups.write` next door.
-                #
-                # Not `filtered_domain`: `all_group_ids` carries a `search=`, so
-                # a domain on it is answered by `_search_all_group_ids`, i.e. by
-                # the path `group_ids.all_implied_ids`.  A negative operator on a
-                # path binds to the leaf, not to the traversal -- it reads as
-                # "has a group whose implied groups exclude this one" -- so a user
-                # left with no group at all matches nothing and never looks lost.
                 operators = self.filtered(
                     lambda user: operator_group in user.all_group_ids
                 )
@@ -152,7 +132,6 @@ class ResUsers(models.Model):
                 lost_operators = operators.filtered(
                     lambda user: operator_group not in user.all_group_ids
                 )
-                # sudo - im_livechat.channel: user manager can remove user from livechat channels
                 self.env["im_livechat.channel"].sudo() \
                     .search([("user_ids", "in", lost_operators.ids)]) \
                     .write({"user_ids": [Command.unlink(operator.id) for operator in lost_operators]})

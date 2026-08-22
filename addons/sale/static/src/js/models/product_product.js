@@ -2,9 +2,6 @@
 import { ProductTemplateAttributeLine } from "./product_template_attribute_line.js";
 
 export class ProductProduct {
-    /**
-     * The instance is initialized in `setup` to allow patching, as constructors can't be patched.
-     */
     constructor(...args) {
         this.setup(...args);
     }
@@ -27,18 +24,14 @@ export class ProductProduct {
     }
 
     /**
-     * Return the `no_variant` PTALs.
-     *
-     * @return {ProductTemplateAttributeLine[]} The `no_variant` PTALs.
+     * @return {ProductTemplateAttributeLine[]}
      */
     get noVariantPtals() {
         return this.ptals.filter((ptal) => ptal.create_variant === "no_variant");
     }
 
     /**
-     * Return the extra price of the selected `no_variant` PTAVs.
-     *
-     * @return {Number} The extra price of the selected `no_variant` PTAVs.
+     * @return {Number}
      */
     get selectedNoVariantPtavsPriceExtra() {
         return this.noVariantPtals.reduce(
@@ -48,18 +41,14 @@ export class ProductProduct {
     }
 
     /**
-     * Return the selected PTAV ids.
-     *
-     * @return {Number[]} The selected PTAV ids.
+     * @return {Number[]}
      */
     get selectedPtavIds() {
         return this.ptals.flatMap((ptal) => ptal.selected_ptavs).map((ptav) => ptav.id);
     }
 
     /**
-     * Return the selected `no_variant` PTAV ids.
-     *
-     * @return {Number[]} The selected `no_variant` PTAV ids.
+     * @return {Number[]}
      */
     get selectedNoVariantPtavIds() {
         return this.noVariantPtals
@@ -68,15 +57,7 @@ export class ProductProduct {
     }
 
     /**
-     * Return the selected custom PTAVs.
-     *
-     * This feeds `serializeComboItem`, i.e. the `product.attribute.custom.value` rows the
-     * server creates. It must therefore name only the PTAVs that actually carry a custom
-     * value: flat-mapping every selected PTAV of a PTAL that has one attributed the
-     * value to that PTAL's other selections too, and the server prints one order-line
-     * description entry per row it receives.
-     *
-     * @return {{id: Number, value: String}[]} The selected custom PTAVs.
+     * @return {{id: Number, value: String}[]}
      */
     get selectedCustomPtavs() {
         return this.ptals

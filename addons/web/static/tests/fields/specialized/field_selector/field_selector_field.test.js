@@ -202,7 +202,6 @@ test("comodel option", async () => {
                 "never be the answer",
         },
     );
-    // a match may still be several hops away, so its relations stay traversable
     await followRelation();
     await animationFrame();
     expect(queryAllTexts(".o_model_field_selector_popover_item")).toEqual(["Childs"], {

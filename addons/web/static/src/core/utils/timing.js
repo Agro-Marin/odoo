@@ -44,14 +44,6 @@ export function batched(callback, synchronize = () => Promise.resolve()) {
     };
 }
 
-/**
- * How long a text input waits before acting on what was typed. Three components
- * chose 250 independently -- `AutoComplete` as a prop default, `SelectMenu` as a
- * module const, `ModelFieldSelectorPopover` as a bare literal -- so the number
- * agreed by coincidence and could stop agreeing the same way. Anything that
- * debounces *typing* should read it here; a debounce over some other signal has
- * no business sharing a constant with it.
- */
 export const INPUT_DEBOUNCE_DELAY = 250;
 
 /**

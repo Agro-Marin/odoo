@@ -10,9 +10,6 @@ import { appTranslateFn } from "@web/core/translation";
 export const livechatBootService = {
     dependencies: ["mail.store"],
 
-    /**
-     * To be overriden in tests.
-     */
     getTarget() {
         return document.body;
     },

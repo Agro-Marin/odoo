@@ -60,9 +60,6 @@ const commonSteps = [
     ...createChatbotSteps("Step 1", "Step 2", "Step 3"),
 ];
 
-/**
- * Simply create a few steps in order to check the sequences.
- */
 registry.category("web_tour.tours").add("im_livechat_chatbot_steps_sequence_tour", {
     url: "/odoo",
     steps: () => [
@@ -73,9 +70,6 @@ registry.category("web_tour.tours").add("im_livechat_chatbot_steps_sequence_tour
     ],
 });
 
-/**
- * Same as above, with an extra drag&drop at the end.
- */
 registry
     .category("web_tour.tours")
     .add("im_livechat_chatbot_steps_sequence_with_move_tour", {

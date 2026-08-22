@@ -100,17 +100,8 @@ export class TreeEditor extends Component {
     }
 
     /**
-     * Three writes to `this` behind three awaits, and until this carried a
-     * `KeepLast` nothing ordered them. Two updates in flight -- a path change
-     * whose `loadFieldInfo` is slow, then a second edit -- could land in the
-     * order they resolved rather than the order they were asked for, leaving
-     * `getFieldDef` describing a field the tree no longer holds. Every other
-     * component in this directory that awaits into `this` already guards it the
-     * same way; this one was the exception.
-     *
      * @param {Object} props
-     * @returns {Promise<boolean>} false if a newer call superseded this one, in
-     * which case the caller must not render: the newer call will.
+     * @returns {Promise<boolean>}
      */
     async prepareInfo(props) {
         let loaded;

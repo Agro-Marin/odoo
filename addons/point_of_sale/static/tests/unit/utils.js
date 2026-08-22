@@ -20,21 +20,15 @@ import { user } from "@web/core/user";
 const { DateTime } = luxon;
 
 export const setupPosEnv = async () => {
-    // Do not change these variables, they are in accordance with the demo data
     odoo.pos_session_id = 1;
     odoo.pos_config_id = 1;
     odoo.from_backend = 0;
-    odoo.access_token = uuidv4(); // Avoid indexedDB conflicts
+    odoo.access_token = uuidv4();
     odoo.info = {
-        db: `pos-${uuidv4()}`, // Avoid indexedDB conflicts
+        db: `pos-${uuidv4()}`,
         isEnterprise: true,
     };
 
-    // The shared HOOT setup (web .../module_set.hoot.js::setupTestEnvironment)
-    // deletes app-specific services — including "pos" and "pos_data" — from the
-    // registry once at framework init, because they crash in start() when the
-    // runtime state they need is absent. POS unit tests DO provide that state
-    // (odoo.pos_config_id above), so re-register the two services this env needs.
     const services = registry.category("services");
     services.add("pos_data", PosDataService, { force: true });
     services.add("pos", posService, { force: true });
@@ -42,28 +36,13 @@ export const setupPosEnv = async () => {
     await makeDialogMockEnv();
     const store = getService("pos");
 
-    // `removeOrder()` on a synced order schedules `syncAllOrdersDebounced` on a
-    // 100ms timer, which then queues `_syncAllOrders` on `pushOrderMutex`. Most
-    // tests finish well inside that window, so the sync landed during a LATER
-    // test against this now-dead store and crashed reading
-    // `DeviceIdentifierSequence.identifier` — its localStorage entry is wiped by
-    // HOOT's teardown, so `data` is null. No test may depend on a debounced sync
-    // landing after it ended, so drop the pending timer and drain the mutex
-    // while the env is still alive.
-    //
-    // NOTE: this reduces but does not fully eliminate the leak — a debounce that
-    // fires after this hook still queues work post-teardown. See the residual
-    // flake in @pos_self_order/unit (1-2 random tests per ~3 runs).
     after(async () => {
         store.syncAllOrdersDebounced?.cancel?.();
-        // Anything already queued on the mutex must also settle while the env
-        // (and the mocked localStorage the sync reads) is still alive.
         await store.pushOrderMutex?.getUnlockedDef?.();
     });
 
     store.setCashier(store.user);
     patchWithCleanup(user, {
-        // Needed for the allowProductCreation method
         checkAccessRight: (model, operation) =>
             operation === "create" && model === "product.product",
     });
@@ -152,7 +131,6 @@ export const expectFormattedPrice = (value, expected) => {
 };
 
 export const dialogActions = async (action, steps = []) => {
-    // Launch the action in a promise to be able to await the end of the steps
     await mountWithCleanup(MainComponentsContainer);
     const promise = new Promise((resolve) => {
         const call = async (fn) => {
@@ -162,15 +140,12 @@ export const dialogActions = async (action, steps = []) => {
         call(action);
     });
 
-    // Wait for the dialog to be mounted
     await waitFor(".o_dialog");
 
-    // Execute the steps one by one
     for (const step of steps) {
         await step();
         await animationFrame();
     }
 
-    // Return the result of the action
     return await promise;
 };

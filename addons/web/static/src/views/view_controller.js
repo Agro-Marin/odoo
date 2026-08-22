@@ -4,9 +4,6 @@
 import { Component, useRef } from "@odoo/owl";
 import { buildActionMenuItems, useControllerServices } from "@web/views/view_utils";
 
-/**
- * @extends Component
- */
 export class ViewController extends Component {
     /** @type {any} */
     actionService;

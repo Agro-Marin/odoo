@@ -22,9 +22,9 @@ describe("Date conversion utilities", () => {
     test("convertDateToRaw", () => {
         const dateTime = DateTime.fromISO("2023-12-25");
         const result = convertDateToRaw(dateTime);
-        expect(result).toBe("2023-12-25"); // directly check the string value
+        expect(result).toBe("2023-12-25");
         expect(convertDateToRaw(null)).toBe(undefined);
         expect(convertDateToRaw(undefined)).toBe(undefined);
-        expect(convertDateToRaw("2023-12-25")).toBe("2023-12-25"); // should return the same string
+        expect(convertDateToRaw("2023-12-25")).toBe("2023-12-25");
     });
 });

@@ -1,26 +1,8 @@
 import { addSectionFromProductCatalog } from "@account/js/tours/tour_utils";
 import { registry } from "@web/core/registry";
 
-/**
- * Name of the customer both catalog tours select. The tests create it, so the
- * tours never depend on which partners happen to exist.
- */
 export const CATALOG_TOUR_CUSTOMER = "Catalog Tour Customer";
 
-/**
- * Steps creating a new sale order for a *named* customer.
- *
- * These steps used to open the customer dropdown without typing and click
- * ``.dropdown-item:first``, which made them depend on the ambient partner set
- * and on the dropdown's ordering: with no demo data — this fork's default,
- * ``--without-demo`` (odoo/tools/config.py) — the first entry is not a
- * selectable partner, the customer stayed empty, and the order was too
- * invalid to open the catalog at all. Every later step then failed against a
- * form that had never left its initial state.
- *
- * Typing the name first narrows the dropdown to one known record, so the tour
- * asserts what it means to and passes with or without demo data.
- */
 function createSaleOrderForCustomer() {
     return [
         {

@@ -1,18 +1,3 @@
-"""Drop 'cache_hits' and 'cache_misses' from 'credential.credential'.
-
-Two counters nothing ever incremented. They appeared in exactly two places: their own
-field definitions, and '_PROTECTED_STATS_FIELDS' -- the write guard, which was therefore
-protecting a pair of values permanently equal to zero.
-
-They are not reinstated with a writer. The session cache they were meant to describe
-('credential/tools/session_cache.py') exists to avoid touching the database on a
-credential read; incrementing a stored counter on every hit would put a write back on
-exactly the path the cache removes.
-
-Same defensive shape as 'api_transport/migrations/19.0.1.19.0': a non-zero row means the
-premise is wrong, so the drop is skipped and logged rather than forced.
-"""
-
 import logging
 
 from odoo.db.schema import column_exists, table_exists

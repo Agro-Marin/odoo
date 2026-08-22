@@ -18,15 +18,6 @@ const deepSerialization = (
             stack,
         });
 
-    // The mutations that mark records clean (_dirty = false) and consume the
-    // unlink/delete commands must not happen until the payload has actually
-    // reached the server. Route them through scheduleClear: by default they run
-    // inline (unchanged behaviour), but a caller can pass opts.deferClear with an
-    // opts.clearActions array to collect them and apply them only once the RPC
-    // succeeds. Otherwise a sync that throws (e.g. ConnectionLostError) would
-    // clear the dirty flags and drop the commands for a payload the backend never
-    // received, permanently losing those edits on the retry. keepCommands keeps
-    // serialization fully pure (never clears) for local clones.
     const scheduleClear = (fn) => {
         if (opts.keepCommands) {
             return;
@@ -38,7 +29,6 @@ const deepSerialization = (
         }
     };
 
-    // We only care about the fields present in python model
     for (const [fieldName, field] of Object.entries(fields)) {
         if (field.local || field.related || field.compute || field.dummy) {
             continue;
@@ -50,7 +40,6 @@ const deepSerialization = (
 
         if (relatedModel) {
             if (!record.models[relatedModel]) {
-                // Ignore not "loaded" model
                 continue;
             }
 
@@ -76,9 +65,6 @@ const deepSerialization = (
 
                     if (childRecord.isSynced && childRecord._dirty) {
                         toUpdate.push(childRecord);
-                        // Epoch guard: only mark clean if the record was not
-                        // edited again between serialization and the commit
-                        // (i.e. while the sync RPC was in flight).
                         const epoch = childRecord._dirtyEpoch;
                         scheduleClear(() => {
                             if (childRecord._dirtyEpoch === epoch) {
@@ -90,8 +76,6 @@ const deepSerialization = (
                     }
                     serialized[relatedModel][childRecord.uuid] = childRecord.uuid;
                 }
-                // The stack defers processing of x2many relationships to ensure objects are only serialized
-                // once in their first encountered parent, preventing redundant serialization.
                 stack.push([
                     result,
                     fieldName,
@@ -149,12 +133,6 @@ const deepSerialization = (
                     if (opts.keepCommands) {
                         continue;
                     }
-                    // Capture the exact entries consumed by THIS serialization;
-                    // the commit removes only those from the live list.
-                    // Overwriting with the serialize-time remainder would
-                    // destroy commands added while the RPC was in flight (a
-                    // line deleted mid-sync would never be unlinked
-                    // server-side and would resurrect on the next fetch).
                     const commandList = commands.get(fieldName) || [];
                     const consumed = new Set(
                         commandList.filter(({ parentId }) => parentId === record.id),
@@ -179,12 +157,11 @@ const deepSerialization = (
             const recordId = record[fieldName]?.id;
             if (DYNAMIC_MODELS.includes(relatedModel) && record[fieldName]) {
                 if (
-                    fieldName !== parentRelInverseName && //mapping not needed for direct child
+                    fieldName !== parentRelInverseName &&
                     record.uuid &&
                     serialized[relatedModel][record[fieldName].uuid]
                 ) {
                     if (!record[fieldName].isSynced) {
-                        //  mapping is only needed for newly created records
                         uuidMapping[targetModel][record.uuid] ??= {};
                         uuidMapping[targetModel][record.uuid][fieldName] =
                             record[fieldName].uuid;
@@ -228,7 +205,6 @@ const deepSerialization = (
         }
     });
 
-    // Cleanup: remove empty entries from uuidMapping.
     for (const key in uuidMapping) {
         if (
             uuidMapping[key] &&

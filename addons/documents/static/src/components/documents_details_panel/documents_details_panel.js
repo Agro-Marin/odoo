@@ -26,12 +26,6 @@ export class DocumentsDetailsPanel extends Component {
         ModelSelector,
     };
     static props = {
-        // Not optional: `setup` reads `props.record.data` straight away, and the
-        // only instantiation site (documents.DocumentsViews.RightPanel) already
-        // refuses to mount this component unless `focusedRecord` is a real
-        // record -- see its `panelDisabled` getter. Declaring it optional only
-        // stopped OWL's dev-mode validation from catching a violation of the
-        // contract the code actually relies on.
         record: { type: Object },
         nbViewItems: { type: Number, optional: true },
     };
@@ -43,17 +37,10 @@ export class DocumentsDetailsPanel extends Component {
         this.documentService = useService("document.document");
         this.orm = useService("orm");
         this.dialog = useService("dialog");
-        // Rebuilt on every render, deliberately: the wrapper below is a plain
-        // `Proxy` over a callback-less `reactive()`, so nothing subscribes the
-        // field components to the record. What re-renders them is precisely this
-        // fresh `Proxy` identity arriving as a changed `record` prop. Building it
-        // once per record (or binding the reactive to `this.render`) stops tag
-        // edits from ever showing -- see the "rendering for editors" test.
         onWillRender(() => {
             this.record = wrapAsDetailsPanelRecord(this.props.record);
         });
 
-        // Use a state for the model to not write on the record the model without record id
         this.state = useState({
             resModel: this.props.record.data.res_model,
             resModelName: this.props.record.data.res_model_name || "",
@@ -82,12 +69,6 @@ export class DocumentsDetailsPanel extends Component {
         });
     }
 
-    /**
-     * Open this document's access history.
-     *
-     * The action is built server-side so the domain and the grouping live with
-     * the model rather than being restated here.
-     */
     async openAccessLog() {
         const action = await this.orm.call(
             "documents.document",
@@ -97,12 +78,6 @@ export class DocumentsDetailsPanel extends Component {
         return this.action.doAction(action);
     }
 
-    /**
-     * Whether to offer the access log at all.
-     *
-     * `documents.access.log` is readable by managers only, so showing this to
-     * anyone else would offer a button that answers with an access error.
-     */
     get canViewAccessLog() {
         return this.documentService.userIsDocumentManager && !!this.record.resId;
     }
@@ -185,14 +160,6 @@ export class DocumentsDetailsPanel extends Component {
 }
 
 /**
- * Answer `isDetailsPanelRecord = true` so `DocumentsRecordMixin.update` saves the
- * edit and leaves the rest of the selection alone -- a focused record is not
- * necessarily selected, and editing it here must not multi-edit.
- *
- * It has to be a wrapper rather than an `update(changes, options)` flag: the panel
- * does not call `update` itself, the field components it renders do, and they
- * pass options of their own.
- *
  * @param {Object} record
  * @returns {Object}
  */

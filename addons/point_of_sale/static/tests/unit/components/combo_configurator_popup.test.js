@@ -30,7 +30,7 @@ const qtyInputValueFor = (productName) => {
 
 test("combo item qty input reflects re-selection for a qty_max>1 combo", async () => {
     const store = await setupPosEnv();
-    const productTemplate = store.models["product.template"].get(7); // combos [1, 2]
+    const productTemplate = store.models["product.template"].get(7);
     const root = await mountWithCleanup(MainComponentsContainer);
     getService("dialog").add(ComboConfiguratorPopup, {
         productTemplate,
@@ -41,8 +41,8 @@ test("combo item qty input reflects re-selection for a qty_max>1 combo", async (
     const comp = findComponent(root.__owl__, "ComboConfiguratorPopup");
     expect(comp).not.toBe(null);
 
-    const combo = store.models["product.combo"].get(1); // Chairs
-    combo.qty_max = 2; // match the tour's capped combo (select 3x, expect 2)
+    const combo = store.models["product.combo"].get(1);
+    combo.qty_max = 2;
     const comboItem = combo.combo_item_ids[0];
     const product = comboItem.product_id;
 
@@ -51,7 +51,6 @@ test("combo item qty input reflects re-selection for a qty_max>1 combo", async (
     expect(comp.state.qty[combo.id][comboItem.id]).toBe(1);
     expect(qtyInputValueFor(product.display_name)).toBe("1");
 
-    // Re-select twice more; state caps at qty_max=2 — the DOM input must follow.
     comp.onClickProduct(product, comboItem);
     comp.onClickProduct(product, comboItem);
     await animationFrame();

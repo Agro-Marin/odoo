@@ -34,7 +34,6 @@ test("Public website visitor is typing", async () => {
         ".o-mail-DiscussContent-header .o-mail-ThreadIcon .o-mail-ImStatus i[title='Offline']",
     );
     const channel = pyEnv["discuss.channel"].search_read([["id", "=", channelId]])[0];
-    // simulate receive typing notification from livechat visitor "is typing"
     withGuest(guestId, () =>
         rpc("/discuss/channel/notify_typing", {
             is_typing: true,

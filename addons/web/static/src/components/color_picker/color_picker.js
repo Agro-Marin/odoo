@@ -212,21 +212,6 @@ export class ColorPicker extends Component {
         );
     }
 
-    /**
-     * `defaultColorSet` and `usedCustomColors` are read by the template
-     * (`color_picker.xml:39`, `color_picker_custom_tab.xml:7`) and were computed
-     * by two statements repeated in `setup` and again in `selectColor`. One
-     * method, both callers, so they cannot drift apart.
-     *
-     * Deliberately NOT called from a render. Both track the colour that has been
-     * **applied**, not the one being previewed, and a preview does move
-     * `props.state.selectedColor` underneath: recomputing per render was tried,
-     * and it makes `getDefaultColorSet` match the previewed colour, which hides
-     * the current-custom-colour swatch mid-hover. That is what html_editor's
-     * `always show the current custom color` and `should show the custom color
-     * preview in a color button` catch. Apply is the commit point; nothing else
-     * is.
-     */
     deriveFromApplied() {
         this.defaultColorSet = this.getDefaultColorSet();
         this.usedCustomColors = this.props.getUsedCustomColors();
@@ -440,11 +425,7 @@ export class ColorPicker extends Component {
 
 /**
  * @param {string} refName
- * @param {Record<string, any> | (() => Record<string, any>)} props the picker's
- *   props, or a function returning them. The object form is captured once and
- *   replayed on every open, so anything in it that can move must be reachable
- *   through a reactive value it holds; the function form is re-read per open and
- *   is what a caller should reach for by default.
+ * @param {Record<string, any> | (() => Record<string, any>)} props
  * @param {Record<string, any>} [options]
  */
 export function useColorPicker(refName, props, options = {}) {

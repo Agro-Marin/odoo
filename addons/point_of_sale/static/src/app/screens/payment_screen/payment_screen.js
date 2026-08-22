@@ -59,8 +59,6 @@ export class PaymentScreen extends Component {
     onMounted() {
         const order = this.pos.getOrder();
 
-        // Iterate a copy: delete() splices the live payment_ids array, so a
-        // direct iteration skipped every second stale line.
         const configPmIds = new Set(
             this.pos.config.payment_method_ids.map((pm) => pm.id),
         );
@@ -77,7 +75,6 @@ export class PaymentScreen extends Component {
             this.addNewPaymentLine(this.payment_methods_from_config[0]);
         }
 
-        //Activate the invoice option for refund orders if the original order was invoiced.
         if (
             this.currentOrder.isRefund &&
             this.currentOrder.lines[0]?.refunded_orderline_id?.order_id?.isToInvoice()
@@ -113,8 +110,6 @@ export class PaymentScreen extends Component {
     }
     get _getNumberBufferConfig() {
         const config = {
-            // When the buffer is updated, trigger this event.
-            // Note that the component listens to it.
             triggerAtInput: () => this.updateSelectedPaymentline(),
             useWithBarcode: true,
         };
@@ -149,7 +144,6 @@ export class PaymentScreen extends Component {
         if (this.paymentLines.length === 0) {
             this.makeAnimation();
         }
-        // original function: click_paymentmethods
         const result = this.currentOrder.addPaymentline(paymentMethod);
         if (result.status) {
             this.numberBuffer.set(result.data.amount.toString());
@@ -171,14 +165,12 @@ export class PaymentScreen extends Component {
         }
     }
     updateSelectedPaymentline(amount = false) {
-        // `line.paid` never existed on the payment model — the predicate was
-        // only true for the empty list, so make that the explicit condition.
         if (this.paymentLines.length === 0) {
             this.currentOrder.addPaymentline(this.payment_methods_from_config[0]);
         }
         if (!this.selectedPaymentLine) {
             return;
-        } // do nothing if no selected payment line
+        }
         if (amount === false) {
             if (this.numberBuffer.get() === null) {
                 amount = null;
@@ -188,10 +180,6 @@ export class PaymentScreen extends Component {
                 amount = this.numberBuffer.getFloat();
             }
         }
-        // disable changing amount on paymentlines with running or done payments on a payment terminal
-        // NB: this guard must run BEFORE the max-amount clamp — the clamp used
-        // to zero a DONE terminal payment (money already captured) before the
-        // guard returned, leaving the line at 0.
         const payment_terminal =
             this.selectedPaymentLine.payment_method_id.payment_terminal;
         if (
@@ -255,8 +243,6 @@ export class PaymentScreen extends Component {
                 ? this.selectedPaymentLine
                 : false;
 
-        // newTip is the popup's string; compare numerically (string === number
-        // was always false, so the unchanged-tip case fell through).
         if (!pLine || this.pos.currency.isZero(parseFloat(newTip) - tip)) {
             if (!pLine) {
                 this.notification.add(
@@ -291,9 +277,6 @@ export class PaymentScreen extends Component {
             this.numberBuffer.reset();
             return;
         }
-        // If a paymentline with a payment terminal linked to
-        // it is removed, the terminal should get a cancel
-        // request.
         if (["waiting", "waitingCard", "timeout"].includes(line.getPaymentStatus())) {
             const previousStatus = line.getPaymentStatus();
             line.setPaymentStatus("waitingCancel");
@@ -305,9 +288,6 @@ export class PaymentScreen extends Component {
                 this.currentOrder.removePaymentline(line);
                 this.numberBuffer.reset();
             } catch {
-                // Don't leave the line stuck in "waitingCancel" (and swallow the
-                // unhandled rejection) if the terminal cancel fails — restore the
-                // prior status so it can be retried.
                 line.setPaymentStatus(previousStatus);
             }
         } else if (line.getPaymentStatus() !== "waitingCancel") {
@@ -334,7 +314,6 @@ export class PaymentScreen extends Component {
     }
 
     async sendPaymentRequest(line) {
-        // Other payment lines can not be reversed anymore
         this.pos.paymentTerminalInProgress = true;
         this.numberBuffer.capture();
         this.paymentLines.forEach(function (line) {
@@ -350,14 +329,9 @@ export class PaymentScreen extends Component {
                 isPaymentSuccessful = await line.pay();
             }
         } finally {
-            // A throwing terminal implementation must not leave the flag
-            // stuck: it permanently blocked addNewPaymentLine for terminal
-            // methods on every order until reload.
             this.pos.paymentTerminalInProgress = false;
         }
 
-        // Automatically validate the order when after an electronic payment,
-        // the current order is fully paid and due is zero.
         const config = this.pos.config;
         const currentOrder = line.pos_order_id;
         if (
@@ -380,9 +354,6 @@ export class PaymentScreen extends Component {
                 line.uuid,
             );
         } catch {
-            // A throwing terminal must not strand the line in "waitingCancel"
-            // (an unrecoverable state plus an unhandled rejection) — restore the
-            // prior status so the cancel can be retried.
             line.setPaymentStatus(previousStatus);
             return;
         }
@@ -404,8 +375,6 @@ export class PaymentScreen extends Component {
                 line.uuid,
             );
         } catch {
-            // Likewise, don't leave the line stuck in "reversing" if the
-            // terminal reversal throws — restore the prior status.
             line.setPaymentStatus(previousStatus);
             return;
         }

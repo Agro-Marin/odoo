@@ -35,9 +35,6 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
         super.setup();
         this.root = useRef("root");
         const { uploads } = useService("file_upload");
-        // `useState`: the raw service reactive handed to FileUploadProgressContainer
-        // subscribes no component, so the progress rows only move when something
-        // else happens to re-render this renderer.
         this.documentUploads = useState(uploads);
         this.documentService = useService("document.document");
 
@@ -50,11 +47,6 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
                     record.toggleSelection(!allSelected);
                 });
                 const focusedRecord = this.setDefaultFocus();
-                // The focused record may be the container folder (or nothing at
-                // all), which is never rendered as one of our own cards: only
-                // records *inside* the folder carry a data-value-id.
-                // Scoped to this renderer rather than the whole document: a
-                // data-value-id is only unique within one record list.
                 this.root.el
                     ?.querySelector(`.o_kanban_record[data-value-id="${focusedRecord?.resId}"]`)
                     ?.focus();
@@ -103,7 +95,7 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
                 this.props.list.selection.length === 1 &&
                 this.props.list.selection[0].data.id === detail.recordId
             ) {
-                this.render(true); // Re-render this Component and its children on activity add/edit/unlink
+                this.render(true);
             }
         });
         onMounted(() => {
@@ -113,11 +105,7 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
         });
     }
 
-    /**
-     * Called when clicking in the kanban renderer.
-     */
     onGlobalClick(ev) {
-        // Only when clicking in empty space
         if (ev.target.closest(".o_kanban_record:not(.o_kanban_ghost)")) {
             return;
         }
@@ -126,19 +114,14 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
     }
 
     /**
-     * Focus next card with proper support for up and down arrows.
-     *
      * @override
      */
     focusNextCard(area, direction) {
-        // We do not need to support groups as it is disabled for this view.
         const cards = area.querySelectorAll(".o_kanban_record:not(.o_kanban_ghost)");
         if (!cards.length) {
             return;
         }
-        // Find out how many cards there are per row.
         let cardsPerRow = 0;
-        // For the calculation we need all cards (kanban ghost included)
         const allCards = area.querySelectorAll(".o_kanban_record");
         const firstCardClientTop = allCards[0].getBoundingClientRect().top;
         for (const card of allCards) {
@@ -148,13 +131,12 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
                 break;
             }
         }
-        // Find out current x and y of the active card.
         const focusedCardIdx = [...cards].indexOf(document.activeElement);
-        let newIdx = focusedCardIdx; // up
+        let newIdx = focusedCardIdx;
         const folderCount = this.folderCount();
         if (direction === "up") {
             const oldIdx = newIdx;
-            newIdx -= cardsPerRow; // up
+            newIdx -= cardsPerRow;
             if (newIdx < folderCount && oldIdx >= folderCount) {
                 if ((oldIdx - folderCount) % cardsPerRow >= folderCount % cardsPerRow) {
                     newIdx = folderCount - 1;
@@ -164,7 +146,7 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
             }
         } else if (direction === "down") {
             const oldIdx = newIdx;
-            newIdx += cardsPerRow; // down
+            newIdx += cardsPerRow;
             if (newIdx >= cards.length) {
                 newIdx = cards.length - 1;
             }
@@ -176,9 +158,9 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
                 }
             }
         } else if (direction === "left") {
-            newIdx -= 1; // left
+            newIdx -= 1;
         } else if (direction === "right") {
-            newIdx += 1; // right
+            newIdx += 1;
         }
         if (newIdx >= 0 && newIdx < cards.length && cards[newIdx] instanceof HTMLElement) {
             const focusedCard = cards[newIdx];
@@ -217,9 +199,6 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
         return this.env.isSmall;
     }
 
-    /**
-     * Return documents.document with type 'folder'
-     */
     getFolderRecords() {
         return this.props.list.records
             .filter((record) => record.data.type === "folder")
@@ -227,8 +206,6 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
     }
 
     /**
-     * Return documents.document with type different from 'folder'
-     *
      * @override
      */
     getGroupsOrRecords() {
@@ -245,9 +222,6 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
             return;
         }
         const { records } = this.props.list;
-        // Rendered order, read from this renderer's own subtree. A document-wide
-        // query would fold any other kanban present into the range, and the
-        // range is computed from indices in this list.
         const documentIds = Array.from(
             this.root.el?.querySelectorAll(".o_kanban_record:not(.o_kanban_ghost)") || []
         ).map((el) => el.dataset.id);

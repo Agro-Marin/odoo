@@ -5,7 +5,7 @@ import { useService } from "@web/core/utils/hooks";
 export class DocumentsDropZone extends Component {
     static template = "documents.DocumentsDropZone";
     static props = [
-        "parentRoot", // Parent's root element, used to know the zone to use.
+        "parentRoot",
     ];
 
     setup() {

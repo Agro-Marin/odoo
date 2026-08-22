@@ -67,8 +67,6 @@ export class DebugWidget extends Component {
                     return;
                 }
 
-                // Since addEventListener('storage') is not triggered from the same tab,
-                // we need to poll the device data to keep the widget updated.
                 const interval = setInterval(() => {
                     this.state.next_number = this.pos.device?.data?.next_number;
                     this.state.unsynced_number_stack = JSON.stringify(
@@ -127,8 +125,6 @@ export class DebugWidget extends Component {
                 } orders in the browser. You will lose all the data. This operation cannot be undone.`,
             ),
             confirm: () => {
-                // Clear the persisted mirror too, or the queue resurrects on
-                // the next reload.
                 for (const entry of this.pos.data.network.unsyncData) {
                     this.pos.data._unpersistQueueEntry(entry.uuid);
                 }

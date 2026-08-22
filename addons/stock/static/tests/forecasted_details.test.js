@@ -87,8 +87,6 @@ test("zero-quantity free stock line is dropped when other lines exist", () => {
 });
 
 test("the indexes are rebuilt after a line is dropped", () => {
-    // The drop used to run after the grouping, leaving the removed line
-    // reachable through it -- an invariant nothing asserted.
     const { docs, lines } = makeDocs();
     const details = makeDetails(docs);
     expect(details.linesOf(7, "freeStock")).toEqual([]);
@@ -140,9 +138,6 @@ test("displayReserve takes the line index explicitly", () => {
     expect(details.displayReserve(lines.reconciled, 2)).toBe(false);
 });
 
-// The four predicates this replaced were mutually exclusive but not exhaustive.
-// An incoming document with no matched demand fell through all of them -- 17 of
-// 169 lines on an ordinary product -- so it had no name and no bucket.
 test("classifyLine covers the whole reachable truth table", () => {
     const line = (document_in, in_transit, replenishment_filled, document_out) => ({
         document_in,
@@ -156,7 +151,6 @@ test("classifyLine covers the whole reachable truth table", () => {
     expect(classifyLine(line(false, false, false, true))).toBe("notAvailable");
     expect(classifyLine(line(true, false, true, false))).toBe("incoming");
     expect(classifyLine(line(false, true, true, true))).toBe("inTransit");
-    // Still unclassified, exactly as the scans left them.
     expect(classifyLine(line(true, false, false, true))).toBe(null);
     expect(classifyLine(line(false, false, false, false))).toBe(null);
 });

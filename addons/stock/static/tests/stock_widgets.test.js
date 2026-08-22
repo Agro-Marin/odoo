@@ -120,9 +120,6 @@ describe("useOperationGuard", () => {
                 },
             },
         });
-        // Driven directly rather than through a click: the rejection has to be
-        // observed here, and an unhandled one escaping a DOM handler would be
-        // reported as a test error instead.
         await component.run().catch(() => {});
         await animationFrame();
         expect(component.guard.busy).toBe(false);

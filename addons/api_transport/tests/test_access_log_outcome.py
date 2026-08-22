@@ -7,16 +7,6 @@ from odoo.addons.base_encryption_mixin.tests.common import EncryptionKeyCase
 
 @tagged("post_install", "-at_install")
 class TestAccessLogOutcome(EncryptionKeyCase, TransactionCase):
-    """A refused credential read must be audited as a refusal.
-
-    'success' was hardcoded True in '_access_log_extras', so the one operation that
-    records a denial -- 'read_rate_limited', written by '_enforce_access_rate_limit' on
-    the line before it raises -- landed in the audit table as a success, and
-    'failure_reason' was rendered in the log's form view while having no writer at all.
-    A security report filtered for failed credential access answered "none", which read
-    as "no failures" rather than "never recorded".
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -54,12 +44,6 @@ class TestAccessLogOutcome(EncryptionKeyCase, TransactionCase):
         )
 
     def test_the_vocabulary_is_the_log_model_s_own(self):
-        """Derived from 'credential.access.log', not from a literal in this module.
-
-        The constant this replaced was a literal 'True'. Reading the denial set from the
-        model that declares 'operation' is what keeps a newly-added refusal from
-        defaulting to 'success' -- the direction that hides a security event.
-        """
         denied = self.env["credential.access.log"].DENIED_OPERATIONS
         operations = dict(
             self.env["credential.access.log"]._fields["operation"].selection
@@ -73,13 +57,6 @@ class TestAccessLogOutcome(EncryptionKeyCase, TransactionCase):
 
     @mute_logger("odoo.addons.credential.models.credential_credential")
     def test_the_audited_row_of_a_real_denial(self):
-        """End to end, on a committed cursor.
-
-        '_enforce_access_rate_limit' logs through '_log_access_out_of_band', which opens
-        its own cursor so the audit row survives the rollback the ValidationError
-        causes. That is the whole point of the out-of-band write, and it is also why
-        this cannot be asserted from inside the test transaction.
-        """
         registry = self.env.registry
         with registry.cursor() as cr:
             env = self.env(cr=cr)

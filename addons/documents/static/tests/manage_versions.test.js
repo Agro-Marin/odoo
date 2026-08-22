@@ -14,16 +14,6 @@ import { MainComponentsContainer } from "@web/ui/main_components_container";
 import { DocumentsModels } from "./helpers/data.js";
 import { makeDocumentsMockEnv } from "./helpers/model.js";
 
-/**
- * The "Manage Versions" panel refreshes itself when a new version finishes
- * uploading. It listened to `FILE_UPLOAD_LOADED` on `file_upload`'s bus, which
- * is application-wide, so any upload completing anywhere in the session made it
- * re-read the whole version history of the document it happens to be showing.
- *
- * `DocumentService.uploadDocument` stamps `document_id` into the form data when
- * replacing a document's content, which is what the panel's own upload asks
- * for -- so it has a precise way to recognise its own.
- */
 describe.current.tags("desktop");
 
 defineModels(DocumentsModels);
@@ -31,7 +21,6 @@ defineModels(DocumentsModels);
 const DOCUMENT_ID = 7;
 
 /**
- * Mount the panel and expose the shared upload bus.
  * @returns {Promise<{bus: EventBus, reads: number[]}>}
  */
 async function mountPanel() {
@@ -67,7 +56,7 @@ async function mountPanel() {
 
 /**
  * @param {EventBus} bus
- * @param {number|undefined} documentId form-data marker, omitted when undefined
+ * @param {number|undefined} documentId
  */
 function fireUploadLoaded(bus, documentId) {
     const data = new FormData();
@@ -108,7 +97,6 @@ test("ignores an upload that is not a version replacement at all", async () => {
     const { bus, reads } = await mountPanel();
     const initial = reads.length;
 
-    // A plain "add files to this folder" upload carries no document_id.
     fireUploadLoaded(bus, undefined);
     await animationFrame();
 

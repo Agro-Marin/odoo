@@ -23,8 +23,6 @@ export class NoteButton extends Component {
         const selectedNote = this.currentNote || "";
         const payload = await this.openTextInput(selectedNote);
         if (payload === undefined) {
-            // Dialog dismissed: leave the existing note untouched (an
-            // undefined payload used to be written over it).
             return { confirmed: false, inputNote: undefined };
         }
         if (selectedOrderline) {
@@ -35,7 +33,6 @@ export class NoteButton extends Component {
         return { confirmed: typeof payload === "string", inputNote: payload };
     }
 
-    // Update line changes and set them
     async setChanges(selectedOrderline, payload) {
         let quantity_with_note = 0;
         const changes = this.pos.getOrderChanges();
@@ -47,10 +44,6 @@ export class NoteButton extends Component {
         }
         const saved_quantity = selectedOrderline.qty - quantity_with_note;
         if (saved_quantity > 0 && quantity_with_note > 0) {
-            // The field depends on which button subclass runs: the customer
-            // variant used to write the payload into the internal `note`
-            // field, losing the customer note from receipts and printing it
-            // as a kitchen note instead.
             const noteField = this.type === "internal" ? "note" : "customer_note";
             await this.pos.addLineToCurrentOrder({
                 product_tmpl_id: selectedOrderline.product_id.product_tmpl_id,
@@ -116,7 +109,6 @@ export class NoteButton extends Component {
 export class InternalNoteButton extends NoteButton {
     static template = "point_of_sale.NoteButton";
 
-    // Useful to handle name and color together for internal notes
     reframeNotes(payload) {
         const notesArray = [];
         for (const noteName of payload.split("\n")) {
@@ -144,8 +136,6 @@ export class InternalNoteButton extends NoteButton {
             selectedNote.map((n) => n.text).join("\n"),
         );
         if (payload === undefined) {
-            // Dialog dismissed: keep the existing notes (a dismissal used to
-            // erase them all by writing "[]").
             return {
                 confirmed: false,
                 inputNote: undefined,

@@ -4,11 +4,6 @@ import { DocumentsCogMenuItem } from "./documents_cog_menu_item.js";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 
-/**
- * Add shortcut of selected folder menu entry.
- *
- * @extends Component
- */
 export class DocumentsCogMenuItemShortcut extends DocumentsCogMenuItem {
     setup() {
         this.icon = "fa-solid fa-up-right-from-square";

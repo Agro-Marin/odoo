@@ -2,10 +2,7 @@
 import { Many2ManyTagsField } from "@web/fields/relational/many2many_tags";
 
 /**
- * @override update, quickCreate (also called with create&Edit), and deleteTag
- * to save the record in db immediately. This is necessary to edit records
- * that are not "selected" as when they are inspected on the details panel when
- * in "preview" mode or focused only.
+ * @override update,
  */
 export class DocumentsDetailsMany2ManyTagsField extends Many2ManyTagsField {
     static props = {

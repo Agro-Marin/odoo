@@ -16,8 +16,6 @@ PKCS12_PASSWORD = "example"
 
 @tagged("post_install", "-at_install")
 class TestCertificateEncryption(TransactionCase):
-    """The point of the module: key material must not be readable at rest."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -43,17 +41,6 @@ class TestCertificateEncryption(TransactionCase):
         )
 
     def _rotate(self, records):
-        """Re-encrypt *records* exactly as a rotation driver's inner loop does.
-
-        The driver that ships today is
-        ``credential.credential.action_migrate_encryption_keys``, in a module
-        this one does not depend on and must not: a deployment can take
-        encrypted certificates without the credential vault. What this module
-        owes any driver is the mixin contract below — discovery, the
-        decrypt/encrypt seam, the stamp — and that is what these tests pin. The
-        driver's own eligibility filter, admin gate and per-row error handling
-        are covered in ``credential``.
-        """
         version = records._get_current_encryption_key_version()
         for record in records:
             if record._reencrypt_with_current_key():
@@ -61,7 +48,6 @@ class TestCertificateEncryption(TransactionCase):
         self.env.cr.flush()
 
     def test_key_material_never_lands_in_the_clear(self):
-        """No column, attachment or filestore entry holds the key or password."""
         secret = "correct-horse-battery-staple"
         key = self.env["certificate.key"]._generate_rsa_private_key(
             self.company,
@@ -106,7 +92,6 @@ class TestCertificateEncryption(TransactionCase):
         )
 
     def test_certificate_content_encrypted_but_pem_stays_public(self):
-        """A PKCS12 bundle carries a private key; the parsed cert does not."""
         certificate = self.env["certificate.certificate"].create(
             {
                 "name": "pkcs12",
@@ -142,7 +127,6 @@ class TestCertificateEncryption(TransactionCase):
         self.assertTrue(bytes(self.env.cr.fetchone()[0]).startswith(b"gAAAAA"))
 
     def test_roundtrip_through_encrypted_storage(self):
-        """Everything the consumers read still reads back identical."""
         secret = "roundtrip-pw"
         key = self.env["certificate.key"]._generate_rsa_private_key(
             self.company,
@@ -163,7 +147,6 @@ class TestCertificateEncryption(TransactionCase):
         self.assertTrue(key._sign(b"payload"))
 
     def test_public_key_verification_still_works(self):
-        """The public/private split is stored metadata and must survive."""
         private = self.env["certificate.key"]._generate_rsa_private_key(
             self.company,
             name="signer",
@@ -186,7 +169,6 @@ class TestCertificateEncryption(TransactionCase):
         self.assertFalse(public._verify(b"tampered", signature))
 
     def test_is_valid_search_survives(self):
-        """_search_is_valid reads pem_certificate, which stays stored."""
         certificate = self.env["certificate.certificate"].create(
             {
                 "name": "searchable",
@@ -202,12 +184,6 @@ class TestCertificateEncryption(TransactionCase):
         )
 
     def test_duplicate_keeps_the_key_material(self):
-        """The form's Duplicate action must not yield an empty key.
-
-        ``content`` and ``password`` were copyable columns in the base module;
-        ``copy()`` now sees the encrypted columns in their place, so those have
-        to stay copyable too or duplication silently loses the material.
-        """
         key = self.env["certificate.key"]._generate_rsa_private_key(
             self.company,
             name="original",
@@ -224,7 +200,6 @@ class TestCertificateEncryption(TransactionCase):
         )
 
     def test_wrong_password_reports_loading_error(self):
-        """A bad password must still surface as loading_error, not a traceback."""
         key = self.env["certificate.key"].create(
             {
                 "name": "bad password",
@@ -238,18 +213,11 @@ class TestCertificateEncryption(TransactionCase):
         self.assertFalse(key.pem_key)
 
     def test_models_are_registered_for_rotation(self):
-        """Unregistered ciphertext becomes undecryptable once old keys retire."""
         discovered = self.env["certificate.key"]._get_encryption_migration_models()
         self.assertIn("certificate.key", discovered)
         self.assertIn("certificate.certificate", discovered)
 
     def test_one_private_key_is_shared_by_identical_bundles(self):
-        """The dedup in _compute_private_key_id must see through the storage.
-
-        It used to read the ``ir.attachment`` that backed ``certificate.key.content``,
-        which no longer exists once the bytes are encrypted; matching now goes
-        through the field, so the lookup keeps working in either mode.
-        """
         certificates = self.env["certificate.certificate"].create(
             [
                 {
@@ -286,13 +254,6 @@ class TestCertificateEncryption(TransactionCase):
         self.assertEqual(key.encryption_key_version, 1)
 
     def test_legacy_wire_format_still_decrypts(self):
-        """Rows written before 19.0.1.0.2 hold base64(token), not a raw token.
-
-        Moved here from credential: after the certificate fields
-        were dropped from credential.credential, certificate.key.content is the
-        binary encrypted column in the suite, so this is where the legacy shape
-        has to keep being exercised.
-        """
         plaintext = b"legacy-upgrade-bytes-" + b"A" * 100
         legacy_stored = base64.b64encode(Fernet(self.test_key).encrypt(plaintext))
 
@@ -315,12 +276,6 @@ class TestCertificateEncryption(TransactionCase):
         )
 
     def test_rotation_promotes_legacy_binary_to_canonical(self):
-        """The binary half of _ENCRYPTED_FIELD_PAIRS must survive a rotation.
-
-        Also moved from credential, and the reason it matters:
-        rotation runs _decrypt_binary_value -> _encrypt_binary_value, a seam
-        where a mistake corrupts silently rather than raising.
-        """
         plaintext = b"pkcs12-like-bytes-" + b"B" * 200
         legacy_stored = base64.b64encode(Fernet(self.test_key).encrypt(plaintext))
 
@@ -359,7 +314,6 @@ class TestCertificateEncryption(TransactionCase):
         )
 
     def test_rotation_reencrypts_certificate_material(self):
-        """A rotated key must leave every certificate secret readable."""
         key = self.env["certificate.key"]._generate_rsa_private_key(
             self.company,
             name="rotating",
@@ -421,14 +375,6 @@ class TestCertificateEncryption(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestCertificateWithoutEncryptionKey(TransactionCase):
-    """Without ODOO_API_ENCRYPTION_KEY the module behaves as it did before.
-
-    This is what makes the encryption optional rather than a deployment
-    precondition: an EDI, payroll or sign installation that never provisioned a
-    Fernet key keeps uploading, signing and searching exactly as it always has,
-    with the material in the cleartext columns.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

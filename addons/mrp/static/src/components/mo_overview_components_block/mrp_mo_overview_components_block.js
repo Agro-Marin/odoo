@@ -60,18 +60,14 @@ export class MoOverviewComponentsBlock extends Component {
         );
 
         onWillUpdateProps((newProps) => {
-            // Update the fold indexes so it matches the newly added lines.
             this.state.fold = { ...this.getIndexStates(newProps), ...this.state.fold };
         });
     }
-
-    //---- Handlers ----
 
     onToggleFolded(foldIndex) {
         this.state.unfoldAll = false;
         const newState = !this.state.fold[foldIndex];
         if (newState) {
-            // If a line is folded, its children lines must be folded as well
             Object.keys(this.state.fold)
                 .filter((key) => key.startsWith(foldIndex))
                 .forEach((index) => {
@@ -91,8 +87,6 @@ export class MoOverviewComponentsBlock extends Component {
         ids.forEach((index) => (this.state.fold[index] = folded));
         this.env.overviewBus.trigger(FOLD_CHANGED, { ids, folded });
     }
-
-    //---- Helpers ----
 
     getIndexStates(props) {
         const indexStates = {};

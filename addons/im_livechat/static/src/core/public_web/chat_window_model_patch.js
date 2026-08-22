@@ -8,7 +8,7 @@ patch(ChatWindow.prototype, {
             this.thread?.channel_type === "livechat" &&
             this.thread.livechatVisitorMember?.persona?.notEq(this.store.self)
         ) {
-            const thread = this.thread; // save ref before delete
+            const thread = this.thread;
             super._onClose(...arguments);
             this.delete();
             if (options.notifyState) {

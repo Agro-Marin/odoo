@@ -1,7 +1,6 @@
 /** @odoo-module native */
 export const DESTINATION_MAX_LENGTH = 15;
 
-// Copied from web/static/lib/hoot/hoot_utils.js
 const ELLIPSIS = "…";
 const MAX_HUMAN_READABLE_SIZE = 80;
 /**

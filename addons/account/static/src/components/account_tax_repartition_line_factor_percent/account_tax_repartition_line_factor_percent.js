@@ -4,7 +4,6 @@ import { registry } from "@web/core/registry";
 import { roundPrecision } from "@web/core/utils/format/numbers";
 import { FloatField, floatField } from "@web/fields/basic/float/float_field";
 
-// Fewest decimals a percentage factor is shown with, e.g. "50.00".
 const MIN_DECIMALS = 2;
 
 export class AccountTaxRepartitionLineFactorPercent extends FloatField {

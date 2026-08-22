@@ -10,9 +10,6 @@ import {
     getGroupNameCellColSpan as getGroupNameCellColSpanUtil,
 } from "./list_group_layout.js";
 
-/**
- * @extends Component
- */
 export class ListAggregatesRow extends Component {
     static template = "web.ListAggregatesRow";
 

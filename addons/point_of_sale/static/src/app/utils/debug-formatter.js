@@ -5,13 +5,6 @@ import { WithLazyGetterTrap } from "../../lazy_getter.js";
 import { Base } from "../models/related_models/index.js";
 import { RAW_SYMBOL } from "../models/related_models/utils.js";
 
-// https://www.mattzeunert.com/2016/02/19/custom-chrome-devtools-object-formatters.html
-
-/**
- * Custom Chrome DevTools Object Formatters
- * This module registers custom formatters for Chrome DevTools console to improve
- * the debugging experience by formatting some POS objects (ModelRecords,lazyGetter, ...)  in a more readable way.
- */
 
 export function init() {
     const formatters = [
@@ -137,8 +130,6 @@ function formatBaseInstance(obj) {
     if (debugObject) {
         blocks.push(createSubObjectBlock("[other props]", debugObject));
     }
-    // blocks.push(createSubBlock("(dirty)", obj._dirty));
-    // blocks.push(createSubObjectBlock("[model]", obj.model));
     return blocks;
 }
 

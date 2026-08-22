@@ -99,8 +99,6 @@ test("double-click on Generate emits a single command batch", async () => {
     expect(commands.slice(0, 2).map((c) => c[0] === 2 && c[1])).toEqual([51, 52]);
 });
 
-// A fractional count used to throw InvalidNumberError straight out of the click
-// handler. It is now refused in words, in the user's own locale.
 test("a fractional serial count is refused in words, not thrown", async () => {
     const { move, applied } = makeMove({ tracking: "serial" });
     onRpc("action_generate_lot_line_vals", () => {
@@ -108,7 +106,6 @@ test("a fractional serial count is refused in words, not thrown", async () => {
         return [{ lot_name: "SN0001" }];
     });
     await mountDialog(move);
-    // After mounting: makeDialogMockEnv re-initialises localization.
     patchWithCleanup(localization, { decimalPoint: ",", thousandsSep: " " });
     await click("#generate_next_serial");
     await edit("SN0001");
@@ -128,7 +125,6 @@ test("a fractional quantity per lot is read in the user's locale", async () => {
         return [{ lot_name: "LOT0001" }];
     });
     await mountDialog(move);
-    // After mounting: makeDialogMockEnv re-initialises localization.
     patchWithCleanup(localization, { decimalPoint: ",", thousandsSep: " " });
     await click("#generate_next_serial");
     await edit("LOT0001");
@@ -149,8 +145,6 @@ test("parseNumberInput reads the user's locale and reports refusals", async () =
         value: 12,
         error: null,
     });
-    // A fraction where a whole number is required, and outright nonsense: both
-    // come back as a message instead of an exception.
     expect(parseNumberInput("2,5", { integer: true }).value).toBe(0);
     expect(parseNumberInput("2,5", { integer: true }).error).toMatch(/whole number/);
     expect(parseNumberInput("abc").error).toMatch(/not a number/);

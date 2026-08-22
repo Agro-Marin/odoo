@@ -68,13 +68,6 @@ export class Popover extends Component {
     isHovered = false;
     positionLocked = false;
     animationDone = false;
-    /**
-     * A popover asked to point at an element that is not in the document has
-     * nothing to point at, and closes itself below. It must not build its
-     * hosted component on the way out: that component's `setup` runs whatever
-     * it runs -- services, requests, subscriptions -- for a popover no one will
-     * ever see. The template reads this.
-     */
     hasTarget = true;
 
     setup() {

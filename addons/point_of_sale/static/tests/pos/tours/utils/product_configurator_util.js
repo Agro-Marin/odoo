@@ -45,7 +45,6 @@ export function pickSelect(name) {
                     );
                     if (option) {
                         select.value = option.value;
-                        // Manually trigger change event
                         select.dispatchEvent(new Event("change", { bubbles: true }));
                         return;
                     }
@@ -106,7 +105,6 @@ export function selectedCustomAttribute(value) {
     return [
         {
             content: `checking selected custom attribute with value "${value}"`,
-            // trigger: `.modal .custom_value:contains('${value}')`,
             trigger: `.modal .custom_value`,
             run: ({ queryAll }) => {
                 const inputs = queryAll(".modal .custom_value");

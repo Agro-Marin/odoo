@@ -45,16 +45,6 @@ export class DocumentsOperationNewFolder extends Component {
                     documents,
                     attachmentId,
                     operation,
-                    // Through the service, not `this.env.searchModel`: this
-                    // widget lives inside the operation dialog's own form view,
-                    // whose env carries that form's plain SearchModel -- so
-                    // `_reloadSearchModel` was not a function there and creating
-                    // a folder from the duplicate/move dialog threw on close,
-                    // leaving the search panel without the folder it had just
-                    // made. `reload()` hands the refresh to the Documents view
-                    // that owns the DocumentsSearchModel (see the
-                    // `DOCUMENT_RELOAD` bus subscriber in `views/hooks.js`),
-                    // which reloads the record list too.
                     onClose: () => this.documentService.reload(),
                     context: {
                         default_destination: result.resId.toString(),

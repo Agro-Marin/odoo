@@ -10,9 +10,6 @@ describe("json_field", () => {
         expect(parseJsonValue("", { a: 1 })).toEqual({ a: 1 });
         expect(parseJsonValue(false, [])).toEqual([]);
         expect(parseJsonValue(undefined, null)).toBe(null);
-        // Four copies of this used to disagree here: two threw, one gave [],
-        // one gave null. Malformed JSON is a server defect and must not take
-        // down the form that renders it.
         expect(parseJsonValue("{oops", { safe: true })).toEqual({ safe: true });
     });
 

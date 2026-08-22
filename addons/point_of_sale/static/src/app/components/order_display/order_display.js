@@ -10,7 +10,7 @@ export class OrderDisplay extends Component {
     static props = {
         order: Object,
         slots: Object,
-        mode: { type: String, optional: true }, // display, receipt
+        mode: { type: String, optional: true },
     };
     static defaultProps = {
         mode: "display",
@@ -18,8 +18,6 @@ export class OrderDisplay extends Component {
 
     setup() {
         this.scrollableRef = useRef("scrollable");
-        // Only scroll when the selected orderline actually changes. Without a
-        // dependency array this ran (and smooth-scrolled) after every patch.
         useEffect(
             () => {
                 this.scrollableRef.el

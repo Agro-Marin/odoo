@@ -9,10 +9,6 @@ class MailMessage(models.Model):
         return super()._to_store_defaults(target) + ["chatbot_current_step"]
 
     def _to_store(self, store: Store, fields, **kwargs):
-        """If we are currently running a chatbot.script, we include the information about
-        the chatbot.message related to this mail.message.
-        This allows the frontend display to include the additional features
-        (e.g: Show additional buttons with the available answers for this step)."""
         super()._to_store(store, [f for f in fields if f != "chatbot_current_step"], **kwargs)
         if "chatbot_current_step" not in fields:
             return
@@ -22,7 +18,6 @@ class MailMessage(models.Model):
             lambda message: channel_by_message[message].channel_type == "livechat"
         ):
             channel = channel_by_message[message]
-            # sudo: chatbot.script.step - checking whether the current message is from chatbot
             chatbot = channel.chatbot_current_step_id.sudo().chatbot_script_id.operator_partner_id
             if channel.chatbot_current_step_id and message.author_id == chatbot:
                 chatbot_message = (
@@ -49,7 +44,6 @@ class MailMessage(models.Model):
                         "question_email",
                         "question_phone",
                     ]:
-                        # sudo: chatbot.message - checking the user answer to the step is allowed
                         user_answer_message = (
                             self.env["chatbot.message"]
                             .sudo()

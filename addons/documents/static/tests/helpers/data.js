@@ -37,7 +37,7 @@ export class DocumentsDocument extends models.Model {
     thumbnail = fields.Binary();
     favorited_ids = fields.Many2many({ relation: "res.users" });
     is_favorited = fields.Boolean({ string: "Name" });
-    is_folder = fields.Boolean(); // used for ordering
+    is_folder = fields.Boolean();
     is_multipage = fields.Boolean();
 
     user_can_move = fields.Boolean({ default: true });
@@ -100,16 +100,6 @@ export class DocumentsDocument extends models.Model {
     });
     alias_id = fields.Many2one({ relation: "mail.alias" });
     alias_domain_id = fields.Many2one({ relation: "mail.alias.domain" });
-    // `mixin.mail.alias.optional` defines this as related="alias_id.alias_full_name".
-    // The details panel and the action helper both read it, and
-    // `DETAIL_PANEL_REQUIRED_FIELDS` injects it into every documents view's
-    // activeFields, so a model that omits it makes `getFieldsSpec` dereference
-    // `undefined` rather than report a missing field.
-    //
-    // Computed rather than seeded per fixture: `alias_name` and
-    // `alias_domain_id` are themselves related to the same alias record
-    // server-side, so deriving the address here is what keeps a fixture that
-    // sets one of them from disagreeing with the address the panel renders.
     alias_email = fields.Char({
         string: "Email Alias",
         compute: "_compute_alias_email",
@@ -133,19 +123,6 @@ export class DocumentsDocument extends models.Model {
     });
     activity_user_id = fields.Many2one({ relation: "res.users" });
 
-    /**
-     * Applies `mail.alias._compute_alias_full_name`'s rule -- including its
-     * bare-`alias_name` fallback -- to this record's OWN `alias_name` and
-     * `alias_domain_id` rather than to `alias_id`'s.
-     *
-     * Server-side those two are `related` to the very alias `alias_email`
-     * resolves through, so the two readings cannot disagree there. Here they
-     * are independent columns, so a fixture that sets `alias_id` alone and
-     * leaves `alias_name` empty gets `false` where the server would get the
-     * alias's address. Deriving from what the fixtures actually set is the
-     * point: every documents fixture sets `alias_name`/`alias_domain_id`, and
-     * none of them populates `mail.alias.alias_domain_id` at all.
-     */
     _compute_alias_email() {
         for (const record of this) {
             const [domain] = record.alias_domain_id
@@ -168,7 +145,6 @@ export class DocumentsDocument extends models.Model {
     }
 
     get_details_panel_res_models() {
-        // Nine elements to match the number actually sent by the server when all apps are present.
         return [
             "res.partner",
             "res.users",
@@ -186,9 +162,6 @@ export class DocumentsDocument extends models.Model {
         return;
     }
 
-    /**
-     * Override to implement _search_user_folder_id search method
-     */
     web_search_read() {
         const domain = arguments[0].domain;
         if (domain?.length > 0) {
@@ -210,7 +183,7 @@ export class DocumentsDocument extends models.Model {
     }
 
     /**
-     * @override to avoid super() not working for us.
+     * @override to
      */
     async search_panel_select_range(fieldName) {
         const result = { parent_field: "user_folder_id" };
@@ -218,12 +191,6 @@ export class DocumentsDocument extends models.Model {
         for (const record of this.search_read(
             [["type", "=", "folder"]],
             [
-                // Mirrors `documents.document._get_fields_search_panel`, in its
-                // order, so a field added there is visibly absent here. The
-                // panel builds folder records straight out of these values, so
-                // one this list omits reads as unset in the details panel
-                // rather than as a missing field -- which is how `alias_email`
-                // came to render "Not set" for a folder that has one.
                 "access_internal",
                 "access_token",
                 "access_via_link",
@@ -245,9 +212,6 @@ export class DocumentsDocument extends models.Model {
                 "create_activity_type_id",
                 "create_activity_user_id",
                 "partner_id",
-                // Not in the server list: `id` is implicit in a real
-                // `search_read` response, `is_folder`/`type` are what the mock's
-                // own callers below branch on.
                 "id",
                 "is_folder",
                 "type",
@@ -506,13 +470,6 @@ export function getDocumentsTestServerModelsData(additionalRecords = []) {
 
 export const DocumentsModels = {
     ...mailModels,
-    // Must come after `mailModels`: it subclasses mail's ResUsers to add
-    // `hasDocumentsUserGroup` to the store. Without it every template gated on
-    // that flag (the activity menu's "Request Document", the systray entries)
-    // renders nothing, and the tests covering them fail for a reason that looks
-    // like a broken component. This registry is the single source of truth --
-    // `documents_test_helpers.defineDocumentsModels` re-exports it rather than
-    // maintaining a second, divergent list.
     ResUsers,
     IrEmbeddedActions,
     MailAlias,

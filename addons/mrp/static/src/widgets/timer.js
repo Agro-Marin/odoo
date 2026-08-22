@@ -26,8 +26,6 @@ function formatMinutes(value) {
     let min = Math.floor(value);
     let sec = Math.round((value % 1) * 60);
     if (sec === 60) {
-        // Rounding up a fractional minute >= 59.5s must carry into the minutes,
-        // otherwise the display shows an invalid ":60".
         min += 1;
         sec = 0;
     }
@@ -46,7 +44,6 @@ export class MrpTimer extends Component {
 
     setup() {
         this.state = useState({
-            // duration is expected to be given in minutes
             duration: this.props.value,
         });
         this.lastDateTime = Date.now();
@@ -72,8 +69,6 @@ export class MrpTimer extends Component {
     }
 
     _startTimers() {
-        // Clear any in-flight timers first so a fresh start never leaves an
-        // orphan chain running (e.g. on a stop/start toggle).
         this._stopTimers();
         this.lastDateTime = Date.now();
         this._runTimer();
@@ -81,8 +76,6 @@ export class MrpTimer extends Component {
     }
 
     _stopTimers() {
-        // The tick and sleep timers are two independent chains, so both handles
-        // must be cleared — a single shared handle would leak one of them.
         clearTimeout(this._tickTimer);
         clearTimeout(this._sleepTimer);
     }
@@ -96,7 +89,6 @@ export class MrpTimer extends Component {
         }, 1000);
     }
 
-    //updates the time when the computer wakes from sleep mode
     _runSleepTimer() {
         this._sleepTimer = setTimeout(() => {
             if (!this.ongoing) {
@@ -130,20 +122,6 @@ class MrpTimerField extends Component {
         });
     }
 
-    /**
-     * The running total, which the stored duration under-reports while a timer
-     * is open.
-     *
-     * `duration_live` carries it and arrives with the read the view already
-     * performs, so a list of work orders in progress costs nothing extra. This
-     * used to be a `mrp.workorder.get_duration` call *per record* -- one HTTP
-     * round trip per row.
-     *
-     * The call survives as a fallback because the widget is also mounted by
-     * views that assemble their own field set rather than declaring one (the
-     * shop floor), where the field is simply absent. Not in progress, or a
-     * sample record, and the bound field is already the answer.
-     */
     async getLiveDuration(record) {
         if (record.model.useSampleModel || record.data.state !== "progress") {
             return record.data[this.props.name];

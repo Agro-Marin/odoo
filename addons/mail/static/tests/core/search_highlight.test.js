@@ -111,8 +111,6 @@ test("Search highlight", async () => {
             searchTerm: "test hello",
         },
         {
-            // A blank between words, or around them, yields an empty term whose
-            // regexp matches at every position and highlights the whole message.
             input: markup`test odoo`,
             output: `<span class="${HIGHLIGHT_CLASS}">test</span> <span class="${HIGHLIGHT_CLASS}">odoo</span>`,
             searchTerm: "test  odoo",

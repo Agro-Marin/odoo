@@ -14,15 +14,6 @@ import {
 } from "./documents_cog_menu_item_star.js";
 import { documentsCogMenuItemAutomations } from "./documents_cog_menu_item_automations.js";
 
-/**
- * The documents folder cog entries, registered rather than listed inline so that
- * another module can contribute one -- `CogMenu` itself reads a registry, and
- * replacing that with a hardcoded array closed the door on every extension.
- *
- * The registry is separate from `web`'s `cogMenu` because this menu deliberately
- * shows *only* these entries: the generic ones do not apply to a folder (e.g.
- * "spreadsheet-cog-menu" does not work here).
- */
 export const documentsCogMenuRegistry = registry.category("documents_cog_menu");
 
 for (const item of [

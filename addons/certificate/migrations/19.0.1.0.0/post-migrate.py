@@ -20,11 +20,6 @@ _MIGRATIONS = (
 
 
 def _remove_persisted_pem_keys(env):
-    """Drop the normalized private-key PEM, which is no longer stored.
-
-    Through the ORM rather than SQL: the field was attachment-backed, so a
-    plain DELETE would leave the PEM files sitting in the filestore.
-    """
     attachments = env["ir.attachment"].search(
         [("res_model", "=", "certificate.key"), ("res_field", "=", "pem_key")],
     )

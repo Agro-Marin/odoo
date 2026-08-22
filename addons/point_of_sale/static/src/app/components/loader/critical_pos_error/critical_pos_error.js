@@ -12,10 +12,6 @@ export class CriticalPOSError extends Component {
         location.reload();
     }
 
-    // Best-effort dump of every local IndexedDB database to a downloaded JSON
-    // file, so a factory reset never silently destroys unsynced (possibly
-    // paid) orders. Self-contained on purpose: this screen renders when the
-    // app failed to mount, so no POS service can be assumed to exist.
     async exportLocalData() {
         const dump = {};
         const dbs = await indexedDB.databases();
@@ -69,14 +65,10 @@ export class CriticalPOSError extends Component {
         };
 
         try {
-            // Backup before destroying anything (best effort).
             await step(() => this.exportLocalData());
 
-            // Storage
             await step(() => localStorage.clear());
             await step(() => sessionStorage.clear());
-
-            // Unregister service workers
 
             if ("serviceWorker" in navigator) {
                 await step(async () => {
@@ -85,7 +77,6 @@ export class CriticalPOSError extends Component {
                 });
             }
 
-            // Clear Cache Storage (important for PWAs)
             if ("caches" in window) {
                 await step(async () => {
                     const keys = await caches.keys();
@@ -93,7 +84,6 @@ export class CriticalPOSError extends Component {
                 });
             }
 
-            // Delete IndexedDB databases (if supported)
             if ("indexedDB" in window && typeof indexedDB.databases === "function") {
                 await step(async () => {
                     const dbs = await indexedDB.databases();
@@ -118,7 +108,6 @@ export class CriticalPOSError extends Component {
                 });
             }
         } finally {
-            // Reload
             location.reload();
         }
     }

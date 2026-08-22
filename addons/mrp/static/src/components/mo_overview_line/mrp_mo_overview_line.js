@@ -78,8 +78,6 @@ export class MoOverviewLine extends Component {
             formatMonetary(val, { currencyId: this.data.currency_id });
     }
 
-    //---- Handlers ----
-
     async openForm() {
         const model = this.data.level === 0 ? this.data.product_model : this.data.model;
         const id = this.data.level === 0 ? this.data.product_id : this.data.id;
@@ -116,7 +114,6 @@ export class MoOverviewLine extends Component {
             },
             onClose: (closeInfo) => {
                 if (closeInfo?.done) {
-                    // Trigger the reload only if a replenishment was done.
                     this.env.overviewBus.trigger("reload");
                 }
             },
@@ -140,13 +137,9 @@ export class MoOverviewLine extends Component {
         });
     }
 
-    //---- Helpers ----
-
     hasQuantity(keyName) {
         return Object.hasOwn(this.data, keyName) && this.data[keyName] !== false;
     }
-
-    //---- Getters ----
 
     get data() {
         return this.props.data;

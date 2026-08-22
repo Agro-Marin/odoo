@@ -132,12 +132,6 @@ test("Chatter jumps when navigating to a specific message link", async () => {
 });
 
 test("a highlight link for the thread already open still highlights", async () => {
-    // The public Discuss page arrives with `DiscussApp.thread` already set by
-    // the server payload, so `restoreDiscussThread` finds the thread it was
-    // asked for is the one already active. The highlight used to be assigned
-    // inside that same `notEq` guard as `setAsDiscussThread`, which made the
-    // deep link a no-op exactly there. The two are separate concerns: whether
-    // to switch threads, and which message to point at.
     const pyEnv = await startServer();
     const channelId = pyEnv["discuss.channel"].create({ name: "general" });
     const messageIds = range(0, 5).map((i) =>

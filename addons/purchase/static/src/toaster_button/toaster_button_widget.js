@@ -16,9 +16,6 @@ class ButtonWithNotification extends Component {
     setup() {
         this.orm = useService("orm");
         this.notification = useService("notification");
-        // The bound method sends mail. Without an in-flight guard a double
-        // click sent the reminder twice, and the ORM does not dedup mutating
-        // calls (`orm.dedup` is opt-in and refuses them outright).
         this.state = useState({ pending: false });
     }
 
@@ -42,8 +39,6 @@ class ButtonWithNotification extends Component {
         } finally {
             this.state.pending = false;
         }
-        // The backend method may legitimately return nothing (e.g. the action
-        // could not be performed); never assume a payload is present.
         if (result?.toast_message) {
             this.notification.add(result.toast_message, {
                 type: result.toast_type || "success",

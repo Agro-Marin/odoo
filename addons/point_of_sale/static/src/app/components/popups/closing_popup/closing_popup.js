@@ -84,9 +84,6 @@ export class ClosePosPopup extends Component {
     async cashMove() {
         const moveMade = await this.pos.cashMove();
         if (!moveMade) {
-            // Cancelled: keep this popup and everything the cashier already
-            // counted — it used to be discarded unconditionally, forcing a
-            // full recount for a dialog that was dismissed.
             return;
         }
         this.dialog.closeAll();
@@ -212,7 +209,6 @@ export class ClosePosPopup extends Component {
     }
     async closeSession() {
         this.pos._resetConnectedCashier();
-        // If there are orders in the db left unsynced, we try to sync.
         const syncSuccess = await this.pos.pushOrdersWithClosingPopup();
         if (!syncSuccess) {
             return;
@@ -241,11 +237,6 @@ export class ClosePosPopup extends Component {
                 [this.pos.session.id, this.state.notes],
             );
         } catch (error) {
-            // We have to handle the error manually otherwise the validation check stops the script.
-            // In case of "rescue session", we want to display the next popup with "handleClosingError".
-            // Re-raise anything that is not the known "already closed" case. Must be
-            // `||`: with `&&` this threw a TypeError when `error.data` was undefined
-            // and silently swallowed every real error when it was set.
             if (
                 !error.data ||
                 error.data.message !== "This session is already closed."

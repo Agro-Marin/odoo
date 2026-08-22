@@ -49,7 +49,7 @@ export class HistoryService {
             expirableStorage.setItem(
                 HistoryService.HISTORY_STORAGE_KEY,
                 JSON.stringify(urlHistory),
-                60 * 60 * 24, // kept for 1 day
+                60 * 60 * 24,
             );
         }
     }

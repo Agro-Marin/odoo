@@ -20,10 +20,6 @@ export class PosOrder extends PosOrderAccounting {
             this.session_id = this.session;
         }
 
-        // Data present in python model. setup() re-runs on every update of an
-        // existing record: defaults only apply when neither the payload nor
-        // the record has a value — a partial payload must not reset the state
-        // to draft or erase what was already sent to the kitchen.
         this.name = vals.name || this.name || "/";
         this.nb_print = vals.nb_print ?? this.nb_print ?? 0;
         this.to_invoice = vals.to_invoice ?? this.to_invoice ?? false;
@@ -65,7 +61,6 @@ export class PosOrder extends PosOrderAccounting {
 
     initState() {
         super.initState();
-        // !!Keep all uiState in one object!!
         this.uiState = {
             unmerge: {},
             lastPrints: [],
@@ -75,7 +70,6 @@ export class PosOrder extends PosOrderAccounting {
             screen_data: {},
             selected_orderline_uuid: undefined,
             selected_paymentline_uuid: undefined,
-            // Pos restaurant specific to most proper way is to override this
             TipScreen: {
                 inputTipAmount: "",
             },
@@ -167,13 +161,6 @@ export class PosOrder extends PosOrderAccounting {
         return !this.getMissingPresetRequirement();
     }
 
-    /**
-     * The first unmet preset requirement as `{ field, message }` (both
-     * translated), or `null` when the order satisfies its preset. Pure — kept
-     * separate from `presetRequirementsFilled` so reading validity never mutates
-     * state (a getter read during render must not), and so the presentation
-     * strings live with the caller that shows them, not in a side effect.
-     */
     getMissingPresetRequirement() {
         const invalidCustomer =
             (this.preset_id?.needsName &&
@@ -231,9 +218,6 @@ export class PosOrder extends PosOrderAccounting {
     get hasChange() {
         return this.lines.some((l) => l.uiState.hasChange);
     }
-    /**
-     * Called after the order has been successfully sent to the preparation tool(s).
-     */
     updateLastOrderChange() {
         const orderlineIdx = [];
         this.lines.forEach((line) => {
@@ -264,8 +248,6 @@ export class PosOrder extends PosOrderAccounting {
             line.setHasChange(false);
             line.uiState.savedQuantity = line.getQuantity();
         });
-        // Checks whether an orderline has been deleted from the order since it
-        // was last sent to the preparation tools or updated. If so we delete older changes.
         for (const [key, change] of Object.entries(
             this.last_order_preparation_change.lines,
         )) {
@@ -381,10 +363,6 @@ export class PosOrder extends PosOrderAccounting {
                 this.config_id.currency_id,
             );
         }
-        // Only reprice children whose PARENT was repriced above: filtering the
-        // children on their own price_type crashed when the parent line had a
-        // manual price (attributes_prices has no entry for it) — reachable by
-        // simply selecting a customer after a numpad price override.
         const combo_children_lines = this.lines.filter(
             (line) =>
                 line.combo_parent_id && attributes_prices[line.combo_parent_id.id],
@@ -402,7 +380,6 @@ export class PosOrder extends PosOrderAccounting {
                 return;
             }
             line.setUnitPrice(currentItem.price_unit);
-            // Removing to be able to have extras that are the same as free products
             attributes_prices[line.combo_parent_id.id].splice(
                 attributes_prices[line.combo_parent_id.id].indexOf(currentItem),
                 1,
@@ -444,11 +421,8 @@ export class PosOrder extends PosOrderAccounting {
     }
 
     /**
-     * A wrapper around line.delete() that may potentially remove multiple orderlines.
-     * In core pos, it removes the linked combo lines. In other modules, it may remove
-     * other related lines, e.g. multiple reward lines in pos_loyalty module.
      * @param {Orderline} line
-     * @returns {boolean} true if the line was removed, false otherwise
+     * @returns {boolean}
      */
     removeOrderline(line) {
         const linesToRemove = line.getAllLinesInCombo();
@@ -464,7 +438,7 @@ export class PosOrder extends PosOrderAccounting {
             }
         }
         if (!this.lines.length) {
-            this.general_customer_note = ""; // reset general note on empty order
+            this.general_customer_note = "";
         }
         this.selectOrderline(this.getLastOrderline());
         return true;
@@ -500,7 +474,6 @@ export class PosOrder extends PosOrderAccounting {
         }
     }
 
-    /* ---- Payment Lines --- */
     addPaymentline(payment_method) {
         this.assertEditable();
 
@@ -575,10 +548,6 @@ export class PosOrder extends PosOrderAccounting {
                     const data =
                         orderLine.order_id.prices.baseLineByLineUuids[orderLine.uuid];
                     if (!data) {
-                        // The memoized prices may not yet cover a just-added line
-                        // (the recompute is reactive); skip it this pass instead
-                        // of throwing on `data.tax_details`. It is counted once
-                        // prices catch up and this getter is re-read.
                         return sum;
                     }
                     sum += data.tax_details.discount_amount;
@@ -587,12 +556,6 @@ export class PosOrder extends PosOrderAccounting {
                         !(orderLine.price_type === "manual") &&
                         orderLine.discount === 0
                     ) {
-                        // Pricelist (percentage-rule) discount: the taxed list
-                        // price minus the unit price actually charged.
-                        // Comparing displayPriceUnit with
-                        // displayPriceUnitNoDiscount here was provably zero —
-                        // those two only differ by the line's own discount,
-                        // which is 0 in this branch.
                         const listPriceDetails =
                             orderLine.product_id.product_tmpl_id.getTaxDetails({
                                 overridedValues: {
@@ -644,7 +607,6 @@ export class PosOrder extends PosOrderAccounting {
         }, 0);
     }
 
-    /* ---- Invoice --- */
     setToInvoice(to_invoice) {
         this.assertEditable();
         this.to_invoice = to_invoice;
@@ -654,8 +616,6 @@ export class PosOrder extends PosOrderAccounting {
         return this.to_invoice;
     }
 
-    /* ---- Partner --- */
-    // the partner related to the current order.
     setPartner(partner) {
         this.assertEditable();
         this.partner_id = partner;
@@ -678,10 +638,6 @@ export class PosOrder extends PosOrderAccounting {
         return card_payment_line ? card_payment_line.cardholder_name : "";
     }
 
-    /* ---- Screen Status --- */
-    // the order also stores the screen status, as the PoS supports
-    // different active screens per order. This method is used to
-    // store the screen status.
     setScreenData(value) {
         this.uiState.screen_data["value"] = value;
     }
@@ -690,14 +646,8 @@ export class PosOrder extends PosOrderAccounting {
         return this.uiState.screen_data["value"] ?? { name: "ProductScreen" };
     }
 
-    //see setScreenData
     getScreenData() {
         const screen = this.uiState?.screen_data["value"];
-        // Only fall back to a default screen when none was explicitly saved via
-        // setScreenData (previously this payment-line default ran unconditionally,
-        // discarding any saved screen for an unpaid order that had payment lines):
-        //   no payment line -> product screen
-        //   with payment line -> payment screen
         if (!screen) {
             if (!this.finalized && this.payment_ids.length > 0) {
                 return { name: "PaymentScreen" };
@@ -744,12 +694,9 @@ export class PosOrder extends PosOrderAccounting {
         }
     }
 
-    /* ---- Ship later --- */
-    //FIXME remove this
     setShippingDate(shippingDate) {
         this.shipping_date = shippingDate;
     }
-    //FIXME remove this
     getShippingDate() {
         const date =
             typeof this.shipping_date === "string"
@@ -768,7 +715,6 @@ export class PosOrder extends PosOrderAccounting {
     }
 
     /**
-     * Returns false if the current order is empty and has no payments.
      * @returns {boolean}
      */
     _isValidEmptyOrder() {
@@ -783,7 +729,6 @@ export class PosOrder extends PosOrderAccounting {
         return this.isPaid() && this._isValidEmptyOrder() && !this.isCustomerRequired;
     }
 
-    // NOTE: Overrided in pos_loyalty to put loyalty rewards at this end of array.
     getOrderlines() {
         return this.lines;
     }
@@ -802,8 +747,6 @@ export class PosOrder extends PosOrderAccounting {
     }
 
     get floatingOrderName() {
-        // A fresh, not-yet-synced order has no tracking_number — guard the
-        // `.toString()` so reading the name (e.g. via getName()) can't throw.
         return this.floating_order_name || this.tracking_number?.toString() || "";
     }
 

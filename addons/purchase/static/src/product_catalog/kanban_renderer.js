@@ -10,18 +10,12 @@ export class PurchaseProductCatalogKanbanRenderer extends ProductCatalogKanbanRe
         KanbanRecord: PurchaseProductCatalogKanbanRecord,
     };
 
-    /** Pre-seed the order's vendor on the product being created. */
     get createProductContext() {
         return {
             default_seller_ids: [{ partner_id: this.props.list.context.partner_id }],
         };
     }
 
-    /**
-     * Reload on *save* rather than on close, and drop sample data while doing
-     * it, so the freshly created product appears in the catalog immediately
-     * instead of after the dialog is dismissed.
-     */
     get createProductOptions() {
         return {
             props: {

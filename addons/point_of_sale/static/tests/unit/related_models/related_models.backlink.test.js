@@ -29,17 +29,14 @@ describe("models with backlinks", () => {
             const p2 = models["product.template"].create({ pos_categ_ids: [c1] });
             const p3 = models["product.template"].create({ pos_categ_ids: [c2] });
 
-            // Test reading back the categories directly
             const readC1 = models["pos.category"].read(c1.id);
             expect(readC1).toEqual(c1);
 
             const readP1 = models["product.template"].read(p1.id);
             expect(readP1).toEqual(p1);
 
-            // Test the many2one relationship from products to category
             expect(readP1.pos_categ_ids).toEqual([c1]);
 
-            // Additional checks for completeness
             const readMany = models["product.template"].readMany([p2.id, p3.id]);
             expect(readMany).toEqual([p2, p3]);
 

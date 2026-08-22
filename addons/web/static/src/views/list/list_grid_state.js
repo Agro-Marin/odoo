@@ -114,7 +114,7 @@ export class ListGridState {
     }
 
     /**
-     * @param {any} records the reactive list, read only for a row that changed
+     * @param {any} records
      * @param {any} rawRecord
      * @param {number} index
      * @param {object | null} parentGroup

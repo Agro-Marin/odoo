@@ -105,7 +105,6 @@ import {
 
 const { DateTime } = luxon;
 export const CONSOLE_COLOR = "#F5B427";
-// Cap on order.uiState.lastPrints — see recordLastPrint().
 const MAX_LAST_PRINTS = 10;
 
 export class PosStore extends WithLazyGetterTrap {
@@ -135,7 +134,6 @@ export class PosStore extends WithLazyGetterTrap {
         reactiveSelf.ready = reactiveSelf.setup(env, deps).then(() => reactiveSelf);
         return reactiveSelf;
     }
-    // use setup instead of constructor because setup can be patched.
     async setup(
         env,
         {
@@ -170,21 +168,17 @@ export class PosStore extends WithLazyGetterTrap {
         this.notification = notification;
         this.unwatched = markRaw({});
         this.pushOrderMutex = new Mutex();
-        // Serializes the nb_print read-modify-write (see incrementReceiptPrintCount).
         this.printCountMutex = new Mutex();
         this.router.popStateCallback = this.handleUrlParams.bind(this);
 
-        // Write-only here, but pos_online_payment's order_payment_validation
-        // assigns into it, so the initialisation must stay until that writer goes.
         this.validated_orders_name_server_id_map = {};
         this.numpadMode = "quantity";
         this.mobile_pane = "right";
         this.ticket_screen_mobile_pane = "left";
 
-        this.loadingOrderState = false; // used to prevent orders fetched to be put in the update set during the reactive change
+        this.loadingOrderState = false;
         this.screenState = {
             ticketScreen: {
-                // Server ids of the currently displayed SYNCED page.
                 syncedPageOrderIds: [],
                 totalCount: 0,
             },
@@ -192,8 +186,6 @@ export class PosStore extends WithLazyGetterTrap {
                 offsetBySearch: {},
             },
         };
-        // Handle offline mode
-        // All of Set of ids
         this.pendingOrder = {
             write: new Set(),
             delete: new Set(),
@@ -206,21 +198,10 @@ export class PosStore extends WithLazyGetterTrap {
         this.selectedPartner = null;
         this.selectedCategory = null;
         this.searchProductWord = "";
-        // NB: no `ready`/`markReady` promise here — the constructor overwrites
-        // `reactiveSelf.ready` with the full setup() promise the moment setup
-        // hits its first await, so a promise created here was unresolvable by
-        // any consumer (fork-carried confusion, absent upstream).
         this.scale = pos_scale;
 
-        // FIXME POSREF: the hardwareProxy needs the pos and the pos needs the hardwareProxy. Maybe
-        // the hardware proxy should just be part of the pos service?
         this.hardwareProxy.pos = this;
         this.syncingOrders = new Set();
-        // Assigned BEFORE initServerData(): device-sync consolidation runs
-        // inside processServerData() (e.g. pos_restaurant merging duplicate
-        // table orders) and can reach removeOrder() -> syncAllOrdersDebounced()
-        // during boot. Assigning it afterwards left it undefined on exactly the
-        // sessions that had orders to repair, crashing setup().
         this.syncAllOrdersDebounced = debounce(this.syncAllOrders, 100);
         await this.initServerData();
 
@@ -236,7 +217,6 @@ export class PosStore extends WithLazyGetterTrap {
         }
 
         window.addEventListener("pos-network-online", () => {
-            // Sync should be done before websocket connection when going online
             this.syncAllOrdersDebounced();
         });
 
@@ -272,13 +252,13 @@ export class PosStore extends WithLazyGetterTrap {
     get idleTimeout() {
         return [
             {
-                timeout: 300000, // 5 minutes
+                timeout: 300000,
                 action: () =>
                     this.router.state.current !== "PaymentScreen" &&
                     this.navigate("SaverScreen"),
             },
             {
-                timeout: 120000, // 2 minutes
+                timeout: 120000,
                 action: () =>
                     this.router.state.current === "LoginScreen" &&
                     this.navigate("SaverScreen"),
@@ -335,12 +315,6 @@ export class PosStore extends WithLazyGetterTrap {
     async initServerData() {
         await this.processServerData();
 
-        // When a search begins, reset the selected category to "all" so the
-        // search spans every product (resetting only on the inactive->active
-        // edge lets the user still narrow by category mid-search). This lives in
-        // a reactive effect rather than the productsToDisplay getter: that getter
-        // is read during render and mutating reactive state there scheduled an
-        // extra render pass on every keystroke.
         let searchWasActive = false;
         effect(
             (self) => {
@@ -404,8 +378,6 @@ export class PosStore extends WithLazyGetterTrap {
                 ),
             });
         } finally {
-            // All orders saved on the server should be cancelled by the device that closes
-            // the session. If some orders are not cancelled, we need to cancel them here.
             const orders = this.models["pos.order"].filter((o) => o.isSynced);
             for (const order of orders) {
                 if (!order.finalized) {
@@ -429,12 +401,8 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     async processServerData() {
-        // Used to identify the device when several devices are connected to the same POS
         this.device = this.data.device;
 
-        // These fields should be unique for the pos_config
-        // and should not change during the session, so we can
-        // safely take the first element.this.models
         this.config = this.data.models["pos.config"].getFirst();
         this.user = this.data.models["res.users"].getFirst();
         this.currency = this.config.currency_id;
@@ -458,10 +426,8 @@ export class PosStore extends WithLazyGetterTrap {
 
         await this.deviceSync.readDataFromServer();
 
-        // Check cashier
         this.checkPreviousLoggedCashier();
 
-        // Add Payment Interface to Payment Method
         for (const pm of this.models["pos.payment.method"].getAll()) {
             const PaymentInterface =
                 this.electronic_payment_interfaces[pm.use_payment_terminal];
@@ -470,7 +436,6 @@ export class PosStore extends WithLazyGetterTrap {
             }
         }
 
-        // Create printer with hardware proxy, this will override related model data
         this.unwatched.printers = [];
         for (const relPrinter of this.models["pos.printer"].getAll()) {
             const printer = relPrinter.raw;
@@ -500,10 +465,6 @@ export class PosStore extends WithLazyGetterTrap {
         return makeAwaitable(this.dialog, CashMovePopup);
     }
     async closeSession() {
-        // Push unsynced orders BEFORE fetching the closing figures: the
-        // popup's expected amounts, difference math and manager-authorization
-        // gate were computed against a pre-sync snapshot whenever unsynced
-        // orders were only pushed later inside the popup itself.
         await this.pushOrdersWithClosingPopup();
         const info = await this.getClosePosInfo();
 
@@ -606,7 +567,6 @@ export class PosStore extends WithLazyGetterTrap {
             return false;
         }
         order.uiState.displayed = false;
-        // Delete refunded lines linked to the current order
         for (const refundedLine of refundedOrderLines) {
             delete refundedLine.order?.uiState?.lineToRefund[refundedLine.uuid];
         }
@@ -631,9 +591,6 @@ export class PosStore extends WithLazyGetterTrap {
                 },
             });
         };
-        // Two-phase: validate every precondition BEFORE mutating anything —
-        // aborting halfway used to leave some orders locally deleted while the
-        // whole operation reported failure.
         for (const order of orders) {
             if (order && !(await this._onBeforeDeleteOrder(order))) {
                 return false;
@@ -644,14 +601,6 @@ export class PosStore extends WithLazyGetterTrap {
                 if (!order) {
                     continue;
                 }
-                // Per-order isolation: the remote steps below (preparation
-                // ticket, action_pos_order_cancel) can reject for ONE order —
-                // typically because another device already invoiced it. Without
-                // this catch the exception escaped mid-loop while `finally` had
-                // already deleted locally exactly the prefix that succeeded, and
-                // it propagated into `t-on-click` arrow handlers that don't
-                // catch, so the batch caller (e.g. ClosePosPopup) never ran and
-                // the cashier saw a raw traceback naming no order at all.
                 try {
                     if (
                         !ignoreChange &&
@@ -689,10 +638,6 @@ export class PosStore extends WithLazyGetterTrap {
                     await actionPosOrderCancelCall([
                         ...new Set(serverIds.filter((id) => typeof id === "number")),
                     ]);
-                    // A successfully cancelled id must leave pendingOrder.delete,
-                    // otherwise every subsequent sync re-sends the cancel for the
-                    // rest of the session (and a later server-side rejection of a
-                    // stale id would block syncing entirely).
                     for (const id of serverIds) {
                         this.pendingOrder.delete.delete(id);
                     }
@@ -708,7 +653,6 @@ export class PosStore extends WithLazyGetterTrap {
                 }
             }
         } finally {
-            // Remove orders locally at the end to avoid reactivity during the async process
             for (const order of ordersToDelete) {
                 this.removeOrder(order, false);
                 this.removePendingOrder(order);
@@ -716,9 +660,6 @@ export class PosStore extends WithLazyGetterTrap {
         }
 
         if (failedOrders.length || serverIdsFailed) {
-            // Name the survivors: the orders that could not be cancelled are
-            // still on screen, so the cashier needs to know which ones to
-            // handle by hand instead of guessing from a generic failure.
             const names = failedOrders
                 .map((order) => order.getName() || order.pos_reference || order.uuid)
                 .join(", ");
@@ -739,8 +680,6 @@ export class PosStore extends WithLazyGetterTrap {
         return true;
     }
     /**
-     * Override to do something before deleting the order.
-     * Make sure to return true to proceed on deleting the order.
      * @param {*} order
      * @returns {boolean}
      */
@@ -749,8 +688,6 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     /**
-     * Loads new products from the server, along with their pricelists,
-     * attributes and packagings.
      * @param {Array} domain
      * @param {number} offset
      * @param {number} limit
@@ -773,12 +710,6 @@ export class PosStore extends WithLazyGetterTrap {
     async handleUrlParams() {
         const orderPathUuid = this.router.state.params.orderUuid;
         if (!orderPathUuid) {
-            // Paramless routes (/ticket, /login, /saver, /action/{name}) carry
-            // no order, so leave the selection alone — this runs as the router's
-            // popStateCallback, and clearing it made the back button deselect
-            // the order while forward navigation never does (pos_navigation only
-            // *assigns* selectedOrderUuid when a uuid is present). The unguarded
-            // getOrder() derefs downstream then threw and wedged the POS.
             return;
         }
         const order = this.models["pos.order"].find(
@@ -801,11 +732,6 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     async afterProcessServerData() {
-        // Re-queue restored orders for sync: unsynced paid orders, and orders
-        // whose persisted dirty marker (__dirty, restored from IndexedDB)
-        // shows local edits that never reached the server — the pendingOrder
-        // sets are in-memory only, so without this a reload silently orphaned
-        // those edits.
         const pendingOrderIds = this.models["pos.order"]
             .filter(
                 (order) =>
@@ -962,9 +888,6 @@ export class PosStore extends WithLazyGetterTrap {
         order.selectOrderline(line);
         this.numpadMode = "quantity";
     }
-    // This method should be called every time a product is added to an order.
-    // The configure parameter is available if the orderline already contains all
-    // the information without having to be calculated. For example, importing a SO.
     async addLineToCurrentOrder(vals, opts = {}, configure = true) {
         let order = this.getOrder();
         if (!order) {
@@ -978,16 +901,6 @@ export class PosStore extends WithLazyGetterTrap {
         let merge = true;
         order.assertEditable();
 
-        // Flush any buffered numpad input BEFORE a new line exists.
-        // number_buffer debounces keys for maxTimeBetweenKeys (150ms with
-        // useWithBarcode) and resolves its target with getSelectedOrderline()
-        // at FLUSH time, not at key-press time. Tapping a product within that
-        // window therefore applied the pending keys to the line that was just
-        // added instead of the one they were typed against: press backspace
-        // twice to clear a quantity, immediately tap another product, and the
-        // flush deletes the NEW line while the old one survives. capture() is
-        // already called on the numpad (product_screen.onNumpadClick) and
-        // payment paths; the product-add path was the gap.
         this.numberBuffer?.capture();
 
         const options = {
@@ -1016,7 +929,6 @@ export class PosStore extends WithLazyGetterTrap {
             ...vals,
         };
 
-        // Handle refund constraints
         if (order.isSaleDisallowed(values, options) && !opts.force) {
             this.dialog.add(AlertDialog, {
                 title: _t("Oops.."),
@@ -1040,13 +952,9 @@ export class PosStore extends WithLazyGetterTrap {
             return;
         }
 
-        // A tracked product needs the user to supply lot/serial numbers (returns a
-        // pos.pack.operation.lot); this can't be handled in pos_order(_line).js.
         const code = opts.code;
         let pack_lot_ids = {};
         if (values.product_tmpl_id.isTracked() && (configure || code)) {
-            // Use the order threaded through this method, not the globally
-            // selected one (they differ for shared/synced-order flows).
             const packLotLinesToEdit =
                 (!values.product_tmpl_id.isAllowOnlyOneLot() &&
                     order
@@ -1056,9 +964,7 @@ export class PosStore extends WithLazyGetterTrap {
                         ?.getPackLotLinesToEdit()) ||
                 [];
 
-            // if the lot information exists in the barcode, we don't need to ask it from the user.
             if (code && code.type === "lot") {
-                // consider the old and new packlot lines
                 const modifiedPackLotLines = Object.fromEntries(
                     packLotLinesToEdit
                         .filter((item) => item.id)
@@ -1081,8 +987,6 @@ export class PosStore extends WithLazyGetterTrap {
             }
         }
 
-        // A weight-tracked product prompts the user for its weight (used as
-        // quantity); this can't be handled in pos_order(_line).js.
         if (
             values.product_tmpl_id.to_weight &&
             this.config.iface_electronic_scale &&
@@ -1117,7 +1021,6 @@ export class PosStore extends WithLazyGetterTrap {
             }
         }
 
-        // Handle price unit
         this.handlePriceUnit(values, order, vals.price_unit);
 
         const line = this.data.models["pos.order.line"].create({
@@ -1137,7 +1040,6 @@ export class PosStore extends WithLazyGetterTrap {
             });
         }
 
-        // Merge orderline if needed
         this.tryMergeOrderline(order, line, merge, selectedOrderline);
 
         selectedOrderline = order.getSelectedOrderline();
@@ -1163,9 +1065,6 @@ export class PosStore extends WithLazyGetterTrap {
         }
 
         if (values.product_id.tracking === "serial") {
-            // Use the order threaded through this method, not the globally
-            // selected one — they can differ when a line is added to a
-            // non-active order, and this branch must write to `order`.
             order.getSelectedOrderline().setPackLotLines({
                 modifiedPackLotLines: pack_lot_ids.modifiedPackLotLines ?? [],
                 newPackLotLines: pack_lot_ids.newPackLotLines ?? [],
@@ -1180,11 +1079,6 @@ export class PosStore extends WithLazyGetterTrap {
         return order.getSelectedOrderline();
     }
 
-    /**
-     * Try to merge the orderline with another one in the order.
-     * If no orderline can be merged, select the last orderline.
-     * If merge is false, do not merge the orderline.
-     */
     tryMergeOrderline(order, line, merge, selectedOrderline) {
         selectedOrderline = selectedOrderline || order.getSelectedOrderline();
         let to_merge_orderline;
@@ -1205,9 +1099,6 @@ export class PosStore extends WithLazyGetterTrap {
         }
     }
 
-    /**
-     * Handle price unit for the order line.
-     */
     handlePriceUnit(values, order, price_unit) {
         if (!values.product_tmpl_id.isCombo() && price_unit === undefined) {
             values.price_unit = values.product_id.getPrice(
@@ -1220,8 +1111,6 @@ export class PosStore extends WithLazyGetterTrap {
         }
     }
 
-    // A combo product prompts the user (returns combo prices and selected
-    // products); this can't be handled in pos_order(_line).js.
     async handleComboProduct(values, order, configure = true, { line } = {}) {
         if (values.product_tmpl_id.isCombo() && configure) {
             const payload =
@@ -1236,7 +1125,6 @@ export class PosStore extends WithLazyGetterTrap {
                 return false;
             }
 
-            // Product template of combo should not have more than 1 variant.
             const [childLineConf, comboExtraLines] = payload;
             const comboPrices = computeComboItems(
                 values.product_tmpl_id.product_variant_ids[0],
@@ -1284,8 +1172,6 @@ export class PosStore extends WithLazyGetterTrap {
         return true;
     }
 
-    // A configurable product prompts the user and its payload is merged into
-    // `values`; this can't be handled in pos_order(_line).js.
     async handleConfigurableProduct(
         values,
         productTemplate,
@@ -1302,7 +1188,6 @@ export class PosStore extends WithLazyGetterTrap {
                       });
 
             if (payload) {
-                // Find candidate based on instantly created variants.
                 const attributeValues = this.models["product.template.attribute.value"]
                     .readMany(payload.attribute_value_ids)
                     .filter(
@@ -1326,7 +1211,6 @@ export class PosStore extends WithLazyGetterTrap {
                 );
 
                 if (!candidate && isDynamic) {
-                    // Need to create the new product.
                     const result = await this.data.callRelated(
                         "product.template",
                         "create_product_variant_from_pos",
@@ -1362,7 +1246,6 @@ export class PosStore extends WithLazyGetterTrap {
                 return false;
             }
         } else if (values.product_id.product_template_variant_value_ids.length > 0) {
-            // Verify price extra of variant products
             const priceExtra = values.product_id.product_template_variant_value_ids
                 .filter((attr) => attr.attribute_id.create_variant !== "always")
                 .reduce((acc, attr) => acc + attr.price_extra, 0);
@@ -1389,14 +1272,9 @@ export class PosStore extends WithLazyGetterTrap {
     }
     async _loadFonts() {
         return new Promise(function (resolve, reject) {
-            // Waiting for fonts to be loaded to prevent receipt printing
-            // from printing empty receipt while loading Inconsolata
-            // ( The font used for the receipt )
             waitForWebfonts(["Lato", "Inconsolata"], function () {
                 resolve();
             });
-            // The JS used to detect font loading is not 100% robust, so
-            // do not wait more than 5sec
             setTimeout(resolve, 5000);
         });
     }
@@ -1413,10 +1291,6 @@ export class PosStore extends WithLazyGetterTrap {
         }
     }
 
-    /**
-     * Remove the order passed in params from the list of orders
-     * @param order
-     */
     removeOrder(order, removeFromServer = true) {
         if (this.config.isShareable || removeFromServer) {
             if (order.isSynced && !order.finalized) {
@@ -1435,7 +1309,6 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     /**
-     * Return the current cashier (in this case, the user)
      * @returns {name: string, id: int, role: string}
      */
     getCashier() {
@@ -1478,10 +1351,6 @@ export class PosStore extends WithLazyGetterTrap {
         }
 
         if (this.config.use_presets && !data["preset_id"]) {
-            // createNewOrder is synchronous by contract (callers use the
-            // returned order immediately), so this cannot be awaited — but it
-            // must not be an unhandled rejection either. selectPreset only
-            // awaits when the preset needs a partner/timing dialog.
             Promise.resolve(
                 this.selectPreset(this.config.default_preset_id, order),
             ).catch((error) => {
@@ -1591,8 +1460,6 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     async preSyncAllOrders(orders) {
-        // Prices are computed on the fly on the pos.order and pos.order.line model
-        // we need to set them before sending the orders to the backend
         for (const order of orders) {
             order.setOrderPrices();
         }
@@ -1600,11 +1467,6 @@ export class PosStore extends WithLazyGetterTrap {
 
     postSyncAllOrders(orders) {}
     async syncAllOrders(options = {}) {
-        // Every entry point serializes on one mutex. The per-uuid
-        // syncingOrders guard alone had skip-not-wait semantics: a validation
-        // sync racing the debounced background sync got its order silently
-        // skipped, and two overlapping runs both read the pending-delete set
-        // before either consumed it.
         return this.pushOrderMutex.exec(() => this._syncAllOrders(options));
     }
     async _syncAllOrders(options = {}) {
@@ -1626,10 +1488,6 @@ export class PosStore extends WithLazyGetterTrap {
                 (order.isDirty() || options.force),
         );
 
-        // Delete orders first. The cancel phase must never block the order
-        // sync below: a connection drop keeps the ids for the retry, any other
-        // rejection is final (re-sending the same ids would fail on every
-        // debounced sync forever), so those ids are dropped and logged.
         if (orderIdsToDelete.length > 0) {
             try {
                 await this.deleteOrders([], orderIdsToDelete);
@@ -1653,15 +1511,10 @@ export class PosStore extends WithLazyGetterTrap {
             }
         }
 
-        // Allow us to force the sync of the orders In the case of
-        // pos_restaurant is usefull to get unsynced orders
-        // for a specific table
         if (orders.length === 0) {
             return;
         }
 
-        // We are now syncing orders one by one to avoid cancelling all sync
-        // when one order fails, this also avoid timeout issues with a lot of orders
         let errorOccurred = false;
         let newSession = false;
         const syncedOrders = [];
@@ -1671,15 +1524,6 @@ export class PosStore extends WithLazyGetterTrap {
             await this.preSyncAllOrders([order]);
             this.syncingOrders.add(order.uuid);
 
-            // A lost connection means the sync_from_ui payload never reached the
-            // server, so the order's dirty flags and unlink/delete commands must
-            // survive for the offline retry to re-send the full change set
-            // (sync_from_ui is excluded from the generic retry queue). Any other
-            // outcome — success, or a server-side rejection such as a UserError —
-            // consumes them: persisted on success, and on a hard error dropped so a
-            // request that keeps failing is not re-submitted on every debounced
-            // sync. deferClear collects those mutations so they apply at the right
-            // moment.
             const clearActions = [];
             let committed = false;
             const commitClear = () => {
@@ -1704,11 +1548,6 @@ export class PosStore extends WithLazyGetterTrap {
                     },
                 );
                 commitClear();
-                // Records edited while the RPC was in flight: the server echo
-                // reflects the serialized (pre-edit) state. The epoch guard
-                // keeps them dirty for the next sync, but without capturing
-                // and re-applying the divergent scalar values, the echo
-                // overwrote them and the next sync re-sent server values.
                 const inFlightEdited = [
                     order,
                     ...order.lines,
@@ -1765,21 +1604,11 @@ export class PosStore extends WithLazyGetterTrap {
 
                 await this.postSyncAllOrders(newData["pos.order"] ?? []);
                 this.removePendingOrder(order);
-                // The server has it: release the tab-close guard here, which is
-                // the event it was always about ("durable in IndexedDB or
-                // acknowledged by the server"). It used to be released only as
-                // a side effect of the debounced IndexedDB routine, so between
-                // a successful sync and that routine's next run the beforeunload
-                // handler still claimed the order was unsaved -- and silently
-                // cancelled the navigation out of the POS.
                 this.data.localUnsyncedPaidOrderUuids.delete(order.uuid);
                 syncedOrders.push(...(newData["pos.order"] ?? []));
                 newSession = newSession || data["pos.session"]?.length > 0;
             } catch (error) {
                 if (!(error instanceof ConnectionLostError)) {
-                    // Server rejected (or a non-connection failure): consume the
-                    // pending edits as before so a failing request is not retried
-                    // on every sync. A connection loss keeps them for the retry.
                     commitClear();
                 }
 
@@ -1798,21 +1627,11 @@ export class PosStore extends WithLazyGetterTrap {
                     errorOccurred = true;
                 }
             } finally {
-                // Only release the order that was just processed. Deleting every
-                // uuid in `orders` after each iteration also cleared the guard of
-                // orders still in flight in a concurrent (non-mutex) syncAllOrders
-                // that shares an order, allowing a duplicate submit to the backend.
                 this.syncingOrders.delete(order.uuid);
             }
         }
 
         if (errorOccurred) {
-            // In that case we assume the order data isn't valid anymore, so we
-            // try to read data from server, to be sure to have the latest state
-            // the order can be deleted from the server side during the sync_from_ui call
-            // Deliberately not awaited (the sync result is already returned to
-            // the caller) but never unhandled: a rejection here used to surface
-            // as a global unhandled-rejection dialog mid-transaction.
             this.deviceSync.readDataFromServer().catch((error) => {
                 logPosMessage(
                     "Store",
@@ -1825,8 +1644,6 @@ export class PosStore extends WithLazyGetterTrap {
         }
 
         if (newSession) {
-            // Replace the original session by the rescue one. And the rescue one will have
-            // a higher id than the original one since it's the last one created.
             const sessions = this.models["pos.session"].sort((a, b) => a.id - b.id);
             if (sessions.length > 1) {
                 const sessionToDelete = sessions.slice(0, -1);
@@ -1842,15 +1659,10 @@ export class PosStore extends WithLazyGetterTrap {
     }
 
     pushSingleOrder(order) {
-        // syncAllOrders now owns the mutex — taking it here too would deadlock.
         return this.syncAllOrders({ orders: [order] });
     }
 
     async pay() {
-        // Flush any numpad input still inside the number buffer's debounce
-        // window: leaving the ProductScreen destroys the buffer holder, so an
-        // unflushed keystroke (e.g. the price just typed) would be dropped and
-        // the order would be paid with the pre-edit values.
         this.numberBuffer.capture();
         const currentOrder = this.getOrder();
 
@@ -1907,8 +1719,6 @@ export class PosStore extends WithLazyGetterTrap {
         productProduct = false,
     ) {
         const order = this.getOrder();
-        // check back-end method `get_product_info_pos` to see what it returns
-        // We do this so it's easier to override the value returned and use it in the component template later
         const productInfo = await this.data.call(
             "product.template",
             "get_product_info_pos",
@@ -1982,7 +1792,6 @@ export class PosStore extends WithLazyGetterTrap {
             [this.session.id],
         ]);
     }
-    // return the current order
     getOrder() {
         if (!this.selectedOrderUuid) {
             return undefined;
@@ -1994,7 +1803,6 @@ export class PosStore extends WithLazyGetterTrap {
         return this.getOrder();
     }
 
-    // change the current order
     setOrder(order) {
         if (this.getOrder()) {
             this.getOrder().updateSavedQuantity();
@@ -2002,21 +1810,14 @@ export class PosStore extends WithLazyGetterTrap {
         this.selectedOrderUuid = order?.uuid;
     }
 
-    // return the list of unpaid orders
     getOpenOrders() {
         return this.models["pos.order"].filter((o) => !o.finalized);
     }
 
-    // To be used in the context of closing the POS
-    // Saves the order locally and try to send it to the backend.
-    // If there is an error show a popup
     async pushOrdersWithClosingPopup(opts = {}) {
         try {
             const result = await this.syncAllOrders(opts);
             if (result instanceof ConnectionLostError) {
-                // When offline and opts.throw is unset, syncAllOrders RESOLVES
-                // with the error instead of rejecting — nothing was pushed, so
-                // it is still a failure for the closing flow.
                 throw result;
             }
             return true;
@@ -2136,14 +1937,10 @@ export class PosStore extends WithLazyGetterTrap {
         return result;
     }
     /**
-     * Record one more receipt print on the order.
      * @param {import("@point_of_sale/app/models/pos_order").PosOrder} order
-     * @returns {Promise<number>} the resulting print count
+     * @returns {Promise<number>}
      */
     async incrementReceiptPrintCount(order) {
-        // nb_print is a read-modify-write, so it has to be serialized: two
-        // prints fired back to back both read the same value and both wrote the
-        // same increment, losing one.
         return this.printCountMutex.exec(async () => {
             const count = (order.nb_print || 0) + 1;
             if (!order.isSynced) {
@@ -2155,15 +1952,8 @@ export class PosStore extends WithLazyGetterTrap {
                 nb_print: count,
             });
             if (!wasDirty) {
-                // _markClean(), not `_dirty = false`: clearing the flag alone
-                // left a non-empty _dirtyFields behind, an impossible state that
-                // _syncAllOrders' in-flight-edit re-application replays as a
-                // phantom change on the next sync.
                 order._markClean();
             }
-            // The write resolves only once the server response has been applied,
-            // so prefer the echoed value over the one computed above — another
-            // device may have printed the same order in the meantime.
             const written = records?.find?.((record) => record.id === order.id);
             return written?.nb_print ?? count;
         });
@@ -2186,10 +1976,6 @@ export class PosStore extends WithLazyGetterTrap {
             ]);
         } catch (error) {
             if (error instanceof ConnectionLostError) {
-                // Offline: local kitchen printing still works — degrade to the
-                // local change set instead of rejecting (callers deliberately
-                // fire-and-forget this method, so a rejection was silent and
-                // the kitchen never received the final ticket).
                 return this.sendOrderInPreparation(order, opts);
             }
             throw error;
@@ -2213,7 +1999,6 @@ export class PosStore extends WithLazyGetterTrap {
                 ),
             });
 
-            // Update before syncing otherwise it will overwrite the last change
             order.last_order_preparation_change = lastChanges;
             await this.syncAllOrders({ orders: [order] });
             return;
@@ -2221,15 +2006,8 @@ export class PosStore extends WithLazyGetterTrap {
 
         return this.sendOrderInPreparation(order, opts);
     }
-    // Now the printer should work in PoS without restaurant
     async sendOrderInPreparation(order, opts = {}) {
         let isPrinted = false;
-        // A failure to *produce* the change set (not merely to reach a printer)
-        // must not advance the preparation baseline: updateLastOrderChange()
-        // rewrites order.last_order_preparation_change, which is exactly what
-        // changesToOrder() diffs against. Advancing it after a swallowed
-        // exception made the pending items vanish from every subsequent
-        // computation — the kitchen never received them and never would.
         let changeSetFailed = false;
 
         if (this.config.printerCategories.size && !opts.byPassPrint) {
@@ -2251,13 +2029,6 @@ export class PosStore extends WithLazyGetterTrap {
 
                 let shouldPrint = true;
                 if (!hasChanges) {
-                    // `.length`, not truthiness: lastPrints is initialised to
-                    // [], which is truthy, so an explicit reprint of an order
-                    // this device never printed itself (e.g. one sent to
-                    // preparation from another device, whose baseline arrives
-                    // from the server while lastPrints stays empty) produced
-                    // `[undefined]` and threw inside generateOrderChange —
-                    // swallowed below, so the button silently did nothing.
                     if (opts.explicitReprint && order.uiState.lastPrints?.length) {
                         orderChange = [order.uiState.lastPrints.at(-1)];
                         reprint = true;
@@ -2275,11 +2046,6 @@ export class PosStore extends WithLazyGetterTrap {
 
                 if (shouldPrint) {
                     isPrinted = await this.printChanges(order, orderChange, reprint);
-                    // Record AFTER the attempt: pushing beforehand meant a
-                    // change set that threw (or that every printer rejected)
-                    // still became the source for a later explicit reprint.
-                    // An empty printer list can't have failed — a
-                    // preparation-display-only setup must keep its history.
                     if (
                         changeToRecord &&
                         (isPrinted || !this.unwatched.printers?.length)
@@ -2301,19 +2067,11 @@ export class PosStore extends WithLazyGetterTrap {
         if (!changeSetFailed) {
             order.updateLastOrderChange();
         }
-        // Ensure that other devices are aware of the changes
-        // Otherwise several devices can print the same changes
-        // We need to check if a preparation display is configured to avoid unnecessary sync
         if (isPrinted && !this.models["pos.prep.display"]?.length) {
             await this.syncAllOrders({ orders: [order] });
         }
     }
     /**
-     * Append a printed change set to the order's reprint history, bounded.
-     * uiState is serialized to IndexedDB on every debounced sync, so an
-     * unbounded history made that payload grow with every send. The tail is
-     * kept rather than only the last entry because TicketScreen's "reprint all"
-     * replays the whole array, not just `at(-1)`.
      * @param {import("@point_of_sale/app/models/pos_order").PosOrder} order
      * @param {Object} change
      */
@@ -2390,7 +2148,6 @@ export class PosStore extends WithLazyGetterTrap {
             }
         }
 
-        // printing errors
         if (unsuccessfulPrints.length) {
             const failedReceipts = unsuccessfulPrints.join("\n");
             this.dialog.add(RetryPrintPopup, {
@@ -2420,9 +2177,6 @@ export class PosStore extends WithLazyGetterTrap {
         return filterChangeByCategories(this, categories, currentOrderChange);
     }
 
-    // autoConnect() never rejects — connect() swallows every failure and a
-    // missing url yields a forever-pending promise — so the old rejection arm
-    // (an HTTPS/IoT-certificate dialog) was unreachable and is gone with it.
     async connectToProxy() {
         this.barcodeReader?.disconnectFromProxy();
         this.loadingSkipButtonIsShown = true;
@@ -2432,15 +2186,13 @@ export class PosStore extends WithLazyGetterTrap {
         }
     }
     /**
-     * Extra context for the partner form opened by editPartner().
      * @param {import("@point_of_sale/app/models/res_partner").ResPartner?} partner
-     *        undefined when creating a new partner
      */
     editPartnerContext(partner) {
         return {};
     }
     /**
-     * @param {import("@point_of_sale/app/models/res_partner").ResPartner?} partner leave undefined to create a new partner
+     * @param {import("@point_of_sale/app/models/res_partner").ResPartner?} partner
      */
     async editPartner(partner) {
         const record = await makeActionAwaitable(
@@ -2455,7 +2207,7 @@ export class PosStore extends WithLazyGetterTrap {
         return newPartner[0];
     }
     /**
-     * @param {import("@point_of_sale/app/models/product_product").ProductProduct?} product leave undefined to create a new product
+     * @param {import("@point_of_sale/app/models/product_product").ProductProduct?} product
      */
     async editProduct(product) {
         const orderContainsProduct = product && this.orderContainsProduct(product);
@@ -2524,19 +2276,8 @@ export class PosStore extends WithLazyGetterTrap {
         this.dialog.add(FormViewDialog, this.orderDetailsProps(order));
     }
     async closePos() {
-        // Before anything closes: on a phone the burger menu this was chosen
-        // from is a BottomSheet, which holds an ephemeral history entry and
-        // unwinds it with `history.go(-1)` when it closes. That traversal
-        // cancels the navigation below -- the server served the backend page
-        // and the browser threw the response away, leaving the cashier in the
-        // point of sale with nothing to show for it. We are leaving the
-        // document, so there is nothing to unwind.
         webRouter.dropEphemerals();
         this._resetConnectedCashier();
-        // If pos is not properly loaded, we just go back to /web without
-        // doing anything in the order data. (`if (!this)` was dead — `this` is
-        // never falsy — and it also failed to return, so the next line would
-        // throw on a missing session.)
         if (!this.session) {
             this.redirectToBackend();
             return;
@@ -2558,11 +2299,9 @@ export class PosStore extends WithLazyGetterTrap {
                 );
             }
             // Never fall through: the generic close path below would sync and
-            // redirect against a session that was just deleted server-side.
             return;
         }
 
-        // If there are orders in the db left unsynced, we try to sync.
         const syncSuccess = await this.pushOrdersWithClosingPopup();
         if (syncSuccess) {
             this.redirectToBackend();
@@ -2575,10 +2314,6 @@ export class PosStore extends WithLazyGetterTrap {
         const data = await makeAwaitable(this.dialog, PresetSlotsPopup);
         if (data) {
             if (order.preset_id?.id !== data.presetId) {
-                // Pass `order` explicitly: omitting it fell back to getOrder(),
-                // which is NOT this order during createNewOrder (selectedOrderUuid
-                // is only set after it returns), so changing the preset inside the
-                // slots popup reconfigured the previously selected order instead.
                 await this.selectPreset(
                     this.models["pos.preset"].get(data.presetId),
                     order,
@@ -2617,10 +2352,6 @@ export class PosStore extends WithLazyGetterTrap {
         }
 
         if (preset) {
-            // Gather the preset's requirements BEFORE applying it: cancelling
-            // the partner/address dialogs used to leave the order carrying a
-            // half-configured preset (pricing/fiscal position included) that
-            // the flow itself had just declared invalid.
             if (preset.needsPartner) {
                 const partner = order.partner_id || (await this.selectPartner(order));
                 if (!partner) {
@@ -2665,16 +2396,13 @@ export class PosStore extends WithLazyGetterTrap {
             const localUsage = this.orderUsageUTCtoLocal(result.usage_utc);
             preset.computeAvailabilities(localUsage);
         } catch {
-            // Compute locally if the server is not reachable
             preset.computeAvailabilities();
         }
     }
-    // There for override to do something before adding partner to current order from partner list
     setPartnerToCurrentOrder(partner) {
         this.getOrder()?.setPartner(partner);
     }
     async selectPartner(currentOrder = this.getOrder()) {
-        // FIXME, find order to refund when we are in the ticketscreen.
         if (!currentOrder) {
             return false;
         }
@@ -2798,12 +2526,10 @@ export class PosStore extends WithLazyGetterTrap {
                 return acc;
             }, {});
 
-        // Remove lot/serial names that are already used in draft orders
         existingLots = existingLots.filter(
             (lot) => lot.product_qty > (usedLotsQty[lot.name]?.total || 0),
         );
 
-        // Check if the input lot/serial name is already used in another order
         const isLotNameUsed = (itemValue) => {
             const totalQty =
                 existingLots.find((lt) => lt.name === itemValue)?.product_qty || 0;
@@ -2816,7 +2542,6 @@ export class PosStore extends WithLazyGetterTrap {
 
         const existingLotsName = existingLots.map((l) => l.name);
         if (!packLotLinesToEdit.length && existingLotsName.length === 1) {
-            // If there's only one existing lot/serial number, automatically assign it to the order line
             return { newPackLotLines: [{ lot_name: existingLotsName[0] }] };
         }
         const payload = await makeAwaitable(this.dialog, SelectLotPopup, {
@@ -2830,7 +2555,6 @@ export class PosStore extends WithLazyGetterTrap {
             isLotNameUsed: isLotNameUsed,
         });
         if (payload) {
-            // Segregate the old and new packlot lines
             const modifiedPackLotLines = Object.fromEntries(
                 payload.filter((item) => item.id).map((item) => [item.id, item.text]),
             );
@@ -2866,19 +2590,11 @@ export class PosStore extends WithLazyGetterTrap {
         return this.session.state === "opening_control";
     }
 
-    /**
-     * Close other tabs that contain the same pos session.
-     */
     closeOtherTabs() {
-        // Namespaced: "message" is a global key on the origin, so any other
-        // Odoo app writing it triggered this handler, and a non-JSON value made
-        // the unguarded parse below throw inside the listener.
         const storageKey = `pos.tabs.${odoo.pos_config_id}`;
         localStorage[storageKey] = JSON.stringify({
             message: "close_tabs",
             session: this.session.id,
-            // The value must differ from the previous one or no storage event
-            // is dispatched; the old code got that from writing "" first.
             at: Date.now(),
         });
 
@@ -2914,11 +2630,6 @@ export class PosStore extends WithLazyGetterTrap {
         return showBackButton(this);
     }
     async onClickBackButton() {
-        // Leaving the cart pane deselects the order line and tears down the
-        // number-buffer holder, so anything still inside the buffer's debounce
-        // window (the price/qty digit just tapped) would be silently dropped:
-        // `updateSelectedOrderline` would run with no selected line and reset.
-        // Flush it first so the edit the cashier made is applied.
         this.numberBuffer.capture();
         if (this.router.state.current === "TicketScreen") {
             if (this.ticket_screen_mobile_pane === "left") {
@@ -2967,9 +2678,6 @@ export class PosStore extends WithLazyGetterTrap {
                         "Connection to the server has been lost. Please check your internet connection.",
                     );
                 } else {
-                    // Not every failure is an RPCError with a data payload —
-                    // dereferencing error.data.message could throw inside the
-                    // error handler and replace this dialog with a crash.
                     message =
                         error?.data?.message ?? error?.message ?? _t("Unknown error");
                 }
@@ -3098,10 +2806,6 @@ export class PosStore extends WithLazyGetterTrap {
 
     async clickSaveOrder() {
         const order = this.getOrder();
-        // Queue BEFORE pushing. syncAllOrders({orders}) bypasses getPendingOrder(),
-        // so without this the order is not in the retry queue if the push fails —
-        // and _syncAllOrders *returns* (never throws) a ConnectionLostError when
-        // offline, so the failure was invisible and the success toast was a lie.
         this.addPendingOrder([order.id]);
         const result = await this.syncAllOrders({ orders: [order] });
         if (result instanceof ConnectionLostError) {
@@ -3128,16 +2832,8 @@ export class PosStore extends WithLazyGetterTrap {
 PosStore.prototype.electronic_payment_interfaces = {};
 
 /**
- * Call this function to map your PaymentInterface implementation to
- * the use_payment_terminal field. When the POS loads it will take
- * care of instantiating your interface and setting it on the right
- * payment methods.
- *
- * @param {string} use_payment_terminal - value used in the
- * use_payment_terminal selection field
- *
- * @param {Object} ImplementedPaymentInterface - implemented
- * PaymentInterface
+ * @param {string} use_payment_terminal
+ * @param {Object} ImplementedPaymentInterface
  */
 export function register_payment_method(
     use_payment_terminal,

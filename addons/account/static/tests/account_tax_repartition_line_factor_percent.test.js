@@ -22,7 +22,7 @@ class TaxRepartitionLine extends models.Model {
 
 defineModels([TaxRepartitionLine]);
 
-/** @param {number} resId @param {string} [options] */
+/** @param {number} resId */
 function arch(options) {
     return `
         <form>
@@ -32,9 +32,6 @@ function arch(options) {
         </form>`;
 }
 
-/**
- * The widget shows a 12-decimal factor without its trailing zeros, keeping two.
- */
 describe("factor percent formatting", () => {
     test("trims the trailing zeros of the default 12 decimals", async () => {
         await mountView({
@@ -59,8 +56,6 @@ describe("factor percent formatting", () => {
     });
 
     test("leaves an integer alone when the arch asks for no decimals", async () => {
-        // Trimming used to run off the end of the trailing digit run and eat a
-        // significant digit, rendering 100 as "10".
         await mountView({
             type: "form",
             resModel: "tax.repartition.line",

@@ -4,22 +4,13 @@ import {
 } from "@documents/owl/components/pdf_manager/pdf_page_store";
 import { describe, expect, test } from "@odoo/hoot";
 
-/**
- * Unit tests for the PDF split tool's bookkeeping.
- *
- * Nothing is mounted here on purpose: the store is plain state, so it is
- * exercised as plain state. The four "regression" blocks below each pin one of
- * the defects the extraction was meant to make unrepresentable — they were four
- * separate local patches to four call sites before a single owner existed.
- */
 describe.current.tags("headless");
 
 /**
- * A store holding `pageCount` pages, one group per page by default.
  * @param {Object} [param0]
  * @param {number} [param0.pageCount]
  * @param {boolean} [param0.groupPerPage]
- * @param {Object} [param0.data] container to build on (defaults to a plain one)
+ * @param {Object} [param0.data]
  * @returns {PdfPageStore}
  */
 function buildStore({ pageCount = 6, groupPerPage = true, data } = {}) {
@@ -28,7 +19,6 @@ function buildStore({ pageCount = 6, groupPerPage = true, data } = {}) {
     return store;
 }
 
-/** Merge every group of `store` into the first one, one separator at a time. */
 function mergeAllGroups(store) {
     while (store.groupIds.length > 1) {
         const groupId = store.groupIds[0];
@@ -37,15 +27,7 @@ function mergeAllGroups(store) {
     }
 }
 
-//------------------------------------------------------------------------------
-// Group boundaries
-//------------------------------------------------------------------------------
-
 describe("isLastPageOfGroup", () => {
-    // This is the model-side answer to "is a separator drawn after this page",
-    // which `PdfManager._splitSelectionHandler` used to obtain by reading the
-    // `o_pdf_separator_selected` class back off the rendered splitter. The
-    // template sets that class from `pageId_last`, so the two must agree.
     test("only the closing page of a group reports true", () => {
         const store = buildStore({ pageCount: 4, groupPerPage: false });
         const [p1, p2, p3, p4] = store.sortedPageIds;
@@ -61,11 +43,11 @@ describe("isLastPageOfGroup", () => {
         const [p1, p2] = store.sortedPageIds;
         const groupId = store.groupIds[0];
 
-        store.toggleSeparator(p2, groupId); // split after p2
+        store.toggleSeparator(p2, groupId);
         expect(store.isLastPageOfGroup(p2)).toBe(true);
         expect(store.isLastPageOfGroup(p1)).toBe(false);
 
-        store.toggleSeparator(p2, groupId); // merge the two back together
+        store.toggleSeparator(p2, groupId);
         expect(store.isLastPageOfGroup(p2)).toBe(false);
         expect(() => store.checkInvariants()).not.toThrow();
     });
@@ -88,10 +70,6 @@ describe("isLastPageOfGroup", () => {
         expect(store.isLastPageOfGroup("nope")).toBe(false);
     });
 });
-
-//------------------------------------------------------------------------------
-// Invariant: a page belongs to at most one group
-//------------------------------------------------------------------------------
 
 describe("a page belongs to at most one group", () => {
     test("attaching a page detaches it from its previous group", () => {
@@ -126,10 +104,6 @@ describe("a page belongs to at most one group", () => {
         expect(() => store.checkInvariants()).not.toThrow();
     });
 });
-
-//------------------------------------------------------------------------------
-// Invariant: pageIds holds no unknown id
-//------------------------------------------------------------------------------
 
 describe("a group never lists a page that does not exist", () => {
     test("attaching an unknown page is refused", () => {
@@ -167,10 +141,6 @@ describe("a group never lists a page that does not exist", () => {
         expect(store.numberOfPages).toBe(2);
     });
 });
-
-//------------------------------------------------------------------------------
-// Invariant: numberOfPages
-//------------------------------------------------------------------------------
 
 describe("numberOfPages equals the number of grouped pages", () => {
     test("it tracks every kind of mutation", () => {
@@ -214,10 +184,6 @@ describe("numberOfPages equals the number of grouped pages", () => {
     });
 });
 
-//------------------------------------------------------------------------------
-// Invariant: an emptied group disappears
-//------------------------------------------------------------------------------
-
 describe("a group that loses its last page is removed", () => {
     test("removing the last page drops the group from groupIds and groupData", () => {
         const store = buildStore({ pageCount: 2 });
@@ -244,8 +210,6 @@ describe("a group that loses its last page is removed", () => {
     });
 
     test("a same-group move does not let the group vanish in between", () => {
-        // The detach that precedes the re-attach empties the group for an
-        // instant. Removing it there would drop the page on the floor.
         const store = buildStore({ pageCount: 1 });
         const [p1] = store.sortedPageIds;
         const [groupId] = store.groupIds;
@@ -257,10 +221,6 @@ describe("a group that loses its last page is removed", () => {
         expect(() => store.checkInvariants()).not.toThrow();
     });
 });
-
-//------------------------------------------------------------------------------
-// Invariant: focus / last selection never dangle
-//------------------------------------------------------------------------------
 
 describe("focus and last selection never reference a detached page", () => {
     test("removing the focused page releases the focus", () => {
@@ -281,8 +241,6 @@ describe("focus and last selection never reference a detached page", () => {
     });
 
     test("a reorder keeps the focus", () => {
-        // `addPage` detaches first, but that is not a removal: losing the focus
-        // on every drag or separator toggle would be a visible regression.
         const store = buildStore({ pageCount: 6, groupPerPage: false });
         const [p1, , , p4] = store.sortedPageIds;
         store.focusedPage = p1;
@@ -296,16 +254,8 @@ describe("focus and last selection never reference a detached page", () => {
     });
 });
 
-//------------------------------------------------------------------------------
-// Regression (a): a failed split re-gathering pages that are still grouped
-//------------------------------------------------------------------------------
-
 describe("regression: createGroup over pages that are still in another group", () => {
     test("no page is duplicated and the counter stays exact", () => {
-        // What `_applyChanges` does when the upload fails: it re-gathers the
-        // ignored pages into a "Remaining Pages" group. It used to *copy* them
-        // there while leaving them listed in their original group, inflating
-        // numberOfPages and double-committing them on the retry.
         const store = buildStore({ pageCount: 6, groupPerPage: false });
         const ignored = store.sortedPageIds.slice(0, 3);
 
@@ -323,7 +273,6 @@ describe("regression: createGroup over pages that are still in another group", (
         expect(store.numberOfPages).toBe(6);
         expect(() => store.checkInvariants()).not.toThrow();
 
-        // The retry is what made the original bug destructive.
         store.createGroup({
             name: "Remaining Pages",
             pageIds: ignored,
@@ -351,15 +300,8 @@ describe("regression: createGroup over pages that are still in another group", (
     });
 });
 
-//------------------------------------------------------------------------------
-// Regression (b): removing an already-detached page
-//------------------------------------------------------------------------------
-
 describe("regression: removing a page that has no group", () => {
     test("it does not throw", () => {
-        // A page committed by a partial split survives in `pages` with
-        // `groupId === false`. Dereferencing `groupData[false]` threw out of
-        // the delete-confirmation callback and surfaced as a generic crash.
         const store = buildStore({ pageCount: 3 });
         const [p1] = store.sortedPageIds;
 
@@ -383,23 +325,15 @@ describe("regression: removing a page that has no group", () => {
     });
 });
 
-//------------------------------------------------------------------------------
-// Regression (c): forward same-group drag landing one slot late
-//------------------------------------------------------------------------------
-
 describe("regression: same-group drag lands on the target's index", () => {
     test("forward and backward drags are symmetric", () => {
         const store = buildStore({ pageCount: 6, groupPerPage: false });
         const [p1, p2, p3, p4, p5, p6] = store.sortedPageIds;
 
-        // Forward: the detach shifts everything after the source one slot left,
-        // so the target index is stale by one. Uncorrected, p1 landed *after* p4.
         store.movePage(p1, p4);
         expect(store.sortedPageIds).toEqual([p2, p3, p1, p4, p5, p6]);
         expect(() => store.checkInvariants()).not.toThrow();
 
-        // Backward always worked; keep it covered so the correction stays
-        // one-sided.
         store.movePage(p1, p2);
         expect(store.sortedPageIds).toEqual([p1, p2, p3, p4, p5, p6]);
         expect(store.numberOfPages).toBe(6);
@@ -412,7 +346,6 @@ describe("regression: same-group drag lands on the target's index", () => {
         const otherGroupId = store.createGroup({ name: "other" });
         store.addPage(p4, otherGroupId);
 
-        // p4 is not in the target group, so no correction must apply.
         store.movePage(p4, p2);
 
         expect(store.getGroup(store.getPage(p1).groupId).pageIds).toEqual([
@@ -426,16 +359,8 @@ describe("regression: same-group drag lands on the target's index", () => {
     });
 });
 
-//------------------------------------------------------------------------------
-// Regression (d): the page counter is maintained, never recomputed
-//------------------------------------------------------------------------------
-
 describe("regression: a large merge does not recompute the page count", () => {
     test("merging 400 single-page groups never walks every group", () => {
-        // The quadratic version recomputed `sortedPagesIds` (a flatMap over
-        // every group) on every single attach and detach: 400 pages took 998ms.
-        // The guard is structural rather than a stopwatch — the counter is only
-        // correct if it is maintained, and only fast if it is never recounted.
         class CountingStore extends PdfPageStore {
             sortedPageIdsReads = 0;
             get sortedPageIds() {
@@ -458,8 +383,6 @@ describe("regression: a large merge does not recompute the page count", () => {
         expect(counting.getGroup(counting.groupIds[0]).pageIds).toHaveLength(400);
         expect(counting.numberOfPages).toBe(400);
         expect(() => counting.checkInvariants()).not.toThrow();
-        // Generous: the fixed implementation measures ~60ms, the quadratic one
-        // ~1000ms. This only has to separate those two.
         expect(elapsed).toBeLessThan(500, {
             message: `merging 400 pages took ${Math.round(elapsed)}ms`,
         });
@@ -480,10 +403,6 @@ describe("regression: a large merge does not recompute the page count", () => {
         expect(() => store.checkInvariants()).not.toThrow();
     });
 });
-
-//------------------------------------------------------------------------------
-// The remaining bookkeeping operations
-//------------------------------------------------------------------------------
 
 describe("group operations", () => {
     test("toggleSeparator splits a group in two and merges it back", () => {
@@ -534,7 +453,6 @@ describe("group operations", () => {
     test("splitOnBlankPages rebuilds the grouping without losing a page", () => {
         const store = buildStore({ pageCount: 6, groupPerPage: false });
         const allPageIds = store.sortedPageIds;
-        // Pages 3 and 4 are blank: doc / blank run / doc.
         store.getPage(allPageIds[2]).isBlank = true;
         store.getPage(allPageIds[3]).isBlank = true;
 
@@ -616,7 +534,6 @@ describe("selection", () => {
         expect(store.ignoredPageIds).toEqual([p1]);
         expect(store.allSelected).toBe(false);
 
-        // A detached page counts as neither.
         store.removePage(p2);
         expect(store.selectedPageIds).not.toInclude(p2);
         expect(store.ignoredPageIds).not.toInclude(p2);
@@ -649,7 +566,6 @@ describe("selection", () => {
         expect(store.selectedPageIds).toEqual([p1, p2, p3, p4]);
         expect(store.lastSelectedPage).toBe(p4);
 
-        // Toggling off never extends.
         store.clickSelect(p4, { isRangeSelection: true });
         expect(store.selectedPageIds).toEqual([p1, p2, p3]);
     });
@@ -659,11 +575,9 @@ describe("selection", () => {
         const [groupId] = store.groupIds;
         const [p1] = store.sortedPageIds;
 
-        // Fully selected -> deselect.
         store.toggleGroupSelection(groupId);
         expect(store.selectedPageIds).toEqual([]);
 
-        // Partially selected -> select everything.
         store.setSelected(p1, true);
         store.toggleGroupSelection(groupId);
         expect(store.selectedPageIds).toHaveLength(6);
@@ -772,10 +686,6 @@ describe("focus navigation", () => {
     });
 });
 
-//------------------------------------------------------------------------------
-// The invariant checker itself
-//------------------------------------------------------------------------------
-
 describe("checkInvariants", () => {
     test("it is not vacuous: every invariant it claims to guard is detected", () => {
         const corruptions = {
@@ -816,10 +726,6 @@ describe("checkInvariants", () => {
     });
 });
 
-//------------------------------------------------------------------------------
-// The reactive wrapper is external to the store
-//------------------------------------------------------------------------------
-
 describe("the store is reactivity-agnostic", () => {
     test("it works on any plain container handed to it", () => {
         const data = makePdfPageStoreData();
@@ -839,15 +745,11 @@ describe("the store is reactivity-agnostic", () => {
         ]);
         expect(store.numberOfPages).toBe(3);
 
-        // Nothing non-serialisable ends up in the container: it survives a JSON
-        // round trip, which is also what `_sendChanges` relies on.
         expect(() => JSON.stringify(data)).not.toThrow();
         expect(JSON.parse(JSON.stringify(data)).numberOfPages).toBe(3);
     });
 
     test("two stores can share one container", () => {
-        // How the component uses it: a plain container wrapped by useState, and
-        // the store built on the proxy. Sharing must not break the bookkeeping.
         const data = makePdfPageStoreData();
         const writer = new PdfPageStore(data);
         const reader = new PdfPageStore(data);

@@ -15,16 +15,13 @@ export class AccountMergeWizardLinesRenderer extends SectionAndNoteListRenderer 
 
     getCellClass(column, record) {
         const classNames = super.getCellClass(column, record);
-        // Even though the `is_selected` field is invisible for section lines, we should
-        // keep its column (which would be hidden by the call to super.getCellClass)
-        // in order to align the section header name with the account names.
         if (this.isSectionOrNote(record) && column.name === "is_selected") {
             return classNames.replace(" o_hidden", "");
         }
         return classNames;
     }
 
-    /** @override **/
+    /** @override * */
     getSectionColumns(columns) {
         const sectionCols = columns.filter(
             (col) =>
@@ -42,7 +39,6 @@ export class AccountMergeWizardLinesRenderer extends SectionAndNoteListRenderer 
 
     /** @override */
     isSortable(column) {
-        // Don't allow sorting columns, as that doesn't make sense in the wizard view.
         return false;
     }
 }

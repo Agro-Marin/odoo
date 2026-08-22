@@ -48,7 +48,7 @@ test("Unknown visitor", async () => {
 });
 
 test("Do not show channel when visitor is typing", async () => {
-    mockDate("2023-01-03 12:00:00"); // so that it's after last interest (mock server is in 2019 by default!)
+    mockDate("2023-01-03 12:00:00");
     const pyEnv = await startServer();
     pyEnv["res.users"].write([serverState.userId], { im_status: "online" });
     const livechatChannelId = pyEnv["im_livechat.channel"].create({
@@ -78,7 +78,6 @@ test("Do not show channel when visitor is typing", async () => {
             count: 0,
         },
     );
-    // simulate livechat visitor typing
     const channel = pyEnv["discuss.channel"].search_read([["id", "=", channelId]])[0];
     await withGuest(guestId, () =>
         rpc("/discuss/channel/notify_typing", {
@@ -86,7 +85,6 @@ test("Do not show channel when visitor is typing", async () => {
             channel_id: channel.id,
         }),
     );
-    // weak test, no guaranteed that we waited long enough for the livechat to potentially appear
     await tick();
     await contains(
         ".o-mail-DiscussSidebarCategory-livechat + .o-mail-DiscussSidebarChannel-container",
@@ -219,7 +217,6 @@ test("Counter should have correct value of unread threads if category is folded 
     });
     await start();
     await openDiscuss();
-    // first, close the live chat category
     await click(".o-mail-DiscussSidebarCategory-livechat .btn");
     await contains(".o-mail-DiscussSidebarCategory-livechat .o-discuss-badge", {
         text: "1",
@@ -245,7 +242,6 @@ test("Close manually by clicking the title", async () => {
     await contains(
         ".o-mail-DiscussSidebarCategory-livechat + .o-mail-DiscussSidebarChannel-container",
     );
-    // fold the livechat category
     await click(".o-mail-DiscussSidebarCategory-livechat .btn");
     await contains(".o-mail-DiscussSidebarChannel", { count: 0 });
 });
@@ -272,7 +268,6 @@ test("Open manually by clicking the title", async () => {
     });
     await start();
     await openDiscuss();
-    // first, close the live chat category
     await click(".o-mail-DiscussSidebarCategory-livechat .btn");
     await contains(".o-mail-DiscussSidebarCategory-livechat");
     await contains(
@@ -281,7 +276,6 @@ test("Open manually by clicking the title", async () => {
             count: 0,
         },
     );
-    // open the livechat category
     await click(".o-mail-DiscussSidebarCategory-livechat .btn");
     await contains(
         ".o-mail-DiscussSidebarCategory-livechat + .o-mail-DiscussSidebarChannel-container",

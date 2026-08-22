@@ -42,8 +42,6 @@ export function useIdleTimer(steps, onAlive) {
             checkSteps();
         }
     }, 1000);
-    // Without this the 1 Hz interval outlives the component, keeps firing step
-    // actions on a torn-down instance, and leaks one timer per mount.
     onWillUnmount(() => clearInterval(intervalId));
 
     return state;

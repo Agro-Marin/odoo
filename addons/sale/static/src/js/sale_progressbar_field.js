@@ -6,17 +6,8 @@ import {
     kanbanProgressBarField,
 } from "@web/fields/display/progress_bar";
 
-/**
- * A custom Component for the view of sales teams on the kanban view in the CRM app.
- *
- * The wanted behavior is to show a progress bar when an invoicing target is defined or show
- * a link redirecting to the record's form view otherwise.
- */
 export class SaleProgressBarField extends KanbanProgressBarField {
     static template = "sale.SaleProgressBarField";
-    /**
-     * Anything used by the component is defined on the setup method.
-     */
     setup() {
         super.setup();
 
@@ -24,18 +15,10 @@ export class SaleProgressBarField extends KanbanProgressBarField {
         this.orm = useService("orm");
     }
 
-    /**
-     * Whether an invoicing target (the max value) is defined. Derived directly from
-     * props — not synced into reactive state via an effect that would rerun on every
-     * render.
-     */
     get isInvoicingTargetDefined() {
         return this.props.record.data[this.props.maxValueField];
     }
 
-    /**
-     * Display the form view of the record on click.
-     */
     async defineInvoicingTarget() {
         const { resId, resModel } = this.props.record;
         const action = await this.orm.call(resModel, "get_formview_action", [[resId]]);

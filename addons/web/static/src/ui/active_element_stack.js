@@ -42,13 +42,6 @@ export function makeActiveElementStack() {
             }
         },
 
-        /**
-         * The active element a DOM position belongs to: the innermost entry of
-         * the stack that contains it, or `document` for a position no active
-         * element covers. Unlike `activeElementOf` this never answers
-         * `undefined`, so a caller cannot mistake "outside every overlay" for
-         * "unknown".
-         */
         scopeOf(node) {
             return (
                 (node && this.activeElementOf(node)) ||

@@ -1,11 +1,5 @@
 /** @odoo-module native */
 
-// Pending-order tracking extracted from PosStore. The `pos.pendingOrder`
-// {create, write, delete} sets stay on the store; these are pure functions over
-// them. PosStore keeps thin delegating methods since many modules/components call
-// `pos.addPendingOrder(...)`. getPendingOrder calls `pos.shouldCreatePendingOrder`
-// through the facade so a patch on it still applies.
-
 export function addPendingOrder(pos, orderIds, remove = false) {
     if (remove) {
         for (const id of orderIds) {

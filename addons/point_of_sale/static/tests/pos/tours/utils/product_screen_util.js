@@ -32,15 +32,6 @@ export function clickLine(productName, quantity = "1") {
         ...Order.hasLine({ withClass: ".selected", productName, quantity }),
     ].flat();
 }
-/**
- * Leave the line selected, clicking it only if it is not already.
- *
- * `clickLine` requires the line to start unselected, because the order summary
- * TOGGLES: clicking the selected line deselects it. That makes `clickLine`
- * unusable right after adding a product, which already leaves its line
- * selected -- exactly the state a mobile tour is in when it opens the review
- * panel to reach the numpad.
- */
 export function ensureLineSelected(productName, quantity = "1") {
     return [
         {
@@ -116,29 +107,11 @@ export function checkFloatingOrderCount(expectedCount) {
 }
 
 /**
- * Generates a sequence of actions to click on a displayed product, with optional additional
- * checks based on specific needs such as the next quantity and the next price.
- *
- * @param {string} name The name of the product to click on.
- * @param {boolean} [isCheckNeed=false] Indicates whether additional checks are necessary after clicking.
- * @param {string|null} [nextQuantity=null] The next quantity of the product, used in additional checks if specified.
- * @param {string|null} [nextPrice=null] The next price of the product, used in additional checks if specified.
- * @returns {Object[]} An array of objects describing the steps to follow
- *
- * @example
- * // Example usage for clicking on a product without additional checks.
- * clickDisplayedProduct('Gala Apple');
- *
- * // Example usage for clicking on a product with checks if the product has been added to the order.
- * clickDisplayedProduct('Gala Apple', true);
- *
- * // Example usage for clicking on a product with checks if the product has been added to the order and
- * // what should be the quantity after adding to the order.
- * clickDisplayedProduct('Gala Apple', true, "5.0");
- *
- * // Example usage for clicking on a product with checks if the product has been added to the order and
- * // what should be the quantity and price after adding to the order.
- * clickDisplayedProduct('Gala Apple', true, "5.0", "2.99");
+ * @param {string} name
+ * @param {boolean} [isCheckNeed=false]
+ * @param {string|null} [nextQuantity=null]
+ * @param {string|null} [nextPrice=null]
+ * @returns {Object[]}
  */
 export function clickDisplayedProduct(
     name,
@@ -193,8 +166,7 @@ export function clickSubcategory(name) {
     ];
 }
 /**
- * Press the numpad in sequence based on the given space-separated keys.
- * @param {...String} keys space-separated numpad keys
+ * @param {...String} keys
  */
 export function clickNumpad(...keys) {
     return inLeftSide(keys.map(Numpad.click));
@@ -332,27 +304,9 @@ export function clickInternalNoteButton(buttonLabel) {
 }
 
 /**
- * Selects a given price list in the user interface. This function is designed to be used to select a specific price list.
- *
- * @param {string} name - The name of the price list to be selected. This parameter is used to identify the target element in the
- * user interface. required.
- * @param {boolean} [isCheckNeedSelectedBeforeClick=false] - A boolean that determines whether the function should check
- * if a specific item is selected before proceeding to select the price list. Useful for ensuring the user interface state
- * is correct before performing an action.
- * @param {string|null} [nameToCheck=null] - The name of the item to check if it is selected before proceeding to select the price
- * list. If this parameter is not provided (null), the `name` parameter will be used for the check.
- *
- * @example
- * // Select a price list named "Standard Rate" without prior check
- * clickPriceList("Standard Rate");
- *
- * @example
- * // Select a price list named "Discount Pricelist" after verifying that "Public Pricelist" is selected
- * clickPriceList("Discount Pricelist", true, "Public Pricelist");
- *
- * @example
- * // Select a price list named "Discount Rate" after verifying that "Discount Rate" is selected
- * clickPriceList("Discount Rate", true);
+ * @param {string} name
+ * @param {boolean} [isCheckNeedSelectedBeforeClick=false]
+ * @param {string|null} [nameToCheck=null]
  */
 export function clickPriceList(
     name,
@@ -393,18 +347,8 @@ export function enterOpeningAmount(amount) {
     ];
 }
 /**
- * Clicks on the given fiscal position in the user interface.
- *
- * @param {string} name - The name of the fiscal position to click. This parameter is used to identify the target element in the user interface.
- * @param {boolean} checkIsNeeded - A boolean indicating whether additional verification is needed after clicking on the fiscal position. If `true`, the function will verify that the fiscal position has been correctly applied to the order.
- *
- * @example
- * // Clicks on the "No Tax" fiscal position without additional verification
- * clickFiscalPosition("No Tax");
- *
- * @example
- * // Clicks on the "No Tax" fiscal position and verifies that it has been applied
- * clickFiscalPosition("No Tax", true);
+ * @param {string} name
+ * @param {boolean} checkIsNeeded
  */
 export function clickFiscalPosition(name, checkIsNeeded = false) {
     const step = [
@@ -516,11 +460,6 @@ export function enterLotNumber(number, tracking = "serial", click = false) {
     }
     steps.push(
         {
-            // That the dropdown is open, not what it happens to hold: this used
-            // to require "No existing Lot/Serial number found...", which is only
-            // what an empty input shows for a product that has no lots yet. Any
-            // tour entering a second number for the same product sees the first
-            // one listed instead, and died here.
             content: "the lot/serial dropdown is open",
             trigger: ".o-autocomplete--dropdown-menu",
         },
@@ -695,7 +634,7 @@ export function orderIsEmpty() {
 }
 
 /**
- * @param {number} position The position of the product in the list. If -1 (default), the product can be anywhere in the list.
+ * @param {number} position
  */
 export function productIsDisplayed(name, position = -1) {
     return [
@@ -758,13 +697,6 @@ export function checkFirstLotNumber(number) {
 }
 
 /**
- * Create an orderline for the given `productName` and `quantity`.
- * - If `unitPrice` is provided, price of the product of the created line
- *   is changed to that value.
- * - If `expectedTotal` is provided, the created orderline (which is the currently
- *   selected orderline) is checked if it contains the correct quantity and total
- *   price.
- *
  * @param {string} productName
  * @param {string} quantity
  * @param {string} unitPrice
@@ -780,9 +712,6 @@ export function addOrderline(productName, quantity = 1, unitPrice, expectedTotal
         return key;
     };
 
-    // Press +/- to set a negative quantity. For example, pressing +/- followed by "1" will result in "-11".
-    // To adjust the quantity from "-1" to "-3," first press "0" followed by "3" since pressing +/- will initially set it to "-1,"
-    // and entering "3" directly would result in "-13." so send 0(num) when want to change sign and set a number
     const numpadWrite = (val) =>
         val
             .toString()
@@ -883,7 +812,7 @@ export function checkTaxAmount(amount) {
 export function checkRoundingAmountIsNotThere() {
     return [
         {
-            isActive: ["desktop"], // not rendered on mobile
+            isActive: ["desktop"],
             trigger: ".order-summary",
             run: function () {
                 if (document.querySelector(".rounding")) {

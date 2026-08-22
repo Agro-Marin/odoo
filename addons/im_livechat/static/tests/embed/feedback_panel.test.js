@@ -68,7 +68,6 @@ test("Last operator leaving ends the livechat", async () => {
     await insertText(".o-mail-Composer-input", "Hello World!");
     triggerHotkey("Enter");
     await contains(".o-mail-Message-content", { text: "Hello World!" });
-    // simulate operator leaving
     await withUser(operatorUserId, () =>
         getService("orm").call("discuss.channel", "action_unfollow", [
             [Object.values(getService("mail.store").Thread.records).at(-1).id],
@@ -77,7 +76,7 @@ test("Last operator leaving ends the livechat", async () => {
     await contains("span", { text: "This livechat conversation has ended" });
     await contains(".o-mail-Composer-input", { count: 0 });
     await click("[title*='Close Chat Window']");
-    await contains("p", { text: "Did we correctly answer your question?" }); // shows immediately feedback
+    await contains("p", { text: "Did we correctly answer your question?" });
 });
 
 test("Feedback with rating and comment", async () => {

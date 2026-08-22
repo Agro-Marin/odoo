@@ -74,15 +74,12 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ***************************************************************************** */
 
 function resolveUrl(url, baseUrl) {
-    // url is absolute already
     if (url.match(/^[a-z]+:\/\//i)) {
         return url;
     }
-    // url is absolute already, without protocol
     if (url.match(/^\/\//)) {
         return window.location.protocol + url;
     }
-    // dataURI, mailto:, tel:, etc.
     if (url.match(/^[a-z]+:/i)) {
         return url;
     }
@@ -98,10 +95,7 @@ function resolveUrl(url, baseUrl) {
     return a.href;
 }
 const uuid = (() => {
-    // generate uuid for className of pseudo elements.
-    // We should not use GUIDs, otherwise pseudo elements sometimes cannot be captured.
     let counter = 0;
-    // ref: http://stackoverflow.com/a/6248722/2519373
     const random = () =>
         `0000${((Math.random() * 36 ** 4) << 0).toString(36)}`.slice(-4);
     return () => {
@@ -154,7 +148,6 @@ function getPixelRatio() {
     }
     return ratio || window.devicePixelRatio || 1;
 }
-// @see https://developer.mozilla.org/en-US/docs/Web/HTML/Element/canvas#maximum_canvas_size
 const canvasDimensionLimit = 16384;
 function checkCanvasDimensions(canvas) {
     if (canvas.width > canvasDimensionLimit || canvas.height > canvasDimensionLimit) {
@@ -356,7 +349,6 @@ function getCacheKey(url, contentType, includeQueryParams) {
     if (includeQueryParams) {
         key = url;
     }
-    // font resource
     if (/ttf|otf|eot|woff2?/i.test(key)) {
         key = key.replace(/.*\//, "");
     }
@@ -367,7 +359,6 @@ async function resourceToDataURL(resourceUrl, contentType, options) {
     if (cache[cacheKey] != null) {
         return cache[cacheKey];
     }
-    // ref: https://developer.mozilla.org/en/docs/Web/API/XMLHttpRequest/Using_XMLHttpRequest#Bypassing_the_cache
     if (options.cacheBust) {
         resourceUrl += (/\?/.test(resourceUrl) ? "&" : "?") + new Date().getTime();
     }
@@ -760,7 +751,6 @@ function parseCSS(source) {
     }
     const result = [];
     const commentsRegex = /(\/\*[\s\S]*?\*\/)/gi;
-    // strip out comments
     let cssText = source.replace(commentsRegex, "");
 
     const keyframesRegex = new RegExp(
@@ -777,11 +767,9 @@ function parseCSS(source) {
     }
     cssText = cssText.replace(keyframesRegex, "");
     const importRegex = /@import[\s\S]*?url\([^)]*\)[\s\S]*?;/gi;
-    // to match css & media queries together
     const combinedCSSRegex =
         "((\\s*?(?:\\/\\*[\\s\\S]*?\\*\\/)?\\s*?@media[\\s\\S]" +
         "*?){([\\s\\S]*?)}\\s*?})|(([\\s\\S]*?){([\\s\\S]*?)})";
-    // unified regex
     const unifiedRegex = new RegExp(combinedCSSRegex, "gi");
 
     while (true) {
@@ -803,7 +791,6 @@ function parseCSS(source) {
 async function getCSSRules(styleSheets, options) {
     const ret = [];
     const deferreds = [];
-    // First loop inlines imports
     styleSheets.forEach((sheet) => {
         if ("cssRules" in sheet) {
             try {
@@ -861,7 +848,6 @@ async function getCSSRules(styleSheets, options) {
         }
     });
     return Promise.all(deferreds).then(() => {
-        // Second loop parses rules
         styleSheets.forEach((sheet) => {
             if ("cssRules" in sheet) {
                 try {

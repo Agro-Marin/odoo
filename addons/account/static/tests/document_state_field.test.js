@@ -26,8 +26,6 @@ class Move extends models.Model {
 
 defineModels([Move]);
 
-// The info icon is added after the span `web.SelectionField` renders only when
-// readonly, so the widget shows it in that mode alone.
 const ARCH = `
     <form>
         <field name="message" invisible="1"/>
@@ -55,9 +53,6 @@ describe("DocumentState message popover", () => {
         await contains(".fa-info-circle").click();
         expect(".account_document_state_popover").toHaveCount(1);
 
-        // The widget used to track the popover by hand, and a click-away close
-        // bypassed that bookkeeping: the next click on the icon only "closed" an
-        // already-closed popover, so it never came back.
         await click(".o_form_view");
         await animationFrame();
         expect(".account_document_state_popover").toHaveCount(0);

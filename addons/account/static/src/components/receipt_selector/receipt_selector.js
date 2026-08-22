@@ -42,7 +42,6 @@ export class ReceiptSelector extends RadioField {
             return original_items;
         }
 
-        // Use a copy to avoid updating the original selection labels
         let items = deepCopy(original_items);
 
         let allowedValues = [];
