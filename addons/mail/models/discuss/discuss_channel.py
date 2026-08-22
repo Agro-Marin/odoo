@@ -1105,8 +1105,8 @@ class DiscussChannel(models.Model):
         super()._clean_empty_message(message)
         message.parent_id = False
 
-    def _get_store_message_update_extra_fields(self) -> list[StoreFieldSpec]:
-        return super()._get_store_message_update_extra_fields() + [
+    def _get_fields_store_message_update_extra(self) -> list[StoreFieldSpec]:
+        return super()._get_fields_store_message_update_extra() + [
             Store.One("parent_id")
         ]
 

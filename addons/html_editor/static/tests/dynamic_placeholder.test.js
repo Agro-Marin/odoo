@@ -1,12 +1,17 @@
 import { DYNAMIC_PLACEHOLDER_PLUGINS } from "@html_editor/backend/plugin_sets";
+import { DynamicPlaceholderPlugin } from "@html_editor/others/dynamic_placeholder_plugin";
 import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { expect, test } from "@odoo/hoot";
 import { click, manuallyDispatchProgrammaticEvent, press } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import {
+    contains,
     defineModels,
+    fields,
     models,
+    mountView,
     onRpc,
+    patchWithCleanup,
     serverState,
 } from "@web/../tests/web_test_helpers";
 
@@ -22,9 +27,16 @@ class ResUsers extends models.Model {
     ];
 }
 
+class Template extends models.Model {
+    _name = "template";
+    body = fields.Html();
+    model = fields.Char();
+    _records = [{ id: 1, body: "<p>[]</p>", model: false }];
+}
+
 onRpc("has_group", () => true);
 onRpc("mail_allowed_qweb_expressions", () => []);
-defineModels([ResUsers]);
+defineModels([ResUsers, Template]);
 
 test("inserted value from dynamic placeholder should contain the data-oe-t-inline attribute", async () => {
     const { editor } = await setupEditor("<p>test[]</p>", {
@@ -64,4 +76,41 @@ test("inserted value from dynamic placeholder should contain the data-oe-t-inlin
     await animationFrame();
 
     expect("t[data-oe-t-inline]").toHaveCount(1);
+});
+
+test("a model chosen after the editor mounted still reaches the picker", async () => {
+    // `HtmlField` pushes the placeholder model at the plugin from a
+    // `useRecordObserver`, which is a reactive effect: it re-runs only on the
+    // record fields its callback actually read. The callback used to test
+    // `this.editor` first, and its first run happens in `onWillStart` -- before
+    // `onEditorLoad` assigns it -- so it returned having read nothing,
+    // subscribed to nothing, and never fired again. A record whose model is
+    // empty at mount and chosen afterwards (every new `mail.template`) then
+    // kept `undefined` forever, and `/field` answered with the "select a model
+    // first" notification instead of the popover.
+    const pushed = [];
+    patchWithCleanup(DynamicPlaceholderPlugin.prototype, {
+        updateDphDefaultModel(resModel) {
+            super.updateDphDefaultModel(resModel);
+            pushed.push(resModel);
+        },
+    });
+    await mountView({
+        type: "form",
+        resModel: "template",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="model"/>
+                <field name="body" widget="html" options="{
+                    'dynamic_placeholder': true,
+                    'dynamic_placeholder_model_reference_field': 'model'
+                }"/>
+            </form>`,
+    });
+
+    await contains("[name='model'] input").edit("res.users");
+    await animationFrame();
+
+    expect(pushed.at(-1)).toBe("res.users");
 });

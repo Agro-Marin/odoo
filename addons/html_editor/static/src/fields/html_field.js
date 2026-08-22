@@ -133,12 +133,23 @@ export class HtmlField extends Component {
             }
         });
         useRecordObserver((record) => {
-            // update Dynamic Placeholder reference model
-            if (this.props.dynamicPlaceholder && this.editor) {
-                this.editor.shared.dynamicPlaceholder?.updateDphDefaultModel(
-                    this.dynamicPlaceholderResModel(record),
-                );
+            // Dynamic Placeholder reference model. The record is read BEFORE
+            // any editor check, and that order is the whole point: this
+            // callback is a reactive effect, so it re-runs only on the fields
+            // it actually read, and its first run happens in `onWillStart` --
+            // before `onEditorLoad` assigns `this.editor`. Testing the editor
+            // first meant the first run returned having read nothing,
+            // subscribed to nothing, and never fired again, so a model chosen
+            // *after* the editor mounted (every new `mail.template`) never
+            // reached the picker and `/field` answered with the "select a
+            // model first" notification instead of the popover.
+            if (!this.props.dynamicPlaceholder) {
+                return;
             }
+            this.dphResModel = this.dynamicPlaceholderResModel(record);
+            this.editor?.shared.dynamicPlaceholder?.updateDphDefaultModel(
+                this.dphResModel,
+            );
         });
     }
 
@@ -290,6 +301,13 @@ export class HtmlField extends Component {
 
     onEditorLoad(editor) {
         this.editor = editor;
+        // The editor is built from `getConfig()`, which read the record at
+        // mount time; `state.key` remounts it later on. Either way the last
+        // model the observer saw is at least as fresh, so hand it over here
+        // rather than leaving the new editor on a stale config value.
+        if (this.props.dynamicPlaceholder) {
+            editor.shared.dynamicPlaceholder?.updateDphDefaultModel(this.dphResModel);
+        }
     }
 
     onChange() {

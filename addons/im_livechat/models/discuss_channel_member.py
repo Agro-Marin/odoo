@@ -151,7 +151,7 @@ class DiscussChannelMember(models.Model):
             )
         ]
 
-    def _get_fields_store_partner(self, fields):
+    def _get_store_partner_fields(self, field_specs):
         self.ensure_one()
         if self.channel_id.channel_type == 'livechat':
             new_fields = [
@@ -165,9 +165,9 @@ class DiscussChannelMember(models.Model):
             if self.livechat_member_type == "visitor":
                 new_fields += ["offline_since", "email"]
             return new_fields
-        return super()._get_fields_store_partner(fields)
+        return super()._get_store_partner_fields(field_specs)
 
-    def _get_fields_store_guest(self, fields):
+    def _get_store_guest_fields(self, field_specs):
         self.ensure_one()
         if self.channel_id.channel_type == 'livechat':
             return [
@@ -177,7 +177,7 @@ class DiscussChannelMember(models.Model):
                 "name",
                 "offline_since",
             ]
-        return super()._get_fields_store_guest(fields)
+        return super()._get_store_guest_fields(field_specs)
 
     def _get_rtc_invite_members_domain(self, *a, **kw):
         domain = super()._get_rtc_invite_members_domain(*a, **kw)

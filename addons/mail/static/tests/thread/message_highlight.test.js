@@ -130,3 +130,37 @@ test("Chatter jumps when navigating to a specific message link", async () => {
         text: "message 0",
     });
 });
+
+test("a highlight link for the thread already open still highlights", async () => {
+    // The public Discuss page arrives with `DiscussApp.thread` already set by
+    // the server payload, so `restoreDiscussThread` finds the thread it was
+    // asked for is the one already active. The highlight used to be assigned
+    // inside that same `notEq` guard as `setAsDiscussThread`, which made the
+    // deep link a no-op exactly there. The two are separate concerns: whether
+    // to switch threads, and which message to point at.
+    const pyEnv = await startServer();
+    const channelId = pyEnv["discuss.channel"].create({ name: "general" });
+    const messageIds = range(0, 5).map((i) =>
+        pyEnv["mail.message"].create({
+            body: `message ${i}`,
+            message_type: "comment",
+            model: "discuss.channel",
+            res_id: channelId,
+        }),
+    );
+    await start();
+    await openDiscuss(channelId);
+    await contains(".o-mail-Message-content", { text: "message 1" });
+    router.pushState(
+        router.urlToState(
+            new URL(
+                `${window.location.origin}/odoo/action-mail.action_discuss?active_id=${channelId}&highlight_message_id=${messageIds[1]}`,
+            ),
+        ),
+        { sync: true },
+    );
+    routerBus.trigger("ROUTE_CHANGE");
+    await contains(".o-mail-Message.o-highlighted .o-mail-Message-content", {
+        text: "message 1",
+    });
+});

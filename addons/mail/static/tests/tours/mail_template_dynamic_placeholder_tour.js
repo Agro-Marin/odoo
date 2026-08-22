@@ -209,12 +209,12 @@ registry.category("web_tour.tours").add("mail_template_dynamic_placeholder_tour"
         {
             content: "Click on the insert button",
             trigger:
-                "div.o_model_field_selector_popover button:first-child:contains('Insert)",
+                'div.o_model_field_selector_popover button:first-child:contains("Insert")',
             run: "click",
         },
         {
             content: "Ensure the editable contain the dynamic placeholder t tag",
-            trigger: `.note-editable.odoo-editor-editable t[t-out="format_datetime(object.create_date, tz=object.partner_id.tz) or 'localTime'"]:contains("localTime")`,
+            trigger: `.note-editable.odoo-editor-editable t[t-out="format_datetime(object.create_date, tz=object.partner_id.tz)"]:contains("localTime")`,
         },
         {
             content: "Discard form changes",

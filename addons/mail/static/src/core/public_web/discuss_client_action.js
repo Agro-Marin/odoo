@@ -84,7 +84,13 @@ export class DiscussClientAction extends Component {
         if (token !== this._restoreToken) {
             return;
         }
-        if (activeThread && activeThread.notEq(this.store.discuss.thread)) {
+        if (activeThread) {
+            // Which message to point at is not the same question as whether to
+            // switch threads, and sharing one guard answered the first with the
+            // second: a deep link into the thread that is ALREADY active --
+            // every link into the public page, whose payload arrives with
+            // `DiscussApp.thread` set, and any `/mail/message/<id>` into the
+            // channel Discuss happens to be showing -- highlighted nothing.
             const highlight_message_id =
                 props.action?.params?.highlight_message_id ||
                 router.current.highlight_message_id;
@@ -93,7 +99,9 @@ export class DiscussClientAction extends Component {
                 delete props.action?.params?.highlight_message_id;
                 delete router.current?.highlight_message_id;
             }
-            activeThread.setAsDiscussThread(false);
+            if (activeThread.notEq(this.store.discuss.thread)) {
+                activeThread.setAsDiscussThread(false);
+            }
         }
         this.store.discuss.hasRestoredThread = true;
     }

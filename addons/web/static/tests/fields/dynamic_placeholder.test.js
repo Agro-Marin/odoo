@@ -254,6 +254,31 @@ test("a datetime is localised in a subject, as it already was in a body", async 
     );
 });
 
+test("the timezone lookup is called as the model method it is", async () => {
+    // `mail_get_partner_fields` is `@api.model`, and `call_kw` hands a model
+    // method its arguments straight through rather than peeling an id list off
+    // the front. Sending `[[]]` therefore reached the server as a second
+    // positional and died `takes 1 positional argument but 2 were given`, so
+    // no datetime placeholder ever got a timezone. Every other test of this
+    // path stubs the response and never looks at the request, which is why a
+    // tour was the only thing that could see it.
+    const calls = [];
+    onRpc("mail_get_partner_fields", ({ args }) => {
+        calls.push(args);
+        return ["product_id"];
+    });
+    await mountView({ type: "form", resModel: "partner", resId: 1 });
+    await contains(".o_field_char input").edit("#", { confirm: false });
+    await contains(
+        ".o_model_field_selector_popover_item_name:contains('Deadline')",
+    ).click();
+    await contains(".o_model_field_selector_popover button:contains('Insert')").click();
+    await animationFrame();
+    // One call, with no arguments at all -- not one whose argument happens to
+    // be an empty list.
+    expect(calls).toEqual([[]]);
+});
+
 test("a default value carrying the placeholder terminator survives", async () => {
     await mountView({ type: "form", resModel: "partner", resId: 1 });
     await contains(".o_field_char input").edit("#", { confirm: false });

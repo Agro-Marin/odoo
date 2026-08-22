@@ -97,7 +97,12 @@ export async function resolveTzPath(orm, resModel) {
     if (!resModel) {
         return null;
     }
-    const partnerFields = await orm.call(resModel, "mail_get_partner_fields", [[]]);
+    // No ids: `mail_get_partner_fields` is `@api.model`, and `call_kw` hands a
+    // model method its arguments straight through instead of peeling an id list
+    // off the front -- so `[[]]` arrived as a second positional and the call
+    // died `takes 1 positional argument but 2 were given`. Every unit test of
+    // this path stubs the RPC, so the failure only ever surfaced in a tour.
+    const partnerFields = await orm.call(resModel, "mail_get_partner_fields", []);
     return partnerFields.length ? partnerFields[0] : null;
 }
 

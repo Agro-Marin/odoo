@@ -374,5 +374,17 @@ class TestMessageLinks(MailCommon, HttpCase):
             message_type="comment",
             subtype_xmlid="mail.mt_comment",
         )
-        res = self.url_open(f"/mail/message/{message.id}")
+        expected_url = (
+            self.base_url()
+            + f"/discuss/channel/{self.public_channel.id}?highlight_message_id={message.id}"
+        )
+        # `assertNoLogs` is the half of this with teeth. The URL below is built
+        # by `/mail/message/<id>` and is byte-identical whether or not the
+        # landing route declares `highlight_message_id`: an undeclared argument
+        # is dropped by `route_wrapper`, which still serves the page and only
+        # says so in the log. Asserting the URL alone passes against a route
+        # that silently discards the parameter on every public deep link.
+        with self.assertNoLogs("odoo.http.routing", "WARNING"):
+            res = self.url_open(f"/mail/message/{message.id}")
         self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.url, expected_url)
