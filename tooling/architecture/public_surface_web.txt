@@ -65,6 +65,7 @@
 @web/core/l10n/localization  odoo enterprise
 @web/core/l10n/luxon  odoo enterprise agromarin
 @web/core/l10n/time  enterprise
+@web/core/l10n/translation  design-themes
 @web/core/l10n/utils  odoo enterprise
 @web/core/lib/chartjs  odoo enterprise agromarin
 @web/core/lib/fullcalendar  enterprise
@@ -75,10 +76,10 @@
 @web/core/parsers  odoo enterprise
 @web/core/position/position_hook  odoo
 @web/core/py_js/py  odoo enterprise agromarin
-@web/core/registry  odoo enterprise agromarin
+@web/core/registry  odoo enterprise agromarin design-themes
 @web/core/templates  odoo enterprise agromarin
 @web/core/transition  odoo enterprise
-@web/core/translation  odoo enterprise agromarin design-themes
+@web/core/translation  odoo enterprise agromarin
 @web/core/tree  odoo enterprise agromarin
 @web/core/user  odoo enterprise agromarin
 @web/core/utils/collections/arrays  odoo enterprise
@@ -157,7 +158,7 @@
 @web/fields/relational/x2many_dialog  odoo enterprise
 @web/fields/selection/badge_selection/badge_selection_field  odoo enterprise
 @web/fields/selection/priority/priority_field  odoo enterprise
-@web/fields/selection/radio/radio_field  odoo enterprise
+@web/fields/selection/radio/radio_field  odoo enterprise agromarin
 @web/fields/selection/selection/selection_field  odoo enterprise
 @web/fields/selection/state_selection/state_selection_field  odoo
 @web/fields/specialized/domain/domain_field  enterprise agromarin
@@ -169,6 +170,8 @@
 @web/fields/temporal/remaining_days/remaining_days_field  odoo enterprise
 @web/fields/translation_button  odoo
 @web/fields/translation_dialog  enterprise
+@web/legacy/js/core/dom  design-themes
+@web/legacy/js/public/public_widget  design-themes
 @web/libs/bootstrap  odoo enterprise
 @web/model/model  odoo enterprise agromarin
 @web/model/record  odoo enterprise

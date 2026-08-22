@@ -122,7 +122,7 @@ happen, and it needed no schema knowledge to detect.
 than an error, because an addon may legitimately keep a helper module beside its
 scripts. Measured across this repository's two addon trees — the scope CI
 reproduces, a workspace reading being whatever checkouts happened to be on
-disk: **162** scripts in `migrations/` and **5** in `upgrades/`, all correctly
+disk: **161** scripts in `migrations/` and **5** in `upgrades/`, all correctly
 prefixed, **0** dropped.
 
 A risk stated at the level of its hardest half hides the half that is cheap to
@@ -169,7 +169,7 @@ record to learn what `ir.attachment`'s dual storage costs.
 
 **What.** `web` publishes no API: everything under `static/src` is reachable as
 `@web/<path>`. The pin records which specifiers each consumer scope reaches, so
-the surface can only shrink. It stands at **222 specifiers**
+the surface can only shrink. It stands at **225 specifiers**
 (`tooling/architecture/public_surface_web.txt`). What remains is *recorded*, not
 resolved.
 

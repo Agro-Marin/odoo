@@ -1,6 +1,6 @@
 # ADR-0056: Stored Python is a binding no checkout holds, and `_for_xml_id` is renamed across it
 
-- **Status:** Accepted; stored half amended 2026-08-22 (see *Update*)
+- **Status:** Accepted
 - **Date:** 2026-08-20
 
 ## Context
@@ -43,8 +43,8 @@ repository of this workspace in one change — 535 occurrences over 351 files in
 `odoo`, `enterprise` and `agromarin`, including the six `<field name="code">`
 blocks that ship a server action calling it.
 
-The database half was carried by a migration (removed 2026-08-22, see *Update*),
-`base/migrations/1.8/pre-migration.py`, which rewrote the name inside every
+The database half was carried by a pre-migration (removed 2026-08-22, see
+*Amendments*), which rewrote the name inside every
 column of a database that stores Python: `ir_act_server.code`,
 `ir_actions_server_history.code` and `ir_model_fields.compute`. It matches on
 Postgres word boundaries so a name that merely contains the old one —
@@ -99,8 +99,8 @@ new blocking gate and owes its own record.
 
 As recorded, a database upgraded to `base` 1.8 had its stored Python rewritten
 once, and one skipping 1.8 still ran the script, because Odoo runs every
-migration directory between the installed and the target version. The *Update*
-below retires that mechanism.
+migration directory between the installed and the target version. The
+amendment below retires that mechanism.
 
 Code outside this workspace that calls `_for_xml_id` — an unvendored addon, an
 RPC client reaching a private method by ignoring the convention — breaks with an
@@ -122,11 +122,14 @@ name — `git grep _for_xml_id` over the workspace returns this
 record, the §2.4 paragraph, and `l10n_nl`'s unrelated `_get_tax_ids_for_xml_id`.
 No call site survives.
 
-## Update — 2026-08-22: the migration is removed, not superseded
+## Amendments
 
-`base/migrations/1.8/pre-migration.py` never ran on any database it was written
-for. `52f7aceeadc9` bumped the manifest to 1.8 and an upgrade consumed that
-number; `3c531a8ce43f` added the script afterwards, against a version already
+### 2026-08-22 — the pre-migration is removed, and its citation with it
+
+The pre-migration added by `3c531a8ce43f`, under base's migrations directory
+for version 1.8, never ran on any database it was written for.
+`52f7aceeadc9` bumped the manifest to 1.8 and an upgrade consumed that
+number; the script arrived afterwards, against a version already
 installed. Odoo runs `migrations/<v>/` only when `<v>` exceeds the stored
 `db_version`, so on every database at `19.0.1.8` it was skipped in silence — no
 warning, exit 0. It was dead code that read as a live guard.
@@ -145,3 +148,7 @@ record rejected as the dangerous option, for any database whose stored Python is
 rename. The argument against it is unchanged and still correct; what changed is
 that the population it protects is empty here. A database that needs it should
 restore the script from `3c531a8ce43f` under a version number above its own.
+
+This amendment corrects the citation in the Decision above in place: the
+path it named no longer exists, so it is replaced by the words "a
+pre-migration". The argument is untouched.

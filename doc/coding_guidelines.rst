@@ -1108,8 +1108,8 @@ and **read the result**:
   deleting it: ``_get_related_bundle`` → ``_get_bundle_containing_path``.
 
 Backlog ``[gate doc_restated_counts]``. The ``fields`` family is converted:
-**186** definitions under **97** names in this repository spell it head-first and
-**9** spell it the other way. **The rule is general; the conversion reached one
+**185** definitions under **95** names in this repository spell it head-first and
+**10** spell it the other way. **The rule is general; the conversion reached one
 family** -- across **19** of them this repository spells **64** definitions
 head-first against **169** the other way. A name in the second count is a backlog
 item, not an open question. Two cautions:

@@ -41,7 +41,21 @@ CONSUMER_ROOTS = (
     ("agromarin", ROOT.parent / "agromarin"),
     ("design-themes", ROOT.parent / "design-themes"),
 )
-KNOWN_UNRESOLVED: frozenset[str] = frozenset()
+# Imported by design-themes files that no bundle loads. This fork dropped
+# `@web/legacy/*` outright and moved translation out of `core/l10n/`, but
+# design-themes is vendored from upstream, where both still exist. The three
+# importers -- theme_common's `old_snippets/` and theme_test_custo -- are
+# declared in no `assets` manifest key and named by no `ir.asset` row (checked
+# against marin190 on 2026-08-22, with theme_common installed), so they are
+# dead files rather than a broken bundle. Accounted here rather than fixed:
+# the drift belongs to the vendored repo, not to this one.
+KNOWN_UNRESOLVED: frozenset[str] = frozenset(
+    {
+        "@web/core/l10n/translation",
+        "@web/legacy/js/core/dom",
+        "@web/legacy/js/public/public_widget",
+    }
+)
 
 
 def _named_roots(consumer_roots) -> list[tuple[str, Path]]:
