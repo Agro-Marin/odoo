@@ -33,7 +33,6 @@ const KNOWN_DOUBLE_PATCHES = new Set([
     "Failure.prototype :: body",
     "Failure.prototype :: iconSrc",
     "FormController.prototype :: setup",
-    "MailGuest.prototype :: setup",
     "Message.prototype :: canForward",
     "Message.prototype :: canReplyTo",
     "Message.prototype :: edit",
@@ -115,6 +114,15 @@ const KNOWN_DOUBLE_PATCHES = new Set([
 
 test("every live double-patch is consciously allowlisted", () => {
     const live = new Set(getDoublePatchedPairs());
+    // `unknown` is empty both when every live pair is allowlisted and when the
+    // registry introspection returns nothing at all -- only the second is a
+    // broken audit, and the assertion below cannot tell them apart. Same guard
+    // tooling/architecture/test_gate_adr_coverage.py puts on its own discovery
+    // rule. Measured at 329145a4b82, this bundle carries 25 live pairs; the
+    // floor sits far under that so an addon legitimately dropping a patch
+    // cannot trip it, while a getPatchedTargets() that stops reporting is
+    // caught immediately.
+    expect(live.size).toBeGreaterThan(10);
     const unknown = [...live].filter((pair) => !KNOWN_DOUBLE_PATCHES.has(pair));
     expect(unknown).toEqual([], {
         message:
@@ -123,13 +131,28 @@ test("every live double-patch is consciously allowlisted", () => {
             " (patch_order_audit.test.js)",
     });
 
-    const staleCandidates = [...KNOWN_DOUBLE_PATCHES].filter((pair) => !live.has(pair));
-    if (staleCandidates.length) {
-        console.warn(
-            `[patch-order-audit] ${staleCandidates.length} allowlist entries are not` +
-                ` double-patched in this bundle. Prune the ones whose patch was removed;` +
-                ` keep the ones whose second patcher is in an addon not loaded here:\n` +
-                staleCandidates.join("\n"),
-        );
-    }
+    // The mirror question -- "is any allowlist entry no longer double-patched?"
+    // -- is deliberately not asked here, because a bundle cannot answer it.
+    // `getDoublePatchedPairs()` reads the runtime patch registry, which sees
+    // only the addons this page loaded, and CI runs this suite scoped
+    // (`&module_scope=mail`); every pair whose second patcher lives in
+    // im_livechat, whatsapp, voip, knowledge, sms, snailmail, ... is therefore
+    // absent for that reason alone, indistinguishable from one whose patch was
+    // really removed. The advisory that used to stand here listed both kinds
+    // together and asked the reader to separate them by hand. Measured once on
+    // the scoped run at 17179890aea, against a patch index over all four
+    // addons roots: of the 82 entries it named, 81 were still double-patched
+    // elsewhere in the tree and exactly one -- MailGuest.prototype :: setup,
+    // pruned in the same change -- was genuinely stale. That reading is frozen:
+    // it is the argument for removing the advisory, not a live figure.
+    //
+    // Staleness is a cross-repo *static* fact, the same shape as the one
+    // js_private_access.py asks (ADR-0028): answering it needs a patch index
+    // spanning odoo + enterprise + agromarin + design-themes, not a bundle.
+    // `tooling/patchorder/patchorder.py` is that sweep: run it before adding
+    // to or trusting this list. It reads the entries below rather than
+    // restating them, and its README carries why it gates nothing and what a
+    // blocking version would need. A stale entry is harmless in itself -- it
+    // only widens what this test accepts without review -- which is why it is
+    // swept rather than gated.
 });

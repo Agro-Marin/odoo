@@ -6,6 +6,12 @@ the HOOT test runner (`hoot/`), typecheck/codegen/doclink helpers, and this
 bootstrap. Each gate documents itself in its module docstring; run any of them
 with `--help`.
 
+Two directories here deliberately gate nothing and say so in their own README:
+`testbaseline/` (is this red mine, or was it already red?) and `patchorder/`
+(is a double-patch allowlist entry still double-patched anywhere?). Both answer
+a question CI cannot ask from the scope it runs in, which is the reason each
+is a tool rather than a lane — not an omission to be closed by adding one.
+
 ## One-time clone setup: install the git hooks
 
 ```sh

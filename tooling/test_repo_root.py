@@ -137,6 +137,7 @@ class TestEveryToolAgrees:
         ("doclinks", "doc_link_gate"): "REPO_ROOT",
         ("domain_parity", "check_parity"): "REPO_ROOT",
         ("trace", "stamp"): "ROOT",
+        ("patchorder", "patchorder"): "ROOT",
     }
 
     def _roots(self):
