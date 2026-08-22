@@ -3427,10 +3427,6 @@ test("search more in many2one: text in input", async () => {
         "onchange",
         "web_name_search",
         "web_name_search",
-        // "Search more" used to reach for `name_search` while the dropdown
-        // above used `web_name_search`; both now go through the component's
-        // single `nameSearch()`. The id filter it builds is unchanged — see the
-        // `expectedDomain` assertion above.
         "web_name_search",
         "get_views",
         "has_group",
@@ -4189,8 +4185,6 @@ test("highlight search in many2one", async () => {
 });
 
 test("tab out of an untouched many2one commits nothing after an escaped dropdown", async () => {
-    // A many2one always runs its AutoComplete with autoSelect (many2one.js:221),
-    // and the same instance survives closing and reopening its dropdown.
     await mountView({
         type: "form",
         resModel: "partner",
@@ -4200,7 +4194,6 @@ test("tab out of an untouched many2one commits nothing after an escaped dropdown
     const input = ".o_field_many2one[name='trululu'] input";
     expect(input).toHaveValue("");
 
-    // Browse the suggestions, then dismiss them.
     await contains(input).click();
     await runAllTimers();
     expect(".o-autocomplete--dropdown-item").toHaveCount(3);
@@ -4210,20 +4203,16 @@ test("tab out of an untouched many2one commits nothing after an escaped dropdown
     await animationFrame();
     expect(".o-autocomplete--dropdown-item").toHaveCount(0);
 
-    // Reopen on the still-empty input and tab on to the next field.
     await contains(input).click();
     await runAllTimers();
     expect(".o-autocomplete--dropdown-item").toHaveCount(3);
     await press("tab");
     await animationFrame();
 
-    // Nothing was picked, so the record must still be clean.
     expect(input).toHaveValue("");
     expect(".o_form_editable").not.toHaveClass("o_form_dirty");
 });
 
-// `res_partner_many2one` is a plain many2one here so the ~15 views that request
-// it keep working without `partner_autocomplete`, which overrides the same key.
 test("res_partner_many2one renders as a many2one", async () => {
     await mountView({
         type: "form",

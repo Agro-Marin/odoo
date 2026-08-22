@@ -34,7 +34,6 @@ class TestWebController(HttpCase):
             self.assertEqual(payload["db_server_status"], False)
 
     def test_healthz_liveness(self):
-        """Liveness probe is always 200 if the worker can respond."""
         response = self.url_open("/web/healthz")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "pass"})
@@ -42,7 +41,6 @@ class TestWebController(HttpCase):
         self.assertFalse(response.cookies.get("session_id"))
 
     def test_readyz_pass(self):
-        """Readiness probe reports per-subsystem status; 200 when all pass."""
         response = self.url_open("/web/readyz")
         self.assertEqual(response.status_code, 200)
         payload = response.json()
@@ -52,8 +50,6 @@ class TestWebController(HttpCase):
         self.assertEqual(response.headers.get("Cache-Control"), "no-store")
 
     def test_readyz_db_fail(self):
-        """DB unreachability returns 503 (not 500) per Kubernetes convention."""
-
         def _raise_psycopg_error(*args):
             raise psycopg.Error("boom")
 
@@ -65,7 +61,6 @@ class TestWebController(HttpCase):
             self.assertEqual(payload["checks"]["db"], "fail")
 
     def test_readyz_data_dir_fail(self):
-        """Unwritable data_dir returns 503 with checks.data_dir = fail."""
         with patch(
             "odoo.addons.web.controllers.home.os.access",
             return_value=False,
@@ -79,13 +74,6 @@ class TestWebController(HttpCase):
 
 @tagged("web_http", "web_metrics")
 class TestWebMetrics(HttpCase):
-    """``/web/metrics`` is off unless ``ODOO_METRICS_TOKEN`` arms it.
-
-    The payload names every database this process serves, so an open endpoint
-    would hand out exactly the enumeration ``db._rpc_db_exist`` and
-    ``common.exp_authenticate`` are built to refuse.
-    """
-
     def test_absent_without_a_token(self):
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("ODOO_METRICS_TOKEN", None)
@@ -119,8 +107,6 @@ class TestWebMetrics(HttpCase):
                 ).status_code,
                 401,
             )
-        # The refusal is the audit trail a scrape endpoint exists to leave, so
-        # every rejected attempt has to be one record, not just a 401.
         self.assertEqual(len(capture.output), 3)
 
     def test_serves_the_exposition_with_a_valid_token(self):

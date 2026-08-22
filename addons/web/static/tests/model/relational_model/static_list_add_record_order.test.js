@@ -1,27 +1,5 @@
 // @ts-check
 
-/**
- * Characterization of StaticList._addRecord's interactive insertion rules.
- *
- * As of the F-U05-9 unification, `_addRecord`'s top/bottom branches no longer
- * interpret the CREATE command themselves -- they delegate to the extracted
- * engine (`applyCommands` -> `applyCreate`), which is now position-aware. These
- * tests therefore drive the *real* `_addRecord` on top of a list fake rich
- * enough to run the engine end to end (echoed datapoint in `_cache`, a working
- * `_bumpLimit`, no-op page-refill helpers), and pin the observables the
- * unification must not move: the `_commands` order, the `_currentIds` order, the
- * `records` window, when the limit bumps, and the `_needsReordering` flag.
- *
- * The load-bearing command-order rule: a top add's CREATE must land AFTER any
- * leading SET/CLEAR (from `_replaceWith`) but BEFORE every other command. The
- * server applies commands in order, so a CREATE placed before a SET is created
- * and then wiped when the SET replaces the whole relation; and for a non-
- * sequenced one2many the create order becomes the server id order, so the
- * visually-topmost new row must be created first. The engine reproduces this via
- * `topInsertIndex` (a fractional ordering index at the SET/CLEAR-prefix
- * boundary); these tests are its oracle.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { x2ManyCommands } from "@web/core/network/commands";
 import { StaticList } from "@web/model/relational_model/static_list";
@@ -29,34 +7,24 @@ import { StaticList } from "@web/model/relational_model/static_list";
 const { SET, CLEAR, CREATE, UPDATE } = x2ManyCommands;
 
 /**
- * A datapoint stand-in. The engine only ever reads these four members off a
- * row, so the fakes below carry exactly them -- naming the shape once keeps
- * every builder agreeing on it instead of each re-inferring its own literal.
- *
  * @typedef {{
- *   _virtualId: string | null,
- *   resId: number | false,
- *   data: Record<string, any>,
- *   _applyChanges?: () => void,
+ * _virtualId: string | null,
+ * resId: number | false,
+ * data: Record<string, any>,
+ * _applyChanges?: () => void,
  * }} FakeRow
  */
 
 /**
  * @typedef {{
- *   commands?: any[],
- *   currentIds?: any[],
- *   records?: FakeRow[],
- *   limit?: number,
- *   offset?: number,
+ * commands?: any[],
+ * currentIds?: any[],
+ * records?: FakeRow[],
+ * limit?: number,
+ * offset?: number,
  * }} EngineListParams
  */
 
-/**
- * A list fake that faithfully supports the command engine: it carries the real
- * `_applyCommands`, an echo cache seeded from `records`, a limit-bumping
- * `_bumpLimit`, and page-refill helpers stubbed to no-ops so the window
- * assertions stay about the insertion, not about server reloads.
- */
 function makeEngineList(
     /** @type {EngineListParams} */ {
         commands = [],
@@ -68,10 +36,10 @@ function makeEngineList(
 ) {
     /** @type {number[]} */
     const bumps = [];
-    /** @type {Record<string, FakeRow>} */
-    const cache = {};
+    /** @type {Map<number | string, FakeRow>} */
+    const cache = new Map();
     for (const rec of records) {
-        cache[String(rec._virtualId ?? rec.resId)] = rec;
+        cache.set(/** @type {number | string} */ (rec._virtualId || rec.resId), rec);
     }
     return {
         _commands: commands,
@@ -82,7 +50,7 @@ function makeEngineList(
         _cache: cache,
         /** @type {Set<any>} */
         _loadingStubIds: new Set(),
-        _unknownRecordCommands: {},
+        _unknownRecordCommands: new Map(),
         _needsReordering: false,
         _bumps: bumps,
         _bumpLimit(/** @type {number} */ n) {
@@ -90,6 +58,18 @@ function makeEngineList(
             this.limit += n;
         },
         _clampOffset() {},
+        _commitCommands(/** @type {any[]} */ commands) {
+            this._commands = commands;
+        },
+        _commitCurrentIds(/** @type {any[]} */ ids) {
+            this._currentIds = ids;
+        },
+        _insertMemberAt(/** @type {number} */ index, /** @type {any} */ id) {
+            this._currentIds.splice(index, 0, id);
+        },
+        _appendMember(/** @type {any} */ id) {
+            this._currentIds.push(id);
+        },
         _getResIdsToLoad: () => /** @type {any[]} */ ([]),
         _createRecordDatapoint(
             /** @type {Record<string, any>} */ values,
@@ -103,7 +83,7 @@ function makeEngineList(
                 _applyChanges() {},
             };
             if (opts.virtualId) {
-                cache[opts.virtualId] = rec;
+                cache.set(opts.virtualId, rec);
             }
             return rec;
         },
@@ -116,8 +96,6 @@ function makeEngineList(
 }
 
 /**
- * Build a virtual (unsaved) datapoint and cache it so the engine echoes it.
- *
  * @param {any} list
  * @param {string} virtualId
  * @param {Record<string, any>} [data]
@@ -126,13 +104,11 @@ function makeEngineList(
 function addVirtual(list, virtualId, data = {}) {
     /** @type {FakeRow} */
     const rec = { _virtualId: virtualId, resId: false, data, _applyChanges() {} };
-    list._cache[virtualId] = rec;
+    list._cache.set(virtualId, rec);
     return rec;
 }
 
 /**
- * Build a saved-row datapoint (has a resId, no virtualId).
- *
  * @param {number} resId
  * @returns {FakeRow}
  */
@@ -141,8 +117,6 @@ function savedRow(resId) {
 }
 
 /**
- * Build an unsaved-row datapoint already parked in the window.
- *
  * @param {string} virtualId
  * @returns {FakeRow}
  */
@@ -159,8 +133,13 @@ function makeSortableList() {
     const recV = { resId: false, _virtualId: "v", data: { name: "a" } };
     return {
         records: [rec1, rec2],
-        /** @type {Record<string, FakeRow>} */
-        _cache: { 1: rec1, 2: rec2, v: recV },
+        _cache: new Map(
+            /** @type {[number | string, FakeRow][]} */ ([
+                [1, rec1],
+                [2, rec2],
+                ["v", recV],
+            ]),
+        ),
         /** @type {any[]} */
         _currentIds: [1, 2],
         /** @type {any[]} */
@@ -174,9 +153,6 @@ function makeSortableList() {
         config: {},
         _getResIdsToLoad: () => /** @type {any[]} */ ([]),
         _load: StaticList.prototype._load,
-        // The sort helper clears the pending-reorder flag through this method
-        // (published in the StaticList reorder-flag encapsulation); the hand-
-        // built list must provide it just like `_load` above.
         markReordered() {
             /** @type {any} */ (this)._needsReordering = false;
         },
@@ -215,7 +191,7 @@ describe("StaticList._addRecord(top) command ordering", () => {
 
     test("default add on a sorted list keeps _currentIds in the sorted order", async () => {
         const list = makeSortableList();
-        const recV = list._cache.v;
+        const recV = /** @type {any} */ (list._cache).get("v");
 
         await StaticList.prototype._addRecord.call(list, /** @type {any} */ (recV));
 
@@ -257,7 +233,7 @@ describe("StaticList._addRecord insertion-rule characterization", () => {
         expect(list._currentIds).toEqual([1, 2, "vb"]);
         expect(list.records.map((r) => r._virtualId ?? r.resId)).toEqual([1, 2, "vb"]);
         expect(list._commands).toEqual([[CREATE, "vb"]]);
-        expect(list._bumps).toEqual([]); // still under the limit -- no bump
+        expect(list._bumps).toEqual([]);
         expect(list._needsReordering).toBe(true);
     });
 
@@ -290,7 +266,6 @@ describe("StaticList._addRecord insertion-rule characterization", () => {
             position: "top",
         });
 
-        // unshift then pop past the limit: the window stays at 2, ids keep all 3.
         expect(list.records.map((r) => r._virtualId)).toEqual(["c", "a"]);
         expect(list._currentIds).toEqual(["c", "a", "b"]);
         expect(list._commands).toEqual([[CREATE, "c"]]);

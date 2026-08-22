@@ -229,18 +229,14 @@ describe("toPyValue", () => {
         const date = new Date(Date.UTC(2000, 0, 1));
         const ast = toPyValue(date);
         expect(ast.type).toBe(1);
-        const expectedValue = PyDateTime.convertDate(date);
-        expect(ast.value).toBe(expectedValue.strftime("%Y-%m-%d %H:%M:%S"));
-        expect(formatAST(ast)).toBe(JSON.stringify(expectedValue));
+        expect(ast.value).toBe("2000-01-01 00:00:00");
     });
 
-    test("toPyValue a dateime", () => {
+    test("toPyValue a datetime", () => {
         const datetime = new Date(Date.UTC(2000, 0, 1, 1, 0, 0, 0));
         const ast = toPyValue(datetime);
         expect(ast.type).toBe(1);
-        const expectedValue = PyDateTime.convertDate(datetime);
-        expect(ast.value).toBe(expectedValue.strftime("%Y-%m-%d %H:%M:%S"));
-        expect(formatAST(ast)).toBe(JSON.stringify(expectedValue));
+        expect(ast.value).toBe("2000-01-01 01:00:00");
     });
 
     test("toPyValue a PyDate", () => {

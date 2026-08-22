@@ -1,31 +1,5 @@
 // @ts-check
 
-/**
- * `web.Field` mounts every widget with `t-props="fieldComponentProps"`, and
- * that getter rebuilds two values on every render: the `context` object (fresh
- * out of `getFieldContext`) and the `domain` closure. Under a dynamic prop list
- * OWL compares *every* prop by identity, so those two are enough to re-render
- * the whole widget subtree on any record change, however unrelated.
- *
- * This test pins that cost -- and, more importantly, exists to stop the next
- * reader from "fixing" it the obvious way. Memoising `context` by value and
- * hoisting `domain` to a single bound method makes the numbers below go to
- * zero, and breaks 14 tests, because the churn is load-bearing:
- *
- *  - `useActiveActions` recomputes `create`/`delete` domains only in
- *    `onWillUpdateProps`, so conditional actions freeze at their first value.
- *  - `useSpecialData`'s second loader is also an `onWillUpdateProps`, so a
- *    statusbar or checkbox set with a dynamic domain stops reloading.
- *  - `PropertyValue` reformats its input on re-render, so a property whose type
- *    changes keeps rendering the old format ("0" where "0.00" is due).
- *
- * Hoisting `domain` is worse than it looks: reading `this.props.record` from a
- * method on `Field` evaluates the domain through the *Field's* reactive proxy,
- * so a widget's own `useRecordObserver` never subscribes to what the domain
- * depends on. A real fix has to give those three consumers a dependency on the
- * record rather than on how often props are rebuilt; it is not a memoisation.
- */
-
 import { expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
 import {
@@ -95,9 +69,6 @@ test("a widget re-renders once per unrelated committed edit", async () => {
         }
     });
 
-    // The edited field, once per committed edit -- that part is necessary.
     expect(stats["fields.CharField"]).toBe(5);
-    // The tags widget, same count, for a record change it does not read. This
-    // is the cost; see the module comment before trying to drive it to 0.
     expect(stats["fields.Many2ManyTagsField"]).toBe(5);
 });

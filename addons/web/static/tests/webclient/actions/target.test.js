@@ -135,11 +135,6 @@ describe("new", () => {
     });
 
     test("dialog replacing another dialog: both on_close run, innermost first", async () => {
-        // A replacing dialog does not "close" the one it replaces, so the
-        // replaced dialog's on_close is carried over and fires when the chain
-        // finally closes. It used to be carried over INSTEAD of the replacing
-        // action's own on_close, which was then dropped and never fired at all
-        // — see the resolver test below for why that is not survivable.
         await mountWithCleanup(WebClient);
         await getService("action").doAction(5, {
             onClose: (infos) => expect.step(`origin on_close ${infos}`),
@@ -155,18 +150,12 @@ describe("new", () => {
             type: "ir.actions.act_window_close",
             infos: "closed",
         });
-        // Innermost first: the order the dialogs would have unwound in had they
-        // been closed one at a time. Each still fires exactly once.
         expect.verifySteps(["replacement on_close closed", "origin on_close closed"]);
         await animationFrame();
         expect(".o_technical_modal").toHaveCount(0);
     });
 
     test("a throwing on_close cannot cancel the one it was chained with", async () => {
-        // The two callbacks belong to different actions. `await own(); await
-        // stolen();` let a rejecting `own` skip `stolen` entirely — and the
-        // dominant producer of these callbacks is a view reload, which rejects
-        // whenever the server does. Both must run; the failure still surfaces.
         await mountWithCleanup(WebClient);
         await getService("action").doAction(5, {
             onClose: () => expect.step("stolen"),
@@ -184,16 +173,10 @@ describe("new", () => {
         ).rejects.toThrow();
         expect.verifySteps(["own throws", "stolen"]);
         await animationFrame();
-        // The dialog still leaves the screen: teardown is in a `finally`.
         expect(".o_technical_modal").toHaveCount(0);
     });
 
     test("a resolver on_close on a replacing dialog still settles", async () => {
-        // The motivating case. `doAction(..., { onClose: resolve })` is how the
-        // calendar controller and the view-button confirmation flow await a
-        // dialog; dropping that callback left the promise pending forever and
-        // the awaiting caller wedged. Nothing timed out — it simply never
-        // continued — so this failure mode was invisible in a passing suite.
         await mountWithCleanup(WebClient);
         await getService("action").doAction(5, { onClose: () => {} });
         expect(".o_technical_modal").toHaveCount(1);
@@ -364,10 +347,6 @@ describe("new", () => {
     });
 
     test("a superseded pending dialog's own on_close still fires", async () => {
-        // A pending, never-mounted dialog replaced by another one is NOT an
-        // error: its dispatch is discarded, so its doAction resolves quietly
-        // and its caller believes the action succeeded. Dropping its on_close
-        // stranded that caller for good — see the awaiting-caller test below.
         const def = new Deferred();
         class SlowDialogAction extends Component {
             static template = xml`<div class="slow_dialog_action"/>`;
@@ -404,8 +383,6 @@ describe("new", () => {
         expect.verifySteps([]);
 
         await getService("action").doAction({ type: "ir.actions.act_window_close" });
-        // Innermost first: the order the dialogs would have unwound in had they
-        // each opened and been closed one at a time.
         expect.verifySteps(["B on_close", "A on_close", "committed on_close"]);
     });
 
@@ -426,14 +403,6 @@ describe("new", () => {
         };
 
         await mountWithCleanup(WebClient);
-        // The idiom mail's scheduled_message_model, the calendar controller and
-        // the view-button confirmation flow all use to AWAIT a dialog.
-        //
-        // Recorded into a flag and asserted, rather than awaited: the defect
-        // this pins is a promise that never settles, so `await` detects it by
-        // hanging — which costs the whole per-test timeout and, worse, HOOT
-        // scores a timed-out test whose executed assertions passed as PASSED,
-        // so in a batch run the regression would not even be listed.
         let settled = false;
         new Promise((resolve) =>
             getService("action").doAction(request, { onClose: resolve }),
@@ -446,7 +415,6 @@ describe("new", () => {
         await promB;
         await animationFrame();
         expect(".o_technical_modal .slow_dialog_action").toHaveCount(1);
-        // Still open, so nothing is owed yet.
         expect(settled).toBe(false);
 
         await getService("action").doAction({ type: "ir.actions.act_window_close" });
@@ -496,9 +464,6 @@ describe("new", () => {
             }),
         ).rejects.toThrow();
         await animationFrame();
-        // The committed dialog is still the one on screen, and it now owes both
-        // its own callback and the one A's resolved dispatch left behind. The
-        // failing action's own is not owed: its doAction rejected.
         expect(".o_technical_modal .o_form_view").toHaveCount(1);
         expect.verifySteps([]);
 
@@ -508,8 +473,6 @@ describe("new", () => {
     });
 
     test("a superseded on_close is called outright when no dialog outlives it", async () => {
-        // Same obligation as the test above, but with nothing committed to
-        // re-arm it on: the callback has to be invoked rather than handed over.
         const def = new Deferred();
         class SlowDialogAction extends Component {
             static template = xml`<div/>`;
@@ -552,10 +515,6 @@ describe("new", () => {
     });
 
     test("a `close` button whose action opens a dialog does not close the replacement", async () => {
-        // `close` means "close the dialog this button lives in". That dialog is
-        // gone by the time the action has run — a target="new" result REPLACED
-        // it — so closing whatever is standing tore down the wizard step the
-        // click had just opened.
         class Step2 extends Component {
             static template = xml`<div class="step2"/>`;
             static props = ["*"];
@@ -584,8 +543,6 @@ describe("new", () => {
 
         expect(".step2").toHaveCount(1);
         expect(".o_technical_modal").toHaveCount(1);
-        // The dialog the button lived in did go away — replaced, so its own
-        // callback rides on the replacement rather than firing now.
         expect.verifySteps([]);
 
         await getService("action").doAction({ type: "ir.actions.act_window_close" });
@@ -593,11 +550,6 @@ describe("new", () => {
     });
 
     test("a `close` button with no dialog open does not close the one it opens", async () => {
-        // `close` is a plain button attribute (`processButton`), so it is
-        // expressible on a button in an ordinary list or form view. With no
-        // dialog to close, the close step has nothing to do — it must not
-        // reach for whatever dialog is standing, which is the wizard the
-        // button's own action had just opened.
         class Wizard extends Component {
             static template = xml`<div class="opened_wizard"/>`;
             static props = ["*"];

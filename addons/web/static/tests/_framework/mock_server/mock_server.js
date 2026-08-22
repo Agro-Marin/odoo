@@ -41,71 +41,55 @@ const { DateTime } = luxon;
 
 /**
  * @typedef {{
- *  type?: string;
- *  [key: string]: any;
+ * type?: string;
+ * [key: string]: any;
  * }} ActionDefinition
- *
  * @typedef {import("@web/core/domain").DomainListRepr} DomainListRepr
- *
  * @typedef {import("./mock_fields").FieldDefinition} FieldDefinition
- *
  * @typedef {{
- *  actionID?: string | number;
- *  appID?: MenuId;
- *  children?: (MenuId | MenuDefinition)[];
- *  id: MenuId;
- *  name?: string;
- *  webIcon?: string | false;
- *  webIconData?: string;
- *  xmlid?: string;
+ * actionID?: string | number;
+ * appID?: MenuId;
+ * children?: (MenuId | MenuDefinition)[];
+ * id: MenuId;
+ * name?: string;
+ * webIcon?: string | false;
+ * webIconData?: string;
+ * xmlid?: string;
  * }} MenuDefinition
- *
  * @typedef {number | "root"} MenuId
- *
  * @typedef {MockServerBaseEnvironment & { [modelName: string]: Model }} MockServerEnvironment
- *
  * @typedef {import("./mock_model").Model} Model
- *
  * @typedef {import("./mock_model").ModelConstructor} ModelConstructor
- *
  * @typedef {(this: MockServer, params: OrmParams) => unknown} OrmCallback
- *
  * @typedef {{
- *  args: any[];
- *  kwargs: KwArgs;
- *  method: string;
- *  model: string;
- *  parent: () => any;
- *  request: Request;
- *  route: string;
+ * args: any[];
+ * kwargs: KwArgs;
+ * method: string;
+ * model: string;
+ * parent: () => any;
+ * request: Request;
+ * route: string;
  * }} OrmParams
- *
  * @typedef {[RegExp, Record<string, string>]} RouteMatcher
- *
  * @typedef {{
- *  final?: boolean;
- *  pure?: boolean;
+ * final?: boolean;
+ * pure?: boolean;
  * }} RouteOptions
- *
  * @typedef {`${string}/${string}`} RoutePath
- *
  * @typedef {{
- *  actions?: Partial<MockServer["actions"]>;
- *  lang?: string;
- *  lang_parameters?: Partial<MockServer["_lang_parameters"]>;
- *  menus?: MenuDefinition[];
- *  models?: Iterable<ModelConstructor>;
- *  modules?: Partial<MockServer["_modules"]>;
- *  multi_lang?: import("../mock_server_state.hoot").ServerState["multiLang"];
- *  routes?: any[];
- *  timezone?: string;
- *  translations?: Record<string, string>;
+ * actions?: Partial<MockServer["actions"]>;
+ * lang?: string;
+ * lang_parameters?: Partial<MockServer["_lang_parameters"]>;
+ * menus?: MenuDefinition[];
+ * models?: Iterable<ModelConstructor>;
+ * modules?: Partial<MockServer["_modules"]>;
+ * multi_lang?: import("../mock_server_state.hoot").ServerState["multiLang"];
+ * routes?: any[];
+ * timezone?: string;
+ * translations?: Record<string, string>;
  * }} ServerParams
- *
  * @typedef {import("@odoo/hoot").ServerWebSocket} ServerWebSocket
- *
  * @typedef {string | Iterable<string> | RegExp} StringMatcher
- *
  * @typedef {(string | RegExp)[]} StringMatchers
  */
 
@@ -374,10 +358,8 @@ const ROOT_MENU = {
     appID: "root",
 };
 
-/** Providing handlers for internal URLs (blob and data) is **optional** */
 const INTERNAL_URL_PROTOCOLS = ["blob:", "data:"];
 
-/** Category shape mirrors ``emoji_data.js`` ``getCategories()``. */
 const EMOJI_STUB_CATEGORIES = [
     {
         name: "Smileys & Emotion",
@@ -394,12 +376,6 @@ const EMOJI_STUB_CATEGORIES = [
     { name: "Food & Drink", displayName: "Food & Drink", title: "🍭", sortId: 4 },
 ];
 
-/**
- * Emoji shape mirrors ``emoji_data.js`` ``getEmojis()``. The FIRST entry MUST
- * be "😀" (grinning face): several tests click the first grid emoji and assert
- * it inserts "😀" (e.g. html_editor ``emoji.test.js``, web
- * ``emoji_picker.test.js`` "frequently used").
- */
 const EMOJI_STUB_EMOJIS = [
     {
         category: "Smileys & Emotion",
@@ -503,10 +479,6 @@ const EMOJI_STUB_MODULE_URL = `data:text/javascript;charset=utf-8,${encodeURICom
 )}`;
 
 /**
- * Bundle-name → factory returning a lightweight ESM bundle descriptor (same
- * shape ``@web/core/assets``::``getBundle`` expects for ``is_esm`` bundles).
- * Gate: ONLY bundles present here are stubbed.
- *
  * @type {Record<string, () => object>}
  */
 const HEAVY_STATIC_BUNDLE_STUBS = {
@@ -532,35 +504,16 @@ const mockServers = new WeakMap();
 const seenModels = new WeakSet();
 
 /**
- * Routing-infrastructure mock models the HTTP layer needs for infra routes
- * (e.g. `/web/image/...` → `ir.http.binary_content`); missing ones cascade
- * into `Cannot find a definition for model "ir.http"` / HootTimingError.
- *
- * Only models with **no user-visible records** belong here — e.g. adding
- * `res.users` would leak record presence into tests asserting an empty registry.
- *
  * @type {ModelConstructor[]}
  */
 let _defaultMockModels = [];
 
 /**
- * Default route handlers every test inherits (same role as
- * `_defaultMockModels` but for HTTP routes) — for cross-cutting routes fired
- * by widely-mounted components (e.g. mail's `/mail/data` bootstrap).
- *
- * Each entry is the argument list passed to `onRpc(...)` —
- * `[routeOrMatcher, handler, options?]` — folded into the params snapshot in
- * `getCurrentParams` so it's available before the first `before()` fires.
- *
  * @type {any[][]}
  */
 let _defaultMockRoutes = [];
 
 /**
- * Register routing-infrastructure mock models. Idempotent: each class is
- * only added once. Called once at module load from `web_test_helpers.js`
- * with `{ IrHttp, IrAttachment }`.
- *
  * @param {Record<string, ModelConstructor> | ModelConstructor[]} ModelClasses
  */
 export function setDefaultMockModels(ModelClasses) {
@@ -577,15 +530,7 @@ export function setDefaultMockModels(ModelClasses) {
 }
 
 /**
- * Register a default route handler that is active for every test. Mirrors
- * `setDefaultMockModels` semantics — the handler is folded into the
- * initial params snapshot so per-test ``onRpc(route, ...)`` registrations
- * shadow it (later wins). Use sparingly: only for routes that are fired
- * unconditionally by widely-mounted components and that don't need
- * per-test response shaping.
- *
- * @param {any[]} args same shape as ``onRpc(...)`` arguments —
- *     ``(route, handler)`` or ``(method, handler)`` etc.
+ * @param {any[]} args
  */
 export function setDefaultMockRoute(...args) {
     _defaultMockRoutes.push(args);
@@ -661,7 +606,6 @@ export class MockServer {
      */
     _started = false;
     /**
-     * WebSocket connections
      * @private
      * @type {ServerWebSocket[]}
      */
@@ -872,29 +816,6 @@ export class MockServer {
                 }
             }
         }
-        // At most one turn per callback per request. `_handleRequest` walks
-        // this list until one entry returns a value, so the same callback
-        // registered twice for a route runs *twice* for a single request. That
-        // is invisible while it returns something -- the first run wins and the
-        // rest are never reached, which is why `stepAllNetworkCalls` documents
-        // having to be registered last -- and a duplicated side effect the
-        // moment it returns undefined.
-        //
-        // `mail`'s `registerRoute` registers each route twice by design: once
-        // eagerly at module load, for the test files that never call
-        // `defineMailModels`, and again from `registerMailMockRoutes`, because
-        // `defineParams(..., "replace")` drops what the eager pass added. Both
-        // passes are needed and both hand over the *same* function object, so
-        // the duplicate is an artefact of that lifecycle rather than anyone's
-        // intent. `/mail/link_preview` returns undefined and creates records:
-        // it built two previews for one client RPC, a state the server -- which
-        // is idempotent per (message, url) -- cannot reach, and
-        // `@mail/gif_picker` failed on the second one.
-        //
-        // Deduplicating by identity is the narrowest thing that can be true
-        // here: running one callback twice for one request is never what a
-        // registration means. The first occurrence is kept, which is the
-        // latest registration, so "later wins" is unchanged.
         const seen = new Set();
         return listeners.filter(([callback]) => {
             if (seen.has(callback)) {
@@ -1589,8 +1510,6 @@ export class MockServer {
 }
 
 /**
- * Authenticates a user on the mock server given its login and password.
- *
  * @param {string} login
  * @param {string} password
  */
@@ -1624,9 +1543,7 @@ export function defineMenus(menus, options) {
 }
 
 /**
- * Registers a list of model classes on the current/future {@link MockServer} instance.
- *
- * @param  {ModelConstructor[] | Record<string, ModelConstructor>} ModelClasses
+ * @param {ModelConstructor[] | Record<string, ModelConstructor>} ModelClasses
  * @param {DefineOptions} [options]
  */
 export function defineModels(ModelClasses, options) {
@@ -1651,9 +1568,6 @@ export function defineParams(params, options) {
     before(() => _defineParams(params, options));
 }
 
-/**
- * Logs out the current user (if any)
- */
 export function logout() {
     const { env } = MockServer;
     if (env.cookie.get("authenticated_user_sid") === env.cookie.get("sid")) {
@@ -1670,7 +1584,6 @@ export function logout() {
 }
 
 /**
- * Shortcut function to create and start a {@link MockServer}.
  * @returns {Promise<MockServer>}
  */
 export async function makeMockServer() {
@@ -1699,9 +1612,7 @@ export async function makeMockServer() {
  * @param {OrmCallback} callback
  */
 /**
- * Registers an RPC handler on the current/future {@link MockServer} instance.
- *
- * @param  {...any} args
+ * @param {...any} args
  */
 export function onRpc(...args) {
     before(() =>
@@ -1709,30 +1620,10 @@ export function onRpc(...args) {
     );
 }
 
-/**
- * Steps fired automatically by shared infrastructure that should NOT count
- * toward a test's strict-step assertions.
- *
- * - ``METHODS``: ORM call_kw method names. ``lazy_session_info`` is fired by
- *   ``profiling_service`` after WebClient mount in debug mode (fork-local;
- *   commit ``77e466310ab``).
- * - ``ROUTES``: full pathnames not matched by the dataset/webclient regexes.
- *   ``/mail/data`` and ``/mail/action`` fire on every WebClient mount from
- *   ``mail/store_service``; a default empty mock keeps them from erroring,
- *   but ``stepAllNetworkCalls`` would still capture and pollute pre-existing
- *   assertions.
- *
- * Kept hidden at the tracker level rather than touching every affected
- * test; register a more specific ``onRpc`` handler to assert on these.
- */
 const STEP_TRACKER_BOILERPLATE_METHODS = new Set(["lazy_session_info"]);
 const STEP_TRACKER_BOILERPLATE_ROUTES = new Set(["/mail/data", "/mail/action"]);
 
 /**
- * calls expect.step for all network calls. Because of how the mock server
- * works, you need to call this *after* all your custom mockRPCs that return
- * something, otherwise the mock server will not call this function's handler.
- *
  * @returns {void}
  */
 export function stepAllNetworkCalls() {
@@ -1758,8 +1649,6 @@ export function stepAllNetworkCalls() {
 }
 
 /**
- * Executes the given callback as the given user, then restores the previous user.
- *
  * @param {number} userId
  * @param {() => any} fn
  */

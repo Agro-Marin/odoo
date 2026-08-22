@@ -1,19 +1,5 @@
 // @ts-check
 
-/**
- * Regression tests for the LINK-over-full-page stub bug: a LINK command
- * without server data applied while the page is full caches a stub datapoint
- * built from a bare ``{id}`` but never loads it (the load sits inside the
- * under-limit branch). ``_getResIdsToLoad`` must classify that stub as NOT
- * loaded — it tests ``record._loadedFieldNames`` (values actually fetched),
- * not ``record.fieldNames`` (the view's full activeFields, complete even on
- * a stub) — so the next page navigation fetches real values instead of
- * rendering a row of defaults.
- *
- * Uses the REAL StaticList and RelationalRecord classes against a mock model,
- * in the style of static_list_pending_commands.test.js.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";

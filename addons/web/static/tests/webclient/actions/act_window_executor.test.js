@@ -4,19 +4,6 @@ import { describe, expect, test } from "@odoo/hoot";
 import { executeActWindowAction } from "@web/webclient/actions/action_executors/act_window";
 
 /**
- * Mount-free unit tests for the ``ir.actions.act_window`` executor.
- *
- * ``act_window.js`` reaches five ActionManager members — ``env``,
- * ``_confirmLeave``, ``_makeController``, ``_getViewInfo`` and ``_updateUI`` —
- * all satisfied by the literal below. ``window_action.test.js`` covers this
- * executor end-to-end (144 tests, mostly mounted); what is isolated here is the
- * view-resolution and lazy-crumb logic, which is pure decision-making sitting
- * between two seams and needs no DOM at all.
- *
- * ``buildActionViews`` is imported by the executor rather than reached through
- * the manager, and reads ``session.view_info`` — populated for the whole test
- * bundle by the ``/web/tests`` route, so no fixture is required for it.
- *
  * @param {Object} [overrides]
  */
 function makeFakeAm(overrides = {}) {
@@ -128,7 +115,6 @@ test("the controller is cached on the action under its view type", async () => {
     expect(action.controllers.form).toBe(am.__calls.updateUI[0].controller);
 });
 
-/** The stack this executor proposed to ``_updateUI`` — the real contract. */
 function proposedStack(am) {
     return am.__calls.updateUI.at(-1).options.newStack;
 }
@@ -157,8 +143,6 @@ test("promoting a lazy crumb leaves the caller's stack and controller untouched"
 
     await executeActWindowAction(makeAction(), { newStack, viewType: "form" }, am);
 
-    // The executor proposes a stack; it does not get to rewrite the array or
-    // the controller objects its caller still owns.
     expect(newStack).toHaveLength(2);
     expect(newStack[1]).toBe(lazy);
     expect(lazy.lazy).toBe(true);
@@ -190,7 +174,6 @@ test("a lazy crumb is dropped when the action has no multi-record view", async (
 
     expect(proposedStack(am)).toHaveLength(1);
     expect(proposedStack(am)[0].jsId).toBe("root");
-    // ... without truncating the caller's own array.
     expect(newStack).toHaveLength(2);
 });
 

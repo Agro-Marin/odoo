@@ -135,10 +135,6 @@ describe("Basic Properties", () => {
     });
 
     test("inequalities: absent field never matches, unset value orders as zero", () => {
-        // An ABSENT key stays unmatched (the record simply doesn't carry the
-        // field). An UNSET value is a real NULL, which the server orders as the
-        // zero of the other operand's type — verified against res.partner with
-        // both search() and filtered_domain().
         for (const op of ["<", "<=", ">", ">="]) {
             expect(new Domain([["a", op, 5]]).contains({})).toBe(false);
         }
@@ -477,9 +473,6 @@ describe("Basic Properties", () => {
     });
 
     test("some expression with date stuff", () => {
-        // `contextToday`, not `today`: this exercises `context_today()`, which
-        // follows the user's timezone. `PyDate.today()` is `datetime.date.today()`
-        // and is UTC, as it is on the server.
         patchWithCleanup(PyDate, {
             contextToday() {
                 return new PyDate(2013, 4, 24);
@@ -1037,13 +1030,6 @@ describe("contains: = / in use the py_compare kernel (bool==int, deep eq)", () =
 });
 
 describe("contains: unset values compare as the server does", () => {
-    // Every expectation below was taken from a differential run against the
-    // server: for each domain, `res.partner.search()` and
-    // `filtered_domain()` were checked to agree, and their verdict is what is
-    // asserted here. The client carries `false` for an unset
-    // char/text/selection where the server stores NULL and compares it as "",
-    // so the two spellings have to select the same records.
-
     test("'' and false are the same value for = / !=", () => {
         for (const unset of [false, null, undefined, ""]) {
             expect(new Domain([["x", "=", ""]]).contains({ x: unset })).toBe(
@@ -1069,19 +1055,11 @@ describe("contains: unset values compare as the server does", () => {
         expect(new Domain([["x", ">=", "m"]]).contains({ x: false })).toBe(false);
         expect(new Domain([["x", "<=", ""]]).contains({ x: false })).toBe(true);
         expect(new Domain([["x", "<=", ""]]).contains({ x: "a" })).toBe(false);
-        // a false operand orders as "" too: everything is >= ""
         expect(new Domain([["x", ">=", false]]).contains({ x: "a" })).toBe(true);
         expect(new Domain([["x", ">=", false]]).contains({ x: false })).toBe(true);
     });
 
     test("an unset date/datetime field orders against nothing", () => {
-        // char/text and the numeric types declare a server-side falsy_value
-        // ("" / 0) that aliases NULL onto a comparable zero; date and datetime
-        // declare none, so on the server a NULL date satisfies no ordering
-        // comparison at all. Verified against the ORM on this fork:
-        // `ir.cron` rows with lastcall NULL are returned by neither
-        // `lastcall < '2016-03-01'` nor `lastcall >= '2015-01-01'`, while
-        // res.partner rows with ref NULL ARE returned by `ref < 'm'`.
         for (const op of ["<", "<=", ">", ">="]) {
             expect(new Domain([["x", op, "2016-03-01"]]).contains({ x: false })).toBe(
                 false,
@@ -1093,7 +1071,6 @@ describe("contains: unset values compare as the server does", () => {
                 false,
             );
         }
-        // a set date still compares normally
         expect(
             new Domain([["x", "<", "2016-03-01"]]).contains({ x: "2016-01-01" }),
         ).toBe(true);
@@ -1134,20 +1111,12 @@ describe("contains: unset values compare as the server does", () => {
                 false,
             );
         }
-        // anchored variants: a false pattern is "", so only unset values match
         expect(new Domain([["x", "=like", false]]).contains({ x: false })).toBe(true);
         expect(new Domain([["x", "=like", false]]).contains({ x: "a" })).toBe(false);
     });
 });
 
 describe("absent field, across every operator family", () => {
-    // A field the record simply does not carry is distinct from an unset one:
-    // the server always has the column, so it has no opinion, and this layer
-    // keeps the historical answer rather than inventing one. Two families
-    // already pinned that (inequalities, like-family); the equality and
-    // membership families did not, so the rule could drift in one place
-    // without any test noticing. The rule is uniform: the POSITIVE form never
-    // matches, and its negation is its exact dual.
     const record = {};
 
     test("equality", () => {
@@ -1191,14 +1160,7 @@ describe("absent field, across every operator family", () => {
 });
 
 describe("contains: parity with the server's in-memory evaluator", () => {
-    // Every expectation below was read off a differential run against
-    // `filtered_domain()` (itself pinned to `search()` by
-    // test_orm/tests/test_domain_evaluator_parity.py), so the three evaluators
-    // agree rather than the client agreeing with itself.
-
     test("None is the same 'unset' spelling as False", () => {
-        // The server leaves False/None alone through the whole optimizer
-        // (odoo/orm/domain/optimizations.py), so both select unset records.
         for (const unset of [false, null, ""]) {
             expect(new Domain([["x", "=", null]]).contains({ x: unset })).toBe(true);
             expect(new Domain([["x", "!=", null]]).contains({ x: unset })).toBe(false);
@@ -1236,15 +1198,10 @@ describe("contains: parity with the server's in-memory evaluator", () => {
     });
 
     test("a trailing lone backslash escapes nothing and is dropped", () => {
-        // The server's build_like_regex leaves `escaped` set and emits nothing;
-        // treating it as a literal backslash made 35 of 4712 fuzzed
-        // (operator, pattern, subject) triples disagree.
         expect(new Domain([["x", "=like", "%B\\"]]).contains({ x: "BB" })).toBe(true);
         expect(new Domain([["x", "like", "B\\"]]).contains({ x: "aBc" })).toBe(true);
         expect(new Domain([["x", "=like", "a\\"]]).contains({ x: "a\\" })).toBe(false);
-        // an escaped backslash is still a literal backslash
         expect(new Domain([["x", "=like", "a\\\\"]]).contains({ x: "a\\" })).toBe(true);
-        // and an escaped wildcard is still a literal wildcard
         expect(new Domain([["x", "=like", "a\\%"]]).contains({ x: "a%" })).toBe(true);
         expect(new Domain([["x", "=like", "a\\%"]]).contains({ x: "ab" })).toBe(false);
     });
@@ -1269,13 +1226,6 @@ describe("contains: parity with the server's in-memory evaluator", () => {
 });
 
 describe("contains: ilike folds accents only when the database does", () => {
-    // PostgreSQL's `unaccent` is opt-in (`--unaccent` defaults to off, and
-    // Odoo only issues CREATE EXTENSION for it when the flag is set), so the
-    // server folds only when the registry reports the function present. Both
-    // expectations below were read off a server: on a database WITH unaccent
-    // `('name','ilike','cafe')` selects cafe/café/CAFÉ, on one WITHOUT it
-    // selects only `cafe`.
-
     const RECORDS = [{ x: "cafe" }, { x: "café" }, { x: "CAFÉ" }];
 
     /**

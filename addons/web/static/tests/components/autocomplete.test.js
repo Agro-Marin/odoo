@@ -25,10 +25,6 @@ import { contains, mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 
 /**
- * Helper needed until `isInViewPort` also checks intermediate parent elements.
- * This is to make sure an element is actually visible, not just "within
- * viewport boundaries" but below or above a parent's scroll point.
- *
  * @param {import("@odoo/hoot-dom").Target} target
  * @returns {boolean}
  */
@@ -281,6 +277,31 @@ test("scroll outside should cancel result", async () => {
     await contains(".autocomplete_container").scroll({ top: 10 });
     expect(".o-autocomplete .dropdown-menu").toHaveCount(0);
     expect(".o-autocomplete input").toHaveValue("Hello");
+});
+
+test("a page-level scroll does not cancel the result", async () => {
+    class Parent extends Component {
+        static components = { AutoComplete };
+        static template = xml`
+            <div class="autocomplete_container">
+                <AutoComplete value="'Hello'" sources="sources" autoSelect="true"/>
+            </div>
+        `;
+        static props = [];
+
+        sources = buildSources(() => [item("World"), item("Hello")]);
+    }
+
+    await mountWithCleanup(Parent);
+    await contains(".o-autocomplete input").click();
+    await contains(".o-autocomplete input").edit("H", { confirm: false });
+    await runAllTimers();
+    expect(".o-autocomplete .dropdown-menu").toHaveCount(1);
+
+    document.dispatchEvent(new Event("scroll"));
+    await animationFrame();
+    expect(".o-autocomplete .dropdown-menu").toHaveCount(1);
+    expect(".o-autocomplete input").toHaveValue("H");
 });
 
 test("scroll inside should keep dropdown open", async () => {
@@ -1190,10 +1211,6 @@ test("a new value prop is applied after the edit was abandoned with Escape", asy
 });
 
 test("a pointerdown inside an iframe dismisses the dropdown", async () => {
-    // Events do not cross a browsing-context boundary, so the hand-rolled
-    // `window.addEventListener("pointerdown")` this used to carry never saw a
-    // click inside an iframe -- and every embedded editor, report preview and
-    // website-builder canvas is an iframe.
     class Parent extends Component {
         static components = { AutoComplete };
         static template = xml`
@@ -1263,8 +1280,6 @@ test("a source with no selectable option never leaves one active", async () => {
     expect(".dropdown-item").toHaveCount(2);
     expect(`.o-autocomplete--input`).not.toHaveAttribute("aria-activedescendant");
 
-    // Stepping in either direction has nothing to land on, and must not latch
-    // onto an option the user cannot choose.
     for (const key of ["arrowdown", "arrowdown", "arrowup"]) {
         await press(key);
         await animationFrame();
@@ -1289,7 +1304,6 @@ test("tab does not autoselect after the dropdown was closed and reopened", async
     }
     await mountWithCleanup(Parent);
 
-    // The user browses the suggestions, then gives up on them.
     await contains(".o-autocomplete input").click();
     await press("arrowdown");
     await animationFrame();
@@ -1297,7 +1311,6 @@ test("tab does not autoselect after the dropdown was closed and reopened", async
     await animationFrame();
     expect(".o-autocomplete--dropdown-item").toHaveCount(0);
 
-    // A fresh, untouched dropdown: tabbing out of an empty input commits nothing.
     await contains(".o-autocomplete input").click();
     expect(".o-autocomplete--dropdown-item").toHaveCount(2);
     await press("tab");
@@ -1312,7 +1325,6 @@ test("blur selects the first selectable option, whichever source holds it", asyn
         static props = [];
 
         sources = [
-            // A source whose only entry is a message, not a choice.
             { options: () => [{ label: "(no result)" }] },
             { options: () => [item("World", () => expect.step("select World"))] },
         ];
@@ -1394,7 +1406,6 @@ test("reopening after a dismissal restores selectOnBlur", async () => {
     await press("escape");
     await animationFrame();
 
-    // A new, undismissed dropdown: blurring commits again.
     await contains(".o-autocomplete input").click();
     expect(".o-autocomplete--dropdown-item").toHaveCount(1);
     await contains(".elsewhere").click();
@@ -1500,8 +1511,6 @@ test("selectOnBlur does not commit an option the parent already superseded", asy
     await contains(".o-autocomplete input").click();
     expect(".o-autocomplete--dropdown-item").toHaveCount(2);
 
-    // The value is decided elsewhere -- a reload, another widget -- which
-    // closes the dropdown. The suggestions still in hand answer the old value.
     parent.state.value = "Something else";
     await animationFrame();
     expect(".o-autocomplete--dropdown-menu").toHaveCount(0);
@@ -1511,9 +1520,6 @@ test("selectOnBlur does not commit an option the parent already superseded", asy
 });
 
 test("selectOnBlur survives a parent that resets its value while typing", async () => {
-    // The website configurator's shape: `value` is derived from parent state
-    // that its own onInput handler clears on every keystroke, so the value prop
-    // moves mid-edit. That must not read as "the parent overruled this field".
     class Parent extends Component {
         static components = { AutoComplete };
         static template = xml`
@@ -1574,9 +1580,6 @@ test("an arrow-opened list counts as browsed for the tab commit", async () => {
             <button class="elsewhere">x</button>`;
         static props = [];
 
-        // The input stays EMPTY, so the `value.length` half of the tab gate
-        // cannot fire: only navigationRev can, and the arrow now bumps it from
-        // inside the load rather than before it.
         sources = buildSources(() => [
             item("A", () => expect.step("A")),
             item("B", () => expect.step("B")),
@@ -1637,8 +1640,6 @@ test("a loading source does not present itself as a selected option", async () =
     await animationFrame();
     expect(".o-autocomplete .o_loading").toHaveCount(1);
 
-    // The combobox points at no option while results are pending, so nothing
-    // may claim to be the selected one; the listbox reports busy instead.
     expect(".o-autocomplete input").not.toHaveAttribute("aria-activedescendant");
     expect(
         queryAll('.o-autocomplete [role="option"][aria-selected="true"]'),
@@ -1666,11 +1667,6 @@ test("a dropdown list is not in the tab order", async () => {
     await contains(".o-autocomplete input").click();
     expect(".o-autocomplete--dropdown-menu").toHaveCount(1);
 
-    // Tab dismisses this list -- and its default action runs while the options
-    // are still on screen, because removing them is a render and renders land
-    // later. A popup listbox the combobox drives through `aria-activedescendant`
-    // holds no tab stop, so the caret goes where the user aimed it instead of
-    // catching on an option that is about to disappear underneath it.
     await press("Tab");
     expect(document.activeElement).toBe(queryOne("button.after"));
 });
@@ -1689,10 +1685,6 @@ test("an inline list is reachable by tab", async () => {
     await mountWithCleanup(Parent);
     await contains(".o-autocomplete input").click();
 
-    // Without `dropdown`, the list is not a popup: it is permanent page content
-    // that no keystroke dismisses, so its options are ordinary controls in the
-    // flow and tabbing into them is the only way to reach them. The kanban
-    // quick-assign popover is built on exactly this.
     await press("Tab");
     expect(document.activeElement).toBe(
         queryOne(".o-autocomplete--dropdown-item:first-child a"),

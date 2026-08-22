@@ -1,27 +1,5 @@
 // @ts-check
 
-/**
- * Two things can put a field in ``_invalidFields``:
- *
- *  - it is required and unset -- computed by ``findUnsetRequiredFields``, which
- *    has always SKIPPED invisible fields, so this half already treats
- *    "invisible" as "cannot block a save";
- *  - a widget rejected what the user typed -- ``setInvalidField``, reached from
- *    ``useInputField`` when ``parse`` throws, from the domain editor, and from
- *    the list controller.
- *
- * Only the first half was ever re-examined. ``checkValidity`` clears exactly
- * the fields it had itself placed in ``_unsetRequiredFields`` and leaves every
- * widget-set flag alone, so a field hidden by a modifier AFTER the user typed
- * into it kept refusing the save behind an "invalid fields" notification that
- * points at nothing on screen. The form could then only be escaped by
- * discarding it.
- *
- * Clearing the flag writes nothing unsafe: a parse failure means the widget
- * never handed the value over, so the record still holds the last value that
- * parsed.
- */
-
 import { expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
 import {
@@ -80,7 +58,6 @@ test("a widget-invalid field hidden by a modifier stops blocking the save", asyn
     expect([...record._invalidFields]).toEqual(["qty"], {
         message: "the widget rejected the input, so the field is invalid",
     });
-    // Not required-driven: this is the half that used to be unreachable.
     expect([...record._unsetRequiredFields]).toEqual([]);
 
     await record.update({ kind: "service" });
@@ -144,7 +121,6 @@ test("checkValidity({ silent: true }) still writes nothing", async () => {
     await contains("[name=qty] input").edit("not-a-number");
     await animationFrame();
     await record.update({ kind: "service" });
-    // Put the flag back by hand: a silent check must not be able to clear it.
     record._setInvalidFieldFlag("qty");
 
     record._checkValidity({ silent: true });

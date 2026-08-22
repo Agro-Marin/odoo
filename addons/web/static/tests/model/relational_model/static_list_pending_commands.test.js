@@ -1,20 +1,13 @@
 // @ts-check
 
-/**
- * Tests for StaticList's floating-commands tracking (``_trackCommandsPromise``
- * / ``_commandsPromise``): rejection surfacing via the error service,
- * ``_discard`` → ``_pruneCache`` sequencing, and the ``record_save.save``
- * barrier.
- *
- * Uses ``Object.create(StaticList.prototype)`` so real methods (including
- * ``_applyCommands``) run against a hand-built state, mirroring
- * static_list_command_engine.test.js.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, Deferred } from "@odoo/hoot-mock";
 import { markRaw } from "@odoo/owl";
-import { RECORD_STATE_TRANSITIONS } from "@web/../tests/model/relational_model/record_doubles";
+import { MODEL_LIFECYCLE_PROTO } from "@web/../tests/model/relational_model/model_doubles";
+import {
+    installEditState,
+    RECORD_STATE_TRANSITIONS,
+} from "@web/../tests/model/relational_model/record_doubles";
 import { ListMembership } from "@web/model/relational_model/list_membership";
 import { save } from "@web/model/relational_model/record_save";
 import { RecordSaveCoordinator } from "@web/model/relational_model/record_save_coordinator";
@@ -23,8 +16,6 @@ import { StaticList } from "@web/model/relational_model/static_list";
 const LINK = 4;
 
 /**
- * Build a StaticList-shaped object backed by the real StaticList prototype.
- *
  * @param {Object} [opts]
  * @param {(config: Object) => Promise<any[]>} [opts.loadRecords]
  * @returns {any}
@@ -32,7 +23,6 @@ const LINK = 4;
 function makeList({ loadRecords = async () => [] } = {}) {
     const list = Object.create(StaticList.prototype);
     Object.assign(list, {
-        // Membership owner first: the keys below write through its accessors.
         _membership: new ListMembership(),
         id: "datapoint_test",
         _config: {
@@ -46,12 +36,12 @@ function makeList({ loadRecords = async () => [] } = {}) {
             fields: { display_name: { type: "char" } },
         },
         records: [],
-        _cache: markRaw({}),
+        _cache: markRaw(new Map()),
         _commands: [],
         _initialCommands: [],
         _commandsPromise: null,
         _savePoint: undefined,
-        _unknownRecordCommands: {},
+        _unknownRecordCommands: new Map(),
         _loadingStubIds: new Set(),
         _currentIds: [],
         _tmpIncreaseLimit: 0,
@@ -69,9 +59,6 @@ function makeList({ loadRecords = async () => [] } = {}) {
                 activeFields: {},
                 fields: {},
                 fieldNames: [],
-                // As RelationalRecord.setup builds it: the fields the server
-                // actually sent. `_getResIdsToLoad` reads this to decide
-                // whether a row still needs a webRead.
                 _loadedFieldNames: new Set(Object.keys(data)),
                 data: { ...data },
                 _changes: {},
@@ -90,7 +77,7 @@ function makeList({ loadRecords = async () => [] } = {}) {
                 },
                 _parseServerValues: (/** @type {any} */ changes) => changes,
             };
-            this._cache[resId || record._virtualId] = record;
+            this._cache.set(resId || record._virtualId, record);
             return record;
         },
     });
@@ -128,40 +115,35 @@ describe("_discard prune sequencing", () => {
         const def = new Deferred();
         const list = makeList({ loadRecords: () => def });
 
-        list._cache["stale"] = { resId: false, _virtualId: "stale", _discard() {} };
+        list._cache.set("stale", { resId: false, _virtualId: "stale", _discard() {} });
         list._initialCommands = [[LINK, 42, false]];
 
         list._discard();
 
         expect(list._commandsPromise).not.toBe(null);
-        expect("stale" in list._cache).toBe(true);
+        expect(list._cache.has("stale")).toBe(true);
 
         def.resolve([{ id: 42, display_name: "Rec 42" }]);
         await animationFrame();
 
-        expect("stale" in list._cache).toBe(false);
-        expect(list._cache[42].data.display_name).toBe("Rec 42");
+        expect(list._cache.has("stale")).toBe(false);
+        expect(list._cache.get(42).data.display_name).toBe("Rec 42");
         expect(list._commandsPromise).toBe(null);
     });
 
     test("_pruneCache runs synchronously when nothing is pending", () => {
         const list = makeList();
-        list._cache["stale"] = { resId: false, _virtualId: "stale", _discard() {} };
+        list._cache.set("stale", { resId: false, _virtualId: "stale", _discard() {} });
 
         list._discard();
 
-        expect("stale" in list._cache).toBe(false);
+        expect(list._cache.has("stale")).toBe(false);
     });
 });
 
 describe("save barrier on pending commands", () => {
-    /**
-     * Minimal record mock for record_save.save() holding one x2many whose
-     * StaticList is backed by the real prototype (same shape as
-     * record_save.test.js's factory, plus the x2many field).
-     */
     function makeRecord(/** @type {any} */ list, { /** @type {any} */ webSave }) {
-        return {
+        const record = {
             resId: 1,
             resIds: [1],
             resModel: "res.partner",
@@ -193,6 +175,7 @@ describe("save barrier on pending commands", () => {
                 load: async () => {},
                 _patchConfig: () => {},
                 _updateSimilarRecords: () => {},
+                __proto__: MODEL_LIFECYCLE_PROTO,
                 hooks: {
                     lifecycle: {
                         onWillSaveRecord: async () => {},
@@ -204,6 +187,8 @@ describe("save barrier on pending commands", () => {
                 orm: { webSave },
             },
         };
+        installEditState(record, { dirty: true });
+        return record;
     }
 
     test("save waits for an in-flight commands load before serializing", async () => {
@@ -237,7 +222,7 @@ describe("save barrier on pending commands", () => {
         expect(result).toBe(true);
         expect.verifySteps(["webSave"]);
         expect(savedChanges.lines).toEqual([[LINK, 42, false]]);
-        expect(list._cache[42].data.display_name).toBe("Rec 42");
+        expect(list._cache.get(42).data.display_name).toBe("Rec 42");
     });
 
     test("save proceeds without delay when no commands load is pending", async () => {
@@ -276,9 +261,7 @@ describe("save barrier on pending commands", () => {
         await animationFrame();
         expect.verifyErrors([/replay boom/]);
 
-        // The command itself was staged (the payload below is right), but the
-        // record load it carried rejected: the row is a bare `{id}` stub.
-        expect(list._cache[42].data).toEqual({ id: 42 });
+        expect(list._cache.get(42).data).toEqual({ id: 42 });
         expect(list._replayFailed).toBe(true);
 
         failLoads = false;
@@ -294,9 +277,6 @@ describe("save barrier on pending commands", () => {
                 return [{ id: 1 }];
             },
         });
-        // A real record holds its x2many list in `_values`; the double's
-        // `_commitChanges` rebuilds `data` from it, and the post-save heal
-        // walks `data` — so the list must survive the rebuild here too.
         rec._values = markRaw({ lines: list });
 
         const result = await save(/** @type {any} */ (rec), { reload: false });
@@ -304,8 +284,7 @@ describe("save barrier on pending commands", () => {
 
         expect(result).toBe(true);
         expect(savedChanges.lines).toEqual([[LINK, 42, false]]);
-        // the save succeeded, so the stub was re-fetched: display converges
-        expect(list._cache[42].data.display_name).toBe("Rec 42");
+        expect(list._cache.get(42).data.display_name).toBe("Rec 42");
         expect(list._replayFailed).toBe(false);
     });
 

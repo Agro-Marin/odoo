@@ -176,8 +176,6 @@ class TestPartnerVCard(HttpCase):
         self.assertEqual(res.status_code, 403)
 
     def test_fetch_single_partner_vcard_without_name(self):
-        """A partner with no own ``name`` (created only via ``child_ids``) must
-        expose its ``complete_name`` in the vcard."""
         partner = self.partners[1].child_ids[0]
         res = self.url_open("/web/partner/vcard?partner_ids=%s" % partner.id)
         vcard = vobject.readOne(res.text)

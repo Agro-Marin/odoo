@@ -83,3 +83,42 @@ test("a failed background currency reload does not raise an unhandled rejection"
     await animationFrame();
     expect.verifySteps(["warn"]);
 });
+
+test("destroy() releases the res.currency subscription", async () => {
+    onRpc("get_all_currencies", ({ method }) => {
+        expect.step(method);
+    });
+    const env = await makeMockEnv();
+    const fireWrite = () =>
+        rpcBus.trigger("RPC:RESPONSE", {
+            data: { params: { model: "res.currency", method: "write" } },
+            settings: {},
+            result: {},
+        });
+
+    fireWrite();
+    await animationFrame();
+    expect.verifySteps(["get_all_currencies"]);
+
+    getService("currency").destroy();
+    fireWrite();
+    await animationFrame();
+    expect.verifySteps([]);
+
+    env.destroy();
+});
+
+test("env.destroy() reaches the currency service", async () => {
+    onRpc("get_all_currencies", ({ method }) => {
+        expect.step(method);
+    });
+    const env = await makeMockEnv();
+    env.destroy();
+    rpcBus.trigger("RPC:RESPONSE", {
+        data: { params: { model: "res.currency", method: "write" } },
+        settings: {},
+        result: {},
+    });
+    await animationFrame();
+    expect.verifySteps([]);
+});

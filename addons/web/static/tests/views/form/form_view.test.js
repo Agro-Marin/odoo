@@ -9016,10 +9016,6 @@ test(`buttons with "confirm-title" and "confirm-label" attributes`, async () => 
 });
 
 test(`buttons with "confirm" attribute: click twice on "Ok"`, async () => {
-    // Holds the confirm callback open so the dialog is still on screen while
-    // the second click lands — the only way to test what this test is named
-    // for. Without it the callback settles immediately and the dialog is gone
-    // before a second click is possible.
     const deferred = new Deferred();
     mockService("action", {
         doActionButton() {
@@ -9047,15 +9043,8 @@ test(`buttons with "confirm" attribute: click twice on "Ok"`, async () => {
 
     await click(`.modal-footer button.btn-primary`);
     await animationFrame();
-    // `ConfirmationDialog` disables its footer through reactive state rather
-    // than by walking the DOM, so the attribute lands on the next render, not
-    // synchronously with the click.
     expect(`.modal-footer button.btn-primary`).not.toBeEnabled();
 
-    // The guarantee that actually matters, and the one the title names: a
-    // second confirm must not run the callback twice. `execButton` returns
-    // early while `isProcess` is set, so this holds even for a click landing
-    // inside the frame before the button is visibly disabled.
     await click(`.modal-footer button.btn-primary`);
     deferred.resolve();
     await animationFrame();
@@ -9134,7 +9123,6 @@ test(`cog-menu action executes after discarding a failed save`, async () => {
     expect(`.o_dialog`).toHaveCount(1);
     expect.verifySteps(["web_save"]);
 
-    // "Discard changes" resolves the save: the queued Duplicate must run.
     await contains(`.o_dialog .modal-footer .btn-secondary`).click();
     await animationFrame();
     expect(`.o_dialog`).toHaveCount(0);
@@ -10394,8 +10382,6 @@ test(`form view with inline list view with optional fields and local storage moc
     });
 
     const localStorageKey = "partner,form,1,child_ids,list,bar,foo";
-    // `debug_open_view` is still snapshotted at setup, `optional_fields` is
-    // read on each render, so the debug key is now seen first.
     expect.verifySteps([
         `getItem debug_open_view,${localStorageKey}`,
         `getItem optional_fields,${localStorageKey}`,
@@ -10466,8 +10452,6 @@ test(`form view with list_view_ref with optional fields and local storage mock`,
     });
 
     const localStorageKey = "partner,form,1,child_ids,list,bar,foo";
-    // `debug_open_view` is still snapshotted at setup, `optional_fields` is
-    // read on each render, so the debug key is now seen first.
     expect.verifySteps([
         `getItem debug_open_view,${localStorageKey}`,
         `getItem optional_fields,${localStorageKey}`,

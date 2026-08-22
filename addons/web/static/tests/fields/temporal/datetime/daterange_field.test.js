@@ -943,10 +943,6 @@ test("list daterange: column widths", async () => {
 
     expect(".o_data_row").toHaveCount(1);
     const columnWidths = queryAllProperties(".o_list_table thead th", "offsetWidth");
-    // The datetime range is sized for the string it renders, which carries no
-    // seconds unless `show_seconds` is set -- so it is 2 x ~21px narrower than
-    // the seconds-bearing probe it used to be measured against, and the char
-    // column takes back what it gives up.
     expect(columnWidths).toEqual([40, 220, 310, 231]);
 });
 
@@ -1033,10 +1029,6 @@ test("list daterange: column widths (no record)", async () => {
 
     expect(".o_data_row").toHaveCount(0);
     const columnWidths = queryAllProperties(".o_list_table thead th", "offsetWidth");
-    // The datetime range is sized for the string it renders, which carries no
-    // seconds unless `show_seconds` is set -- so it is 2 x ~21px narrower than
-    // the seconds-bearing probe it used to be measured against, and the char
-    // column takes back what it gives up.
     expect(columnWidths).toEqual([40, 220, 310, 231]);
 });
 

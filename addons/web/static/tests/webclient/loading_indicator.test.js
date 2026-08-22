@@ -149,8 +149,6 @@ test("loading indicator is not displayed immediately", async () => {
 });
 
 test("the indicator is announced as a polite status", async () => {
-    // Without a live region the only signal that anything is loading is a
-    // visual rectangle, which a screen-reader user never learns about.
     await mountWithCleanup(LoadingIndicator, { noMainContainer: true });
     rpcBus.trigger(RpcEvent.REQUEST, { data: { id: 1 }, settings: {} });
     await advanceTime(400);

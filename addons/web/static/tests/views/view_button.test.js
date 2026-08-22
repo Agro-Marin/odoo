@@ -1,6 +1,5 @@
 // @ts-check
 
-// must run AFTER the view_button imports above. A prior `eslint --fix`
 import "@web/views/form/form_utils";
 import "@web/views/view_utils";
 
@@ -18,7 +17,6 @@ import { ViewButton } from "@web/views/view_button/view_button";
 import { useViewButtons } from "@web/views/view_button/view_button_hook";
 
 /**
- * Mount a ViewButton (or subclass) declared by `buttonXml`, wired to useViewButtons.
  * @param {string} buttonXml
  */
 async function mountButton(buttonXml) {

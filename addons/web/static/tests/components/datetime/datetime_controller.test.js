@@ -16,10 +16,6 @@ beforeEach(() => {
 });
 
 /**
- * Fake popover mirroring the makePopover contract used by the controller:
- * open()/close()/isOpen, and calling the provided onClose on close (as the real
- * popover service does when the popover is removed).
- *
  * @param {{ onClose?: () => any }} options
  */
 function makeFakePopover(options) {
@@ -45,9 +41,6 @@ function makeFakePopover(options) {
 }
 
 /**
- * Builds a controller wired to a fake popover, a fake env and a caller-owned
- * registry, so no popover service / component mount is needed.
- *
  * @param {Record<string, any>} [params]
  * @param {{ dateTimePickerList?: Set<any> }} [opts]
  */
@@ -73,8 +66,6 @@ function createController(params = {}, opts = {}) {
 }
 
 /**
- * Creates <input> elements attached to the hoot fixture (so they are connected).
- *
  * @param {number} count
  */
 function makeInputs(count = 1) {
@@ -304,8 +295,6 @@ test("the visibility spacer borrowed from the target is returned on dispose", ()
     controller.open(0);
     expect(input.style.marginBottom).toBe("100vh");
 
-    // Destroying the owner while the picker is open must not leave a
-    // viewport-height gap behind on an element the controller does not own.
     controller.dispose();
     expect(input.style.marginBottom).toBe("4px");
 });

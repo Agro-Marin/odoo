@@ -3,9 +3,10 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, click, hover, pointerDown, pointerUp } from "@odoo/hoot-dom";
 import { Component, useState, xml } from "@odoo/owl";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { FileModel } from "@web/components/file_viewer/file_model";
 import { FileViewer } from "@web/components/file_viewer/file_viewer";
+import { browser } from "@web/core/browser/browser";
 
 describe.current.tags("desktop");
 
@@ -85,17 +86,14 @@ test("re-anchors on a new files list", async () => {
     await mountWithCleanup(Parent);
     expect(".o-FileViewer-header .text-truncate").toHaveText("test.png");
 
-    // Reordering keeps the viewed file, not the index.
     update([other, IMAGE_FILE]);
     await animationFrame();
     expect(".o-FileViewer-header .text-truncate").toHaveText("test.png");
 
-    // Removing the viewed file falls back within the new list.
     update([other]);
     await animationFrame();
     expect(".o-FileViewer-header .text-truncate").toHaveText("other.png");
 
-    // Emptying the list renders nothing instead of a stale preview.
     update([]);
     await animationFrame();
     expect(".o-FileViewer").toHaveCount(0);
@@ -142,7 +140,6 @@ test("youtube URLs are matched on the host, not on a substring", async () => {
         videoId("https://www.youtube-nocookie.com/embed/abc123"),
     ]).toEqual(Array(7).fill("abc123"));
 
-    // A link that merely contains "youtu" must stay a plain URL.
     const impostor = Object.assign(new FileModel(), {
         type: "url",
         url: "https://example.com/my-youtube-clone/page",
@@ -150,7 +147,6 @@ test("youtube URLs are matched on the host, not on a substring", async () => {
     expect(impostor.isUrlYoutube).toBe(false);
     expect(impostor.defaultSource).not.toInclude("youtube.com/embed");
 
-    // Subdomain spoofing must not pass either.
     expect(videoId("https://youtube.evil.com/watch?v=abc123")).toBe(null);
 });
 
@@ -166,7 +162,6 @@ test("dragging an image measures the layout once per frame, not once per event",
         props: { files: [IMAGE_FILE], startIndex: 0, modal: false },
     });
     await animationFrame();
-    // Zoom in so the image overflows its zoomer and the translation is applied.
     viewer.zoomIn();
     viewer.zoomIn();
     await animationFrame();
@@ -176,13 +171,10 @@ test("dragging an image measures the layout once per frame, not once per event",
     for (let i = 1; i <= 20; i++) {
         await hover(".o-FileViewer-main", { position: { x: i * 3, y: i * 2 } });
     }
-    // 20 pointermoves used to mean 20 forced layouts.
     expect(measures).toBeLessThan(20);
-    // Throttling the style write must not lose the last move.
     expect(viewer.translate.dx).toBe(60);
     expect(viewer.translate.dy).toBe(40);
 
-    // The drop is not deferred: it settles the offset straight away.
     const beforeDrop = measures;
     await pointerUp(".o-FileViewer-main");
     expect(measures).toBeGreaterThan(beforeDrop);
@@ -210,4 +202,65 @@ test("the viewer recovers when the file list empties and refills", async () => {
     parent.state.files = [other];
     await animationFrame();
     expect(".o-FileViewer").toHaveCount(1);
+});
+
+test("a rotated image is re-sized when the window is", async () => {
+    patchWithCleanup(browser, { innerWidth: 1000, innerHeight: 600 });
+    const viewer = await mountWithCleanup(FileViewer, {
+        props: { files: [IMAGE_FILE], startIndex: 0, close: () => {} },
+    });
+    viewer.rotate();
+    await animationFrame();
+    expect(viewer.imageStyle).toInclude("max-height: 1000px");
+    expect(viewer.imageStyle).toInclude("max-width: 600px");
+
+    patchWithCleanup(browser, { innerWidth: 500, innerHeight: 900 });
+    browser.dispatchEvent(new Event("resize"));
+    await animationFrame();
+    expect(viewer.imageStyle).toInclude("max-height: 500px");
+    expect(viewer.imageStyle).toInclude("max-width: 900px");
+});
+
+test("printing closes the window when the job is handed off, not on a timer", async () => {
+    /** @type {Record<string, Function>} */
+    const listeners = {};
+    let closed = false;
+    let printed = false;
+    let fallbackDelay = null;
+    const printWindow = {
+        document: {
+            createElement: (/** @type {string} */ tag) => document.createElement(tag),
+            body: document.createElement("div"),
+        },
+        addEventListener: (/** @type {string} */ type, /** @type {Function} */ fn) => {
+            listeners[type] = fn;
+        },
+        print: () => {
+            printed = true;
+        },
+        close: () => {
+            closed = true;
+        },
+        setTimeout: (/** @type {Function} */ fn, /** @type {number} */ ms) => {
+            fallbackDelay = ms;
+            return 1;
+        },
+    };
+    patchWithCleanup(browser, { open: () => printWindow });
+
+    const viewer = await mountWithCleanup(FileViewer, {
+        props: { files: [IMAGE_FILE], startIndex: 0, close: () => {} },
+    });
+    viewer.onClickPrint();
+    expect(printed).toBe(false);
+
+    /** @type {any} */ (printWindow.document.body.firstChild).dispatchEvent(
+        new Event("load"),
+    );
+    expect(printed).toBe(true);
+    expect(closed).toBe(false, { message: "not closed out from under the dialog" });
+    expect(fallbackDelay).toBe(1000, { message: "a fallback, not the mechanism" });
+
+    listeners.afterprint();
+    expect(closed).toBe(true);
 });

@@ -1,32 +1,5 @@
 // @ts-check
 
-/**
- * Regression test for the partial-response hole in ``static_list_sort.sort()``.
- *
- * ``sort`` is the third loader in the x2many stack, next to
- * ``StaticList._load`` (static_list_partial_load.test.js) and
- * ``StaticList._replaceWith`` (static_list_replace_with_partial.test.js). Both
- * of those already drop ids the server no longer returns —
- * ``RelationalModel._loadRecords`` throws only when ZERO rows come back, so a
- * row unlinked server-side between the request and its load simply comes back
- * missing. ``sort`` had no such guard: it mapped every requested id through
- * ``_cache`` and then read ``.resId`` off the holes.
- *
- * The crash did not land in the comparator — ``Array.prototype.sort`` moves
- * ``undefined`` entries to the end WITHOUT invoking it — but on the
- * ``nextCurrentIds`` map right after, as ``Cannot read properties of undefined
- * (reading 'resId')``.
- *
- * The precondition is ordinary, not exotic: a paginated x2many caches only the
- * rows of the page it displays while ``_currentIds`` lists the whole relation,
- * so sorting always loads the off-page ids. Reachable by clicking a column
- * header in an editable x2many list, by drag-resequencing, and from
- * ``_addRecord`` under an ``orderBy``.
- *
- * Uses the REAL StaticList and RelationalRecord against a mock model, in the
- * style of static_list_partial_load.test.js.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";
@@ -66,7 +39,6 @@ function makeList({ resIds = [], limit = 10, deleted = new Set() } = {}) {
         evalContextWithVirtualIds: {},
         _isEvalContextReady: true,
     };
-    // Only the first page is materialised, exactly as the server sends it.
     const data = resIds
         .slice(0, limit)
         .filter((id) => !deleted.has(id))
@@ -75,8 +47,6 @@ function makeList({ resIds = [], limit = 10, deleted = new Set() } = {}) {
         parent,
         onUpdate: async () => {},
     });
-    // ``_createStaticListDatapoint`` derives ``resIds`` from the whole server
-    // value, so membership legitimately outruns the cache.
     list.model._patchConfig(list.config, { resIds });
     list._currentIds = [...resIds];
     return { list, requested };
@@ -89,7 +59,7 @@ describe("static_list_sort.sort partial server response", () => {
             limit: 2,
             deleted: new Set([99]),
         });
-        expect(list._currentIds.filter((id) => !list._cache[id])).toEqual([3, 99]);
+        expect(list._currentIds.filter((id) => !list._cache.get(id))).toEqual([3, 99]);
 
         await sort(list, list._currentIds, [{ name: "display_name", asc: true }]);
 

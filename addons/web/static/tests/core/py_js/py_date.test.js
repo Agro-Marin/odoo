@@ -101,12 +101,6 @@ describe("datetime.datetime", () => {
         expect(JSON.stringify(evaluateExpr(expr))).toBe(`"2022-10-16 22:00:00"`);
     });
 
-    // The two tests above move the browser offset and luxon's zone together, so
-    // they cannot see which of the two to_utc reads. These pin the user's zone
-    // (res.users.tz, i.e. Settings.defaultZone) against a *different* browser
-    // zone: to_utc must follow the user's, since that is the zone the wall clock
-    // it converts came from. Reading the browser's instead shifted the window by
-    // the difference between the two.
     test("to_utc converts from the user's zone, not the browser's", () => {
         mockDate("2021-09-17 10:00:00", +0);
         patchWithCleanup(Settings, {
@@ -125,9 +119,6 @@ describe("datetime.datetime", () => {
         expect(JSON.stringify(evaluateExpr(expr))).toBe(`"2021-09-17 00:00:00"`);
     });
 
-    // Three agromarin views (remote_gps, delivery_tracking) filter on
-    // `.replace(hour=0, ...)`. py_js had no replace() at all, so `Domain.toList`
-    // threw InvalidDomainError and the filters were dead in the UI.
     test("replace substitutes components, as CPython does", () => {
         expect(
             evaluateExpr(
@@ -161,8 +152,6 @@ describe("datetime.datetime", () => {
         ).toThrow();
     });
 
-    // fmt4 rendered a negative year as "00-5", so date(-5,1,1) produced the
-    // string "00-5-01-01" — a malformed date flowing straight into a domain.
     test("the year is range-checked, not just typed", () => {
         for (const y of [0, -5, 10000]) {
             expect(() => evaluateExpr(`datetime.date(${y},1,1)`)).toThrow();
@@ -180,7 +169,6 @@ describe("datetime.datetime", () => {
         expect(
             evaluateExpr("datetime.datetime(2024,1,31,23,59,59).strftime('%c')"),
         ).toBe("Wed Jan 31 23:59:59 2024");
-        // %e space-pads the day, so a single-digit day keeps the column width
         expect(evaluateExpr("datetime.datetime(2024,2,5,0,0,0).strftime('%c')")).toBe(
             "Mon Feb  5 00:00:00 2024",
         );
@@ -256,10 +244,6 @@ describe("datetime.date", () => {
         ).toBe(true);
     });
 
-    // The constructors validated 1..9999, but `add` and the relativedelta walk
-    // build their result with `new PyDate(...)` directly and so bypassed it:
-    // `date(9999,12,31) + timedelta(days=1)` answered year 10000, which then
-    // broke `fmt4` and flowed on as a malformed date string.
     test("arithmetic cannot leave the representable range", () => {
         expect(() =>
             evaluateExpr("datetime.date(9999,12,31) + datetime.timedelta(days=1)"),
@@ -275,7 +259,6 @@ describe("datetime.date", () => {
                 "datetime.datetime(9999,12,31,23,0,0) + datetime.timedelta(days=1)",
             ),
         ).toThrow(/date value out of range/);
-        // The edges themselves stay reachable.
         expect(
             evaluateExpr(
                 "(datetime.date(9999,12,30) + datetime.timedelta(days=1)).strftime('%Y-%m-%d')",
@@ -289,17 +272,14 @@ describe("datetime.date", () => {
     });
 
     test("weekday and isoweekday, Monday-based like CPython", () => {
-        // Ordinal 1 is 0001-01-01, a Monday.
         expect(evaluateExpr("datetime.date(1, 1, 1).weekday()")).toBe(0);
         expect(evaluateExpr("datetime.date(1, 1, 1).isoweekday()")).toBe(1);
-        expect(evaluateExpr("datetime.date(2026, 8, 9).weekday()")).toBe(6); // Sunday
+        expect(evaluateExpr("datetime.date(2026, 8, 9).weekday()")).toBe(6);
         expect(evaluateExpr("datetime.date(2026, 8, 9).isoweekday()")).toBe(7);
-        expect(evaluateExpr("datetime.date(2024, 8, 9).weekday()")).toBe(4); // Friday
-        // Across the century-leap rule, where a wrong ordinal drifts by a day.
+        expect(evaluateExpr("datetime.date(2024, 8, 9).weekday()")).toBe(4);
         expect(evaluateExpr("datetime.date(1900, 1, 1).weekday()")).toBe(0);
         expect(evaluateExpr("datetime.date(2000, 2, 29).weekday()")).toBe(1);
         expect(evaluateExpr("datetime.date(9999, 12, 31).weekday()")).toBe(4);
-        // datetime is a sibling class here, not a subclass, so it restates it.
         expect(evaluateExpr("datetime.datetime(2026, 8, 9, 5, 0, 0).weekday()")).toBe(
             6,
         );
@@ -309,22 +289,16 @@ describe("datetime.date", () => {
     });
 
     test("the shipped 'since Monday' domain evaluates", () => {
-        // Two AgroMarin views ship this shape. Without `weekday()` it failed
-        // with V8's "Function.prototype.apply was called on undefined", naming
-        // neither the object nor the attribute.
-        mockDate("2026-08-09 12:00:00", 0); // a Sunday
+        mockDate("2026-08-09 12:00:00", 0);
         expect(
             evaluateExpr(
                 "(context_today() - datetime.timedelta(days=context_today().weekday()))" +
                     ".strftime('%Y-%m-%d')",
             ),
-        ).toBe("2026-08-03"); // the Monday of that week
+        ).toBe("2026-08-03");
     });
 
     test("datetime.date.today is UTC, not the client zone", () => {
-        // The server runs `date.today()` in a process pinned to UTC, so this
-        // is the one date builtin that must NOT follow the user's timezone --
-        // `context_today()` is.
         mockDate("2026-07-20 18:30:00", -10);
         expect(evaluateExpr("datetime.date.today().strftime('%Y-%m-%d')")).toBe(
             "2026-07-20",
@@ -333,7 +307,6 @@ describe("datetime.date", () => {
         expect(evaluateExpr("datetime.date.today().strftime('%Y-%m-%d')")).toBe(
             "2026-07-21",
         );
-        // Same instants, read through the client zone, land on other days.
         mockDate("2026-07-20 18:30:00", +9);
         expect(evaluateExpr("datetime.date.today().strftime('%Y-%m-%d')")).toBe(
             "2026-07-20",
@@ -909,7 +882,6 @@ describe("construction validation", () => {
 
 describe("time is not a date", () => {
     test("relativedelta refuses a time, as safe_eval does", () => {
-        // `PyTime extends PyDate` used to make this answer "1900-01-02".
         expect(() =>
             evaluateExpr("datetime.time(1, 2, 3) + relativedelta(days=1)"),
         ).toThrow(/relativedelta can only be added to a date or a datetime/);
@@ -948,7 +920,6 @@ describe("time is not a date", () => {
     });
 
     test("a date minus a non-date names both operands instead of nothing", () => {
-        // This used to surface as a `NotSupportedError` with an empty message.
         expect(() => evaluateExpr("datetime.date(2024, 1, 1) - 5")).toThrow(
             /unsupported operand type\(s\) for -: 'date' and 'int'/,
         );

@@ -1,37 +1,14 @@
 // @ts-check
 
-/**
- * Pure unit tests for processProperties() (extracted in Phase 4 of the
- * model-layer decomposition plan;
- * workspaces/workspace-LMMG/brainstorms/2026-05-23-web-model-layer-decomposition.md).
- *
- * The helper splices per-property definitions into ``record.fields`` /
- * ``record.activeFields`` and shapes per-property values by type (m2m →
- * StaticList, m2o → value or "No Access" placeholder, scalars → pass-through).
- * The mock record exposes only what the helper reads: fields, activeFields,
- * _createStaticListDatapoint(data, fieldName).
- *
- * Integration coverage: tests/fields/specialized/properties/properties_field.test.js.
- *
- * Module under test: model/relational_model/record_properties.js
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { processProperties } from "@web/model/relational_model/record_properties";
 
 describe.current.tags("headless");
 
 /**
- * Build a minimal record mock for processProperties tests.
- *
- * Defaults:
- *   - empty fields / activeFields (schema fresh-create path)
- *   - _createStaticListDatapoint returns a synthetic StaticList carrying
- *     its constructor arguments so tests can assert on them
- *
  * @param {Object} [opts]
- * @param {Object} [opts.fields={}] - pre-populated field definitions
- * @param {Object} [opts.activeFields={}] - pre-populated active fields
+ * @param {Object} [opts.fields={}]
+ * @param {Object} [opts.activeFields={}]
  * @param {Function|null} [opts.createStaticList]
  * @returns {Object}
  */
@@ -52,10 +29,6 @@ function makePropertyRecord({
 }
 
 /**
- * Minimal cached-StaticList mock for the m2m reuse/reconcile paths: exposes
- * the members processProperties reads (``currentIds``) and records the
- * commands it applies.
- *
  * @param {number[]} currentIds
  * @returns {Object}
  */

@@ -54,3 +54,36 @@ test("do not reload webclient when updating a res.company, but there is an error
     });
     expect.verifySteps([]);
 });
+
+test("destroy() releases the res.company subscription", async () => {
+    mockService("action", {
+        async doAction(action) {
+            expect.step(action);
+        },
+    });
+    const env = await makeMockEnv();
+    await getService("orm").unlink("res.company", [32]);
+    expect.verifySteps(["reload_context"]);
+
+    getService("reloadCompany").destroy();
+    await getService("orm").unlink("res.company", [32]);
+    expect.verifySteps([]);
+
+    env.destroy();
+});
+
+test("env.destroy() reaches the reloadCompany service", async () => {
+    mockService("action", {
+        async doAction(action) {
+            expect.step(action);
+        },
+    });
+    const env = await makeMockEnv();
+    env.destroy();
+    rpcBus.trigger("RPC:RESPONSE", {
+        data: { params: { model: "res.company", method: "unlink" } },
+        settings: {},
+        result: {},
+    });
+    expect.verifySteps([]);
+});

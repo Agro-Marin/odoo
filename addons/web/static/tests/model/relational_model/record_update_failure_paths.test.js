@@ -1,27 +1,7 @@
 // @ts-check
 
-/**
- * Regression tests for the three failure paths of ``RelationalRecord._update``
- * and for the validity half of ``_applyChanges``'s undo closure.
- *
- * ``_update`` raises ``dirty`` up-front (Invariant 1) and each of its three
- * catch blocks must lower it again when nothing was committed. The onchange
- * catch used to skip ``restoreDirty()``, so a failed ``onchange`` RPC left a
- * record flagged dirty with an empty change set — a discard prompt and a dirty
- * indicator for edits that were never applied.
- *
- * Separately, ``_applyChanges``'s undo restored ``_invalidFields`` but not
- * ``_unsetRequiredFields``. The two are paired: a later
- * ``_checkValidity({removeInvalidOnly})`` iterates ``_unsetRequiredFields`` to
- * decide what to re-scan, so dropping an entry there leaves the matching
- * ``_invalidFields`` entry unreachable by any prune.
- *
- * Uses the REAL ``RelationalRecord`` (and the real validator) against a mock
- * model; ``record_apply_changes_undo.test.js`` covers the x2many half of the
- * same undo closure with ``_checkValidity`` stubbed out.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
+import { MODEL_LIFECYCLE_PROTO } from "@web/../tests/model/relational_model/model_doubles";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";
 import { RecordEditState } from "@web/model/relational_model/record_edit_state";
@@ -53,7 +33,11 @@ function makeRecord({ failIn, required = false } = {}) {
             urgentSave,
             multiEdit: false,
             hasOnRecordChangedHook: false,
-            hooks: { ui: { onDisplayInvalidFields: () => () => {} } },
+            __proto__: MODEL_LIFECYCLE_PROTO,
+            hooks: {
+                lifecycle: {},
+                ui: { onDisplayInvalidFields: () => () => {} },
+            },
         },
         _setEvalContext() {},
         _parseServerValues: (values) => ({ ...values }),
@@ -134,9 +118,6 @@ describe("RelationalRecord._applyChanges undo — validity sets", () => {
 describe("RelationalRecord._applyChanges undo — data keys", () => {
     test("undo removes keys the change introduced", () => {
         const record = makeRecord();
-        // An onchange carrying a properties field expands into extra
-        // ``<field>.<name>`` entries; ``_parseServerValues`` is where that
-        // expansion lands, so stub it to add one.
         record._parseServerValues = (values) => ({
             ...values,
             "properties.new_one": "invented by the onchange",

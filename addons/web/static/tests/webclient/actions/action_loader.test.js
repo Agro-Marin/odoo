@@ -13,13 +13,6 @@ import {
 } from "@web/webclient/actions/action_loader";
 
 /**
- * Mount-free tests for ``action_loader.js``.
- *
- * The module normalises action descriptors before anything else in the service
- * sees them — which means a mistake here is visible everywhere and diagnosable
- * nowhere. It reaches exactly one manager member (``_nextId``), so the fake is
- * a one-liner.
- *
  * @param {Object} [overrides]
  */
 function makeFakeAm(overrides = {}) {
@@ -314,4 +307,79 @@ test("a context expression is evaluated against the user context", async () => {
     );
     expect(action.context?.owner).toBe(user.context.uid);
     expect("uid" in (action.context ?? {})).toBe(false);
+});
+
+test("a declared search view is not duplicated by the pushed one", async () => {
+    const am = makeFakeAm();
+    const action = preprocessAction(
+        /** @type {any} */ ({
+            type: "ir.actions.act_window",
+            views: [
+                [false, "list"],
+                [7, "search"],
+            ],
+        }),
+        {},
+        am,
+    );
+    expect(action.views).toEqual([
+        [false, "list"],
+        [7, "search"],
+    ]);
+});
+
+test("search_view_id overrides a search view declared in `views`", async () => {
+    const am = makeFakeAm();
+    const action = preprocessAction(
+        /** @type {any} */ ({
+            type: "ir.actions.act_window",
+            search_view_id: [9, "by id"],
+            views: [
+                [false, "list"],
+                [7, "search"],
+            ],
+        }),
+        {},
+        am,
+    );
+    expect(action.views).toEqual([
+        [false, "list"],
+        [9, "search"],
+    ]);
+});
+
+test("an action with no search view still gets exactly one", async () => {
+    const am = makeFakeAm();
+    const action = preprocessAction(
+        /** @type {any} */ ({
+            type: "ir.actions.act_window",
+            views: [[false, "list"]],
+        }),
+        {},
+        am,
+    );
+    expect(action.views).toEqual([
+        [false, "list"],
+        [false, "search"],
+    ]);
+});
+
+test("two declared search views collapse to the first", async () => {
+    const am = makeFakeAm();
+    const action = preprocessAction(
+        /** @type {any} */ ({
+            type: "ir.actions.act_window",
+            views: [
+                [false, "list"],
+                [7, "search"],
+                [8, "search"],
+            ],
+        }),
+        {},
+        am,
+    );
+    expect(action.views).toEqual([
+        [false, "list"],
+        [7, "search"],
+    ]);
 });

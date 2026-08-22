@@ -7,6 +7,7 @@ import {
     contains,
     defineActions,
     defineModels,
+    getMockEnv,
     getService,
     models,
     mountWithCleanup,
@@ -49,7 +50,6 @@ defineActions([
     },
 ]);
 
-/** Simulate a mutating RPC on ir.actions.act_window reaching the rpcBus. */
 function fireActWindowWrite() {
     rpcBus.trigger(RpcEvent.RESPONSE, {
         data: { params: { model: "ir.actions.act_window", method: "write" } },
@@ -209,7 +209,6 @@ test("failed breadcrumb refresh keeps the current names", async () => {
     ]);
 });
 
-/** Simulate a mutating RPC on an arbitrary model reaching the rpcBus. */
 function fireWrite(/** @type {any} */ model) {
     rpcBus.trigger(RpcEvent.RESPONSE, {
         data: { params: { model, method: "write" } },
@@ -249,7 +248,6 @@ test("a non-act_window action write clears the cache but skips the refresh", asy
     uninstall();
 });
 
-/** Simulate a mutating RPC on `model` with an explicit method reaching the bus. */
 function fireMutation(/** @type {any} */ model, /** @type {any} */ method) {
     rpcBus.trigger(RpcEvent.RESPONSE, {
         data: { params: { model, method } },
@@ -258,10 +256,6 @@ function fireMutation(/** @type {any} */ model, /** @type {any} */ method) {
 }
 
 test("an ir.embedded.actions create/unlink clears the cache but skips the refresh", async () => {
-    // `/web/action/load` inlines the action's embedded actions, so mutating one
-    // must bust the cache -- but the model is `ir.embedded.actions`, which a
-    // prefix-only `ir.actions.` match misses (the bug this guards). It is not an
-    // act_window, so the breadcrumb refresh must NOT run.
     let refreshed = 0;
     onRpc("/web/action/load_breadcrumbs", () => {
         refreshed++;
@@ -351,9 +345,6 @@ test("navigation during the refresh abandons the stale breadcrumb write", async 
 
 test.tags("desktop");
 test("act_window write during a URL restore refreshes the MOUNTED stack", async () => {
-    // A restore in flight proposes a stack; it does not install one. The
-    // invalidator therefore still finds the controllers that are actually on
-    // screen, refreshes those, and cannot trip over a virtual placeholder.
     const blockLeaf = new Deferred();
     let reads = 0;
     onRpc("/web/action/load_breadcrumbs", () => {
@@ -385,7 +376,6 @@ test("act_window write during a URL restore refreshes the MOUNTED stack", async 
     });
     await animationFrame();
 
-    // The proposal is NOT installed: the live stack is still the mounted one.
     expect(am.controllerStack).toBe(mountedStack);
     expect(am.controllerStack.some((c) => c.virtual)).toBe(false);
 
@@ -400,4 +390,27 @@ test("act_window write during a URL restore refreshes the MOUNTED stack", async 
     await restoring;
     await animationFrame();
     expect(".o_form_view").toHaveCount(1);
+});
+
+test("env.destroy() reaches the action service's cache invalidation", async () => {
+    await mountWithCleanup(WebClient);
+    const env = getMockEnv();
+
+    const cleared = [];
+    const onClear = (/** @type {any} */ ev) => cleared.push(ev.detail);
+    rpcBus.addEventListener(RpcEvent.CLEAR_CACHES, onClear);
+
+    env.destroy();
+    fireActWindowWrite();
+    await animationFrame();
+    rpcBus.removeEventListener(RpcEvent.CLEAR_CACHES, onClear);
+
+    expect(cleared.includes("/web/action/load")).toBe(false);
+});
+
+test("the disposer is idempotent, so a second teardown is harmless", async () => {
+    await mountWithCleanup(WebClient);
+    const am = getService("action");
+    am.destroy();
+    expect(() => am.destroy()).not.toThrow();
 });

@@ -1,20 +1,5 @@
 // @ts-check
 
-/**
- * The save path walks the record -> list -> record tree three times, for three
- * different questions. Those walks used to be open-coded three times inside
- * `record_save.js`, and they had silently drifted apart:
- *
- *   - the pending-command barrier included property-backed x2many lists,
- *   - the commit spec and the commit itself excluded them.
- *
- * That asymmetry is deliberate — command replay IS staged on a property list
- * (`record_properties.js` calls `_trackCommandsPromise`), but the list is a
- * facet of the `properties` field, which carries its own value and is neither
- * specified nor committed on its own. Now that both selectors are named, these
- * tests pin the difference so a future tidy-up cannot quietly unify them.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import {
     allX2manyLists,
@@ -27,10 +12,9 @@ import {
 describe.current.tags("headless");
 
 /**
- * @param {Record<string, any>} lists fieldName -> list stub
+ * @param {Record<string, any>} lists
  * @param {Record<string, any>} [fieldOverrides]
- * @returns {any} a record-shaped stub: the traversal only reads
- *  activeFields / fields / data, so a full datapoint is not needed
+ * @returns {any}
  */
 function makeRecord(lists, fieldOverrides = {}) {
     /** @type {Record<string, any>} */
@@ -44,7 +28,6 @@ function makeRecord(lists, fieldOverrides = {}) {
         fields[name] = { name, type: "one2many", ...(fieldOverrides[name] || {}) };
         data[name] = list;
     }
-    // a plain scalar field must never be mistaken for a list
     activeFields.name = {};
     fields.name = { name: "name", type: "char" };
     data.name = "x";
@@ -53,7 +36,7 @@ function makeRecord(lists, fieldOverrides = {}) {
 
 /**
  * @param {Partial<any>} [props]
- * @returns {any} a StaticList-shaped stub exposing only the published surface
+ * @returns {any}
  */
 function makeList({ pending = null, staged = false, cached = [] } = {}) {
     /** @type {boolean[]} */
@@ -115,7 +98,7 @@ describe("collectPendingCommands", () => {
     test("a cycle terminates instead of recursing forever", () => {
         const list = makeList();
         const record = makeRecord({ lines: list });
-        list.cachedRecords = [record]; // the record is cached under its own list
+        list.cachedRecords = [record];
         expect(collectPendingCommands(record)).toEqual([]);
     });
 

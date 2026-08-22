@@ -28,15 +28,6 @@ function apply(arch, inherits) {
 }
 
 /**
- * Debug mode must annotate the result, never alter it.
- *
- * `applyOperations` prepends a provenance comment *into the operation
- * element*, and `getNodes` copies every child of that element into the output.
- * The comment is a non-text node, which is exactly what `addBefore` keys its
- * whitespace trimming off -- so the annotation is one predicate away from
- * changing the markup. It does not today, including for a text-only operation,
- * where the comment is the only non-text node in the insertion; this pins that.
- *
  * @param {string} arch
  * @param {string} inherits
  */
@@ -85,9 +76,6 @@ test("`replace` produces the same markup in debug mode", () => {
 });
 
 test("a text-only operation produces the same markup in debug mode", () => {
-    // `addBefore` trims the preceding text node only when at least one
-    // inserted node is not text. A text-only operation is the shape where the
-    // provenance comment could flip that predicate.
     const arch = `<t t-name="web.A"><div><span class="a"/>
         <span class="b"/>
     </div></t>`;

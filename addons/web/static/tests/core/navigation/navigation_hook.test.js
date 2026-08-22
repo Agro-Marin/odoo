@@ -185,13 +185,6 @@ test("navigation with virtual focus", async () => {
 });
 
 test("virtualFocus navigates by keyboard without a custom availability predicate", async () => {
-    // The regression this pins: the default availability predicate was
-    // `contains(target) && (isFocused || virtualFocus)`, and on the keydown
-    // path the target is the focused element itself -- which a virtual-focus
-    // navigator never holds inside its items. The `virtualFocus` disjunct was
-    // therefore unreachable for the keyboard and every virtual-focus consumer
-    // had to hand-roll its own predicate. A new consumer must not have to:
-    // keeping the real focus anywhere in the container is enough.
     class Parent extends Component {
         static props = [];
         static template = xml`
@@ -229,8 +222,6 @@ test("virtualFocus navigates by keyboard without a custom availability predicate
     await animationFrame();
     expect.verifySteps([2]);
 
-    // The container boundary still gates the keyboard: with the real focus
-    // outside of it the navigator stays quiet.
     await click(".outside");
     await press("arrowdown");
     await animationFrame();
@@ -263,7 +254,6 @@ test("wrap: false clears past either end and re-enters from the opposite one", a
     expect(".search").toBeFocused();
     expect(component.navigation.activeItem).toBe(null);
 
-    // Entering from nothing lands on the end the arrow points away from.
     await press("arrowdown");
     expect(".one").toHaveClass("focus");
 
@@ -271,17 +261,14 @@ test("wrap: false clears past either end and re-enters from the opposite one", a
     await press("arrowdown");
     expect(".three").toHaveClass("focus");
 
-    // Past the end: the cursor clears instead of wrapping...
     await press("arrowdown");
     expect(component.navigation.activeItem).toBe(null);
     expect(".one").not.toHaveClass("focus");
     expect(".three").not.toHaveClass("focus");
 
-    // ...and the next step in the same direction re-enters from the top.
     await press("arrowdown");
     expect(".one").toHaveClass("focus");
 
-    // Symmetric on the way up.
     await press("arrowup");
     expect(component.navigation.activeItem).toBe(null);
     await press("arrowup");
@@ -305,7 +292,6 @@ test("activateFirst, activateLast and clearActiveItem drive the cursor directly"
     await animationFrame();
     expect(component.navigation.activeItem).toBe(null);
     expect(".one").not.toHaveClass("focus");
-    // clearActiveItem states "no current choice"; it does not move the focus.
     expect(".one").toBeFocused();
 });
 
@@ -346,24 +332,18 @@ test("armed mouse activation ignores enter/leave the pointer did not cause", asy
     }
     const component = await mountWithCleanup(Parent);
 
-    // Clicking focuses and activates; its implicit hover also arms (the
-    // pointer really moved).
     await click(".one");
     expect(".one").toHaveClass("focus");
     expect(component.navigation.isMouseArmed).toBe(true);
 
-    // Hovering the row -- not the item itself -- takes the cursor.
     await hover(".r2");
     expect(".two").toHaveClass("focus");
     expect(".one").not.toHaveClass("focus");
 
-    // A keyboard step takes it back and disarms the pointer.
     await press("arrowdown");
     expect(".three").toHaveClass("focus");
     expect(component.navigation.isMouseArmed).toBe(false);
 
-    // Synthetic enter/leave without any real movement -- a list re-rendering
-    // under a still cursor -- neither steals nor clears the highlight.
     manuallyDispatchProgrammaticEvent(queryOne(".r3"), "mouseleave");
     await animationFrame();
     expect(".three").toHaveClass("focus");
@@ -372,7 +352,6 @@ test("armed mouse activation ignores enter/leave the pointer did not cause", asy
     expect(".three").toHaveClass("focus");
     expect(".one").not.toHaveClass("focus");
 
-    // Real movement re-arms, and hover speaks again.
     await hover(".r1");
     expect(".one").toHaveClass("focus");
     expect(".three").not.toHaveClass("focus");
@@ -611,13 +590,10 @@ describe("options declared as accessors stay live", () => {
         const merged = mergeNavigationOptions({ virtualFocus: false }, source);
         expect(merged.virtualFocus).toBe(true);
         searchable = false;
-        // The whole point: re-reading the merged option follows the source.
         expect(merged.virtualFocus).toBe(false);
     });
 
     test("a later plain value beats an earlier getter", () => {
-        // Last-wins has to apply to the declaration, not only the value —
-        // otherwise reinstating accessors would resurrect an overridden option.
         const withGetter = {
             get virtualFocus() {
                 return true;
@@ -651,9 +627,6 @@ describe("options declared as accessors stay live", () => {
     });
 
     test("the navigator reads a getter option at use time, not at setup", async () => {
-        // The regression this pins: `virtualFocus` was flattened one level up,
-        // in Dropdown's option merge, so the navigator kept a virtual cursor
-        // after the search box it belonged to had gone.
         const state = { virtualFocus: true };
         class Parent extends Component {
             static props = [];
@@ -671,8 +644,6 @@ describe("options declared as accessors stay live", () => {
             }
         }
         const component = await mountWithCleanup(Parent);
-        // `_options` is private to Navigator; read through a cast rather
-        // than widening the class surface for a test.
         const options = /** @type {any} */ (component.navigation)._options;
         expect(options.virtualFocus).toBe(true);
         state.virtualFocus = false;

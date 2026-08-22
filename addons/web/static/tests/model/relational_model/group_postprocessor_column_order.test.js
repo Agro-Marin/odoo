@@ -1,13 +1,5 @@
 // @ts-check
 
-/**
- * Reachability probe for the sticky-empty re-insertion order: drives a real
- * grouped kanban through mountView + model.load(), not postprocessReadGroup
- * directly. Empties three non-adjacent columns and reloads with the search
- * params unchanged, which is what makes postprocessReadGroup take the
- * currentGroups branch.
- */
-
 import { expect, test } from "@odoo/hoot";
 import { queryAllTexts } from "@odoo/hoot-dom";
 import {
@@ -60,7 +52,6 @@ test("grouped kanban keeps column order after three columns empty out", async ()
         1, 2, 3, 4, 5, 6,
     ]);
 
-    // empty out P2, P4, P6 server-side, then reload with identical search params
     MockServer.env["task"].unlink([2, 4, 6]);
     onRpc("task", "web_read_group", ({ parent }) => {
         const res = parent();

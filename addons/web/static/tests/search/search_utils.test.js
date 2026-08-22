@@ -11,17 +11,21 @@ import { Domain } from "@web/core/domain";
 import { localization } from "@web/core/l10n/localization";
 import { luxon } from "@web/core/l10n/luxon";
 import {
+    BACKEND_INTERVAL_OPTIONS,
     constructDateDomain,
     getMonthPeriodOptions,
     getPeriodOptions,
+    rankInterval,
 } from "@web/search/utils/dates";
 
 describe.current.tags("headless");
 
+/** @type {Record<string, any>} */
 const dateSearchItem = {
     fieldName: "date_field",
     fieldType: "date",
     optionsParams: {
+        /** @type {Record<string, any>[]} */
         customOptions: [],
         endMonth: 0,
         endYear: 0,
@@ -433,5 +437,85 @@ test("custom period options are OR'd, not silently reduced to the first", () => 
     ).toEqual({
         description: "A/B",
         domain: new Domain(`["|", ("foo", "=", "a"), ("foo", "=", "b")]`),
+    });
+});
+
+describe("rankInterval", () => {
+    test("orders the intervals coarsest first", () => {
+        const ids = ["hour", "day", "week", "month", "quarter", "year"];
+        expect([...ids].sort((a, b) => rankInterval(a) - rankInterval(b))).toEqual([
+            "year",
+            "quarter",
+            "month",
+            "week",
+            "day",
+            "hour",
+        ]);
+    });
+
+    test("an unknown id ranks -1, ahead of every real interval", () => {
+        expect(rankInterval("nope")).toBe(-1);
+        expect(rankInterval("year")).toBeGreaterThan(rankInterval("nope"));
+    });
+
+    test("every declared interval has a distinct rank", () => {
+        const ranks = Object.keys(BACKEND_INTERVAL_OPTIONS).map(rankInterval);
+        expect(new Set(ranks).size).toBe(ranks.length);
+        expect(ranks).not.toInclude(-1);
+    });
+});
+
+describe("getPeriodOptions caching", () => {
+    const params = () => ({
+        startYear: -2,
+        endYear: 0,
+        startMonth: -2,
+        endMonth: 0,
+        customOptions: [],
+    });
+
+    test("the same window and moment answer the same array", () => {
+        mockDate("2020-06-01T13:00:00");
+        const referenceMoment = luxon.DateTime.local();
+        const optionsParams = params();
+
+        const first = getPeriodOptions(referenceMoment, optionsParams);
+        const second = getPeriodOptions(referenceMoment, optionsParams);
+
+        expect(first).toBe(second);
+        expect(first.length).toBe(10);
+    });
+
+    test("a different window is not served from another window's entry", () => {
+        mockDate("2020-06-01T13:00:00");
+        const referenceMoment = luxon.DateTime.local();
+
+        const narrow = getPeriodOptions(referenceMoment, params());
+        const wide = getPeriodOptions(referenceMoment, { ...params(), startYear: -5 });
+
+        expect(narrow).not.toBe(wide);
+        expect(wide.length).toBe(13);
+    });
+
+    test("a different reference moment invalidates the entry", () => {
+        const optionsParams = params();
+        mockDate("2020-06-01T13:00:00");
+        const first = getPeriodOptions(luxon.DateTime.local(), optionsParams);
+        mockDate("2021-06-01T13:00:00");
+        const second = getPeriodOptions(luxon.DateTime.local(), optionsParams);
+
+        expect(first).not.toBe(second);
+        expect(second.length).toBe(first.length);
+        expect(second.map((o) => o.description)).not.toEqual(
+            first.map((o) => o.description),
+        );
+    });
+
+    test("the shared array and its options are frozen", () => {
+        mockDate("2020-06-01T13:00:00");
+        const options = getPeriodOptions(luxon.DateTime.local(), params());
+
+        expect(Object.isFrozen(options)).toBe(true);
+        expect(Object.isFrozen(options[0])).toBe(true);
     });
 });

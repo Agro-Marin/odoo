@@ -49,8 +49,6 @@ test("getMostFrequent sorts by descending usage and honours the limit", async ()
 });
 
 test("a corrupt stored value degrades to an empty map instead of bricking the picker", async () => {
-    // `JSON.parse("null")` returns null, which passes a bare try/catch and then
-    // throws in `Object.entries` on every render.
     for (const stored of ["null", "42", '"a string"', "[1,2]", "{not json"]) {
         browser.localStorage.setItem(KEY, stored);
         await makeMockEnv();
@@ -95,7 +93,6 @@ test("another tab's localStorage.clear() resets the map", async () => {
     const emoji = getService("web.frequent.emoji");
     emoji.incrementEmojiUsage("1f600");
 
-    // The spec sets `key` to null for a whole-storage clear.
     browser.dispatchEvent(
         Object.assign(new Event("storage"), { key: null, newValue: null }),
     );
@@ -135,7 +132,6 @@ test("destroy detaches the cross-tab listener", async () => {
 });
 
 test("tracked emojis are capped, and a newly used one is never the eviction", async () => {
-    // A full cache, coldest first.
     const seeded = {};
     for (let i = 0; i < 200; i++) {
         seeded[`e${i}`] = i + 1;
@@ -149,7 +145,7 @@ test("tracked emojis are capped, and a newly used one is never the eviction", as
 
     const kept = Object.keys(emoji.all);
     expect(kept.length).toBe(200);
-    expect(kept).not.toInclude("e0"); // the coldest was dropped
-    expect(kept).toInclude("newbie"); // ...not the emoji just used
+    expect(kept).not.toInclude("e0");
+    expect(kept).toInclude("newbie");
     expect(kept).toInclude("e199");
 });

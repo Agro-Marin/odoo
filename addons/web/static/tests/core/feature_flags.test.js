@@ -27,9 +27,7 @@ beforeEach(() => {
     for (const k of TEST_LS_KEYS) {
         try {
             browser.localStorage.removeItem(k);
-        } catch {
-            // ignore
-        }
+        } catch {}
     }
     delete session.feature_flags;
 });
@@ -139,8 +137,6 @@ test("URL entry overrides matching LS and server in the snapshot", () => {
 });
 
 test("whitespace around a URL value does not flip the literal", () => {
-    // `?features=x: false` used to yield the STRING " false" (truthy),
-    // silently enabling the very flag the URL was disabling.
     _stubLocation(
         "https://example.com/odoo?features=a:false,b: false,c: true,d: null,e: 42",
     );
@@ -152,8 +148,6 @@ test("whitespace around a URL value does not flip the literal", () => {
 });
 
 test("an explicit null default is not coerced to false", () => {
-    // `??` swallowed it; `null` is a legal FeatureFlagValue and the only way
-    // to express "unset" as a value.
     expect(featureFlag("missing_flag", { default: null })).toBe(null);
     expect(featureFlag("missing_flag", { default: false })).toBe(false);
     expect(featureFlag("missing_flag")).toBe(false);

@@ -98,10 +98,6 @@ test("BooleanToggleField - autosave option set to false", async () => {
 });
 
 test("boolean_toggle stays clickable on a row that is not being edited", async () => {
-    // `boolean_toggle` and the plain `boolean` share one template, whose
-    // checkbox is bound to `props.readonly`. The toggle stays clickable because
-    // its registry entry declares `interactiveOutsideEdition`; the plain
-    // checkbox does not declare it, and is disabled (next test).
     await mountView({
         resModel: "partner",
         type: "list",

@@ -1,10 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import {
-    computeAppsAndMenuItems,
-    reorderApps,
-} from "@web/webclient/menus/menu_helpers";
+import { computeAppsAndMenuItems, reorderApps } from "@web/webclient/menus/menu_utils";
 
 /** @param {string[]} xmlids */
 function makeApps(xmlids) {
@@ -35,9 +32,6 @@ test("reorderApps: a newly installed app does not scramble the customized order"
 });
 
 /**
- * Build a menu tree in the shape `menuService.getMenuAsTree` returns:
- * `childrenTree` populated, `appID` pointing at the top-level ancestor.
- *
  * @param {Object} spec
  */
 function makeTree(spec) {
@@ -105,8 +99,6 @@ test("computeAppsAndMenuItems records the ancestor path and the owning app", () 
     const { menuItems } = computeAppsAndMenuItems(tree);
     const tags = menuItems.find((m) => m.label === "Tags");
     expect(tags.parents).toBe("Sales / Configuration");
-    // `appID` is the owning app — this is the value the removed `menuID`
-    // duplicated by indexing the ancestor chain.
     expect(tags.appID).toBe(1);
 });
 
@@ -136,7 +128,6 @@ test("computeAppsAndMenuItems parses webIcon and falls back to the default", () 
         color: "#fff",
         backgroundColor: "#000",
     });
-    // No background colour means the triplet was not a real icon spec.
     expect(apps[1].webIconData).toBe("/web/static/img/default_icon_app.png");
     expect(apps[2].webIconData).toBe("/web/static/img/default_icon_app.png");
 });
@@ -157,9 +148,6 @@ test("computeAppsAndMenuItems builds hrefs from the action path when present", (
 });
 
 test("computeAppsAndMenuItems handles a subtree that is not rooted at root", () => {
-    // Indexing `parents[1]` assumed the traversal always started at the "root"
-    // pseudo-menu; anything else threw. Nothing in-tree passes a subtree today,
-    // but the helper is exported and takes an arbitrary tree.
     const app = makeTree([
         {
             id: 1,

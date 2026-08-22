@@ -11,30 +11,6 @@ import {
 
 describe.current.tags("headless");
 
-/**
- * The mock server is a second implementation of the ORM, and 1300+ files
- * outside `web` assert against it. Where it disagrees with the real one, a
- * suite is green about behaviour production does not have.
- *
- * `formatted_read_group` is the richest of those surfaces: it buckets dates and
- * labels the buckets, and both halves are locale-dependent. Every expectation
- * below is what the SERVER answered for `RECORDS` on `res.currency.rate` —
- * chosen because `name` (Date), `rate` (Float) and the model itself are all in
- * `base`, so the corpus regenerates on any database.
- *
- * Ten of the twelve granularities agree exactly. The two that do not are in
- * KNOWN_DIVERGENCES, which is a ratchet like the one in
- * `core/domain_server_parity.test.js`: a NEW divergence and a FIXED one both
- * fail here.
- *
- * To regenerate: create RECORDS on `res.currency.rate`, then for each
- * granularity `g` read
- * `formatted_read_group(domain, [f"name:{g}"], ["rate:sum", "__count"])`
- * and keep `[group[f"name:{g}"], group["rate:sum"], group["__count"]]`.
- * Language matters: these were generated under `week_start = 7`, which is both
- * the server default and `MockServer._lang_parameters.week_start`.
- */
-
 class CurrencyRate extends models.Model {
     _name = "res.currency.rate";
 
@@ -42,13 +18,13 @@ class CurrencyRate extends models.Model {
     rate = fields.Float();
 
     _records = [
-        { id: 1, name: "2024-01-01", rate: 1.0 }, // Monday, ISO week 1
+        { id: 1, name: "2024-01-01", rate: 1.0 },
         { id: 2, name: "2024-01-05", rate: 2.0 },
-        { id: 3, name: "2024-01-07", rate: 3.0 }, // Sunday — the week boundary
+        { id: 3, name: "2024-01-07", rate: 3.0 },
         { id: 4, name: "2024-01-08", rate: 4.0 },
-        { id: 5, name: "2024-03-31", rate: 5.0 }, // Sunday, quarter boundary
+        { id: 5, name: "2024-03-31", rate: 5.0 },
         { id: 6, name: "2024-04-01", rate: 6.0 },
-        { id: 7, name: "2024-12-30", rate: 7.0 }, // week spanning the year end
+        { id: 7, name: "2024-12-30", rate: 7.0 },
         { id: 8, name: "2025-01-02", rate: 8.0 },
     ];
 }
@@ -56,7 +32,6 @@ class CurrencyRate extends models.Model {
 defineModels([CurrencyRate]);
 
 /**
- * Server truth: granularity -> [[groupValue, rate:sum, __count], ...].
  * @type {Record<string, [any, number, number][]>}
  */
 const SERVER = {
@@ -141,32 +116,6 @@ const SERVER = {
     ],
 };
 
-/**
- * Granularities the mock does not reproduce.
- *
- * `day` — labelling only. The server formats the bucket with Babel's
- * `dd MMM yyyy` ("01 Jan 2024"); the mock emits the raw `yyyy-MM-dd`. Buckets
- * and aggregates agree, so only a suite asserting on a group HEADER sees it —
- * and every such suite is asserting a string production never renders.
- *
- * `week` — buckets, aggregates and counts, which is the severe kind. The server
- * offsets `date_trunc('week', …)` by the language's `week_start`
- * (`read_group/sql.py`); the mock reads Luxon's `WW kkkk`, which is ISO-8601 and
- * always starts Monday. `MockServer._lang_parameters` says `week_start: 7`, so
- * the mock carries the setting and ignores it: 2024-03-31 and 2024-04-01 are one
- * Sunday-start week summing 11.0 on the server, and two ISO weeks of 5.0 and 6.0
- * in the mock.
- *
- * The fix is not a format string. `src/core/l10n/date_utils.js` already has
- * `getLocalYearAndWeek()`, which the real client uses and which reproduces all
- * four server buckets here; the mock should call it instead of re-deriving weeks
- * from Luxon. What blocks a one-line change is that the surrounding code
- * recovers each bucket's start by RE-PARSING its own label
- * (`parseDateTime(value, { format: "WW kkkk" })`), so the label and the range
- * are coupled and a locale-aware label cannot be parsed back unambiguously.
- * Breaking that coupling — carrying the bucket start rather than re-deriving it
- * — is the actual change, and it belongs in its own commit.
- */
 const KNOWN_DIVERGENCES = new Set(["day", "week"]);
 
 /**

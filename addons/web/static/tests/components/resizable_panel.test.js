@@ -173,8 +173,6 @@ test("a window resize with a detached container does not throw", async () => {
         static props = ["*"];
     }
     await mountWithCleanup(Parent);
-    // `useRef().el` is null for an element outside the document, and the
-    // resize listener lives until unmount.
     queryOne(".o_resizable_panel").remove();
     await resize({ width: 500 });
     await animationFrame();
@@ -182,9 +180,6 @@ test("a window resize with a detached container does not throw", async () => {
 });
 
 test("a raised minWidth widens the panel already in place", async () => {
-    // Sizing props are configuration, not a mount-time seed: recording the new
-    // minimum without applying it left the panel narrower than its own minimum
-    // until the next drag or window resize.
     const state = reactive({ minWidth: 200 });
     class Parent extends Component {
         static components = { ResizablePanel };
@@ -209,9 +204,6 @@ test("a raised minWidth widens the panel already in place", async () => {
 });
 
 test("a changed initialWidth is applied after mount", async () => {
-    // Bound to live state by real consumers: the Discuss sidebar derives it
-    // from a compact flag synced across tabs through a `storage` event, so the
-    // other tab flipped to compact markup while keeping the wide width.
     const state = reactive({ width: 400 });
     class Parent extends Component {
         static components = { ResizablePanel };
@@ -236,9 +228,6 @@ test("a changed initialWidth is applied after mount", async () => {
 });
 
 test("a props update that changes no size does not notify onResize", async () => {
-    // `onResize` feeds a consumer's own store (Discuss persists the width and
-    // bumps a counter its `initialWidth` derives from). Resizing on every
-    // props update would loop through that.
     const state = reactive({ label: "a" });
     let resizeCalls = 0;
     class Parent extends Component {
@@ -264,4 +253,21 @@ test("a props update that changes no size does not notify onResize", async () =>
     state.label = "c";
     await animationFrame();
     expect(resizeCalls).toBe(afterMount);
+});
+
+test("the available width wins when it is below minWidth", async () => {
+    class Parent extends Component {
+        static components = { ResizablePanel };
+        static template = xml`
+            <div style="width: 200px;" class="parent-el position-relative">
+                <ResizablePanel minWidth="400" initialWidth="500">
+                    <div style="width: 10px;" class="text-break">A cool paragraph</div>
+                </ResizablePanel>
+            </div>
+        `;
+        static props = ["*"];
+    }
+
+    await mountWithCleanup(Parent);
+    expect(queryOne(".o_resizable_panel").offsetWidth).toBe(198);
 });

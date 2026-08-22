@@ -1,22 +1,5 @@
 // @ts-check
 
-/**
- * ``fromUnityToServerValues`` converts server-originated payloads (onchange
- * commands for records the client never loaded) into write format. It already
- * treats an unknown FIELD as non-fatal — the payload names the server's field
- * universe, not this view's — but it dereferenced ``activeFields[name]``
- * unguarded, and the two sets are not the same size:
- * ``extractFieldsFromArchInfo`` returns the view's FULL field set as ``fields``
- * while ``activeFields`` holds only what the arch mentions.
- *
- * The gap is reachable, not theoretical: the command engine's UPDATE case
- * deliberately stashes an x2many slice when ``!(fieldName in
- * record.activeFields)`` ("this record hasn't been extended"), and
- * ``serializeCommands`` later feeds exactly that stash back through here. A
- * nested CREATE/UPDATE then hit ``activeField.related.fields`` on ``undefined``
- * and threw during save.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { x2ManyCommands } from "@web/core/network/commands";
 import { fromUnityToServerValues } from "@web/model/relational_model/field_values";
@@ -25,7 +8,6 @@ describe.current.tags("headless");
 
 const FIELDS = {
     name: { name: "name", type: "char" },
-    // Present on the model, absent from the arch — so absent from activeFields.
     tag_ids: { name: "tag_ids", type: "many2many", relation: "tag" },
     line_ids: { name: "line_ids", type: "one2many", relation: "line" },
 };
@@ -71,7 +53,6 @@ describe("fromUnityToServerValues with no matching activeField", () => {
                 withReadonly: true,
             },
         );
-        // The LINK payload is dropped exactly as it is for an arch field.
         expect(out.tag_ids).toEqual([[x2ManyCommands.LINK, 3, false]]);
     });
 
@@ -86,7 +67,6 @@ describe("fromUnityToServerValues with no matching activeField", () => {
     });
 
     test("the readonly gate does not throw without an activeField", () => {
-        // withReadonly omitted -> the readonly branch runs.
         const out = fromUnityToServerValues({ name: "hello" }, FIELDS, {}, {});
         expect(out.name).toBe("hello");
     });
@@ -111,7 +91,6 @@ describe("fromUnityToServerValues with no matching activeField", () => {
         const out = fromUnityToServerValues(values, FIELDS, activeFields, {
             withReadonly: true,
         });
-        // many2one collapsed to its id by the recursive call.
         expect(out.line_ids).toEqual([[x2ManyCommands.UPDATE, 7, { partner_id: 4 }]]);
     });
 });

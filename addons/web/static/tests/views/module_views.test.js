@@ -1,6 +1,5 @@
 // @ts-check
 
-// a prior `eslint --fix` hoisted this side-effect import to the top, ahead
 import "@web/views/module_views";
 
 import { expect, test } from "@odoo/hoot";
@@ -10,11 +9,6 @@ function getIsDisplayed() {
     return registry.category("cogMenu").get("reset-module-state-cog-menu").isDisplayed;
 }
 
-/**
- * Build a fake CogMenu env for the `isDisplayed` predicate. The `config` object
- * is what the predicate memoizes on, so reuse the SAME env to simulate repeated
- * `onWillUpdateProps` evaluations of one action.
- */
 function makeEnv({ resModel = "ir.module.module", viewType = "list", call } = {}) {
     return {
         config: { viewType, actionId: 1 },

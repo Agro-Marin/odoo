@@ -1,12 +1,5 @@
 // @ts-check
 
-/**
- * `domainContainsExpressions` decides whether the domain editor may show its
- * visual builder or must fall back to raw text. A false negative silently
- * routes a dynamic domain through the builder, which cannot represent it — so
- * this had no coverage while guarding a data-loss path.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { domainContainsExpressions } from "@web/core/tree/domain_contains_expressions";
 
@@ -27,7 +20,6 @@ test("a dynamic VALUE is an expression", async () => {
 });
 
 test("a dynamic value nested in a list is an expression", async () => {
-    // The list branch: `v.some(w => w instanceof Expression)`.
     expect(domainContainsExpressions(`[("user_id", "in", [uid])]`)).toBe(true);
 });
 
@@ -36,7 +28,6 @@ test("a dynamic PATH is an expression", async () => {
 });
 
 test("an expression inside an `any` subtree is found", async () => {
-    // The recursive branch: a condition whose value is itself a tree.
     expect(
         domainContainsExpressions(`[("partner_id", "any", [("user_id", "=", uid)])]`),
     ).toBe(true);
@@ -46,8 +37,6 @@ test("an expression inside an `any` subtree is found", async () => {
 });
 
 test("an unparseable domain reports null, not a boolean", async () => {
-    // Callers distinguish "no expressions" from "cannot tell"; collapsing the
-    // two would send a broken domain to the visual builder.
     expect(domainContainsExpressions(`[(`)).toBe(null);
     expect(domainContainsExpressions(`not a domain`)).toBe(null);
 });

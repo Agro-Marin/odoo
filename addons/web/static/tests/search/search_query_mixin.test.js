@@ -1,17 +1,5 @@
 // @ts-check
 
-/**
- * Unit tests for search/search_query_mixin.js.
- *
- * The query-mutation logic is a mixin applied to SearchModel; it is exercised
- * here on a bare SearchQueryMixin(class {}) instance with minimal state and a
- * couple of stubs (_notify, _getSelectedGeneratorIds). Because the methods use
- * `this`, an instance is all that is needed.
- * spawnCustomFilterDialog isn't tested here — it needs a dialog service and is
- * covered by integration tests. (Favorite creation is in
- * search_favorites_mixin.test.js.)
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { luxon } from "@web/core/l10n/luxon";
@@ -20,15 +8,14 @@ import { SPECIAL } from "@web/search/search_state";
 
 describe.current.tags("headless");
 
-/** Concrete class exercising the mixin methods in isolation. */
 const QueryModel = SearchQueryMixin(class {});
 
 /**
- * Minimal SearchModel-like instance for the query-mutation mixin methods.
  * @param {Object} [overrides]
- * @returns {Object}
+ * @returns {any}
  */
 function makeSearchModel(overrides = {}) {
+    /** @type {string[]} */
     const notifications = [];
     const model = new QueryModel();
     Object.assign(model, {
@@ -48,7 +35,6 @@ function makeSearchModel(overrides = {}) {
             }
             notifications.push("notify");
         },
-        /** Derive selected generatorIds live from query so tests stay realistic. */
         _getSelectedGeneratorIds(/** @type {any} */ searchItemId) {
             return this.query
                 .filter((q) => q.searchItemId === searchItemId && "generatorId" in q)
@@ -61,10 +47,9 @@ function makeSearchModel(overrides = {}) {
 }
 
 /**
- * Add a search item and (optionally) activate it in the query.
  * @param {Object} model
  * @param {number} id
- * @param {Object} item - partial search item (type, groupId required)
+ * @param {Object} item
  * @param {boolean} [activate]
  */
 function addItem(model, id, item, activate = false) {
@@ -226,8 +211,6 @@ describe("deactivateGroup", () => {
     });
 
     test("config-level groupBy keeps orderByCount alive after removing the last query group-by", () => {
-        // `computeGroupBy` falls back on `globalGroupBy` first, so the view
-        // stays grouped and the count order must survive.
         const model = makeSearchModel({
             orderByCount: "Desc",
             globalGroupBy: ["bar"],
@@ -433,7 +416,6 @@ describe("toggleDateFilter generator validation", () => {
         customOptions: [],
     };
 
-    /** Model with a referenceMoment so getPeriodOptions can run. */
     function makeDateModel() {
         return makeSearchModel({ referenceMoment: luxon.DateTime.local() });
     }
@@ -650,5 +632,85 @@ describe("createNewGroupBy", () => {
         model.createNewGroupBy("order_date");
 
         expect(model._notifications.length).toBe(1);
+    });
+});
+
+describe("mutator return contract", () => {
+    const isThenable = (/** @type {any} */ v) => typeof v?.then === "function";
+
+    function contractModel() {
+        const model = makeSearchModel({
+            searchViewFields: { foo: { type: "char", string: "Foo" } },
+        });
+        addItem(model, 1, { type: "field", fieldName: "foo" });
+        addItem(model, 2, { type: "filter", domain: "[]" });
+        addItem(model, 3, { type: "groupBy", fieldName: "foo" });
+        addItem(model, 4, {
+            type: "dateFilter",
+            fieldName: "date_field",
+            defaultGeneratorIds: ["month"],
+        });
+        addItem(model, 5, {
+            type: "dateGroupBy",
+            fieldName: "date_field",
+            defaultIntervalId: "month",
+        });
+        model.nextId = 6;
+        return model;
+    }
+
+    test("every toggler answers a promise on its happy path", () => {
+        const model = contractModel();
+        expect(isThenable(model.toggleSearchItem(2))).toBe(true);
+        expect(isThenable(model.toggleSearchItem(3))).toBe(true);
+        expect(isThenable(model.toggleDateFilter(4))).toBe(true);
+        expect(isThenable(model.toggleDateGroupBy(5))).toBe(true);
+        expect(isThenable(model.clearQuery())).toBe(true);
+        expect(isThenable(model.switchGroupBySort())).toBe(true);
+        expect(
+            isThenable(
+                model.addAutoCompletionValues(1, {
+                    label: "a",
+                    operator: "=",
+                    value: "a",
+                }),
+            ),
+        ).toBe(true);
+        expect(isThenable(model.deactivateGroup(2))).toBe(true);
+    });
+
+    test("every toggler answers a promise on its REFUSAL path too", () => {
+        const model = contractModel();
+        expect(isThenable(model.toggleSearchItem(1))).toBe(true);
+        expect(isThenable(model.toggleSearchItem(4))).toBe(true);
+        expect(isThenable(model.toggleSearchItem(5))).toBe(true);
+        expect(isThenable(model.toggleDateFilter(2))).toBe(true);
+        expect(isThenable(model.toggleDateGroupBy(2))).toBe(true);
+        expect(
+            isThenable(
+                model.addAutoCompletionValues(2, {
+                    label: "a",
+                    operator: "=",
+                    value: "a",
+                }),
+            ),
+        ).toBe(true);
+    });
+
+    test("an invalid search item is refused, and still answers a promise", () => {
+        const model = contractModel();
+        addItem(model, 9, { type: "filter", domain: "[]", isInvalid: true });
+        expect(isThenable(model.toggleSearchItem(9))).toBe(true);
+        expect(model.query).toEqual([]);
+    });
+
+    test("creators stay synchronous, because splitAndAddDomain reads their ids", () => {
+        const model = contractModel();
+        const filterIds = model.createNewFilters([{ description: "x", domain: "[]" }]);
+        expect(Array.isArray(filterIds)).toBe(true);
+        expect(filterIds).toHaveLength(1);
+
+        expect(typeof model.createNewGroupBy("foo")).toBe("number");
+        expect(model.createNewGroupBy("no_such_field")).toBe(undefined);
     });
 });

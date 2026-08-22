@@ -1,15 +1,5 @@
 // @ts-check
 
-/**
- * @module tests/views/multi_record_selection
- *
- * Unit coverage for the shared multi-record selection layer. The pivotal
- * contract is id-based anchor identity: a reload that replaces every record
- * *object* (same ids, new instances) must not degrade shift-click from a
- * range toggle to a single toggle — the exact bug the list renderer had while
- * it resolved its anchor by object identity.
- */
-
 import { destroy, expect, test } from "@odoo/hoot";
 import { keyDown, keyUp } from "@odoo/hoot-dom";
 import { advanceTime } from "@odoo/hoot-mock";
@@ -72,8 +62,6 @@ test("range selection survives a reload that replaces the record objects", async
     host.sel.toggleSelection(host.records[0]);
     expect(host.records[0].selected).toBe(true);
 
-    // Simulate a model reload: same ids, brand-new record objects. The
-    // replacement records keep the selection state the model would restore.
     const reloaded = ["r1", "r2", "r3", "r4"].map(makeRecord);
     reloaded[0].selected = true;
     host.records = reloaded;
@@ -88,7 +76,6 @@ test("a range request without a resolvable anchor falls back to a single toggle"
     const host = await mountSelectionHost();
 
     host.sel.toggleSelection(host.records[1]);
-    // The anchored record disappears entirely (e.g. filtered out).
     host.records = [makeRecord("r5"), makeRecord("r6")];
 
     expect(host.sel.isAnchorPresent()).toBe(false);
@@ -121,7 +108,6 @@ test("expandCheckboxes grows and shrinks by id, not object identity", async () =
     expect(host.records[0].selected).toBe(true);
     expect(host.sel.shiftKeyedRecord).toBe(host.records[0]);
 
-    // Reload: replace the objects, keep the ids and selection state.
     const reloaded = ["r1", "r2", "r3", "r4"].map(makeRecord);
     reloaded[0].selected = true;
     host.records = reloaded;
@@ -157,8 +143,6 @@ test("shiftKeyMode mirrors the physical shift key", async () => {
     expect(host.sel.shiftKeyMode).toBe(false);
     await keyDown("shift");
     expect(host.sel.shiftKeyMode).toBe(true);
-    // HOOT's synthetic keyup("shift") still reports shiftKey: true, so release
-    // is exercised with a browser-shaped event instead.
     window.dispatchEvent(new KeyboardEvent("keyup", { key: "Shift", shiftKey: false }));
     expect(host.sel.shiftKeyMode).toBe(false);
 });

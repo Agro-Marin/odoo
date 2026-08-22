@@ -5,32 +5,6 @@ import { evaluateExpr } from "@web/core/py_js/py";
 
 describe.current.tags("headless");
 
-/**
- * Differential corpus for py_js's date surface — ``datetime.date`` /
- * ``datetime.datetime`` / ``datetime.time`` / ``datetime.timedelta`` /
- * ``relativedelta`` — against the result CPython 3.14 + dateutil 2.9 actually
- * produces. That stack is the reference because it is the one the server's own
- * ``safe_eval`` uses: a domain like
- * ``[('date','>=',(context_today()-relativedelta(days=30)).strftime('%Y-%m-%d'))]``
- * is evaluated by py_js on the client and by CPython on the server, and the two
- * have to agree or the list shows rows the server would not have matched.
- *
- * The sibling ``py_cpython_differential.test.js`` covers arithmetic, string
- * methods and %-formatting; this one covers dates, which it does not touch.
- *
- * Every entry is generated, never hand-written, so a case cannot silently
- * encode py_js's own bug as the expectation. The canonical form carries the
- * *type* as well as the value (``D(...)`` vs ``DT(...)``), because
- * date-vs-datetime is itself a divergence: dateutil promotes a date to a
- * datetime only for a time-bearing delta.
- *
- * Deliberate deviations, asserted separately in the last test rather than
- * excluded silently:
- *  - ``relativedelta(day=0)`` / ``(year=0)``: dateutil reads these through
- *    ``or``, so a zero silently means "unset". py_js rejects them — the
- *    expression is a mistake either way, and failing loudly beats ignoring an
- *    argument the author clearly meant.
- */
 function canon(v) {
     if (v === null || v === undefined) {
         return "None";
@@ -51,11 +25,6 @@ function canon(v) {
         return "[" + v.map(canon).join(",") + "]";
     }
     const pad = (n, w) => String(Math.abs(n)).padStart(w, "0");
-    // duck-typed on purpose: importing PyDate/PyTime to instanceof-check would
-    // let a class-identity mixup pass as a match. Only a datetime carries both
-    // halves; a time has no date part and a date has no time part. (This used
-    // to have to test `microsecond` to tell a time from a datetime, because
-    // `PyTime` extended `PyDate` and so answered to `year`.)
     if ("year" in v && "hour" in v) {
         return `DT(${pad(v.year, 4)}-${pad(v.month, 2)}-${pad(v.day, 2)} ${pad(v.hour, 2)}:${pad(v.minute, 2)}:${pad(v.second, 2)}.${pad(v.microsecond, 6)})`;
     }
@@ -71,10 +40,6 @@ function canon(v) {
     return "?" + typeof v;
 }
 
-/**
- * One case per line: ``expression :: ok|err :: canonical CPython result``.
- * A table rather than an array of tuples so each case stays on one line.
- */
 const CORPUS = `
 datetime.date(2024,1,31) + relativedelta(days=1) :: ok :: D(2024-02-01)
 datetime.date(2024,1,31) - relativedelta(days=1) :: ok :: D(2024-01-30)
@@ -3112,13 +3077,6 @@ datetime.datetime.combine(datetime.date(2023,3,1), datetime.time(1,2,3)) :: ok :
     .split("\n")
     .map((line) => line.split(" :: "));
 
-/**
- * Every day of a leap year and of a year starting on a Sunday, formatted with
- * all twelve date directives at once. %U/%W/%j are computed arithmetically from
- * the ordinal, so their week/year boundaries are exactly where an off-by-one
- * hides; a handful of sample dates would not have found it. Entries are
- * ``[ISO date, expected joined output]``.
- */
 const YEAR_SWEEP = `
 2023-01-01 2023|23|01|01| 1|001|01|00|0|Sun|Sunday|Jan|January|01/01/23
 2023-01-02 2023|23|01|02| 2|002|01|01|1|Mon|Monday|Jan|January|01/02/23
@@ -3854,7 +3812,6 @@ const YEAR_SWEEP = `
 `
     .trim()
     .split("\n")
-    // split on the FIRST space only: %e/%x/%c put spaces in the expected side
     .map((line) => [
         line.slice(0, line.indexOf(" ")),
         line.slice(line.indexOf(" ") + 1),

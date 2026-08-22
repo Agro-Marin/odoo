@@ -1,31 +1,5 @@
 // @ts-check
 
-/**
- * Regression tests for ``StaticList._commitSave`` when the server's post-save id
- * list cannot be reconciled with the client's staged CREATEs.
- *
- * ``_commitSave`` maps the nth CREATE onto the nth new resId in ascending order.
- * When the counts disagree — a ``create()`` override or a compute inserted rows
- * of its own, which is the everyday shape for an invoice's tax and balancing
- * lines — that mapping is untrustworthy, so no id is remapped. But membership is
- * still adopted from the server, because it is the only true account of the
- * relation. That left ``_currentIds`` naming ids no datapoint backed:
- * ``_materializeWindow`` drops those, so
- *
- *   - the row the user had just created VANISHED from the page (and its
- *     datapoint was evicted by ``_pruneCache``),
- *   - the rows the server added never appeared,
- *   - while ``count`` went on reporting all of them.
- *
- * Reproduced end-to-end through ``record.save({reload: false})`` on a mounted
- * form: 6 rendered rows before the save, 5 after, ``count`` 7.
- *
- * ``_healMissingWindow`` reads the unbacked window ids instead of hiding them.
- * The load is tracked on ``_commandsPromise`` (``_commitSave`` is synchronous,
- * called mid-``record_save.save``), which is also what makes a later save
- * sequence behind it via ``waitForPendingCommands``.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-dom";
 import {
@@ -65,7 +39,6 @@ const ARCH = `
         </field>
     </form>`;
 
-/** Capture the model instance the view builds. */
 function captureModel() {
     const box = {};
     patchWithCleanup(RelationalModel.prototype, {
@@ -84,7 +57,7 @@ async function settle() {
 
 describe("a save whose server ids outnumber the staged CREATEs", () => {
     /**
-     * @param {number[]} serverTurtles post-save value the server reports
+     * @param {number[]} serverTurtles
      * @returns {Promise<{ list: any, rpcCount: number }>}
      */
     async function saveWith(serverTurtles) {
@@ -112,7 +85,6 @@ describe("a save whose server ids outnumber the staged CREATEs", () => {
 
         expect(list.count).toBe(4);
         expect(list._currentIds).toEqual([2, 3, 90, 91]);
-        // every member is backed by a datapoint: nothing silently dropped
         expect(list.records.length).toBe(4);
         expect(list.records.map((/** @type {any} */ r) => r.resId)).toEqual([
             2, 3, 90, 91,
@@ -135,11 +107,12 @@ describe("a save whose server ids outnumber the staged CREATEs", () => {
         expect(
             list._currentIds.every((/** @type {any} */ id) => typeof id === "number"),
         ).toBe(true);
-        expect(Object.keys(list._cache).sort()).toEqual(["2", "3", "90", "91"]);
+        expect([...list._cache.keys()].sort((a, b) => Number(a) - Number(b))).toEqual([
+            2, 3, 90, 91,
+        ]);
     });
 
     test("the matching case still costs no extra read", async () => {
-        // counts agree -> the virtual id is remapped, every member is cached
         const { list, rpcCount } = await saveWith([2, 3, 90]);
         expect(list.records.length).toBe(3);
         expect(list._currentIds).toEqual([2, 3, 90]);
@@ -149,10 +122,6 @@ describe("a save whose server ids outnumber the staged CREATEs", () => {
 
 describe("a save whose new id is not where the created row was", () => {
     test("the pairing is refused: no rekey, the foreign row is loaded fresh", async () => {
-        // Counts agree — one CREATE, one new id — but the server dropped our
-        // row and inserted 999 of its own, at a different position. The old
-        // rank-order zip grafted our edited datapoint onto resId 999, so every
-        // later update wrote to a row we never created.
         const box = captureModel();
         onRpc("partner", "web_save", () => [{ id: 1, turtles: [2, 999, 3] }]);
         await mountView({ type: "form", resModel: "partner", resId: 1, arch: ARCH });
@@ -167,14 +136,12 @@ describe("a save whose new id is not where the created row was", () => {
         await list._commandsPromise;
         await settle();
 
-        // membership adopted from the server, nothing grafted
         expect(list._currentIds).toEqual([2, 3, 999]);
         expect(
             list._currentIds.every((/** @type {any} */ id) => typeof id === "number"),
         ).toBe(true);
-        expect(virtualId in list._cache).toBe(false);
-        // the foreign row shows the SERVER's data, not our edited datapoint
-        const foreign = list._cache[999];
+        expect(list._cache.has(virtualId)).toBe(false);
+        const foreign = list._cache.get(999);
         expect(foreign.data.name).toBe("t999");
         expect(foreign._virtualId).toBe(false);
         expect(list.records.map((/** @type {any} */ r) => r.data.name)).toEqual([
@@ -251,7 +218,6 @@ describe("_healMissingWindow in isolation", () => {
         list._healMissingWindow();
         await list._commandsPromise;
 
-        // only id 3 is on the current page; 4 and 5 wait for pagination
         expect(loaded).toEqual([[3]]);
     });
 });

@@ -12,10 +12,6 @@ from odoo.addons.http_routing.tests.common import MockRequest
 @odoo.tests.tagged("web_http", "web_report")
 class TestReports(odoo.tests.HttpCase):
     def test_report_session_cookie(self):
-        """Verify the PDF engine fetches embedded resources (e.g. images) under
-        the printing user's own session: as admin it gets the image, as the
-        public user it is denied, matching each user's actual access.
-        """
         partner_id = self.env.user.partner_id.id
         img = b"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC"
         image = self.env["ir.attachment"].create(
@@ -49,29 +45,29 @@ class TestReports(odoo.tests.HttpCase):
         )
 
         result = {}
-        origin_find_record = self.env.registry["ir.binary"]._find_record
+        origin_get_record = self.env.registry["ir.binary"]._get_record
 
-        def _find_record(
+        def _get_record(
             self,
             xmlid=None,
             res_model="ir.attachment",
             res_id=None,
             access_token=None,
-            field=None,
+            field_name=None,
         ):
             if res_model == "ir.attachment" and res_id == image.id:
                 result["uid"] = self.env.uid
-                record = origin_find_record(
-                    self, xmlid, res_model, res_id, access_token, field
+                record = origin_get_record(
+                    self, xmlid, res_model, res_id, access_token, field_name
                 )
                 result.update({"record_id": record.id, "data": record.datas})
             else:
-                record = origin_find_record(
-                    self, xmlid, res_model, res_id, access_token, field
+                record = origin_get_record(
+                    self, xmlid, res_model, res_id, access_token, field_name
                 )
             return record
 
-        self.patch(self.env.registry["ir.binary"], "_find_record", _find_record)
+        self.patch(self.env.registry["ir.binary"], "_get_record", _get_record)
 
         admin = self.env.ref("base.user_admin")
         admin_device_log_count_before = self.env["res.device.log"].search_count(
@@ -140,8 +136,6 @@ class TestReports(odoo.tests.HttpCase):
 
     @mute_logger("odoo.addons.base.models.ir_actions_report")
     def test_report_error_cleanup(self):
-        """Asserts the temporary session created for the PDF URL fetcher is
-        cleaned up even when rendering fails."""
         admin = self.env.ref("base.user_admin")
         self.env["ir.ui.view"].create(
             {

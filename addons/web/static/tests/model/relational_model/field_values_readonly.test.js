@@ -1,16 +1,5 @@
 // @ts-check
 
-/**
- * ``fromUnityToServerValues`` strips readonly fields when ``withReadonly`` is
- * false (the write/save path). It must decide "readonly" with the SAME rule the
- * UI used to gate the input — ``record._isReadonly`` ->
- * ``isFieldReadonly`` -> ``evaluateBooleanExpr`` (Python-boolean semantics) —
- * so what the user could edit is exactly what is sent. The former
- * ``evaluateExpr(...)`` + JS ``if (...)`` diverged on containers: an empty list
- * is JS-truthy but ``bool([])`` is False, so a writable field whose readonly
- * modifier evaluated to ``[]`` was wrongly stripped.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { fromUnityToServerValues } from "@web/model/relational_model/field_values";
 
@@ -43,9 +32,6 @@ describe("fromUnityToServerValues readonly modifier", () => {
     });
 
     test("a modifier evaluating to an empty list is Python-falsy (writable)", () => {
-        // Regression: evaluateExpr + JS `if ([])` treated this readonly and
-        // stripped `count`; evaluateBooleanExpr matches the server (bool([]) is
-        // False), so the field stays writable and is sent.
         const out = fromUnityToServerValues(
             { count: 5 },
             FIELDS,

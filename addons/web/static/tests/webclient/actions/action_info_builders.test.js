@@ -8,15 +8,6 @@ import {
 } from "@web/webclient/actions/action_info_builders";
 
 /**
- * Mount-free tests for ``action_info_builders.js``.
- *
- * These three functions decide what every controller is handed: its props, its
- * config, and the ``currentState`` the URL is later serialized from. They are
- * pure apart from four manager members (``pushState``, ``_getView``,
- * ``switchView``, ``doAction``), and none of their output needs rendering to
- * inspect — yet almost all of it was previously asserted only through the
- * screens it produces.
- *
  * @param {Object} [overrides]
  */
 function makeFakeAm(overrides = {}) {

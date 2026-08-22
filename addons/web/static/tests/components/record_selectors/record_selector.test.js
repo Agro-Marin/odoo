@@ -11,6 +11,10 @@ import {
     mountWithCleanup,
     onRpc,
 } from "@web/../tests/web_test_helpers";
+import {
+    avatarModels,
+    isAvatarModel,
+} from "@web/components/record_selectors/avatar_models";
 import { RecordSelector } from "@web/components/record_selectors/record_selector";
 
 class Partner extends models.Model {
@@ -164,4 +168,25 @@ test("Support placeholder", async () => {
         "placeholder",
         "Select a partner",
     );
+});
+
+test("an addon declares its own avatar models through the registry", async () => {
+    expect(isAvatarModel("res.partner")).toBe(true);
+    expect(isAvatarModel("res.users")).toBe(true);
+    expect(isAvatarModel("hr.employee")).toBe(false, {
+        message: "web must not name a model it cannot depend on",
+    });
+
+    avatarModels.add("hr.employee", true);
+    expect(isAvatarModel("hr.employee")).toBe(true);
+});
+
+test("the registry, not a literal, decides whether the selector draws an avatar", async () => {
+    avatarModels.remove("res.partner");
+    await mountRecordSelector({ resModel: "res.partner", resId: 1 });
+    expect(".o_record_selector .o_m2o_avatar").toHaveCount(0);
+
+    avatarModels.add("res.partner", true);
+    await mountRecordSelector({ resModel: "res.partner", resId: 1 });
+    expect(".o_record_selector .o_m2o_avatar").toHaveCount(1);
 });

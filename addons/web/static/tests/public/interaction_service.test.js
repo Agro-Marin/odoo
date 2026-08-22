@@ -13,6 +13,7 @@ import {
 } from "@odoo/owl";
 import { makeMockEnv } from "@web/../tests/web_test_helpers";
 import { Interaction } from "@web/public/interaction";
+import { InteractionService } from "@web/public/interaction_service";
 
 import { startInteraction } from "./helpers.js";
 
@@ -478,8 +479,6 @@ test("a root whose host was wiped is still collected by stopInteractions", async
         `<div class="test"><div class="host"></div></div>`,
     );
     expect(core.roots).toHaveLength(1);
-    // anything that rewrites the host detaches the <owl-root>; matching on it
-    // alone then left the root -- and the live component under it -- behind
     queryOne(".host").innerHTML = "";
     core.stopInteractions(queryOne(".host"));
     expect(core.roots).toHaveLength(0);
@@ -493,7 +492,6 @@ test("a live root mounted outside the stopped host is left alone", async () => {
     class Test extends Interaction {
         static selector = ".test";
         start() {
-            // the <owl-root> lands as a SIBLING of the host, not inside it
             this.mountComponent(queryOne(".host"), C, null, "afterend");
         }
     }
@@ -503,13 +501,9 @@ test("a live root mounted outside the stopped host is left alone", async () => {
     );
     await animationFrame();
     const rootEl = core.roots[0].el;
-    // its owning interaction is not being stopped either: matching on the host
-    // alone would destroy a live component out from under its owner
     core.stopInteractions(queryOne(".host"));
     expect(core.roots).toHaveLength(1);
     expect(core.interactions).toHaveLength(1);
-    // once detached it can no longer be placed by containment, and the host
-    // has to answer for it
     rootEl.remove();
     core.stopInteractions(queryOne(".host"));
     expect(core.roots).toHaveLength(0);
@@ -533,9 +527,6 @@ test("a surfaced failure does not make every later isReady reject", async () => 
     );
     await expect(core.isReady).rejects.toThrow("boom");
 
-    // the crash has been surfaced: holding on to it made every later read
-    // reject too — the page could never become ready again — and grew the
-    // tracked-promise list without bound
     expect(core.proms).toHaveLength(0);
     await core.startInteractions(queryOne(".fine"));
     await core.isReady;
@@ -545,10 +536,63 @@ test("a surfaced failure does not make every later isReady reject", async () => 
     expect.verifyErrors([/boom/]);
 });
 
+test("a failure nobody ever reads is not kept in the pending list", async () => {
+    expect.errors(1);
+    class Boom extends Interaction {
+        static selector = ".boom";
+        setup() {
+            throw new Error("boom");
+        }
+    }
+    const { core } = await startInteraction(Boom, `<div class="boom"></div>`, {
+        waitForStart: false,
+    });
+    await animationFrame();
+    await animationFrame();
+    expect(core.proms).toHaveLength(0);
+    expect(core.pendingErrors.size).toBe(1);
+
+    await expect(core.isReady).rejects.toThrow("boom");
+    expect(core.pendingErrors.size).toBe(0);
+    await core.isReady;
+    await animationFrame();
+    expect.verifyErrors([/boom/]);
+});
+
+test("the error inbox is bounded, however many failures nobody reads", async () => {
+    const N = InteractionService.MAX_PENDING_ERRORS * 3;
+    class Boom extends Interaction {
+        static selector = ".boom";
+        setup() {
+            throw new Error("boom");
+        }
+    }
+    expect.errors(N);
+    const { core } = await startInteraction(Boom, `<div class="host"></div>`, {
+        waitForStart: false,
+    });
+    await animationFrame();
+    const host = queryOne(".host");
+    for (let i = 0; i < N; i++) {
+        const el = document.createElement("div");
+        el.className = "boom";
+        host.appendChild(el);
+        await core.startInteractions(el).catch(() => {});
+    }
+    await animationFrame();
+    await animationFrame();
+    expect(core.proms).toHaveLength(0);
+    expect(core.pendingErrors.size).toBe(InteractionService.MAX_PENDING_ERRORS);
+    expect(core.droppedErrorCount).toBe(N - InteractionService.MAX_PENDING_ERRORS);
+
+    await expect(core.isReady).rejects.toThrow(/and \d+ more, not kept/);
+    expect(core.pendingErrors.size).toBe(0);
+    expect(core.droppedErrorCount).toBe(0);
+    await animationFrame();
+    expect.verifyErrors(Array.from({ length: N }, () => /boom/));
+});
+
 test("a component that fails to mount leaves no dead root behind", async () => {
-    // the failure has to happen after prepareRoot() inserted the <owl-root>:
-    // a component whose setup() throws synchronously never gets that far, so
-    // it does not exercise this at all
     class Test extends Component {
         static selector = ".test";
         static template = xml`owl component`;
@@ -564,9 +608,6 @@ test("a component that fails to mount leaves no dead root behind", async () => {
         waitForStart: false,
     });
     await expect(core.isReady).rejects.toThrow("owl lifecycle");
-    // neither the <owl-root> host nor the dead root may survive: the host
-    // lingers in the page and the root gets destroyed a second time by the
-    // next stopInteractions()
     expect(".test").toHaveOuterHTML(`<div class="test"></div>`);
     expect(core.roots).toHaveLength(0);
     core.stopInteractions();
@@ -699,8 +740,6 @@ test("every interaction that fails to start is reported, not just the first", as
         "boom A",
         "boom B",
     ]);
-    // the scan and the promise `activate` derives from it carry the same
-    // failure: it must not be logged twice
     expect(reported).toHaveLength(1);
 });
 
@@ -717,9 +756,6 @@ test("a page-wide stop reaps an interaction whose element left the document", as
         `<div id="host"><div class="test"></div></div>`,
     );
     expect(core.interactions).toHaveLength(1);
-    // dropped without its interaction being stopped: `contains` can no longer
-    // see it, so its listeners, timers and observers used to run for the rest
-    // of the page's life
     queryOne(".test").remove();
     core.stopInteractions();
     expect(destroys).toBe(1);
@@ -738,8 +774,6 @@ test("a scoped stop still leaves a detached interaction alone", async () => {
         Test,
         `<div id="host"><div class="test"></div></div><div id="other"></div>`,
     );
-    // an element may be detached on its way somewhere else; only a page-wide
-    // stop is entitled to assume it is gone for good
     queryOne(".test").remove();
     core.stopInteractions(queryOne("#other"));
     expect(destroys).toBe(0);
@@ -769,8 +803,6 @@ test("a component mounted by t-component is stopped with its subtree", async () 
     );
     expect("owl-root b").toHaveCount(1);
     expect(core.roots).toHaveLength(1);
-    // the host subtree goes: the component living in it must go too, rather
-    // than keep running on markup nobody can reach
     core.stopInteractions(queryOne(".host"));
     expect(destroys).toBe(1);
     expect("owl-root").toHaveCount(0);
@@ -808,8 +840,6 @@ test("insert(): a throwing nested destroy still removes the inserted element", a
             const el = document.createElement("div");
             el.className = "inserted";
             el.innerHTML = `<span class="bad"></span>`;
-            // outside this.el, so stopping .test alone leaves the nested
-            // interaction for the insert() cleanup to deal with
             this.insert(el, queryOne("#elsewhere"));
         }
     }
@@ -825,9 +855,6 @@ test("insert(): a throwing nested destroy still removes the inserted element", a
         caught = error;
     }
     expect(caught).toBeInstanceOf(AggregateError);
-    // stopInteractions reports a failing nested destroy() by throwing: the
-    // subtree used to be stranded in the page, outliving the interaction that
-    // put it there
     expect(".inserted").toHaveCount(0);
 });
 
@@ -841,7 +868,6 @@ test("a stop rooted above the service's own root also reaps a detached interacti
     }
     const { core } = await startInteraction(Test, `<div class="test"></div>`);
     queryOne(".test").remove();
-    // document.body contains #wrapwrap: just as page-wide as the no-arg form
     core.stopInteractions(document.body);
     expect(destroys).toBe(1);
     expect(core.interactions).toHaveLength(0);
@@ -869,8 +895,6 @@ test("a page-wide stop reaps a component root whose host left the document", asy
         `<div class="test"><div class="host"></div></div>`,
     );
     expect(core.roots).toHaveLength(1);
-    // dropped without stopping anything: `contains` can no longer reach the
-    // root, so the component used to keep running for the page's lifetime
     queryOne(".host").remove();
     core.stopInteractions();
     expect(destroys).toBe(1);
@@ -878,9 +902,6 @@ test("a page-wide stop reaps a component root whose host left the document", asy
 });
 
 test("a component whose onWillUnmount throws does not strand the other roots", async () => {
-    // owl runs `onWillUnmount` uncaught (only `onWillDestroy` is wrapped), so
-    // this is the ordinary way a root teardown fails: a hook touching something
-    // that has already gone away.
     class Boom extends Component {
         static template = xml`boom`;
         static props = {};
@@ -905,13 +926,9 @@ test("a component whose onWillUnmount throws does not strand the other roots", a
     );
     expect(core.roots).toHaveLength(2);
 
-    // the failure is reported, like a failing interaction destroy()
     expect(() => core.stopInteractions()).toThrow(
         "Could not destroy some interactions",
     );
-    // ...but ONE of them used to abort the loop: every remaining root stayed
-    // mounted, the whole list stayed tracked, and both <owl-root> hosts stayed
-    // in the page with nothing left to ever remove them
     expect.verifySteps(["fine destroyed"]);
     expect(core.roots).toHaveLength(0);
     expect(".fine owl-root").toHaveCount(0);
@@ -941,8 +958,6 @@ describe("stopping by registry name", () => {
         expect(core.interactions).toHaveLength(1);
         expect(core.roots).toHaveLength(1);
 
-        // a public component is tracked in `roots`, never in `interactions`, so
-        // a by-name stop that walks only the latter could not touch it at all
         core.stopInteractionsByName("Comp");
         expect.verifySteps(["component stopped"]);
         expect(core.roots).toHaveLength(0);
@@ -969,8 +984,6 @@ describe("stopping by registry name", () => {
             `<div class="boom first"></div><div class="boom"></div>`,
         );
         expect(core.interactions).toHaveLength(2);
-        // it used to abort on the throw, leaving `this.interactions` untouched
-        // (the rebuilt list was never assigned) and the remaining match running
         expect(() => core.stopInteractionsByName("Boom")).toThrow(
             "Could not destroy some interactions",
         );
@@ -995,9 +1008,6 @@ test("stopDisconnectedInteractions reaps every detached interaction", async () =
     for (const el of document.querySelectorAll(".test")) {
         el.remove();
     }
-    // characterises the primitive the website builder used to open-code against
-    // the service's internals; every detached one goes, none is skipped, and
-    // teardown runs newest-first like every other stop path in the service
     core.stopDisconnectedInteractions();
     expect.verifySteps(["stopped 3", "stopped 2", "stopped 1"]);
     expect(core.interactions).toHaveLength(0);
@@ -1015,20 +1025,12 @@ test("stopDisconnectedInteractions also reaps detached component roots", async (
     const { core } = await startInteraction(Comp, `<div class="comp"></div>`);
     expect(core.roots).toHaveLength(1);
     /** @type {HTMLElement} */ (document.querySelector(".comp")).remove();
-    // a public component lives in `roots`, never in `interactions`, so a reaper
-    // walking only the latter left its owl root mounted on detached DOM forever
     core.stopDisconnectedInteractions();
     expect.verifySteps(["component stopped"]);
     expect(core.roots).toHaveLength(0);
 });
 
 test("a page-wide stop reaps an interaction living in another document", async () => {
-    // `isConnected` is true for a node in a document of its own, and
-    // `document.body.contains()` is false across documents, so such an
-    // interaction matched neither half of the old stop predicate and ran
-    // forever. `_window` resolves to `defaultView || window`, so it had a live
-    // listener on the REAL window -- which is how one test's resize handler
-    // went on firing inside every later suite.
     let destroys = 0;
     class Test extends Interaction {
         static selector = ".test";

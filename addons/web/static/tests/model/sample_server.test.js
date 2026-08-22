@@ -15,9 +15,6 @@ import {
 } from "@web/model/sample_data";
 import { SampleServer } from "@web/model/sample_server";
 
-/**
- * Transforms random results into deterministic ones.
- */
 class DeterministicSampleServer extends SampleServer {
     constructor() {
         super(...arguments);

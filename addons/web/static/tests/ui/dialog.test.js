@@ -467,7 +467,6 @@ test("control+enter skips disabled footer buttons", async () => {
     expect.verifySteps(["second"]);
 });
 
-// SCROLL-ORIGIN-BLOCK
 test.tags("mobile");
 test("a dialog on a hand-built dialogData survives teardown", async () => {
     const env = await makeDialogMockEnv({

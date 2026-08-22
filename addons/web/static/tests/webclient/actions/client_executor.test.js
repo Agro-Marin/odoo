@@ -7,16 +7,6 @@ import { MAX_ACTION_DEPTH } from "@web/webclient/actions/action_constants";
 import { executeClientAction } from "@web/webclient/actions/action_executors/client";
 
 /**
- * Mount-free unit tests for the ``ir.actions.client`` executor.
- *
- * ``client.js`` reaches six ActionManager members — ``env``, ``doAction``,
- * ``_confirmLeave``, ``_makeController``, ``_getActionInfo`` and
- * ``_updateUI``. ``client_action.test.js`` covers the executor end-to-end
- * (22 tests, 21 of them mounted); isolated here is the branch that decides
- * BETWEEN the two shapes a registry entry can take — an OWL component to
- * render, or a plain function run for its side effects — plus the prop and
- * target plumbing around it.
- *
  * @param {Object} [overrides]
  */
 function makeFakeAm(overrides = {}) {
@@ -47,7 +37,6 @@ function makeFakeAm(overrides = {}) {
     return am;
 }
 
-/** Register a client action and return its tag. */
 function defineClientAction(tag, entry) {
     registry.category("actions").add(tag, entry);
     return tag;

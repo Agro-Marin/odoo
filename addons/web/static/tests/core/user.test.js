@@ -153,10 +153,6 @@ test("activateCompanies does not mutate the caller's array", async () => {
 });
 
 test("activateCompanies tolerates companies without child_ids", async () => {
-    // `child_ids` is optional on a UserCompany (the typedef says so, and
-    // `disallowed_ancestor_companies` / `{id}`-only test stubs omit it), but
-    // `addCompanies` iterated it raw — `for…of undefined` threw a TypeError
-    // and the company switch died halfway, leaving the cookie unwritten.
     patchWithCleanup(cookie, { set: () => {}, get: () => "" });
     const testUser = _makeUser({
         uid: 2,
@@ -174,9 +170,6 @@ test("activateCompanies tolerates companies without child_ids", async () => {
 });
 
 test("re-selecting the same companies does not fire ACTIVE_COMPANIES_CHANGED", async () => {
-    // Every listener of this event invalidates something expensive (the group
-    // and access-right caches here, the whole display-name cache in
-    // name_service). A no-op switch used to pay for all of it.
     patchWithCleanup(cookie, { set: () => {}, get: () => "" });
     const testUser = _makeUser({
         uid: 2,
@@ -207,8 +200,6 @@ test("re-selecting the same companies does not fire ACTIVE_COMPANIES_CHANGED", a
 });
 
 test("a corrupt lastConnectedUsers entry degrades to an empty list", async () => {
-    // JSON.parse returns a number/string/object here just as happily as an
-    // array; callers then .filter()/.slice() it and throw on every boot.
     browser.localStorage.setItem("web.lastConnectedUser", "42");
     expect(getLastConnectedUsers()).toEqual([]);
     expect(browser.localStorage.getItem("web.lastConnectedUser")).toBe(null);
@@ -222,9 +213,6 @@ test("a corrupt lastConnectedUsers entry degrades to an empty list", async () =>
 });
 
 test("_makeUser does not mutate the session it is given", () => {
-    // It used to `delete` 14 keys off its argument, so it was not idempotent
-    // and every caller passing a literal had that literal gutted. The stripping
-    // of the real singleton now happens once, at module scope.
     const session = {
         uid: 7,
         name: "Test User",
@@ -238,7 +226,6 @@ test("_makeUser does not mutate the session it is given", () => {
     const first = _makeUser(session);
     expect(session).toEqual(before);
 
-    // Idempotent: a second call sees the same input and answers the same.
     const second = _makeUser(session);
     expect(session).toEqual(before);
     expect(second.userId).toBe(first.userId);

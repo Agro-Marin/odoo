@@ -9,9 +9,6 @@ import { ConnectionLostError, rpcBus, RPCError } from "@web/core/network/rpc";
 describe.current.tags("headless");
 
 /**
- * Fire a synthetic RPC:RESPONSE event matching the shape ``rpc.js`` dispatches,
- * so the service runs end-to-end without a real fetch.
- *
  * @param {string} method
  * @param {string} [model]
  */
@@ -23,11 +20,6 @@ function fireResponse(method, model = "res.partner") {
     );
 }
 
-/**
- * Subscribe to CLEAR-CACHES emissions for one test. Returns the captured
- * payloads and a stop() to unsubscribe — rpcBus is a singleton, so the
- * listener must be removed explicitly to keep tests isolated.
- */
 function captureClearCaches() {
     /** @type {any[]} */
     const captured = [];
@@ -131,7 +123,6 @@ test("malformed payloads do not throw", async () => {
 });
 
 /**
- * As {@link fireResponse}, but for a mutation whose RPC failed.
  * @param {string} method
  * @param {any} error
  * @param {string} [model]
@@ -145,9 +136,6 @@ function fireFailedResponse(method, error, model = "res.partner") {
 }
 
 test("a server-rejected unlink does NOT emit", async () => {
-    // The server raised, so the transaction rolled back and nothing was
-    // deleted. Dropping a cache here is pure waste right after the user
-    // already got an error dialog.
     await makeMockEnv();
     const { captured, stop } = captureClearCaches();
 
@@ -158,10 +146,6 @@ test("a server-rejected unlink does NOT emit", async () => {
 });
 
 test("an unlink whose response was LOST still emits", async () => {
-    // A ConnectionLostError/timeout may have committed server-side: only the
-    // response was lost. Skipping here (what this service used to do for every
-    // failure) leaves the result-set caches serving deleted rows for the rest
-    // of the session, with no other trigger.
     await makeMockEnv();
     const { captured, stop } = captureClearCaches();
 
@@ -173,7 +157,6 @@ test("an unlink whose response was LOST still emits", async () => {
 });
 
 test("a failed write-class method still does NOT emit", async () => {
-    // The method filter must keep applying regardless of the error policy.
     await makeMockEnv();
     const { captured, stop } = captureClearCaches();
 

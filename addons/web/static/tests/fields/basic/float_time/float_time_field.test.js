@@ -122,9 +122,6 @@ test("float_time field does not have an inputmode attribute", async () => {
 });
 
 test("display_seconds is honoured under the conventional spelling", async () => {
-    // `displaySeconds` is the historical camelCase name and stays live for the
-    // arches that already use it; `display_seconds` is the spelling every other
-    // option in this module uses and used to do nothing at all.
     for (const option of ["display_seconds", "displaySeconds"]) {
         await mountView({
             type: "form",

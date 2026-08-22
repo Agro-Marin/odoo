@@ -1,31 +1,19 @@
 // @ts-check
 
-/**
- * Pure unit tests for FormSaveCoordinator: the state machine and dispatch
- * logic centralizing the form controller's 9 save-related entry points.
- * Uses plain mock objects (delegation pattern, mirrors record_save.test.js)
- * — no component mount.
- *
- * Module under test: views/form/form_save_coordinator.js
- */
-
 import { describe, expect, test } from "@odoo/hoot";
+import { MODEL_LIFECYCLE_PROTO } from "@web/../tests/model/relational_model/model_doubles";
 import {
     FormSaveCoordinator,
     InvalidFormSaveTransitionError,
 } from "@web/views/form/form_save_coordinator";
 
 /**
- * Builds the minimal record + model + hooks shape required by the
- * coordinator.  Each option lets a test substitute a specific behavior
- * without needing to wire a full RelationalRecord.
- *
  * @param {Object} [opts]
  * @param {boolean} [opts.dirty=true]
- * @param {Function} [opts.save]            stub for ``record.save``
- * @param {Function} [opts.urgentSave]      stub for ``record.urgentSave``
- * @param {Function} [opts.discard]         stub for ``record.discard``
- * @param {Object}   [opts.hooks]           override individual hooks
+ * @param {Function} [opts.save]
+ * @param {Function} [opts.urgentSave]
+ * @param {Function} [opts.discard]
+ * @param {Object} [opts.hooks]
  */
 function makeContext({
     dirty = true,
@@ -151,6 +139,7 @@ describe("FormSaveCoordinator — errorMode", () => {
                     retry: () => true,
                 });
             },
+            __proto__: MODEL_LIFECYCLE_PROTO,
             hooks: {
                 onSaveError: async (error, _callbacks) => {
                     onSaveErrorCalls++;
@@ -178,6 +167,7 @@ describe("FormSaveCoordinator — errorMode", () => {
                     discard: () => {},
                     retry: () => true,
                 }),
+            __proto__: MODEL_LIFECYCLE_PROTO,
             hooks: {
                 onSaveError: async () => {
                     dialogCalls++;
@@ -252,6 +242,7 @@ describe("FormSaveCoordinator — multi-company recovery", () => {
                     },
                 });
             },
+            __proto__: MODEL_LIFECYCLE_PROTO,
             hooks: {
                 recoverFromSaveError: () => {
                     recoverCalls++;
@@ -365,6 +356,7 @@ describe("FormSaveCoordinator — requestUrgentSave", () => {
         const { coordinator } = makeContext({
             save: () => savePromise,
             urgentSave: async () => false,
+            __proto__: MODEL_LIFECYCLE_PROTO,
             hooks: {
                 onUrgentSaveFailed: () => {
                     failedHookCalls++;
@@ -390,6 +382,7 @@ describe("FormSaveCoordinator — requestUrgentSave", () => {
         let failedHookCalls = 0;
         const { coordinator } = makeContext({
             urgentSave: async () => false,
+            __proto__: MODEL_LIFECYCLE_PROTO,
             hooks: {
                 onUrgentSaveFailed: () => {
                     failedHookCalls++;
@@ -596,6 +589,7 @@ describe("FormSaveCoordinator — concurrent saves", () => {
                 }
                 return secondPromise;
             },
+            __proto__: MODEL_LIFECYCLE_PROTO,
             hooks: {
                 onSaveError: async () => {
                     onSaveErrorCalls++;
@@ -680,11 +674,6 @@ describe("FormSaveCoordinator — lastError lifecycle", () => {
         const handled = Object.assign(new Error("server said no"), {
             data: { message: "server said no" },
         });
-        // Mirrors record_save.js: `save` RETURNS the onError result, and the
-        // dialog hook resolves truthy when the user picks "Discard changes".
-        // Discarding resolves the save (the record is clean again), so the
-        // queued action must proceed: a retained lastError would make
-        // shouldExecuteAction silently drop it.
         const { coordinator } = makeContext({
             save: (opts) => opts.onError(handled, { discard() {}, retry() {} }),
         });
@@ -727,17 +716,15 @@ describe("FormSaveCoordinator — re-entrant requestUrgentSave", () => {
             urgentSave: async () => {
                 throw beaconError;
             },
+            __proto__: MODEL_LIFECYCLE_PROTO,
             hooks: { onUrgentSaveFailed: () => urgentFailed++ },
         });
-        coordinator.status = "saving"; // a save is already in flight
+        coordinator.status = "saving";
 
         await expect(coordinator.requestUrgentSave()).rejects.toThrow(
             "beacon exploded",
         );
 
-        // The re-entrant call must NOT claim a terminal (it does not own the
-        // epoch), but it must report: previously the caller got nothing at all
-        // and FormStatusIndicator kept spinning on `isSaving`.
         expect(coordinator.lastError).toBe(beaconError);
         expect(urgentFailed).toBe(1);
     });
@@ -746,6 +733,7 @@ describe("FormSaveCoordinator — re-entrant requestUrgentSave", () => {
         let urgentFailed = 0;
         const { coordinator } = makeContext({
             urgentSave: async () => false,
+            __proto__: MODEL_LIFECYCLE_PROTO,
             hooks: { onUrgentSaveFailed: () => urgentFailed++ },
         });
         coordinator.status = "saving";

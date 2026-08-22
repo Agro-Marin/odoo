@@ -513,12 +513,7 @@ test("willDrag is lowered again when the press never becomes a drag", async () =
     await mountWithCleanup(List);
     expect(dragState.willDrag).toBe(false);
 
-    // press and release without any movement: no drag sequence ever starts, so
-    // `dragStart` — the only other place that lowers the flag — never runs.
     await pointerDown(".item:first-child");
-    // A touch press defers `willStartDrag` behind `touchDelay` (300ms), so the
-    // flag is only raised once that elapses; `delay` is 0 on desktop, where
-    // this is a no-op.
     await advanceTime(DEFAULT_DEFAULT_PARAMS.touchDelay);
     expect(dragState.willDrag).toBe(true);
     await pointerUp(".item:first-child");
@@ -528,12 +523,6 @@ test("willDrag is lowered again when the press never becomes a drag", async () =
 });
 
 /**
- * `dragStart` puts `pe-none` and `user-select-none` on <body> and
- * `o_dragged` on the element, and relies on the cleanup manager to take them
- * off again. Every way a drag can end has to reach that cleanup: a leak leaves
- * the whole document pointer-events:none, which is not recoverable without a
- * reload. Only the nominal drop was covered.
- *
  * @param {Record<string, any>} [hookParams]
  */
 function makeDraggableList(hookParams = {}) {
@@ -581,8 +570,6 @@ test("pointercancel mid-drag releases the document", async () => {
     await moveTo(".item:nth-child(2)");
     expect(document.body).toHaveClass("pe-none");
 
-    // what the browser sends when it takes the pointer over (touch gesture
-    // recognised as a scroll, device unplugged, ...)
     window.dispatchEvent(new PointerEvent("pointercancel", { bubbles: true }));
     await animationFrame();
     expectNoDragResidue();
@@ -644,11 +631,6 @@ test("tolerance 0 starts the drag on the first move", async () => {
 });
 
 /**
- * Presses the element and nudges the pointer `offset` px diagonally from the
- * press point. `contains(...).drag({initialPointerMoveDistance})` cannot express
- * this: it hovers a point relative to the element's top-left corner, so a small
- * number there is still a large move away from the centre the press landed on.
- *
  * @param {string} selector
  * @param {number} offset
  */
@@ -664,10 +646,6 @@ async function pressAndNudge(selector, offset) {
 }
 
 test("a pointer move shorter than the tolerance does not start a drag", async () => {
-    // The default tolerance is 10px and every other test in this file moves the
-    // pointer across a whole element, so nothing here distinguished "waits for
-    // the tolerance" from "starts on the first move": bypassing the check
-    // entirely left all 16 tests green.
     await mountWithCleanup(
         makeDraggableList({ onDragStart: () => expect.step("start") }),
     );
@@ -701,9 +679,6 @@ test("a drag released under the tolerance never starts and leaves no residue", a
 });
 
 /**
- * A draggable list inside a short scrollable ancestor, so the hook finds a
- * vertical scroll parent and arms its edge-scrolling animation frame.
- *
  * @param {Record<string, any>} [hookParams]
  */
 function makeScrollableDraggableList(hookParams = {}) {
@@ -727,10 +702,6 @@ function makeScrollableDraggableList(hookParams = {}) {
 }
 
 /**
- * Presses the first item and drags the pointer to a point `y` px down the
- * scroller. The default helper move is 100px, which overshoots a 100px-tall
- * scroller and scrolls before the test can position anything.
- *
  * @param {number} y
  */
 async function dragIntoScrollerAt(y) {
@@ -743,8 +714,6 @@ async function dragIntoScrollerAt(y) {
 }
 
 test("dragging against the bottom edge scrolls the scroll parent", async () => {
-    // Neutering handleEdgeScrolling entirely left all 16 original tests green:
-    // none of them dragged inside anything scrollable.
     await mountWithCleanup(makeScrollableDraggableList());
     const scroller = queryOne(".scroll");
     expect(scroller.scrollTop).toBe(0);
@@ -783,8 +752,6 @@ test("edgeScrolling disabled never scrolls", async () => {
 });
 
 test("a right-click never starts a drag", async () => {
-    // Dropping the LEFT_CLICK check left all 22 tests green, so nothing said a
-    // context-menu press on a list row must not pick it up.
     await mountWithCleanup(
         makeDraggableList({ onDragStart: () => expect.step("start") }),
     );
@@ -801,8 +768,6 @@ test("a right-click never starts a drag", async () => {
 });
 
 test("starting a drag blurs what was focused outside the dragged element", async () => {
-    // An input left focused while a drag runs keeps receiving the keystrokes
-    // the drag is supposed to own.
     class Parent extends Component {
         static components = { List: makeDraggableList() };
         static template = xml`<div><input class="outside"/><List/></div>`;
@@ -822,9 +787,6 @@ test("starting a drag blurs what was focused outside the dragged element", async
 });
 
 test("a delayed drag is cancelled when the pointer left the element before it fires", async () => {
-    // The `delay` path arms a timeout, and when it fires it checks whether the
-    // pointer is still inside the element it pressed. Dropping that check left
-    // every test green: none of them used a delay AND moved during it.
     await mountWithCleanup(
         makeDraggableList({ delay: 100, onDragStart: () => expect.step("start") }),
     );
@@ -867,11 +829,6 @@ test("a delayed drag starts when the pointer stayed on the element", async () =>
 });
 
 /**
- * A touch press arms the drag after `touchDelay`, and while that timer runs the
- * hook neutralises the things a mobile browser would otherwise do with the
- * press: it marks the element, strips hrefs on Firefox so a link does not
- * navigate, and un-draggables images on iOS so the OS drag does not take over.
- *
  * @param {string} itemInner
  */
 function makeTouchDraggableList(itemInner = "") {
@@ -892,8 +849,6 @@ function makeTouchDraggableList(itemInner = "") {
 }
 
 test("a touch press marks the element while the delay runs", async () => {
-    // The existing touch test only asserts o_touch_bounce is gone AFTERWARDS,
-    // so renaming the class it adds changed nothing it could see.
     mockTouch(true);
     await mountWithCleanup(makeTouchDraggableList());
 
@@ -908,8 +863,6 @@ test("a touch press marks the element while the delay runs", async () => {
 
 test("a touch press strips hrefs on firefox so the link cannot navigate", async () => {
     mockTouch(true);
-    // `Platform` lists OS keys; makeUserAgent's default branch takes any string
-    // verbatim, which is the only way to reach isBrowserFirefox() from here.
     mockUserAgent(/** @type {any} */ ("Firefox/130.0"));
     await mountWithCleanup(makeTouchDraggableList());
     expect(".item:first-child").toHaveAttribute("href");

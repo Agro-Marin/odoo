@@ -26,7 +26,6 @@ defineWebModels();
 defineModels([Foo]);
 
 /**
- * Mounts a list view and hands back the model behind it.
  * @returns {Promise<RelationalModel>}
  */
 async function mountListAndGetModel() {
@@ -73,8 +72,6 @@ test("a superseded load settles its caller instead of hanging forever", async ()
     await superseded;
     await animationFrame();
 
-    // Before: neither branch ever ran -- `await model.load()` was a permanent
-    // hang for whichever load lost the race.
     expect(supersededSettled).toBe("resolved");
 });
 
@@ -108,8 +105,6 @@ test("a superseded load cancels the request it abandons", async () => {
     expect(supersededSignal.aborted).toBe(false);
 
     const winner = model.load({ domain: [["bar", "=", false]] });
-    // The moment a newer load takes over, the older one's signal fires and its
-    // in-flight RPCs are cancelled rather than merely ignored.
     expect(supersededSignal.aborted).toBe(true);
 
     hold.resolve();

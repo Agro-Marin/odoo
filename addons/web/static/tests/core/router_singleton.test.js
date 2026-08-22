@@ -6,15 +6,6 @@ import { globalSingleton } from "@web/core/utils/global_singleton";
 
 describe.current.tags("headless");
 
-/**
- * The router keeps a bus, the current route, a pending-push buffer and the
- * ephemeral-history stack. All of it used to be module-level `let`s, so a
- * second evaluation of the module produced a second bus and a second route --
- * half the application listening to one and pushing to the other -- and
- * registered its three window listeners again, handling every `popstate`
- * twice. `rpc`, `registry`, `templates` and `assets` all anchor their state on
- * the global store for exactly this reason.
- */
 describe("router state is anchored on the global store", () => {
     test("the exported bus is the one on the store", () => {
         const store = globalSingleton("router", () => ({}));
@@ -27,7 +18,6 @@ describe("router state is anchored on the global store", () => {
     });
 
     test("the module-scope side effects are marked as done", () => {
-        // `startRouter()` and the window listeners run once, behind this flag
         const store = /** @type {any} */ (globalSingleton("router", () => ({})));
         expect(store.started).toBe(true);
     });

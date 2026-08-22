@@ -15,15 +15,6 @@ describe.current.tags("headless");
 const ROUTE = "/web/binary/upload_attachment";
 
 /**
- * Fake XHR whose `load` event the test fires by hand.
- *
- * Defaults reproduce what a live Odoo server actually returns for this route
- * (verified with a browser XHR against a running server): a SUCCESSFUL upload
- * is `200 text/html` carrying a JSON string, because it is a `type="http"`
- * route returning `json_dumps(...)`. The content-type is therefore NOT a usable
- * signal — an expired session answers `200 text/html` too. Only `responseURL`
- * distinguishes them.
- *
  * @param {{ status?: number, responseText?: string, responseURL?: string }} response
  * @returns {{ fire: (type: string) => void }}
  */
@@ -48,7 +39,7 @@ function mockXhr({ status = 200, responseText = "", responseURL = ROUTE }) {
 
 /**
  * @param {{ status?: number, responseText?: string, responseURL?: string }} response
- * @returns {Promise<string[]>} the bus events emitted for the upload
+ * @returns {Promise<string[]>}
  */
 async function uploadAndSettle(response) {
     mockService("notification", { add: () => {} });
@@ -77,10 +68,6 @@ test("a successful upload completes (200 text/html carrying JSON)", async () => 
 });
 
 test("an expired session (redirected to the login page) fails the upload", async () => {
-    // The login page is 200 text/html, same as a success. It parses into a
-    // Document, satisfies `instanceof Object`, has no `.error`, and used to be
-    // reported LOADED — the user's file silently discarded with a success
-    // indication. The redirect is what gives it away.
     expect(
         await uploadAndSettle({
             responseText: "<!DOCTYPE html><html><body>Log in</body></html>",
@@ -90,8 +77,6 @@ test("an expired session (redirected to the login page) fails the upload", async
 });
 
 test("a same-route response is never treated as a redirect", async () => {
-    // Guards against over-reach: an absolute responseURL for the very route we
-    // posted to (what the browser actually reports) must not fail the upload.
     expect(
         await uploadAndSettle({
             responseText: JSON.stringify([{ id: 1 }]),
@@ -101,7 +86,6 @@ test("a same-route response is never treated as a redirect", async () => {
 });
 
 test("an empty responseURL does not fail the upload", async () => {
-    // Not every XHR implementation exposes it; absence must stay non-fatal.
     expect(
         await uploadAndSettle({
             responseText: JSON.stringify([{ id: 1 }]),

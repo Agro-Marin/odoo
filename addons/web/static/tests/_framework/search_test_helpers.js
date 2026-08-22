@@ -26,13 +26,9 @@ const ensureSearchBarMenu = async () => {
 };
 
 /**
- * Test-only: filter `props` down to those the Component declares, to avoid
- * props-validation errors (e.g. ControlPanel tests) — in production, View
- * uses WithSearch/Layout to only send each component the props it needs.
- *
  * @param {Component} Component
  * @param {Object} props
- * @returns {Object} filtered props
+ * @returns {Object}
  */
 function filterPropsForComponent(Component, props) {
     if (Component.props) {
@@ -58,8 +54,6 @@ function filterPropsForComponent(Component, props) {
 }
 
 /**
- * Mounts a component wrapped within a WithSearch.
- *
  * @param {any} componentConstructor
  * @param {Record<string, any>} [searchProps]
  * @param {Record<string, any>} [config]

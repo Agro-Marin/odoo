@@ -26,12 +26,6 @@ class Foo extends models.Model {
 defineModels([...Object.values(webModels), Foo]);
 
 /**
- * Render counts by component label, for one workload. Uses the
- * `useRenderCounter` instrumentation the components already carry
- * (`core/utils/render_instrumentation.js`) rather than patching prototypes, so
- * a budget assertion stays readable and does not depend on component
- * internals.
- *
  * @param {() => Promise<void>} workload
  * @returns {Promise<Record<string, number>>}
  */
@@ -57,10 +51,6 @@ const ARCH = `
     </kanban>
 `;
 
-// Positive control. Both budgets below assert a count of ZERO, which is also
-// what a renamed or removed `useRenderCounter("kanban.KanbanRecord")` label
-// would report -- the assertions would keep passing while measuring nothing.
-// This pins that the label is wired and really counts cards.
 test(`the card render counter is wired`, async () => {
     const stats = await renderCounts(async () => {
         await mountView({
@@ -78,10 +68,6 @@ test(`the card render counter is wired`, async () => {
     });
 });
 
-// A blanket `render(true)` on every model update used to repaint every card
-// for any change, and removing it is what made per-card subscriptions load
-// bearing (see tooling/architecture/js_forced_render.py). These pin the
-// consequence: an interaction that concerns no card must repaint no card.
 test(`opening the quick create repaints no card`, async () => {
     await mountView({ resModel: "foo", type: "kanban", groupBy: ["bar"], arch: ARCH });
     await animationFrame();

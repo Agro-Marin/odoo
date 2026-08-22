@@ -1,13 +1,7 @@
 // @ts-check
 
-/**
- * Pure unit tests for record_validator.js.
- *
- * Tests the required-field validation logic without OWL, DOM, or a mock server.
- * All callbacks (isInvisible, isRequired, isChildListValid) are plain functions.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
+import { MODEL_LIFECYCLE_PROTO } from "@web/../tests/model/relational_model/model_doubles";
 import {
     computeRevalidationScope,
     extractFieldNamesFromExpr,
@@ -379,22 +373,18 @@ describe("findUnsetRequiredFields — properties", () => {
 });
 
 /**
- * Builds the minimum record shape consumed by the orchestration helpers.
- * Defaults exercise the happy path: no invalid/unset-required fields, hooks
- * allow by default, not selected, multiEdit off.
- *
  * @param {Object} [opts]
  * @param {Object} [opts.activeFields={}]
  * @param {Object} [opts.fields={}]
  * @param {Object} [opts.data={}]
- * @param {string[]} [opts.invalid=[]] - fields already in _invalidFields
- * @param {string[]} [opts.unsetRequired=[]] - fields already in _unsetRequiredFields
- * @param {string[]} [opts.required=[]] - which fields _isRequired returns true for
- * @param {string[]} [opts.invisible=[]] - which fields _isInvisible returns true for
+ * @param {string[]} [opts.invalid=[]]
+ * @param {string[]} [opts.unsetRequired=[]]
+ * @param {string[]} [opts.required=[]]
+ * @param {string[]} [opts.invisible=[]]
  * @param {boolean} [opts.selected=false]
  * @param {boolean} [opts.multiEdit=false]
- * @param {*} [opts.willSetInvalidResult] - return value of onWillSetInvalidField
- * @param {Function|null} [opts.onDisplayInvalidFields] - notification hook stub
+ * @param {*} [opts.willSetInvalidResult]
+ * @param {Function|null} [opts.onDisplayInvalidFields]
  * @returns {Object}
  */
 function makeOrchestrationRecord({
@@ -438,6 +428,7 @@ function makeOrchestrationRecord({
                     return this._recordToDiscard === rec;
                 },
             },
+            __proto__: MODEL_LIFECYCLE_PROTO,
             hooks: {
                 lifecycle: {
                     onWillSetInvalidField: () => willSetInvalidResult,
@@ -781,11 +772,6 @@ describe("computeRevalidationScope", () => {
     });
 });
 
-/**
- * Wrap makeOrchestrationRecord so that _isRequired / _isInvisible evaluate the
- * real modifier expressions declared on activeFields (via record_utils), and
- * count how many times each field's required modifier is evaluated.
- */
 function makeModifierCountingRecord({
     activeFields,
     fields,
@@ -858,7 +844,6 @@ describe("checkValidity — scoped removeInvalidOnly (modifier evaluation)", () 
     });
 });
 
-/** Build a mock child record datapoint with a _checkValidity spy. */
 let nextVirtualId = 1;
 function makeChildRecord({ valid, dirty = true }) {
     let checkValidityCalls = 0;
@@ -881,31 +866,14 @@ function makeChildRecord({ valid, dirty = true }) {
     return child;
 }
 
-/**
- * Build a mock StaticList shape for ``isChildListValid``: the validator
- * iterates the cached records scoped to ``currentIds`` membership (off-page
- * dirty rows must be validated too), not ``records``.
- *
- * ``cachedRecords`` is a declared member of ``STATIC_LIST_OWNER_SURFACE``, so a
- * double standing in for a list has to carry it. It is a getter over the same
- * ``_cache`` the real class derives it from, rather than a snapshot, so a test
- * that mutates ``_cache`` after construction still sees a consistent list.
- *
- * ``currentIds`` is a getter over ``_currentIds`` here for the same reason it is
- * one on the real class: the array is the working memory,
- * ``STATIC_LIST_CONTRACT_SURFACE`` does not publish it, and
- * ``INTERNAL_STATE_REACHED`` records reaching for it as debt rather than as
- * interface. A double that offered only the underscored name would keep that
- * debt alive by making the published getter the thing that breaks.
- */
 function makeChildList(/** @type {any[]} */ children) {
     /** @type {Record<string, any>} */
-    const _cache = {};
+    const _cache = new Map();
     /** @type {any[]} */
     const _currentIds = [];
     for (const child of children) {
         const id = child.resId || child._virtualId;
-        _cache[id] = child;
+        _cache.set(id, child);
         _currentIds.push(id);
     }
     return {
@@ -917,7 +885,7 @@ function makeChildList(/** @type {any[]} */ children) {
             return _currentIds;
         },
         get cachedRecords() {
-            return Object.values(_cache);
+            return [..._cache.values()];
         },
     };
 }

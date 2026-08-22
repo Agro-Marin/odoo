@@ -14,10 +14,6 @@ import {
 import { SelectMenu } from "@web/components/select_menu/select_menu";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
 
-/**
- * Mounts the Component and MainComponentContainer in the same App (unlike
- * `mountWithCleanup`) so refs/useEffects targeting elements inside the menu work.
- */
 async function mountSingleApp(
     /** @type {any} */ ComponentClass,
     /** @type {any} */ props = undefined,
@@ -711,9 +707,6 @@ test("When they are a lot of choices, not all are show at first and scrolling lo
             queryOne(".o_select_menu_menu").scrollHeight -
             scrollSettings.distanceBeforeReload,
     });
-    // The end of the list is watched by an IntersectionObserver, which the
-    // browser delivers on its own schedule rather than during the scroll: the
-    // extra frame is that delivery, plus the re-render it triggers.
     await animationFrame();
     await animationFrame();
 
@@ -1122,8 +1115,6 @@ test("SelectMenu group items only after being opened", async () => {
     await editInput("option d");
 
     expect(".o_select_menu_menu").toHaveText("Group B\nOption D");
-    // One derivation, not two: the applied search and the choices the handler
-    // swapped in reach the same render, so a single pass covers both.
     expect.verifySteps(["filterOptions"]);
     await editInput("");
 
@@ -1500,8 +1491,6 @@ test("an emptied choices prop does not show 'No results' next to grouped options
     expect(queryAllTexts(".o_select_menu_item")).toEqual(["Alpha"]);
     expect(".o_select_menu_menu p.fst-italic").toHaveCount(0);
 
-    // A new (still empty) `choices` identity must not desync the "No results"
-    // message from the options actually rendered.
     clearChoices();
     await animationFrame();
 
@@ -1515,7 +1504,6 @@ test("sections render in the order they were declared", async () => {
         static components = { SelectMenu };
         static template = xml`<SelectMenu choices="[]" groups="groups" sections="sections"/>`;
         setup() {
-            // Declared order is the opposite of the technical names' order.
             this.sections = [
                 { label: "Zebra", name: "zzz" },
                 { label: "Alpha", name: "aaa" },
@@ -1532,18 +1520,8 @@ test("sections render in the order they were declared", async () => {
     expect(queryAllTexts(".o_select_menu_item")).toEqual(["In Zebra", "In Alpha"]);
 });
 
-// Desktop-only PREMISE, not a desktop-only guarantee: opening the menu leaves
-// DOM focus in the search input here, whereas `onStateChanged` deliberately
-// blurs under `isBottomSheet` so the sheet does not raise the on-screen
-// keyboard. The touch path reaches the same state once the user taps the
-// input, and is covered by the `mobile` counterpart below.
 test.tags("desktop");
 test("a searchable menu publishes its active choice via aria-activedescendant", async () => {
-    // `searchable` turns on `virtualFocus`, so DOM focus stays in the search
-    // input and the highlighted choice is conveyed ONLY by this attribute --
-    // read off the FOCUSED element, which is the input and never the menu.
-    // Navigated explicitly rather than relying on `shouldFocusFirstItem`, which
-    // is `!hasTouch()` and so publishes nothing at all under a touch preset.
     await mountSingleApp(SelectMenu, {
         choices: [
             { label: "Alpha", value: "a" },
@@ -1561,9 +1539,6 @@ test("a searchable menu publishes its active choice via aria-activedescendant", 
     expect(document.activeElement).toBe(input);
     expect(input).toHaveAttribute("role", "combobox");
     expect(input).toHaveAttribute("aria-expanded", "true");
-    // The listbox is an element inside the menu, not the menu: the menu also
-    // holds the search box, the empty notice and the load-more marker, none of
-    // which a listbox may own.
     const listbox = queryOne("[role=listbox]");
     expect(input).toHaveAttribute("aria-controls", listbox.id);
     expect(listbox).not.toBe(queryOne(".o_select_menu_menu"));
@@ -1574,11 +1549,8 @@ test("a searchable menu publishes its active choice via aria-activedescendant", 
     const activeEl = document.getElementById(active);
     expect(activeEl).not.toBe(null);
     expect(activeEl).toHaveClass("focus");
-    // `aria-selected` is only defined on `option`; it is what makes the
-    // highlighted choice announceable at all.
     expect(activeEl).toHaveAttribute("role", "option");
     expect(activeEl).toHaveAttribute("aria-selected", "true");
-    // Nothing is left behind on the menu, which is not focused.
     expect(queryOne(".o_select_menu_menu").getAttribute("aria-activedescendant")).toBe(
         null,
     );
@@ -1597,10 +1569,6 @@ test("a searchable BottomSheet publishes its active choice once its input is foc
     await click(".o_select_menu_toggler");
     await animationFrame();
 
-    // The sheet opens with nothing focused, so there is no element assistive
-    // technology would read `aria-activedescendant` off yet. Tapping the search
-    // input is what puts the user in the virtual-focus state the desktop
-    // counterpart starts in.
     const input = queryOne(".o_select_menu_input");
     await click(input);
     await animationFrame();
@@ -1608,8 +1576,6 @@ test("a searchable BottomSheet publishes its active choice once its input is foc
     await animationFrame();
 
     expect(document.activeElement).toBe(input);
-    // Resolvable, not dangling: the sheet renders the listbox the toggler's
-    // `aria-controls` names, which it dropped while only the popover did.
     const controlled = document.getElementById(input.getAttribute("aria-controls"));
     expect(controlled).toBe(queryOne("[role=listbox]"));
     expect(controlled).not.toBe(queryOne(".o_select_menu_menu"));
@@ -1671,7 +1637,6 @@ test("the toggler picks up a value whose choice only arrives with the groups", a
     const parent = await mountSingleApp(MyParent);
     expect(".o_select_menu_toggler_slot, .o_select_menu_toggler").toHaveCount(1);
 
-    // Grouped choices are routinely loaded after the value is known.
     parent.state.groups = [
         { label: "Group A", choices: [{ label: "Option B", value: "optionB" }] },
     ];
@@ -1689,8 +1654,6 @@ test("a closed menu holds no rendered options", async () => {
     await contains(".o_select_menu_toggler").click();
     expect(menu.state.displayedOptions.length).toBe(80);
 
-    // Closed by the state rather than a click-away: on a touch viewport the
-    // menu is a bottom sheet and a body click does not dismiss it.
     menu.dropdownState.close();
     await animationFrame();
     expect(menu.state.choices).toEqual([]);
@@ -1700,10 +1663,8 @@ test("a closed menu holds no rendered options", async () => {
 test("selected-value lookup does not scan the selection per choice", async () => {
     const CHOICES = 2000;
     const choices = [...Array(CHOICES)].map((_, i) => ({ value: i, label: `C${i}` }));
-    // Selected values sit at the end so a linear scan cannot short-circuit.
     const value = [...Array(100)].map((_, i) => CHOICES - 1 - i);
 
-    // Count only linear scans of the selection itself.
     let scanned = 0;
     const realIncludes = Array.prototype.includes;
     patchWithCleanup(Array.prototype, {
@@ -1738,7 +1699,6 @@ test("selected-value lookup does not scan the selection per choice", async () =>
     for (const choice of menu.state.displayedOptions) {
         menu.getItemClass(choice);
     }
-    // Without the set this is choices x selection, i.e. hundreds of thousands.
     expect(scanned).toBe(0);
 });
 
@@ -1797,7 +1757,6 @@ test("a selection mutated in place is still reflected", async () => {
     const parent = await mountWithCleanup(Parent);
     expect(menu.isOptionSelected(choices[1])).toBe(false);
 
-    // Reactive arrays are mutated in place, so the identity never changes.
     parent.state.value.push("b");
     await animationFrame();
     expect(menu.isOptionSelected(choices[1])).toBe(true);
@@ -1825,7 +1784,6 @@ test("a choice replaced in place is reflected in the toggler", async () => {
     const parent = await mountSingleApp(MyParent);
     expect(".o_select_menu_toggler").toHaveValue("Bee");
 
-    // Same array, same value: only the choice object was swapped out.
     parent.state.choices.splice(1, 1, { label: "Bee v2", value: "b" });
     await animationFrame();
     expect(".o_select_menu_toggler").toHaveValue("Bee v2");
@@ -1860,8 +1818,6 @@ test("an open menu picks up choices pushed in place", async () => {
 });
 
 test("a multiSelect tag created in place shows up", async () => {
-    // Shape of website_slides' slide upload dialog: the "create" button pushes
-    // into the choices AND into the value, both in place.
     class MyParent extends Component {
         static components = { SelectMenu };
         static props = ["*"];
@@ -1871,8 +1827,6 @@ test("a multiSelect tag created in place shows up", async () => {
         `;
         setup() {
             this.state = useState({
-                // Saved records carry numeric ids, ones being created carry a
-                // temporary string one, exactly as the upload dialog does.
                 /** @type {{ value: any, label: string }[]} */
                 tags: [{ value: 1, label: "Existing" }],
                 /** @type {any[]} */
@@ -1910,16 +1864,12 @@ test("a selected choice that leaves the choices keeps its label", async () => {
     const parent = await mountSingleApp(MyParent);
     expect(queryAllTexts(".o_tag")).toEqual(["Alpha"]);
 
-    // A server-side search narrows the list; the picked tag must stay readable.
     parent.state.choices.splice(0, 1);
     await animationFrame();
     expect(queryAllTexts(".o_tag")).toEqual(["Alpha"]);
 });
 
 test("a choice renamed in place is re-sorted", async () => {
-    // Callers hand over the same objects render after render and edit them
-    // field by field, so identity cannot answer whether the menu is still
-    // derived from them: the order was computed from the old spelling.
     class MyParent extends Component {
         static components = { SelectMenu };
         static props = ["*"];
@@ -1966,7 +1916,6 @@ test("a choice renamed in place is re-matched against the live query", async () 
     await editInput("alp");
     expect(queryAllTexts(".o_select_menu_item")).toEqual(["Alpha"]);
 
-    // The renamed choice no longer answers the query it is on screen for.
     parent.state.choices[0].label = "Zulu";
     await animationFrame();
 
@@ -1974,10 +1923,6 @@ test("a choice renamed in place is re-matched against the live query", async () 
 });
 
 test("a single-select listbox leaves aria-selected to the cursor", async () => {
-    // Deliberate: one held value is already announced, because it IS the text
-    // in the combobox. So `aria-selected` stays where the combobox convention
-    // puts it, on the cursor, and the multi-select case below is the only one
-    // that has to take it back.
     await mountSingleApp(Parent);
     await open();
 
@@ -2023,9 +1968,6 @@ test("a multiSelect listbox says so, and marks every picked choice", async () =>
 
 test.tags("mobile");
 test("a bottom sheet has one combobox, and one holder of id and name", async () => {
-    // The search box is rendered twice here -- toggler and sheet -- and only
-    // the one the user types into may be the combobox: two controls for one
-    // listbox, and an `id` a `<label for>` resolves to the wrong box.
     class MyParent extends Component {
         static components = { SelectMenu };
         static props = ["*"];
@@ -2070,8 +2012,6 @@ test("the listbox owns options and nothing else", async () => {
     await animationFrame();
     expect(rolesInListbox("with choices")).toBe("with choices: option,presentation");
 
-    // The search box the combobox lives in is not an option either -- and in a
-    // bottom sheet it is rendered inside the menu.
     expect("[role=listbox] input").toHaveCount(0);
 });
 
@@ -2084,8 +2024,6 @@ test("the empty notice is a live region outside the listbox", async () => {
     await click(".o_select_menu_toggler");
     await animationFrame();
 
-    // A listbox that owns a <p> is not a listbox any reader can count options
-    // in, and the notice still has to be announced.
     expect("[role=status]").toHaveCount(1);
     expect("[role=status]").toHaveText("No results");
     expect("[role=listbox] [role=status]").toHaveCount(0);
@@ -2112,20 +2050,15 @@ test("the listbox wrapper is transparent to the menu's layout", async () => {
     await click(".o_select_menu_toggler");
     await animationFrame();
 
-    // The menu, not the wrapper, stays the scroller: the load-more observer
-    // roots on it and the sticky headers stick to it.
     const menu = queryOne(".o_select_menu_menu");
     const listbox = queryOne("[role=listbox]");
     expect(menu.scrollHeight).toBeGreaterThan(menu.clientHeight);
     expect(listbox.scrollHeight).toBe(listbox.clientHeight);
 
-    // The wrapper contributes no box of its own.
     expect(Math.round(listbox.getBoundingClientRect().width)).toBe(
         Math.round(menu.clientWidth),
     );
 
-    // The group header still sticks to the menu while the options scroll out
-    // from under it.
     const header = queryOne(".o_select_menu_group");
     const firstTop = queryAll(".o_select_menu_item")[0].getBoundingClientRect().top;
     menu.scrollTop = 200;
@@ -2151,10 +2084,6 @@ test("a menu that loses its search box moves real focus again", async () => {
     }
     const parent = await mountWithCleanup(Parent);
 
-    // `searchable` moves under a live menu -- selection_field binds it to
-    // `!isBottomSheet`. The navigator only keeps a virtual cursor while a search
-    // box holds the focus; once there is none, it has to move real focus, or the
-    // arrow keys leave the caret on nothing.
     parent.state.searchable = false;
     await animationFrame();
 
@@ -2165,4 +2094,125 @@ test("a menu that loses its search box moves real focus again", async () => {
 
     expect(document.activeElement).not.toBe(document.body);
     expect(document.activeElement).toHaveClass("o-dropdown-item");
+});
+
+test("the value index resolves across groups, first match winning", async () => {
+    class Parent extends Component {
+        static template = xml`<SelectMenu choices="choices" groups="groups" value="state.value"/>`;
+        static components = { SelectMenu };
+        static props = [];
+        choices = [{ value: "a", label: "Alpha" }];
+        groups = [
+            { label: "Group", choices: [{ value: "b", label: "Beta" }] },
+            { label: "Other", choices: [{ value: "b", label: "Beta again" }] },
+        ];
+        state = useState({ value: "a" });
+    }
+    const parent = await mountWithCleanup(Parent);
+    expect(".o_select_menu_toggler").toHaveValue("Alpha");
+
+    parent.state.value = "b";
+    await animationFrame();
+    expect(".o_select_menu_toggler").toHaveValue("Beta");
+});
+
+test("the value index is rebuilt when a label is edited in place", async () => {
+    class Parent extends Component {
+        static template = xml`<SelectMenu choices="state.choices" value="'a'"/>`;
+        static components = { SelectMenu };
+        static props = [];
+        state = useState({
+            choices: [
+                { value: "a", label: "Alpha" },
+                { value: "b", label: "Beta" },
+            ],
+        });
+    }
+    const parent = await mountWithCleanup(Parent);
+    expect(".o_select_menu_toggler").toHaveValue("Alpha");
+
+    parent.state.choices[0].label = "Renamed";
+    await animationFrame();
+    expect(".o_select_menu_toggler").toHaveValue("Renamed");
+});
+
+test("a selected tag survives its choice leaving the list", async () => {
+    class Parent extends Component {
+        static template = xml`<SelectMenu choices="state.choices" value="state.value" multiSelect="true"/>`;
+        static components = { SelectMenu };
+        static props = [];
+        state = useState({
+            choices: [
+                { value: "a", label: "Alpha" },
+                { value: "b", label: "Beta" },
+            ],
+            value: ["a", "b"],
+        });
+    }
+    const parent = await mountWithCleanup(Parent);
+    expect(queryAllTexts(".o_tag")).toEqual(["Alpha", "Beta"]);
+
+    parent.state.choices = [{ value: "a", label: "Alpha" }];
+    await animationFrame();
+    expect(queryAllTexts(".o_tag")).toEqual(["Alpha", "Beta"]);
+
+    parent.state.value = ["a"];
+    await animationFrame();
+    expect(queryAllTexts(".o_tag")).toEqual(["Alpha"]);
+});
+
+class MemoryParent extends Component {
+    static template = xml`<SelectMenu choices="state.choices" value="state.value" onSelect.bind="onSelect"/>`;
+    static components = { SelectMenu };
+    static props = ["*"];
+    setup() {
+        this.state = useState({
+            choices: this.props.initialChoices,
+            value: this.props.initialValue,
+        });
+    }
+    onSelect(value) {
+        this.state.value = value;
+    }
+}
+
+test.tags("desktop");
+test("a real value whose choice leaves the list still shows its label", async () => {
+    const parent = await mountWithCleanup(MemoryParent, {
+        props: {
+            initialChoices: [
+                { value: "a", label: "Apple" },
+                { value: "b", label: "Banana" },
+            ],
+            initialValue: "a",
+        },
+    });
+    expect(".o_select_menu_toggler_slot, .o_select_menu_input").toHaveCount(1);
+    expect(queryOne(".o_select_menu_input").value).toBe("Apple");
+
+    parent.state.choices = [{ value: "b", label: "Banana" }];
+    await animationFrame();
+    expect(queryOne(".o_select_menu_input").value).toBe("Apple", {
+        message: "the label survives its choice leaving the list",
+    });
+});
+
+test.tags("desktop");
+test("a cleared value does not inherit a label the list has stopped offering", async () => {
+    const parent = await mountWithCleanup(MemoryParent, {
+        props: {
+            initialChoices: [
+                { value: false, label: "View" },
+                { value: 1, label: "Edit" },
+            ],
+            initialValue: false,
+        },
+    });
+    expect(queryOne(".o_select_menu_input").value).toBe("View");
+
+    parent.state.choices = [{ value: 1, label: "Edit" }];
+    await animationFrame();
+    expect(queryOne(".o_select_menu_input").value).toBe("", {
+        message: "false is the empty scalar, not a remembered selection",
+    });
 });

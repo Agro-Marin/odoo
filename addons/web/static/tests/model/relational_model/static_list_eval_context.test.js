@@ -1,32 +1,5 @@
 // @ts-check
 
-/**
- * Regression tests for StaticList._updateContext eval-context fan-out.
- *
- * A parent record's `_setEvalContext` runs after every committed edit and calls
- * `_updateContext` on every x2many field, which historically recomputed the eval
- * context of EVERY cached sub-record unconditionally:
- *
- *     _updateContext(context) {
- *         Object.assign(this.context, context);
- *         for (const record of Object.values(this._cache)) {
- *             record._setEvalContext();   // O(rows) per parent keystroke
- *         }
- *     }
- *
- * That work is wasted when the field context did not change: a sub-record's eval
- * context derives from its own (unchanged) data, the list context (guarded), and
- * the parent record — which sub-records observe LIVE via the `parent` getter on
- * their eval context, so cross-record modifiers stay reactive without this
- * recompute. The recompute would also produce identical values (dropped by OWL's
- * same-value optimization), so skipping it is behavior-preserving.
- *
- * Test A: editing a parent field the x2many context does NOT depend on no longer
- *         recomputes the sub-records.
- * Test B: editing a parent field the x2many context DOES depend on still
- *         recomputes them (the guard must not over-skip).
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import {
     defineModels,
@@ -60,7 +33,6 @@ defineModels([Order, OrderLine]);
 
 describe.current.tags("desktop");
 
-/** Count _setEvalContext recomputes per model (parent "order" vs child "order.line"). */
 function trackEvalContext() {
     const calls = {};
     patchWithCleanup(RelationalRecord.prototype, {

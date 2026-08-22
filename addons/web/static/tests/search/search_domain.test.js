@@ -1,11 +1,5 @@
 // @ts-check
 
-/**
- * Pure unit tests for search/search_domain.js `computeGroupDomain`, the helper
- * that keeps a checked value in one filter group from skewing the record counts
- * of the other groups.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { computeGroupDomain } from "@web/search/search_domain";
 
@@ -18,7 +12,6 @@ const FIELDS = {
 };
 
 /**
- * Build a filter section with grouped values.
  * @param {string} fieldName
  * @param {Array<[any, Array<[any, boolean]>]>} groupEntries
  * @param {boolean} [enableCounters=true]
@@ -61,9 +54,6 @@ describe("counters disabled or ungrouped", () => {
 });
 
 describe("selection fields", () => {
-    // A record has exactly one selection value, so no group can skew another's
-    // count. The type must still answer explicitly — returning `undefined`
-    // would be sent to the server as the `group_domain` kwarg.
     test("ungrouped selection returns null, never undefined", () => {
         const result = computeGroupDomain(
             { fieldName: "state", enableCounters: false, groups: null },

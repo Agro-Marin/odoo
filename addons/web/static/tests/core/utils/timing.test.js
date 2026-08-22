@@ -40,8 +40,8 @@ describe("batched", () => {
         let ran = 0;
         const fn = batched(() => ran++, animationFrame);
 
-        fn(); // opens the batch
-        const later = fn(); // joins it — must NOT resolve early
+        fn();
+        const later = fn();
 
         await later;
         expect(ran).toBe(1);
@@ -238,6 +238,32 @@ describe("batched", () => {
 });
 
 describe("debounce", () => {
+    test("each call restarts the wait, so the first deadline is abandoned", async () => {
+        const myFunc = (/** @type {number} */ n) => {
+            expect.step(`myFunc:${n}`);
+            return n;
+        };
+        const debounced = debounce(myFunc, 1000);
+
+        debounced(1);
+        await advanceTime(600);
+        expect.verifySteps([], { message: "600ms is short of the 1000ms wait" });
+
+        debounced(2);
+        await advanceTime(600);
+        expect.verifySteps([], {
+            message: "the second call must abandon the first call's deadline",
+        });
+
+        await advanceTime(400);
+        expect.verifySteps(["myFunc:2"], {
+            message: "one execution, 1000ms after the LAST call, with its arguments",
+        });
+
+        await runAllTimers();
+        expect.verifySteps([], { message: "and no second execution is left armed" });
+    });
+
     test("debounce on a sync function settles superseded calls too", async () => {
         const myFunc = () => {
             expect.step("myFunc");
@@ -649,10 +675,6 @@ describe("useThrottleForAnimation", () => {
             static template = xml`<button class="c" t-on-click="throttled">C</button>`;
             static props = ["*"];
             setup() {
-                // No delay argument: useThrottleForAnimation takes only the
-                // callback and throttles to the animation frame. The `1000`
-                // that used to sit here was silently ignored, so the test read
-                // as configuring a 1s throttle it never had.
                 this.throttled = useThrottleForAnimation(() =>
                     expect.step("throttled"),
                 );

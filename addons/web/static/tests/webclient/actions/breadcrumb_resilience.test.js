@@ -10,17 +10,6 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { actionStorage } from "@web/webclient/actions/action_storage";
 
-/**
- * What a restore asks the server, and what it does with the answer.
- *
- * ``makeActionState`` writes a ``displayName`` for every crumb it pushes, so a
- * restore from a url the app itself produced already knows every name. Trusting
- * that for the render is what keeps the restore free of a round-trip — but the
- * name was recorded when the crumb was last visited, and the record may have
- * been renamed since, so it must not be filed away as a fact. Seeding
- * ``breadcrumbCache`` with it pinned the stale name for the rest of the session
- * and suppressed the fetch even for later navigations whose url carried none.
- */
 describe.current.tags("desktop");
 
 const STACK = {
@@ -29,7 +18,6 @@ const STACK = {
     actionStack: [{ action: 1 }, { action: 2 }, { action: 3, resId: 7 }],
 };
 
-/** A stack whose crumbs carry the names the url last recorded. */
 const NAMED_STACK = {
     action: 3,
     resId: 7,
@@ -66,9 +54,6 @@ test("a healthy server names every crumb", async () => {
 });
 
 test("a restore from an app-produced url survives the server being down", async () => {
-    // Not because the failure is tolerated, but because nothing is asked: the
-    // names are already in the url. A server hiccup during a restore used to
-    // take the whole trail with it.
     const { calls, names } = await restore(NAMED_STACK, () => {
         throw new Error("the server did not answer");
     });
@@ -77,8 +62,6 @@ test("a restore from an app-produced url survives the server being down", async 
 });
 
 test("one named crumb lends its name to another for the same record", async () => {
-    // Two controllers, one {action, model, resId}: only the one the url named
-    // carries a name, and the other used to borrow it through the cache.
     await makeMockServer();
     onRpc("/web/action/load_breadcrumbs", () => {
         throw new Error("should not fetch");
@@ -111,11 +94,6 @@ test("a server that says the action is gone still drops the crumb", async () => 
 });
 
 test("an unnameable leaf does not take its live ancestors with it", async () => {
-    // The url's leaf carries a model no stored action matches, so
-    // `getActionParams` pops it and settles on the entry before it — the one
-    // the server also refuses to name, because the same record is unreadable.
-    // Trimming the SURVIVING controllers by the number of popped url entries
-    // cut one crumb too many and lost "N1".
     await makeMockServer();
     onRpc("/web/action/load_breadcrumbs", async (request) => {
         const { params } = await request.json();
@@ -152,11 +130,6 @@ test("an unnameable leaf does not take its live ancestors with it", async () => 
 });
 
 test("the cut still lands right when the stack came from actionStorage", async () => {
-    // `controllersFromState` swaps the url state for the richer copy in
-    // sessionStorage when the two render to the same url, so the indexes the
-    // crumbs carry are that copy's. The cut is measured on the url's stack, and
-    // the two agree only because a url carries the whole stack — pinned here,
-    // because `crumbsBelowDispatched` now depends on it.
     await makeMockServer();
     onRpc("/web/action/load_breadcrumbs", async (request) => {
         const { params } = await request.json();
@@ -210,8 +183,6 @@ test("a name from the url is not remembered for later navigations", async () => 
     ]);
     expect(calls).toBe(0);
 
-    // Same crumb, this time with nothing in the url to go on: the session must
-    // not still be holding the name the previous url happened to carry.
     const second = await am._controllersFromState({
         action: 2,
         actionStack: [{ action: 1 }, { action: 2 }],

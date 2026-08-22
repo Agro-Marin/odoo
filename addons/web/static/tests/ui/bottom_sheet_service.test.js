@@ -93,10 +93,6 @@ test("a crashing bottom sheet subtree still decrements the count and clears the 
     expect.verifyErrors(["Error: bottom sheet crashed"]);
 });
 
-// OPTION-PARITY-BLOCK
-// `usePopover` picks between the popover and the sheet from a live media
-// query, so any option one backend honours and the other silently drops is an
-// option whose meaning changes when the viewport crosses a breakpoint.
 test.tags("mobile");
 test("a sheet honours closeOnEscape, like the popover does", async () => {
     await mountWithCleanup(MainComponentsContainer);
@@ -137,11 +133,6 @@ test("a sheet closes on escape by default", async () => {
     expect(".sheet-content").toHaveCount(0);
 });
 
-// The one production caller that combines `closeOnEscape: false` with
-// `useBottomSheet` is `Dropdown`, which turns the option off because it drives
-// escape from its own navigation hook. Honouring the option means the sheet no
-// longer registers a competing hotkey — so escape has to still reach the menu,
-// on both backends.
 test.tags("mobile");
 test("escape closes a dropdown menu rendered as a bottom sheet", async () => {
     await mountWithCleanup(DropdownParent);
@@ -157,10 +148,6 @@ test("escape closes a dropdown menu rendered as a bottom sheet", async () => {
     expect(".ditem").toHaveCount(0);
 });
 
-// `id` is in OVERLAY_PRESENTER_OPTIONS and the popover renders it, so a caller
-// naming the overlay from outside -- `Dropdown` publishes its `menuId` this way
-// and every combobox toggler points `aria-controls` at it -- must not have the
-// reference dissolve just because the viewport crossed the breakpoint.
 test.tags("mobile");
 test("a sheet renders the `id` option, like the popover does", async () => {
     await mountWithCleanup(MainComponentsContainer);

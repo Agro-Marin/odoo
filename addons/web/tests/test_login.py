@@ -17,7 +17,6 @@ class TestWebLoginCommon(HttpCase):
         self.authenticate(None, None)
 
     def login(self, username, password, csrf_token=None):
-        """Log in with the given credentials; return the POST response (raises if it failed)."""
         res_post = self.url_open(
             "/web/login",
             data={

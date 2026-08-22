@@ -1,29 +1,5 @@
 // @ts-check
 
-/**
- * Setting a many2one to the pair it already holds still runs the onchange, and
- * that is deliberate.
- *
- * It looks like pure waste -- the change set ends up empty and the record ends
- * up clean, so the round trip bought nothing -- and moving the "same pair"
- * filter above the onchange call does remove it. But the model cannot tell the
- * two callers apart:
- *
- *  - the autocomplete handing back the value the user just re-picked, where
- *    nothing has changed;
- *  - ``Many2One``'s internal-link dialog closing, which re-reads the linked
- *    record and calls ``update`` with the SAME pair precisely so the onchange
- *    re-runs: the pointer did not move but the REFERENT did, and the parent's
- *    computed fields may depend on it.
- *
- * Only the widget knows which it is, so the suppression -- if it is ever worth
- * having -- belongs there, not here. ``_update`` runs the onchange either way
- * and only drops the spurious change entry afterwards.
- *
- * The end state is asserted alongside the RPC so a future optimisation cannot
- * quietly trade the onchange for it.
- */
-
 import { expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
@@ -84,10 +60,7 @@ test("re-setting a many2one to its current pair still runs the onchange", async 
     await record.update({ partner_id: { id: 7, display_name: "Seven" } });
     await animationFrame();
 
-    // The referent may have changed under an unchanged pointer, so the server
-    // gets a say. This is what the internal-link dialog depends on.
     expect.verifySteps(["onchange"]);
-    // ...but the pointer did not move, so nothing is staged as a change.
     expect(record.dirty).toBe(false);
     expect(Object.keys(record._changes)).toEqual([]);
     expect(record.data.partner_id).toEqual({ id: 7, display_name: "Seven" });

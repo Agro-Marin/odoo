@@ -8,10 +8,8 @@ _NAV_HEADERS = {
 }
 
 
-@tagged("post_install", "-at_install", "web_unit")
+@tagged("post_install", "-at_install", "web_http")
 class TestJsonExportRoute(HttpCase):
-    """Regression coverage for the /json export controller (controllers/json.py)."""
-
     def setUp(self):
         super().setUp()
         self.env["ir.config_parameter"].sudo().set_param("web.json.enabled", "1")
@@ -27,13 +25,6 @@ class TestJsonExportRoute(HttpCase):
         )
 
     def test_non_aggregatable_field_is_client_error_not_500(self):
-        """A char field passed as a grouped measure must 400, never 500.
-
-        ``fields=name`` (aggregator is None) used to expand to the aggregate
-        token ``"name:None"`` and reach ``web_read_group``, which raises a raw
-        ``ValueError`` -> HTTP 500. The controller now rejects it up front like
-        the sibling limit/offset/domain client-error paths.
-        """
         resp = self._json("groupby=type&fields=name")
         self.assertEqual(
             resp.status_code,
@@ -44,10 +35,6 @@ class TestJsonExportRoute(HttpCase):
         self.assertIn("not aggregatable", resp.text)
 
     def test_grouped_count_still_works(self):
-        """Control: the same route without a bad measure resolves (no 500).
-
-        Proves the 400 above is the guard firing, not a broken test fixture.
-        """
         resp = self._json("groupby=type")
         self.assertEqual(
             resp.status_code,

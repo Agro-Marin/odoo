@@ -4,20 +4,6 @@ import { describe, expect, test } from "@odoo/hoot";
 import { EventBus } from "@odoo/owl";
 import { ActionManager } from "@web/webclient/actions/action_service";
 
-/**
- * Where an incoming controller is spliced, and when a view switch is refused.
- *
- * ``_updateUI`` splices into ``_effectiveStack`` — the stack a pending dispatch
- * will land on — while ``switchView`` and ``_getView`` read ``controllerStack``,
- * the one still on screen. Two problems followed from that, fixed separately:
- *
- *  - a position measured on one stack was applied to the other. Every branch of
- *    ``_computeStackIndex`` now resolves against the stack it splices, so there
- *    is no number to carry across;
- *  - even resolved correctly, switching a view of the outgoing action onto the
- *    incoming stack has nothing to mean. It is declined, as it is behind a
- *    dialog.
- */
 describe.current.tags("desktop");
 
 function makeController(
@@ -84,8 +70,6 @@ test("with no dispatch pending, a view switch replaces the current view", async 
 
     await am.switchView("form");
 
-    // list -> form pushes: the mono-record view stacks onto the multi-record
-    // one it was opened from.
     const { nextStack } = /** @type {any} */ (am).__dispatches[0];
     expect(nextStack.map((/** @type {any} */ c) => c.props.type)).toEqual([
         "list",
@@ -111,8 +95,6 @@ test("a view switch during a pending dispatch does not mix the two stacks", asyn
     const visible = makeController("c1", "a1", "list", true);
     am.controllerStack = [older, visible];
 
-    // A dispatch is in flight that will land on a stack of its own — a
-    // browser Back, or any loadState — and has not committed yet.
     const incoming = makeController("c2", "a2", "list", true);
     const pendingBase = [incoming];
     am._pendingDispatch = /** @type {any} */ ({ baseStack: pendingBase });
@@ -160,4 +142,21 @@ test("a pending dispatch is still the pending one after a view switch", async ()
     expect(am._pendingDispatch).toBe(pending, {
         message: "the in-flight dispatch owns the slot until it settles",
     });
+});
+
+test("a spliceAt that misses appends instead of eating the last crumb", async () => {
+    const am = makeManager();
+    const a = makeController("c0", "a0", "list", true);
+    const b = makeController("c1", "a1", "list", true);
+    am.controllerStack = [a, b];
+    const incoming = makeController("c2", "a2", "list", true);
+
+    await am._updateUI(/** @type {any} */ (incoming), { spliceAt: () => -1 });
+
+    const dispatched = /** @type {any} */ (am).__dispatches.at(-1);
+    expect(dispatched.nextStack.map((/** @type {any} */ c) => c.jsId)).toEqual([
+        "c0",
+        "c1",
+        "c2",
+    ]);
 });

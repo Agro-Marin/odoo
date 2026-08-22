@@ -341,7 +341,6 @@ describe("KeepLast", () => {
         await tick();
         expect.verifySteps([]);
 
-        // The instance stays usable: a task added after a cancel still settles.
         const next = new Deferred();
         keepLast.add(next).then((v) => expect.step(`ok (${v})`));
         next.resolve(7);
@@ -565,8 +564,6 @@ describe("InFlight", () => {
     });
 
     test("stays busy while a later operation is still pending", async () => {
-        // The flaw this replaces: Race.getCurrentProm() went null as soon as the
-        // FIRST member settled, reporting idle with work still in flight.
         const inFlight = new InFlight();
         const def1 = new Deferred();
         const def2 = new Deferred();

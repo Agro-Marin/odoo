@@ -4,12 +4,6 @@ import { describe, expect, getFixture, test } from "@odoo/hoot";
 
 describe.current.tags("headless");
 
-/**
- * The favourite widgets encode their state in the Font Awesome family class
- * (`fa-regular` empty / `fa-solid` filled) since FA7 dropped the separate
- * outline glyph. Styling keyed on the old `fa-star-o` name silently stops
- * matching, so both states render identically - which no behavioural test can catch.
- */
 function mountStars(/** @type {string} */ wrapperClass, iconTag = "i") {
     const fixture = getFixture();
     fixture.innerHTML = `

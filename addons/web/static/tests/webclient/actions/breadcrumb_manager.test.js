@@ -16,15 +16,6 @@ import {
 } from "@web/webclient/actions/breadcrumb_manager";
 
 /**
- * Mount-free tests for ``breadcrumb_manager.js``.
- *
- * The module has no UI of its own — it turns a controller stack into crumb
- * descriptors and reconciles display names against a cache and one batched RPC.
- * All of that is reachable directly: ``buildBreadcrumbs`` and
- * ``controllersFromState`` take the manager (4 members: ``router``,
- * ``restore``, ``_makeController``, ``breadcrumbCache``), and
- * ``refreshBreadcrumbDisplayNames`` takes the cache alone.
- *
  * @param {Object} [overrides]
  */
 function makeFakeAm(overrides = {}) {
@@ -220,10 +211,6 @@ test("duplicate controllers are fetched once and both updated", async () => {
 });
 
 test("restoring a stack that repeats a record asks the server for it once", async () => {
-    // The same guard `refreshBreadcrumbDisplayNames` has above, on the restore
-    // path: two controllers resolving to one {action, model, resId} both missed
-    // the cache (nothing is written until the request exists) and both queued,
-    // so the one batched RPC listed the record twice.
     await makeMockServer();
     let fetchedKeys = null;
     onRpc("/web/action/load_breadcrumbs", async (request) => {
@@ -246,7 +233,6 @@ test("restoring a stack that repeats a record asks the server for it once", asyn
     );
 
     expect(fetchedKeys).toHaveLength(1);
-    // Both controllers are still built, and both get the fetched name.
     expect(controllers.map((c) => c.displayName)).toEqual(["Rec", "Rec"]);
 });
 

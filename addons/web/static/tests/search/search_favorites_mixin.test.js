@@ -1,19 +1,5 @@
 // @ts-check
 
-/**
- * Unit tests for search/search_favorites_mixin.js.
- *
- * The favorite logic is a mixin applied to SearchModel; it is exercised here on
- * a bare SearchFavoritesMixin(class {}) instance with a minimal set of state and
- * stubs (_createIrFilters / _getIrFilterDescription — the ORM- and env-bound
- * pieces) assigned. Because the methods use `this`, an instance is all that is
- * needed.
- *
- * The reconcile/description/tree paths (_reconciliateFavorites,
- * _getIrFilterDescription, _createGroupOfFavorites) involve env callbacks and
- * server data and are covered by the search_panel / favorites integration tests.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { SearchFavoritesMixin } from "@web/search/search_favorites_mixin";
 import {
@@ -23,11 +9,9 @@ import {
 
 describe.current.tags("headless");
 
-/** Concrete class exercising the mixin methods in isolation. */
 const FavoritesModel = SearchFavoritesMixin(class {});
 
 /**
- * Build a minimal SearchModel-like instance for the favorite mixin methods.
  * @param {Object} [overrides]
  */
 function makeSearchModel(overrides = {}) {

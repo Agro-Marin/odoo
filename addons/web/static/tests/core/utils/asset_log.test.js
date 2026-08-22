@@ -1,35 +1,25 @@
 // @ts-check
 
-/**
- * Pure unit tests for asset_log.js.
- *
- * Covers all four namespaced loggers (asset / rpc / action / model):
- *   - activation via localStorage["debug.<flag>"]
- *   - activation via odoo.debug substring
- *   - back-compat globalThis["__ODOO_ASSET_TRACE__"] for the asset namespace only
- *   - factory partial-application (makeXxxLog returns a function bound to a category)
- *   - log() short-circuits cleanly when disabled (no console call)
- *   - log() emits a `[<prefix>.<category>]`-prefixed console.debug when enabled
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import {
     actionLog,
     assetLog,
+    componentLog,
+    fieldLog,
     makeActionLog,
     makeAssetLog,
+    makeComponentLog,
     makeModelLog,
     makeRpcLog,
+    makeServiceLog,
     modelLog,
     rpcLog,
+    serviceLog,
+    viewLog,
 } from "@web/core/utils/asset_log";
 
 describe.current.tags("headless");
 
-/**
- * Save+set localStorage key, run the body, then restore — so tests don't
- * leak state into each other or into later test files in the same suite run.
- */
 function withLocalStorage(key, value, body) {
     const prior = globalThis.localStorage.getItem(key);
     globalThis.localStorage.setItem(key, value);
@@ -44,10 +34,6 @@ function withLocalStorage(key, value, body) {
     }
 }
 
-/**
- * Capture console.debug calls during body. Restores the original at the end.
- * Returns the list of capture entries (each entry is the args array).
- */
 function captureConsoleDebug(body) {
     const captured = [];
     const original = console.debug;
@@ -176,5 +162,190 @@ describe("makeXxxLog factory", () => {
         expect(calls[1][0]).toBe("[rpc.b]");
         expect(calls[2][0]).toBe("[action.c]");
         expect(calls[3][0]).toBe("[model.d]");
+    });
+});
+
+/**
+ * Runs `body` with the structured sink armed and empty, then restores whatever
+ * the surrounding page had. The sink lives on globalThis, so leaking it would
+ * make one test's counts visible to the next.
+ */
+function withTraceSink(body) {
+    const globals = globalThis;
+    const priorFlag = globals.__odooTrace;
+    const priorCounts = globals.__odooTraceCounts_;
+    globals.__odooTrace = true;
+    globals.__odooTraceReset();
+    try {
+        return body();
+    } finally {
+        globals.__odooTrace = priorFlag;
+        globals.__odooTraceCounts_ = priorCounts;
+    }
+}
+
+describe("namespaces added for the JS-improvement campaign", () => {
+    test("component, service, view and field each expose enabled()", () => {
+        expect(typeof componentLog.enabled).toBe("function");
+        expect(typeof serviceLog.enabled).toBe("function");
+        expect(typeof viewLog.enabled).toBe("function");
+        expect(typeof fieldLog.enabled).toBe("function");
+    });
+
+    test("each is gated by its own localStorage flag and no other", () => {
+        withLocalStorage("debug.service", "1", () => {
+            expect(serviceLog.enabled()).toBe(true);
+            expect(componentLog.enabled()).toBe(false);
+            expect(viewLog.enabled()).toBe(false);
+            expect(fieldLog.enabled()).toBe(false);
+        });
+    });
+
+    test("emit under their own prefix", () => {
+        const calls = captureConsoleDebug(() => {
+            withLocalStorage("debug.view", "1", () => viewLog("load", "list"));
+            withLocalStorage("debug.field", "1", () => fieldLog("resolve", "char"));
+            withLocalStorage("debug.component", "1", () =>
+                makeComponentLog("mount")("WebClient"),
+            );
+            withLocalStorage("debug.service", "1", () =>
+                makeServiceLog("start")("orm"),
+            );
+        });
+        expect(calls.map((c) => c[0])).toEqual([
+            "[view.load]",
+            "[field.resolve]",
+            "[component.mount]",
+            "[service.start]",
+        ]);
+    });
+});
+
+describe("structured sink (__odooTrace)", () => {
+    test("off by default, so a normal page records nothing", () => {
+        const globals = globalThis;
+        const priorCounts = globals.__odooTraceCounts_;
+        globals.__odooTraceReset();
+        try {
+            rpcLog("request", "/x");
+            expect(globals.__odooTraceStats()).toEqual({});
+        } finally {
+            globals.__odooTraceCounts_ = priorCounts;
+        }
+    });
+
+    test("counts by <namespace>.<category> when armed", () => {
+        const stats = withTraceSink(() => {
+            rpcLog("request", "/a");
+            rpcLog("request", "/b");
+            rpcLog("ok", "/a");
+            viewLog("load", "form");
+            return globalThis.__odooTraceStats();
+        });
+        expect(stats).toEqual({
+            "rpc.request": 2,
+            "rpc.ok": 1,
+            "view.load": 1,
+        });
+    });
+
+    test("records independently of the console gate", () => {
+        const calls = captureConsoleDebug(() => {
+            const stats = withTraceSink(() => {
+                withLocalStorage("debug.model", "", () =>
+                    modelLog("load", "res.partner"),
+                );
+                return globalThis.__odooTraceStats();
+            });
+            expect(stats).toEqual({ "model.load": 1 });
+        });
+        expect(calls.length).toBe(0);
+    });
+
+    test("__odooTraceStats returns a copy, not the live sink", () => {
+        withTraceSink(() => {
+            rpcLog("request", "/a");
+            const first = globalThis.__odooTraceStats();
+            rpcLog("request", "/b");
+            expect(first["rpc.request"]).toBe(1);
+            expect(globalThis.__odooTraceStats()["rpc.request"]).toBe(2);
+        });
+    });
+
+    test("__odooTraceReset empties the sink", () => {
+        withTraceSink(() => {
+            rpcLog("request", "/a");
+            globalThis.__odooTraceReset();
+            expect(globalThis.__odooTraceStats()).toEqual({});
+        });
+    });
+
+    test("the make* factories record under the category they bind", () => {
+        const stats = withTraceSink(() => {
+            makeServiceLog("start")("orm");
+            makeComponentLog("mount")("WebClient");
+            return globalThis.__odooTraceStats();
+        });
+        expect(stats).toEqual({ "service.start": 1, "component.mount": 1 });
+    });
+});
+
+describe("active() — the guard a call site must use", () => {
+    test("false when nothing listens", () => {
+        withLocalStorage("debug.rpc", "", () => {
+            const globals = globalThis;
+            const prior = globals.__odooTrace;
+            globals.__odooTrace = false;
+            try {
+                expect(rpcLog.active()).toBe(false);
+            } finally {
+                globals.__odooTrace = prior;
+            }
+        });
+    });
+
+    test("true when only the console gate is on", () => {
+        const globals = globalThis;
+        const prior = globals.__odooTrace;
+        globals.__odooTrace = false;
+        try {
+            withLocalStorage("debug.rpc", "1", () => {
+                expect(rpcLog.active()).toBe(true);
+            });
+        } finally {
+            globals.__odooTrace = prior;
+        }
+    });
+
+    test("true when only the structured sink is armed", () => {
+        // The case enabled() cannot answer, and the reason active() exists: both
+        // rpc.js listeners guarded on enabled(), so rpc.* recorded nothing on a
+        // fully armed page boot until they moved to this predicate.
+        withLocalStorage("debug.rpc", "", () => {
+            const globals = globalThis;
+            const prior = globals.__odooTrace;
+            globals.__odooTrace = true;
+            try {
+                expect(rpcLog.enabled()).toBe(false);
+                expect(rpcLog.active()).toBe(true);
+            } finally {
+                globals.__odooTrace = prior;
+            }
+        });
+    });
+
+    test("every namespace exposes it", () => {
+        for (const log of [
+            assetLog,
+            rpcLog,
+            actionLog,
+            modelLog,
+            componentLog,
+            serviceLog,
+            viewLog,
+            fieldLog,
+        ]) {
+            expect(typeof log.active).toBe("function");
+        }
     });
 });

@@ -15,12 +15,6 @@ import {
 import { defineModels, mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { DomainSelector } from "@web/components/domain_selector/domain_selector";
 
-/**
- * Rows used to be keyed by `type + index`, i.e. by POSITION. Owl then reused
- * every element from a removed row onwards and re-rendered the following row's
- * data into it, so anything owl does not own — focus, caret, an open popover,
- * scroll — silently moved to a different row.
- */
 describe.current.tags("desktop");
 
 beforeEach(() => {
@@ -61,18 +55,14 @@ test("an externally shortened domain does not move the caret onto another row", 
     const inputs = queryAll(".o_tree_editor_condition input.o_input");
     expect(inputs.map((i) => i.value)).toEqual(["aaa", "bbb", "ccc"]);
 
-    // The user is editing the middle row.
     const middle = /** @type {HTMLInputElement} */ (inputs[1]);
     middle.focus();
     middle.setSelectionRange(1, 1);
 
-    // Its predecessor is removed from outside (a form onchange, the debug
-    // domain input, a sibling widget).
     Parent.last.state.domain = `["&", ("foo", "=", "bbb"), ("foo", "=", "ccc")]`;
     await animationFrame();
     await animationFrame();
 
-    // The element the caret sat in must not now be showing a different row.
     expect(middle.isConnected && middle.value !== "bbb").toBe(false, {
         message: `the focused input silently became "${middle.value}"`,
     });

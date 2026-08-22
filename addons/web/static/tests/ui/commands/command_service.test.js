@@ -1,7 +1,7 @@
 // @ts-check
 
 import { beforeEach, describe, expect, test } from "@odoo/hoot";
-import { keyDown, press, queryAllTexts } from "@odoo/hoot-dom";
+import { keyDown, press, queryAll, queryAllTexts, queryOne } from "@odoo/hoot-dom";
 import {
     advanceFrame,
     advanceTime,
@@ -19,6 +19,7 @@ import {
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
+import { getTabableElements } from "@web/core/utils/dom/ui";
 import { useCommand } from "@web/ui/commands/command_hook";
 import { HotkeyCommandItem } from "@web/ui/commands/default_providers";
 import { useActiveElement } from "@web/ui/ui_service";
@@ -682,6 +683,28 @@ test("namespaces display in the footer are still clickable", async () => {
     expect(".o_command_palette_search .o_namespace").toHaveText("@");
     expect(".o_command_palette_search input").toHaveValue("Com");
     expect(queryAllTexts(".o_command")).toEqual(["Command@"]);
+});
+
+test("the footer's namespace switches are controls, not click handlers on text", async () => {
+    commandProviderRegistry.add("@", {
+        namespace: "@",
+        provide: () => [{ name: "Command@", action: () => {} }],
+    });
+    commandSetupRegistry.add("@", { name: "users" });
+    await mountWithCleanup(TestComponent);
+    await press(["Control", "k"]);
+    await animationFrame();
+
+    const switches = queryAll(".o_command_palette_footer .o_namespace");
+    expect(switches.length).toBeGreaterThan(0);
+    for (const el of switches) {
+        // a click handler on a <span> is a control no keyboard reaches and no
+        // assistive technology names -- in the palette, of all places
+        expect(el.tagName).toBe("BUTTON");
+        expect(/** @type {HTMLButtonElement} */ (el).type).toBe("button");
+    }
+    // and it is inside the dialog's focus trap, so Tab can actually land on it
+    expect(getTabableElements(queryOne(".o_command_palette"))).toInclude(switches[0]);
 });
 
 test("defined multiple providers with the same namespace", async () => {

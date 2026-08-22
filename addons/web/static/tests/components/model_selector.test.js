@@ -248,8 +248,6 @@ test("model_selector: autofocus", async () => {
 });
 
 test("models arriving after mount are loaded", async () => {
-    // How documents' details panel and mail's activity selector use it: mount
-    // with an empty list, then fill it in from an rpc.
     class Parent extends Component {
         static components = { ModelSelector };
         static props = ["*"];
@@ -326,7 +324,6 @@ test("a superseded model load does not overwrite the newer one", async () => {
     parent.state.models = ["third.model"];
     await animationFrame();
 
-    // The third load lands first, then the second one it superseded.
     gates[2].resolve();
     await animationFrame();
     gates[1].resolve();

@@ -4,14 +4,8 @@ import { expect, test } from "@odoo/hoot";
 import { queryOne, queryRect } from "@odoo/hoot-dom";
 import { Component, useRef, xml } from "@odoo/owl";
 import { contains, mountWithCleanup } from "@web/../tests/web_test_helpers";
-import { useAutoresize } from "@web/core/utils/dom/autoresize";
+import { boxExtraWidth, useAutoresize } from "@web/core/utils/dom/autoresize";
 
-/**
- * The width an autoresized input settles on must come from the input's own
- * font. The measuring span is appended to the input's parent, so it inherited
- * *its* typography -- and an `<input>` does not inherit the page font to begin
- * with, so the two routinely differ.
- */
 class Sized extends Component {
     static template = xml`
         <div class="host" t-att-style="props.hostStyle">
@@ -24,8 +18,6 @@ class Sized extends Component {
 }
 
 /**
- * Width of ``el``'s value rendered with ``el``'s own font.
- *
  * @param {HTMLInputElement} el
  * @returns {number}
  */
@@ -35,10 +27,6 @@ function referenceTextWidth(el) {
     span.style.position = "absolute";
     span.style.visibility = "hidden";
     span.style.whiteSpace = "pre";
-    // Set longhands rather than the `font` shorthand: the shorthand cannot
-    // represent a non-normal `font-variant-numeric`, and a computed value that
-    // cannot be represented comes back as the empty string -- which would
-    // leave this reference span with no font at all.
     for (const property of [
         "font-family",
         "font-size",
@@ -69,7 +57,8 @@ async function assertMeasuredWithInputFont(hostStyle, inputStyle, text = "WWWWWW
     await contains(`.resizable`).edit(text);
     const input = /** @type {HTMLInputElement} */ (queryOne(`.resizable`));
     const expected = referenceTextWidth(input);
-    expect(Math.abs(queryRect(`.resizable`).width - expected)).toBeLessThan(2);
+    const measured = queryRect(`.resizable`).width - boxExtraWidth(input);
+    expect(Math.abs(measured - expected)).toBeLessThan(2);
 }
 
 test("a container with a much smaller font does not shrink the box", async () => {
@@ -94,11 +83,23 @@ test("letter-spacing on the input is accounted for", async () => {
 });
 
 test("a numeric variant the container lacks is accounted for", async () => {
-    // `font-variant-numeric` is not part of the `font` shorthand, and tabular
-    // figures do not have the same advance as proportional ones.
     await assertMeasuredWithInputFont(
         "font-family: monospace; font-size: 14px; width: 600px;",
         "font-family: serif; font-size: 14px; font-variant-numeric: tabular-nums;",
         "10.01 21.72 38.94",
     );
+});
+
+test("border-box padding and border do not clip the text", async () => {
+    await mountWithCleanup(Sized, {
+        props: {
+            hostStyle: "width: 600px;",
+            inputStyle:
+                "box-sizing: border-box; padding: 0 12px; border: 2px solid black;",
+        },
+    });
+    await contains(`.resizable`).edit("WWWWWWWWWW");
+    const input = /** @type {HTMLInputElement} */ (queryOne(`.resizable`));
+    const expected = referenceTextWidth(input) + boxExtraWidth(input);
+    expect(Math.abs(queryRect(`.resizable`).width - expected)).toBeLessThan(2);
 });

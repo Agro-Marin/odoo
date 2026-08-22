@@ -2628,9 +2628,6 @@ test("settings search does not highlight escaped characters when highlighting th
 });
 
 test("escaping the unsaved-settings dialog keeps the changes and stays put", async () => {
-    // Dismissal (escape / the header X) must behave like "Stay Here", not like
-    // the Discard button that ConfirmationDialog's dismiss->cancel fallback
-    // would otherwise reach.
     onRpc("has_group", () => true);
     defineActions([
         {
@@ -2681,6 +2678,5 @@ test("escaping the unsaved-settings dialog keeps the changes and stays put", asy
     expect(".o_field_boolean input").toBeChecked({
         message: "the unsaved change survives the dismissal",
     });
-    // neither execute (save) nor cancel (discard) was run
     expect.verifySteps([]);
 });

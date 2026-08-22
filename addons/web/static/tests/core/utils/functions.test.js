@@ -30,9 +30,6 @@ test("memoize", () => {
     expect(lastReceivedArgs).toEqual([1, 2, 3]);
     memoized(1, 2, 3);
     expect(callCount).toBe(3);
-    // Every argument takes part in the key. This used to key on args[0] only
-    // while still forwarding the rest, so this call returned the value
-    // computed for (1, 2, 3).
     memoized(1, 20, 30);
     expect(callCount).toBe(4);
     expect(lastReceivedArgs).toEqual([1, 20, 30]);
@@ -45,14 +42,12 @@ test("memoize keys on every argument, and arities do not collide", () => {
         return args.join("|");
     });
     const owner = {};
-    // The website_sale shape: one memoized factory per (interaction, uniqueId).
     expect(memoized(owner, "product-A")).toBe(`${owner}|product-A`);
     expect(memoized(owner, "product-B")).toBe(`${owner}|product-B`);
     expect(calls).toBe(2);
     expect(memoized(owner, "product-A")).toBe(`${owner}|product-A`);
     expect(calls).toBe(2);
 
-    // f(a) must not be served from, or poison, the f(a, b) branch.
     expect(memoized(owner)).toBe(String(owner));
     expect(calls).toBe(3);
     expect(memoized(owner, "product-A")).toBe(`${owner}|product-A`);
@@ -93,10 +88,6 @@ test("uniqueId", () => {
 });
 
 test("uniqueId counter is anchored on globalThis (cross-bundle)", () => {
-    // Reached through the shared `globalSingleton` namespace rather than a
-    // bespoke `__odoo_uid_state__` global. What the test pins is the INVARIANT
-    // — one counter per page, surviving a duplicated module evaluation — not
-    // the particular property name it happens to live under.
     const state = /** @type {any} */ (globalThis).__odoo_singletons__?.uniqueId;
     expect(state).not.toBe(undefined);
     const before = state.nextId;

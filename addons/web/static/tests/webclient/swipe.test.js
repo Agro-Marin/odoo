@@ -9,11 +9,6 @@ import {
 } from "@web/webclient/swipe";
 
 /**
- * The navbar sidebar and the mobile burger overlay share this tracker. They
- * dismiss on OPPOSITE directions, which is the only thing that ever differed
- * between their two hand-rolled copies — so direction and the pending-gesture
- * guard are what these tests pin.
- *
  * @param {number} clientX
  */
 function touchAt(clientX) {
@@ -59,10 +54,6 @@ test("travel one pixel short of the threshold does not", () => {
 });
 
 test("a gesture started at x=0 is a real gesture", () => {
-    // The regression this replaces: both previous copies guarded the pending
-    // gesture with `if (!this.swipeStartX)`, so a swipe begun at the very left
-    // edge of the screen — where an edge swipe starts — was discarded as
-    // "never started".
     const swipe = new SwipeTracker(SWIPE_RIGHT);
     swipe.start(touchAt(0));
     expect(swipe.end(touchAt(400))).toBe(true);

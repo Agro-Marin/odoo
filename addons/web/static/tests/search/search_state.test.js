@@ -1,11 +1,9 @@
 // @ts-check
 
-/**
- * Pure unit tests for search/search_state.js state export/import.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
+import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import {
+    isInvisible,
     itemsFromState,
     itemsToState,
     panelFromState,
@@ -19,12 +17,6 @@ import {
 describe.current.tags("headless");
 
 /**
- * Build a minimal exportable source with a grouped filter section.
- *
- * Typed as a record because tests add keys to it (`searchDomain`) that the
- * literal does not carry -- which is the point: the serialisers must round-trip
- * whatever the live model happens to hold.
- *
  * @returns {Record<string, any>}
  */
 function makeSource() {
@@ -112,10 +104,6 @@ describe("state export/import", () => {
 
         const target = importState(state);
 
-        // The import rebuilds `values`/`groups` into Maps as it walks. Sharing
-        // the value objects with the caller's state meant `load({ state })`
-        // corrupted it in place — only WithSearch hid this, by always passing a
-        // throwaway JSON.parse result.
         expect(state).toEqual(before);
         expect(Array.isArray(state.sections[0][1].values)).toBe(true);
 
@@ -133,6 +121,47 @@ describe("state export/import", () => {
         expect(roundTripped.query).toEqual(direct.query);
         expect(roundTripped.searchItems).toEqual(direct.searchItems);
         expect([...roundTripped.sections.keys()]).toEqual([...direct.sections.keys()]);
+    });
+});
+
+describe("isInvisible", () => {
+    test("an absent or falsy expression is not invisible", () => {
+        expect(isInvisible(undefined, {})).toBe(false);
+        expect(isInvisible("", {})).toBe(false);
+        expect(isInvisible("False", {})).toBe(false);
+        expect(isInvisible("0", {})).toBe(false);
+    });
+
+    test("a truthy expression is invisible, and the context is used", () => {
+        expect(isInvisible("True", {})).toBe(true);
+        expect(isInvisible("uid == 2", { uid: 2 })).toBe(true);
+        expect(isInvisible("uid == 2", { uid: 7 })).toBe(false);
+    });
+
+    test("a malformed expression shows the item and names itself", () => {
+        /** @type {string[]} */
+        const warnings = [];
+        patchWithCleanup(console, {
+            warn: (/** @type {string} */ msg) => warnings.push(msg),
+        });
+
+        expect(isInvisible("uid ==", {})).toBe(false);
+
+        expect(warnings.length).toBe(1);
+        expect(warnings[0]).toInclude("uid ==");
+    });
+
+    test("an unknown name in the context is malformed too, not silently false", () => {
+        /** @type {string[]} */
+        const warnings = [];
+        patchWithCleanup(console, {
+            warn: (/** @type {string} */ msg) => warnings.push(msg),
+        });
+
+        expect(isInvisible("nope", {})).toBe(false);
+
+        expect(warnings.length).toBe(1);
+        expect(warnings[0]).toInclude("nope");
     });
 });
 
@@ -159,6 +188,121 @@ describe("panel concern", () => {
         const target = {};
         panelFromState(exported, target);
         expect("searchDomain" in target).toBe(false);
+    });
+
+    test("a state with no searchPanelInfo restores without throwing", () => {
+        /** @type {Record<string, any>} */
+        const target = {};
+        panelFromState({ sections: [] }, target);
+        expect(target.searchPanelInfo).toBe(undefined);
+    });
+
+    test("searchPanelInfo is normalised, not structurally cloned", () => {
+        const source = makeSource();
+        source.searchPanelInfo = {
+            className: "",
+            stamp: new Date("2026-01-01T00:00:00Z"),
+            lookup: new Map([["a", 1]]),
+        };
+
+        const exported = /** @type {Record<string, any>} */ (panelToState(source));
+        expect(typeof exported.searchPanelInfo.stamp).toBe("string");
+        expect(exported.searchPanelInfo.lookup).toEqual({});
+    });
+});
+
+describe("grouped sections carry value ids, not the values again", () => {
+    test("a group exports ids and the values appear once", () => {
+        const source = makeSource();
+        const exported = /** @type {Record<string, any>} */ (panelToState(source));
+        const [, section] = exported.sections[0];
+        const [, group] = section.groups[0];
+
+        expect(group.valueIds).toEqual([10]);
+        expect("values" in group).toBe(false, {
+            message: "the value objects are not written a second time",
+        });
+        expect(section.values.map((/** @type {any[]} */ [id]) => id)).toEqual([10]);
+    });
+
+    test("restoring rebuilds the group values as the SAME objects", () => {
+        const source = makeSource();
+        const wire = JSON.parse(JSON.stringify(panelToState(source)));
+        /** @type {Record<string, any>} */
+        const target = {};
+        panelFromState(wire, target);
+
+        const section = target.sections.get(1);
+        const group = section.groups.get("g1");
+        expect(group.values.get(10)).toBe(section.values.get(10));
+
+        section.values.get(10).checked = true;
+        expect(group.values.get(10).checked).toBe(true);
+    });
+
+    test("a version-2 state, which carried the values, still restores", () => {
+        /** @type {any} */
+        const legacy = {
+            searchPanelInfo: { loaded: true },
+            sections: [
+                [
+                    1,
+                    {
+                        id: 1,
+                        type: "filter",
+                        values: [
+                            [10, { id: 10, checked: false, display_name: "Tag A" }],
+                        ],
+                        groups: [
+                            [
+                                "g1",
+                                {
+                                    id: "g1",
+                                    name: "Group",
+                                    values: [
+                                        [
+                                            10,
+                                            {
+                                                id: 10,
+                                                checked: false,
+                                                display_name: "Tag A",
+                                            },
+                                        ],
+                                    ],
+                                },
+                            ],
+                        ],
+                    },
+                ],
+            ],
+        };
+        /** @type {Record<string, any>} */
+        const target = {};
+        panelFromState(legacy, target);
+
+        const section = target.sections.get(1);
+        const group = section.groups.get("g1");
+        expect([...group.values.keys()]).toEqual([10]);
+        expect(group.values.get(10)).toBe(section.values.get(10), {
+            message: "and the aliasing is established even from the old shape",
+        });
+    });
+
+    test("the wire is shorter for it", () => {
+        const source = makeSource();
+        const exported = panelToState(source);
+        const wire = JSON.stringify(exported);
+        const withDuplicates = JSON.parse(JSON.stringify(exported));
+        for (const [, section] of withDuplicates.sections) {
+            for (const [, group] of section.groups) {
+                group.values = group.valueIds.map((/** @type {any} */ id) => [
+                    id,
+                    section.values.find((/** @type {any[]} */ [vid]) => vid === id)[1],
+                ]);
+                delete group.valueIds;
+            }
+        }
+        expect(wire.length).toBeLessThan(JSON.stringify(withDuplicates).length);
     });
 });
 
@@ -222,7 +366,6 @@ describe("properties concern", () => {
         );
         expect(target.searchViewFields["properties.my_char"]).toBe(live);
 
-        // Legacy state: no propertySearchViewFields key at all.
         propertiesFromState({}, target);
         expect(target.searchViewFields["properties.my_char"]).toBe(live);
     });

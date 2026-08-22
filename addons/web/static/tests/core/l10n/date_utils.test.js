@@ -10,18 +10,6 @@ const { DateTime } = luxon;
 describe.current.tags("headless");
 
 /**
- * Run `fn` with `localization.weekStart` set, restoring it afterwards.
- *
- * `localization` is a Proxy whose `get` trap THROWS for any key the
- * localization service has not populated yet, so the previous value must be
- * probed with `Object.hasOwn` before it can be read — the trap fires on a plain
- * read, and only `get` is trapped, which is why `hasOwn`/`delete` are safe.
- *
- * Deliberately not `patchWithCleanup`: this file needs exactly one scalar
- * swapped, and that helper drags in `web_test_helpers`' whole mock-server import
- * graph. Restoring in `finally` also keeps each loop iteration below
- * independent, which an end-of-test cleanup would not.
- *
  * @param {number} weekStart
  * @param {() => void} fn
  */
@@ -40,18 +28,12 @@ function withWeekStart(weekStart, fn) {
     }
 }
 
-// `getLocalYearAndWeek` renders the calendar views' week column and web_gantt's
-// week label, and had no test at all -- including none for the one property that
-// makes its `weekStart > 1 && weekStart < 5` branch checkable.
 describe("getLocalYearAndWeek", () => {
     test("weekStart=1 reproduces ISO-8601 numbering, 2015-2030", () => {
         let checked = 0;
         const mismatches = [];
         withWeekStart(1, () => {
             for (let year = 2015; year <= 2030; year++) {
-                // Only the days where ISO numbering is interesting: the year
-                // boundaries (where the week-year diverges from the calendar year)
-                // and one mid-year sample per month.
                 const days = [
                     ...[0, 1, 2, 3, 4, 5, 6].map((d) =>
                         DateTime.local(year, 1, 1).plus({ days: d }),
@@ -87,7 +69,6 @@ describe("getLocalYearAndWeek", () => {
                     expect(startDate.weekday).toBe(weekStart, {
                         message: `weekStart=${weekStart}, date=${date.toISODate()}`,
                     });
-                    // The week start is at or before the date, within 6 days of it.
                     const back = date.diff(startDate, "days").days;
                     expect(back >= 0 && back < 7).toBe(true, {
                         message: `weekStart=${weekStart}, date=${date.toISODate()}, startDate=${startDate.toISODate()}`,
@@ -98,11 +79,6 @@ describe("getLocalYearAndWeek", () => {
     });
 
     test("the number follows the ISO week the local week most overlaps", () => {
-        // 2026-07-29 is a Wednesday. Every weekStart puts it in ISO week 31
-        // except Thursday, whose local week (Jul 23-29) shares only 4 days with
-        // week 31 and is therefore numbered 30 -- the tie broken toward the
-        // earlier week. This is the single assertion that pins the
-        // `weekStart > 1 && weekStart < 5` branch.
         const byWeekStart = {};
         for (const weekStart of [1, 2, 3, 4, 5, 6, 7]) {
             withWeekStart(weekStart, () => {
@@ -123,8 +99,6 @@ describe("getLocalYearAndWeek", () => {
     });
 
     test("year rolls over with the week, not with the calendar", () => {
-        // 2025-12-29 is a Monday: ISO week 1 of 2026 already. A Tuesday-start
-        // locale still has it in the previous week, a Friday-start one does not.
         const seen = {};
         for (const weekStart of [1, 2, 5, 7]) {
             withWeekStart(weekStart, () => {

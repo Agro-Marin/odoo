@@ -1,10 +1,5 @@
 // @ts-check
 
-/**
- * Pure unit tests for resequence(): mock ORM, no OWL/DOM/server. Verifies
- * in-place reordering, the webResequence payload, and rollback on error.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import {
     computeResequencePlan,
@@ -12,7 +7,6 @@ import {
 } from "@web/model/relational_model/resequence";
 
 /**
- * Create a simple mock ORM that records the last webResequence call.
  * @param {{ reject?: boolean }} [opts]
  */
 function makeMockOrm({ reject = false } = {}) {
@@ -32,7 +26,6 @@ function makeMockOrm({ reject = false } = {}) {
     };
 }
 
-/** Create an array of records with a sequence field. */
 function makeRecords(specs) {
     return specs.map(([id, sequence]) => ({ id, sequence }));
 }

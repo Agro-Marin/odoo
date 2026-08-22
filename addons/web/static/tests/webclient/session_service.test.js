@@ -90,10 +90,6 @@ test("Only call once lazy session info data on action", async () => {
             });
         }
     }
-    // `force`: `__test__client__action__` is the shared tag
-    // `useTestClientAction` claims at module scope, so it is already in the
-    // registry baseline; replacing it with this test's own component is a
-    // deliberate override, not a first registration.
     actionRegistry.add("__test__client__action__", TestClientAction, {
         force: true,
     });
@@ -161,10 +157,6 @@ test("Call lazy session info after webclient init with action and service", asyn
             });
         }
     }
-    // `force`: `__test__client__action__` is the shared tag
-    // `useTestClientAction` claims at module scope, so it is already in the
-    // registry baseline; replacing it with this test's own component is a
-    // deliberate override, not a first registration.
     actionRegistry.add("__test__client__action__", TestClientAction, {
         force: true,
     });

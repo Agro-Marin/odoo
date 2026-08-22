@@ -1,22 +1,5 @@
 // @ts-check
 
-/**
- * ``count`` is the x2many pager total. It used to be a stored field that every
- * mutator kept in step with ``_currentIds`` by hand -- ``_addRecord``,
- * ``_commitSave``, ``_discard``, ``_replaceWith``, ``_load``,
- * ``removeMember`` and three sites in the command engine -- and a run of the
- * whole web model + view suites with an assertion wired into the getter found
- * exactly one production path where the two disagreed: ``_addRecord`` under an
- * ``orderBy`` reaches ``_load`` through ``sort()`` with the new id already in
- * ``nextCurrentIds`` but ``count`` not yet incremented. That window was
- * synchronous, so nothing could observe it -- it was one ``await`` away from a
- * wrong pager total, not a live bug.
- *
- * Deriving ``count`` removes the question: there is no second copy to drift.
- * These tests pin the derivation itself, so a future "optimisation" that
- * reintroduces a stored counter has to break them first.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { ListMembership } from "@web/model/relational_model/list_membership";
 
@@ -48,7 +31,6 @@ describe("ListMembership.count is derived, not stored", () => {
         expect(membership.count).toBe(2);
         expect(membership.records).toEqual([]);
 
-        // An id that is not a member must not shift the total.
         expect(membership.removeMember(99)).toBe(false);
         expect(membership.count).toBe(2);
     });

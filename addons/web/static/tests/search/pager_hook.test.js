@@ -142,10 +142,6 @@ test("pager is correctly updated on desktop", async () => {
 });
 
 test("a key the previous render set and this one omits does not survive", async () => {
-    // `Object.assign` alone left the stale key in the reactive state, and the
-    // ControlPanel spreads the whole object into `<Pager t-props=.../>`.
-    // Callers were papering over this by hand (list_controller still writes
-    // `updateTotal: <cond> ? fn : undefined` so the key gets overwritten).
     let withUpdateTotal = true;
     let pagerProps;
 

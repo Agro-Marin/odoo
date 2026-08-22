@@ -39,17 +39,15 @@ import { hasTouch } from "@web/core/browser/feature_detection";
  * @typedef {import("@odoo/hoot").Position} Position
  * @typedef {import("@odoo/hoot").QueryOptions} QueryOptions
  * @typedef {import("@odoo/hoot").Target} Target
- *
  * @typedef {DragOptions & {
- *  initialPointerMoveDistance?: number;
- *  pointerDownDuration?: number;
+ * initialPointerMoveDistance?: number;
+ * pointerDownDuration?: number;
  * }} DragAndDropOptions
- *
  * @typedef {{
- *  altKey?: boolean;
- *  ctrlKey?: boolean;
- *  metaKey?: boolean;
- *  shiftKey?: boolean;
+ * altKey?: boolean;
+ * ctrlKey?: boolean;
+ * metaKey?: boolean;
+ * shiftKey?: boolean;
  * }} KeyModifierOptions
  */
 
@@ -111,14 +109,6 @@ const dragForTolerance = async (node, distance) => {
 };
 
 /**
- * Dispatches one file drag event carrying `files` in its `DataTransfer`.
- *
- * A file drag coming from outside the browser has no in-page source element, so
- * it cannot be modelled with `drag()`: that starts from a pointerdown and only
- * emits `dragenter` when the pointer moves onto a *different* element. Consumers
- * key off the DataTransfer (`useDropzone` checks `dataTransfer.types`), so the
- * bare event is both sufficient and closer to what the browser does.
- *
  * @param {Node} node
  * @param {"dragenter" | "dragover" | "dragleave" | "drop"} type
  * @param {File[]} files
@@ -133,10 +123,6 @@ const dispatchFileDragEvent = async (node, type, files) => {
 
 /**
  * @param {number} [delay]
- * These params are used to move the pointer from an arbitrary distance in the
- * element to trigger a drag sequence (the distance required to trigger a drag
- * is defined by the `tolerance` option in the draggable hook builder).
- * @see {draggable_hook_builder.js}
  */
 const waitForTouchDelay = async (delay) => {
     if (hasTouch()) {
@@ -151,10 +137,6 @@ const unconsumedContains = [];
 
 afterEach(
     async () => {
-        // Both globals are reset BEFORE anything that can throw: this hook runs
-        // after every test, so a cancel that fails must not leave state behind —
-        // otherwise the next test fails in this same cleanup, and so does every
-        // test after it, burying the one real failure under a suite-wide cascade.
         const cancelDragSequence = cancelCurrentDragSequence;
         cancelCurrentDragSequence = null;
         const targets = unconsumedContains.splice(0).map(String).join(", ");
@@ -264,10 +246,6 @@ export function contains(target, options) {
 
             await cancelCurrentDragSequence?.();
 
-            // Published only once the sequence exists: ``cancelWithDelay`` closes
-            // over ``cancel`` from the destructuring below, so installing it first
-            // meant a ``drag()`` that threw (a target that never appeared) left a
-            // hook whose ``cancel`` is still in the temporal dead zone.
             const { cancel, drop, moveTo } = await drag(nodePromise, options);
             cancelCurrentDragSequence = cancelWithDelay;
             const helpersWithDelay = {
@@ -309,9 +287,6 @@ export function contains(target, options) {
             await advanceFrame();
         },
         /**
-         * Drags `files` onto the element, as a drag entering the page from
-         * outside the browser does.
-         *
          * @param {File[]} files
          */
         dragEnterFiles: async (files) => {
@@ -320,8 +295,6 @@ export function contains(target, options) {
             await animationFrame();
         },
         /**
-         * Drops `files` onto the element.
-         *
          * @param {File[]} files
          */
         dropFiles: async (files) => {
@@ -465,10 +438,6 @@ export async function editAce(value) {
 }
 
 /**
- * Dragging helpers that account for the drag anchor being the top of the
- * dragged element (not the cursor), and for the first move swapping in a
- * shorter placeholder. Moves use a fixed x to avoid horizontal drift.
- *
  * @param {Target} from
  * @param {DragAndDropOptions} [options]
  */

@@ -121,10 +121,6 @@ class TestBaseDocumentLayoutHelpers(TransactionCase):
 @tagged("document_layout", "post_install", "-at_install", "web_unit", "web_layout")
 class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
     def test_company_no_color_change_logo(self):
-        """When neither a logo nor the colors are set
-        The wizard displays the colors of the report layout
-        Changing logo means the colors on the wizard change too
-        Emptying the logo works and doesn't change the colors"""
         self.company.write(
             {
                 "primary_color": False,
@@ -147,8 +143,6 @@ class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
             self.assertEqual(doc_layout.logo, "")
 
     def test_company_no_color_but_logo_change_logo(self):
-        """When company colors are not set, but a logo is,
-        the wizard displays the computed colors from the logo"""
         self.company.write(
             {
                 "primary_color": "#ff0080",
@@ -164,7 +158,6 @@ class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
             self.assertColors(doc_layout, self.company_imgs["odoo"]["colors"])
 
     def test_company_colors_change_logo(self):
-        """Changing the logo updates the displayed colors to the newly computed ones."""
         self.company.write(
             {
                 "primary_color": "#ff0080",
@@ -180,9 +173,6 @@ class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
             self.assertColors(doc_layout, self.company_imgs["odoo"]["colors"])
 
     def test_company_colors_and_logo_change_logo(self):
-        """The colors of the company may differ from the one the logo computes
-        Opening the wizard in these condition displays the company's colors
-        When the logo changes, colors must change according to the logo"""
         self.company.write(
             {
                 "primary_color": "#ff0080",
@@ -198,8 +188,6 @@ class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
             self.assertColors(doc_layout, self.company_imgs["odoo"]["colors"])
 
     def test_company_colors_reset_colors(self):
-        """Reset the colors when they differ from the ones originally
-        computed from the company logo"""
         self.company.write(
             {
                 "primary_color": "#ff0080",
@@ -216,7 +204,6 @@ class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
             self.assertColors(doc_layout, self.company_imgs["sweden"]["colors"])
 
     def test_parse_company_colors_grayscale(self):
-        """Grayscale images with transparency must not crash color extraction."""
         self.company.write(
             {
                 "primary_color": "#ff0080",
@@ -230,10 +217,7 @@ class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
                 doc_layout.logo = base64_img
             self.assertNotEqual(None, doc_layout.primary_color)
 
-
     def test_company_details_blank_lines(self):
-        """Test that the company address is generated dynamically using only the fields that are defined,
-        without leaving any blank lines."""
         doc_layout_1 = self.env["base.document.layout"].create(
             {"company_id": self.company.id}
         )
@@ -246,12 +230,6 @@ class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
         self.assertIn("street_2_detail", doc_layout_2.company_details)
 
     def test_clean_address_format_removes_trailing_placeholder(self):
-        """A missing-field placeholder at end of format string (no trailing newline) must be removed.
-
-        Before fix: only ``%(key)s\\n`` was replaced, leaving a bare
-        ``%(key)s`` at end-of-string which Python's ``%`` operator rendered
-        as the literal string ``'False'``.
-        """
         doc_layout = self.env["base.document.layout"]
         company_data = {"street": "123 Main St", "city": "Springfield", "zip": False}
 
@@ -267,7 +245,6 @@ class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
         )
 
     def test_clean_address_format_removes_mid_format_placeholder(self):
-        """A missing-field placeholder in the middle of a format string (with trailing newline) must be removed."""
         doc_layout = self.env["base.document.layout"]
         company_data = {"city": "Springfield", "state_id": False, "zip": "12345"}
 
@@ -280,8 +257,6 @@ class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
         self.assertIn("12345", result % {k: (v or "") for k, v in company_data.items()})
 
     def test_extract_colors_tolerates_non_text_logo(self):
-        """A non str/bytes logo (e.g. memoryview) must degrade to (False, False)
-        rather than crashing in the base64 padding that runs before the try."""
         layout = self.env["base.document.layout"]
         self.assertEqual(
             layout.extract_image_primary_secondary_colors(memoryview(b"abc")),

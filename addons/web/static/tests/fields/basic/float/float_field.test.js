@@ -498,10 +498,6 @@ test("type number renders 0 as a raw number, not a locale-formatted string", asy
 });
 
 test("float set to false by an onchange renders empty, not the string 'false'", async () => {
-    // The ORM's "no value" sentinel is `false`, and no float deserializer
-    // coerces it (see @web/model/relational_model/field_values). With
-    // formatting disabled the value reaches `input.value` verbatim, where a
-    // raw `false` would stringify to "false".
     Partner._onChanges = {
         float_field: (record) => {
             record.float_field = false;

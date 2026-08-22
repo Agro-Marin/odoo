@@ -136,9 +136,7 @@ class TestProfilingPublic(ProfilingHttpCase):
             "profiling route shouldn't have been profiled",
         )
 
-        res = self.url_open(
-            "/web/login"
-        )
+        res = self.url_open("/web/login")
         new_profile = self.env["ir.profile"].search([], limit=1, order="id desc")
         self.assertNotEqual(
             last_profile, new_profile, "A route should have been profiled"

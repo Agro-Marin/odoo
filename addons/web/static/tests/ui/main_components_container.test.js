@@ -176,8 +176,6 @@ test("Should be possible to add a new component when MainComponentContainer is n
             });
         },
     });
-    // Not awaited yet: the container stays blocked in onWillStart until
-    // `defer` resolves, which is the "not mounted yet" state under test.
     const mounted = mountWithCleanup(MainComponentsContainer);
     class MyMainComponent extends Component {
         static template = xml`<div class="myMainComponent" />`;
@@ -191,9 +189,6 @@ test("Should be possible to add a new component when MainComponentContainer is n
 });
 
 test("an error from an entry no longer in the snapshot removes nothing", async () => {
-    // `splice(-1, 1)` reads "one from the end", so an `indexOf` miss took an
-    // unrelated main component down with it -- the notification or overlay
-    // container, silently and with no second error to explain it.
     expect.errors(1);
 
     class MainComponentA extends Component {
@@ -216,7 +211,6 @@ test("an error from an entry no longer in the snapshot removes nothing", async (
     await animationFrame();
 
     expect(container.Components.entries.map((e) => e[0])).toEqual(before);
-    // The error still surfaces: swallowing it would be the worse bug.
     expect.verifyErrors(["BOOM"]);
 });
 

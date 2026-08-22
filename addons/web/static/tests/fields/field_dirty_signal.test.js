@@ -1,18 +1,5 @@
 // @ts-check
 
-/**
- * Unit tests for the FIELD_IS_DIRTY payload fold.
- *
- * Every emitter owns its dirty mark through its own symbol
- * (`useFieldDirtySignal`). The legacy raw-boolean form aliased all such
- * emitters onto ONE shared owner: two legacy fields on a form clobbered each
- * other's dirty state, and one destroyed while dirty wedged the owner set
- * forever. That aliasing is removed — a non-payload detail throws in debug
- * mode and is warn-ignored in production.
- *
- * Module under test: fields/field_dirty_signal.js
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { applyFieldDirtyPayload } from "@web/fields/field_dirty_signal";
@@ -67,8 +54,6 @@ describe("legacy raw-boolean details", () => {
         const originalWarn = console.warn;
         console.warn = (...args) => warnings.push(args.join(" "));
         try {
-            // Neither a legacy `true` nor a legacy `false` may touch the set:
-            // the old aliasing let this `false` clear another field's mark.
             applyFieldDirtyPayload(owners, true);
             applyFieldDirtyPayload(owners, false);
         } finally {

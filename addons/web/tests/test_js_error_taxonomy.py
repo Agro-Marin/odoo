@@ -8,27 +8,12 @@ from ..controllers.observability import _JS_ERROR_KINDS, _JS_ERROR_PHASES
 
 @tagged("post_install", "-at_install", "web_js_error")
 class TestJsErrorTaxonomy(TransactionCase):
-    """The js_error beacon emitters and the server whitelist must agree.
-
-    ``/web/observability/js_error`` coerces any ``kind`` / ``phase`` it does not
-    recognise to ``"error"`` / ``"unknown"``. That is exactly how an
-    ``asset_load_error`` (an auto-reloaded bundle failure) and a
-    ``boot_mount_failed`` (a blank-page boot failure) were being logged as plain
-    errors -- the two most operationally interesting events, unlabelled. Scan
-    the files that build a beacon payload directly and assert every kind and
-    phase they emit is in the server's taxonomy, so a new one fails here instead
-    of degrading silently in production.
-    """
-
     def test_emitted_kinds_and_phases_are_whitelisted(self):
         src = Path(__file__).resolve().parents[1] / "static" / "src"
         emitters = [
             src / "module_loader.js",
             src / "core" / "errors" / "error_beacon.js",
             src / "core" / "errors" / "boot_failure_overlay.js",
-            # Reports services that threw in `start()` as `service_start`; it
-            # builds the payload itself rather than going through one of the
-            # three above, so leaving it out left the gate blind to it.
             src / "env.js",
         ]
         kinds, phases = set(), set()
@@ -38,7 +23,6 @@ class TestJsErrorTaxonomy(TransactionCase):
             for expr in re.findall(r"phase:\s*([^\n]*)", text):
                 phases.update(re.findall(r'"([a-z_]+)"', expr))
 
-        # Vacuity guard: a scan that matched nothing must fail, not pass.
         self.assertTrue(kinds, "no kind emitters found -- the scan reached nothing")
         self.assertTrue(phases, "no phase emitters found -- the scan reached nothing")
 

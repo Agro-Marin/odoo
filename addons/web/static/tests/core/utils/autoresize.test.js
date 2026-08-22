@@ -117,9 +117,6 @@ function makeStyledTextArea(inlineCss = "") {
     return { host, ta };
 }
 
-// The save/restore around the measurement used to read *computed* values and
-// write them back as inline style, so a single resize stamped the stylesheet's
-// padding and border onto the element, where they outrank every later rule.
 test("resizeTextArea leaves no inline padding/border of its own", () => {
     const { host, ta } = makeStyledTextArea();
     resizeTextArea(ta);

@@ -321,10 +321,6 @@ test("BadgeSelectionField widget in list without the color_field option", async 
 });
 
 test("the list badge's color_field is loaded without the view naming it", async () => {
-    // `badgeColorClass` reads the colour out of `record.data`. Without a
-    // declared dependency the field was absent from the read, so the badge fell
-    // back to the plain style and the option silently did nothing unless the
-    // arch also carried a `<field name="..." column_invisible="1"/>` for it.
     onRpc("web_search_read", ({ kwargs }) => {
         expect(Object.keys(kwargs.specification)).toInclude("product_color_id");
     });

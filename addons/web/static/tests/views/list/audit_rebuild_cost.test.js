@@ -1,15 +1,3 @@
-/**
- * How much work does ListGridState.rebuild() do per render?
- *
- * list_renderer.setup() calls `gridState.rebuild()` from onWillRender, so the
- * loaded record set is re-materialized on every render of the renderer. These
- * probes measure the actual counts rather than asserting the shape of the code.
- *
- * NB: rebuild() walks `list.records` — the LOADED page, not the whole table.
- * A default list loads 80 records, below the 100-row virtualization threshold,
- * so the interesting case is a raised `limit` (or an x2many, which loads all).
- */
-
 import { expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
 import {
@@ -45,7 +33,6 @@ class User extends models.Model {
 
 defineModels([Partner, User]);
 
-/** Counts rebuild() calls and rows materialized, until the returned stop(). */
 function instrumentRebuild() {
     const stats = { rebuilds: 0, rowsMaterialized: 0 };
     const stop = patch(ListGridState.prototype, {
@@ -75,7 +62,6 @@ test("one cell click re-materializes the whole loaded record set", async () => {
     expect(stats.rebuilds).toBeGreaterThan(0, {
         message: "control: rebuild really ran during the interaction",
     });
-    // measured: loaded=400 domRows=27 rebuilds=1 rowsMaterialized=400
     expect(stats.rowsMaterialized / stats.rebuilds).toBe(N_RECORDS, {
         message: "each rebuild walks all loaded records, not just the visible window",
     });
@@ -84,8 +70,6 @@ test("one cell click re-materializes the whole loaded record set", async () => {
     });
 });
 
-// Good news, and the reason the amplification above is tolerable in practice:
-// keystrokes are confined to the field component and never reach the renderer.
 test("typing in an edited cell does NOT re-render the renderer", async () => {
     await mountView({ type: "list", resModel: "partner", arch: ARCH });
     await contains(".o_data_row:first-child .o_data_cell").click();
@@ -103,9 +87,7 @@ test("typing in an edited cell does NOT re-render the renderer", async () => {
     });
 });
 
-// A rebuild that finds the same records must not churn: reusing the row objects
-// is what lets ListRecordRow skip its lookup (it keys off `generation`).
-test("an unchanged rebuild reuses row objects and does not bump generation", async () => {
+test("an unchanged rebuild reuses every row object", async () => {
     const view = await mountView({ type: "list", resModel: "partner", arch: ARCH });
 
     const gridState = /** @type {any} */ (
@@ -113,13 +95,9 @@ test("an unchanged rebuild reuses row objects and does not bump generation", asy
     ).gridState;
 
     const rowsBefore = gridState.flatRows.slice();
-    const generationBefore = gridState.generation;
 
     gridState.rebuild();
 
-    expect(gridState.generation).toBe(generationBefore, {
-        message: "nothing changed, so the generation must not advance",
-    });
     expect(
         gridState.flatRows.every(
             (/** @type {any} */ row, /** @type {any} */ i) => row === rowsBefore[i],

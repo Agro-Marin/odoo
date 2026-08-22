@@ -1,14 +1,5 @@
 // @ts-check
 
-/**
- * `groupBy`/`sortBy` take a criterion that is a property NAME or a function;
- * anything else is a programming error and is rejected loudly (see the
- * "parameter validation" tests in utils/arrays.test.js).
- *
- * Absence of a criterion used to be detected by testing it for TRUTHINESS,
- * which conflated "no criterion" with two values a caller can really pass.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { groupBy, sortBy } from "@web/core/utils/collections/arrays";
 
@@ -18,13 +9,10 @@ describe("the empty-string key is a key", () => {
     const rows = [{ "": "z" }, { "": "y" }];
 
     test("sortBy sorts by it instead of silently no-op'ing", () => {
-        // Was a stable no-op: the identity extractor compared the OBJECTS,
-        // which are neither greater nor less than each other.
         expect(sortBy(rows, "").map((r) => r[""])).toEqual(["y", "z"]);
     });
 
     test("groupBy groups by it instead of one merged bucket", () => {
-        // Was a single "[object Object]" bucket holding every row.
         expect(Object.keys(groupBy(rows, "")).sort()).toEqual(["y", "z"]);
     });
 });

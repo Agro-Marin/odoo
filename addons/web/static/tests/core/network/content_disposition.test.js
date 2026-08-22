@@ -5,13 +5,6 @@ import { parse } from "@web/core/network/content_disposition";
 
 describe.current.tags("headless");
 
-/**
- * `download.js` reads every downloaded file's name out of this parser, so it
- * runs on a header the client does not control. It had no test of its own and
- * `download.test.js` never mentions Content-Disposition; the expectations below
- * are the values the parser actually produces, checked against RFC 6266.
- */
-
 describe("the disposition type", () => {
     test("is lower-cased and separated from its parameters", () => {
         expect(parse("inline").type).toBe("inline");
@@ -76,8 +69,6 @@ describe("RFC 5987 extended values", () => {
     });
 
     test("filename* wins over filename whichever comes first", () => {
-        // RFC 6266 §4.3: the extended form takes precedence, and the order it
-        // appears in must not decide the outcome.
         const extendedFirst =
             "attachment; filename*=UTF-8''r%C3%A9sum%C3%A9.pdf; filename=\"resume.pdf\"";
         const plainFirst =

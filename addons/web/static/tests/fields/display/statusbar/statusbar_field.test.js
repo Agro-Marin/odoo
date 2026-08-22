@@ -1111,7 +1111,7 @@ test('"status" with no stages does not crash command palette', async () => {
         arch: `
             <form>
                 <header>
-                    <field name="status" widget="statusbar" options="{'withCommand': true, 'clickable': true}"/>
+                    <field name="status" widget="statusbar" options="{'clickable': true}"/>
                 </header>
             </form>
         `,
@@ -1330,10 +1330,6 @@ test("[adjust] statusbar with a lot of stages, click to change stage", async () 
 
 test.tags("desktop");
 test("statusbar: overflow measurement is not re-taken per hidden item", async () => {
-    // The wrap loop hides one item per iteration and re-measures. It used to
-    // take two forced layouts per step -- the root plus a single row's height,
-    // which cannot change while the pass runs. Only the root reading is
-    // per-step now; the visible outcome must be identical.
     /** @type {[value: string | number, label: string][]} */
     const selection = [];
     for (let i = 0; i < 40; i++) {
@@ -1346,8 +1342,6 @@ test("statusbar: overflow measurement is not re-taken per hidden item", async ()
     let rects = 0;
     Element.prototype.getBoundingClientRect = function () {
         rects++;
-        // getBoundingClientRect takes no arguments; forwarding a rest array
-        // typed it as `any[]` against a zero-arity signature.
         return original.call(this);
     };
     try {
@@ -1374,9 +1368,6 @@ test("statusbar: overflow measurement is not re-taken per hidden item", async ()
 
 test.tags("desktop");
 test("statusbar: an unrelated field edit does not re-run the overflow pass", async () => {
-    // Any render used to schedule a full adjust pass, and a pass hides items
-    // one at a time with a forced layout per step -- so typing in a sibling
-    // field on the same form paid for the whole thing.
     let adjusts = 0;
     patch(StatusBarField.prototype, {
         adjustVisibleItems() {
@@ -1397,7 +1388,6 @@ test("statusbar: an unrelated field edit does not re-run the overflow pass", asy
     });
     await animationFrame();
 
-    // one warm-up pass once the form has settled at its final width
     await contains(".o_field_widget[name=foo] input").edit("a", { confirm: "blur" });
     await animationFrame();
     const settled = adjusts;
@@ -1410,7 +1400,6 @@ test("statusbar: an unrelated field edit does not re-run the overflow pass", asy
         message: "editing sibling fields must not re-measure the statusbar",
     });
 
-    // ...but the bar's own value still does
     await contains(".o_statusbar_status button:contains(Black)").click();
     await animationFrame();
     expect(adjusts).toBeGreaterThan(settled, {

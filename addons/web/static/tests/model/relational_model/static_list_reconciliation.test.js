@@ -1,14 +1,5 @@
 // @ts-check
 
-/**
- * Pure unit tests for StaticList's virtualId -> resId reconciliation
- * (snapshotCreateReconciliation / resolveCreatedResId), the model-owned
- * replacement for x2many_field.switchToForm's former private-command-log poke.
- *
- * Uses Object.create(StaticList.prototype) with hand-built _commands/config —
- * the two methods only read this._commands, this.resIds and record._virtualId.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { x2ManyCommands } from "@web/core/network/commands";
 import { StaticList } from "@web/model/relational_model/static_list";
@@ -68,8 +59,6 @@ describe("StaticList create reconciliation", () => {
     });
 
     test("resolveCreatedResId returns undefined when no CREATE claims the record", () => {
-        // The record is not one this save created, so there is no rank to map
-        // it to; guessing (the highest new id) would open an unrelated record.
         const list = makeList({
             commands: [[x2ManyCommands.CREATE, "virtual_1"]],
             resIds: [3],

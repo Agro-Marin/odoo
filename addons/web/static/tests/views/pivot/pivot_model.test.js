@@ -1,19 +1,5 @@
 // @ts-check
 
-/**
- * Pure unit tests for pivot model logic.
- *
- * Tests the core computation functions extracted from pivot_model.js into
- * pure utility modules. No OWL environment, ORM calls, or DOM fixtures needed.
- *
- * Modules under test:
- *  - views/pivot/pivot_group_tree.js  — tree data structure operations
- *  - views/pivot/pivot_value_utils.js — groupBy normalization, value sanitization
- *  - views/pivot/pivot_measurements.js — measure spec building
- *  - views/pivot/pivot_export.js — exported table width (Excel column guard)
- *  - views/pivot/pivot_model.js — getTableWidth on a fabricated column tree
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import {
     computeExportedTableWidth,
@@ -40,16 +26,14 @@ import {
 } from "@web/views/pivot/pivot_value_utils";
 
 /**
- * Build a minimal group tree node.
- * @param {Array} [values=[]] - group values (row or col)
- * @param {string[]} [labels=[]] - display labels
+ * @param {Array} [values=[]]
+ * @param {string[]} [labels=[]]
  * @returns {{ root: { values: Array, labels: string[] }, directSubTrees: Map }}
  */
 function makeTree(values = [], labels = []) {
     return { root: { values, labels }, directSubTrees: new Map() };
 }
 
-/** Minimal pivot config for value utils. */
 function makeConfig(fields = {}, extraData = {}) {
     return {
         metaData: { fields, activeMeasures: [] },
@@ -460,11 +444,6 @@ describe("computeExportedTableWidth — exported column count", () => {
 });
 
 describe("formatPivotForExport — export payload", () => {
-    /**
-     * Table shaped like PivotModel.getTable() for:
-     *   1 measure ("Foo"), 2 leaf column groups + the Total column group,
-     *   a Total row and one sub-row with an empty cell.
-     */
     function makeTable() {
         return {
             headers: [
@@ -592,8 +571,6 @@ describe("formatPivotForExport — export payload", () => {
 
 describe("PivotModel.getTableWidth — export guard width", () => {
     /**
-     * Fabricate the minimal model state getTableWidth reads: a column group
-     * tree with `leafCount` first-level leaves and the active measures.
      * @param {number} leafCount
      * @param {string[]} activeMeasures
      */
@@ -642,7 +619,6 @@ describe("stripSortedKeys — clears cached sort order", () => {
 });
 
 describe("getTableRows — stale sortedKeys fallback", () => {
-    /** Minimal metaData/columns/data for a single-measure Total column. */
     function makeRowConfig() {
         const metaData = {
             fields: { fld: { string: "Fld" } },
@@ -694,10 +670,6 @@ describe("PivotRenderer.getPadding — row indentation seam", () => {
 });
 
 describe("PivotModel.toggleMeasure — batching across concurrent toggles", () => {
-    /**
-     * Minimal `this` for toggleMeasure: it only touches metaData.activeMeasures,
-     * loads, _buildMetaData, _loadData and notify.
-     */
     function makeModel(loadData) {
         return {
             metaData: { activeMeasures: ["__count"] },

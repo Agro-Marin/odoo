@@ -103,7 +103,6 @@ test("activeElementOf returns the innermost claimant", () => {
     stack.activate(inner);
     expect(stack.activeElementOf(leaf)).toBe(inner);
 
-    // Innermost by stack position, not by DOM depth: the last claim wins.
     stack.deactivate(inner);
     expect(stack.activeElementOf(leaf)).toBe(outer);
 });

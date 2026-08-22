@@ -2,31 +2,6 @@
 
 import { afterEach, beforeEach } from "@odoo/hoot";
 
-/**
- * Replace `IndexedDB`'s storage methods with an in-memory mock for the
- * scope in which this is called.  Test files that exercise consumers of
- * `IndexedDB` (e.g. `RPCCache` in `core/network/rpc_cache.test.js`) call
- * this once at module load; the patching is scoped via `beforeEach` /
- * `afterEach` so other test files (notably
- * `core/utils/indexed_db.test.js`, which exercises the real class) are
- * unaffected.
- *
- * Why prototype patching instead of replacing the export?  The Odoo
- * loader stores modules as native ES module namespaces, which the spec
- * freezes; `Object.assign(module, { IndexedDB: Mock })` throws on a
- * frozen namespace.  The class itself is a shared reference: every
- * `import { IndexedDB }` resolves to the same object, and prototype
- * mutations are visible to all instances regardless of import order.
- *
- * Tests assert against `instance.mockIndexedDB.<table>.<key>`, so the
- * patched methods stash their data on that property (lazily on first
- * write).  `_checkVersion` becomes a no-op because the real
- * implementation calls `indexedDB.open` (the browser global) which we
- * explicitly want to bypass.
- *
- * Idempotent across nested `describe` blocks within the same file:
- * the original methods are captured once and re-applied on `afterEach`.
- */
 export function mockIndexedDBForTests() {
     /** @type {Record<string, any> | null} */
     let originalMethods = null;
@@ -80,9 +55,7 @@ export function mockIndexedDBForTests() {
                     let shouldDelete = false;
                     try {
                         shouldDelete = predicate(key);
-                    } catch {
-                        // Predicate error: treat as non-matching.
-                    }
+                    } catch {}
                     if (shouldDelete) {
                         delete this.mockIndexedDB[table][key];
                     }

@@ -13,30 +13,16 @@ import {
 import { getReportUrl } from "@web/webclient/actions/reports/utils";
 
 /**
- * Mount-free tests for the ``ir.actions.report`` executor.
- *
- * ``report_executor.js`` reaches five ActionManager members — ``env``,
- * ``doAction``, ``_makeController``, ``_getActionInfo`` and ``_updateUI``.
- * ``report_action.test.js`` covers the rendered report end-to-end; what is
- * isolated here is the dispatch matrix around it, which is mostly invisible
- * from the DOM: the pre-execution handler chain (IoT/POS use it to redirect
- * printing), the block/unblock pairing around a download, and the three
- * different ways a report flow can end.
- *
  * @param {Object} [overrides]
  */
 function makeFakeAm(overrides = {}) {
     /** @type {Record<string, any[]>} */
     const calls = { updateUI: [], doAction: [], ui: [], actionInfo: [] };
     const am = {
-        env: {
-            marker: "the-env",
-            services: {
-                ui: {
-                    block: () => calls.ui.push("block"),
-                    unblock: () => calls.ui.push("unblock"),
-                },
-            },
+        env: { marker: "the-env" },
+        uiService: {
+            block: () => calls.ui.push("block"),
+            unblock: () => calls.ui.push("unblock"),
         },
         _makeController: (params) => ({ jsId: "controller_1", ...params }),
         _getActionInfo: (action, props) => {
@@ -70,7 +56,6 @@ function makeReportAction(overrides = {}) {
     });
 }
 
-/** Capture every /report/download payload instead of hitting the network. */
 function patchDownload({ fails = false } = {}) {
     const downloads = [];
     patchWithCleanup(download, {
@@ -84,7 +69,6 @@ function patchDownload({ fails = false } = {}) {
     return downloads;
 }
 
-/** Register a pre-execution report handler for the duration of the test. */
 function defineReportHandler(name, handler) {
     registry.category("ir.actions.report handlers").add(name, handler);
 }
@@ -326,12 +310,6 @@ test("an unknown report type is reported and does nothing else", async () => {
 });
 
 test("an unhandled report_type still settles the caller's onClose", async () => {
-    // Same single-exit rule `act_url.js` documents: a path that returns without
-    // settling `onClose` is not "doing less", it strands the caller —
-    // `view_button_hook`'s reload never runs, and a
-    // `doAction(..., { onClose: resolve })` awaiter never resolves. A report
-    // whose type no loaded handler claims (an enterprise handler missing from
-    // the bundle) takes exactly that path.
     const am = makeFakeAm();
     patchWithCleanup(console, { error: () => expect.step("console.error") });
 

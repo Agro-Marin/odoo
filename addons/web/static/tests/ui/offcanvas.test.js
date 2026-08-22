@@ -57,10 +57,6 @@ test("opens into the top layer and takes the show class", async () => {
     expect(".panel").toHaveClass("show");
 });
 
-// Escape and click-outside are the UA's own light-dismiss, and it only acts on
-// trusted events — which the synthetic ones this harness dispatches are not.
-// `hidePopover()` is the same path those dismissals end in, so it exercises the
-// `toggle` wiring that has to survive a dismissal the component never asked for.
 test("reports a dismissal it did not initiate through onClose", async () => {
     await mountWithCleanup(Parent);
 
@@ -83,10 +79,6 @@ test("applies the placement class", async () => {
     expect(".panel").not.toHaveClass("offcanvas-end");
 });
 
-// The migration off Bootstrap's data-api (`aria-labelledby`, `id` and
-// `tabindex="-1"` were on the `.offcanvas` div) left the component with nowhere
-// to carry them, so both call sites lost their accessible name and one was left
-// with a `<h5 id="...">` nothing referenced.
 test("the panel carries the naming attributes a dialog needs", async () => {
     class Named extends Component {
         static components = { Offcanvas };
@@ -118,8 +110,6 @@ test("aria-label names the panel when there is no title element", async () => {
     expect(queryOne(".panel")).toHaveAttribute("aria-label", "Your Cart");
 });
 
-// role="" is the opt-out: a panel that is not a dialog must not be announced as
-// one, and must not carry a role attribute at all.
 test("an empty role leaves no role attribute behind", async () => {
     class Roleless extends Component {
         static components = { Offcanvas };
@@ -133,11 +123,6 @@ test("an empty role leaves no role attribute behind", async () => {
     expect(queryOne(".panel")).not.toHaveAttribute("role");
 });
 
-// The native popover does not move focus on show, so the panel was reachable
-// only by tabbing to it -- what the move off Bootstrap's focus trap cost. Focus
-// RESTORATION is not tested here because it is not ours: Chrome records the
-// previously focused element at `showPopover` and restores it on Escape, on
-// light dismiss and on `hidePopover`, verified in a real browser.
 test("opening the panel moves focus into it", async () => {
     await mountWithCleanup(Parent);
     const opener = queryOne(".opener");
@@ -173,7 +158,6 @@ test("opening does not steal focus from content that already has it", async () =
     inside.focus();
     expect(document.activeElement).toBe(inside);
 
-    // A re-render must not yank focus back to the panel.
     parent.render(true);
     await animationFrame();
     expect(document.activeElement).toBe(inside);

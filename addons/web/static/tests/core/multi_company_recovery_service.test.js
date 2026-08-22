@@ -9,8 +9,6 @@ import {
 import { user } from "@web/core/user";
 
 /**
- * Build an AccessError shaped like the backend tags a cross-company access
- * failure, with a ``suggested_company`` in the error context.
  * @param {number} companyId
  */
 function accessError(companyId) {

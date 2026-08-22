@@ -6,14 +6,8 @@ import { paintBootFailureOverlay } from "@web/core/errors/boot_failure_overlay";
 
 describe.current.tags("headless");
 
-// The overlay is deliberately appended to `document.body` rather than to the
-// test fixture -- it is the last thing painted when mounting the client has
-// already failed, so it cannot assume the app's DOM exists. Nothing removes it,
-// so the tests do.
 afterEach(removeOverlays);
 
-/** Queried on `document`, not through HOOT's helpers: those scope to the
- * test fixture, and this overlay deliberately does not live there. */
 function overlays() {
     return document.querySelectorAll(".o_boot_failure");
 }
@@ -24,7 +18,6 @@ function removeOverlays() {
     }
 }
 
-/** Swallow the beacon; a test must not post to `/web/observability/js_error`. */
 function stubBeacon() {
     /** @type {any[]} */
     const sent = [];
@@ -58,8 +51,6 @@ describe("paintBootFailureOverlay", () => {
     });
 
     test("reports the failure before painting, and keeps reporting repeats", () => {
-        // The beacon sits ABOVE the idempotence guard on purpose: the overlay is
-        // shown once, but every failure is still worth reporting.
         const sent = stubBeacon();
         paintBootFailureOverlay(new Error("first"));
         paintBootFailureOverlay(new Error("second"));
@@ -77,13 +68,29 @@ describe("paintBootFailureOverlay", () => {
         expect(payload.phase).toBe("boot_mount_failed");
         expect(payload.kind).toBe("error");
         expect(payload.message).toBe("kaboom");
-        // Truncated, or a large stack would be posted on every boot failure.
         expect(payload.stack).toHaveLength(4096);
     });
 
+    test("an explicit phase overrides the mount default", async () => {
+        const sent = stubBeacon();
+        paintBootFailureOverlay(new Error("kaboom"), "boot_prologue");
+        const payload = JSON.parse(await sent[0].blob.text());
+        expect(payload.phase).toBe("boot_prologue");
+    });
+
+    test("reports the cause, which is where OWL puts the real error", async () => {
+        const sent = stubBeacon();
+        const cause = new Error("localization parameters are not ready yet");
+        paintBootFailureOverlay(
+            new Error("An error occured in the owl lifecycle", { cause }),
+        );
+
+        const payload = JSON.parse(await sent[0].blob.text());
+        expect(payload.message).toBe("An error occured in the owl lifecycle");
+        expect(JSON.stringify(payload)).toInclude("localization parameters");
+    });
+
     test("never throws, whatever it is handed", () => {
-        // This is the last-resort handler: if it throws, the user gets a blank
-        // page instead of the message telling them to reload.
         stubBeacon();
         for (const value of [undefined, null, "a string", 0, { nope: true }]) {
             expect(() => paintBootFailureOverlay(value)).not.toThrow();

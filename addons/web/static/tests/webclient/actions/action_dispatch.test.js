@@ -14,30 +14,6 @@ import {
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 
-/**
- * CHARACTERIZATION SUITE for the action-dispatch transaction.
- *
- * Every ``_updateUI`` dispatch is a transaction over action-manager state with
- * three outcomes:
- *
- *   commit   the controller mounted     -> swap in the proposed stack, or
- *                                          promote the pending dialog slot
- *   fail     it errored before mounting -> roll back to a good stack / hand the
- *                                          stolen ``onClose`` back
- *   discard  a newer dispatch destroyed  -> settle the awaiter with
- *            it before it mounted          SupersededError instead of hanging
- *
- * The transitions are asserted here through the OBSERVABLE surface only
- * (``controllerStack`` / ``dialog`` / ``nextDialog`` identity, the doAction
- * promise, and the bus events), never through the internals that implement
- * them — so this suite is equally valid whether the commit lives in
- * ``ControllerComponent``'s lifecycle hooks or in a dedicated dispatch object.
- *
- * ``mountActionHost`` rather than ``WebClient``: the transaction needs a
- * renderer (the dispatch promise is settled by the mount) but nothing from the
- * shell.
- */
-
 const { ResCompany, ResPartner, ResUsers } = webModels;
 
 class Partner extends models.Model {
@@ -315,15 +291,12 @@ test("a proposed stack is not installed while the dispatch is in flight", async 
     );
     await animationFrame();
 
-    // The `newStack` proposal is visible to the dispatch, but the manager still
-    // describes what is mounted.
     expect(action.controllerStack).toBe(mountedStack);
 
     blockLeaf.resolve();
     await inFlight;
     await animationFrame();
 
-    // ...and only the commit installs it.
     expect(action.controllerStack.at(0)).toBe(ancestor);
     expect(action.controllerStack).toHaveLength(2);
 });

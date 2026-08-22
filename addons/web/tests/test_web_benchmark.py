@@ -1,17 +1,3 @@
-"""Statistical benchmarks for web module operations.
-
-Uses ``run_benchmark()`` from ``odoo.tests.benchmark`` to produce
-timing statistics (mean, median, p95, DB vs Python split) for key
-web module code paths.  Results are logged with the ``[WEB_BENCHMARK]``
-tag for easy extraction.
-
-Run with:
-    > ./odoo.log && ./core/odoo-bin -c ./conf/odoo.conf -d test_db \
-        --test-tags 'web_benchmark' -u web \
-        --stop-after-init --workers=0
-    grep "WEB_BENCHMARK" ./odoo.log
-"""
-
 import logging
 
 from odoo.tests.benchmark import BenchmarkStats, run_benchmark
@@ -25,8 +11,6 @@ WARMUP_ITERATIONS = 5
 
 @tagged("post_install", "-at_install", "web_benchmark")
 class TestWebBenchmark(TransactionCase):
-    """Statistical benchmarks for web module hot paths."""
-
     all_results: list[BenchmarkStats]
 
     @classmethod
@@ -87,7 +71,6 @@ class TestWebBenchmark(TransactionCase):
         setup=None,
         invalidate_cache=True,
     ):
-        """Run benchmark and log results."""
         stats = run_benchmark(
             name,
             func,
@@ -100,9 +83,7 @@ class TestWebBenchmark(TransactionCase):
         _logger.info("[WEB_BENCHMARK] %s", stats.summary())
         return stats
 
-
     def test_bench_web_search_read_10(self):
-        """Benchmark: web_search_read with limit=10."""
         Partners = self.env["res.partner"]
         domain = [("name", "like", "BenchPartner")]
         spec = {"name": {}, "email": {}, "country_id": {}}
@@ -113,7 +94,6 @@ class TestWebBenchmark(TransactionCase):
         )
 
     def test_bench_web_search_read_100(self):
-        """Benchmark: web_search_read with limit=100."""
         Partners = self.env["res.partner"]
         domain = [("name", "like", "BenchPartner")]
         spec = {"name": {}, "email": {}, "country_id": {}}
@@ -124,7 +104,6 @@ class TestWebBenchmark(TransactionCase):
         )
 
     def test_bench_web_search_read_500(self):
-        """Benchmark: web_search_read with limit=500."""
         Partners = self.env["res.partner"]
         domain = [("name", "like", "BenchPartner")]
         spec = {"name": {}, "email": {}, "country_id": {}}
@@ -134,9 +113,7 @@ class TestWebBenchmark(TransactionCase):
             lambda: Partners.web_search_read(domain, spec, limit=500),
         )
 
-
     def test_bench_web_read_deep_spec(self):
-        """Benchmark: web_read with nested many2one + many2many + x2many."""
         partners = self.partners[:100]
         spec = {
             "name": {},
@@ -149,9 +126,7 @@ class TestWebBenchmark(TransactionCase):
             lambda: partners.web_read(spec),
         )
 
-
     def test_bench_web_read_group(self):
-        """Benchmark: web_read_group grouped by country_id."""
         Partners = self.env["res.partner"]
         domain = [("name", "like", "BenchPartner")]
 
@@ -164,9 +139,7 @@ class TestWebBenchmark(TransactionCase):
             ),
         )
 
-
     def test_bench_web_name_search(self):
-        """Benchmark: web_name_search with display_name-only spec (warm)."""
         Partners = self.env["res.partner"]
         spec = {"display_name": {}}
 
@@ -176,14 +149,7 @@ class TestWebBenchmark(TransactionCase):
             invalidate_cache=False,
         )
 
-
     def test_bench_search_panel_m2m(self):
-        """Benchmark: search_panel many2many with counters.
-
-        Measures the grouped-count path in search_panel_select_multi_range
-        (web_search_panel.py, ``count_image``/``group_count_images``), which
-        replaced an earlier per-record ``search_count()`` N+1.
-        """
         Partners = self.env["res.partner"]
         domain = [("name", "like", "BenchPartner")]
 
@@ -196,14 +162,7 @@ class TestWebBenchmark(TransactionCase):
             ),
         )
 
-
     def test_bench_web_save_multi(self):
-        """Benchmark: web_save_multi on 20 records.
-
-        Measures the grouped-write path in web_save_multi (web_read.py),
-        which batches records sharing identical vals into one write() per
-        group instead of one per record.
-        """
         partners = self.partners[:20]
         vals_list = [{"name": f"BenchUpdate_{i}"} for i in range(20)]
         spec = {"name": {}}

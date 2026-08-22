@@ -1,11 +1,11 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
-import { CallbackRecorder } from "@web/core/action_hook";
 import {
     actionContextCallbacks,
     actionContextRecorder,
 } from "@web/core/action_context_port";
+import { CallbackRecorder } from "@web/core/action_hook";
 
 describe.current.tags("headless");
 
@@ -21,16 +21,12 @@ describe("actionContextRecorder", () => {
     });
 
     test("treats an explicit null the same as absent", () => {
-        // web_studio opts out by setting all five slots to null; before the
-        // port, `null` and `undefined` reached consumers as different shapes.
         expect(
             actionContextRecorder({ __getContext__: null }, "__getContext__").callbacks,
         ).toEqual([]);
     });
 
     test("tolerates a missing env rather than throwing on the read", () => {
-        // The case under test is precisely the undefined the signature
-        // forbids: the recorder must tolerate it rather than throw.
         const recorder = actionContextRecorder(
             /** @type {any} */ (undefined),
             "__getOrderBy__",
@@ -52,8 +48,6 @@ describe("actionContextCallbacks", () => {
     });
 
     test("returns [] for both off-shapes, so a caller needs no guard", () => {
-        // This is the whole point: `_getIrFilterDescription` maps over the
-        // result, and used to throw a TypeError when the slot was nulled.
         for (const env of [
             {},
             { __getContext__: null },
@@ -70,11 +64,20 @@ describe("actionContextCallbacks", () => {
     });
 
     test("the substituted recorder is shared and frozen, so a reader cannot record into it", () => {
-        // A null-object that could be written to would silently accept
-        // callbacks nobody will ever call -- the failure this port exists to
-        // avoid spreading.
         const recorder = actionContextRecorder({}, "__beforeLeave__");
         expect(Object.isFrozen(recorder)).toBe(true);
         expect(actionContextRecorder({}, "__getOrderBy__")).toBe(recorder);
+    });
+
+    test("recording into the substituted recorder is refused, not silently kept", () => {
+        const recorder = actionContextRecorder({}, "__beforeLeave__");
+        expect(() => recorder.add({}, () => 1)).toThrow();
+        expect(recorder.callbacks).toEqual([]);
+        expect(actionContextCallbacks({}, "__getContext__")).toEqual([]);
+    });
+
+    test("removing from the substituted recorder is a no-op, not a TypeError", () => {
+        const recorder = actionContextRecorder({}, "__getLocalState__");
+        expect(() => recorder.remove({})).not.toThrow();
     });
 });

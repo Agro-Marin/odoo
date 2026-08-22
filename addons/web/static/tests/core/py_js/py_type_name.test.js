@@ -13,14 +13,6 @@ import {
 
 describe.current.tags("headless");
 
-// The temporal table these assertions cover is built from the `py_date`
-// classes at module-evaluation time. It used to live in `py_builtin`, which
-// `py_date` reaches back into through `py_args` -- a cycle whose outcome
-// depended on which module the bundle evaluated first. Entered through
-// `py_date`/`py_timedelta`/`py_utils`, native ESM threw "Cannot access
-// 'PyDate' before initialization" while an esbuild bundle silently built the
-// table with `undefined` keys, so every one of these answered the *JS* class
-// name ("PyDate") instead of the Python one ("date") and no test noticed.
 describe("pyTypeName: temporal types", () => {
     test("each temporal class reports its Python type name", () => {
         expect(pyTypeName(PyDate.create(2024, 1, 1))).toBe("date");

@@ -1,24 +1,13 @@
 // @ts-check
 
-/**
- * Pure unit tests for record_save.js.
- *
- * Tests the save() function — record persistence, creation vs update path,
- * validity guard, no-changes short-circuit, onError callback, and the
- * FetchRecordError thrown when webSave returns an empty array with reload:true.
- *
- * Uses plain mock objects (delegation pattern). OWL's markRaw() is imported
- * directly — it works in the Hoot browser environment without mounting a
- * component. The FetchRecordError test requires makeMockEnv() because
- * FetchRecordError calls _t() in its constructor.
- *
- * Module under test: model/relational_model/record_save.js
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, Deferred, mockSendBeacon } from "@odoo/hoot-mock";
 import { markRaw } from "@odoo/owl";
-import { RECORD_STATE_TRANSITIONS } from "@web/../tests/model/relational_model/record_doubles";
+import { MODEL_LIFECYCLE_PROTO } from "@web/../tests/model/relational_model/model_doubles";
+import {
+    installEditState,
+    RECORD_STATE_TRANSITIONS,
+} from "@web/../tests/model/relational_model/record_doubles";
 import { makeMockEnv } from "@web/../tests/web_test_helpers";
 import { FetchRecordError } from "@web/model/relational_model/errors";
 import { RelationalRecord } from "@web/model/relational_model/record";
@@ -29,21 +18,13 @@ import { computeChangeset } from "@web/model/relational_model/record_utils";
 import { UrgentSaveCoordinator } from "@web/model/relational_model/urgent_save_coordinator";
 
 /**
- * Builds the minimal record mock shape required by save().
- *
- * Defaults:
- *  - resId=false  → creation path
- *  - resId=number → update path
- *  - validity=true → _checkValidity passes
- *  - changes={}   → no-changes short-circuit on existing records
- *
  * @param {Object} [opts]
  * @param {number|false} [opts.resId]
  * @param {number[]} [opts.resIds]
  * @param {Object} [opts.changes]
  * @param {boolean} [opts.validity]
  * @param {Function|null} [opts.webSave]
- * @param {*} [opts.willSaveResult] - return value of onWillSaveRecord hook
+ * @param {*} [opts.willSaveResult]
  * @returns {Object}
  */
 function makeRecord({
@@ -54,7 +35,7 @@ function makeRecord({
     webSave = null,
     willSaveResult = undefined,
 } = {}) {
-    return {
+    const record = {
         resId,
         resIds,
         resModel: "res.partner",
@@ -91,6 +72,7 @@ function makeRecord({
             load: async () => {},
             _patchConfig: () => {},
             _updateSimilarRecords: () => {},
+            __proto__: MODEL_LIFECYCLE_PROTO,
             hooks: {
                 lifecycle: {
                     onWillSaveRecord: async () => willSaveResult,
@@ -105,6 +87,8 @@ function makeRecord({
             },
         },
     };
+    installEditState(record, { dirty: true });
+    return record;
 }
 
 describe("nextId on new record", () => {
@@ -407,12 +391,7 @@ describe("urgent save (sendBeacon path)", () => {
             _initialTextValues: markRaw({}),
             _checkValidity: () => true,
             _getChanges: () => ({ lines: list._getCommands() }),
-            clearChangesCalls: 0,
             ...RECORD_STATE_TRANSITIONS,
-            _clearChanges() {
-                this.clearChangesCalls++;
-                this._changes = markRaw({});
-            },
             _discard: () => {},
             _load: async () => {},
             _setData: () => {},
@@ -425,6 +404,7 @@ describe("urgent save (sendBeacon path)", () => {
                 load: async () => {},
                 _patchConfig: () => {},
                 _updateSimilarRecords: () => {},
+                __proto__: MODEL_LIFECYCLE_PROTO,
                 hooks: {
                     lifecycle: {
                         onWillSaveRecord: async () => {},
@@ -436,23 +416,18 @@ describe("urgent save (sendBeacon path)", () => {
                 orm: { webSave: async () => [{ id: 7 }] },
             },
         };
+        installEditState(rec, { changes: { lines: list }, dirty: true });
 
         const result = await save(rec, { reload: false });
 
         expect(result).toBe(true);
         expect(list.clearCommandsCalls).toBe(1);
-        expect(rec.clearChangesCalls).toBe(1);
+        expect({ ...rec._changes }).toEqual({});
+        expect(rec.dirty).toBe(false);
     });
 });
 
 describe("urgentSave in-flight guard", () => {
-    /**
-     * Record mock backed by the real RelationalRecord prototype, so the real
-     * ``urgentSave()``/``_save()``/``_clearChanges()`` methods run against
-     * record_save.save. State goes through ``_config``/``_editState`` so the
-     * prototype getters (resId, fields, fieldNames, dirty, _changes, …) work
-     * unmodified.
-     */
     function makeProtoRecord({ webSave }) {
         const rec = Object.create(RelationalRecord.prototype);
         rec._editState = new RecordEditState();

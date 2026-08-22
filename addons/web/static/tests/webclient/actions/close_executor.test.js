@@ -4,17 +4,6 @@ import { expect, test } from "@odoo/hoot";
 import { executeCloseAction } from "@web/webclient/actions/action_executors/close";
 
 /**
- * Mount-free unit tests for the ``ir.actions.act_window_close`` executor.
- *
- * The executor takes the ActionManager INSTANCE as its first parameter, and
- * that parameter is duck-typed on purpose (see "THE SIBLING CONTRACT" in
- * ``action_service.js``). ``close.js`` reaches exactly two members —
- * ``dialog`` and ``_removeDialog`` — so a two-key object literal is a complete
- * stand-in, and none of the behaviour below needs a WebClient on screen.
- *
- * The complementary end-to-end coverage lives in ``close_action.test.js``,
- * which mounts. These tests pin the branch logic itself.
- *
  * @param {Object} [overrides]
  */
 function makeFakeAm(overrides = {}) {
@@ -94,9 +83,6 @@ test("propagates an onClose rejection to the caller", async () => {
 });
 
 test("an explicit `dialog: null` means THERE WAS NONE, not `close whatever is open`", async () => {
-    // `doActionButton` captures `am.dialog` before running the action. For a
-    // `close` button outside any dialog the capture is null, and the action may
-    // itself have opened one meanwhile — that one is not the button's to close.
     const am = makeFakeAm({ dialog: { remove() {} } });
     await executeCloseAction(am, { infos: "x" }, { dialog: null });
     expect(am.__calls.removeDialog).toEqual([]);

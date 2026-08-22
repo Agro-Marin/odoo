@@ -1,18 +1,5 @@
 // @ts-check
 
-/**
- * Candidate-config isolation tests (``computeNextConfig`` + ``cloneGroupTree``
- * + ``postprocessReadGroup``).
- *
- * Data is loaded against CANDIDATE configs and committed on success.
- * ``KeepLast`` drops a superseded load's result but cannot stop its
- * continuation: ``postprocessReadGroup`` still runs when the stale RPC lands
- * and mutates group sub-configs (domain/context/fold/offset) in place. The
- * candidate must therefore own its own group containers — otherwise a
- * superseded load rewrites the state the winning load just committed, and the
- * next group fold/pager fetch runs with a stale domain.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import {
     cloneGroupTree,

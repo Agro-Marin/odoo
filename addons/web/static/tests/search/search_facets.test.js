@@ -1,12 +1,5 @@
 // @ts-check
 
-/**
- * Pure unit tests for search/search_facets.js.
- *
- * `buildFacets` is a free function over plain data — no OWL, no models, no
- * server calls — so it is exercised directly with hand-built query groups.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { buildFacets } from "@web/search/search_facets";
 import { SPECIAL } from "@web/search/search_state";
@@ -15,7 +8,6 @@ import { FACET_ICONS } from "@web/search/utils/misc";
 describe.current.tags("headless");
 
 /**
- * Build the `buildFacets` parameters, with sensible empty defaults.
  * @param {Object} [overrides]
  * @returns {Object}
  */
@@ -34,7 +26,6 @@ function makeParams(overrides = {}) {
     };
 }
 
-/** A single-item query group holding a group-by search item. */
 function groupByGroup(searchItemId = 1) {
     return {
         groups: [{ id: 10, activeItems: [{ searchItemId }] }],
@@ -81,9 +72,6 @@ describe("default group-by facet", () => {
     });
 
     test("carries the count-sort icon like a real group-by facet", () => {
-        // `computeOrderBy` count-sorts a surviving `defaultGroupBy` and
-        // `_checkOrderByCountStatus` keeps `orderByCount` alive for it, so the
-        // facet — the only control that flips the sort — must show it.
         for (const [orderByCount, icon] of [
             ["Asc", FACET_ICONS.groupByAsc],
             ["Desc", FACET_ICONS.groupByDesc],
@@ -116,7 +104,6 @@ describe("default group-by facet", () => {
 });
 
 describe("date group-by facet", () => {
-    /** A single-item query group holding a dateGroupBy search item. */
     function dateGroupByGroup(intervalIds) {
         return {
             groups: [{ id: 10, activeItems: [{ searchItemId: 1, intervalIds }] }],
@@ -132,10 +119,6 @@ describe("date group-by facet", () => {
     });
 
     test("describes a backend-only interval instead of dropping it", () => {
-        // `hour` is a legal group-by interval — `getGroupBy` accepts it and a
-        // `<filter context="{'group_by': 'x:hour'}">` puts it straight into the
-        // query — it is only absent from the five the UI offers. Looking it up
-        // in the UI table left the facet with NO values: an empty chip.
         const facets = buildFacets(makeParams(dateGroupByGroup(["hour"])));
         expect(facets[0].values).toEqual(["Date: Hour"]);
     });

@@ -1,13 +1,5 @@
 // @ts-check
 
-/**
- * Pure unit tests for field_context.js.
- *
- * Tests getId, isRelational, and getBasicEvalContext without OWL or DOM.
- * getFieldContext and getFieldDomain are not tested here — they require
- * a full Record instance with evalContext (covered by integration tests).
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import {
     getBasicEvalContext,

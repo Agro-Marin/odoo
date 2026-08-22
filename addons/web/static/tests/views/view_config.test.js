@@ -45,6 +45,5 @@ test("owned and foreign surfaces are disjoint", () => {
 });
 
 test("the declared surface is not empty", () => {
-    // A gate reading an empty array would pass against any tree.
     expect(VIEW_CONFIG_SURFACE.length).toBeGreaterThan(20);
 });

@@ -1,18 +1,5 @@
 // @ts-check
 
-/**
- * The mass-edit read-back (``DynamicList._multiSave``) must build its
- * ``web_save`` specification under the SAME eval context as the single-record
- * read-back in ``record_save.save``.
- *
- * ``getFieldsSpec`` resolves a field's ``context`` attribute through
- * ``evalPartialContext``, which silently DROPS any key whose free variables it
- * cannot resolve. Called without an eval context (the historical 2-argument
- * call here) every ``uid`` / ``allowed_company_ids``-dependent field context
- * vanished from the mass-edit spec while surviving the single save — so the two
- * paths re-read the same records under different contexts.
- */
-
 import { expect, test } from "@odoo/hoot";
 import {
     contains,
@@ -40,9 +27,6 @@ class Foo extends models.Model {
 
 defineModels([Foo, ResCompany, ResPartner, ResUsers]);
 
-// Mass-edit is reached through the record selectors, and `hasSelectors` is
-// `allowSelectors && !env.isSmall` — there is no way into `_multiSave` from a
-// small-screen list.
 test.tags("desktop");
 test("the mass-edit read-back spec resolves uid-dependent field contexts", async () => {
     /** @type {any} */

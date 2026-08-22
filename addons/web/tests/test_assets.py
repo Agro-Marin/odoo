@@ -9,6 +9,10 @@ from odoo.tests.common import HttpCase
 from odoo.tools import mute_logger
 from odoo.tools.sass_embedded import SassCompileError, close_sass_compiler
 
+from odoo.addons.base.models.assetsbundle.js_pipeline import (
+    ModuleSyntaxInLegacyBundleError,
+)
+
 _logger = logging.getLogger(__name__)
 
 
@@ -55,7 +59,11 @@ class TestAssetsGenerateTimeCommon(odoo.tests.TransactionCase):
                             f"{bundle_name}.{assets_type}",
                             time.time() - start_t,
                         )
-                    except ValueError, SassCompileError:
+                    except (
+                        ValueError,
+                        SassCompileError,
+                        ModuleSyntaxInLegacyBundleError,
+                    ):
                         _logger.info(
                             "Error detected while generating bundle %r %s",
                             bundle_name,
@@ -68,20 +76,10 @@ class TestAssetsGenerateTimeCommon(odoo.tests.TransactionCase):
 )
 class TestLogsAssetsGenerateTime(TestAssetsGenerateTimeCommon):
     def test_logs_assets_generate_time(self):
-        """Monitor bundle generation time from cold (existing attachments unlinked first).
-
-        generate_bundles() swallows generation errors (try/except + mute_logger)
-        since this test measures timing, not correctness.
-        """
         for bundle, duration in list(self.generate_bundles()):
             _logger.info("Bundle %r generated in %.2fs", bundle, duration)
 
     def test_logs_assets_check_time(self):
-        """Monitor bundle check time when attachments already exist (no unlink).
-
-        generate_bundles() swallows generation errors (try/except + mute_logger)
-        since this test measures timing, not correctness.
-        """
         start = time.time()
         for bundle, duration in self.generate_bundles(False):
             _logger.info("Bundle %r checked in %.2fs", bundle, duration)
@@ -124,8 +122,6 @@ class TestPregenerateTime(HttpCase):
     "web_assets",
 )
 class TestAssetsGenerateTime(TestAssetsGenerateTimeCommon):
-    """Run nightly to ensure bundle generation does not exceed a low threshold."""
-
     def test_assets_generate_time(self):
         thresholds = {
             "project.webclient.js": 2.5,
@@ -165,17 +161,6 @@ class TestLoad(HttpCase):
 
 @odoo.tests.tagged("post_install", "-at_install", "web_http", "web_assets")
 class TestWebAssetsCursors(HttpCase):
-    """Tests the cursor usage of the /web/assets route.
-
-    The route is almost always read-only, except when the bundle is missing/outdated.
-    To avoid opening a read/write cursor on every request, it checks with a read-only
-    cursor first and only opens a new one to generate the bundle when needed.
-
-    This is only safe because the route's flow is simple (check, generate, return)
-    with no other database operation in between: if the check itself needed a
-    read/write cursor (no replica available), reusing it avoids opening a second one.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -190,10 +175,6 @@ class TestWebAssetsCursors(HttpCase):
         self.bundle_name = "web.assets_frontend"
 
     def _get_generate_cursors_readwriteness(self):
-        """Return the read/write state of each cursor opened while generating the bundle.
-
-        :return: [('ro'|'rw', '(ro_requested)'|'(rw_requested)'), ...]
-        """
         cursors = []
         original_cursor = self.env.registry.cursor
 
@@ -217,7 +198,6 @@ class TestWebAssetsCursors(HttpCase):
         return cursors
 
     def test_web_binary_keep_cursor_ro(self):
-        """With a replica, generation needs a ro then a rw cursor when cold, and a single ro cursor when warm."""
         self.assertEqual(
             self._get_generate_cursors_readwriteness(),
             [

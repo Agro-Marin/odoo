@@ -1,20 +1,5 @@
 // @ts-check
 
-/**
- * Unit tests for the useRecordObserver hook.
- *
- * The hook arms a disposable reactive effect on `props.record`: the callback
- * runs once at setup, again (synchronously) on each record identity change,
- * and — batched on an animation frame — whenever a record value read in the
- * callback changes. Non-record props are NOT part of the effect: a prop-only
- * update must not fire the callback, but every invocation must see the
- * component's latest props (not a snapshot captured when the effect was
- * armed).
- *
- * Module under test: fields/hooks/record_observer.js
- * (Complementary integration coverage lives in ../../model/record.test.js.)
- */
-
 import { destroy, expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, reactive, useState, xml } from "@odoo/owl";
@@ -22,10 +7,6 @@ import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 
 /**
- * Minimal reactive stand-in for a relational model record: the hook only
- * relies on `props.record` being a reactive object whose reads can be
- * subscribed to.
- *
  * @param {Record<string, any>} data
  */
 function makeRecord(data) {
@@ -33,12 +14,8 @@ function makeRecord(data) {
 }
 
 /**
- * Mounts a Parent > Child pair where Child observes `props.record` and steps
- * `foo:<value>|readonly:<flag>` on each callback invocation.
- *
  * @param {object} record
- * @returns {Promise<{ parent: any, parentState: any }>} the parent component
- *  and its mutable state (`record`, `readonly`, `mounted`)
+ * @returns {Promise<{ parent: any, parentState: any }>}
  */
 async function mountObserver(record) {
     class Child extends Component {

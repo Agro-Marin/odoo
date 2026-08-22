@@ -929,8 +929,6 @@ test("should wait label promises for many2one search defaults", async () => {
     const def = new Deferred();
     onRpc("read", () => def);
 
-    // Not awaited yet: the mount stays blocked on `def` (the label read), which
-    // is the state under test.
     const mounted = mountWithSearch(SearchBar, {
         resModel: "partner",
         searchMenuTypes: [],
@@ -952,8 +950,6 @@ test("should wait label promises for many2many search defaults", async () => {
     const def = new Deferred();
     onRpc("read", () => def);
 
-    // Not awaited yet: the mount stays blocked on `def` (the label read), which
-    // is the state under test.
     const mounted = mountWithSearch(SearchBar, {
         resModel: "partner",
         searchMenuTypes: [],
@@ -2135,7 +2131,6 @@ test("a facet never advertises a value the domain does not use", async () => {
     const item = searchBar.items.find((i) => i.fieldType === "integer");
     expect(item.value).toBe(5);
 
-    // the query moved on before the click landed; "5x" is not a valid integer
     searchBar.state.query = "5x";
     searchBar.selectItem(item);
     await animationFrame();
@@ -2161,17 +2156,12 @@ test("the custom filter entry is addressable like every other item", async () =>
     await editSearch("a");
 
     const customFilter = searchBar.items.find((i) => i.isAddCustomFilterButton);
-    // t-key and the DropdownItem id come from item.id; onItemActivated parses it
-    // back out of the DOM and onClickSearchIcon looks it up in items.
     expect(customFilter.id).toBeOfType("number");
     expect(searchBar.items.find((i) => i.id === customFilter.id)).toBe(customFilter);
     expect(new Set(searchBar.items.map((i) => i.id)).size).toBe(searchBar.items.length);
 });
 
 test("a search item with an unevaluatable invisible does not break the menus", async () => {
-    // getSearchItems is read lazily, so the mount survives either way; the
-    // failure used to land as an Owl lifecycle error the first time the Filters
-    // menu was opened or the input was typed into.
     patchWithCleanup(console, { warn: () => expect.step("warn") });
     await mountWithSearch(SearchBar, {
         resModel: "partner",
@@ -2194,15 +2184,10 @@ test("a search item with an unevaluatable invisible does not break the menus", a
 
     await editSearch("a");
     expect(`.o_searchview_autocomplete .o-dropdown-item`).toHaveCount(2);
-    // Once per query cycle, not per read: getSearchItems memoises the enriched
-    // items, so a broken expression does not spam the console on every render.
     expect.verifySteps(["warn"]);
 });
 
 test("removing a facet keeps the DOM identity of the ones after it", async () => {
-    // Facets are keyed by group identity, not by position. With a positional
-    // key Owl patches every later facet in place instead of moving it, so the
-    // focused facet's element is the one that gets dropped.
     await mountWithSearch(SearchBar, {
         resModel: "partner",
         searchViewId: false,
@@ -2231,9 +2216,6 @@ test("removing a facet keeps the DOM identity of the ones after it", async () =>
 });
 
 test("an expanded search item retired mid-flight does not break computeState", async () => {
-    // A `field_property` item is deleted from the model as soon as its
-    // definition disappears from the parent record, but the SearchBar keeps the
-    // id in `state.expanded`; computeState then read `.type` off undefined.
     const searchBar = await mountWithSearch(SearchBar, {
         resModel: "partner",
         searchViewId: false,
@@ -2258,10 +2240,6 @@ test("an expanded search item retired mid-flight does not break computeState", a
 });
 
 test("a count-sortable group-by facet label announces itself as a button", async () => {
-    // A group-by facet carries no `domain` (group-by items contribute none), so
-    // deriving the role from `facet.domain` alone rendered a label that flips
-    // the count sort on click as `role="img"` — announced as a picture, and not
-    // reachable as a control.
     const searchBar = await mountWithSearch(SearchBar, {
         resModel: "partner",
         searchMenuTypes: ["groupBy"],
@@ -2316,10 +2294,6 @@ test("a filter facet label carrying a domain announces itself as a button", asyn
 });
 
 test("facets sit in a list and carry their visible text as accessible name", async () => {
-    // `aria-label` was bound to `facet.title`, which only a `field` facet
-    // carries, so filter/group-by/favorite chips reached assistive technology
-    // unnamed — and `role="listitem"` had no list to belong to, because the
-    // container also holds the text input.
     await mountWithSearch(SearchBar, {
         resModel: "partner",
         searchMenuTypes: ["filter"],
@@ -2337,8 +2311,6 @@ test("facets sit in a list and carry their visible text as accessible name", asy
     expect(list).not.toBe(null);
     expect(facet).toHaveAttribute("aria-label", "Foo");
     expect(".o_facet_remove").toHaveAttribute("aria-label", "Remove Foo");
-    // The list wrapper must stay layout-neutral: the facets are flex children
-    // of the input container, which also holds the text input on the same row.
     expect(getComputedStyle(list).display).toBe("contents");
 });
 
@@ -2360,10 +2332,6 @@ test("a multi-value facet names itself with its separator", async () => {
 });
 
 test("an expansion naming a field that vanished from the view is dropped", async () => {
-    // `load` replaces searchViewFields wholesale, so a restored expansion can
-    // name a field the current map has not got. getFieldType already tolerated
-    // that, but computeSubItems — reached from computeState before getItems can
-    // drop the item — read `.relation` straight off the missing entry.
     const searchBar = await mountWithSearch(SearchBar, {
         resModel: "partner",
         searchMenuTypes: [],

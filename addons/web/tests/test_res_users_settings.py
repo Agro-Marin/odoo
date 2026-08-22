@@ -14,7 +14,7 @@ class TestResUsersSettings(TransactionCase):
                 "password": "jean@mail.com",
             }
         )
-        cls.user_settings = cls.env["res.users.settings"]._find_or_create_for_user(
+        cls.user_settings = cls.env["res.users.settings"]._get_or_create_for_user(
             cls.user
         )
         cls.window_action = cls.env["ir.actions.act_window"].create(
@@ -25,10 +25,6 @@ class TestResUsersSettings(TransactionCase):
         )
 
     def test_fields_validity_embedded_action_settings(self):
-        """Raise ValidationError for malformed ``embedded_actions_order``/
-        ``embedded_actions_visibility`` values: duplicated ids, or ids that
-        are neither integers nor ``"false"``.
-        """
         embedded_action_settings_data = {
             "user_setting_id": self.user_settings.id,
             "action_id": self.window_action.id,
@@ -66,17 +62,6 @@ class TestResUsersSettings(TransactionCase):
             )
 
     def test_unicode_superscript_digit_rejected(self):
-        """Unicode superscript digits must be rejected by the constraint.
-
-        ``str.isdigit()`` returns True for superscript characters like ``²``
-        (U+00B2) but ``str.isdecimal()`` correctly returns False.  Using
-        ``isdecimal()`` ensures ``int()`` conversion in ``_parse_id_list``
-        never receives a value it cannot parse.
-
-        Before fix (``isdigit``): ``²`` passed validation, then ``int('²')``
-        raised ``ValueError`` later during deserialization.
-        After fix (``isdecimal``): ``ValidationError`` is raised upfront.
-        """
         with self.assertRaises(ValidationError):
             self.env["res.users.settings.embedded.action"].create(
                 {
@@ -204,9 +189,6 @@ class TestResUsersSettings(TransactionCase):
         )
 
     def test_set_embedded_actions_ignores_non_whitelisted_keys(self):
-        """Only whitelisted content fields may be written. A client must not be
-        able to smuggle identity keys (e.g. ``user_setting_id``) into ``vals``
-        to re-point its config row onto another user's settings."""
         other_user = self.env["res.users"].create(
             {
                 "name": "Mallory",
@@ -214,7 +196,7 @@ class TestResUsersSettings(TransactionCase):
                 "password": "mallory@mail.com",
             }
         )
-        other_settings = self.env["res.users.settings"]._find_or_create_for_user(
+        other_settings = self.env["res.users.settings"]._get_or_create_for_user(
             other_user
         )
         self.user_settings.set_embedded_actions_setting(

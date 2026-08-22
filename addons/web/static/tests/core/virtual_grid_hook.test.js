@@ -338,15 +338,6 @@ test("horizontal scroll in RTL", async () => {
     expect(comp.virtualGrid.columnsIndexes).toEqual([180, 199]);
 });
 
-/**
- * Windowing has no exact fixpoint: the indexes come from the scroll position,
- * rendering them changes the scrollable height, and at a scroll extremity the
- * browser clamps the position back — so a ~1px disagreement between assumed and
- * laid-out sizes becomes a permanent, animation-frame-rate limit cycle. Measured
- * in a real 260-row list view: 118 renders per idle second, alternating between
- * two windows one row apart. The deadband is what makes the mapping stable under
- * the jitter it causes.
- */
 test("sub-deadband scroll jitter does not recompute the window", async () => {
     let changes = 0;
     const comp = await mountWithCleanup(
@@ -358,7 +349,6 @@ test("sub-deadband scroll jitter does not recompute the window", async () => {
     const settled = comp.virtualGrid.rowsIndexes;
     changes = 0;
 
-    // The clamp oscillation: the position bounces by 1px, forever.
     for (let i = 0; i < 10; i++) {
         await scroll(".scrollable", { top: MAX_SCROLL_TOP - (i % 2) });
         await animationFrame();
@@ -379,8 +369,6 @@ test("scroll accumulating past the deadband still recomputes", async () => {
     const before = comp.virtualGrid.rowsIndexes;
     changes = 0;
 
-    // Each step is under the deadband, but they accumulate away from the
-    // position the window was computed at, so the window must follow.
     for (let top = 3; top <= 120; top += 3) {
         await scroll(".scrollable", { top });
         await animationFrame();

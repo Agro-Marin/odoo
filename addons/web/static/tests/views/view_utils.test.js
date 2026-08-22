@@ -2,7 +2,13 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { computeAggregatedValue } from "@web/views/view_measurements";
-import { computeArchiveEnabled, handleBeforeUnload } from "@web/views/view_utils";
+import {
+    archiveConfirmationProps,
+    buildOpenActionParams,
+    buildStaticActionMenuItems,
+    computeArchiveEnabled,
+    handleBeforeUnload,
+} from "@web/views/view_utils";
 
 describe.current.tags("headless");
 
@@ -142,5 +148,78 @@ describe("handleBeforeUnload", () => {
         });
         expect(ev.prevented).toBe(true);
         expect(ev.returnValue).toBe("Unsaved changes");
+    });
+});
+
+describe("buildStaticActionMenuItems", () => {
+    test("composes the shared presentation with the caller's behaviour", () => {
+        const items = buildStaticActionMenuItems({
+            archive: { isAvailable: () => true, callback: () => "archived" },
+            delete: { isAvailable: () => false, callback: () => "deleted" },
+        });
+        expect(items.archive.sequence).toBe(40);
+        expect(items.archive.icon).toBe("oi oi-archive");
+        expect(items.archive.isAvailable()).toBe(true);
+        expect(items.archive.callback()).toBe("archived");
+        expect(items.delete.class).toBe("text-danger");
+        expect(items.delete.sequence).toBe(50);
+    });
+
+    test("the caller may override presentation, and an unknown key throws", () => {
+        expect(
+            buildStaticActionMenuItems({ delete: { skipSave: true } }).delete.skipSave,
+        ).toBe(true);
+        expect(() => buildStaticActionMenuItems({ archiv: {} })).toThrow(
+            /No static action menu descriptor for "archiv"/,
+        );
+    });
+});
+
+describe("archiveConfirmationProps", () => {
+    test("is defaults, so an archiveDialogProps override extends rather than replaces", () => {
+        let archived = 0;
+        const defaults = archiveConfirmationProps(() => archived++);
+        expect(defaults.confirmLabel.toString()).toBe("Archive");
+        defaults.confirm();
+        expect(archived).toBe(1);
+
+        const merged = {
+            ...archiveConfirmationProps(() => archived++),
+            body: "custom",
+        };
+        expect(merged.body).toBe("custom");
+        merged.confirm();
+        expect(archived).toBe(2);
+    });
+
+    test("the multi variant asks about the selection, the single one about the record", () => {
+        expect(archiveConfirmationProps(() => {}).body.toString()).toMatch(
+            /this record/,
+        );
+        expect(
+            archiveConfirmationProps(() => {}, { multi: true }).body.toString(),
+        ).toMatch(/all the selected records/);
+    });
+});
+
+describe("buildOpenActionParams", () => {
+    test("builds the doActionButton payload both views used to build inline", () => {
+        let loaded = 0;
+        const record = {
+            resModel: "foo",
+            resId: 3,
+            resIds: [3, 4],
+            context: { a: 1 },
+            model: { root: { load: async () => loaded++ } },
+        };
+        const params = buildOpenActionParams({ action: "act", type: "object" }, record);
+        expect(params.name).toBe("act");
+        expect(params.type).toBe("object");
+        expect(params.resModel).toBe("foo");
+        expect(params.resId).toBe(3);
+        expect(params.resIds).toEqual([3, 4]);
+        expect(params.context).toEqual({ a: 1 });
+        params.onClose();
+        expect(loaded).toBe(1);
     });
 });

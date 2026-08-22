@@ -32,7 +32,6 @@ defineModels([Hardening]);
 
 describe.current.tags("desktop");
 
-/** Bare mount target, so services needing a main container have one. */
 class Host extends Component {
     static props = [];
     static template = xml`<div class="host"/>`;
@@ -40,10 +39,6 @@ class Host extends Component {
 
 describe("list-operator values", () => {
     test("a bracket-less `in` candidate survives the domain round trip", () => {
-        // Deliberately NOT repaired into `["draft"]`: geoengine stores
-        // `("geo_point", "in", "{ACTIVE_IDS}")` and matches the placeholder by
-        // strict equality, so rewriting the value here silently stripped its
-        // virtual operator.
         const tree = constructTreeFromDomain([["state", "in", "draft"]]);
         expect(tree.value).toBe("draft");
         expect(constructDomainFromTree(tree)).toBe(`[("state", "in", "draft")]`);
@@ -65,8 +60,6 @@ describe("list-operator values", () => {
             ["state", "in", "draft"],
             ["state", "=", "done"],
         ]);
-        // Unmergeable, so each condition renders on its own instead of the
-        // string being spread into `d or r or a or f or t`.
         expect(await treeProcessor.getDomainTreeDescription("hardening", tree)).toBe(
             "State = draft or State = done",
         );
@@ -86,10 +79,6 @@ describe("list-operator values", () => {
     });
 
     test("condition() leaves a caller's explicit scalar alone", () => {
-        // The repair belongs to untrusted domain TEXT. `geoengine` builds
-        // `condition(path, "in", "{ACTIVE_IDS}")` with a scalar placeholder on
-        // purpose; wrapping it emitted a domain its substitution step no longer
-        // recognises.
         const tree = condition("geo_point", "in", "{ACTIVE_IDS}");
         expect(tree.value).toBe("{ACTIVE_IDS}");
         expect(constructDomainFromTree(tree)).toBe(
@@ -98,13 +87,10 @@ describe("list-operator values", () => {
     });
 
     test("an Expression `in` is neither wrapped nor merged", () => {
-        // As domain TEXT, so `allowed_ids` parses as a name rather than a string.
         const tree = constructTreeFromDomain(
             `["|", ("id", "in", allowed_ids), ("id", "=", 1)]`,
         );
         expect(tree.children[0].value instanceof Expression).toBe(true);
-        // Unmergeable: its members are a server value, so the OR is preserved
-        // rather than flattened into a list that omits them.
         expect(simplifyTree(tree).type).toBe("connector");
         expect(constructDomainFromTree(tree)).toBe(
             `["|", ("id", "in", allowed_ids), ("id", "=", 1)]`,
@@ -168,8 +154,6 @@ describe("navigation accessibility", () => {
         await makeMockEnv();
         await mountWithCleanup(MenuParent);
         await animationFrame();
-        // A `menuitem` has no `aria-selected` in ARIA; the container element and
-        // its inner target used to carry contradicting values at the same time.
         expect(queryOne(".o-navigable.wrapper")).not.toHaveAttribute("aria-selected");
         expect(queryOne(".o-navigable.wrapper .inner")).not.toHaveAttribute(
             "aria-selected",
@@ -177,9 +161,6 @@ describe("navigation accessibility", () => {
     });
 
     test("an item's own id is never overwritten by the generated one", async () => {
-        // The generated id is a DOM mutation on an element another component
-        // owns. `search_bar` reads it back with `Number.parseInt(itemEl.id)` to
-        // recover its item, so clobbering a caller's id would resolve to NaN.
         class OwnIds extends Component {
             static props = [];
             static template = xml`
@@ -265,8 +246,6 @@ describe("combobox popup association", () => {
         await animationFrame();
         const input = queryOne(".o_command_palette input[role=combobox]");
         const listbox = queryOne(".o_command_palette [role=listbox]");
-        // Without `aria-controls` the input's `aria-activedescendant` points
-        // into a popup assistive technology cannot associate with the combobox.
         expect(listbox.id).toBe("o_command_palette_listbox");
         expect(input.getAttribute("aria-controls")).toBe(listbox.id);
         expect(
@@ -276,15 +255,7 @@ describe("combobox popup association", () => {
 });
 
 describe("field paths are data, not property names", () => {
-    // A field path reaches the client as free-form text: stored `ir.filters`
-    // domains, action domains, `<field>` widget options, the tree editor
-    // mid-edit. Every map keyed by one of those must answer "is this a declared
-    // field" and not "does Object.prototype happen to have this member".
-
     test("an OR of `=` on a `__proto__` path merges instead of throwing", () => {
-        // `childrenByPath["__proto__"]` read back `Object.prototype` — truthy,
-        // so the accumulator entry was never created and the very next
-        // `.elems.push(...)` threw, taking down every rendering of the domain.
         const merged = simplifyTree(
             constructTreeFromDomain([
                 "|",
@@ -304,10 +275,6 @@ describe("field paths are data, not property names", () => {
             "hardening",
             "constructor",
         );
-        // `fields_get()["constructor"]` is `Object`, which every consumer
-        // downstream then read as a field definition: `loadPath` reported the
-        // path VALID and the domain description rendered a field that does not
-        // exist on the model.
         expect(fieldDef).toBe(null);
     });
 
@@ -321,8 +288,6 @@ describe("field paths are data, not property names", () => {
         ]);
         const getFieldDef = await treeProcessor.makeGetFieldDef("hardening", tree);
         expect(getFieldDef("constructor")).toBe(null);
-        // A real field on the same tree still resolves, so the guard narrows
-        // nothing beyond the names that were never declared.
         expect(getFieldDef("state")?.type).toBe("char");
     });
 
@@ -337,11 +302,6 @@ describe("field paths are data, not property names", () => {
 });
 
 describe("malformed condition values", () => {
-    // `constructTreeFromDomain` does not validate operators, so a stored
-    // `ir.filters` domain, an action domain or the debug code editor can hand
-    // the renderer an `in range` whose value is not the 4-tuple the branch
-    // reads. The description is produced client-side, before any server ever
-    // rejects the domain.
     const BAD_IN_RANGE_VALUES = [
         ["a scalar string", "not-an-array", "State is in not-an-array"],
         ["a number", 42, "State is in 42"],
@@ -360,9 +320,6 @@ describe("malformed condition values", () => {
             const tree = constructTreeFromDomain([["state", "=", "x"]]);
             tree.operator = "in range";
             tree.value = value;
-            // A scalar indexed at [1] yields a CHARACTER ("State is in o"); a
-            // short list yields `undefined`, and `undefined.toString()` threw
-            // out of the whole description.
             expect(
                 await treeProcessor.getDomainTreeDescription("hardening", tree),
             ).toBe(expected);
@@ -375,7 +332,6 @@ describe("malformed condition values", () => {
         const tree = constructTreeFromDomain([["state", "=", "x"]]);
         tree.operator = "in range";
         tree.value = ["char", "today", false, false];
-        // The guard must narrow nothing for the shape the tree editor produces.
         expect(await treeProcessor.getDomainTreeDescription("hardening", tree)).toBe(
             "State is in Today",
         );
@@ -389,28 +345,29 @@ describe("connection recovery is per env", () => {
         const { InvalidResponseError } = await import("@web/core/network/rpc");
         const { lostConnectionHandler } =
             await import("@web/components/errors/error_handlers");
+        const { connectionRecoveryService } =
+            await import("@web/core/network/connection_recovery_service");
 
         const makeError = () => {
             const error = new UncaughtPromiseError();
             error.unhandledRejectionEvent = { preventDefault: () => {} };
             return error;
         };
-        const makeEnv = (opened) => ({
-            services: { dialog: { add: () => opened.push(1) } },
-        });
+        // One service instance per env is now what makes this per-env, rather
+        // than a module-level WeakMap keyed by env that nothing owned.
+        const makeEnv = (opened) => {
+            const env = { services: { dialog: { add: () => opened.push(1) } } };
+            env.services.connection_recovery = connectionRecoveryService.start(env);
+            return env;
+        };
         const expired = new InvalidResponseError("/web/x", 200);
 
         const firstEnvDialogs = [];
         const firstEnv = makeEnv(firstEnvDialogs);
         lostConnectionHandler(firstEnv, makeError(), expired);
         lostConnectionHandler(firstEnv, makeError(), expired);
-        // Same env: the second occurrence is deduplicated onto the open dialog.
         expect(firstEnvDialogs).toHaveLength(1);
 
-        // A different env (next webclient, embedded app, next test) must not
-        // inherit the first one's "a dialog is already open" flag — that flag
-        // was module-level, so an env whose dialog never emitted `onClose`
-        // silenced the session-expired prompt for everyone after it.
         const secondEnvDialogs = [];
         lostConnectionHandler(makeEnv(secondEnvDialogs), makeError(), expired);
         expect(secondEnvDialogs).toHaveLength(1);
@@ -418,10 +375,6 @@ describe("connection recovery is per env", () => {
 });
 
 describe("property names are data, not property names", () => {
-    // A property's `name` is USER-CHOSEN and the ORM's validator is
-    // `^[a-z0-9_]+$` (odoo/orm/validation.py), which accepts `__proto__` and
-    // `constructor`. Verified against a live database: the server stores such a
-    // definition and `get_properties_base_definition` hands it straight back.
     class Holder extends models.Model {
         _name = "holder";
         properties_base_definition_id = fields.Many2one({
@@ -462,9 +415,6 @@ describe("property names are data, not property names", () => {
             "holder",
             "properties",
         );
-        // On a plain object, `definitions["__proto__"] = {...}` invokes the
-        // prototype SETTER: the entry is dropped and the definition object's
-        // prototype becomes the property definition itself.
         expect(Object.keys(definitions)).toEqual(["__proto__", "normal_prop"]);
         expect(definitions["__proto__"].string).toBe("Proto Prop");
     });
@@ -479,9 +429,6 @@ describe("property names are data, not property names", () => {
             "holder",
             "properties",
         );
-        // Measured before the fix: `definitions.type` was "char" and
-        // `definitions.string` was "Proto Prop" — a lookup for a property named
-        // `type` or `string` silently answered with the injected one's values.
         for (const polluted of ["type", "string", "name", "searchable", "record_id"]) {
             expect(definitions[polluted]).toBe(undefined, {
                 message: `definitions.${polluted} must not be inherited`,
@@ -527,10 +474,6 @@ describe("input bindings are per owner", () => {
         input.value = "02/20/2020";
         input.dispatchEvent(new Event("change"));
 
-        // A module-level "already listened" registry used to make the second
-        // picker attach nothing, then let the first one's dispose remove the
-        // only real listeners — leaving an alive, enabled picker permanently
-        // deaf. Measured before the fix: second.length === 0.
         expect(second.length).toBe(1);
         expect(first.length).toBe(0);
         secondPicker.dispose();
@@ -546,8 +489,6 @@ describe("input bindings are per owner", () => {
         const input = queryOne("input.shared");
         input.value = "03/10/2020";
         input.dispatchEvent(new Event("change"));
-        // `enable()` detaches its previous binding first, which is what makes
-        // the shared registry unnecessary rather than merely harmful.
         expect(changes.length).toBe(1);
         picker.dispose();
     });
@@ -558,11 +499,11 @@ describe("reconnect poll stops with its env", () => {
         const { UncaughtPromiseError } =
             await import("@web/core/errors/uncaught_errors");
         const { ConnectionLostError } = await import("@web/core/network/rpc");
-        const { lostConnectionHandler, connectionRecoveryService } =
+        const { lostConnectionHandler } =
             await import("@web/components/errors/error_handlers");
+        const { connectionRecoveryService } =
+            await import("@web/core/network/connection_recovery_service");
         await makeMockEnv();
-        // The probe must SUCCEED, otherwise the poll only ever reschedules and
-        // the assertion below cannot tell a cancelled chain from a live one.
         onRpc("/web/webclient/version_info", () => {
             expect.step("probe");
             return {};
@@ -583,15 +524,12 @@ describe("reconnect poll stops with its env", () => {
         };
 
         const recovery = connectionRecoveryService.start(env);
+        env.services.connection_recovery = recovery;
         expect(lostConnectionHandler(env, error, new ConnectionLostError("/x"))).toBe(
             true,
         );
         expect(notifications).toEqual(["Connection lost. Trying to reconnect..."]);
 
-        // The poll re-armed itself with `setTimeout` until the server answered
-        // and nothing could stop it: a torn-down env kept probing
-        // `/web/webclient/version_info` for the life of the page and then
-        // pushed "Connection restored" into a UI nobody displays.
         recovery.destroy();
         await advanceTime(120_000);
         expect.verifySteps([]);

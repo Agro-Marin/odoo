@@ -53,10 +53,8 @@ class TestSessionInfo(common.HttpCase):
         }
 
     def test_session_info(self):
-        """user_companies must list allowed companies (with currency_id) and
-        their disallowed ancestors (without it) across a branch hierarchy."""
         self.authenticate(self.user.login, self.user_password)
-        self.env["res.users.settings"]._find_or_create_for_user(self.user)
+        self.env["res.users.settings"]._get_or_create_for_user(self.user)
         response = self.url_open(
             "/web/session/get_session_info",
             data=self.payload,

@@ -1,14 +1,5 @@
 // @ts-check
 
-/**
- * @module tests/views/list/list_selection
- *
- * The long-touch selection timer armed by ``onRowTouchStart`` must not outlive
- * the component that armed it: ``t-on-touchstart`` is bound on every data row,
- * so a touch-and-hold followed by a navigation inside the threshold would
- * otherwise toggle selection on a torn-down renderer's list.
- */
-
 import { destroy, expect, test } from "@odoo/hoot";
 import { advanceTime } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";

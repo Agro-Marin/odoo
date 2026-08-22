@@ -1,21 +1,5 @@
 // @ts-check
 
-/**
- * Regression test for the partial-response hole in ``StaticList._replaceWith``
- * — the twin of the one already guarded in ``_load`` (see
- * static_list_partial_load.test.js).
- *
- * ``_loadRecords`` (RelationalModel) only throws when *zero* rows come back; a
- * partial response — an id deleted or made inaccessible server-side between the
- * SET command being built and this load — returns fewer. Mapping every
- * requested id through ``_cache`` then leaves an ``undefined`` hole in
- * ``records`` (which ``ListGridState._materialize`` dereferences) and keeps the
- * phantom id in ``_currentIds`` / ``count`` and in the SET command the next
- * ``web_save`` ships.
- *
- * Uses the REAL StaticList and RelationalRecord against a mock model.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { x2ManyCommands } from "@web/core/network/commands";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";

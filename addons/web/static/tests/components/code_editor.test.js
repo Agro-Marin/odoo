@@ -341,10 +341,6 @@ test("code editor can take an initial cursor position", async () => {
 });
 
 test("a value change does not re-attach the session", async () => {
-    // The session-attach effect used to depend on `props.value` too, so a
-    // controlled parent echoing the value back re-ran `setSession()` -- and Ace
-    // answers a session swap by resetting the cursor and the scroll. Attaching
-    // a session is a function of WHICH session, nothing else.
     let editor;
     patchWithCleanup(CodeEditor.prototype, {
         setup() {

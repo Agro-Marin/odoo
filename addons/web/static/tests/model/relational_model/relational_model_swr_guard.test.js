@@ -1,16 +1,5 @@
 // @ts-check
 
-/**
- * Unit tests for the stale-while-revalidate cache callback guard
- * (``RelationalModel._getCacheParams``): a background revalidation must not
- * rebuild the root's record datapoints (``root._setData``) while a record is
- * being edited, has unsaved changes, or is SELECTED — the rebuild would wipe
- * that state (e.g. checked rows losing their selection under a bulk-action
- * click).
- *
- * Uses ``Object.create(RelationalModel.prototype)`` with hand-built state.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
 

@@ -9,7 +9,12 @@ import {
     queryOne,
 } from "@odoo/hoot-dom";
 import { Component, useState, xml } from "@odoo/owl";
-import { defineStyle, mountWithCleanup } from "@web/../tests/web_test_helpers";
+import {
+    contains,
+    defineStyle,
+    mountWithCleanup,
+    patchWithCleanup,
+} from "@web/../tests/web_test_helpers";
 import {
     ColorPicker,
     DEFAULT_COLORS,
@@ -411,7 +416,73 @@ test("the used-custom-colours list follows what has been applied", async () => {
     });
     expect(picker.usedCustomColors).toEqual([]);
 
-    // Applying a colour is exactly what makes it "used".
     picker.selectColor("#FF0000");
     expect(picker.usedCustomColors).toEqual(["#FF0000"]);
+});
+
+test("a preview that moves focus off the swatch does not re-enter onColorFocusin", async () => {
+    let previews = 0;
+    await mountWithCleanup(ColorPicker, {
+        props: {
+            state: { selectedColor: "", defaultTab: "" },
+            getUsedCustomColors: () => [],
+            applyColor() {},
+            applyColorPreview() {
+                previews++;
+                if (previews > 5) {
+                    return;
+                }
+                document.activeElement?.blur();
+            },
+            applyColorResetPreview() {},
+            colorPrefix: "",
+        },
+    });
+
+    queryOne(
+        ".o_font_color_selector .o_color_section .o_color_button[data-color]:first-of-type",
+    ).focus();
+    await animationFrame();
+
+    expect(previews).toBe(1);
+});
+
+test("useColorPicker re-reads its props on every open when given a getter", async () => {
+    /** @type {string[]} */
+    const opened = [];
+    let prefix = "first-";
+    class Parent extends Component {
+        static template = xml`<button t-ref="root">pick</button>`;
+        static props = ["*"];
+        setup() {
+            this.picker = useColorPicker("root", () => ({
+                state: { selectedColor: "", defaultTab: "" },
+                getUsedCustomColors: () => [],
+                applyColor: () => {},
+                applyColorPreview: () => {},
+                applyColorResetPreview: () => {},
+                colorPrefix: prefix,
+            }));
+        }
+    }
+    patchWithCleanup(ColorPicker.prototype, {
+        setup() {
+            opened.push(this.props.colorPrefix);
+            return super.setup();
+        },
+    });
+
+    await mountWithCleanup(Parent);
+    await contains("button").click();
+    await animationFrame();
+    expect(opened).toEqual(["first-"]);
+
+    await contains("button").click();
+    await animationFrame();
+    // The object form is captured once at setup; the getter form is asked again,
+    // so a value that moved between opens is the value the picker gets.
+    prefix = "second-";
+    await contains("button").click();
+    await animationFrame();
+    expect(opened).toEqual(["first-", "second-"]);
 });

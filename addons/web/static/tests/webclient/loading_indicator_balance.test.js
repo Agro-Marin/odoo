@@ -13,13 +13,6 @@ import { rpc } from "@web/core/network/rpc";
 import { config as transitionConfig } from "@web/core/transition";
 import { LoadingIndicator } from "@web/webclient/loading_indicator/loading_indicator";
 
-/**
- * The indicator counts a Set of in-flight rpc ids, so it hides only when every
- * REQUEST has been balanced by a RESPONSE carrying the same id. An unbalanced
- * path does not fail loudly — it leaves the spinner turning for the rest of the
- * session. The existing suite drives the bus by hand, so no real rpc shape
- * (retry, dedup, cache, abort) was ever exercised against that invariant.
- */
 describe.current.tags("desktop");
 
 async function withIndicator(/** @type {() => any} */ run) {

@@ -22,8 +22,6 @@ describe("orderByToString", () => {
         expect(orderByToString([{ name: "date", asc: false }])).toBe("date DESC");
     });
 
-    // `asc` is optional; omitting it means ASC, like `stringToOrderBy`, like
-    // `search_favorites`'s `o.asc === false ? " desc" : ""`, and like SQL.
     test("missing asc defaults to ASC", () => {
         expect(orderByToString([{ name: "date" }])).toBe("date ASC");
         expect(orderByToString([{ name: "date", asc: undefined }])).toBe("date ASC");
@@ -82,10 +80,6 @@ describe("stringToOrderBy", () => {
         expect(stringToOrderBy(orderByToString(terms))).toEqual(terms);
     });
 
-    // An empty term used to yield `{ name: "", asc: true }`, which
-    // `orderByToString` turned into " ASC". The server answers that with
-    // `ValueError: Invalid field 'ASC'` instead of the readable
-    // `UserError: Invalid "order" specified` it raises for the original string.
     test("empty terms are rejected, not silently kept", () => {
         expect(() => stringToOrderBy("id desc,")).toThrow(InvalidOrderError);
         expect(() => stringToOrderBy(",")).toThrow(InvalidOrderError);
@@ -93,8 +87,6 @@ describe("stringToOrderBy", () => {
         expect(() => stringToOrderBy("a, ,b")).toThrow(InvalidOrderError);
     });
 
-    // "id ASCENDING" used to parse as DESC, so the list silently rendered in
-    // the opposite order; the server would have refused the string outright.
     test("an unrecognised direction is rejected, not read as DESC", () => {
         expect(() => stringToOrderBy("id ASCENDING")).toThrow(InvalidOrderError);
         expect(() => stringToOrderBy("id ASCII")).toThrow(InvalidOrderError);

@@ -223,11 +223,6 @@ test("ProgressBarField: Standard readonly mode is readonly", async () => {
 test("ProgressBarField: field is editable in kanban", async () => {
     expect.assertions(7);
     Partner._records[0].int_field = 99;
-    // A distinctive max, so the assertions below prove the bound really comes
-    // from the `max_value` field. `progressbar` now declares that field as a
-    // dependency, so it is loaded even though this arch does not render it;
-    // before, it was absent from the record and the widget silently fell back
-    // to 100 — which this test could not tell apart from a correct read.
     Partner._records[0].float_field = 250;
 
     onRpc("web_save", ({ args }) => {
@@ -269,7 +264,7 @@ test("ProgressBarField: field is editable in kanban", async () => {
 test("force readonly in kanban", async () => {
     expect.assertions(2);
     Partner._records[0].int_field = 99;
-    Partner._records[0].float_field = 250; // see the editable-in-kanban test
+    Partner._records[0].float_field = 250;
     onRpc("web_save", () => {
         throw new Error("Not supposed to write");
     });
@@ -280,7 +275,7 @@ test("force readonly in kanban", async () => {
         <kanban>
             <templates>
                 <t t-name="card">
-                    <field name="int_field" widget="progressbar" options="{'editable': true, 'max_value': 'float_field', 'readonly': True}" />
+                    <field name="int_field" widget="progressbar" options="{'editable': true, 'max_value': 'float_field', 'force_readonly': True}" />
                 </t>
             </templates>
         </kanban>`,
@@ -553,8 +548,6 @@ test("ProgressBarField: edit_max_value with a numeric max_value exposes no stray
                     options="{'max_value': 200, 'editable': true, 'edit_max_value': true}"/>
             </form>`,
     });
-    // A literal bound is backed by no field, so there is nothing to write to:
-    // rendering an input would commit the max value into int_field itself.
     expect(".o_progressbar_value input[data-ref=maxValue]").toHaveCount(0);
     expect(queryText(".o_progressbar_value").replace(/\s+/g, " ").trim()).toBe(
         "7 / 200",
@@ -580,11 +573,6 @@ test("ProgressBarField: a field-backed max_value stays editable", async () => {
 });
 
 test("ProgressBarField: an editable current_value is written back", async () => {
-    // `current_value` used to be declared as a *readonly* field dependency while
-    // the widget still rendered a writable input for it. A readonly field is
-    // dropped from web_save, so the edit was accepted, echoed back into the
-    // input and then silently discarded -- with no invalid marker and no
-    // notification, leaving the form permanently "unsaved".
     Partner._records[0].int_field = 10;
     Partner._records[0].int_field2 = 20;
     onRpc("web_save", ({ args }) => {
@@ -631,9 +619,6 @@ test("ProgressBarField: an editable max_value is written back", async () => {
 });
 
 test("ProgressBarField: a parse error on current_value marks the bar invalid", async () => {
-    // The bar writes to `current_value`, so the default
-    // `record.isFieldInvalid(props.name)` never saw the parse error and the
-    // widget stayed unhighlighted while the save silently refused.
     Partner._records[0].int_field = 10;
     Partner._records[0].int_field2 = 20;
     await mountView({
@@ -655,10 +640,6 @@ test("ProgressBarField: a parse error on current_value marks the bar invalid", a
 });
 
 test("the readonly modifier wins over 'editable' in kanban", async () => {
-    // A kanban card is never in edition, so the widget has to ignore "the
-    // record is not being edited" to be usable at all -- it used to do that by
-    // ignoring `props.readonly` wholesale, which threw away the field's own
-    // modifier with it.
     Partner._records[0].int_field = 99;
     Partner._records[0].float_field = 250;
     onRpc("web_save", () => {
@@ -690,10 +671,6 @@ test("the readonly modifier wins over 'editable' in kanban", async () => {
 });
 
 test("the bar renders human-readable numbers, literal max included", async () => {
-    // Not a literal-vs-field distinction: `formatMaxValue`/`formatCurrentValue`
-    // are only ever called with humanReadable=true outside edit mode, so both
-    // ends round. Pinned because it is easy to mistake for a formatting bug in
-    // the literal-max path -- there is no separate path.
     await mountView({
         type: "form",
         resModel: "partner",

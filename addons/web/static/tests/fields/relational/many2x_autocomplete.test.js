@@ -1,16 +1,5 @@
 // @ts-check
 
-/**
- * Integration tests for the Many2XAutocomplete component.
- *
- * Covers the dropdown suggestion-building logic: search RPC calls, quick-create,
- * create-and-edit, search-more, and access-restriction props (no_create,
- * no_quick_create). The component is exercised through a many2one field in a
- * form view — it cannot be mounted in isolation because it uses OWL service hooks.
- *
- * Module under test: fields/relational/many2x_autocomplete.js
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import {
@@ -267,8 +256,6 @@ describe("empty-search memoization", () => {
             arch: `<form><field name="product_id"/></form>`,
         });
 
-        // Only the *last* empty term used to be remembered, so going back to a
-        // term already proven empty re-issued the very same RPC.
         for (const term of ["zz", "zzz", "zz", "zzz"]) {
             await contains(INPUT_SELECTOR).edit(term, { confirm: false });
             await runAllTimers();

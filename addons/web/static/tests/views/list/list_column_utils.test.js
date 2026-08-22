@@ -1,19 +1,5 @@
 // @ts-check
 
-/**
- * @module tests/views/list/list_column_utils
- *
- * Regression guards for the property-column expansion memoization.
- *
- * `getPropertyFieldColumns` used to build fresh column objects on every call
- * while `processAllColumns` runs on every renderer render: any displayed
- * property column broke the elementwise identity check of
- * `ListRenderer._toStableColumns`, so the `columns` prop changed identity on
- * every render and every `ListRecordRow` re-rendered (defeating the row
- * render-isolation architecture), and the per-column format-option
- * memoization in `view_utils.js` missed every render.
- */
-
 import { expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
 import { onRendered } from "@odoo/owl";

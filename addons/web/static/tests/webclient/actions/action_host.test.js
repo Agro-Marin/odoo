@@ -11,22 +11,6 @@ import {
     webModels,
 } from "@web/../tests/web_test_helpers";
 
-/**
- * The action service is usable without the webclient shell.
- *
- * This is a real invariant, not just a test convenience: ``web_studio``'s
- * editor builds its own manager with ``makeActionManager(env, router)`` and
- * renders it through its own container, with no ``WebClient`` above it. These
- * tests pin that the manager only needs SOMETHING listening to
- * ``ACTION_MANAGER:UPDATE`` — the navbar, menu service and URL/menu resolution
- * are not part of its contract.
- *
- * They also document why a bare ``makeMockEnv()`` is not enough on its own:
- * without a renderer the dispatch promise is never settled (it is resolved by
- * ``ControllerComponent``'s ``onMounted``), so ``doAction`` hangs rather than
- * failing — see the first test.
- */
-
 const { ResCompany, ResPartner, ResUsers } = webModels;
 
 class Partner extends models.Model {

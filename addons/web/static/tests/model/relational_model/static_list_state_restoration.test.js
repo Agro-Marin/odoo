@@ -1,24 +1,5 @@
 // @ts-check
 
-/**
- * ``StaticList``'s restorable state is declared once (``RESTORABLE_STATE`` +
- * ``RESTORABLE_CONFIG_KEYS``) and both ``_snapshot`` and ``_restore`` derive
- * from it, so the two can no longer describe different field sets.
- *
- * Pinned here:
- *  - the page window (``limit``/``offset``) round-trips through a snapshot —
- *    ``offset`` is rewritten by the page-anchor shift in ``applyCommands`` and
- *    by ``_clampOffset``, and used to be left behind by a restore;
- *  - ``_pruneCache`` never evicts a datapoint a STAGED command still names. A
- *    CREATE's row exists only in the cache — there is no server to re-read it
- *    from — so evicting it made ``serializeCommands`` hit its ``if (!record)
- *    continue`` and drop the row from the save payload without a word;
- *  - ``_replaceWith`` leaves ``records`` equal to the page window.
- *
- * DOM-free: the list is built on the real ``StaticList`` prototype, as in
- * static_list_pending_commands.test.js.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { markRaw } from "@odoo/owl";
 import { x2ManyCommands } from "@web/core/network/commands";
@@ -37,7 +18,6 @@ const { CREATE } = x2ManyCommands;
 function makeList({ resIds = [], limit = 40, offset = 0 } = {}) {
     const list = Object.create(StaticList.prototype);
     Object.assign(list, {
-        // Membership owner first: the keys below write through its accessors.
         _membership: new ListMembership(),
         id: "datapoint_test",
         _config: {
@@ -51,12 +31,12 @@ function makeList({ resIds = [], limit = 40, offset = 0 } = {}) {
             fields: { display_name: { type: "char" } },
         },
         records: [],
-        _cache: markRaw({}),
+        _cache: markRaw(new Map()),
         _commands: [],
         _initialCommands: [],
         _commandsPromise: null,
         _savePoint: undefined,
-        _unknownRecordCommands: {},
+        _unknownRecordCommands: new Map(),
         _loadingStubIds: new Set(),
         _currentIds: [...resIds],
         _tmpIncreaseLimit: 0,
@@ -78,13 +58,13 @@ function makeList({ resIds = [], limit = 40, offset = 0 } = {}) {
                 _getChanges: () => ({}),
                 _applyValues() {},
             };
-            this._cache[id] = record;
+            this._cache.set(id, record);
             return record;
         },
     });
     for (const resId of resIds) {
         list._createRecordDatapoint({ id: resId });
-        list.records.push(list._cache[resId]);
+        list.records.push(list._cache.get(resId));
     }
     return list;
 }
@@ -104,20 +84,20 @@ describe("snapshot / restore", () => {
 
     test("a restore reinstates the whole declared field set", () => {
         const list = makeList({ resIds: [1, 2] });
-        list._unknownRecordCommands = { 9: [[1, 9, { display_name: "x" }]] };
+        list._unknownRecordCommands = new Map([[9, [[1, 9, { display_name: "x" }]]]]);
         list._loadingStubIds.add(9);
         list._tmpIncreaseLimit = 2;
         const snapshot = list._snapshot();
 
-        list._unknownRecordCommands = {};
+        list._unknownRecordCommands = new Map();
         list._loadingStubIds.clear();
         list._tmpIncreaseLimit = 0;
         list._currentIds = [];
         list._restore(snapshot);
 
-        expect(list._unknownRecordCommands).toEqual({
-            9: [[1, 9, { display_name: "x" }]],
-        });
+        expect([...list._unknownRecordCommands]).toEqual([
+            [9, [[1, 9, { display_name: "x" }]]],
+        ]);
         expect([...list._loadingStubIds]).toEqual([9]);
         expect(list._tmpIncreaseLimit).toBe(2);
         expect(list._currentIds).toEqual([1, 2]);
@@ -130,13 +110,11 @@ describe("_pruneCache", () => {
         const list = makeList({ resIds: [1] });
         list._createRecordDatapoint({}, { virtualId: "virtual_1" });
         list._commands.push([CREATE, "virtual_1"]);
-        // the id has left the membership (what `_replaceWith` produces) but the
-        // command is still staged
         list._currentIds = [1];
 
         list._pruneCache();
 
-        expect(list._cache["virtual_1"]).not.toBe(undefined);
+        expect(list._cache.get("virtual_1")).not.toBe(undefined);
     });
 
     test("still evicts a datapoint nothing references", () => {
@@ -146,8 +124,8 @@ describe("_pruneCache", () => {
 
         list._pruneCache();
 
-        expect(list._cache[2]).toBe(undefined);
-        expect(list._cache[1]).not.toBe(undefined);
+        expect(list._cache.get(2)).toBe(undefined);
+        expect(list._cache.get(1)).not.toBe(undefined);
     });
 });
 

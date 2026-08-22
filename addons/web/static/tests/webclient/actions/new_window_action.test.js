@@ -156,10 +156,6 @@ test("can execute an actions in a new window and preserve the breadcrumb", async
 });
 
 test("can execute client actions in a new window", async () => {
-    // `force`: `__test__client__action__` is the shared tag
-    // `useTestClientAction` claims at module scope, so it is already in the
-    // registry baseline; replacing it with this test's own component is a
-    // deliberate override, not a first registration.
     registry
         .category("actions")
         .add("__test__client__action__", TestClientAction, { force: true });

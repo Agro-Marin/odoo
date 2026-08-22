@@ -1,10 +1,5 @@
 // @ts-check
 
-/**
- * Regressions for defects found in a field-layer audit. Each test pins one of
- * them; every one of these failed before the accompanying fix.
- */
-
 import { expect, test } from "@odoo/hoot";
 import { click, queryAll, queryFirst } from "@odoo/hoot-dom";
 import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
@@ -73,7 +68,6 @@ class JsonProbe extends models.Model {
             },
         },
     ];
-    // an onchange on a NEIGHBOURING field that rewrites the json wholesale
     _onChanges = {
         name(record) {
             record.flags = {
@@ -87,20 +81,13 @@ class JsonProbe extends models.Model {
 defineModels([AuditProbe, JsonProbe, AuditUser]);
 setupChartJsForTests();
 
-// ---------------------------------------------------------------------------
-// parseMonetary: `=`-expressions are expression syntax, not currency decoration
-// ---------------------------------------------------------------------------
-
 test.tags("headless");
 test("parseMonetary keeps the closing parenthesis of an =-expression", async () => {
     await makeMockEnv();
-    // Each of these ends in ")", which the trailing-decoration strip removed.
     expect(parseMonetary("=(1+2)")).toBe(3);
     expect(parseMonetary("=2*(3+4)")).toBe(14);
     expect(parseMonetary("=((1+2))")).toBe(3);
-    // ...and one that never regressed, because it ends in a digit.
     expect(parseMonetary("=(1+2)*3")).toBe(9);
-    // monetary must agree with float on every expression form
     for (const expr of ["=1+2", "=(1+2)", "=2*(3+4)", "=(1+2)*3", "=((1+2))"]) {
         expect(parseMonetary(expr)).toBe(parseFloat(expr));
     }
@@ -109,8 +96,6 @@ test("parseMonetary keeps the closing parenthesis of an =-expression", async () 
 test.tags("headless");
 test("parseMonetary reads a DECORATED =-expression as an expression", async () => {
     await makeMockEnv();
-    // The old guard tested `startsWith("=")` before currency decoration was
-    // stripped, so these took the accounting-negative path and came out negated.
     expect(parseMonetary("$ =(1+2)")).toBe(3);
     expect(parseMonetary("$ =1+2")).toBe(3);
 });
@@ -122,10 +107,6 @@ test("parseMonetary still reads parentheses as an accounting negative", async ()
     expect(parseMonetary("USD (99)")).toBe(-99);
     expect(parseMonetary("99-")).toBe(-99);
 });
-
-// ---------------------------------------------------------------------------
-// date widget: option values reaching typed props go through exprToBoolean
-// ---------------------------------------------------------------------------
 
 test("date widget normalises a string 'numeric' option", async () => {
     const seen = [];
@@ -142,10 +123,6 @@ test("date widget normalises a string 'numeric' option", async () => {
     });
     expect(seen[0]).toBe(true);
 });
-
-// ---------------------------------------------------------------------------
-// gauge: max_field is a field dependency, and a non-numeric bound is not NaN
-// ---------------------------------------------------------------------------
 
 const gaugeDataset = () => {
     const datasets = [];
@@ -169,7 +146,6 @@ test("gauge pulls in a max_field the arch does not render", async () => {
             <field name="int_field" widget="gauge" options="{'max_field': 'unlisted_max'}"/>
         </t></templates></kanban>`,
     });
-    // was "[7,null]": Math.max(7, undefined) === NaN
     expect(datasets[0]).toBe("[7,13]");
 });
 
@@ -184,10 +160,6 @@ test("gauge still works when the arch does render the max_field", async () => {
     });
     expect(datasets[0]).toBe("[7,13]");
 });
-
-// ---------------------------------------------------------------------------
-// copy-to-clipboard wrappers carry the wrapped widget's props
-// ---------------------------------------------------------------------------
 
 test("CopyClipboardChar forwards placeholder to the inner CharField", async () => {
     await mountView({
@@ -209,10 +181,6 @@ test("CopyClipboardChar forwards the password attribute", async () => {
     expect(queryFirst(".o_field_widget input").getAttribute("type")).toBe("password");
 });
 
-// ---------------------------------------------------------------------------
-// progressbar honours the required modifier its template reads
-// ---------------------------------------------------------------------------
-
 test("progressbar applies the required modifier to its input", async () => {
     await mountView({
         type: "form",
@@ -224,10 +192,6 @@ test("progressbar applies the required modifier to its input", async () => {
     expect(inputs[0].hasAttribute("required")).toBe(true);
 });
 
-// ---------------------------------------------------------------------------
-// FIELD_IS_DIRTY is per-field, not last-writer-wins
-// ---------------------------------------------------------------------------
-
 test("a field going clean does not clear a dirty sibling's mark", async () => {
     await mountView({
         type: "form",
@@ -237,13 +201,11 @@ test("a field going clean does not clear a dirty sibling's mark", async () => {
     });
     const [nameInput, otherInput] = queryAll(".o_field_widget input");
 
-    // Field A holds uncommitted input (no blur, so the record is still clean).
     nameInput.value = "dirty text";
     nameInput.dispatchEvent(new InputEvent("input", { bubbles: true }));
     await animationFrame();
     expect(".o_form_dirty").toHaveCount(1);
 
-    // Field B goes dirty then clean. Its "clean" used to speak for the record.
     otherInput.value = "z";
     otherInput.dispatchEvent(new InputEvent("input", { bubbles: true }));
     await animationFrame();
@@ -255,9 +217,6 @@ test("a field going clean does not clear a dirty sibling's mark", async () => {
 });
 
 test("the field-level dirty mark drains when the input is restored", async () => {
-    // Control for the test above: the aggregate must still be able to reach
-    // "clean". Uncommitted input only, so `record.dirty` stays false throughout
-    // and `.o_form_dirty` reflects the field signal alone.
     await mountView({
         type: "form",
         resModel: "audit.probe",
@@ -271,17 +230,11 @@ test("the field-level dirty mark drains when the input is restored", async () =>
     await animationFrame();
     expect(".o_form_dirty").toHaveCount(1);
 
-    nameInput.value = "x"; // the stored value
+    nameInput.value = "x";
     nameInput.dispatchEvent(new InputEvent("input", { bubbles: true }));
     await animationFrame();
     expect(".o_form_dirty").toHaveCount(0);
 });
-
-// ---------------------------------------------------------------------------
-// Options that NAME a same-record field must put that field in the read spec.
-// Nothing does this implicitly: `{type: "field"}` in `supportedOptions` is
-// Studio metadata, so each such option needs a `fieldDependencies` entry.
-// ---------------------------------------------------------------------------
 
 test("progressbar loads a current_value field the arch does not render", async () => {
     await mountView({
@@ -290,7 +243,6 @@ test("progressbar loads a current_value field the arch does not render", async (
         resId: 1,
         arch: `<form><field name="int_field" widget="progressbar" options="{'current_value': 'unlisted_max'}"/></form>`,
     });
-    // reflects unlisted_max (20), not the fallback 0
     expect(".o_progressbar_value").toHaveText(/^20\s*%$/);
 });
 
@@ -321,7 +273,6 @@ test("placeholder_field is loaded for any widget that accepts a placeholder", as
         resId: 1,
         arch: `<form><field name="other" options="{'placeholder_field': 'name'}"/></form>`,
     });
-    // `name` is "x" on record 1 and is NOT rendered by this arch
     expect(".o_field_widget[name=other] input").toHaveAttribute("placeholder", "x");
 });
 
@@ -335,29 +286,17 @@ test("a placeholder_field naming an unknown field does not break the read", asyn
     expect(".o_field_widget[name=other] input").toHaveCount(1);
 });
 
-// ---------------------------------------------------------------------------
-// useInputField is inert when it is not bound to a field
-// ---------------------------------------------------------------------------
-
 test("progressbar with a literal max does not bind a second input to its own field", async () => {
-    // The max input is not rendered for a literal bound, and the hook that
-    // would have driven it must not have re-bound itself to `int_field`.
     await mountView({
         type: "form",
         resModel: "audit.probe",
         resId: 1,
         arch: `<form><field name="int_field" widget="progressbar" options="{'max_value': 200, 'editable': true}"/></form>`,
     });
-    // Exactly one input: the current value. A second one would mean the max
-    // hook bound itself to a field after all.
     expect(".o_progressbar input").toHaveCount(1);
     expect(".o_progressbar input").toHaveValue("7");
     expect(".o_progressbar_value").toHaveText(/\/\s*200/);
 });
-
-// ---------------------------------------------------------------------------
-// json_checkboxes: an uncommitted toggle is not clobbered by a model patch
-// ---------------------------------------------------------------------------
 
 test("json_checkboxes: a toggle survives an onchange inside the debounce window", async () => {
     await mountView({
@@ -370,7 +309,6 @@ test("json_checkboxes: a toggle survives an onchange inside the debounce window"
     await click(boxes()[0]);
     await animationFrame();
 
-    // the onchange lands before the 100ms debounce fires
     const nameInput = queryAll(".o_field_widget[name=name] input")[0];
     nameInput.value = "changed";
     nameInput.dispatchEvent(new Event("change", { bubbles: true }));
@@ -381,15 +319,6 @@ test("json_checkboxes: a toggle survives an onchange inside the debounce window"
     expect(boxes()[0].checked).toBe(true);
     expect(boxes()[1].checked).toBe(false);
 });
-
-// ---------------------------------------------------------------------------
-// registry: a `fieldDependencies` declaration is actually validated
-//
-// The schema nested `shape` as a sibling of `element`; owl's validateType
-// checks `element` first and returns, so the shape was never applied and any
-// malformed entry was accepted. The corrected schema must reject junk while
-// still admitting every shape the real widgets declare.
-// ---------------------------------------------------------------------------
 
 test("fieldDependencies: a malformed declaration is rejected, valid ones are kept", async () => {
     await makeMockEnv();
@@ -409,19 +338,16 @@ test("fieldDependencies: a malformed declaration is rejected, valid ones are kep
     };
     patchWithCleanup(odoo, { debug: "1" });
 
-    // rejected: no `name`, and `name` of the wrong type
     expect(add("audit_dep_a", [{ nope: 1 }]).rejected).toBe(true);
     expect(add("audit_dep_b", [{ name: 42 }]).rejected).toBe(true);
     expect(add("audit_dep_c", [{ name: "ok", optional: "yes" }]).rejected).toBe(true);
 
-    // accepted: every form the shipped widgets actually declare
     expect(
         add("audit_dep_d", [{ name: "write_date", type: "datetime" }]).rejected,
     ).toBe(false);
     expect(
         add("audit_dep_e", [{ name: "f", optional: true, readonly: true }]).rejected,
     ).toBe(false);
-    // daterange spreads the node's arch attrs, so `readonly` arrives as a py expr
     expect(
         add("audit_dep_f", [
             { name: "f", type: "date", readonly: "state != 'draft'", placeholder: "p" },
@@ -432,8 +358,6 @@ test("fieldDependencies: a malformed declaration is rejected, valid ones are kep
 
 test("fieldDependencies: every registered widget still satisfies the schema", async () => {
     await makeMockEnv();
-    // A widget dropped by validation is silently removed outside debug mode,
-    // which would blank the field. Nothing may be missing from the registry.
     const survivors = registry
         .category("fields")
         .getEntries()
@@ -443,10 +367,6 @@ test("fieldDependencies: every registered widget still satisfies the schema", as
         expect(registry.category("fields").contains(name)).toBe(true);
     }
 });
-
-// ---------------------------------------------------------------------------
-// Field: a modifier expression is evaluated once per render, not three times
-// ---------------------------------------------------------------------------
 
 test("Field evaluates readonly/required once per render", async () => {
     let lookups = 0;
@@ -467,7 +387,6 @@ test("Field evaluates readonly/required once per render", async () => {
                 Object.defineProperty(raw, "evalContextWithVirtualIds", {
                     configurable: true,
                     writable: true,
-                    // one py evaluation copies the context once, reading each name
                     value: new Proxy(real, {
                         get(target, prop, receiver) {
                             if (prop === "gate") {
@@ -492,8 +411,5 @@ test("Field evaluates readonly/required once per render", async () => {
                </group></form>`,
     });
 
-    // readonly + required, once each: Field.classNames and
-    // Field.fieldComponentProps share one computation, and FormLabel never
-    // touches `required`.
     expect(lookups).toBe(3);
 });

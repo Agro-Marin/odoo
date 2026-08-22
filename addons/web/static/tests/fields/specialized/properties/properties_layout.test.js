@@ -1,11 +1,5 @@
 // @ts-check
 
-/**
- * Unit tests for the properties list algorithms. These ran only through a
- * mounted form plus a simulated drag-and-drop before they were extracted, which
- * is why the column-boundary arithmetic below had no direct coverage at all.
- */
-
 import { expect, test } from "@odoo/hoot";
 import {
     findEnclosingSeparator,
@@ -15,9 +9,15 @@ import {
     movePropertyTo,
 } from "@web/fields/specialized/properties/properties_layout";
 
-/** @param {string} name @param {object} [extra] */
+/**
+ * @param {string} name
+ * @param {object} [extra]
+ */
 const prop = (name, extra = {}) => ({ name, type: "char", string: name, ...extra });
-/** @param {string} name @param {object} [extra] */
+/**
+ * @param {string} name
+ * @param {object} [extra]
+ */
 const sep = (name, extra = {}) => ({
     name,
     type: "separator",
@@ -27,8 +27,6 @@ const sep = (name, extra = {}) => ({
 const names = (list) => list.map((p) => p.name);
 const layout = (groups) =>
     groups.map((g) => `${g.name ?? "-"}:[${names(g.elements).join(",")}]`).join(" | ");
-
-// ---------------------------------------------------------------- grouping
 
 test.tags("headless");
 test("groupProperties: no separator, one column", () => {
@@ -51,7 +49,6 @@ test("groupProperties: odd count puts the extra in the first column", () => {
 test.tags("headless");
 test("groupProperties: separators define the groups and defeat the column split", () => {
     const list = [prop("a"), sep("s1"), prop("b"), prop("c")];
-    // leading group for the properties before the first separator, then s1
     expect(layout(groupProperties(list, 2))).toBe("-:[a] | s1:[b,c]");
 });
 
@@ -66,7 +63,6 @@ test("groupProperties: fold state comes from value, falling back to fold_by_defa
     expect(groupProperties([sep("s", { fold_by_default: true })], 1)[0].isFolded).toBe(
         true,
     );
-    // an explicit value wins over the default
     expect(
         groupProperties([sep("s", { value: false, fold_by_default: true })], 1)[0]
             .isFolded,
@@ -81,13 +77,9 @@ test("groupProperties: a single FOLDED group is not re-dealt into columns", () =
 
 test.tags("headless");
 test("groupProperties: empty list still yields one empty group per column", () => {
-    // The column split runs on an empty list too, so the caller gets as many
-    // empty columns as it asked for rather than a single one.
     expect(layout(groupProperties([], 1))).toBe("-:[]");
     expect(layout(groupProperties([], 2))).toBe("-:[] | -:[]");
 });
-
-// ---------------------------------------------------------------- offset move
 
 test.tags("headless");
 test("movePropertyByOffset: up and down", () => {
@@ -117,8 +109,6 @@ test("movePropertyByOffset: unknown name", () => {
     expect(movePropertyByOffset([prop("a")], "zz", "up").status).toBe("not-found");
 });
 
-// ---------------------------------------------------------------- move to
-
 const moveOpts = (columnsCount = 1) => ({
     columnsCount,
     generateName: () => "new_sep",
@@ -146,7 +136,6 @@ test("movePropertyTo: moveBefore drops ahead of the target", () => {
         ...moveOpts(),
     });
     expect(names(list)).toEqual(["a", "c", "b"]);
-    // and the same drop without moveBefore lands on the other side of b
     const after = [prop("a"), prop("b"), prop("c")];
     movePropertyTo(after, {
         propertyName: "a",
@@ -171,8 +160,6 @@ test("movePropertyTo: unknown source is a no-op", () => {
 
 test.tags("headless");
 test("movePropertyTo: crossing a column boundary materialises separators", () => {
-    // 4 properties over 2 columns -> columnSize 2, so a and c are in different
-    // columns. Without a real separator the next re-deal would undo the drop.
     const list = [prop("a"), prop("b"), prop("c"), prop("d")];
     movePropertyTo(list, {
         propertyName: "a",
@@ -181,7 +168,6 @@ test("movePropertyTo: crossing a column boundary materialises separators", () =>
     });
     const separators = list.filter((p) => p.type === "separator");
     expect(separators).toHaveLength(2);
-    // inserted unfolded, so the drop is visible
     expect(separators.every((s) => s.value === false)).toBe(true);
 });
 
@@ -195,8 +181,6 @@ test("movePropertyTo: within one column inserts no separator", () => {
     });
     expect(list.filter((p) => p.type === "separator")).toHaveLength(0);
 });
-
-// ---------------------------------------------------------------- group move
 
 test.tags("headless");
 test("moveGroupTo: moves a separator and everything under it", () => {
@@ -216,8 +200,6 @@ test("moveGroupTo: refuses a non-separator", () => {
     const list = [sep("s1"), prop("a")];
     expect(() => moveGroupTo(list, "a", "s1")).toThrow();
 });
-
-// ---------------------------------------------------------------- separator lookup
 
 test.tags("headless");
 test("findEnclosingSeparator: nearest separator at or above the index", () => {

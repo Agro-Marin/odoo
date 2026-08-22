@@ -1,14 +1,11 @@
 // @ts-check
 
-/** Tests getFieldsSpec: builds the server fetch spec from active fields. No OWL/DOM needed. */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { getFieldsSpec } from "@web/model/relational_model/field_spec";
 
 describe.current.tags("headless");
 
-/** Build minimal activeFields from a list of [name, options] pairs. */
 function makeActiveFields(defs) {
     const activeFields = {};
     for (const [name, opts] of defs) {
@@ -196,8 +193,6 @@ describe("spec context key hygiene", () => {
             },
             {},
         );
-        // Assigning an undefined result still creates the key; these assert the
-        // key is absent, which `toEqual`-style checks would not catch.
         expect("context" in spec.partner_id).toBe(false);
         expect("context" in spec.line_ids).toBe(false);
     });

@@ -65,7 +65,7 @@ test("popover opened from another", async () => {
         static props = ["*"];
         setup() {
             this.popover = usePopover(Comp, {
-                popoverClass: `popover-${++Comp.id}`,
+                class: `popover-${++Comp.id}`,
             });
         }
     }
@@ -101,11 +101,6 @@ test("popover opened from another", async () => {
     expect(".o_popover").toHaveCount(0);
 });
 
-// CLOSE-REASON-BLOCK
-// The presenter binds the hosted component's `close` so it can forward a
-// reason to `onClose`, the way the dialog service always has. Both hook
-// layers used to re-wrap that as a thunk, so the reason died one frame above
-// the fix -- on the path nearly every caller actually takes.
 test("a hosted component's close reason reaches onClose", async () => {
     await mountWithCleanup(MainComponentsContainer);
     let received = "NEVER CALLED";
@@ -146,10 +141,6 @@ test("the owner's own close reason reaches onClose", async () => {
 });
 
 test("an unknown option still warns through the hook's option bag", async () => {
-    // `makePopover` passes the service an `Object.create(options)` so it can
-    // override `onClose` without mutating the caller's bag. That left every
-    // real option on the prototype, and the presenter's own-key scan saw only
-    // `onClose` -- the debug guard was inert exactly where it is needed.
     await mountWithCleanup(MainComponentsContainer);
     class Comp extends Component {
         static template = xml`<div id="comp">in popover</div>`;

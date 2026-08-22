@@ -1,15 +1,5 @@
 // @ts-check
 
-/**
- * Unit tests for RecordEditState — the owner object that holds a record's
- * editable-state layer (pending change set, dirty flag, validity sets,
- * text-value tracking, savepoint). These pin the structural guarantees the
- * owner adds: the atomic (dirty, changes) invariant and the change-bag
- * accessors. Behavioural coverage of how the record and its sibling helpers
- * drive this owner lives in record_save/record_savepoint/record_validator/
- * record_dirty_rollback tests.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { RecordEditState } from "@web/model/relational_model/record_edit_state";
 
@@ -63,12 +53,6 @@ test("clearChanges lowers a dirty flag even when the change set was already empt
     expect(es.isChangeSetEmpty).toBe(true);
 });
 
-/**
- * Bag semantics ported from the deleted ``change_set.test.js`` when
- * ``ChangeSet`` was folded into this owner. They pin the plain-object contract
- * the save flow, ``_getChanges`` and the ``_applyChanges`` undo path all rely
- * on: ``Object.keys`` / ``in`` / ``delete`` work directly on ``changes``.
- */
 test("direct writes through the bag accumulate pending edits", () => {
     const es = new RecordEditState();
     es.changes.name = "Alice";

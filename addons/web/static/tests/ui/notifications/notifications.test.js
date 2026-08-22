@@ -198,12 +198,6 @@ test("the notification service exposes no close entry point", async () => {
     await makeMockEnv();
 
     const service = getService("notification");
-    // The service is a class now, so its methods live on the prototype and
-    // `Object.keys` returns instance fields instead of the published names —
-    // the exact-keys form this used to assert cannot express the intent any
-    // more. The intent itself is unchanged and is what is asserted here: there
-    // is no `close` entry point, and callers close a notification with the
-    // function `add()` returns.
     expect(service.close).toBe(undefined);
     for (const name of ["add", "notifications", "destroy"]) {
         expect(service[name]).not.toBe(undefined);
@@ -334,8 +328,6 @@ test("a notification that fails to render does not kill later notifications", as
 });
 
 test("a throwing onClose is reported instead of propagating to the closer", async () => {
-    // The error service closes notifications while it is itself handling an
-    // error: a user `onClose` that throws must not unwind into that caller.
     expect.errors(1);
     onError((error) =>
         expect.step(/** @type {PromiseRejectionEvent} */ (error).reason.message),
@@ -363,10 +355,6 @@ test("a throwing onClose is reported instead of propagating to the closer", asyn
 });
 
 test("an unrecognised option does not cost the caller their notification", async () => {
-    // Every option used to be spread straight into props, so a single unknown
-    // key made Owl reject the component and the container dropped the toast --
-    // and only in debug mode, where prop validation runs, i.e. exactly when a
-    // developer is looking.
     await mountWithCleanup(MainComponentsContainer);
 
     getService("notification").add("first");
@@ -394,10 +382,6 @@ test("known options still reach the notification", async () => {
 });
 
 test("a subclassed container still receives its own extra props", async () => {
-    // `website_sale` swaps in a CartNotification taking `lines`/`warning`/
-    // `currency_id`. The allow-list must come from the hosted component's own
-    // `props`, never a fixed list in the service, or the subclass loses
-    // exactly the props it exists for.
     class CustomNotification extends Component {
         static template = xml`<div class="o_custom_notif" t-esc="props.flavour"/>`;
         static props = {
@@ -432,10 +416,6 @@ test("a subclassed container still receives its own extra props", async () => {
 });
 
 test("a second env's notifications reach that env's own container", async () => {
-    // `main_components` has ONE entry per key for every env on the page. When
-    // the entry carried `props: { notifications }`, that map was the first
-    // env's, every container rendered it, and a second env's toasts went into
-    // a map nothing was showing — lost with no error anywhere.
     const firstEnv = await makeMockEnv();
     const secondEnv = await makeMockEnv();
     expect(firstEnv.services.notification.notifications).not.toBe(
@@ -450,9 +430,6 @@ test("a second env's notifications reach that env's own container", async () => 
 });
 
 test("the main_components entry is the same object across env starts", async () => {
-    // Re-registering a fresh entry per start has to pick a loser: without
-    // `force` the first env wins and later ones warn, with `force` the last one
-    // wins and an addon's override of the key is silently dropped.
     await makeMockEnv();
     const entry = registry.category("main_components").get("NotificationContainer");
     await makeMockEnv();
@@ -463,8 +440,6 @@ test("the main_components entry is the same object across env starts", async () 
 });
 
 test("a container whose service is not started says so", async () => {
-    // A subclass that forgets `serviceName` would otherwise render some other
-    // service's toasts, or none, with nothing anywhere to say why.
     class OrphanContainer extends NotificationContainer {
         static serviceName = "not_a_service";
     }
@@ -481,9 +456,6 @@ test("a container whose service is not started says so", async () => {
 });
 
 test("destroy() runs the onClose of every still-open notification", async () => {
-    // `onClose` is how a caller learns its toast is gone -- it releases a
-    // spinner, resolves a deferred, re-enables a button. Dropping the env
-    // without running them leaves those callers waiting forever.
     const env = await makeMockEnv();
     env.services.notification.add("sticky one", {
         sticky: true,
@@ -501,9 +473,6 @@ test("destroy() runs the onClose of every still-open notification", async () => 
     expect(Object.keys(env.services.notification.notifications)).toHaveLength(0);
 });
 
-// PAUSE-BLOCK
-// The countdown paused on hover only, so a keyboard user tabbing to the close
-// or action button lost the notification mid-interaction (WCAG 2.2.1).
 test("focusing a notification pauses its auto-close", async () => {
     await makeMockEnv();
     await mountWithCleanup(MainComponentsContainer);
@@ -523,8 +492,6 @@ test("focusing a notification pauses its auto-close", async () => {
 });
 
 test("releasing the pointer does not resume a notification still focused", async () => {
-    // Hover and focus hold the countdown independently: releasing one while
-    // the other still holds must not restart it.
     await makeMockEnv();
     await mountWithCleanup(MainComponentsContainer);
     getService("notification").add("hello");
@@ -553,12 +520,7 @@ test("moving focus inside a notification keeps it paused", async () => {
     expect(".o_notification").toHaveCount(1);
 });
 
-// CONTAINER-CONTRACT-BLOCK
 test("a container must declare the component it renders notifications with", async () => {
-    // The accepted options were read off whatever was keyed `Notification` in
-    // `components`, which a subclass inherits. A container rendering something
-    // else was validated against the wrong component and forwarded props that
-    // one rejects, crashing the render.
     class Orphan extends NotificationContainer {
         static serviceName = "orphan_notification";
         static notificationComponent = undefined;
@@ -577,11 +539,6 @@ test("a container must declare the component it renders notifications with", asy
 });
 
 test("a mouseleave with no matching mouseenter does not extend the countdown", async () => {
-    // Chrome does not actually emit this pair unbalanced (verified with a real
-    // browser: an element spawned under a stationary pointer gets neither the
-    // mouseenter nor, later, the mouseleave). This pins the invariant against
-    // synthetic streams -- tours and clickbot dispatch their own pointer events
-    // -- and against engines that do deliver the release alone.
     await makeMockEnv();
     await mountWithCleanup(MainComponentsContainer);
     getService("notification").add("hello", { autocloseDelay: 4000 });
@@ -603,9 +560,6 @@ test("a mouseleave with no matching mouseenter does not extend the countdown", a
 });
 
 test("a lone mouseleave does not release a hold taken by focus", async () => {
-    // Same synthetic release as above, but with a focus hold outstanding. The
-    // counted version decremented that hold and resumed the countdown, because
-    // a count cannot tell WHICH source is being released.
     await makeMockEnv();
     await mountWithCleanup(MainComponentsContainer);
     getService("notification").add("hello", { autocloseDelay: 4000 });
@@ -640,11 +594,6 @@ test("a real hover still pauses and resumes the countdown", async () => {
     expect(".o_notification").toHaveCount(0);
 });
 
-// `close` and `message` are declared props, so the loop that forwards every
-// option the component declares used to accept them from a caller -- and it
-// runs after the service has set them, so the caller won. An `add(msg, {close})`
-// left the ✕ button calling the caller's function: the notification could not be
-// dismissed and stayed for the session.
 test("a caller cannot take over the service-owned props", async () => {
     await makeMockEnv();
     await mountWithCleanup(MainComponentsContainer);

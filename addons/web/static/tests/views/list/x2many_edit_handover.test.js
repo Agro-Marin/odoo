@@ -60,12 +60,6 @@ const ARCH = `
     </form>
 `;
 
-// An x2many list is a `StaticList`, a different class from `DynamicList` with
-// its own `enterEditMode`, so `isEditing` had to be implemented twice. Order
-// lines are the most common editable list in the product, and `ListRenderer`
-// reads `props.list.isEditing` for every row -- a `StaticList` without it hands
-// the rows `undefined`, which is falsy and therefore silently WRONG rather than
-// loudly broken.
 test(`x2many: the row button stays out of the tab order across a handover`, async () => {
     await mountView({ resModel: "order", type: "form", resId: 1, arch: ARCH });
     await animationFrame();
@@ -85,10 +79,6 @@ test(`x2many: the row button stays out of the tab order across a handover`, asyn
         message: "a line is in edition: every row button leaves the tab order",
     });
 
-    // The handover. `editedRecord` is null across it, so a flag derived from it
-    // rather than from `isEditing` leaves the untouched rows stale: with the
-    // rows no longer repainting twice, they keep the NOT-editing rendering and
-    // the buttons come back into the tab order mid-edition.
     const stats = await renderCounts(async () => {
         await contains(`.o_data_row:eq(2) [name=name]`).click();
         await animationFrame();

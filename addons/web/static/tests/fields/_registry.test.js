@@ -122,7 +122,7 @@ test("aliases form does NOT bind a variant widget to alias keys", () => {
     }
 });
 
-/** @returns {Registry<any>} a raw registry validating with the REAL fields schema */
+/** @returns {Registry<any>} */
 function _makeSchemaRegistry() {
     const schema = fieldsRegistry.validationSchema;
     expect(schema).not.toBe(null);

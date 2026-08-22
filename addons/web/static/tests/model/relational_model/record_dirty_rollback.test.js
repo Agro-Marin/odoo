@@ -1,19 +1,5 @@
 // @ts-check
 
-/**
- * Pins the rollback of Invariant 1's provisional dirty mark: ``_update``
- * raises ``dirty`` synchronously (race protection), but an update that turns
- * out to be a no-op (m2o re-set to its current value) or fails
- * (``_onUpdate`` throwing) must not leave a pristine record permanently
- * dirty — every ``isDirty()`` gate (pager, breadcrumbs, beforeLeave) would
- * chase changes that don't exist.
- *
- * Also pins the undo path's flag-only invalid-field restore
- * (``_setInvalidFieldFlag``): no multi-edit UI reaction, no mutex re-entry.
- *
- * Uses the REAL RelationalRecord class against a mock model.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";

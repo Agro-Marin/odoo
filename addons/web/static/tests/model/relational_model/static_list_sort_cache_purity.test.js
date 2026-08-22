@@ -1,27 +1,5 @@
 // @ts-check
 
-/**
- * ``sort()`` has to read the sort columns of rows that are NOT on the current
- * page, because ordering the relation needs every member's key. It reads them
- * narrowly -- ``pick(activeFields, ...orderByFieldNames)`` -- and used to turn
- * each narrow response into a datapoint via
- * ``_createRecordDatapoint(record, { activeFields })``.
- *
- * That put records into ``_cache`` whose ``config.activeFields`` was a strict
- * subset of the list's. ``_cache`` is walked by the save path
- * (``x2many_tree.js``), by ``record_validator``'s child check, and by
- * ``extendRecord``; all of them read ``record.activeFields`` and
- * ``record.data`` and none of them expect a member of the list to declare
- * different fields from the list itself.
- *
- * The narrow read now produces a throwaway sort key instead. Two exceptions
- * keep the round-trip count where it was:
- *   - an id already in ``_cache`` is REFRESHED in place, so the fresh sort
- *     column reaches the comparator without discarding pending edits;
- *   - a read that happens to cover the list's whole field set is promoted to a
- *     real datapoint, so a single-field list still sorts in one request.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";
@@ -111,22 +89,14 @@ describe("sort() keeps _cache free of narrowly-specified datapoints", () => {
 
         await sort(list, list._currentIds, [{ name: "name", asc: true }]);
 
-        // Ascending by name (F,E,D,C,B,A) puts ids 6 and 5 on page 1, so they
-        // are loaded in full alongside the originally-cached 1 and 2. Ids 3 and
-        // 4 were read ONLY for their sort key and stay off page: they must be
-        // absent from the cache rather than present with half a field set.
-        for (const [id, record] of Object.entries(
-            /** @type {Record<string, any>} */ (list._cache),
-        )) {
+        for (const [id, record] of /** @type {any} */ (list._cache)) {
             expect(Object.keys(record.activeFields).sort()).toEqual(["name", "note"], {
                 message: `datapoint ${id} must declare the list's fields`,
             });
         }
-        expect(
-            Object.keys(/** @type {Record<string, any>} */ (list._cache))
-                .map(Number)
-                .sort(),
-        ).toEqual([1, 2, 5, 6]);
+        expect([.../** @type {any} */ (list._cache).keys()].map(Number).sort()).toEqual(
+            [1, 2, 5, 6],
+        );
     });
 
     test("a list whose fields the sort already covers still sorts in one request", async () => {
@@ -140,12 +110,12 @@ describe("sort() keeps _cache free of narrowly-specified datapoints", () => {
 
     test("a cached row is refreshed in place, not replaced", async () => {
         const { list } = makeList();
-        const before = /** @type {Record<string, any>} */ (list._cache)[1];
+        const before = /** @type {any} */ (list._cache).get(1);
         before._changes.note = "PENDING";
 
         await sort(list, list._currentIds, [{ name: "name", asc: true }]);
 
-        expect(/** @type {Record<string, any>} */ (list._cache)[1]).toBe(before);
+        expect(/** @type {any} */ (list._cache).get(1)).toBe(before);
         expect(before._changes.note).toBe("PENDING");
     });
 
@@ -154,7 +124,6 @@ describe("sort() keeps _cache free of narrowly-specified datapoints", () => {
 
         await sort(list, list._currentIds, [{ name: "name", asc: true }]);
 
-        // names are F,E,D,C,B,A for ids 1..6 -> ascending is 6,5,4,3,2,1
         expect(list._currentIds).toEqual([6, 5, 4, 3, 2, 1]);
     });
 });

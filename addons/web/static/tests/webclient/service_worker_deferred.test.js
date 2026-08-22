@@ -1,29 +1,5 @@
 // @ts-check
 
-/**
- * The ``service_worker`` service's ``activated`` promise must settle on EVERY
- * exit path of ``registerServiceWorker``.
- *
- * It is not a private detail: mail's ``_doSubscribePush`` /
- * ``_doUnsubscribePush`` both ``await`` it *inside* a ``Mutex``
- * (``mail/static/src/webclient/web/webclient.js``), so a promise left pending
- * wedges that mutex for the rest of the session -- every later push
- * (un)subscription queues behind a slot that never frees.
- *
- * The regression guarded here is the no-service-worker exit, which is a real
- * browser state (verified in Chromium: on a plain-HTTP non-loopback origin
- * ``navigator.serviceWorker`` is undefined while ``Notification`` and
- * ``navigator.permissions`` still exist, so mail's permission-change handler
- * does reach the push path). It is also what Hoot mocks
- * (``lib/hoot/mock/navigator.js`` pins it to ``undefined``), so it is the state
- * of every WebClient mounted in this suite.
- *
- * The two other former hangs -- ``register()`` rejecting, and
- * ``serviceWorker.ready`` never resolving -- are covered by the same
- * ``finally`` / bounded race but are not exercised here: stubbing
- * ``navigator.serviceWorker`` fights Hoot's own navigator mock.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { Deferred } from "@web/core/utils/concurrency";
 import {
@@ -31,13 +7,6 @@ import {
     serviceWorkerService,
 } from "@web/webclient/service_worker_service";
 
-/**
- * True iff `promise` has settled after a few microtask turns.
- *
- * Bare microtasks rather than `animationFrame()`: settlement here is purely
- * synchronous (`deferred.resolve()`), and the mock-clock frame helper does not
- * resolve in a test with no pending timers.
- */
 async function hasSettled(/** @type {Promise<any>} */ promise) {
     let settled = false;
     promise.then(
@@ -77,8 +46,17 @@ describe("service worker activation settlement", () => {
         expect(reachedPastAwait).toBe(true);
     });
 
-    test("the service exposes an `activated` promise that settles", async () => {
-        const { activated } = serviceWorkerService.start();
-        expect(await hasSettled(activated)).toBe(true);
+    test("the service exposes a `registrationSettled` promise that settles", async () => {
+        const { registrationSettled } = serviceWorkerService.start();
+        expect(await hasSettled(registrationSettled)).toBe(true);
+    });
+
+    test("the promise is named for what it guarantees, not for activation", async () => {
+        const settled = new Deferred();
+        await registerServiceWorker(settled);
+        expect(await hasSettled(settled)).toBe(true);
+        expect(Object.keys(serviceWorkerService.start())).toEqual([
+            "registrationSettled",
+        ]);
     });
 });

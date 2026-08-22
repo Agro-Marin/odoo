@@ -5,10 +5,7 @@ from odoo.addons.base.tests.common import HttpCaseWithUserDemo
 
 @tagged("-at_install", "post_install", "web_http", "web_manifest")
 class WebManifestRoutesTest(HttpCaseWithUserDemo):
-    """Exercises the routes serving the PWA backend manifest, service worker, and icons."""
-
     def test_webmanifest(self):
-        """An authenticated request gets the full manifest, including shortcuts."""
         self.authenticate("admin", "admin")
         response = self.url_open("/web/manifest.webmanifest")
         self.assertEqual(response.status_code, 200)
@@ -44,7 +41,6 @@ class WebManifestRoutesTest(HttpCaseWithUserDemo):
             self.assertTrue(shortcut["url"].startswith("/odoo?menu_id="))
 
     def test_webmanifest_unauthenticated(self):
-        """An unauthenticated request still gets a well-formed manifest, but with no shortcuts."""
         response = self.url_open("/web/manifest.webmanifest")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["Content-Type"], "application/manifest+json")
@@ -100,20 +96,17 @@ class WebManifestRoutesTest(HttpCaseWithUserDemo):
         self.assertEqual(len(data["shortcuts"]), 0)
 
     def test_serviceworker(self):
-        """The service worker script is scoped to /odoo via the Service-Worker-Allowed header."""
         response = self.url_open("/web/service-worker.js")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["Content-Type"], "text/javascript")
         self.assertEqual(response.headers["Service-Worker-Allowed"], "/odoo")
 
     def test_offline_url(self):
-        """Serves the offline fallback page."""
         response = self.url_open("/odoo/offline")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["Content-Type"], "text/html; charset=utf-8")
 
     def test_apple_touch_icon(self):
-        """The apple-touch-icon image is served and referenced in the page's <head>."""
         self.authenticate("demo", "demo")
         response = self.url_open("/web/static/img/odoo-icon-ios.png")
         self.assertEqual(response.status_code, 200)

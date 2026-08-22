@@ -44,11 +44,6 @@ class TestResUsers(TransactionCase):
         )
 
     def test_name_search(self):
-        """The calling user is always moved to the front of name_search
-        results, including via the explicit fallback search that kicks in
-        when the user falls outside the truncated window (only possible
-        when a limit applies, e.g. the public name_search's default 100).
-        """
         ResUsers = self.env["res.users"]
         jean = self.users[0]
         user_ids = [id_ for id_, __ in ResUsers.with_user(jean).name_search("")]
@@ -116,7 +111,6 @@ class TestResUsers(TransactionCase):
         )
 
     def test_change_password(self):
-        """Change a user's password through the change-password wizard."""
         user_internal = self.env["res.users"].create(
             {
                 "name": "Internal",
@@ -139,17 +133,7 @@ class TestResUsers(TransactionCase):
 
 @tagged("post_install", "-at_install", "web_unit", "web_users")
 class TestWebCreateUsers(TransactionCase):
-    """Tests for ``res.users.web_create_users``."""
-
     def test_web_create_users_skips_existing_active_user(self):
-        """Calling ``web_create_users`` twice for the same email must not raise.
-
-        Before fix: ``done`` only included reactivated-inactive users, missing
-        already-active ones. The second call reached ``create()`` for an active
-        user and hit the UNIQUE constraint on ``login``.
-        After fix: ``all_matching`` covers both active and inactive users, so
-        ``done`` correctly excludes the already-active login.
-        """
         if "email_normalized" not in self.env["res.users"]._fields:
             self.skipTest("email_normalized not available (mail not installed)")
         email = "test_idempotent_create@example.com"
@@ -157,13 +141,6 @@ class TestWebCreateUsers(TransactionCase):
         self.env["res.users"].web_create_users([email])
 
     def test_web_create_users_dedups_login_with_empty_email_normalized(self):
-        """A user matched only by login (empty ``email_normalized``) must dedup.
-
-        Before fix: ``done`` was built from ``email_normalized`` only, so a user
-        whose login equals the input email but whose ``email_normalized`` is
-        empty slipped through; ``create(login=email_normalized)`` then hit the
-        UNIQUE constraint on ``login``.
-        """
         if "email_normalized" not in self.env["res.users"]._fields:
             self.skipTest("email_normalized not available (mail not installed)")
         login = "login_only_collide@example.com"
@@ -181,15 +158,6 @@ class TestWebCreateUsers(TransactionCase):
         self.assertEqual(len(matches), 1, "must not create a duplicate user")
 
     def test_web_create_users_dedups_within_batch(self):
-        """Two inputs in one call that normalise to the same address must dedup.
-
-        Before fix: ``new_emails`` was filtered only against *existing* users, so
-        ``["bob@x.com", "Bob <bob@x.com>"]`` (both normalising to ``bob@x.com``)
-        produced two ``create`` rows with the same ``login`` and raised an opaque
-        ``UniqueViolation`` — the very failure the up-front ``invalid`` guard is
-        meant to prevent. After fix: the running ``seen`` set drops the in-batch
-        duplicate, so exactly one user is created.
-        """
         if "email_normalized" not in self.env["res.users"]._fields:
             self.skipTest("email_normalized not available (mail not installed)")
         email = "batch_dup@example.com"
@@ -202,7 +170,6 @@ class TestWebCreateUsers(TransactionCase):
         self.assertEqual(len(matches), 1, "in-batch duplicate must create one user")
 
     def test_web_create_users_reactivates_deactivated(self):
-        """``web_create_users`` must reactivate a previously deactivated user."""
         if "email_normalized" not in self.env["res.users"]._fields:
             self.skipTest("email_normalized not available (mail not installed)")
         email = "test_reactivate_create@example.com"
@@ -223,12 +190,6 @@ class TestWebCreateUsers(TransactionCase):
 @tagged("post_install", "-at_install", "web_tour", "web_users")
 class TestUserSettings(HttpCaseWithUserDemo):
     def test_user_group_settings(self):
-        # Start where the tour declares it starts. `start_tour`'s `url_path`
-        # overrides the tour's own `url`, and this one opened `/odoo`, whose
-        # landing page carries none of the Settings chrome the first step
-        # reaches for — so the tour sat on a trigger that would never appear
-        # and the case died on the 120s browser timeout with no failing step
-        # named, which reads as a hung browser rather than a wrong address.
         self.start_tour(
             "/odoo/settings?debug=assets,tests",
             "test_user_group_settings",

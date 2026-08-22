@@ -6,10 +6,6 @@ import { scrollTo } from "@web/core/utils/dom/scrolling";
 
 describe.current.tags("headless");
 
-/**
- * Builds a vertically-scrollable container whose #target sits below the fold,
- * so `scrollTo` has to perform an actual scroll.
- */
 function makeScrollable() {
     const fixture = getFixture();
     fixture.innerHTML = `
@@ -25,16 +21,6 @@ function makeScrollable() {
     };
 }
 
-/**
- * Drain MICROTASKS only — no timers, no animation frames. `scrollend` and the
- * max-duration fallback both need real time, so a promise that settles here
- * took the "nothing to scroll" fast path.
- *
- * Every test below asserts the resulting scrollTop as well as the settling.
- * Without that, the whole file was vacuous: each test only asserted
- * `resolved === true`, which the fast path satisfies too, so all four passed
- * unchanged even when no scrolling happened at all.
- */
 async function settlesOnMicrotasks(promise) {
     let settled = false;
     promise?.then(() => (settled = true));
@@ -52,18 +38,12 @@ test("resolves immediately when no scroll is needed", async () => {
 });
 
 test("does NOT resolve on microtasks alone when a scroll is needed", async () => {
-    // The discriminator the other tests lack: proves the fixture really moves,
-    // so "resolved" elsewhere means the wait completed rather than the fast
-    // path firing.
     const { scrollable, target } = makeScrollable();
     expect(await settlesOnMicrotasks(scrollTo(target, { scrollable }))).toBe(false);
     expect(scrollable.scrollTop).toBe(450);
 });
 
 test("does not report a smooth scroll as settled before it starts", async () => {
-    // `scrollTo({behavior:"smooth"})` leaves scrollTop untouched synchronously,
-    // so a fast path keyed on "did scrollTop change?" fires for every smooth
-    // scroll. Verified in a real Chrome as well as here.
     const { scrollable, target } = makeScrollable();
     const settled = await settlesOnMicrotasks(
         scrollTo(target, { scrollable, behavior: "smooth" }),

@@ -1,23 +1,5 @@
 // @ts-check
 
-/**
- * ``_setEvalContext`` rebuilds a record's eval context and then hands each of
- * its x2many lists a freshly derived context. ``StaticList._updateContext``
- * compares that against the one it holds and returns early when nothing moved
- * -- and only that early return keeps the work bounded: without it, every edit
- * to any parent field would walk into every cached child record and rebuild its
- * context too, so a form with a 400-line one2many would pay 400 context
- * rebuilds per keystroke.
- *
- * Measured share of a parent-field edit spent in ``_setEvalContext``: ~6-7%,
- * and FLAT in the number of lines (10 lines and 400 lines cost the same),
- * which is the early return doing its job.
- *
- * Counting the calls rather than timing them, because the property that
- * matters -- the cascade is driven by an actual context change, not by the
- * number of edits or rows -- is exact, and a timing assertion would be flaky.
- */
-
 import { expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
 import {
@@ -63,7 +45,7 @@ function seed() {
 }
 
 /**
- * @param {string} listContext arch context for the one2many
+ * @param {string} listContext
  * @returns {Promise<{ record: any, counts: Map<any, number> }>}
  */
 async function mountCounting(listContext) {

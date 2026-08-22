@@ -1309,10 +1309,6 @@ test("domain field: out-of-order counts, only the latest is shown (KeepLast)", a
 });
 
 test("editing the domain does not clear a sibling field's dirty-typing signal", async () => {
-    // FIELD_IS_DIRTY is a shared, last-writer-wins signal. DomainField.update
-    // used to emit `false` unconditionally on every edit, so a domain change
-    // cancelled the "the user is typing" mark another field had just raised —
-    // clearing the save indicator while that input still held uncommitted text.
     const events = [];
     class DirtySpy extends Component {
         static template = xml`<span class="o_dirty_spy"/>`;

@@ -131,7 +131,6 @@ test("the isExpanded prop sync does not undo the user's own toggle", async () =>
     await contains(".o_colorlist_toggler").click();
     expect(".o_colorlist_item_color_1").toHaveCount(1);
 
-    // An unrelated re-render must not collapse what the user just opened.
     controller.state.tick = 1;
     await animationFrame();
     expect(".o_colorlist_item_color_1").toHaveCount(1);
@@ -149,7 +148,6 @@ test("a list that arrives expanded does not take focus from the page", async () 
     expect(".o_colorlist_item_color_1").toHaveCount(1);
     expect(document.activeElement).not.toHaveClass("o_colorlist_item_color_1");
 
-    // Expanding it by hand still moves focus onto the colours.
     await contains(".o_colorlist_item_color_1").click();
     await contains(".o_colorlist_toggler").click();
     expect(".o_colorlist_item_color_1").toBeFocused();

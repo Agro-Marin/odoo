@@ -13,10 +13,7 @@ import { cookie } from "@web/core/browser/cookie";
 import { user } from "@web/core/user";
 import { MobileSwitchCompanyMenu } from "@web/webclient/burger_menu/mobile_switch_company_menu/mobile_switch_company_menu";
 
-const ORIGINAL_TOGGLE_DELAY = MobileSwitchCompanyMenu.toggleDelay;
-
-async function createSwitchCompanyMenu(options = { toggleDelay: 0 }) {
-    patchWithCleanup(MobileSwitchCompanyMenu, { toggleDelay: options.toggleDelay });
+async function createSwitchCompanyMenu() {
     await mountWithCleanup(MobileSwitchCompanyMenu);
 }
 
@@ -73,22 +70,12 @@ test("basic rendering", async () => {
 test("companies can be toggled: toggle a second company", async () => {
     await createSwitchCompanyMenu();
 
-    /**
-     *   [x] **Company 1**
-     *   [ ] Company 2
-     *   [ ] Company 3
-     */
     expect(user.activeCompanies.map((c) => c.id)).toEqual([1]);
     expect(user.activeCompany.id).toBe(1);
     expect("[data-company-id]").toHaveCount(3);
     expect("[data-company-id] .fa-square-check").toHaveCount(1);
     expect("[data-company-id] .fa-regular.fa-square").toHaveCount(2);
 
-    /**
-     *   [x] **Company 1**
-     *   [x] Company 2      -> toggle
-     *   [ ] Company 3
-     */
     await toggleCompany(1);
     expect("[data-company-id] .fa-square-check").toHaveCount(2);
     expect("[data-company-id] .fa-regular.fa-square").toHaveCount(1);
@@ -97,23 +84,13 @@ test("companies can be toggled: toggle a second company", async () => {
 });
 
 test("can toggle multiple companies at once", async () => {
-    await createSwitchCompanyMenu({ toggleDelay: ORIGINAL_TOGGLE_DELAY });
-    /**
-     *   [x] **Company 1**
-     *   [ ] Company 2
-     *   [ ] Company 3
-     */
+    await createSwitchCompanyMenu();
     expect(user.activeCompanies.map((c) => c.id)).toEqual([1]);
     expect(user.activeCompany.id).toBe(1);
     expect("[data-company-id]").toHaveCount(3);
     expect("[data-company-id] .fa-square-check").toHaveCount(1);
     expect("[data-company-id] .fa-regular.fa-square").toHaveCount(2);
 
-    /**
-     *   [ ] **Company 1**  -> toggle all
-     *   [x] Company 2      -> toggle all
-     *   [x] Company 3      -> toggle all
-     */
     await toggleCompany(0);
     await toggleCompany(1);
     await toggleCompany(2);
@@ -128,11 +105,6 @@ test("can toggle multiple companies at once", async () => {
 test("single company selected: toggling it off will keep it", async () => {
     await createSwitchCompanyMenu();
 
-    /**
-     *   [x] **Company 1**
-     *   [ ] Company 2
-     *   [ ] Company 3
-     */
     await runAllTimers();
     expect(cookie.get("cids")).toBe("1");
     expect(user.activeCompanies.map((c) => c.id)).toEqual([1]);
@@ -141,11 +113,6 @@ test("single company selected: toggling it off will keep it", async () => {
     expect("[data-company-id] .fa-square-check").toHaveCount(1);
     expect("[data-company-id] .fa-regular.fa-square").toHaveCount(2);
 
-    /**
-     *   [ ] **Company 1**  -> toggle off
-     *   [ ] Company 2
-     *   [ ] Company 3
-     */
     await toggleCompany(0);
     await clickConfirm();
     expect(cookie.get("cids")).toEqual("1");
@@ -158,22 +125,12 @@ test("single company selected: toggling it off will keep it", async () => {
 test("single company mode: companies can be logged in", async () => {
     await createSwitchCompanyMenu();
 
-    /**
-     *   [x] **Company 1**
-     *   [ ] Company 2
-     *   [ ] Company 3
-     */
     expect(user.activeCompanies.map((c) => c.id)).toEqual([1]);
     expect(user.activeCompany.id).toBe(1);
     expect("[data-company-id]").toHaveCount(3);
     expect("[data-company-id] .fa-square-check").toHaveCount(1);
     expect("[data-company-id] .fa-regular.fa-square").toHaveCount(2);
 
-    /**
-     *   [ ] **Company 1**
-     *   [x] Company 2      -> log into
-     *   [ ] Company 3
-     */
     await contains(".log_into:eq(1)").click();
     expect(cookie.get("cids")).toEqual("2");
 });
@@ -182,22 +139,12 @@ test("multi company mode: log into a non selected company", async () => {
     patchUserActiveCompanies([3, 1]);
     await createSwitchCompanyMenu();
 
-    /**
-     *   [x] Company 1
-     *   [ ] Company 2
-     *   [x] **Company 3**
-     */
     expect(user.activeCompanies.map((c) => c.id)).toEqual([3, 1]);
     expect(user.activeCompany.id).toBe(3);
     expect("[data-company-id]").toHaveCount(3);
     expect("[data-company-id] .fa-square-check").toHaveCount(2);
     expect("[data-company-id] .fa-regular.fa-square").toHaveCount(1);
 
-    /**
-     *   [x] Company 1
-     *   [ ] Company 2      -> log into
-     *   [x] **Company 3**
-     */
     await contains(".log_into:eq(1)").click();
     expect(cookie.get("cids")).toEqual("2-1-3");
 });
@@ -206,45 +153,25 @@ test("multi company mode: log into an already selected company", async () => {
     patchUserActiveCompanies([2, 3]);
     await createSwitchCompanyMenu();
 
-    /**
-     *   [ ] Company 1
-     *   [x] **Company 2**
-     *   [x] Company 3
-     */
     expect(user.activeCompanies.map((c) => c.id)).toEqual([2, 3]);
     expect(user.activeCompany.id).toBe(2);
     expect("[data-company-id]").toHaveCount(3);
     expect("[data-company-id] .fa-square-check").toHaveCount(2);
     expect("[data-company-id] .fa-regular.fa-square").toHaveCount(1);
 
-    /**
-     *   [ ] Company 1
-     *   [x] **Company 2**
-     *   [x] Company 3      -> log into
-     */
     await contains(".log_into:eq(2)").click();
     expect(cookie.get("cids")).toEqual("3-2");
 });
 
 test("companies can be logged in even if some toggled within delay", async () => {
-    await createSwitchCompanyMenu({ toggleDelay: ORIGINAL_TOGGLE_DELAY });
+    await createSwitchCompanyMenu();
 
-    /**
-     *   [x] **Company 1**
-     *   [ ] Company 2
-     *   [ ] Company 3
-     */
     expect(user.activeCompanies.map((c) => c.id)).toEqual([1]);
     expect(user.activeCompany.id).toBe(1);
     expect("[data-company-id]").toHaveCount(3);
     expect("[data-company-id] .fa-square-check").toHaveCount(1);
     expect("[data-company-id] .fa-regular.fa-square").toHaveCount(2);
 
-    /**
-     *   [ ] **Company 1**  -> toggled
-     *   [ ] Company 2      -> logged in
-     *   [ ] Company 3      -> toggled
-     */
     await contains("[data-company-id] [role=menuitemcheckbox]:eq(2)").click();
     await contains("[data-company-id] [role=menuitemcheckbox]:eq(0)").click();
     await contains(".log_into:eq(1)").click();
@@ -303,11 +230,6 @@ test("Show search input when more that 10 companies & search filters items but i
 });
 
 test("many companies: the collapsed list is reachable by keyboard", async () => {
-    // Above the threshold the list starts COLLAPSED, so the toggle is the only
-    // way into the company switcher. As a click-only <div> it had no role, no
-    // tab stop and no aria-expanded, which put the whole burger-menu switcher
-    // out of reach of a keyboard. This branch had no coverage at all: every
-    // other test here uses three companies, where `show` is always true.
     serverState.companies = Array.from({ length: 12 }, (_, i) => ({
         id: i + 1,
         name: `Company ${i + 1}`,
@@ -332,8 +254,6 @@ test("many companies: the collapsed list is reachable by keyboard", async () => 
 });
 
 test("few companies: the heading is not an actionable control", async () => {
-    // Below the threshold `toggleCollapsible` is a no-op and the list is always
-    // shown, so exposing a button would announce an action that does nothing.
     await mountWithCleanup(MobileSwitchCompanyMenu);
 
     expect(".o_burger_menu_companies_toggle").toHaveCount(0);

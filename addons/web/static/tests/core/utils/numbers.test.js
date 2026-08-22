@@ -2,7 +2,7 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { allowTranslations, patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { formatFloat as formatterFloat } from "@web/core/formatters";
+import { formatFieldFloat as formatterFloat } from "@web/core/formatters";
 import { localization } from "@web/core/l10n/localization";
 import {
     clamp,
@@ -141,12 +141,7 @@ describe("roundPrecision", () => {
         expect(roundPrecision(-457.4554, 0.001, "HALF-EVEN")).toBe(-457.455);
     });
 
-    // Every expectation below is the value `float_round` returns for the same
-    // (value, precision, method) triple. They cover the three ways this
-    // function used to disagree with it; each one is a case the corresponding
-    // branch got wrong before.
     test("parity with the server's float_round", () => {
-        // Ties go away from zero, where `Math.round` sends them to +Infinity.
         expect(roundPrecision(-2.5, 1, "HALF-UP")).toBe(-3);
         expect(roundPrecision(-2.5, 1, "HALF-DOWN")).toBe(-2);
         expect(roundPrecision(-2.5, 1, "HALF-EVEN")).toBe(-2);
@@ -154,8 +149,6 @@ describe("roundPrecision", () => {
         expect(roundPrecision(-504607249.8149996, 0.01, "HALF-UP")).toBe(-504607249.82);
         expect(roundPrecision(-259351980657.49976, 1, "HALF-UP")).toBe(-259351980658);
 
-        // |value / precision| past 2^49: the epsilon the truncating methods add
-        // exceeds 0.5, and past 2^50 it exceeds 1 -- which made `UP` round down.
         expect(roundPrecision(6396313.599999995, 1e-8, "UP")).toBe(6396313.6);
         expect(roundPrecision(-6396313.599999995, 1e-8, "UP")).toBe(-6396313.6);
         expect(roundPrecision(6396313.600000004, 1e-8, "DOWN")).toBe(6396313.6);
@@ -167,8 +160,6 @@ describe("roundPrecision", () => {
         expect(roundPrecision(6377167441100.805, 0.01, "UP")).toBe(6377167441100.81);
         expect(roundPrecision(6487118603878.403, 0.01, "DOWN")).toBe(6487118603878.4);
 
-        // Same band: `halfEpsilon` collapses to 0, so only an exact `=== 0.5`
-        // still recognises a tie.
         expect(roundPrecision(11324620.800000004, 1e-8, "HALF-EVEN")).toBe(11324620.8);
         expect(roundPrecision(1127428915.2000005, 1e-6, "HALF-EVEN")).toBe(
             1127428915.2,
@@ -225,16 +216,6 @@ describe("roundPrecision", () => {
 });
 
 test("roundDecimals: the precision table is identical to the string build", () => {
-    // roundDecimals derives its precision from a table of 10**-d literals
-    // instead of parseFloat("1e" + -decimals), which cost 18% of the function
-    // on the per-cell formatting path. Pin that every table entry, and every
-    // rounding that goes through it, matches the string form exactly --
-    // including the out-of-range indices that still fall back to it.
-    //
-    // Deliberately NOT asserted here: that Math.pow(10, -4) differs from 1e-4.
-    // It does under Node 22 and does not under Chrome 141, because ECMA-262
-    // leaves Math.pow implementation-approximated -- which is the reason the
-    // table exists, and the reason that fact cannot be a test.
     for (let d = -3; d <= 20; d++) {
         const fromString = parseFloat("1e" + -d);
         for (const v of [
@@ -525,30 +506,20 @@ describe("formatFloat", () => {
 });
 
 test("humanNumber reads a negative decimal exponent", () => {
-    // Every branch but the >= 1e21 one reads `localization.decimalPoint`, which
-    // throws until the parameters are loaded.
     allowTranslations();
     patchWithCleanup(localization, {
         decimalPoint: ".",
         grouping: [3, 0],
         thousandsSep: ",",
     });
-    // The magnitude used to be parsed by splitting on "e+", which is absent
-    // from the exponential form of any |x| < 1 ("1e-3") and yielded NaN.
     expect(humanNumber(0.001, { decimals: 3 })).toBe("0.001");
     expect(humanNumber(0.5, { decimals: 1 })).toBe("0.5");
     expect(humanNumber(-0.25, { decimals: 2 })).toBe("-0.25");
     expect(humanNumber(0, { decimals: 0 })).toBe("0");
-    // and the >= 1e21 scientific branch is unchanged
     expect(humanNumber(1e22, { decimals: 0 })).toBe("1e+22");
 });
 
 describe("minDigits and minIntegerDigits are distinct options", () => {
-    // They used to share the name `minDigits`: formatFloat read it as a
-    // minimum number of decimal places and then forwarded its whole options
-    // object to humanNumber, which read it as a minimum number of integer
-    // digits. A float field declared with `min_display_digits=` in Python and
-    // rendered with `options="{'human_readable': True}"` hit both at once.
     test("minDigits pads decimals and never reaches humanNumber", () => {
         patchWithCleanup(localization, {
             decimalPoint: ".",
@@ -586,24 +557,34 @@ describe("minDigits and minIntegerDigits are distinct options", () => {
 });
 
 describe("minDigits never exceeds the precision the value was rounded to", () => {
-    // `minDigits` is a floor on the decimals shown, not a licence to invent
-    // them. Unclamped it padded a value already rounded to `digits[1]`, so real
-    // digits were replaced by zeros. The server prints the clamped form:
-    // `ir.qweb.field.float` applies min_precision only `if min_precision < precision`.
     test("padding never outruns digits[1]", () => {
+        patchWithCleanup(localization, {
+            decimalPoint: ".",
+            grouping: [3, 0],
+            thousandsSep: ",",
+        });
         expect(formatFloat(12.5432, { digits: [16, 2], minDigits: 4 })).toBe("12.54");
         expect(formatFloat(12.5, { digits: [16, 2], minDigits: 4 })).toBe("12.50");
         expect(formatFloat(3.1239, { digits: [16, 2], minDigits: 6 })).toBe("3.12");
     });
 
     test("minDigits below digits[1] is unaffected", () => {
+        patchWithCleanup(localization, {
+            decimalPoint: ".",
+            grouping: [3, 0],
+            thousandsSep: ",",
+        });
         expect(formatFloat(3.1239, { digits: [15, 4], minDigits: 3 })).toBe("3.1239");
         expect(formatFloat(3.1, { digits: [15, 4], minDigits: 3 })).toBe("3.100");
         expect(formatFloat(3, { digits: [15, 3] })).toBe("3.000");
     });
 
     test("minDigits with no digits still caps at the computed precision", () => {
-        // precision is min(6, 15 - integer digits); the server caps identically.
+        patchWithCleanup(localization, {
+            decimalPoint: ".",
+            grouping: [3, 0],
+            thousandsSep: ",",
+        });
         expect(formatFloat(3.1, { minDigits: 8 })).toBe("3.100000");
         expect(formatFloat(3.1, { minDigits: 3 })).toBe("3.100");
     });

@@ -135,10 +135,7 @@ class MockRegistration extends EventTarget {
 }
 
 /**
- * Captures the `visibilitychange` listener instead of attaching it to the
- * real window (it would leak across tests and fire on real tab switches).
- *
- * @returns {Array<() => void>} the captured visibility handlers
+ * @returns {Array<() => void>}
  */
 function captureVisibilityHandlers() {
     /** @type {Array<() => void>} */
@@ -215,14 +212,8 @@ test("SW update: periodic and visibility-triggered registration.update()", async
 
 test.tags("desktop");
 test("the default app falls through a dangling first menu id", async () => {
-    // The menu tree can come from a `localStorage` copy that parses but names a
-    // menu id it does not define. `getMenu("root").children[0]` then handed
-    // `selectMenu` an undefined menu and the boot landed nowhere; going through
-    // `getApps()` skips the dangling id and opens the first real app.
     const def = new Deferred();
     onRpc("/web/webclient/load_menus", () => def);
-    // menu_storage scopes the cache token to `${registry_hash}:${user.userId}`
-    // (serverState userId defaults to 7); a bare hash is a miss.
     browser.localStorage.webclient_menus_version =
         "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0:7";
     browser.localStorage.webclient_menus = JSON.stringify({
@@ -242,4 +233,25 @@ test("the default app falls through a dangling first menu id", async () => {
 
     expect(selected).toEqual([2]);
     def.resolve();
+});
+
+test("SW update: the returned disposer stops the interval and the visibility hook", async () => {
+    const visibilityHandlers = captureVisibilityHandlers();
+    const registration = new MockRegistration();
+    registration.active = new MockServiceWorker("activated");
+    const dispose = watchServiceWorkerUpdates(/** @type {any} */ (registration));
+    expect(visibilityHandlers).toHaveLength(1);
+
+    const SIX_HOURS = 6 * 60 * 60 * 1000;
+    await advanceTime(SIX_HOURS);
+    expect.verifySteps(["update"]);
+
+    dispose();
+    await advanceTime(SIX_HOURS);
+    expect.verifySteps([]);
+
+    registration.installing = new MockServiceWorker("installing");
+    registration.dispatchEvent(new Event("updatefound"));
+    registration.installing.setState("installed");
+    expect.verifySteps([]);
 });

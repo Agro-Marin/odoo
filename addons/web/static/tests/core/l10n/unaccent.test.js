@@ -17,7 +17,6 @@ describe("unaccent", () => {
     });
 
     test("transliterates beyond combining marks, as PostgreSQL does", () => {
-        // Ground truth: SELECT unaccent(c) on a database with the extension.
         expect(unaccent("Ø")).toBe("O");
         expect(unaccent("ø")).toBe("o");
         expect(unaccent("Ł")).toBe("L");
@@ -38,16 +37,6 @@ describe("unaccent", () => {
     });
 
     test("mirrors the server's PYTHON fold, including where it stops", () => {
-        // The table covers exactly the ranges the server probes
-        // (`_UNACCENT_PROBE_RANGES`), so it reproduces `Registry.unaccent_python`
-        // — the fold `Model.filtered_domain` uses, and the one `Domain.contains`
-        // is the client-side counterpart of.
-        //
-        // SQL `unaccent()` itself goes further: it folds `𝔖𝔥𝔯𝔢𝔨` to `Shrek`,
-        // while the server's own Python fold leaves it alone because U+1D516 is
-        // past the probed ranges. Matching the Python fold is deliberate; do not
-        // "fix" this to the SQL answer without widening the SERVER's ranges too,
-        // or client and `filtered_domain` will disagree again.
         expect(unaccent("𝔖𝔥𝔯𝔢𝔨")).toBe("𝔖𝔥𝔯𝔢𝔨");
     });
 
@@ -58,8 +47,6 @@ describe("unaccent", () => {
 
 describe("foldForCaseInsensitiveCompare", () => {
     test("transliterates BEFORE lowering", () => {
-        // Lowering first would look up "æ"/"₹" after they had already been
-        // lowered, and would never reach the upper-case replacements AE / Rs.
         expect(foldForCaseInsensitiveCompare("Æ")).toBe("ae");
         expect(foldForCaseInsensitiveCompare("₹")).toBe("rs");
         expect(foldForCaseInsensitiveCompare("Großkreutz")).toBe("grosskreutz");

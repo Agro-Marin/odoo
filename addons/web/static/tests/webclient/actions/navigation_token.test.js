@@ -8,16 +8,6 @@ import {
     NavigationTracker,
 } from "@web/webclient/actions/navigation_token";
 
-/**
- * The supersession clock of the action pipeline, pinned in isolation.
- *
- * `NavigationTracker.guard` must be a faithful stand-in for the
- * `KeepLast({ rejectSuperseded: true })` it replaced at the load stage —
- * the eager-rejection and drop-stale-settlement tests here mirror the
- * KeepLast suite in `core/utils/concurrency.test.js` on purpose. What the
- * tokens add over KeepLast is the readable clock: `snapshot()`/`isCurrent()`
- * checkpoints between stages, all failing with the same `SupersededError`.
- */
 describe.current.tags("headless");
 
 test("a minted token is current until the next mint", () => {
@@ -66,7 +56,6 @@ test("a newer mint rejects a pending settle eagerly, before its promise settles"
     const never = new Deferred();
     const guarded = tracker.mint().settle(never);
     tracker.mint();
-    // No resolution of `never`: the rejection must come from the mint alone.
     await expect(guarded).rejects.toThrow(SupersededError);
 });
 
@@ -112,4 +101,23 @@ test("a resolved settle clears the pending slot: the next mint rejects nobody", 
     expect(done).toBe("done");
     const next = tracker.mint();
     expect(next.isCurrent()).toBe(true);
+});
+
+test("two settles in one epoch: the next mint supersedes BOTH, neither leaks", async () => {
+    const tracker = new NavigationTracker();
+    const first = tracker.snapshot().settle(new Deferred());
+    const second = tracker.snapshot().settle(new Deferred());
+
+    let firstState = "pending";
+    let secondState = "pending";
+    first.catch((error) => (firstState = error.name));
+    second.catch((error) => (secondState = error.name));
+
+    tracker.mint();
+    for (let i = 0; i < 5; i++) {
+        await Promise.resolve();
+    }
+
+    expect(firstState).toBe("SupersededError");
+    expect(secondState).toBe("SupersededError");
 });

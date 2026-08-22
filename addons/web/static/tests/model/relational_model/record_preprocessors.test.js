@@ -1,13 +1,8 @@
 // @ts-check
 
-/**
- * Pure unit tests for record_preprocessors.js — functions take a
- * RelationalRecord-shaped plain object, no OWL component/DOM/mock server.
- * markup() is the only OWL import needed, and works without mounting.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { markup } from "@odoo/owl";
+import { MODEL_LIFECYCLE_PROTO } from "@web/../tests/model/relational_model/model_doubles";
 import { x2ManyCommands } from "@web/core/network/commands";
 import {
     completeMany2OneValue,
@@ -20,9 +15,6 @@ import {
 } from "@web/model/relational_model/record_preprocessors";
 
 /**
- * Builds a minimal record mock. Only includes the properties each tested
- * code path actually accesses — unused paths are left absent.
- *
  * @param {Object} [opts]
  * @param {Object} [opts.fields]
  * @param {Object} [opts.activeFields]
@@ -51,6 +43,7 @@ function makeRecord({
         data,
         model: {
             orm: { call: ormCall, webRead: ormWebRead },
+            __proto__: MODEL_LIFECYCLE_PROTO,
             hooks: { lifecycle: {}, ui: { onDisplayPropertyWarning } },
         },
         _processProperties: processProperties,

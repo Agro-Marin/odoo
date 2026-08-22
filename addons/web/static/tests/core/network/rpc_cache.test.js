@@ -1047,7 +1047,6 @@ test("update:always: an aborted refresh is not reported as a failure", async () 
     rpcBus.addEventListener(RpcEvent.BACKGROUND_REFRESH_FAILED, onFail);
 
     const def = new Deferred();
-    // `rpc`'s abort() rejects the inner request with exactly this.
     const res = await rpcCache.read("table", "key", () => def, {
         type: "ram",
         update: "always",
@@ -1058,8 +1057,6 @@ test("update:always: an aborted refresh is not reported as a failure", async () 
     await tick();
     await tick();
 
-    // The caller asked for the refresh to stop; that is not a failure to
-    // report, on the console or on the bus.
     expect(
         warnings.filter((w) => w.includes("background refresh failed")),
     ).toHaveLength(0);
@@ -1099,10 +1096,6 @@ test("silent update:always: ConnectionLostError refresh does not float a rejecti
 });
 
 test("update:always: an InvalidResponseError refresh warns but does not signal offline", async () => {
-    // `InvalidResponseError` extends `ConnectionLostError` but is not
-    // connectivity loss (e.g. a session-expired refresh got a login page, not
-    // JSON), so it must NOT fire the offline `BACKGROUND_REFRESH_FAILED` signal
-    // -- only a genuine `ConnectionLostError` does. It falls to a plain warning.
     const rpcCache = new RPCCache("mockRpc", 1, null);
     await rpcCache.read("table", "key", () => Promise.resolve({ v: 1 }), {
         type: "ram",
@@ -1128,7 +1121,7 @@ test("update:always: an InvalidResponseError refresh warns but does not signal o
     await tick();
     await tick();
 
-    expect(failures).toHaveLength(0); // not signalled as offline
+    expect(failures).toHaveLength(0);
     expect(
         warnings.filter((w) => w.includes("background refresh failed")),
     ).toHaveLength(1);
@@ -1696,11 +1689,8 @@ test("throwing subscriber callback does not wedge the key nor starve other callb
 });
 
 /**
- * Gate ``rpcCache.crypto.encrypt`` on a deferred so a test can act inside
- * the RPC-resolution → disk-write window.
- *
  * @param {RPCCache} rpcCache
- * @returns {Deferred} resolve it to let pending encryptions proceed
+ * @returns {Deferred}
  */
 function gateEncrypt(rpcCache) {
     const gate = new Deferred();
@@ -1881,7 +1871,7 @@ test("purgeStorage deletes the on-disk database", async () => {
 });
 
 test("purgeStorage is a no-op (and does not throw) without a disk cache", async () => {
-    const rpcCache = new RPCCache("mockRpc", 1); // no secret -> disk cache disabled
+    const rpcCache = new RPCCache("mockRpc", 1);
     expect(rpcCache.indexedDB).toBe(null);
 
     await rpcCache.purgeStorage();
@@ -1991,11 +1981,6 @@ test("RamCache: eviction keeps the model reverse index consistent", () => {
 });
 
 test("piggyback refcount: abort(false) on the initiator leaves the piggybacked caller to settle", async () => {
-    // Regression: the caller that started the fetch and the callers the cache
-    // piggybacked on it shared ONE in-flight request with no refcounting, so
-    // the initiator's silent abort evicted the pending entry and cancelled
-    // the fetch -- the piggybacked caller's promise then stayed pending
-    // FOREVER.
     rpc.setCache(new RPCCache("mockRpc", 1, RAM_SECRET));
     after(() => rpc.setCache(undefined));
     const fetchDef = new Deferred();
@@ -2020,15 +2005,12 @@ test("piggyback refcount: abort(false) on the initiator leaves the piggybacked c
 
     fetchDef.resolve({ result: { ok: 1 } });
     expect(await piggybacked).toEqual({ ok: 1 });
-    expect(initiatorState).toBe("pending"); // abort(false) stays silent
-    // the fetched value completed into the cache: no re-fetch
+    expect(initiatorState).toBe("pending");
     expect(await rpc("/test/", {}, { cache: true })).toEqual({ ok: 1 });
     expect(fetchCount).toBe(1);
 });
 
 test("piggyback refcount: abort(true) on the initiator rejects only that caller", async () => {
-    // Regression: abort(true) rejected the shared request, so EVERY
-    // piggybacked caller rejected along with the one that aborted.
     rpc.setCache(new RPCCache("mockRpc", 1, RAM_SECRET));
     after(() => rpc.setCache(undefined));
     const fetchDef = new Deferred();
@@ -2083,7 +2065,6 @@ test("piggyback refcount: the last caller out cancels the fetch and evicts the p
     expect(Object.keys(rpcCache.pendingRequests)).toHaveLength(1);
 
     first.abort(false);
-    // `second` still subscribes: the fetch and the pending entry survive
     expect(signals[0].aborted).toBe(false);
     expect(Object.keys(rpcCache.pendingRequests)).toHaveLength(1);
 
@@ -2092,7 +2073,6 @@ test("piggyback refcount: the last caller out cancels the fetch and evicts the p
     expect(signals[0].aborted).toBe(true);
     expect(Object.keys(rpcCache.pendingRequests)).toHaveLength(0);
 
-    // the dangling response must not complete into the (evicted) cache entry
     hung.resolve(
         new Response(JSON.stringify({ result: { stale: true } }), {
             status: 200,

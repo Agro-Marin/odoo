@@ -12,13 +12,13 @@ const PICKER_COLS = 7;
 
 /**
  * @param {false | {
- *  title?: string | string[],
- *  date?: {
- *      cells: (number | string | [number] | [string])[][],
- *      daysOfWeek?: string[],
- *      weekNumbers?: number[],
- *  }[],
- *  time?: ([number, number] | [number, number, "AM" | "PM"])[],
+ * title?: string | string[],
+ * date?: {
+ * cells: (number | string | [number] | [string])[][],
+ * daysOfWeek?: string[],
+ * weekNumbers?: number[],
+ * }[],
+ * time?: ([number, number] | [number, number, "AM" | "PM"])[],
  * }} expectedParams
  */
 export function assertDateTimePicker(expectedParams) {

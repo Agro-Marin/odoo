@@ -68,10 +68,6 @@ test("useViewportChange: fires on viewport change while mounted, stops after unm
 });
 
 test("useViewportChange subscribes lazily and releases with its last consumer", async () => {
-    // The subscription must be made against the `browser` in force when a
-    // consumer appears — not against whatever was installed when this module
-    // was first imported. Patching here and observing that the callback still
-    // fires is what pins that.
     const added = [];
     const removed = [];
     const originalAdd = browser.addEventListener.bind(browser);

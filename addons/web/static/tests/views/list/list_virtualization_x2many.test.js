@@ -1,21 +1,5 @@
 // @ts-check
 
-/**
- * @module tests/views/list/list_virtualization_x2many
- *
- * `useVirtualGrid` derives the viewport span from
- * `scrollableRef.el.clientHeight`. For a standalone list that is correct —
- * `.o_list_renderer` is `overflow-y: auto` inside a height-constrained
- * `.o_content`, so `clientHeight` is a real viewport. Inside an x2many field
- * the same element grows to fit its content (the *form* is the scroller), so
- * `clientHeight` measures what was just rendered rather than what is visible.
- *
- * That makes the span self-referential, and the rows a user can actually reach
- * depend on which render happened to win. These tests pin the only property
- * that matters either way: every row of the x2many must be reachable, and the
- * table must never claim more height than its rows occupy.
- */
-
 import { expect, test } from "@odoo/hoot";
 import { queryAll, queryFirst } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
@@ -61,9 +45,6 @@ const ARCH = `
     </form>`;
 
 /**
- * Resolve the element that actually scrolls the x2many, the same way
- * ``useListVirtualization`` does.
- *
  * @param {HTMLElement} el
  * @returns {HTMLElement}
  */
@@ -86,7 +67,6 @@ test("every x2many row above the virtualization threshold is reachable", async (
     await mountView({ resModel: "parent", type: "form", resId: 1, arch: ARCH });
 
     const renderer = queryFirst(".o_field_x2many .o_list_renderer");
-    // The x2many list is not its own scroll viewport: the form scrolls it.
     expect(renderer.scrollHeight).toBe(renderer.clientHeight);
 
     const firstNames = queryAll(".o_field_x2many .o_data_row .o_data_cell").map((td) =>
@@ -94,11 +74,6 @@ test("every x2many row above the virtualization threshold is reachable", async (
     );
     expect(firstNames.at(0)).toBe("line 1");
 
-    // Reachability is what matters, and under virtualization it is a property
-    // of SCROLLING, not of the initial DOM: asserting the last row is present
-    // up-front only held while virtualization was inert inside an x2many
-    // (the renderer was mistaken for its own viewport, so the computed span
-    // covered every row and nothing was ever windowed out).
     const scroller = scrollContainerOf(renderer);
     expect(scroller).not.toBe(renderer);
     scroller.scrollTop = scroller.scrollHeight;

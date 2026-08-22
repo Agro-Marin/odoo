@@ -1,28 +1,5 @@
 // @ts-check
 
-/**
- * The model-layer helpers take a ``RelationalRecord`` and reach into its
- * ``_``-prefixed surface. That surface is a contract declared only by the
- * class, so a hand-rolled double can fall behind it without anything saying
- * so -- and then the double answers questions the real record would not, or
- * throws on ones it would.
- *
- * Both directions have bitten this suite. Adding ``_unsetRequiredFields`` to
- * the savepoint broke thirty tests at once; more recently a fixture's fake
- * datapoint omitted ``_loadedFieldNames``, so ``_getResIdsToLoad`` -- the
- * question "does this row still need a webRead?" -- threw instead of
- * answering, and the fixture only surfaced when production code started
- * asking it on a path that had not asked before.
- *
- * These tests close the loop:
- *
- *  - a REAL ``RelationalRecord`` must carry every member the contract names,
- *    so renaming one in the class fails HERE rather than orphaning the list;
- *  - {@link makeRecordDouble} must carry them too, so the double cannot fall
- *    behind the list;
- *  - the double must not invent members the real record lacks.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import {
     makeRecordDouble,
@@ -30,14 +7,10 @@ import {
 } from "@web/../tests/model/relational_model/record_doubles";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";
-// From production, not through the doubles' re-export: the doubles forward
-// `RECORD_CONTRACT_SURFACE` only, and importing a name they do not forward made
-// this whole suite register ZERO tests rather than fail.
 import { RECORD_OWNER_SURFACE } from "@web/model/relational_model/record_contract";
 
 describe.current.tags("headless");
 
-/** A real RelationalRecord, built against the smallest possible model. */
 function makeRealRecord() {
     const model = {
         Class: { Record: RelationalRecord },
@@ -62,7 +35,6 @@ function makeRealRecord() {
     );
 }
 
-/** `in` rather than hasOwnProperty: accessors live on the prototype. */
 const has = (/** @type {any} */ obj, /** @type {any} */ key) => key in obj;
 
 describe("the record contract, the class and the double agree", () => {
@@ -97,7 +69,6 @@ describe("the record contract, the class and the double agree", () => {
         const record = makeRealRecord();
         const double = makeRecordDouble({ values: { id: 1, name: "n" } });
 
-        // Same shape, same question: which fields did the server actually send?
         expect(/** @type {Set<string>} */ (record._loadedFieldNames)).toBeInstanceOf(
             Set,
         );
@@ -109,11 +80,6 @@ describe("the record contract, the class and the double agree", () => {
     });
 
     test("a real RelationalRecord carries every member the OWNER surface names", () => {
-        // The second audience: what an owning list or model invokes on a record
-        // it holds. The double is NOT checked against it — a double stands in
-        // for a record when testing the record's own helpers, and no test drives
-        // it as a list would, so requiring it here would be requiring a shape
-        // nothing uses.
         const record = makeRealRecord();
         const missing = RECORD_OWNER_SURFACE.filter((key) => !has(record, key));
         expect(missing).toEqual([], {
@@ -124,13 +90,78 @@ describe("the record contract, the class and the double agree", () => {
     });
 
     test("the two record surfaces stay disjoint", () => {
-        // They answer different questions: widen the first and a helper
-        // extracted from Record sees more of it; widen the second and every
-        // list in the tree does. A member in both means the distinction has
-        // collapsed.
         const both = RECORD_CONTRACT_SURFACE.filter((key) =>
             RECORD_OWNER_SURFACE.includes(key),
         );
         expect(both).toEqual([], { message: "named by both record surfaces" });
+    });
+});
+
+describe("the double BEHAVES like the record, not merely looks like it", () => {
+    /**
+     * @param {any} record
+     * @returns {string}
+     */
+    function stateOf(record) {
+        return JSON.stringify({
+            data: { name: record.data.name },
+            values: { name: record._values.name },
+            changes: { ...record._changes },
+            textValues: { ...record._textValues },
+            initialTextValues: { ...record._initialTextValues },
+            dirty: record.dirty,
+        });
+    }
+
+    /**
+     * @param {any} record
+     * @returns {string[]}
+     */
+    function drive(record) {
+        const trace = [];
+        record._changes.name = "edited";
+        record._textValues.name = "edited";
+        record.dirty = true;
+        record._rebuildData();
+        trace.push(`rebuild ${stateOf(record)}`);
+        record._commitChanges();
+        trace.push(`commit ${stateOf(record)}`);
+        record._changes.name = "again";
+        record._textValues.name = "again";
+        record.dirty = true;
+        record._rebuildData();
+        record._discardChanges();
+        trace.push(`discard ${stateOf(record)}`);
+        record._resetValues({ name: "reset" });
+        trace.push(`reset ${stateOf(record)}`);
+        return trace;
+    }
+
+    test("commit / discard / reset move both to the same state", () => {
+        const real = drive(makeRealRecord());
+        const double = drive(
+            makeRecordDouble({
+                values: { name: "n" },
+                fields: { name: { type: "char", name: "name" } },
+            }),
+        );
+        expect(double).toEqual(real, {
+            message:
+                "the double's state transitions have drifted from " +
+                "RelationalRecord's -- delegate to RecordEditState rather than " +
+                "restating what it does",
+        });
+    });
+
+    test("the double derives text values from its values, as the constructor does", () => {
+        const real = makeRealRecord();
+        const double = makeRecordDouble({
+            values: { name: "n" },
+            fields: { name: { type: "char", name: "name" } },
+        });
+        expect({ ...double._textValues }).toEqual({ ...real._textValues });
+        expect({ ...double._initialTextValues }).toEqual({
+            ...real._initialTextValues,
+        });
     });
 });

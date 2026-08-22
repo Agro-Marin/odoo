@@ -1,18 +1,5 @@
 // @ts-check
 
-/**
- * Pure unit tests for calendar model logic.
- *
- * Tests the core computation functions extracted from calendar_model.js into
- * pure utility modules. No OWL environment, ORM calls, or DOM fixtures needed.
- * (CalendarModel.setup() calls useDebounced, an OWL hook, so the model class
- * itself requires an OWL component context to instantiate.)
- *
- * Modules under test:
- *  - views/calendar/calendar_date_range.js — range computation and domain building
- *  - views/calendar/calendar_record.js     — raw record normalization
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { luxon } from "@web/core/l10n/luxon";
 import {

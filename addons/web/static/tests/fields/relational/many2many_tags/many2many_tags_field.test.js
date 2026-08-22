@@ -3,7 +3,7 @@
 import { expect, getFixture, test } from "@odoo/hoot";
 import { hover, press, queryAllTexts, queryOne } from "@odoo/hoot-dom";
 import { animationFrame, Deferred, runAllTimers } from "@odoo/hoot-mock";
-import { Component, xml } from "@odoo/owl";
+import { Component, onWillRender, xml } from "@odoo/owl";
 import {
     clickFieldDropdown,
     clickFieldDropdownItem,
@@ -20,7 +20,10 @@ import {
     onRpc,
     selectFieldDropdownItem,
 } from "@web/../tests/web_test_helpers";
+import { TagsList } from "@web/components/tags_list/tags_list";
 import { registry } from "@web/core/registry";
+import { patch } from "@web/core/utils/patch";
+import { Many2ManyTagsField } from "@web/fields/relational/many2many_tags/many2many_tags_field";
 
 class Partner extends models.Model {
     _name = "partner";
@@ -2003,11 +2006,6 @@ test("Many2ManyTagsField: press backspace multiple times to remove tag", async (
 
 test.tags("desktop");
 test("tag colour is applied to the clicked record even if the list reloads", async () => {
-    // The colour popover used to hand its tag's *datapoint id* back to the
-    // field, which re-resolved the record by id at pick time. Reloading the
-    // x2many in between replaces those datapoints, so the lookup missed and
-    // dereferencing the result threw. The popover now carries no identity at
-    // all — the field closes over the record when it opens it.
     Partner._records[0].timmy = [12, 14];
     /** @type {any} */
     let model = null;
@@ -2036,8 +2034,6 @@ test("tag colour is applied to the clicked record even if the list reloads", asy
     await contains(goldBefore).click();
     expect(".o_colorlist").toHaveCount(1);
 
-    // Reload the record: the x2many datapoints are rebuilt with fresh ids,
-    // so any id captured when the popover opened is now stale.
     await model.root.load();
     await animationFrame();
     const idsAfter = model.root.data.timmy.records.map((/** @type {any} */ r) => r.id);
@@ -2045,10 +2041,8 @@ test("tag colour is applied to the clicked record even if the list reloads", asy
         message: "the reload must actually invalidate the datapoint ids",
     });
 
-    // The popover must survive the reload, otherwise there is nothing to pick.
     expect(".o_colorlist").toHaveCount(1);
 
-    // Pick a colour: it must land on the record the popover was opened for.
     await contains(".o_colorlist .o_colorlist_item_color_6").click();
     await animationFrame();
     expect(MockServer.env["partner.type"].browse(12)[0].color).toBe(6);
@@ -2058,11 +2052,6 @@ test("tag colour is applied to the clicked record even if the list reloads", asy
 });
 
 test("removing a tag, restoring it, and removing it again still reaches the server", async () => {
-    // The compaction in `shouldEmitUnlink` used to cancel the re-LINK by
-    // clearing the tag's whole ledger, taking the FIRST unlink with it. The
-    // record then read as clean, so no `web_save` fired at all: the tag
-    // vanished from the UI and survived on the server, with nothing flagged
-    // dirty for the user to notice.
     Partner._records[0].timmy = [12];
     const saved = [];
     onRpc("web_save", ({ args }) => {
@@ -2094,19 +2083,8 @@ test("removing a tag, restoring it, and removing it again still reaches the serv
     expect(MockServer.env["partner"].browse(1)[0].timmy).toEqual([]);
 });
 
-// Desktop-only, like the two other tests in this file that read
-// `.o-autocomplete--dropdown-item`: on mobile the widget opens a kanban
-// select-create dialog (`.o_kanban_record`) instead of the autocomplete list,
-// so `offersCreate()` matched nothing there. That made the mobile run fail its
-// two positive assertions and pass the negative one VACUOUSLY -- it was proving
-// nothing about the domain on mobile while still gating the build. The logic
-// under test (useActiveActions recomputing off stale props) is platform
-// independent and stays covered by the desktop run.
 test.tags("desktop");
 test("create-domain follows the record the pager lands on", async () => {
-    // `useActiveActions` recomputes from onWillUpdateProps, where `this.props`
-    // still points at the record being left -- so a hook reading it answered
-    // one record behind, and nothing recomputed it again until the next swap.
     await mountView({
         type: "form",
         resModel: "partner",
@@ -2148,10 +2126,6 @@ test("create-domain follows the record the pager lands on", async () => {
 
 test.tags("desktop");
 test("search_memoization reaches the embedded autocomplete", async () => {
-    // The option was inherited from the many2one declaration and advertised for
-    // a long time before anything forwarded it. Only the non-default value can
-    // show that: Many2XAutocomplete already defaults to "exact", so an "exact"
-    // assertion passes whether or not the field forwards anything.
     const searched = [];
     onRpc("web_name_search", ({ kwargs }) => void searched.push(kwargs.name));
     await mountView({
@@ -2170,4 +2144,69 @@ test("search_memoization reaches the embedded autocomplete", async () => {
         await runAllTimers();
     }
     expect(searched.filter((name) => name === "zzz")).toHaveLength(3);
+});
+
+test("TagsList is not re-rendered when nothing about the tags moved", async () => {
+    let tagsListRenders = 0;
+    let fieldRenders = 0;
+    patch(TagsList.prototype, {
+        setup() {
+            super.setup();
+            onWillRender(() => tagsListRenders++);
+        },
+    });
+    patch(Many2ManyTagsField.prototype, {
+        setup() {
+            super.setup();
+            onWillRender(() => fieldRenders++);
+        },
+    });
+
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `<form>
+                 <field name="foo"/>
+                 <field name="timmy" widget="many2many_tags"/>
+               </form>`,
+    });
+    const baseTags = tagsListRenders;
+    const baseField = fieldRenders;
+
+    await fieldInput("foo").edit("something else", { confirm: "blur" });
+    await animationFrame();
+
+    expect(fieldRenders).toBeGreaterThan(baseField, {
+        message: "the field itself must have re-rendered, or the test proves nothing",
+    });
+    expect(tagsListRenders).toBe(baseTags, {
+        message: "TagsList must not re-render when no tag changed",
+    });
+});
+
+test("editing a tag still reaches TagsList", async () => {
+    Partner._records[0].timmy = [12, 14];
+    let tagsListRenders = 0;
+    patch(TagsList.prototype, {
+        setup() {
+            super.setup();
+            onWillRender(() => tagsListRenders++);
+        },
+    });
+
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `<form><field name="timmy" widget="many2many_tags"/></form>`,
+    });
+    const before = tagsListRenders;
+    expect(queryAllTexts(".o_tag")).toEqual(["gold", "silver"]);
+
+    await contains(".o_field_many2many_tags .o_delete:first").click();
+    await animationFrame();
+
+    expect(tagsListRenders).toBeGreaterThan(before);
+    expect(queryAllTexts(".o_tag")).toEqual(["silver"]);
 });

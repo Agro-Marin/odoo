@@ -1,20 +1,8 @@
 // @ts-check
 
-/**
- * Integration tests for the useInputField hook.
- *
- * The hook manages the dirty/clean lifecycle of text input fields: it sets
- * isDirty on each keystroke, commits on blur/Tab/Enter, and defers DOM updates
- * when the user is actively typing to prevent onchange rerenders from overwriting
- * user input mid-edit. All tests exercise the hook through a char or integer
- * field in a form view.
- *
- * Module under test: fields/input_field_hook.js
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
-import { animationFrame } from "@odoo/hoot-mock";
+import { animationFrame, Deferred } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
 import {
     clickSave,
@@ -222,9 +210,6 @@ describe("blur/Tab no-write on parse-equal re-entry", () => {
         expect(dirtyEvents.length > 0).toBe(true, {
             message: "typing must have emitted FIELD_IS_DIRTY events",
         });
-        // Folded rather than read off the last payload: the signal is keyed by
-        // field, so "is anything still dirty" is a property of the whole event
-        // sequence, not of whichever field spoke last.
         expect(dirtyEvents.reduce(applyFieldDirtyPayload, new Set()).size).toBe(0, {
             message:
                 "the parse-equal commit must leave no field reporting dirty; otherwise the indicator stays stuck on unsaved",
@@ -289,6 +274,94 @@ describe("rejected update clears dirty-typing signal", () => {
         });
         expect(dirtyEvents.reduce(applyFieldDirtyPayload, new Set()).size).toBe(0, {
             message: "no field may still report dirty after a rejected update",
+        });
+    });
+});
+
+describe("urgent commit racing an in-flight update", () => {
+    test("an urgent commit writes what the user typed, even mid-flight", async () => {
+        /** @type {any[]} */
+        const updates = [];
+        let bus = null;
+
+        class UpdateSpy extends Component {
+            static template = xml`<span/>`;
+            static props = { ...standardFieldProps };
+            setup() {
+                bus = this.props.record.model.bus;
+                const record = this.props.record;
+                if (!record.__updateSpy) {
+                    record.__updateSpy = true;
+                    const update = record.update.bind(record);
+                    record.update = (changes, options) => {
+                        updates.push({ ...changes });
+                        return update(changes, options);
+                    };
+                }
+            }
+        }
+        registry.category("fields").add("update_spy", { component: UpdateSpy });
+
+        await mountView({
+            type: "form",
+            resModel: "res.partner",
+            resId: 1,
+            arch: `<form>
+                     <field name="name"/>
+                     <field name="foo" widget="update_spy"/>
+                   </form>`,
+        });
+
+        await fieldInput("name").edit("typed", { confirm: false });
+        const proms = [];
+        bus.trigger("NEED_LOCAL_CHANGES", { proms });
+        bus.trigger("WILL_SAVE_URGENTLY", { proms });
+        await Promise.all(proms);
+        await animationFrame();
+
+        expect(updates).toEqual([{ name: "typed" }, { name: "typed" }]);
+    });
+
+    test("an urgent commit settles even while an onchange never answers", async () => {
+        let bus = null;
+        const neverAnswers = new Deferred();
+        onRpc("res.partner", "onchange", () => neverAnswers);
+
+        class BusGrabber extends Component {
+            static template = xml`<span/>`;
+            static props = { ...standardFieldProps };
+            setup() {
+                bus = this.props.record.model.bus;
+            }
+        }
+        registry.category("fields").add("bus_grabber", { component: BusGrabber });
+
+        await mountView({
+            type: "form",
+            resModel: "res.partner",
+            resId: 1,
+            arch: `<form>
+                     <field name="name"/>
+                     <field name="foo" widget="bus_grabber"/>
+                   </form>`,
+        });
+
+        await fieldInput("name").edit("typed", { confirm: false });
+
+        const pending = [];
+        bus.trigger("NEED_LOCAL_CHANGES", { proms: pending });
+        const urgent = [];
+        bus.trigger("WILL_SAVE_URGENTLY", { proms: urgent });
+
+        let settled = false;
+        Promise.all(urgent).then(() => {
+            settled = true;
+        });
+        await animationFrame();
+
+        expect(settled).toBe(true, {
+            message:
+                "the urgent handlers must hand over what is known, not wait on the network",
         });
     });
 });

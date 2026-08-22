@@ -77,8 +77,6 @@ test("the crop area is published once, and not republished unchanged", async () 
     expect(areas.length).toBe(1);
     expect(Object.keys(areas[0]).toSorted()).toEqual(["height", "width", "x", "y"]);
 
-    // Re-arming the overlay recomputes the geometry, but an identical area is
-    // not pushed at the consumer a second time.
     host.state.isReady = false;
     await animationFrame();
     host.state.isReady = true;
@@ -107,7 +105,6 @@ test("a drag persists the position exactly once, on pointer up", async () => {
     container.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
     expect(storage.writes).toBe(1);
 
-    // A stray pointerup with no drag in progress must not write again.
     container.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
     expect(storage.writes).toBe(1);
 });
@@ -138,10 +135,6 @@ test("the handle comes back where it was left, not on the opposite corner", asyn
     expect(dragged.crop).toBe("40px,30px");
     expect(dragged.icon).toBe("260px,170px");
 
-    // Re-arming reads the position back out of local storage, which is the path
-    // a fresh page load takes. The crop area is mirrored about the centre and
-    // mirroring is idempotent, so it came back right either way -- the handle
-    // is what told the two coordinate spaces apart.
     host.state.isReady = false;
     await animationFrame();
     host.state.isReady = true;

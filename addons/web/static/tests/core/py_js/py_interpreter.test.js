@@ -5,10 +5,6 @@ import { evaluateBooleanExpr, evaluateExpr } from "@web/core/py_js/py";
 
 describe.current.tags("headless");
 
-/**
- * Explicit tolerance for float comparisons. `toBeCloseTo`'s `margin` defaults
- * to 1, which silently turns a precision assertion into a no-op.
- */
 const EPS = 1e-9;
 
 describe("basic values", () => {
@@ -720,11 +716,6 @@ describe("builtins — float", () => {
         expect(() => evaluateExpr("float([])")).toThrow(/float\(\) argument/);
     });
 
-    // `float` used to hand the string to `Number()`, which accepts strictly
-    // more than CPython does (radix prefixes) and strictly less at the same
-    // time (PEP 515 underscores) -- while `int` right next to it already
-    // accepted underscores, so the two disagreed with each other too. Every
-    // expectation below is CPython-verified.
     test("float accepts PEP 515 underscores, exactly where CPython does", () => {
         expect(evaluateExpr('float("1_000")')).toBe(1000);
         expect(evaluateExpr('float("1_000.5")')).toBe(1000.5);
@@ -760,7 +751,6 @@ describe("builtins — float", () => {
     });
 
     test("float rejects radix prefixes, which only int() takes", () => {
-        // Number("0x10") is 16; CPython's float() raises for all three.
         expect(() => evaluateExpr('float("0x10")')).toThrow(/could not convert/);
         expect(() => evaluateExpr('float("0b11")')).toThrow(/could not convert/);
         expect(() => evaluateExpr('float("0o7")')).toThrow(/could not convert/);
@@ -779,9 +769,6 @@ describe("builtins — float", () => {
 });
 
 describe("builtins — sorted", () => {
-    // `safe_eval` exposes `sorted` and this module's docstring always claimed
-    // it, but it was never wired into BUILTINS: every `sorted(...)` in a
-    // client-evaluated expression died on "Name 'sorted' is not defined".
     test("sorts lists, strings, sets and dict keys like CPython", () => {
         expect(evaluateExpr("sorted([3, 1, 2])")).toEqual([1, 2, 3]);
         expect(evaluateExpr('sorted("cba")')).toEqual(["a", "b", "c"]);
@@ -811,8 +798,6 @@ describe("builtins — sorted", () => {
 });
 
 describe("builtins — repr", () => {
-    // pyRepr already backed '%r' formatting; it just was not reachable as a
-    // builtin, though safe_eval exposes `repr`.
     test("repr matches CPython for the values py_js can hold", () => {
         expect(evaluateExpr(`repr("it's")`)).toBe(`"it's"`);
         expect(evaluateExpr('repr("a")')).toBe("'a'");
@@ -825,10 +810,6 @@ describe("builtins — repr", () => {
 });
 
 describe("error messages use Python type names, not JS class names", () => {
-    // These messages surface in the domain editor and in view-attribute
-    // evaluation failures. They used to leak the JS constructor name for every
-    // non-primitive -- 'Object' for a dict, 'Set' for a set -- and `len` used a
-    // bare `typeof`, reporting 'number' for an int.
     test("dict and set", () => {
         expect(() => evaluateExpr("abs({})")).toThrow(
             /bad operand type for abs\(\): 'dict'/,
@@ -894,10 +875,6 @@ describe("builtins — round", () => {
         expect(evaluateExpr("round(-2.5)")).toBe(-2);
     });
     test("round matches Python IEEE-754 behaviour for ndigits > 0", () => {
-        // An explicit margin is load-bearing here: `toBeCloseTo` DEFAULTS TO
-        // ±1, which for these values accepts every plausible wrong answer —
-        // `round(0.35, 1)` could return 0.4 (or 1.2) and still pass, yet
-        // distinguishing 0.3 from 0.4 is the entire point of the test.
         expect(evaluateExpr("round(2.675, 2)")).toBeCloseTo(2.67, { margin: EPS });
         expect(evaluateExpr("round(0.45, 1)")).toBeCloseTo(0.5, { margin: EPS });
         expect(evaluateExpr("round(0.35, 1)")).toBeCloseTo(0.3, { margin: EPS });
@@ -1117,30 +1094,19 @@ describe("Python semantics fixes", () => {
     });
 
     test("'%' formatting accepts every py_js spelling of a dict as a mapping", () => {
-        // A dict literal, a dict arriving through the evaluation context, and
-        // the magic `context` name (a toPyDict Proxy whose prototype is the
-        // PY_DICT sentinel) are the three, and only the first two were
-        // recognised: `isMapping` tested the prototype against Object.prototype
-        // and null only, so the leftover-argument check below fired for
-        // `context` and raised "not all arguments converted" for an expression
-        // safe_eval evaluates fine server-side.
         expect(evaluateExpr("'%(a)s' % {'a': 1}")).toBe("1");
         expect(evaluateExpr("'%(a)s' % d", { d: { a: 1 } })).toBe("1");
         expect(evaluateExpr("'%(lang)s' % context", { lang: "en_US" })).toBe("en_US");
         expect(
             evaluateExpr("'%(lang)s/%(tz)s' % context", { lang: "fr_BE", tz: "UTC" }),
         ).toBe("fr_BE/UTC");
-        // A caller-supplied `context` key shadows the magic name; still a dict.
         expect(evaluateExpr("'%(a)s' % context", { context: { a: 7 } })).toBe("7");
-        // ...and a missing key is still a KeyError through the Proxy.
         expect(() => evaluateExpr("'%(nope)s' % context", { lang: "en_US" })).toThrow(
             /KeyError: 'nope'/,
         );
     });
 
     test("'%' formatting still rejects a non-dict operand as a mapping", () => {
-        // Broadening the mapping test to "any non-array object" would have
-        // swallowed these: CPython raises for both.
         expect(() => evaluateExpr("'%(a)s' % datetime.date(2020, 1, 1)")).toThrow(
             /format requires a mapping/,
         );
@@ -1508,8 +1474,6 @@ describe("CPython-alignment regressions", () => {
         expect(evaluateExpr("float('3.5')")).toBe(3.5);
     });
 
-    // Non-finite values printed with JavaScript's spellings, which no Python
-    // ever produces, and which flowed into domains and %s output verbatim.
     test("inf and nan are spelled the Python way, everywhere", () => {
         expect(evaluateExpr("str(float('inf'))")).toBe("inf");
         expect(evaluateExpr("str(float('-inf'))")).toBe("-inf");
@@ -1520,8 +1484,6 @@ describe("CPython-alignment regressions", () => {
         expect(evaluateExpr("'%e' % float('nan')")).toBe("nan");
         expect(evaluateExpr("'%+f' % float('inf')")).toBe("+inf");
         expect(evaluateExpr("'%10.2f' % float('inf')")).toBe("       inf");
-        // The uppercase conversions uppercase them; that is the only thing %F
-        // does differently from %f, since digits have no case.
         expect(evaluateExpr("'%F' % float('inf')")).toBe("INF");
         expect(evaluateExpr("'%E' % float('inf')")).toBe("INF");
         expect(evaluateExpr("'%G' % float('nan')")).toBe("NAN");
@@ -1541,7 +1503,7 @@ describe("CPython-alignment regressions", () => {
         expect(evaluateExpr("'%c' % 65")).toBe("A");
         expect(evaluateExpr("'%c' % 'A'")).toBe("A");
         expect(evaluateExpr("'%c' % True")).toBe("\u0001");
-        expect(evaluateExpr("'%c' % 128512")).toBe("\u{1F600}"); // beyond the BMP
+        expect(evaluateExpr("'%c' % 128512")).toBe("\u{1F600}");
         expect(evaluateExpr("'%5c' % 65")).toBe("    A");
         expect(evaluateExpr("'%-5c' % 65")).toBe("A    ");
         expect(() => evaluateExpr("'%c' % 'AB'")).toThrow(/a string of length 2/);
@@ -1549,17 +1511,12 @@ describe("CPython-alignment regressions", () => {
         expect(() => evaluateExpr("'%c' % 1114112")).toThrow(/range\(0x110000\)/);
     });
 
-    // Python switches to scientific below 1e-4, JS only below 1e-6, and JS
-    // writes a one-digit exponent where Python pads to two. Only the small side
-    // is correctable: every float at or above 1e16 is integral, so it cannot be
-    // told apart from an int, and `str(10000000000000000)` is the digits.
     test("small floats use Python's exponent form and padding", () => {
         expect(evaluateExpr("repr(0.0001)")).toBe("0.0001");
         expect(evaluateExpr("repr(0.00001)")).toBe("1e-05");
         expect(evaluateExpr("repr(1e-7)")).toBe("1e-07");
         expect(evaluateExpr("repr(1.5e-5)")).toBe("1.5e-05");
         expect(evaluateExpr("'%s' % 0.000012345")).toBe("1.2345e-05");
-        // unchanged either side of the threshold
         expect(evaluateExpr("str(0.001)")).toBe("0.001");
         expect(evaluateExpr("str(1.5)")).toBe("1.5");
         expect(evaluateExpr("str(0)")).toBe("0");
@@ -1594,8 +1551,6 @@ describe("builtin fidelity", () => {
 });
 
 describe("set algebra operators", () => {
-    // The server's safe_eval evaluates all four; only the client rejected
-    // them, because they fell through to the integer-only bitwise path.
     test("| & - ^ operate on sets", () => {
         expect(evaluateExpr("set([1, 2]) | set([2, 3])")).toEqual(new Set([1, 2, 3]));
         expect(evaluateExpr("set([1, 2]) & set([2, 3])")).toEqual(new Set([2]));
@@ -1620,11 +1575,6 @@ describe("set algebra operators", () => {
 });
 
 describe("ordering stays total across types (see pytypeIndex)", () => {
-    // Pins the constraint that makes view-attribute expressions evaluable over
-    // sparse records: an UNSET field arrives as `false`, and a list decoration
-    // like `datetime > '2017-02-27 12:51:35'` is evaluated for every row,
-    // including the rows where `datetime` is unset. Tightening this to Python
-    // 3's TypeError turns those rows into a crashed view.
     test("an unset field compares against a date string without raising", () => {
         expect(
             evaluateExpr("datetime > '2017-02-27 12:51:35'", { datetime: false }),
@@ -1639,11 +1589,6 @@ describe("ordering stays total across types (see pytypeIndex)", () => {
 });
 
 describe("attribute access raises like safe_eval, instead of yielding undefined", () => {
-    // The server answers `AttributeError("'dict' object has no attribute 'b'")`
-    // for every one of these. Reading them back as `undefined` did not stop the
-    // evaluation, so the expression came back with a *different result* rather
-    // than an error -- and `{'x': 'abc'.nope}` dropped the key entirely on its
-    // way through JSON.
     test("absent member of a dict, str or set", () => {
         expect(() => evaluateExpr("{'a': 1}.b")).toThrow(
             /AttributeError: 'dict' object has no attribute 'b'/,
@@ -1685,10 +1630,6 @@ describe("attribute access raises like safe_eval, instead of yielding undefined"
         expect(evaluateExpr("set([1, 2]).union([3])")).toEqual(new Set([1, 2, 3]));
     });
 
-    // Everything that is not a dict, str, set or None took a different branch,
-    // which returned `undefined` and let the *caller* fail: the message that
-    // reached the user was V8's "Function.prototype.apply was called on
-    // undefined", naming neither the object nor the attribute.
     test("absent member of a temporal, a number or a list", () => {
         expect(() => evaluateExpr("datetime.date(2024, 1, 1).nope")).toThrow(
             /AttributeError: 'date' object has no attribute 'nope'/,
@@ -1708,8 +1649,6 @@ describe("attribute access raises like safe_eval, instead of yielding undefined"
     });
 
     test("a call to an absent method names the attribute, not V8's receiver", () => {
-        // `isoformat` and `timetuple` are real CPython date methods py_js does
-        // not implement; the point is that the failure says which one.
         expect(() => evaluateExpr("datetime.date(2024, 1, 1).isoformat()")).toThrow(
             /AttributeError: 'date' object has no attribute 'isoformat'/,
         );
@@ -1725,9 +1664,6 @@ describe("attribute access raises like safe_eval, instead of yielding undefined"
         expect(evaluateExpr("datetime.timedelta(days=1).total_seconds()")).toBe(86400);
     });
 
-    // The lenient read is deliberate for anything that is not a py value: a
-    // domain over a sparse record reaches `parent.some_field` for rows where
-    // the field was never loaded, and raising there crashes the view.
     test("a host object still reads absent keys as undefined", () => {
         expect(evaluateExpr("parent.absent", { parent: { a: 1 } })).toBe(undefined);
     });

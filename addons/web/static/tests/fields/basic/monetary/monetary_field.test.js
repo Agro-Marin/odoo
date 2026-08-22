@@ -874,9 +874,6 @@ test("monetary ghost value mirrors the input without re-rendering per keystroke"
         resId: 5,
         arch: `<form><field name="monetary_field"/></form>`,
     });
-    // The ghost span reserves the inline space the currency symbol is
-    // positioned against; it is written straight to the DOM rather than held
-    // in reactive state, so it must still track the uncontrolled input.
     expect(queryText(".o_monetary_ghost_value")).toBe(
         queryValue("[name=monetary_field] input"),
     );
@@ -884,7 +881,6 @@ test("monetary ghost value mirrors the input without re-rendering per keystroke"
     await contains("[name=monetary_field] input").edit("1234.5", { confirm: false });
     expect(queryText(".o_monetary_ghost_value")).toBe("1234.5");
 
-    // A model-driven update patches the input imperatively; the ghost re-syncs.
     await contains("[name=monetary_field] input").edit("77", { confirm: "blur" });
     await animationFrame();
     expect(queryText(".o_monetary_ghost_value")).toBe(
@@ -893,9 +889,6 @@ test("monetary ghost value mirrors the input without re-rendering per keystroke"
 });
 
 test("enable_formatting=False leaves the raw value", async () => {
-    // `enable_formatting` is declared and honoured by `float` and `integer`;
-    // the monetary widget advertised none of it and had no `formatNumber` prop
-    // at all, so setting the option on a monetary field did nothing.
     Partner._records[4].monetary_field = 1234.5;
     await mountView({
         type: "form",
@@ -926,12 +919,8 @@ test("monetary formats by default", async () => {
 });
 
 test("the currency_field option is loaded without the view naming it", async () => {
-    // `currencyId` reads the override straight out of `record.data`. Without a
-    // declared dependency the field was absent from the read, so the amount
-    // rendered with no symbol at all -- the option silently did nothing unless
-    // the arch also carried an `<field name="..." invisible="1"/>` for it.
     Partner._fields.other_currency_id = fields.Many2one({ relation: "res.currency" });
-    Partner._records[4].other_currency_id = 2; // EUR, symbol after
+    Partner._records[4].other_currency_id = 2;
     onRpc("web_read", ({ kwargs }) => {
         expect(Object.keys(kwargs.specification)).toInclude("other_currency_id");
     });

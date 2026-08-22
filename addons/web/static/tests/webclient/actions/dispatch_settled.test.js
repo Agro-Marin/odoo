@@ -5,17 +5,6 @@ import { getService, makeMockEnv, onRpc } from "@web/../tests/web_test_helpers";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 
-/**
- * ACTION_MANAGER:SETTLED reports that A DISPATCH is over — one per gesture.
- *
- * Several executors finish their work by re-entering the public ``doAction``: a
- * server action dispatches what the server returned, a function client action
- * dispatches what it returned, ``act_url``/report closes dispatch an
- * ``act_window_close``. Announced from every level, one gesture settled two or
- * three times, and the first announcement landed while the navigation it had
- * just started was still running — so anything waiting for "the dispatch is
- * over" was told so too early.
- */
 describe.current.tags("desktop");
 
 const actionRegistry = registry.category("actions");
@@ -94,15 +83,8 @@ test("two separate gestures settle twice", async () => {
 });
 
 test("overlapping gestures settle once, when the last of them is done", async () => {
-    // The counter is on the manager, not on a call chain, so dispatches that
-    // merely overlap are indistinguishable from nested ones and announce
-    // themselves together. That is the safe direction: the signal fires when
-    // the action manager has gone idle, so a waiter is never left hanging —
-    // it is only told once instead of twice.
     actionRegistry.add("settle_overlap", () => {});
     const settled = await countSettled(async (/** @type {any} */ action) => {
-        // The second supersedes the first, which rejects — still a dispatch
-        // that is over, so it must not be what the count hangs on.
         await Promise.allSettled([
             action.doAction({ type: "ir.actions.client", tag: "settle_overlap" }),
             action.doAction({ type: "ir.actions.client", tag: "settle_overlap" }),

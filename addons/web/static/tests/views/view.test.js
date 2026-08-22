@@ -144,6 +144,38 @@ test("rendering with given viewId", async function () {
     expect(".o_toy_view.toy").toHaveInnerHTML(`<toy>Arch content (id=1)</toy>`);
 });
 
+test("a changed viewId reloads the view", async function () {
+    const loaded = [];
+    onRpc("get_views", ({ kwargs }) => {
+        loaded.push(kwargs.views);
+    });
+
+    class Parent extends Component {
+        static components = { View };
+        static template = xml`<View resModel="'animal'" type="'toy'" viewId="state.viewId"/>`;
+        static props = {};
+        setup() {
+            this.state = useState({ viewId: 1 });
+            Parent.instance = this;
+        }
+    }
+
+    await mountWithCleanup(Parent);
+    expect(loaded).toEqual([[[1, "toy"]]]);
+    expect(".o_toy_view.toy").toHaveInnerHTML(`<toy>Arch content (id=1)</toy>`);
+
+    Parent.instance.state.viewId = 2;
+    await animationFrame();
+    await animationFrame();
+
+    expect(loaded).toEqual([[[1, "toy"]], [[2, "toy"]]], {
+        message: "the new viewId was fetched",
+    });
+    expect(".o_toy_view.toy_imp").toHaveInnerHTML(
+        `<toy js_class="toy_imp">Arch content (id=2)</toy>`,
+    );
+});
+
 test("rendering with given 'views' param", async function () {
     expect.assertions(8);
     patchWithCleanup(ToyController.prototype, {

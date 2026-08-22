@@ -1,15 +1,5 @@
 // @ts-check
 
-/**
- * @module tests/views/settings/settings_services
- *
- * Both settings services memoise their RPC so it is issued once per session.
- * The memo must only ever hold a *successful* result: caching a rejected
- * promise turns one transient failure into a permanent one for every later
- * caller (the Developer Tools block and the user-invite widget both await
- * these in onWillStart).
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { makeMockEnv, onRpc } from "@web/../tests/web_test_helpers";
 import { demoDataService } from "@web/views/settings/widgets/demo_data_service";

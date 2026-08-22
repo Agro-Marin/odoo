@@ -505,10 +505,6 @@ test("blocked database deletion degrades to no-cache instead of hanging", async 
 });
 
 test("a quota failure still surfaces IDBQuotaExceededError when the estimate is partial", async () => {
-    // StorageEstimate's members are OPTIONAL per spec. IDBQuotaExceededError is
-    // the only signal rpc_cache matches on to drop a full disk cache, so a
-    // diagnostic that throws on the missing figures would leave the cache full
-    // and every later disk write failing for the rest of the session.
     patchWithCleanup(console, { error: (message) => expect.step(String(message)) });
 
     for (const estimate of [{}, { usage: 10 }, null]) {

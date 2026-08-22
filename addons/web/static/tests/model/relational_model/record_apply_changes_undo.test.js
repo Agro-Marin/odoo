@@ -1,22 +1,5 @@
 // @ts-check
 
-/**
- * Regression test for ``RelationalRecord._applyChanges``'s undo closure.
- *
- * ``_applyChanges(changes, serverChanges)`` applies a server onchange result
- * and returns ``undoChanges`` — invoked on the error paths (onchange RPC
- * failure at ``_getOnchangeValues.onError``; a throwing ``_onUpdate``). For an
- * x2many field the onchange value is a command list that ``parseServerValues``
- * replays into the EXISTING ``StaticList`` IN PLACE (``_applyCommands``). The
- * undo shallow-snapshots ``this.data`` and restores the SAME list reference, so
- * without an explicit list revert the staged commands survive the undo and
- * ship on the next ``web_save``.
- *
- * Uses the REAL ``RelationalRecord`` and ``StaticList`` classes (peripheral
- * validity/eval-context machinery stubbed) so the undo contract is exercised
- * directly, mirroring static_list_link_full_page.test.js.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";

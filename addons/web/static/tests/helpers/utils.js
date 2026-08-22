@@ -30,19 +30,14 @@ import { registerCleanup } from "./cleanup.js";
 
 /**
  * @typedef {keyof HTMLElementEventMap | keyof WindowEventMap} EventType
- *
  * @typedef {Side | `${Side}-${Side}` | { x?: number, y?: number }} Position
- *
  * @typedef {"bottom" | "left" | "right" | "top"} Side
- *
  * @typedef TriggerEventOptions
  * @property {boolean} [skipVisibilityCheck=false]
  * @property {boolean} [sync=false]
  */
 
 /**
- * Patch the native Date object. Automatically unpatched at the end of the test.
- *
  * @param {number} [year]
  * @param {number} [month]
  * @param {number} [day]
@@ -125,11 +120,7 @@ export function patchDate(year, month, day, hours, minutes, seconds, ms = 0) {
 }
 
 /**
- * Applies a fixed time zone to luxon based on an offset to the UTC time zone.
- *
- * @param {number} offset the number of minutes ahead or behind the UTC time zone
- *                          +120 => UTC+2
- *                          -120 => UTC-2
+ * @param {number} offset
  */
 export function patchTimeZone(offset) {
     patchWithCleanup(luxon.Settings, {
@@ -138,9 +129,8 @@ export function patchTimeZone(offset) {
 }
 
 /**
- *
- * @param {Object} obj object to patch
- * @param {Object} patchValue the actual patch description
+ * @param {Object} obj
+ * @param {Object} patchValue
  */
 export function patchWithCleanup(obj, patchValue) {
     const unpatch = patch(obj, patchValue);
@@ -374,14 +364,11 @@ export function triggerEvents(el, selector, eventDefs, options = {}) {
 }
 
 /**
- * If the target cannot be scrolled, or an axis has reached the end of its
- * scrollable area, the event is transmitted to its nearest parent instead.
- *
- * @param {Element} target target of the scroll event
+ * @param {Element} target
  * @param {Object} coordinates
- * @param {number} coordinates.left coordinates to scroll horizontally
- * @param {number} coordinates.top coordinates to scroll vertically
- * @param {boolean} canPropagate states if the scroll can propagate to a scrollable parent
+ * @param {number} coordinates.left
+ * @param {number} coordinates.top
+ * @param {boolean} canPropagate
  */
 export async function triggerScroll(
     target,
@@ -523,12 +510,9 @@ export async function clickDiscard(htmlElement) {
 }
 
 /**
- * Trigger pointerenter and mouseenter events on the given target. Defaults to
- * the target's center when no coordinates are given.
- *
  * @param {Element} el
  * @param {string} selector
- * @param {Object} coordinates position of the mouseenter event
+ * @param {Object} coordinates
  */
 export async function mouseEnter(el, selector, coordinates) {
     const target = el.querySelector(selector) || el;
@@ -544,8 +528,6 @@ export async function mouseEnter(el, selector, coordinates) {
 }
 
 /**
- * Trigger pointerleave and mouseleave events on the given target.
- *
  * @param {Element} el
  * @param {string} selector
  */
@@ -624,8 +606,6 @@ export async function editSelectMenu(el, selector, value) {
 }
 
 /**
- * Triggers an hotkey properly disregarding the operating system.
- *
  * @param {string} hotkey
  * @param {boolean} addOverlayModParts
  * @param {KeyboardEventInit} eventAttrs
@@ -843,8 +823,6 @@ export function useLogLifeCycle(logFn, name = "") {
 }
 
 /**
- * Returns the list of nodes containing n2 (included) that do not contain n1.
- *
  * @param {Node} n1
  * @param {Node} n2
  * @returns {Node[]}
@@ -862,11 +840,6 @@ function getDifferentParents(n1, n2) {
 }
 
 /**
- * Drags 'from' by its center and drops it on the bottom-right inner pixel of 'to',
- * covering both appending to a list and moving before another element. Pass
- * `position` to drop above/below/beside 'to' instead of inside it. Only the last
- * event is awaited; the others are synchronous.
- *
  * @param {Element | string} from
  * @param {Element | string} to
  * @param {Position} [position]
@@ -877,8 +850,6 @@ export async function dragAndDrop(from, to, position) {
 }
 
 /**
- * Starts a drag from 'from'. Returns a drop function to move/release it on a target.
- *
  * @param {Element | string} from
  */
 export async function drag(from, pointerType = "mouse") {
@@ -997,8 +968,6 @@ export async function drag(from, pointerType = "mouse") {
 }
 
 /**
- * Returns the dropdown menu for a specific toggler.
- *
  * @param {HTMLElement} target
  * @param {String|HTMLElement} togglerSelector
  * @returns {HTMLElement|undefined}

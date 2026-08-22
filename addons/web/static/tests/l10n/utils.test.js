@@ -200,10 +200,6 @@ describe("normalizedMatch", () => {
 });
 
 describe("normalize shares the ilike transliteration", () => {
-    // `normalize` folds with the same table as `@web/core/l10n/utils/unaccent`,
-    // so a name found by typing it into a search box is a name a domain finds
-    // too. These are the letters no decomposition reaches, which the previous
-    // ten-entry DIACRITIC_LIKES table did not cover.
     test("letters only a transliteration can reach", () => {
         expect(normalize("Þórr")).toBe("thorr");
         expect(normalize("Đorđe")).toBe("dorde");
@@ -216,22 +212,16 @@ describe("normalize shares the ilike transliteration", () => {
     });
 
     test("a mark AND a stroke on the same letter both come off", () => {
-        // `Ǿ` decomposes to `Ø` + acute; the stroke only folds once the acute is
-        // gone, which is why marks are stripped before transliterating.
         expect(normalize("Ǿǿ")).toBe("oo");
     });
 
     test("what the shared table does NOT decide is still decided here", () => {
-        // NFKC and full case folding are this fold's own: both reach past the
-        // ranges the table covers.
         expect(normalize("𝔖𝔥𝔯𝔢𝔨")).toBe("shrek");
         expect(normalize("㎩㎭𝐞")).toBe("parade");
         expect(normalize("ß")).toBe(normalize("SS"));
     });
 
     test("scripts the table says nothing about keep their marks stripped", () => {
-        // The table covers U+0080..U+3000 (+ two presentation-form blocks); the
-        // combining-mark strip is what handles everything past it.
         expect(normalize("が")).toBe(normalize("か"));
         expect(normalize("й")).toBe(normalize("и"));
     });

@@ -43,40 +43,32 @@ const {
  * @typedef {import("fields").FieldType} FieldType
  * @typedef {import("@web/core/context").Context} Context
  * @typedef {import("@web/core/domain").DomainListRepr} DomainListRepr
- *
  * @typedef {{ fieldName: string; func: Aggregator; name: string }} AggregatedField
- *
  * @typedef {(records: ModelRecord[], fieldName: string) => any} AggregatorFunction
- *
  * @typedef {typeof Model} ModelConstructor
- *
  * @typedef {{
- *  create_date: string;
- *  display_name: string;
- *  id: number | false;
- *  name: string;
- *  write_date: string;
- *  [key: string]: any;
+ * create_date: string;
+ * display_name: string;
+ * id: number | false;
+ * name: string;
+ * write_date: string;
+ * [key: string]: any;
  * }} ModelRecord
- *
  * @typedef {{
- *  __domain: any;
- *  __extra_domain: any[];
- *  [key: string]: any;
+ * __domain: any;
+ * __extra_domain: any[];
+ * [key: string]: any;
  * }} ModelRecordGroup
- *
  * @typedef {{
- *  context?: Context;
- *  domain?: DomainListRepr;
- *  fields?: string[];
- *  limit?: number;
- *  modelName?: string;
- *  offset?: number;
- *  order?: string;
+ * context?: Context;
+ * domain?: DomainListRepr;
+ * fields?: string[];
+ * limit?: number;
+ * modelName?: string;
+ * offset?: number;
+ * order?: string;
  * }} SearchParams
- *
  * @typedef {ViewType | `${ViewType},${number | string}`} ViewKey
- *
  * @typedef {import("@web/views/view").ViewType} ViewType
  */
 
@@ -88,9 +80,9 @@ const {
 /**
  * @template [T={}]
  * @typedef {{
- *  args?: any[];
- *  context?: Context;
- *  [key: string]: any;
+ * args?: any[];
+ * context?: Context;
+ * [key: string]: any;
  * } & Partial<T>} KwArgs
  */
 
@@ -108,7 +100,7 @@ function aggregateFields(aggregatedFields, group, records) {
 /**
  * @template T
  * @param {T[]} target
- * @param  {...T[]} arrays
+ * @param {...T[]} arrays
  */
 function assignArray(target, ...arrays) {
     for (const array of arrays) {
@@ -121,10 +113,6 @@ function assignArray(target, ...arrays) {
 }
 
 /**
- * Converts a record to the return shape of Python's `onchange` method: reads
- * `display_name` on many2one's and turns raw ids into ORM commands for
- * x2many's, recursively for created/updated (commands 0/1) sub-records.
- *
  * @param {Model} model
  * @param {ModelRecord} values
  * @param {Record<string, any>} specification
@@ -346,11 +334,6 @@ function getModelDefinition(previous, constructor) {
 }
 
 /**
- * Returns the field by which a given model must be ordered.
- * It is either:
- * - the field matching 'fieldNameSpec' (if any, else an error is thrown).
- * - if no field spec is given : the 'sequence' field (if any), or the 'id' field.
- *
  * @param {Model} model
  * @param {string} [fieldNameSpec]
  */
@@ -697,13 +680,8 @@ function getReadGroupOrder(order, groupby, aggregates) {
 }
 
 /**
- * Sorts the given list of records *IN PLACE* by the given field name. The
- * 'orderby' field name and sorting direction are determined by the optional
- * `orderBy` param, else the default orderBy field is applied (with "ASC").
- * @see {@link getOrderByField}
- *
  * @param {Model} model
- * @param {string} [orderBy] defaults to Model._order
+ * @param {string} [orderBy]
  * @param {ModelRecord[]} [records]
  * @returns {ModelRecord[]}
  */
@@ -827,12 +805,12 @@ function orderByField(model, orderBy, records) {
 /**
  * @param {Model} model
  * @param {{
- *  arch: string | Node;
- *  editable?: boolean;
- *  fields?: Record<string, FieldDefinition>;
- *  level?: number;
- *  modelName?: string;
- *  processedNodes?: Node[];
+ * arch: string | Node;
+ * editable?: boolean;
+ * fields?: Record<string, FieldDefinition>;
+ * level?: number;
+ * modelName?: string;
+ * processedNodes?: Node[];
  * }} params
  */
 function parseView(model, params) {
@@ -991,8 +969,6 @@ function parseView(model, params) {
 }
 
 /**
- * Equivalent to the server '_search_panel_domain_image' method.
- *
  * @param {Model} model
  * @param {string} fieldName
  * @param {DomainListRepr} domain
@@ -1038,17 +1014,14 @@ function searchPanelDomainImage(
 }
 
 /**
- * Equivalent to the server '_search_panel_field_image' method.
- * @see {@link searchPanelDomainImage}
- *
  * @param {Model} model
  * @param {string} fieldName
  * @param {KwArgs<{
- *  enable_counters: boolean;
- *  extra_domain: DomainListRepr;
- *  limit: number;
- *  only_counters: boolean;
- *  set_limit: number;
+ * enable_counters: boolean;
+ * extra_domain: DomainListRepr;
+ * limit: number;
+ * only_counters: boolean;
+ * set_limit: number;
  * }>} [kwargs={}]
  */
 function searchPanelFieldImage(model, fieldName, kwargs) {
@@ -1091,8 +1064,6 @@ function searchPanelFieldImage(model, fieldName, kwargs) {
 }
 
 /**
- * Equivalent to the server '_search_panel_global_counters' method.
- *
  * @param {Map<number, Record<string, any>>} valuesRange
  * @param {"parent_id" | false} parentName
  */
@@ -1115,8 +1086,6 @@ function searchPanelGlobalCounters(valuesRange, parentName) {
 }
 
 /**
- * Equivalent to the server '_search_panel_sanitized_parent_hierarchy' method.
- *
  * @param {Model} model
  * @param {"parent_id" | false} parentName
  * @param {number[]} ids
@@ -1154,8 +1123,6 @@ function searchPanelSanitizedParentHierarchy(model, parentName, ids) {
 }
 
 /**
- * Equivalent to the server '_search_panel_selection_range' method.
- *
  * @param {Model} model
  * @param {string} fieldName
  * @param {KwArgs} [kwargs={}]
@@ -1210,12 +1177,9 @@ function traverseElement(node, callback) {
 }
 
 /**
- * Fill all inverse fields of the relational fields present in the record
- * to be created/updated.
- *
  * @param {Model} model
- * @param {ModelRecord} record record that have been created/updated.
- * @param {ModelRecord} [originalRecord] record before update.
+ * @param {ModelRecord} record
+ * @param {ModelRecord} [originalRecord]
  */
 function updateComodelRelationalFields(model, record, originalRecord) {
     for (const fname in record) {
@@ -1469,11 +1433,6 @@ const R_DATE_TIME = /\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?/;
 const inlineViewArchs = Object.create(null);
 const domParser = new DOMParser();
 const xmlSerializer = new XMLSerializer();
-/**
- * This variable is meant to prevent model instances from inheritting properties
- * from their assigned definition. The default behaviour (i.e. with inheritance)
- * is only meant to be applied on automatic array creations (e.g. when calling `.filter()`).
- */
 let modelInstanceLock = 0;
 
 /**
@@ -1492,16 +1451,6 @@ export function registerInlineViewArchs(modelName, archs) {
 }
 
 /**
- * Local model used by the {@link MockServer} to store the definition of a model.
- * A set of fields is available by default on each model ({@link id}, {@link name},
- * {@link display_name} and {@link created_at}).
- *
- * After declaring a model definition, you must use the {@link defineModels} function
- * to register it on the current/future {@link MockServer} instance.
- *
- * This class cannot be instantiated outside of the {@link Model.definition} static
- * getter.
- *
  * @extends {Array<ModelRecord>}
  */
 export class Model extends Array {
@@ -2390,12 +2339,12 @@ export class Model extends Array {
     search_panel_select_range(fieldName) {
         /**
          * @type {KwArgs<{
-         *  category_domain: DomainListRepr;
-         *  comodel_domain: DomainListRepr;
-         *  enable_counters: boolean;
-         *  filter_domain: DomainListRepr;
-         *  limit: number;
-         *  search_domain: DomainListRepr;
+         * category_domain: DomainListRepr;
+         * comodel_domain: DomainListRepr;
+         * enable_counters: boolean;
+         * filter_domain: DomainListRepr;
+         * limit: number;
+         * search_domain: DomainListRepr;
          * }>}
          */
         const kwargs = getKwArgs(arguments, "field_name");
@@ -2538,12 +2487,12 @@ export class Model extends Array {
     search_panel_select_multi_range(fieldName, groupBy) {
         /**
          * @type {KwArgs<{
-         *  category_domain: DomainListRepr;
-         *  comodel_domain: DomainListRepr;
-         *  enable_counters: boolean;
-         *  filter_domain: DomainListRepr;
-         *  limit: number;
-         *  search_domain: DomainListRepr;
+         * category_domain: DomainListRepr;
+         * comodel_domain: DomainListRepr;
+         * enable_counters: boolean;
+         * filter_domain: DomainListRepr;
+         * limit: number;
+         * search_domain: DomainListRepr;
          * }>}
          */
         const kwargs = getKwArgs(arguments, "field_name", "group_by");
@@ -3180,14 +3129,9 @@ export class Model extends Array {
     }
 
     /**
-     * Test double for the server's field-scoped optimistic lock. Faithful for
-     * the common comparable types; fails OPEN on anything it can't coerce
-     * (never a false conflict), exactly like the server. The authoritative
-     * server semantics are covered separately by `tests/test_web_save.py`.
-     *
      * @param {number[]} ids
-     * @param {Record<string, any>} vals uniform values written to every id
-     * @param {Record<string, any>} knownValues flat (singleton) or `{id: {}}`
+     * @param {Record<string, any>} vals
+     * @param {Record<string, any>} knownValues
      */
     _checkConcurrentFieldChanges(ids, vals, knownValues) {
         const SAFE_TYPES = new Set([
@@ -3264,14 +3208,11 @@ export class Model extends Array {
     }
 
     /**
-     * @param {number[]} ids - List of record IDs to update
-     * @param {Partial<ModelRecord>[]} values - List of value dicts (same length/order as `ids`)
-     * @param {Record<string, any>} specification - Fields to return after save
-     * @param {Record<string, any>} [knownValues] - Per-record `{id: {field: baseline}}`
-     *   optimistic-lock baselines. Unlike web_save's mass-edit (same vals to
-     *   every record), each record here has its OWN vals (relative Operation),
-     *   so each is checked against its own vals + baseline.
-     * @returns {any[]} - List of saved records
+     * @param {number[]} ids
+     * @param {Partial<ModelRecord>[]} values
+     * @param {Record<string, any>} specification
+     * @param {Record<string, any>} [knownValues]
+     * @returns {any[]}
      */
     web_save_multi(ids, values, specification, knownValues) {
         const kwargs = getKwArgs(
@@ -3497,9 +3438,6 @@ export class Model extends Array {
     }
 
     /**
-     * Returns all records matching domain; implicitly adds active = true
-     * when the model has an 'active' field.
-     *
      * @private
      * @param {DomainListRepr} [domain]
      * @param {{ active_test?: boolean }} [options]
@@ -4068,23 +4006,6 @@ export class Model extends Array {
     }
 }
 
-/**
- * Same as the {@link Model} class, with the added action of fetching the
- * actual definition of its homonym server model.
- *
- * The fields defined in these models will override existing fields retrieved from
- * the server model.
- *
- * @see {@link Model}
- * @example
- *  class Partner extends ServerModel {
- *      _name = "res.partner";
- *
- *      // fields will be fetched from the server model
- *
- *      name = fields.Char({ required: false }); // will override server field definition for "name"
- *  }
- */
 export class ServerModel extends Model {
     static _fetch = true;
 }
@@ -4112,7 +4033,6 @@ export const Command = {
      */
     unlink: (id) => [3, id, false],
     /**
-     *
      * @param {number} id
      * @param {Partial<ModelRecord>} values
      */

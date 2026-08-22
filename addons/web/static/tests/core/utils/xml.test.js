@@ -14,9 +14,6 @@ test("parse error throws an exception", () => {
 
 describe("createElement argument shapes", () => {
     test("a string argument becomes a text child", () => {
-        // It used to match no branch at all -- isIterable excludes strings and a
-        // string is not typeof "object" -- so the element came back empty and
-        // nothing said so.
         expect(createElement("div", "hello").textContent).toBe("hello");
         expect(createElement("div", "a", "b").textContent).toBe("ab");
         const withAttr = createElement("div", { class: "x" }, "t");
@@ -31,7 +28,6 @@ describe("createElement argument shapes", () => {
         expect(el.getAttribute("class")).toBe("x");
         expect(el.getAttribute("id")).toBe("y");
         expect(el.children.length).toBe(1);
-        // Falsy arguments stay skipped (callers pass `cond ? [child] : null`).
         const empty = createElement("div", null, undefined, false, "");
         expect(empty.childNodes.length).toBe(0);
         expect(empty.attributes.length).toBe(0);

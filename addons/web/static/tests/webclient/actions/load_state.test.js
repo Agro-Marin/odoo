@@ -236,8 +236,6 @@ describe(`new urls`, () => {
         logHistoryInteractions();
 
         await mountWebClient();
-        // Action 666 does not exist: falling back to the previous one is
-        // asynchronous, so wait for it rather than for a fixed settle time.
         await waitFor(`.test_client_action`);
         expect(`.test_client_action`).toHaveCount(1);
         expect(`.o_menu_brand`).toHaveText("App1");
@@ -916,7 +914,6 @@ describe(`new urls`, () => {
         onRpc("web_read", () => Promise.reject());
 
         await mountWebClient();
-        // The mono-record view fails: falling back to the list is asynchronous.
         await waitFor(`.o_list_view`);
         expect(`.o_form_view`).toHaveCount(0);
         expect(`.o_list_view`).toHaveCount(1);
@@ -1414,7 +1411,6 @@ describe(`new urls`, () => {
         onRpc("web_read", () => Promise.reject());
 
         await mountWebClient();
-        // Restoring the previous action after the error is asynchronous.
         await waitFor(`.o_list_view`);
         expect(`.o_list_view`).toHaveCount(1);
         expect.verifyErrors([/RPC_ERROR/]);
@@ -2313,7 +2309,6 @@ describe(`legacy urls`, () => {
         onRpc("web_read", () => Promise.reject());
 
         await mountWebClient();
-        // The mono-record view fails: falling back to the list is asynchronous.
         await waitFor(`.o_list_view`);
 
         expect.verifyErrors([Error]);
@@ -2569,17 +2564,6 @@ describe("corrupt restore cache", () => {
 });
 
 describe("unresolvable leaf + inaccessible ancestor", () => {
-    /**
-     * The URL names a leaf that cannot be resolved, so `getActionParams` pops it
-     * and resolves from the entry above. Meanwhile `controllersFromState` drops
-     * the topmost ancestor because `load_breadcrumbs` returns no display name
-     * for it (deleted action / no access), making the rebuilt controller stack
-     * SHORTER than the URL's actionStack.
-     *
-     * The pop count must be applied from the END of that shorter stack. Read as
-     * an absolute position it lands one entry too far and keeps the resolved
-     * action's own controller as its own breadcrumb parent.
-     */
     const STATE = {
         model: "unresolvable_model",
         actionStack: [

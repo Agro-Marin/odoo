@@ -7,10 +7,12 @@ import { Component, useRef, useState, xml } from "@odoo/owl";
 import {
     contains,
     defineStyle,
+    getService,
     mountWithCleanup,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { Deferred } from "@web/core/utils/concurrency";
+import { MainComponentsContainer } from "@web/ui/main_components_container";
 import { Popover } from "@web/ui/popover/popover";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
@@ -491,7 +493,7 @@ test("arrow follows target and can get sucked", async () => {
         setup() {
             container = useRef("popover-container");
             this.target = useRef("popover-target");
-            this.popover = usePopover(Content, { popoverClass: "my-popover" });
+            this.popover = usePopover(Content, { class: "my-popover" });
         }
     }
     const parent = await mountWithCleanup(Parent);
@@ -565,9 +567,6 @@ test("popover can animate", async () => {
 });
 
 test("holdOnHover does not release a fixedPosition popover", async () => {
-    // `fixedPosition` is the caller pinning the popover for its whole
-    // lifetime; the hover lock is transient. Releasing the former with the
-    // latter let the popover jump on the first pointer that crossed it.
     const popover = await mountWithCleanup(Popover, {
         props: {
             close: () => {},
@@ -626,10 +625,6 @@ test("closeOnClickAway is not consulted for clicks inside the popover", async ()
 });
 
 test("holdOnHover survives a resize of the popover content", async () => {
-    // `usePosition`'s lock is one boolean, so the ResizeObserver's unconditional
-    // unlock spoke for the hover lock too — the walking-out-from-under-the-
-    // pointer that `holdOnHover` exists to prevent. Latent rather than live:
-    // `Dropdown` exposes the option but nothing in this tree passes `true`.
     const popover = await mountWithCleanup(Popover, {
         props: {
             close: () => {},
@@ -657,10 +652,6 @@ test("holdOnHover survives a resize of the popover content", async () => {
 });
 
 test("holdOnHover survives the opening animation finishing", async () => {
-    // The pointer is normally already over the popover well before the 200ms
-    // animation ends — clicking a dropdown toggle leaves it right where the
-    // menu appears — so the animation's unlock used to cancel the hover lock
-    // before the user had moved at all.
     const animationDone = new Deferred();
     patchWithCleanup(Popover.prototype, {
         animate: () => ({ finished: animationDone }),
@@ -699,11 +690,6 @@ test("an unanimated, unheld popover is never locked", async () => {
 });
 
 test("the cached position lock tracks isPositionFrozen through a prop change", async () => {
-    // `positionLocked` caches a value derived partly from props, and only
-    // `setPositionLocked` writes it, so the cache cannot drift from the real
-    // lock. Nothing here relies on the reposition that `unlock` triggers
-    // happening to call `onPositioned` -> `syncPositionLock`, which is what
-    // used to repair the flag by accident.
     const popover = await mountWithCleanup(Popover, {
         props: {
             close: () => {},
@@ -733,4 +719,23 @@ test("the cached position lock tracks isPositionFrozen through a prop change", a
     popover.onPointerLeave();
     expect(locks).toEqual(["lock", "unlock"]);
     expect(popover.positionLocked).toBe(false);
+});
+
+test("a popover whose target is not in the document does not build its content", async () => {
+    class Probe extends Component {
+        static template = xml`<div class="p-content"/>`;
+        static props = ["*"];
+        setup() {
+            expect.step("content setup");
+        }
+    }
+    await mountWithCleanup(MainComponentsContainer);
+    getService("popover").add(document.createElement("div"), Probe, {});
+    await animationFrame();
+    await animationFrame();
+
+    expect.verifySteps([]);
+    expect(".p-content").toHaveCount(0);
+    expect(".o_popover").toHaveCount(0);
+    expect(Object.keys(getService("overlay").overlays)).toHaveLength(0);
 });

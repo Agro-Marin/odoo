@@ -39,12 +39,8 @@ test("domainFromTree", async () => {
 
 test("a negated connector folded onto a complex condition keeps its negation", async () => {
     await makeMockEnv();
-    // `normalizeConnector` collapses a single-child connector into that child
-    // and flips its `negate`. A `complex_condition` could not carry it, so the
-    // negation was dropped and the domain meant the opposite.
     const tree = connector("&", [complexCondition("a.b")], true);
     expect(domainFromTree(tree)).toBe(`["!", (bool(a.b), "=", 1)]`);
-    // The un-normalised constructor has always been right; the two must agree.
     expect(constructDomainFromTree(tree)).toBe(domainFromTree(tree));
 });
 

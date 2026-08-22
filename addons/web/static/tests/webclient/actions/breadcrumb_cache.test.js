@@ -1,14 +1,5 @@
 // @ts-check
 
-/**
- * Unit tests for the breadcrumb display-name LRU.
- *
- * The eviction rule used to be open-coded inside `breadcrumb_manager.js` with
- * the LRU touch spelled out at the call site (`delete` + re-insert on a plain
- * object). Its bound is 200 entries, so no integration test ever reached it —
- * these exercise it directly with a small limit.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { BreadcrumbCache } from "@web/webclient/actions/breadcrumb_cache";
 

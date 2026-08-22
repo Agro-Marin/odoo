@@ -168,10 +168,6 @@ class TestClientAction extends Component {
 onRpc("has_group", () => true);
 
 beforeEach(() => {
-    // `force`: `__test__client__action__` is the shared tag
-    // `useTestClientAction` claims at module scope, so it is already in the
-    // registry baseline; replacing it with this test's own component is a
-    // deliberate override, not a first registration.
     actionRegistry.add("__test__client__action__", TestClientAction, {
         force: true,
     });
@@ -595,16 +591,7 @@ test(`switchView pushes the stat but doesn't add to the breadcrumbs`, async () =
 });
 
 /**
- * What `properly push globalState` is about is that the search state travels in
- * the router state and comes back on a history move — not how the SearchModel
- * serializes itself. Comparing the serialized string byte for byte pinned that
- * private schema from here: it made this test fail the moment `searchDomain`
- * and `propertySearchViewFields` were added to the export (and `version`
- * alongside them, precisely so the schema *can* keep moving), even though
- * globalState was pushed exactly as it should be. So assert the envelope, and
- * read the payload back as the object it is.
- *
- * @param {Record<string, any>} state `router.current`
+ * @param {Record<string, any>} state
  */
 function expectGlobalStateOnAction4(state) {
     const { globalState, ...envelope } = state;

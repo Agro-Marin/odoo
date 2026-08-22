@@ -4,8 +4,6 @@ from odoo.tests.common import TransactionCase, tagged
 
 @tagged("web_unit", "web_settings")
 class TestResConfigSettings(TransactionCase):
-    """Tests for web-layer res.config.settings fields and group management."""
-
     def setUp(self):
         super().setUp()
         self.user = self.env.ref("base.user_admin")
@@ -20,7 +18,6 @@ class TestResConfigSettings(TransactionCase):
         self.config = Settings.create({})
 
     def test_multi_company_res_config_group(self):
-        """Enabling/disabling a group flag propagates to all users and new-user template."""
         company = self.env["res.company"].create({"name": "My Last Company"})
         partner = self.env["res.partner"].create({"name": "My User"})
         user = self.env["res.users"].create(

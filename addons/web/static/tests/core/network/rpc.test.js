@@ -204,10 +204,6 @@ function patchBrowserFetch(fetchFn) {
 }
 
 /**
- * Response whose headers pass every guard (200 + application/json) but whose
- * body read parks forever and fails only when ``signal`` fires — modeling a
- * body still streaming when the timeout signal cancels the read.
- *
  * @param {AbortSignal} signal
  */
 function streamingBodyResponse(signal) {
@@ -359,9 +355,6 @@ test("non-JSON response with a non-5xx status is an InvalidResponseError", async
 });
 
 test("a non-JSON non-5xx response is an InvalidResponseError, NOT a ConnectionLostError", async () => {
-    // The is-a was intentionally broken (F-U04-2): a well-formed non-JSON reply
-    // is not connectivity loss. Consumers that must still react to it name it
-    // explicitly; it is classified as non-retryable behaviour-as-data.
     mockFetch(
         () =>
             new Response("<html>not found</html>", {
@@ -399,8 +392,7 @@ test("unparseable JSON body with a non-5xx status is an InvalidResponseError", a
 
 /**
  * @param {string} url
- * @returns {Response} a 200 whose body read fails the way Chrome fails one that
- *   is cut mid-transfer: the headers arrived, the stream then errored.
+ * @returns {Response}
  */
 function responseWithBrokenBodyStream(url) {
     const response = new Response("{}", {
@@ -773,6 +765,33 @@ test("Retry: abort during backoff cancels the scheduled retry", async () => {
     expect.verifySteps([]);
 });
 
+test("abort(false) drops the request WITHOUT ever settling the promise", async () => {
+    mockFetch(() => new Promise(() => {}));
+
+    const prom = rpc("/test/", {});
+    let settled = "pending";
+    prom.then(
+        () => (settled = "resolved"),
+        () => (settled = "rejected"),
+    );
+
+    prom.abort(false);
+    await runAllTimers();
+    await tick();
+    await tick();
+    expect(settled).toBe("pending", {
+        message: "abort(false) leaves the promise unsettled forever",
+    });
+
+    const rejecting = rpc("/test/", {});
+    let rejectedWith = null;
+    rejecting.catch((error) => (rejectedWith = error));
+    rejecting.abort();
+    await tick();
+    await tick();
+    expect(rejectedWith).toBeInstanceOf(ConnectionAbortedError);
+});
+
 test("envelope version: list result gets __version attached when parsed.version is present", async () => {
     mockFetch(() => ({
         result: [{ id: 1 }, { id: 2 }],
@@ -847,7 +866,7 @@ describe("CLEAR-CACHES bus handling", () => {
         expect(purged).toBe(1);
 
         rpc.setCache(undefined);
-        await rpc.purgeCacheStorage(); // no cache configured -> resolves, no throw
+        await rpc.purgeCacheStorage();
         expect(purged).toBe(1);
     });
 
@@ -1040,8 +1059,6 @@ test("RPC:RESPONSE carries the url, like RPC:REQUEST", async () => {
 });
 
 test("Dedup: one caller's abort does not cancel the others", async () => {
-    // Handing the shared promise to every caller made abort() -- which mutates
-    // it -- reject callers that never asked to be cancelled.
     mockFetch(async () => {
         expect.step("Fetch");
         await tick();
@@ -1081,7 +1098,6 @@ test("Dedup: the shared request is cancelled once the last caller leaves", async
     /** @type {any} */ (p1).abort();
     expect.verifySteps(["Fetch:1"]);
 
-    // p2 still holds the entry, so a third caller joins it rather than re-issuing
     const p3 = rpc("/test/", {}, { dedup: true });
     p3.then(
         () => {},
@@ -1091,7 +1107,6 @@ test("Dedup: the shared request is cancelled once the last caller leaves", async
 
     /** @type {any} */ (p2).abort();
     /** @type {any} */ (p3).abort();
-    // with no subscribers left the entry is evicted and the next call re-issues
     expect(await rpc("/test/", {}, { dedup: true })).toEqual({ ok: true });
     expect.verifySteps(["Fetch:2"]);
 });
@@ -1110,15 +1125,11 @@ test("Retry: the server-overload backoff floor survives a smaller maxMs", async 
     let fetchCount = 0;
     mockFetch(() => {
         fetchCount++;
-        // 503 => ServerOverloadError, which is retryable and earns the floor.
         return new Response("<html>overloaded</html>", { status: 503 });
     });
 
-    // `maxMs` below the floor: capping after flooring silently returned 5ms,
-    // dropping retries straight back onto a server already failing to serve
-    // JSON. The floor is deliberate and outranks the caller's cap.
     const prom = rpc("/test/", {}, { retry: { retries: 1, baseMs: 1, maxMs: 5 } });
-    prom.catch(() => {}); // the retry chain is aborted below; don't leak a rejection
+    prom.catch(() => {});
     await tick();
     await tick();
     expect(fetchCount).toBe(1);
@@ -1145,7 +1156,7 @@ test("Retry: a normal retryable error still honours maxMs", async () => {
     mockFetch(() => Promise.reject(new TypeError("Failed to fetch")));
 
     const prom = rpc("/test/", {}, { retry: { retries: 1, baseMs: 1, maxMs: 5 } });
-    prom.catch(() => {}); // the retry chain is aborted below; don't leak a rejection
+    prom.catch(() => {});
     await tick();
     await tick();
     expect(delays).toHaveLength(1);
@@ -1155,4 +1166,151 @@ test("Retry: a normal retryable error still honours maxMs", async () => {
 
     prom.abort(false);
     await runAllTimers();
+});
+
+/**
+ * @param {string} name
+ * @returns {void}
+ */
+function useScratchCache(name) {
+    rpc.setCache(
+        new RPCCache(
+            name,
+            1,
+            "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
+        ),
+    );
+}
+
+/**
+ * @returns {{ count: () => number }}
+ */
+function neverSettlingFetch() {
+    let count = 0;
+    patchBrowserFetch((_url, { signal }) => {
+        count++;
+        return new Promise((_resolve, reject) => {
+            signal.addEventListener("abort", () => reject(signal.reason));
+        });
+    });
+    return { count: () => count };
+}
+
+test("signal + cache: aborting one caller leaves a joiner that passed no signal", async () => {
+    useScratchCache("mockRpcSignalCacheJoin");
+    const fetches = neverSettlingFetch();
+
+    const controller = new AbortController();
+    const pAborted = rpc("/test/", {}, { cache: true, signal: controller.signal });
+    await tick();
+    const pInnocent = rpc("/test/", {}, { cache: true });
+    await tick();
+    expect(fetches.count()).toBe(1, {
+        message: "the second caller joined rather than issuing its own request",
+    });
+
+    controller.abort();
+    await runAllTimers();
+
+    await expect(pAborted).rejects.toThrow(ConnectionAbortedError);
+    let innocentSettled = false;
+    pInnocent.then(
+        () => (innocentSettled = true),
+        () => (innocentSettled = true),
+    );
+    await tick();
+    expect(innocentSettled).toBe(false, {
+        message: "the joiner still waits on a request it never asked to cancel",
+    });
+    pInnocent.abort(false);
+    await runAllTimers();
+});
+
+test("signal + cache: the last caller out does tear the request down", async () => {
+    useScratchCache("mockRpcSignalCacheLastOut");
+    const fetches = neverSettlingFetch();
+
+    const first = new AbortController();
+    const second = new AbortController();
+    const p1 = rpc("/test/", {}, { cache: true, signal: first.signal });
+    await tick();
+    const p2 = rpc("/test/", {}, { cache: true, signal: second.signal });
+    await tick();
+    expect(fetches.count()).toBe(1);
+
+    const errors = [];
+    p1.catch((e) => errors.push(e.constructor.name));
+    p2.catch((e) => errors.push(e.constructor.name));
+
+    first.abort();
+    await runAllTimers();
+    second.abort();
+    await runAllTimers();
+
+    expect(errors).toEqual(["ConnectionAbortedError", "ConnectionAbortedError"]);
+});
+
+test("signal + dedup: the signal detaches one subscriber, not the group", async () => {
+    const fetches = neverSettlingFetch();
+
+    const controller = new AbortController();
+    const pAborted = rpc("/test/", {}, { dedup: true, signal: controller.signal });
+    await tick();
+    const pInnocent = rpc("/test/", {}, { dedup: true });
+    await tick();
+    expect(fetches.count()).toBe(1, { message: "deduplicated onto one request" });
+
+    controller.abort();
+    await runAllTimers();
+
+    await expect(pAborted).rejects.toThrow(ConnectionAbortedError);
+    let innocentSettled = false;
+    pInnocent.then(
+        () => (innocentSettled = true),
+        () => (innocentSettled = true),
+    );
+    await tick();
+    expect(innocentSettled).toBe(false);
+    pInnocent.abort(false);
+    await runAllTimers();
+});
+
+test("signal + dedup: two callers with different signals still share one request", async () => {
+    const fetches = neverSettlingFetch();
+
+    const a = new AbortController();
+    const b = new AbortController();
+    const p1 = rpc("/test/", {}, { dedup: true, signal: a.signal });
+    const p2 = rpc("/test/", {}, { dedup: true, signal: b.signal });
+    p1.catch(() => {});
+    p2.catch(() => {});
+    await tick();
+    expect(fetches.count()).toBe(1, {
+        message: "the signal is not part of the dedup fingerprint",
+    });
+    a.abort();
+    b.abort();
+    await runAllTimers();
+});
+
+test("signal: an already-aborted signal aborts the caller's handle at once", async () => {
+    useScratchCache("mockRpcSignalPreAborted");
+    neverSettlingFetch();
+
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+        rpc("/test/", {}, { cache: true, signal: controller.signal }),
+    ).rejects.toThrow(ConnectionAbortedError);
+});
+
+test("signal: unshared requests still abort the fetch itself", async () => {
+    const fetches = neverSettlingFetch();
+    const controller = new AbortController();
+    const prom = rpc("/test/", {}, { signal: controller.signal });
+    await tick();
+    controller.abort();
+    const error = await prom.catch((e) => e);
+    expect(error).toBeInstanceOf(ConnectionAbortedError);
+    expect(fetches.count()).toBe(1);
 });

@@ -56,13 +56,6 @@ registry.category("web_tour.tours").add("test_user_switch", {
             run: "click",
         },
         {
-            // Click the CONTROL, not the row. `0dd99203e84` split the row into
-            // a plain <div> holding two buttons -- picking an account and
-            // dropping it -- because the old markup nested the remove <i>
-            // inside the row's <button>, which is invalid and unreachable
-            // without a mouse. `fillForm` moved onto `.o_user_switch_login`
-            // with it, so a click dispatched on the row now lands on an inert
-            // container: the step passed, did nothing, and the next one failed.
             content: "Click on Marc Demo on the quick login page",
             trigger:
                 ".o_user_switch:not(:has(.list-group-item:nth-child(2))) .o_user_switch_login:contains('Marc Demo')",

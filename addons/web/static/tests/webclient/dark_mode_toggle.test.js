@@ -50,20 +50,11 @@ test("toggling from light persists dark and re-serves the page", async () => {
     await mountToggle("light");
     await click(".o_dark_mode_toggle");
     await animationFrame();
-    // Untouched on purpose. The cookie is the server's answer to the setting:
-    // `ir_http.color_scheme` resolves it from the setting just saved, and
-    // `web_client` sets it on the page this reload asks for. Writing it here
-    // too would be a second writer of a value this component does not decide.
     expect(cookie.get("color_scheme")).toBe("light");
-    // Persisted before the reload, or color_scheme_service would resolve the
-    // setting again on the way back and undo the toggle.
     expect.verifySteps(["set:dark", "reload"]);
 });
 
 test("the in-memory user settings track the new scheme", async () => {
-    // `colorSchemeService` reads `user.settings.color_scheme`, and
-    // `website_enterprise` re-serves the builder rather than reloading — so a
-    // reader between the write and the re-serve must not see the old value.
     onRpc("res.users.settings", "set_res_users_settings", ({ kwargs }) => ({
         color_scheme: kwargs.new_settings.color_scheme,
     }));
@@ -87,10 +78,6 @@ test("toggling from dark persists light", async () => {
 });
 
 test("the button follows the OS switching theme", async () => {
-    // A `system` user is served both stylesheets behind prefers-color-scheme,
-    // so the OS flipping repaints the page and colorSchemeService republishes
-    // the scheme -- with nothing reloading. Sampled once at setup, this button
-    // would then offer to switch to the mode already on screen.
     const initial = document.documentElement.dataset.colorScheme;
     after(() => {
         if (initial === undefined) {
@@ -110,9 +97,6 @@ test("the button follows the OS switching theme", async () => {
 });
 
 test("the reload goes through the service, not browser.location", async () => {
-    // website_enterprise overrides colorSchemeService.reload() to re-enter the
-    // builder instead of reloading the preview. Calling browser.location
-    // directly would bypass that override.
     onRpc("res.users.settings", "set_res_users_settings", () => ({}));
     await mountToggle("light");
     await click(".o_dark_mode_toggle");

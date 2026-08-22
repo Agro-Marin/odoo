@@ -1,22 +1,3 @@
-"""Enforces the Feature-Sliced Design layering of ``addons/web/static/src/``.
-
-``machine_doc_v1/DIRECTORY_MAP.md`` assigns every source directory one of the
-layers ``shared -> entities -> features -> widgets -> pages``.  The point of
-that ordering is that it is one-way: a directory may import from its own layer
-or a lower one, never from a higher one.  An upward import is what turns the
-tree into a cycle -- ``core/`` reaching into ``views/`` makes the shared layer
-unusable without the whole view stack, and every consumer of ``core/`` pays for
-it.
-
-This invariant used to be checked by ``static/tests/modules/dependencies.test.js``,
-which read ``odoo.loader.factories[module].deps``.  That map was populated by
-the AMD ``define()`` path; post-ESM only ``odoo.loader.modules`` is maintained,
-so the test crashed on its first iteration and was left skipped -- the layering
-was documented and unenforced.  Nothing about the rule needs the loader: the
-imports are in the files.  Reading them here also drops the browser round-trip,
-so the check runs in the unit lane.
-"""
-
 import re
 from pathlib import Path
 
@@ -41,15 +22,11 @@ _IMPORT_RE = re.compile(
     re.MULTILINE,
 )
 
-#: Below these the walk is not measuring the codebase any more, it is measuring
-#: a broken parse -- a renamed table column or a moved ``src`` reads as "no
-#: violations" otherwise.
 MIN_MAPPED_DIRECTORIES = 100
 MIN_CHECKED_IMPORTS = 1000
 
 
 def _layer_map():
-    """``{directory: layer}`` for every row of DIRECTORY_MAP.md's table."""
     rows = _MAP_ROW_RE.findall(DIRECTORY_MAP.read_text(encoding="utf-8"))
     return {
         directory.rstrip("/"): layer
@@ -59,7 +36,6 @@ def _layer_map():
 
 
 def _layer_of(rel_path, layer_map):
-    """The layer owning ``rel_path``, walking up to the nearest mapped parent."""
     parts = rel_path.split("/")
     for i in range(len(parts) - 1, 0, -1):
         directory = "/".join(parts[:i])
@@ -69,7 +45,6 @@ def _layer_of(rel_path, layer_map):
 
 
 def _imported_path(spec, source):
-    """``spec`` as a path relative to ``static/src``, or ``None`` if outside it."""
     if spec.startswith("@web/"):
         return spec[len("@web/") :].removesuffix(".js")
     if spec.startswith("."):

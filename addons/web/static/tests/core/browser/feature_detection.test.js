@@ -43,9 +43,8 @@ const UA_BLACKBERRY =
     "Mozilla/5.0 (BB10; Touch) AppleWebKit/537.10+ (KHTML, like Gecko) Version/10.0.9.2372 Mobile Safari/537.10+ BlackBerry";
 
 /**
- * Patch browser.navigator with a specific user agent string.
  * @param {string} ua
- * @param {object} [extra] additional navigator properties
+ * @param {object} [extra]
  */
 function patchUA(ua, extra = {}) {
     patchWithCleanup(browser, {
@@ -275,10 +274,6 @@ describe("UA cache", () => {
 });
 
 describe("hasTouch", () => {
-    // Asserted on the real facade, not on a patched one: the previous version
-    // installed `ontouchstart` itself and so passed while the facade had
-    // stopped exposing it at all, leaving `hasTouch()` reduced to its
-    // `pointer:coarse` half on every device.
     test("browser exposes ontouchstart", () => {
         expect("ontouchstart" in browser).toBe(true);
     });

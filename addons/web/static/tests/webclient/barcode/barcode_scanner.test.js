@@ -3,6 +3,7 @@
 import { expect, test } from "@odoo/hoot";
 import { animationFrame, click, press, waitFor } from "@odoo/hoot-dom";
 import { advanceTime, Deferred } from "@odoo/hoot-mock";
+import { Component, useState, xml } from "@odoo/owl";
 import {
     contains,
     makeMockEnv,
@@ -11,6 +12,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { scanBarcode } from "@web/components/barcode/barcode_dialog";
 import { BarcodeVideoScanner } from "@web/components/barcode/barcode_video_scanner";
+import { buildZXingBarcodeDetector } from "@web/components/barcode/ZXingBarcodeDetector";
 import { browser } from "@web/core/browser/browser";
 import { WebClient } from "@web/webclient/webclient";
 
@@ -183,8 +185,6 @@ test("Closing the barcode dialog manually resolves the scan promise with null", 
 
     const escScan = scanBarcode(env);
 
-    // Opening the scanner dialog goes through getUserMedia, so wait for the
-    // dialog rather than for a fixed number of frames.
     await waitFor(".o-barcode-modal");
     expect(".o-barcode-modal").toHaveCount(1);
 
@@ -233,10 +233,6 @@ test("Closing barcode scanner while video is loading should not cause errors", a
     expect(".o_error_dialog").toHaveCount(0);
 });
 
-/**
- * A camera that produces a real (blank) stream, so the component's readiness
- * poll settles the way it does against a device.
- */
 function mockBlankCamera() {
     patchWithCleanup(browser.navigator, {
         mediaDevices: /** @type {any} */ ({
@@ -256,7 +252,7 @@ function mockBlankCamera() {
 }
 
 /**
- * @param {() => any} onDetect what `detect()` does on each call
+ * @param {() => any} onDetect
  */
 function mockDetector(onDetect) {
     class ScriptedDetector {
@@ -267,7 +263,7 @@ function mockDetector(onDetect) {
             return onDetect();
         }
     }
-    patchWithCleanup(window, { BarcodeDetector: ScriptedDetector });
+    patchWithCleanup(browser, { BarcodeDetector: ScriptedDetector });
 }
 
 async function mountScanner(/** @type {any} */ props) {
@@ -297,14 +293,12 @@ test("the scan loop gives up after five consecutive detector failures", async ()
     const errors = [];
     await mountScanner({ onError: (/** @type {any} */ e) => errors.push(e) });
 
-    // Five failures in a row is the threshold: the fifth reports and stops.
     for (let i = 0; i < 8; i++) {
         await advanceTime(100);
     }
     expect(errors.length).toBe(1);
     expect(attempts).toBe(5);
 
-    // The loop is over, so nothing keeps trying behind the reported error.
     const settled = attempts;
     await advanceTime(500);
     expect(attempts).toBe(settled);
@@ -315,7 +309,6 @@ test("a successful read clears the failure count", async () => {
     let attempts = 0;
     mockDetector(() => {
         attempts++;
-        // fail, fail, fail, fail, succeed, then fail four more
         if (attempts === 5) {
             return [];
         }
@@ -329,7 +322,137 @@ test("a successful read clears the failure count", async () => {
     for (let i = 0; i < 9; i++) {
         await advanceTime(100);
     }
-    // Nine attempts, but never five bad ones in a row.
     expect(attempts).toBe(9);
     expect(errors).toEqual([]);
 });
+
+test("leaving while the camera is still starting releases it and reports nothing", async () => {
+    const stopped = [];
+    const track = {
+        stop: () => stopped.push("stop"),
+        getSettings: () => ({ width: 100, height: 100 }),
+        getCapabilities: () => ({}),
+    };
+    const permissionPrompt = new Deferred();
+    patchWithCleanup(browser.navigator, {
+        mediaDevices: /** @type {any} */ ({ getUserMedia: () => permissionPrompt }),
+    });
+    mockDetector(() => []);
+
+    /** @type {any[]} */
+    const errors = [];
+    /** @type {{ scanning: boolean }} */
+    let hostState = { scanning: true };
+    class Host extends Component {
+        static props = ["*"];
+        static components = { BarcodeVideoScanner };
+        static template = xml`
+            <t t-if="state.scanning">
+                <BarcodeVideoScanner facingMode="'environment'"
+                    onResult="() => {}" onError.bind="onError"/>
+            </t>`;
+        setup() {
+            this.state = hostState = useState(hostState);
+        }
+        onError(/** @type {any} */ error) {
+            errors.push(error.message);
+        }
+    }
+    await mountWithCleanup(Host);
+
+    hostState.scanning = false;
+    await animationFrame();
+    permissionPrompt.resolve({
+        getTracks: () => [track],
+        getVideoTracks: () => [track],
+    });
+    await animationFrame();
+    await advanceTime(500);
+
+    expect(errors).toEqual([]);
+    expect(stopped).toEqual(["stop"]);
+});
+
+test("a crop window too small to hold a symbol falls back to the whole frame", async () => {
+    const sources = [];
+    const Detector = buildZXingBarcodeDetector(makeFakeZXing());
+    const detector = /** @type {any} */ (new Detector({ formats: ["qr_code"] }));
+    detector.ctx = {
+        drawImage: (/** @type {any[]} */ ...a) => sources.push(a.slice(1, 5)),
+    };
+    const video = makeFakeVideo(640, 480);
+
+    detector.setCropArea({ x: 320, y: 240, width: 0, height: 0 });
+    await detector.detect(video);
+    expect(sources.at(-1)).toEqual([0, 0, 640, 480]);
+
+    detector.setCropArea({ x: 0, y: 0, width: 640, height: 480 });
+    await detector.detect(video);
+    expect(sources.at(-1)).toEqual([0, 0, 640, 480]);
+
+    detector.setCropArea({ x: 100, y: 80, width: 400, height: 300 });
+    await detector.detect(video);
+    expect(sources.at(-1)).toEqual([100, 80, 400, 300]);
+});
+
+test("the bounding box spans every result point, not the first two", async () => {
+    const points = [
+        { x: 30, y: 200 },
+        { x: 30, y: 40 },
+        { x: 190, y: 40 },
+    ];
+    const Detector = buildZXingBarcodeDetector(
+        makeFakeZXing({ resultPoints: points, text: "Odoo" }),
+    );
+    const detector = /** @type {any} */ (new Detector({ formats: ["qr_code"] }));
+    detector.ctx = { drawImage: () => {} };
+
+    const [{ boundingBox, rawValue }] = await detector.detect(makeFakeVideo(640, 480));
+    expect(rawValue).toBe("Odoo");
+    expect([
+        boundingBox.x,
+        boundingBox.y,
+        boundingBox.width,
+        boundingBox.height,
+    ]).toEqual([30, 40, 160, 160]);
+});
+
+/**
+ * @param {{ resultPoints?: any[], text?: string }} [found]
+ */
+function makeFakeZXing(found) {
+    return {
+        BarcodeFormat: new Proxy({}, { get: (_t, k) => `fmt:${String(k)}` }),
+        DecodeHintType: { POSSIBLE_FORMATS: 1, TRY_HARDER: 2 },
+        MultiFormatReader: class {
+            setHints() {}
+            decodeWithState() {
+                if (!found) {
+                    const err = new Error("no symbol");
+                    err.name = "NotFoundException";
+                    throw err;
+                }
+                return {
+                    resultPoints: found.resultPoints,
+                    getText: () => found.text,
+                    getBarcodeFormat: () => "fmt:QR_CODE",
+                };
+            }
+        },
+        HTMLCanvasElementLuminanceSource: class {},
+        BinaryBitmap: class {},
+        HybridBinarizer: class {},
+    };
+}
+
+/**
+ * @param {number} width
+ * @param {number} height
+ */
+function makeFakeVideo(width, height) {
+    const video = document.createElement("video");
+    Object.defineProperty(video, "readyState", { value: 4 });
+    Object.defineProperty(video, "videoWidth", { value: width });
+    Object.defineProperty(video, "videoHeight", { value: height });
+    return video;
+}

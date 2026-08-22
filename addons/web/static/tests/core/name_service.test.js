@@ -163,9 +163,6 @@ test("loadDisplayNames on different models", async () => {
 test("invalid id", async () => {
     await makeMockEnv();
     try {
-        // Deliberately invalid: the point of the test is the runtime guard.
-        // `loadDisplayNames` takes `number[]`, and that only became checkable
-        // when the service stopped typing its surface as bare `Function`.
         await getService("name").loadDisplayNames("dev", /** @type {any} */ (["a"]));
     } catch (error) {
         expect(error.message).toBe("Invalid ID: a");

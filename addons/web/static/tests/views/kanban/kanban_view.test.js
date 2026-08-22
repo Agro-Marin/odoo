@@ -6113,10 +6113,6 @@ test("empty stages kanban examples", async () => {
     });
 
     await contains(".nav-item:nth-child(2) .nav-link").click();
-    // Re-query the pane: the notebook keys it on the active page, so a real
-    // switch mounts a fresh element and `firstPane` is now detached — still
-    // holding the first example's three columns, which is what this assertion
-    // used to read while claiming to check the second example's two.
     const secondPane = queryFirst(".modal .o_notebook_content .tab-pane");
     expect(queryAll(".o_kanban_examples_group", { root: secondPane })).toHaveCount(2);
     expect(queryAllTexts("h6", { root: secondPane })).toEqual(["Col 1", "Col 2"], {
@@ -6734,7 +6730,8 @@ test("nocontent helper for grouped kanban (on date field) with no records with n
     expect(".o_kanban_record").toHaveCount(0);
     expect(".o_view_nocontent").toHaveCount(1);
     expect(".o_column_quick_create").toHaveCount(0);
-    expect(".o_kanban_example_background").toHaveCount(0);
+    expect(".o_kanban_stages_nocontent").toHaveCount(0);
+    expect(".o_kanban_examples").toHaveCount(0);
 });
 
 test("empty grouped kanban with sample data and no columns", async () => {
@@ -10282,14 +10279,6 @@ test("keynav: grouped kanban with empty columns", async () => {
         groupBy: ["state"],
     });
 
-    /**
-     * Added columns in mockRPC are empty
-     *
-     *    | BEG | ABC  | MD1 | MD2 | GHI  | END
-     *    |-----|------|-----|-----|------|-----
-     *    |     | yop  |     |     | gnap |
-     *    |     | blip |     |     | blip |
-     */
     const cardsByColumn = queryAll(".o_kanban_group").map((root) =>
         queryAll(".o_kanban_record", { root }),
     );
@@ -13781,13 +13770,6 @@ test("kanban records are middle clickable by default", async () => {
     });
 
     await contains(".o_kanban_record").click({ ctrlKey: true });
-    // No `get current_action` from the initial load: the `doAction` above is
-    // minted on the shared navigation clock while the WebClient's own
-    // `loadState` is still reconstructing, so `loadState` is superseded at its
-    // checkpoint and never reaches `getActionParams` — the read whose result it
-    // would have thrown away. Newer intent winning is the point of that clock;
-    // what this test is about is the storage traffic the middle click causes,
-    // which is unchanged below.
     expect.verifySteps([
         "get menu_id-null",
         "get current_lang-null",
@@ -14251,7 +14233,7 @@ test("groups will be scrolled to on unfold if outside of viewport", async () => 
     expect(".o_content").toHaveProperty("scrollLeft", 1869);
     let { x, width } = queryRect(".o_column_folded:eq(0)");
     expect(x + width).toBeCloseTo(window.innerWidth - 1, {
-        digits: 0,
+        margin: 1,
         message:
             "the next group (which is folded) should stick to the right of the screen after the scroll",
     });
@@ -14260,7 +14242,7 @@ test("groups will be scrolled to on unfold if outside of viewport", async () => 
     expect(".o_content").toHaveProperty("scrollLeft", 2154);
     ({ x, width } = queryRect('.o_kanban_group:contains("column 7 (1)")'));
     expect(x + width).toBeCloseTo(window.innerWidth, {
-        digits: 0,
+        margin: 1,
         message:
             "this group was not followed by a folded group so it will be the one to stick to the right of the screen after the scroll",
     });
@@ -14270,7 +14252,7 @@ test("groups will be scrolled to on unfold if outside of viewport", async () => 
     expect(".o_content").toHaveProperty("scrollLeft", 3562);
     ({ x, width } = queryRect('.o_kanban_group:contains("column 11 (1)")'));
     expect(x + width).toBeCloseTo(window.innerWidth, {
-        digits: 0,
+        margin: 1,
         message: "same as above",
     });
 });

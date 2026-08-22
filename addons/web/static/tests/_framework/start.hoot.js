@@ -14,13 +14,6 @@ import { isolateLocalizationCache } from "./mock_localization_cache.hoot.js";
 import { setupTestEnvironment } from "./module_set.hoot.js";
 
 /**
- * HOOT's job-id hash (``hoot_utils.js::generateHash``), reimplemented rather
- * than imported: ``@odoo/hoot`` lives in ``web.assets_unit_tests_setup`` while
- * this file lives in ``web.assets_unit_tests``, and the two bundles are cached
- * separately — importing across them breaks with "does not provide an export
- * named ..." whenever only one has been rebuilt. Same algorithm as
- * ``hoot_lib.generate_hash`` and ``test_js.py::_generate_hash``.
- *
  * @param {string} value
  * @returns {string}
  */
@@ -33,7 +26,6 @@ function _hashJobId(value) {
     return (hash + 16 ** 8).toString(16).slice(-8);
 }
 
-// Read before patchBrowserLocation() swaps the location object out.
 const REQUESTED_IDS = new Set(
     new URLSearchParams(globalThis.location?.search ?? "")
         .getAll("id")
@@ -91,38 +83,11 @@ patchBrowserStorage();
 // written by one test is read by the next -- see mock_localization_cache.hoot.js.
 isolateLocalizationCache();
 
-/**
- * Disarm the module loader's production asset-recovery reload for the whole run.
- *
- * `handleAssetLoadError` reloads the page when a `<script>`/`<link>` under
- * `/web/assets/` fails, on the assumption that a stale bundle reference is
- * recoverable. Tests that exercise the `loadJS`/`loadCSS` failure paths request
- * URLs under exactly that prefix on purpose, so the recovery fires ON A TEST
- * RUNNER and reloads the whole HOOT page — which restarts the run from zero,
- * hits the same test again, and loops.
- *
- * Its once-per-60s `sessionStorage` guard cannot hold here: the runner mocks
- * both storage and the clock per test, so `now - last` is compared across two
- * different time bases. The loop is invisible in a short run (the guard happens
- * to hold) and fatal in a long one — `@web/core` restarted 918 times and never
- * reached a summary, failing `WebSuite.test_core` on a 900s timeout.
- *
- * `_reloadPage` exists as a seam documented "overridden in tests", but only
- * `module_loader.test.js` ever overrode it, and only on loader instances it
- * built itself — never the global one every other test shares.
- */
 odoo.loader._reloadPage = () => {};
 
 const _runner = /** @type {any} */ (__debug__);
 
 /**
- * Convert a test specifier into the suite name HOOT's id-filter expects:
- * ``@bus/../tests/foo/bar.test`` → ``@bus/foo/bar`` (matches the pre-ESM
- * ``getSuitePath``/``describeDrySuite`` convention that ``WebSuite._run_hoot``
- * hashes into the ``&id=`` param). Keeping the ``@<addon>`` prefix is
- * critical — without it ``hash("@web/core")`` won't match the synthetic
- * suite ``web/core/...`` and HOOT refuses to run any filtered tests.
- *
  * @param {string} specifier
  * @returns {string}
  */
@@ -132,20 +97,6 @@ function _suiteNameFromSpecifier(specifier) {
 }
 
 /**
- * Narrow ``testSpecifiers`` to the test files an ``&id=`` filter can possibly
- * select, so a filtered run stops paying for every other file in the bundle.
- *
- * Every job a file registers is nested under that file's synthetic suite (see
- * ``_importInFileSuite``), so a job's ``fullName`` always starts with the
- * file's suite name. An id therefore selects a file only if it hashes one of
- * that suite name's ancestors — ``@web``, ``@web/core``, ``@web/core/domain``
- * for ``@web/core/domain``.
- *
- * The reverse case — an id naming a job *inside* a file (a nested
- * ``describe``, or a single test) — cannot be recognised from the hash alone,
- * so when nothing matches we import everything rather than run zero tests.
- * Non-test modules (helpers registering global hooks) are never filtered.
- *
  * @param {string[]} testSpecifiers
  * @returns {string[]}
  */
@@ -169,13 +120,20 @@ function _selectTestSpecifiers(testSpecifiers) {
 }
 
 /**
- * Fetch the modules ``loadAndStart`` is about to import, in parallel.
- *
- * The imports themselves must stay serial (each file's top-level code has to
- * see only its own suite on the stack), so without this every file costs a
- * round trip. The server no longer emits these links because it cannot see the
- * page's ``&id=`` filter; the URLs come from the import map it did emit.
- *
+ * @param {...any} parts
+ */
+function _bootLog(...parts) {
+    console.debug("[HOOT][boot]", ...parts);
+}
+
+/**
+ * @param {...any} parts
+ */
+function _bootWarn(...parts) {
+    console.warn("[HOOT][boot]", ...parts);
+}
+
+/**
  * @param {string[]} specifiers
  */
 function _preloadTestModules(specifiers) {
@@ -207,32 +165,6 @@ function _preloadTestModules(specifiers) {
 }
 
 /**
- * Import a single test file inside a synthetic per-file suite.
- *
- * Hoot requires every ``test()`` to live under a parent suite (see
- * ``runner.addTest``: throws "cannot register a test outside of a
- * suite").  Test files written before the ESM refactor relied on the
- * pre-existing ``describeDrySuite`` helper to wrap each file in a
- * ``describe(suitePath, () => startModule(file))`` block.  The new
- * ``import(spec)``-based loader dropped that wrapping.
- *
- * Restoring it via ``describe(name, () => import(...))`` doesn't work
- * because ``describe`` runs its callback synchronously and pops the
- * suite before ``import()`` resolves.  Instead we:
- *
- *   1. Create the file's suite with an empty ``describe`` callback —
- *      this registers the suite in ``runner.rootSuites`` and pops it
- *      from the stack.
- *   2. Push the captured suite back onto ``runner.suiteStack`` so the
- *      imported module's top-level code sees it as the current parent.
- *   3. ``await import(spec)``.
- *   4. Pop the suite in a ``finally`` so we don't leak stack state on
- *      error.
- *
- * Imports must run **serially** so each file's top-level code sees
- * only its own suite on the stack — concurrent imports would
- * interleave pushes/pops and bind tests to the wrong file's suite.
- *
  * @param {string} specifier
  */
 async function _importInFileSuite(specifier) {
@@ -254,19 +186,28 @@ async function _importInFileSuite(specifier) {
 }
 
 /**
- * Load all test modules via native ESM import() and start the Hoot runner.
- *
- * Each file's import runs inside a synthetic per-file suite (see
- * ``_importInFileSuite``) so legacy-style test files (top-level
- * ``test()`` / ``describe.current.tags(...)``) work without rewrites.
- *
- * Called by the bridge script generated in ir_qweb.py.
- *
- * @param {string[]} allTestSpecifiers - import map specifiers for test files
+ * @param {string[]} allTestSpecifiers
  */
 export async function loadAndStart(allTestSpecifiers) {
+    _bootLog(`called with ${allTestSpecifiers.length} specifier(s)`);
+    if (!allTestSpecifiers.length) {
+        _bootWarn(
+            "no test specifiers were passed — this page can only report zero " +
+                "tests. The bundle's generated entry supplies them; check that " +
+                "it carries both `start.hoot` and the test files.",
+        );
+    }
     await isHootReady;
+    _bootLog("hoot ready");
     const testSpecifiers = _selectTestSpecifiers(allTestSpecifiers);
+    if (testSpecifiers.length !== allTestSpecifiers.length) {
+        _bootLog(
+            `id filter selected ${testSpecifiers.length}/${allTestSpecifiers.length}`,
+        );
+    }
+    if (allTestSpecifiers.length && !testSpecifiers.length) {
+        _bootWarn("the id filter selected nothing — no test will run");
+    }
     _preloadTestModules(testSpecifiers);
     /** @type {Array<{status: "fulfilled" | "rejected", value?: any, reason?: any}>} */
     const results = [];
@@ -277,6 +218,14 @@ export async function loadAndStart(allTestSpecifiers) {
         } catch (e) {
             results.push({ status: "rejected", reason: e });
         }
+    }
+    const loaded = results.filter((r) => r.status === "fulfilled").length;
+    _bootLog(`imported ${loaded}/${testSpecifiers.length} test module(s)`);
+    if (testSpecifiers.length && !loaded) {
+        _bootWarn(
+            "every test module failed to import — the runner will start with " +
+                "nothing registered; see the [HOOT][import-fail] lines above",
+        );
     }
     const failed = results
         .map((r, i) => ({ result: r, specifier: testSpecifiers[i] }))
@@ -362,5 +311,6 @@ export async function loadAndStart(allTestSpecifiers) {
             }
         }
     }
+    _bootLog("starting runner");
     start();
 }

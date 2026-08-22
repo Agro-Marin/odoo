@@ -196,8 +196,6 @@ test("controlled checkbox is restored when the parent rejects the change", async
     await mountWithCleanup(Parent);
 
     await check("input");
-    // The restore is applied by the render owl schedules for the next frame;
-    // `check()` itself asserts the interaction landed before that.
     await animationFrame();
 
     expect(received).toBe(true);

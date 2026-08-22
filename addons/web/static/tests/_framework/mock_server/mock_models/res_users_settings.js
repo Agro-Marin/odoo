@@ -17,7 +17,7 @@ export class ResUsersSettings extends ServerModel {
     _name = "res.users.settings";
 
     /** @param {number|number[]} userIdOrIds */
-    _find_or_create_for_user(userIdOrIds) {
+    _get_or_create_for_user(userIdOrIds) {
         const [userId] = ensureArray(userIdOrIds);
         const settings = /** @type {any} */ (this)._filter([
             ["user_id", "=", userId],

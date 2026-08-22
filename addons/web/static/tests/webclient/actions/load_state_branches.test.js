@@ -12,24 +12,6 @@ import { loadState } from "@web/webclient/actions/load_state";
 import { NavigationTracker } from "@web/webclient/actions/navigation_token";
 
 /**
- * BRANCH COVERAGE for ``load_state.js``, with NO OWL MOUNT.
- *
- * ``load_state.test.js`` is the end-to-end suite: 77 tests, every one of them
- * mounting a WebClient and driving a real URL. It is the right shape for what
- * it asserts (that a given URL produces a given screen), but it makes the
- * module's own decisions expensive to reach — the supersession guard, the
- * degradation path when breadcrumb reconstruction fails, and the
- * MissingActionError unwinding each need a specific server failure staged
- * behind a full boot.
- *
- * ``load_state`` reaches six manager members — ``router``, ``navigation``,
- * ``_controllersFromState``, ``_getActionParams``, ``doAction`` and ``env`` —
- * so a literal covers it (``navigation`` is a real tracker: it is the very
- * clock under test, and small enough to not be worth faking). The module-level
- * collaborators it uses directly (``actionStorage``, ``user``) are real: both
- * are cheap and asserting against the actual sessionStorage keys is the point
- * of two of these tests.
- *
  * @param {Object} [overrides]
  */
 function makeFakeAm(overrides = {}) {
@@ -56,7 +38,6 @@ function makeFakeAm(overrides = {}) {
     return am;
 }
 
-/** An error shaped like the server's MissingActionError. */
 function missingActionError() {
     const error = new Error("missing action");
     /** @type {any} */ (error).exceptionName =
@@ -165,11 +146,6 @@ test("the reconstructed stack is handed to doAction whole", async () => {
     expect(am.__calls.doAction[0].options.newStack).toBe(stack);
 });
 
-/**
- * A url four actions deep whose leaf `getActionParams` could not resolve, so it
- * settled on the entry at index 2 and reported one popped leaf. The crumbs of
- * THAT action are the entries at index 0 and 1.
- */
 const POPPED_STATE = {
     actionStack: [{ action: 1 }, { action: 2 }, { action: 3 }, { action: 4 }],
 };
@@ -195,10 +171,6 @@ test("poppedLeaves cuts at the entry it settled on, and is consumed", async () =
 });
 
 test("a dropped ancestor cannot shift the cut", async () => {
-    // `controllersFromState` removed the deleted/inaccessible records that used
-    // to sit at index 0 and 1, so the rebuilt stack is SHORTER than the url's
-    // actionStack. Counting survivors would keep "c" — the controller for the
-    // very action about to be dispatched — as its own breadcrumb parent.
     const am = makeFakeAm({
         _controllersFromState: async () => [{ jsId: "c", stackIndex: 2 }],
         _getActionParams: POPPED_PARAMS,
@@ -208,9 +180,6 @@ test("a dropped ancestor cannot shift the cut", async () => {
 });
 
 test("a drop inside the popped tail does not take a live crumb with it", async () => {
-    // The entry at index 2 is the one being dispatched AND the one the server
-    // could not name — the same unreadable record explains both. Counting
-    // survivors cut one crumb too many and lost "b".
     const stack = [
         { jsId: "a", stackIndex: 0 },
         { jsId: "b", stackIndex: 1 },

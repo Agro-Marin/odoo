@@ -1,13 +1,5 @@
 // @ts-check
 
-/**
- * Pins the sample-data ORM swap in ``useModelWithSampleData``: when the
- * sample-mode load throws (e.g. SampleServer.UnimplementedRouteError from a
- * non-mocked route), ``model.orm`` must be restored to the real ORM — a
- * leaked sample ORM routes every subsequent user action to the in-memory
- * fake for the rest of the session.
- */
-
 import { expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";

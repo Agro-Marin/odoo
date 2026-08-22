@@ -1,15 +1,5 @@
 // @ts-check
 
-/**
- * Focused unit tests for DynamicGroupList._createGroup count integrity
- * (delegation-pattern mocks, built on the real DynamicGroupList.prototype).
- *
- * this.count is the NUMBER OF GROUPS for a DynamicGroupList (set from
- * data.length in _setData, decremented by _removeGroup). Creating a group must
- * increment it symmetrically, otherwise the grouped pager total and
- * isRecordCountTrustable drift by one after every "Add column".
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { DynamicGroupList } from "@web/model/relational_model/dynamic_group_list";
 

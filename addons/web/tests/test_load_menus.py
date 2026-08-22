@@ -1,4 +1,7 @@
-from odoo import Command, api
+import json
+import re
+
+from odoo import Command, api, tools
 from odoo.tests.common import HttpCase, tagged
 
 
@@ -94,7 +97,6 @@ class LoadMenusTests(HttpCase):
         )
 
     def test_load_menus_conditional(self):
-        """Matching ``?hash=`` → empty 304; stale hash → full payload."""
         res = self.url_open("/web/webclient/load_menus")
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.headers.get("Cache-Control"), "no-store")
@@ -117,4 +119,38 @@ class LoadMenusTests(HttpCase):
             res_stale.json(),
             full_payload,
             "stale hash must return the full menus payload",
+        )
+
+    def test_preload_gate_reads_the_key_menu_storage_writes(self):
+        self.authenticate("admin", "admin")
+        page = self.url_open("/odoo").text
+
+        gate = re.search(
+            r'localStorage\.getItem\("webclient_menus_version"\)\s*===\s*([\w.]+)',
+            page,
+        )
+        self.assertTrue(gate, "the preload's cache-validity check is gone")
+        self.assertEqual(
+            gate.group(1),
+            "menus_cache_version",
+            "the preload must compare against the server-composed key; "
+            "recomposing it here is what drifted last time",
+        )
+
+        storage = tools.file_open(
+            "web/static/src/webclient/menus/menu_storage.js",
+        ).read()
+        self.assertRegex(
+            storage,
+            r"function cacheVersion\(\) \{\s*return session\.menus_cache_version;",
+            "menu_storage.js must read the same server-composed key",
+        )
+
+        session_info = json.loads(
+            re.search(r"odoo\.__session_info__ = (\{.*?\});", page, re.DOTALL).group(1),
+        )
+        self.assertIn(
+            "menus_cache_version",
+            session_info,
+            "session_info must carry the key both consumers read",
         )

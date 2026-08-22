@@ -9,10 +9,6 @@ describe.current.tags("headless");
 const ENDPOINT = "/web/observability/js_error";
 
 /**
- * Install a sendBeacon spy that records each (url, parsed-payload) and reports
- * success. The mocked navigator.sendBeacon IS this callback, and its return
- * value is what ``reportJsError`` coerces to its boolean result.
- *
  * @returns {{ calls: { url: string, blob: Blob }[] }}
  */
 function spyBeacon() {
@@ -33,8 +29,6 @@ async function payloadOf(blob) {
 test("reportJsError: an empty message is dropped without touching sendBeacon", () => {
     const { calls } = spyBeacon();
     expect(reportJsError({ message: "" })).toBe(false);
-    // Cast: a caller with no `message` at all is what this asserts is dropped,
-    // so the malformed argument is the point of the test, not an oversight.
     expect(reportJsError(/** @type {any} */ ({}))).toBe(false);
     expect(reportJsError({ message: null })).toBe(false);
     expect(calls).toHaveLength(0);
@@ -50,8 +44,6 @@ test("reportJsError: browser ResizeObserver noise is dropped, real errors are no
     expect(reportJsError({ message: "ResizeObserver loop limit exceeded" })).toBe(
         false,
     );
-    // Only the browser's own wording is noise; an app error naming the same
-    // API must still be reported.
     expect(reportJsError({ message: "ResizeObserver is not defined" })).toBe(true);
     expect(calls).toHaveLength(1);
 });
@@ -102,15 +94,11 @@ test("reportJsError: kind passes through for every kind the server accepts", asy
     reportJsError({ message: "beacon-kind-asset", kind: "asset_load_error" });
     reportJsError({ message: "beacon-kind-rebind", kind: "module_rebind" });
     reportJsError({ message: "beacon-kind-bogus", kind: /** @type {any} */ ("weird") });
-    // The five kinds observability.py::js_error accepted when this was written.
-    // Nothing couples the two, so widening the server's tuple will not fail here.
     expect((await payloadOf(calls[0].blob)).kind).toBe("error");
     expect((await payloadOf(calls[1].blob)).kind).toBe("unhandledrejection");
     expect((await payloadOf(calls[2].blob)).kind).toBe("service_start");
     expect((await payloadOf(calls[3].blob)).kind).toBe("asset_load_error");
     expect((await payloadOf(calls[4].blob)).kind).toBe("module_rebind");
-    // The fallback still guards typos — widening the set must not make it a
-    // pass-through, or a misspelled kind becomes a category of its own.
     expect((await payloadOf(calls[5].blob)).kind).toBe("error");
 });
 
@@ -190,8 +178,6 @@ test("reportJsError: a cause chain deeper than the cap stops at the cap", async 
     }
     reportJsError({ message: "beacon-cause-deep", cause: deepest });
     const payload = await payloadOf(calls[0].blob);
-    // 8 levels max — without the cap a long chain would crowd out the fields
-    // that identify where the failure happened.
     expect(payload.cause.split("\n")).toHaveLength(8);
 });
 
@@ -219,7 +205,6 @@ test("reportJsError: non-Error causes are serialized without throwing", async ()
 
 test("reportJsError: an unserializable cause degrades to a placeholder", async () => {
     const { calls } = spyBeacon();
-    // BigInt has no JSON representation, so JSON.stringify throws here.
     reportJsError({ message: "beacon-cause-bigint", cause: { n: 1n } });
     const payload = await payloadOf(calls[0].blob);
     expect(payload.cause).toBe("Caused by: [unserializable]");
@@ -240,8 +225,6 @@ test("reportJsError: the cause chain is capped at 4096 chars", async () => {
 
 test("reportJsError: same message and position but a different stack is distinct", () => {
     const { calls } = spyBeacon();
-    // The regression this guards: OWL reports every lifecycle failure with one
-    // generic message at 0:0, so these two used to collapse into one beacon.
     const message = "An error occured in the owl lifecycle";
     expect(reportJsError({ message, stack: "at ComponentA (a.js:1:1)" })).toBe(true);
     expect(reportJsError({ message, stack: "at ComponentB (b.js:2:2)" })).toBe(true);
@@ -258,9 +241,6 @@ test("reportJsError: an exact repeat including the stack is still throttled", ()
 
 test("reportJsError: same message and stack but a different cause is distinct", () => {
     const { calls } = spyBeacon();
-    // The real OWL shape: the wrapper is built inside handleError, so its stack
-    // is the scheduler frames — identical for two unrelated component crashes
-    // flushed in the same tick. Only the cause tells them apart.
     const shared = {
         message: "An error occured in the owl lifecycle",
         stack: "at handleError\n at Fiber.complete\n at Scheduler.flush",
@@ -286,7 +266,7 @@ test("reportJsError: a nested object cause is elided, not walked", async () => {
 });
 test("reportJsError: an explicit phase overrides the odoo.isReady default", async () => {
     const { calls } = spyBeacon();
-    patchWithCleanup(odoo, { isReady: true }); // would otherwise be post_boot
+    patchWithCleanup(odoo, { isReady: true });
     reportJsError({ message: "beacon-phase-override", phase: "boot_mount_failed" });
     expect((await payloadOf(calls[0].blob)).phase).toBe("boot_mount_failed");
 });
@@ -296,4 +276,78 @@ test("reportJsError: dedup:false beacons every occurrence", () => {
     expect(reportJsError({ message: "beacon-every", dedup: false })).toBe(true);
     expect(reportJsError({ message: "beacon-every", dedup: false })).toBe(true);
     expect(calls).toHaveLength(2);
+});
+
+test("the exported reportJsError IS the loader's, not a copy of it", () => {
+    reportJsError({ message: "identity-probe", dedup: false });
+    expect(odoo.loader._beacon.reportJsError).toBeInstanceOf(Function);
+    const { seenErrors } = odoo.loader._beacon;
+    seenErrors.clear();
+    const { calls } = spyBeacon();
+    const info = {
+        message: "one-dedup-set",
+        line: 4,
+        col: 2,
+        stack: "at x (x.js:1:1)",
+    };
+    expect(reportJsError({ ...info })).toBe(true);
+    expect(odoo.loader._beacon.reportJsError({ ...info })).toBe(false);
+    expect(reportJsError({ ...info })).toBe(false);
+    expect(calls).toHaveLength(1);
+});
+
+test("the loader's own listeners share that dedup set too", () => {
+    const { seenErrors } = odoo.loader._beacon;
+    seenErrors.clear();
+    const { calls } = spyBeacon();
+    const info = /** @type {const} */ ({
+        message: "shared-key",
+        line: 1,
+        col: 1,
+        kind: "module_rebind",
+    });
+    expect(odoo.loader._beacon.reportJsError({ ...info })).toBe(true);
+    expect(reportJsError({ ...info })).toBe(false);
+    expect(calls).toHaveLength(1);
+});
+
+test("one set of limits governs every entry point", async () => {
+    const { limits } = odoo.loader._beacon;
+    expect(limits.ENDPOINT).toBe(ENDPOINT);
+    const { calls } = spyBeacon();
+    const long = "x".repeat(limits.MAX_MESSAGE + 5000);
+    reportJsError({ message: long, stack: "s".repeat(limits.MAX_STACK + 5000) });
+    const payload = await payloadOf(calls[0].blob);
+    expect(payload.message).toHaveLength(limits.MAX_MESSAGE);
+    expect(payload.stack).toHaveLength(limits.MAX_STACK);
+    odoo.loader._beacon.seenErrors.clear();
+    odoo.loader._beacon.reportJsError({ message: long, dedup: false });
+    expect((await payloadOf(calls.at(-1).blob)).message).toHaveLength(
+        limits.MAX_MESSAGE,
+    );
+});
+
+test('an unknown kind falls back to "error" whichever entry point is used', async () => {
+    const { calls } = spyBeacon();
+    reportJsError({
+        message: `kind-a-${Math.random()}`,
+        kind: /** @type {any} */ ("weird"),
+        dedup: false,
+    });
+    odoo.loader._beacon.reportJsError({
+        message: `kind-b-${Math.random()}`,
+        kind: "weird",
+        dedup: false,
+    });
+    const kinds = await Promise.all(
+        calls.map(async (c) => (await payloadOf(c.blob)).kind),
+    );
+    expect(kinds).toEqual(["error", "error"]);
+});
+
+test("reportJsError degrades to false when the loader shim is absent", () => {
+    const loader = odoo.loader;
+    patchWithCleanup(odoo, { loader: undefined });
+    expect(reportJsError({ message: "no-shim" })).toBe(false);
+    odoo.loader = loader;
 });

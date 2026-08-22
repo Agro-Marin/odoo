@@ -1068,15 +1068,6 @@ test("Support '<' and '>' in hotkeys", async () => {
 });
 
 test("patching the prototype intercepts a live service instance", async () => {
-    // The reason `hotkeyService.start` returns a `HotkeyService` instance rather
-    // than an object literal. Against the closure this service used to be, the
-    // only seam was `patch(hotkeyService, { start() {…} })`, which re-runs the
-    // whole factory; here one method is replaced and the rest is untouched.
-    //
-    // It also pins the constructor's no-binding rule: `onKeydown` reaches
-    // `dispatch` through `this`, so if a future edit bound these methods to the
-    // instance, the own property would shadow the patched prototype and this
-    // test would fail rather than the seam silently going dead.
     await makeMockEnv();
     const hotkey = getService("hotkey");
     hotkey.add("q", () => expect.step("callback"));
@@ -1094,10 +1085,6 @@ test("patching the prototype intercepts a live service instance", async () => {
 });
 
 test("the service object's overlayModifier stays live, not snapshotted", async () => {
-    // `ui/commands/default_providers.js` reads `overlayModifier` off the registry
-    // entry, and tests change it with `patchWithCleanup(hotkeyService, …)`. The
-    // instance must therefore keep reading it from the service object rather
-    // than copying it in the constructor.
     await makeMockEnv();
     const hotkey = getService("hotkey");
     patchWithCleanup(hotkeyService, { overlayModifier: "alt+control" });

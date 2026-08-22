@@ -59,14 +59,6 @@ test("an 'ir.actions.act_url' action without url does nothing", async () => {
     expect.verifySteps([]);
 });
 
-/**
- * The scheme is judged on the url as the action gave it, before `normalizeUrl`
- * prefixes a slash onto anything that does not already look like one. Checked
- * after, `javascript:alert()` had become the relative path `/javascript:alert()`
- * — no scheme for the guard to see, so the guard fired only for the shapes that
- * survive normalisation (`//host`, `httpx://`) and never for the scheme family
- * it exists to reject, which was opened instead.
- */
 const UNSAFE_URLS = [
     "javascript:alert()",
     "JavaScript:alert()",
@@ -100,11 +92,6 @@ for (const url of UNSAFE_URLS) {
 }
 
 test("a blob url is opened as-is, not turned into a relative path", async () => {
-    // The pdf viewer downloads a not-yet-saved upload through an act_url whose
-    // url is an object url this document created. `blob:` is meaningless as
-    // DATA, so it is not on the shared safe list, but it is the real target
-    // here — and prefixing a slash onto it could only 404.
-    // A real window object, or `openURL` reports the popup as blocked.
     patchWithCleanup(browser, {
         open: (url) => {
             expect.step(url);

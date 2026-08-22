@@ -1,18 +1,5 @@
 // @ts-check
 
-/**
- * ``_invalidFields`` and ``_unsetRequiredFields`` are one piece of state in two
- * containers: the first is what ``isValid`` reads, the second is the candidate
- * list the ``removeInvalidOnly`` prune iterates. Every path that drops one must
- * drop the other, and the savepoint must carry both.
- *
- * Restoring only ``_invalidFields`` put back flags whose candidate entry was
- * gone, so no prune could revisit them — and the full scan in ``record_save``
- * could not either, since it only deletes entries still listed in
- * ``_unsetRequiredFields``. Once such a field stopped being required, the
- * record stayed invalid for good and could never be saved.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { markRaw } from "@odoo/owl";
 import { makeRecordDouble } from "@web/../tests/model/relational_model/record_doubles";
@@ -53,7 +40,6 @@ describe("savepoint", () => {
         addSavePoint(rec);
         expect(rec._savePoint.unsetRequiredFields).toEqual(["name"]);
 
-        // the sub-flow fixes the field: both sets get pruned
         rec.data.name = "filled";
         rec._checkValidity();
         expect([...rec._invalidFields]).toEqual([]);
@@ -78,8 +64,6 @@ describe("savepoint", () => {
         rec.data.name = false;
         discard(rec);
 
-        // `name` is no longer required — the scoped prune must be able to reach
-        // it, which it can only do through `_unsetRequiredFields`.
         required = false;
         rec._checkValidity({ removeInvalidOnly: true });
 

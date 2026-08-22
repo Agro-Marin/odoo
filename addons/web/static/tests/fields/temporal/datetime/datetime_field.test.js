@@ -836,8 +836,6 @@ test("empty datetime touched then left must not dirty the record", async () => {
 });
 
 test("list datetime: the column is sized for the string it renders", async () => {
-    // The default widget renders no seconds, so the column must not reserve
-    // room for them; asking for seconds must widen it by exactly that much.
     await resize({ width: 800 });
     document.body.style.fontFamily = "sans-serif";
     resetDateFieldWidths();

@@ -1,13 +1,5 @@
 // @ts-check
 
-/**
- * Pure unit tests for static_list_utils.js.
- *
- * Tests compareRecords and computeNextOrderBy without OWL or DOM.
- * copyRecordData is not covered here — it requires a full Record instance
- * with _isReadonly/_isInvisible/_isRequired callbacks.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import {
     compareRecords,

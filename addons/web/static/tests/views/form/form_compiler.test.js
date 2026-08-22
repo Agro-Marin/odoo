@@ -14,9 +14,6 @@ function compileTemplate(/** @type {any} */ arch, params = {}) {
     return compiler.compile("form", params);
 }
 
-/** Compile a bare ``div[name='button_box']`` arch directly (the button box is
- *  stripped from the sheet/nosheet form output, so exercise its compiler in
- *  isolation). */
 function compileButtonBox(/** @type {any} */ arch, params = {}) {
     const parser = new DOMParser();
     const xml = parser.parseFromString(arch, "text/xml");
@@ -565,9 +562,6 @@ describe("button box, label pairing", () => {
     });
 
     test("without a sheet, a label for a button-box-only field is paired too", () => {
-        // The nosheet branch used to skip the button box by name instead of
-        // compiling and dropping it, so the field never claimed the label and
-        // it survived as a bare <label> with no FormLabel behind it.
         expect(countLabels(`<label for="bar"/>${BOX}`)).toEqual({
             formLabels: 1,
             rawLabels: 0,

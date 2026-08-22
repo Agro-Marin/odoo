@@ -1,31 +1,5 @@
 // @ts-check
 
-/**
- * Regression tests for the missing x2many commit step on the ``reload: false``
- * save path.
- *
- * That path keeps the record datapoint alive and editable — ``form_controller``,
- * ``form_view_dialog``, ``x2many_crud``, the kanban quick-create and a handful
- * of enterprise callers all use it — but it used to leave every relation
- * describing the PRE-save world:
- *
- *   1. the post-save clean-up walked ``record._changes``, so a list the user
- *      had not staged an edit into was never visited at all — and a list seeded
- *      by the creation onchange lives in ``_values``, so the one list that most
- *      needed re-baselining was precisely the one skipped;
- *   2. even where it did run, ``_clearCommands`` only drops the pending log: the
- *      list never learned the ids the write had just assigned, so
- *      ``config.resIds`` stayed empty and the rows kept their virtual ids.
- *
- * The visible consequence: editing a row that the save had just persisted
- * staged a CREATE instead of an UPDATE, so the following save wrote a SECOND
- * row. A rename became a duplicate.
- *
- * The fix asks ``web_save`` for the relation's post-save id list (a bare ``{}``
- * sub-spec, which ``web_read`` answers with the raw ids) and hands it to
- * ``StaticList._commitSave``.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import {
     Command,
@@ -62,7 +36,6 @@ const ARCH = `
         </field>
     </form>`;
 
-/** Capture the model instance the view builds. */
 function captureModel() {
     const box = {};
     patchWithCleanup(RelationalModel.prototype, {
@@ -74,7 +47,6 @@ function captureModel() {
     return box;
 }
 
-/** Seed every new record with one onchange-created line. */
 function seedLineOnCreate() {
     patchWithCleanup(Partner.prototype, {
         onchange() {
@@ -103,7 +75,6 @@ describe("reload:false save re-baselines its x2many lists", () => {
         await record.update({ name: "hello" });
         await record.save({ reload: false });
 
-        // The list has adopted the write: the seeded row now carries a real id.
         expect(list._commands).toEqual([]);
         expect(list._initialCommands).toEqual([]);
         expect(list.config.resIds.length).toBe(1);
@@ -118,7 +89,7 @@ describe("reload:false save re-baselines its x2many lists", () => {
         expect(saves.length).toBe(2);
         const commands = saves[1].turtles;
         expect(commands.length).toBe(1);
-        expect(commands[0][0]).toBe(1); // 1 = UPDATE, not 0 = CREATE
+        expect(commands[0][0]).toBe(1);
         expect(commands[0][1]).toBe(line.resId);
         expect(commands[0][2]).toEqual({ name: "renamed" });
     });

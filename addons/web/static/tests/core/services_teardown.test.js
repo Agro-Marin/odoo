@@ -38,8 +38,10 @@ describe("connection recovery outlives nothing", () => {
         const { UncaughtPromiseError } =
             await import("@web/core/errors/uncaught_errors");
         const { ConnectionLostError } = await import("@web/core/network/rpc");
-        const { lostConnectionHandler, connectionRecoveryService } =
+        const { lostConnectionHandler } =
             await import("@web/components/errors/error_handlers");
+        const { connectionRecoveryService } =
+            await import("@web/core/network/connection_recovery_service");
         await makeMockEnv();
         onRpc("/web/webclient/version_info", () => {
             expect.step("probe");
@@ -63,11 +65,13 @@ describe("connection recovery outlives nothing", () => {
             },
         };
 
+        // The handler reaches the state through `env.services`, so the env has
+        // to carry it -- which is the point: there is no module-level channel
+        // between the two any more.
         const recovery = connectionRecoveryService.start(/** @type {any} */ (env));
+        /** @type {any} */ (env).services.connection_recovery = recovery;
         recovery.destroy();
 
-        // Destroy used to DELETE the per-env state, so a late error allocated a
-        // fresh `destroyed: false` one and started polling an env nobody shows.
         expect(
             lostConnectionHandler(
                 /** @type {any} */ (env),
@@ -175,8 +179,6 @@ describe("file upload teardown", () => {
             },
         });
 
-        // Goes through the real registry, so this also proves env.destroy()
-        // actually reaches a service's destroy() — the premise of this file.
         const env = await makeMockEnv();
         const fileUpload = getService("file_upload");
         const upload = await fileUpload.upload(ROUTE, [new File(["x"], "x.txt")]);
@@ -189,7 +191,6 @@ describe("file upload teardown", () => {
         expect(upload.state).toBe("abort");
         expect(fileUpload.uploads[upload.id]).toBe(undefined);
 
-        // A failure landing after teardown must not push into a dead UI.
         created[0].listeners.error?.();
         expect(notifications).toEqual([]);
     });
@@ -239,9 +240,6 @@ describe("user cache invalidation ownership", () => {
             expect.step("has_group");
             return true;
         });
-        // `patchWithCleanup(user, _makeUser(...))` is the established idiom
-        // (user.test.js, daterange_field.test.js). Routing invalidation through
-        // the live binding has to reach THAT closure's caches, not the original's.
         patchWithCleanup(user, _makeUser({ uid: 7, user_context: {} }));
         await user.hasGroup("base.group_patched_probe");
         await user.hasGroup("base.group_patched_probe");
@@ -260,9 +258,6 @@ describe("pwa install-prompt latch", () => {
         ev.prompt = async () => ({ outcome: "accepted" });
         browser.BeforeInstallPromptEvent = ev;
 
-        // Fired with no service running, so the module-level latch parks it.
-        // Nothing consumes it — exactly the shape that leaked: the NEXT test's
-        // service claimed it and reported an install prompt it never saw.
         browser.dispatchEvent(ev);
         _resetPwaInstallPrompt();
 
@@ -276,7 +271,6 @@ describe("pwa install-prompt latch", () => {
         ev.prompt = async () => ({ outcome: "accepted" });
         browser.BeforeInstallPromptEvent = ev;
 
-        // The reset must not defeat the latch's actual purpose.
         browser.dispatchEvent(ev);
         await makeMockEnv();
         expect(getService("pwa").isAvailable).toBe(true);
@@ -306,8 +300,6 @@ describe("async service protection", () => {
                 const pwa = useService("pwa");
                 onMounted(async () => {
                     const manifest = await pwa.getManifest();
-                    // Reached only if the call was NOT protected: by now the
-                    // component is destroyed and this write targets dead state.
                     writes.push(/** @type {any} */ (manifest).name);
                 });
             }
@@ -323,9 +315,6 @@ describe("async service protection", () => {
 });
 
 describe("feature flag URL memoization", () => {
-    // This pair is deliberately ordered: the first test's only job is to prime
-    // the module-level override cache the way any incidental read does, so the
-    // second can show that a correctly-patched URL is still honoured.
     test("an incidental read on a clean URL primes the cache", async () => {
         expect(featureFlag("teardown_probe_flag")).toBe(false);
     });
@@ -334,9 +323,6 @@ describe("feature flag URL memoization", () => {
         patchWithCleanup(browser.location, {
             href: "http://localhost/odoo?features=teardown_probe_flag:42",
         });
-        // `patchWithCleanup` restores browser.location but cannot reach a memo
-        // derived from it, so without a global reset this answered `false` and
-        // the test silently asserted nothing.
         expect(featureFlag("teardown_probe_flag")).toBe(42);
     });
 });
@@ -357,8 +343,6 @@ describe("command service teardown", () => {
         env.destroy();
         expect(command.getCommands(document.body)).toHaveLength(0);
 
-        // The palette hotkey was registered at start() and never released, so
-        // it stayed live in a hotkey service the same teardown just emptied.
         await press(["control", "k"]);
         expect(opened).toEqual([]);
     });
@@ -388,5 +372,45 @@ describe("orm empty id lists", () => {
         const orm = getService("orm");
         await orm.webSave("teardown", [], { name: "created" }, { specification: {} });
         expect.verifySteps(["web_save"]);
+    });
+});
+
+describe("connection recovery releases what it took", () => {
+    test("destroying after the connection is lost takes the sticky notice down", async () => {
+        const { UncaughtPromiseError } =
+            await import("@web/core/errors/uncaught_errors");
+        const { ConnectionLostError } = await import("@web/core/network/rpc");
+        const { lostConnectionHandler } =
+            await import("@web/components/errors/error_handlers");
+        const { connectionRecoveryService } =
+            await import("@web/core/network/connection_recovery_service");
+
+        patchWithCleanup(browser, { setTimeout: () => 1, clearTimeout: () => {} });
+
+        let removed = 0;
+        const env = {
+            services: {
+                notification: {
+                    add: () => () => {
+                        removed++;
+                    },
+                },
+            },
+        };
+        const recovery = connectionRecoveryService.start(/** @type {any} */ (env));
+        /** @type {any} */ (env).services.connection_recovery = recovery;
+        const error = new UncaughtPromiseError();
+        error.unhandledRejectionEvent = /** @type {any} */ ({
+            preventDefault: () => {},
+        });
+        lostConnectionHandler(
+            /** @type {any} */ (env),
+            error,
+            new ConnectionLostError("/x"),
+        );
+        expect(removed).toBe(0);
+
+        recovery.destroy();
+        expect(removed).toBe(1);
     });
 });

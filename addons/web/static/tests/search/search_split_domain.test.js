@@ -1,16 +1,5 @@
 // @ts-check
 
-/**
- * Unit tests for search/search_split_domain_mixin.js.
- *
- * splitAndAddDomain is a SearchModel mixin method; tests build the mock on a
- * real SearchSplitDomainMixin(SearchQueryMixin(...)) instance so its
- * query-mutation methods run the genuine logic, exercising the query-order
- * observable (which drives facet order) through the real chain. The
- * treeProcessor is stubbed: trees are built with the real condition_tree
- * helpers so domainFromTree runs unmocked.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { condition, connector } from "@web/core/tree/condition_tree";
 import { computeSearchItemGroupBys, getQueryGroups } from "@web/search/search_group_by";
@@ -19,15 +8,15 @@ import { SearchSplitDomainMixin } from "@web/search/search_split_domain_mixin";
 
 describe.current.tags("headless");
 
-/** Concrete class exercising the split-domain + query mixins in isolation. */
 const QueryModel = SearchSplitDomainMixin(SearchQueryMixin(class {}));
 
 /**
- * Build a minimal SearchModel mock around a stubbed treeProcessor.
- * @param {Object} tree - tree returned by treeFromDomain
- * @param {Object} [overrides]
+ * @param {Record<string, any>} tree
+ * @param {Record<string, any>} [overrides]
+ * @returns {any}
  */
 function makeSearchModel(tree, overrides = {}) {
+    /** @type {string[]} */
     const notifications = [];
     const model = new QueryModel();
     Object.assign(model, {
@@ -58,10 +47,11 @@ function makeSearchModel(tree, overrides = {}) {
         _getGroups() {
             return getQueryGroups(this.query, this.searchItems);
         },
+        /** @returns {Record<string, any>|null} */
         _getSearchItemContext() {
             return null;
         },
-        _getSearchItemGroupBys(activeItem) {
+        _getSearchItemGroupBys(/** @type {any} */ activeItem) {
             return computeSearchItemGroupBys(activeItem, this.searchItems);
         },
         _notifications: notifications,
@@ -71,10 +61,9 @@ function makeSearchModel(tree, overrides = {}) {
 }
 
 /**
- * Add a search item and (optionally) activate it in the query.
- * @param {Object} model
+ * @param {any} model
  * @param {number} id
- * @param {Object} item
+ * @param {Record<string, any>} item
  * @param {boolean} [activate]
  */
 function addItem(model, id, item, activate = true) {
@@ -86,7 +75,8 @@ function addItem(model, id, item, activate = true) {
     model.nextGroupId = Math.max(model.nextGroupId, (item.groupId ?? id) + 1);
 }
 
-const queryIds = (model) => model.query.map((q) => q.searchItemId);
+const queryIds = (/** @type {any} */ model) =>
+    model.query.map((/** @type {any} */ q) => q.searchItemId);
 
 describe("splitAndAddDomain", () => {
     test("without groupId, new filters are appended after the existing query", async () => {
@@ -123,7 +113,9 @@ describe("splitAndAddDomain", () => {
 
         expect(queryIds(model)).toEqual([1, 4, 5, 3]);
         expect(2 in model.searchItems).toBe(true);
-        expect(model.query.some((q) => q.searchItemId === 2)).toBe(false);
+        expect(model.query.some((/** @type {any} */ q) => q.searchItemId === 2)).toBe(
+            false,
+        );
     });
 
     test("splitting a favorite recreates its groupBys at the front", async () => {
@@ -143,11 +135,53 @@ describe("splitAndAddDomain", () => {
         await model.splitAndAddDomain(`[("foo", "=", 1)]`, 5);
 
         const groupById = model.query
-            .map((q) => model.searchItems[q.searchItemId])
-            .find((item) => item.type === "groupBy");
+            .map((/** @type {any} */ q) => model.searchItems[q.searchItemId])
+            .find((/** @type {any} */ item) => item.type === "groupBy");
         expect(groupById.fieldName).toBe("stage_id");
         expect(groupById.invisible).toBe("True");
-        expect(queryIds(model)).toEqual([groupById.id, 4, 1]);
-        expect(model.query.some((q) => q.searchItemId === 2)).toBe(false);
+        expect(queryIds(model)).toEqual([groupById.id, 1, 4]);
+        expect(model.query.some((/** @type {any} */ q) => q.searchItemId === 2)).toBe(
+            false,
+        );
+    });
+
+    test("a favorite leading the query keeps the leading slot", async () => {
+        const tree = condition("foo", "=", 1);
+        const model = makeSearchModel(tree);
+        model.searchViewFields = {
+            stage_id: { string: "Stage", type: "many2one" },
+        };
+        addItem(model, 2, {
+            type: "favorite",
+            groupId: 5,
+            domain: "[]",
+            groupBys: ["stage_id"],
+        });
+        addItem(model, 1, { type: "filter", domain: "[]" });
+
+        await model.splitAndAddDomain(`[("foo", "=", 1)]`, 5);
+
+        const groupById = model.query
+            .map((/** @type {any} */ q) => model.searchItems[q.searchItemId])
+            .find((/** @type {any} */ item) => item.type === "groupBy");
+        const newFilterId = model.query
+            .map((/** @type {any} */ q) => q.searchItemId)
+            .find((/** @type {any} */ id) => id !== groupById.id && id !== 1);
+        expect(queryIds(model)).toEqual([newFilterId, groupById.id, 1]);
+    });
+
+    test("a favorite carrying no groupBys is replaced in place", async () => {
+        const tree = condition("foo", "=", 1);
+        const model = makeSearchModel(tree);
+        addItem(model, 1, { type: "filter", domain: "[]" });
+        addItem(model, 2, { type: "favorite", groupId: 5, domain: "[]", groupBys: [] });
+        addItem(model, 3, { type: "filter", domain: "[]" });
+
+        await model.splitAndAddDomain(`[("foo", "=", 1)]`, 5);
+
+        const newFilterId = model.query
+            .map((/** @type {any} */ q) => q.searchItemId)
+            .find((/** @type {any} */ id) => ![1, 3].includes(id));
+        expect(queryIds(model)).toEqual([1, newFilterId, 3]);
     });
 });

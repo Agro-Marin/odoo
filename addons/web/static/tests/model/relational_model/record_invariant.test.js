@@ -6,11 +6,6 @@ import { RecordEditState } from "@web/model/relational_model/record_edit_state";
 
 describe.current.tags("headless");
 
-/**
- * Minimal record mock exercising the actual `_setData` keepChanges branch
- * (commit 409786d70b9d): `this.dirty = this.dirty || !this._changeSet.isEmpty`
- * instead of deriving it solely from `_changeSet`/`_invalidFields`.
- */
 function makeSetDataProbeRecord({ dirty, changes = {} } = {}) {
     const editState = new RecordEditState();
     editState.changes = changes;

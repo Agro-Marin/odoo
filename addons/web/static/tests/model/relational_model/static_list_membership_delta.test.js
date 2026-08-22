@@ -1,19 +1,5 @@
 // @ts-check
 
-/**
- * Tests for ``StaticList.stagedMembershipDelta`` — the published answer to
- * "which records has this list been told to link, and which to unlink".
- *
- * It exists because ``dynamic_list.js`` built the many2many half of a save's
- * change report by reading ``_commands`` and re-deriving the answer, which put
- * the command encoding (tuple shape, opcode numbering, id at index 1) in a
- * caller with no other reason to know it. That reach was the last undeclared
- * cross-module private access in the addon.
- *
- * Uses ``Object.create(StaticList.prototype)`` so the real getter runs against a
- * hand-built state, mirroring static_list_pending_commands.test.js.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { markRaw } from "@odoo/owl";
 import { x2ManyCommands } from "@web/core/network/commands";
@@ -22,10 +8,10 @@ import { StaticList } from "@web/model/relational_model/static_list";
 /**
  * @param {Object} opts
  * @param {any[]} opts.commands
- * @param {Record<string, any>} [opts.cache]
+ * @param {Map<number | string, any>} [opts.cache]
  * @returns {any}
  */
-function makeList({ commands, cache = {} }) {
+function makeList({ commands, cache = new Map() }) {
     const list = Object.create(StaticList.prototype);
     Object.assign(list, { _commands: commands, _cache: markRaw(cache) });
     return list;
@@ -42,7 +28,10 @@ describe("StaticList.stagedMembershipDelta", () => {
                 [x2ManyCommands.LINK, 1, false],
                 [x2ManyCommands.UNLINK, 2, false],
             ],
-            cache: { 1: a, 2: b },
+            cache: new Map([
+                [1, a],
+                [2, b],
+            ]),
         });
 
         expect(list.stagedMembershipDelta).toEqual({ add: [a], remove: [b] });
@@ -57,20 +46,19 @@ describe("StaticList.stagedMembershipDelta", () => {
                 [x2ManyCommands.UPDATE, 1, false],
                 [x2ManyCommands.LINK, 1, false],
             ],
-            cache: { 1: a, 9: rec("gone"), virtual_1: rec("new") },
+            cache: new Map(
+                /** @type {[number | string, any][]} */ ([
+                    [1, a],
+                    [9, rec("gone")],
+                    ["virtual_1", rec("new")],
+                ]),
+            ),
         });
 
-        // Only the LINK contributes: CREATE/DELETE/UPDATE are a different
-        // question, and the caller asked about membership.
         expect(list.stagedMembershipDelta).toEqual({ add: [a], remove: [] });
     });
 
     test("drops ids the list has never materialised instead of yielding holes", () => {
-        // The behaviour the extraction fixed. `getCachedRecord` returns
-        // undefined for an id with no datapoint, and the previous inline
-        // `.map()` put that undefined straight into the reported delta — so a
-        // consumer iterating `add` got an element with no record in it. A LINK
-        // for a record this list never built has nothing to report.
         const a = rec("a");
         const list = makeList({
             commands: [
@@ -78,7 +66,7 @@ describe("StaticList.stagedMembershipDelta", () => {
                 [x2ManyCommands.LINK, 404, false],
                 [x2ManyCommands.UNLINK, 405, false],
             ],
-            cache: { 1: a },
+            cache: new Map([[1, a]]),
         });
 
         const delta = list.stagedMembershipDelta;
@@ -102,7 +90,10 @@ describe("StaticList.stagedMembershipDelta", () => {
                 [x2ManyCommands.LINK, 2, false],
                 [x2ManyCommands.LINK, 1, false],
             ],
-            cache: { 1: second, 2: first },
+            cache: new Map([
+                [1, second],
+                [2, first],
+            ]),
         });
 
         expect(list.stagedMembershipDelta.add).toEqual([first, second]);

@@ -1,14 +1,5 @@
 // @ts-check
 
-/**
- * @module tests/views/multi_record_group
- *
- * Unit coverage for the shared multi-record group-management layer: the
- * "may a group be created in place" predicate, the group config menu props
- * builder, and the delete/toggle/quick-create-group flows the list and kanban
- * renderers both delegate to.
- */
-
 import { expect, test } from "@odoo/hoot";
 import { registry } from "@web/core/registry";
 import { useGroupManagement } from "@web/views/multi_record_group";

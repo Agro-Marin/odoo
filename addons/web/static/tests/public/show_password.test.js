@@ -32,7 +32,6 @@ test("reveals and hides the password, and says so", async () => {
     expect(toggle).toHaveAttribute("aria-pressed", "true");
     expect(toggle).toHaveAttribute("aria-label", "Hide password");
     expect(".o_show_password > i").toHaveClass("fa-eye-slash");
-    // revealing must not disturb what the visitor typed
     expect(/** @type {HTMLInputElement} */ (input).value).toBe("hunter2");
 
     await click(toggle);
@@ -48,7 +47,6 @@ test("a revealed password is hidden again when the interaction stops", async () 
     await animationFrame();
     expect(".input-group input").toHaveAttribute("type", "text");
     core.stopInteractions();
-    // leaving a password field readable after teardown would outlive the widget
     expect(".input-group input").toHaveAttribute("type", "password");
 });
 
@@ -67,7 +65,5 @@ test("a group without its own toggle is left alone", async () => {
         `<div class="input-group"><input type="password"/></div>
          <div class="input-group"><div><button class="o_show_password">x</button></div></div>`,
     );
-    // selectorHas is scoped to a direct child: a toggle nested deeper belongs
-    // to something else, and neither group may be claimed
     expect(core.interactions).toHaveLength(0);
 });

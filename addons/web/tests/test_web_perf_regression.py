@@ -1,24 +1,9 @@
-"""Query count regression tests for web module operations.
-
-Each test pins the expected number of SQL queries for an optimized code path.
-If a future change introduces an N+1 regression, the test will fail with a
-higher-than-expected query count.
-
-Run with:
-    > ./odoo.log && ./core/odoo-bin -c ./conf/odoo.conf -d test_db \
-        --test-tags '/web:TestWebPerfRegression' -u web \
-        --stop-after-init --workers=0
-    grep "tests when loading" ./odoo.log
-"""
-
 from odoo.fields import Command
 from odoo.tests.common import TransactionCase, tagged, warmup
 
 
 @tagged("post_install", "-at_install", "web_perf")
 class TestWebPerfRegression(TransactionCase):
-    """Pin query counts for web module CRUD operations."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -100,19 +85,15 @@ class TestWebPerfRegression(TransactionCase):
         super().setUp()
         self.env = self.env(user=self.user)
 
-
     @warmup
     def test_web_read_basic(self):
-        """web_read: 100 records, flat spec (name + email + type)."""
         partners = self.partners.with_user(self.user)
         self.env.invalidate_all()
         with self.assertQueryCount(2):
             partners.web_read({"name": {}, "email": {}, "type": {}})
 
-
     @warmup
     def test_web_read_many2one_subfields(self):
-        """web_read: 100 records with many2one (country_id) sub-spec."""
         partners = self.partners.with_user(self.user)
         self.env.invalidate_all()
         with self.assertQueryCount(4):
@@ -128,10 +109,8 @@ class TestWebPerfRegression(TransactionCase):
                 }
             )
 
-
     @warmup
     def test_web_read_x2many_subfields(self):
-        """web_read: parent + 10 children with one2many sub-spec."""
         parent = self.parent_partner.with_user(self.user)
         self.env.invalidate_all()
         with self.assertQueryCount(5):
@@ -148,10 +127,8 @@ class TestWebPerfRegression(TransactionCase):
                 }
             )
 
-
     @warmup
     def test_web_read_many2many_subfields(self):
-        """web_read: 100 records with many2many (category_id) sub-spec."""
         partners = self.partners.with_user(self.user)
         self.env.invalidate_all()
         with self.assertQueryCount(4):
@@ -167,10 +144,8 @@ class TestWebPerfRegression(TransactionCase):
                 }
             )
 
-
     @warmup
     def test_web_search_read(self):
-        """web_search_read: domain match ~100, limit=80 (triggers count)."""
         Partners = self.env["res.partner"].with_user(self.user)
         self.env.invalidate_all()
         with self.assertQueryCount(4):
@@ -180,10 +155,8 @@ class TestWebPerfRegression(TransactionCase):
                 limit=80,
             )
 
-
     @warmup
     def test_web_read_group_single(self):
-        """web_read_group: group by country_id, no auto_unfold."""
         Partners = self.env["res.partner"].with_user(self.user)
         self.env.invalidate_all()
         with self.assertQueryCount(3):
@@ -193,10 +166,8 @@ class TestWebPerfRegression(TransactionCase):
                 aggregates=["__count"],
             )
 
-
     @warmup
     def test_web_read_group_auto_unfold(self):
-        """web_read_group: group by country_id, auto_unfold=True."""
         Partners = self.env["res.partner"].with_user(self.user)
         self.env.invalidate_all()
         with self.assertQueryCount(5):
@@ -208,10 +179,8 @@ class TestWebPerfRegression(TransactionCase):
                 unfold_read_specification={"name": {}, "email": {}},
             )
 
-
     @warmup
     def test_search_panel_m2o(self):
-        """search_panel_select_range: many2one (country_id) with counters."""
         Partners = self.env["res.partner"].with_user(self.user)
         self.env.invalidate_all()
         with self.assertQueryCount(3):
@@ -221,13 +190,8 @@ class TestWebPerfRegression(TransactionCase):
                 enable_counters=True,
             )
 
-
     @warmup
     def test_search_panel_m2m_counters(self):
-        """search_panel_select_multi_range: m2m (category_id) with counters.
-
-        Batched: single _search_panel_domain_image() replaces N search_count().
-        """
         Partners = self.env["res.partner"].with_user(self.user)
         self.env.invalidate_all()
         with self.assertQueryCount(5):
@@ -237,10 +201,8 @@ class TestWebPerfRegression(TransactionCase):
                 enable_counters=True,
             )
 
-
     @warmup
     def test_web_name_search(self):
-        """web_name_search: display_name-only fast path."""
         Partners = self.env["res.partner"].with_user(self.user)
         self.env.invalidate_all()
         with self.assertQueryCount(4):
@@ -250,10 +212,8 @@ class TestWebPerfRegression(TransactionCase):
                 limit=100,
             )
 
-
     @warmup
     def test_web_save_multi(self):
-        """web_save_multi: write 10 records with unique vals (per-record write)."""
         if (
             self.env["ir.module.module"]
             .sudo()
@@ -271,16 +231,8 @@ class TestWebPerfRegression(TransactionCase):
         with self.assertQueryCount(35):
             partners.web_save_multi(vals_list, specification={"name": {}})
 
-
     @warmup
     def test_web_resequence_fast_path(self):
-        """web_resequence: 10 records on a fast-path-eligible model.
-
-        report.layout does not override write() and its ``sequence`` is a
-        plain stored Integer (no compute/inverse), so web_resequence takes the
-        cache-dirty fast path: access checks once, mark_dirty loop, a single
-        modified(), and one batched UPDATE at flush time.
-        """
         layouts = self.test_layouts.with_user(self.env.ref("base.user_admin"))
         self.env.invalidate_all()
         with self.assertQueryCount(2):
@@ -291,29 +243,6 @@ class TestWebPerfRegression(TransactionCase):
 
     @warmup
     def test_web_resequence_write_override(self):
-        """web_resequence: 10 menu items through the per-record write() path.
-
-        ir.ui.menu overrides write() (each real write clears the registry-wide
-        ormcaches, because the menu caches depend on ``sequence``), so the
-        cache-dirty fast path may NOT apply: skipping write() would leave stale
-        menu caches after a drag-reorder. The documented cost of honoring the
-        override is therefore per-record:
-
-        - 1  group-ids reload (the warmup run's cache clears wiped it)
-        - 20 = 10 x (ACL perm_write + ir.rule perm_write): each write()'s
-          registry cache clear wipes the access ormcaches the previous
-          iteration just re-warmed
-        - 2  ACL perm_read + ir.rule perm_read for the final web_read
-        - 1  web_read SELECT
-        - 1  single batched UPDATE at flush (the writes themselves are
-          deferred and flushed together — the N+1 is the access-cache
-          reloading, not the UPDATE)
-
-        In real usage the client only sends the records whose sequence value
-        actually changes (see computeResequencePlan in
-        static/src/model/relational_model/resequence.js), so this cost scales
-        with the size of the move, not the size of the list.
-        """
         menus = self.test_menus.with_user(self.env.ref("base.user_admin"))
         self.env.invalidate_all()
         with self.assertQueryCount(25):

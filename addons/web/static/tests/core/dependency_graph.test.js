@@ -1,11 +1,5 @@
 // @ts-check
 
-/**
- * Pure unit tests for dependency_graph.js.
- *
- * Tests cycle detection without OWL, DOM, or services.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { findDependencyCycle } from "@web/core/utils/dependency_graph";
 

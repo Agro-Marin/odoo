@@ -14,7 +14,6 @@ import {
     stepAllNetworkCalls,
 } from "../web_test_helpers.js";
 
-/** Foo is dummy model to test `action.report` with domain of its field `value`. **/
 class Foo extends models.Model {
     _name = "foo";
 
@@ -280,4 +279,29 @@ test("static action items are properly ordered and styled", async () => {
 
     expect(queryAllTexts(`.o_menu_item`)).toEqual(["Export", "Duplicate", "Delete"]);
     expect(`.o_menu_item:last`).toHaveClass("text-danger");
+});
+
+test("no separator is drawn above the first action item", async () => {
+    // The template inserts a divider whenever the group changes, and read the
+    // "previous group" out of a variable nothing declared.  On the first pass
+    // that is `undefined`, which is neither `null` nor the item's own group
+    // number, so every one of these menus opened with a rule floating above
+    // its first entry.  `web.PivotHeader.menu` seeds `currentGroup` to null
+    // for exactly this reason; the other three copies had not.
+    await mountView({
+        type: "list",
+        resModel: "foo",
+        actionMenus: { action: [], print: [] },
+        loadActionMenus: true,
+        arch: `
+              <list>
+                  <field name="value"/>
+              </list>
+         `,
+    });
+    await contains(`thead .o_list_record_selector input`).click();
+    await contains(`div.o_control_panel .o_cp_action_menus .dropdown-toggle`).click();
+
+    expect(`.o-dropdown--menu .dropdown-divider`).toHaveCount(0);
+    expect(`.o-dropdown--menu > *:first`).toHaveClass("o_menu_item");
 });

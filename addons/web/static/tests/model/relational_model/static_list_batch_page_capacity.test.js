@@ -1,31 +1,5 @@
 // @ts-check
 
-/**
- * Regression tests for the page-capacity accounting in ``applyCommands``.
- *
- * Removals are accumulated into ``removedIds`` and applied in one filter pass
- * AFTER the command loop, but every page-capacity decision is taken inside it.
- * Those decisions used to read ``list.records.length``, which still counts rows
- * a DELETE/UNLINK/CLEAR in the same batch has already condemned — so a batch
- * that drops one row and adds one opened a temporary row slot for a row about
- * to leave, permanently inflating ``config.limit``.
- *
- * That batch shape is not hypothetical: it is exactly what the server emits.
- * ``RecordSnapshot.diff`` (addons/web/models/record_snapshot.py) appends a
- * ``delete``/``unlink`` per dropped line FIRST, then the CREATE/UPDATE/LINK
- * commands — it never uses CLEAR/SET. So any onchange that replaces a line on a
- * full page hit this, and the page is full at 40 rows by default
- * (``limit: archInfo.limit || 40`` in views/field_arch.js and
- * views/form/form_utils.js) or at whatever ``limit`` the sub-view arch declares.
- *
- * Visible symptom: an x2many declared ``limit="3"`` rendered four rows, and the
- * pager kept the inflated page size for the life of the datapoint (its
- * ``pagerProps`` reads ``list.limit``).
- *
- * Uses the REAL StaticList and RelationalRecord against a mock model, in the
- * style of static_list_page_anchor.test.js.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";
@@ -85,7 +59,6 @@ describe("a batch that removes and adds must not inflate the page", () => {
         expect(list.limit).toBe(3);
         expect(list._tmpIncreaseLimit).toBe(0);
         expect(list.records.length).toBe(3);
-        // the created row replaces the deleted one in place, on the same page
         expect(list.records.map((r) => r.resId || "new")).toEqual([1, 3, "new"]);
         expect(list.count).toBe(5);
     });
@@ -120,7 +93,6 @@ describe("a batch that removes and adds must not inflate the page", () => {
     test("a CLEAR-led batch re-declaring fewer rows leaves limit untouched", async () => {
         const list = makeList({ resIds: [1, 2, 3, 4, 5], limit: 3 });
 
-        // the conventional "here is the whole relation" answer
         await list._applyCommands([
             [CLEAR, false, false],
             [LINK, 1, SERVER_ROWS[1]],
@@ -161,7 +133,6 @@ describe("a genuine over-limit add still opens a slot", () => {
     test("addAndRemove over the limit only opens slots for rows that remain", async () => {
         const list = makeList({ resIds: [1, 2, 3], limit: 3 });
 
-        // link two, unlink one, all in one batch (canAddOverLimit)
         await list._applyCommands(
             [
                 [UNLINK, 1, false],
@@ -172,7 +143,6 @@ describe("a genuine over-limit add still opens a slot", () => {
         );
 
         expect(list.records.length).toBe(4);
-        // 4 rows remain against a page of 3 -> exactly one extra slot
         expect(list.limit).toBe(4);
         expect(list._tmpIncreaseLimit).toBe(1);
         expect(list.count).toBe(4);

@@ -694,9 +694,6 @@ test("debug input", async () => {
                         groupable: true,
                         type: "char",
                         name: "foo",
-                        // Part of a Char's description since the ORM exports
-                        // `_description_trim`; the client reads it to honour the
-                        // trim contract (see TextInputFieldBase.shouldTrim).
                         trim: true,
                     },
                 });
@@ -1019,8 +1016,6 @@ test("Enter before the search debounce fires selects what the search asked for",
     await openModelFieldSelectorPopover();
     expect(getFocusedFieldName()).toBe("Bar");
 
-    // The 250ms debounce has not elapsed: the list on screen is still the
-    // unfiltered one. Enter must commit the typed query, not what it shows.
     await contains("input.o_input[placeholder='Search...']").edit("Product", {
         confirm: false,
     });
@@ -1038,8 +1033,6 @@ test("a search typed on one page does not filter the next one", async () => {
     await mountWithCleanup(Parent);
     await openModelFieldSelectorPopover();
 
-    // "Bar" only exists on partner. Leaving the page before the debounce
-    // fires must abandon the query with it.
     await contains("input.o_input[placeholder='Search...']").edit("Bar", {
         confirm: false,
     });
@@ -1066,14 +1059,10 @@ test("the search box drives the field list as a combobox", async () => {
     expect(input).toHaveAttribute("role", "combobox");
     expect(listbox).toHaveAttribute("role", "listbox");
     expect(input).toHaveAttribute("aria-controls", listbox.id);
-    // The option is the control that picks a field, not the row: the row also
-    // holds the button that drills into a relation, and an option may not
-    // contain a control.
     expect("[role=option]").toHaveCount(getDisplayedFieldNames().length);
     expect("[role=option]").toHaveClass("o_model_field_selector_popover_item_name");
     expect("[role=option] button, [role=option] input, [role=option] a").toHaveCount(0);
 
-    // The cursor the arrow keys move has to be readable, not only visible.
     const active = queryOne(
         ".o_model_field_selector_popover_item.active [role=option]",
     );
@@ -1086,7 +1075,6 @@ test("the search box drives the field list as a combobox", async () => {
     expect(next.id).not.toBe(active.id);
     expect(input).toHaveAttribute("aria-activedescendant", next.id);
 
-    // The search box keeps the focus; the relation button must not be a tab stop.
     expect(".o_model_field_selector_popover_item_relation:first").toHaveAttribute(
         "tabindex",
         "-1",
@@ -1107,8 +1095,6 @@ test("the first arrow after typing enters the results, it does not skip one", as
     });
     const matches = ["Foo", "Product", "Last Modified on", "Created on"];
 
-    // Applying the pending query already parks the focus on the first match;
-    // stepping again here would walk straight past it.
     await press("ArrowDown");
     await animationFrame();
     expect(getDisplayedFieldNames()).toEqual(matches);

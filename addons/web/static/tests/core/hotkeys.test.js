@@ -55,10 +55,6 @@ describe("getActiveHotkey physical-key remapping", () => {
 });
 
 describe("getActiveHotkey never reports a modifier as the pressed key", () => {
-    // MODIFIERS is Odoo's CHORD vocabulary (the prefixes a registered hotkey may
-    // carry), not the set of physical modifier key names. Filtering the pressed
-    // key against it meant every modifier outside that vocabulary was appended
-    // as if it were a character: holding Meta alone produced the hotkey "meta".
     test("bare Meta produces no key part", () => {
         expect(
             getActiveHotkey(/** @type {any} */ ({ key: "Meta", metaKey: true })),
@@ -102,18 +98,14 @@ describe("getActiveHotkey never reports a modifier as the pressed key", () => {
 describe("includesOverlayModifier matches whole tokens, not substrings", () => {
     test("exact modifier token matches; a look-alike substring does not", async () => {
         await makeMockEnv();
-        const hotkey = getService("hotkey"); // default overlayModifier is "alt"
+        const hotkey = getService("hotkey");
         expect(hotkey.includesOverlayModifier("alt+a")).toBe(true);
         expect(hotkey.includesOverlayModifier("control+a")).toBe(false);
-        // Regression: the former `hotkey.includes("alt")` matched any token
-        // *containing* the modifier name -- "salt" and "alter" both contain
-        // "alt". Whole-token matching rejects them.
         expect(hotkey.includesOverlayModifier("salt+a")).toBe(false);
         expect(hotkey.includesOverlayModifier("alter+a")).toBe(false);
     });
 
     test("compound overlay modifier needs every token present", async () => {
-        // `includesOverlayModifier` reads the module-level `hotkeyService.overlayModifier`.
         patchWithCleanup(hotkeyService, { overlayModifier: "control+alt" });
         await makeMockEnv();
         const hotkey = getService("hotkey");

@@ -1,19 +1,12 @@
 // @ts-check
 
-/**
- * Pure unit tests for record_lifecycle.js — archive(), unarchive(), deleteRecord(),
- * duplicateRecord() extracted from RelationalRecord (see
- * workspaces/workspace-LMMG/brainstorms/2026-05-23-web-model-layer-decomposition.md).
- *
- * Mutex serialization (Invariant I4) is enforced by the class-method wrappers in
- * record.js, not by these helpers — tests call the helpers directly with a
- * hand-rolled mock record, bypassing the mutex on purpose: the helpers' contract
- * is "assume you run under the mutex; do not re-enter it".
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { markRaw } from "@odoo/owl";
-import { RECORD_STATE_TRANSITIONS } from "@web/../tests/model/relational_model/record_doubles";
+import { MODEL_LIFECYCLE_PROTO } from "@web/../tests/model/relational_model/model_doubles";
+import {
+    installEditState,
+    RECORD_STATE_TRANSITIONS,
+} from "@web/../tests/model/relational_model/record_doubles";
 import {
     archive,
     deleteRecord,
@@ -22,21 +15,13 @@ import {
 } from "@web/model/relational_model/record_lifecycle";
 
 /**
- * Builds the minimal record mock shape required by the lifecycle helpers.
- *
- * Defaults exercise the happy paths:
- *  - resId=1, resIds=[1] (single-record case)
- *  - context={}, model.orm methods return success
- *  - hooks.ui.onDisplayArchiveAction returns whatever the caller passes
- *
  * @param {Object} [opts]
  * @param {number|false} [opts.resId=1]
  * @param {number[]} [opts.resIds=[1]]
  * @param {Function|null} [opts.unlink]
- * @param {Function|null} [opts.call] - ORM `call` stub (action_archive,
- *   action_unarchive, copy)
- * @param {Function|null} [opts.load] - model.load stub
- * @param {Function|null} [opts.onDisplayArchiveAction] - ui hook stub
+ * @param {Function|null} [opts.call]
+ * @param {Function|null} [opts.load]
+ * @param {Function|null} [opts.onDisplayArchiveAction]
  * @returns {Object}
  */
 function makeRecord({
@@ -85,6 +70,7 @@ function makeRecord({
             },
             load: load ?? (async () => {}),
             _patchConfig: () => {},
+            __proto__: MODEL_LIFECYCLE_PROTO,
             hooks: {
                 ui: {
                     onDisplayArchiveAction:
@@ -94,6 +80,7 @@ function makeRecord({
             },
         },
     };
+    installEditState(record);
     return record;
 }
 

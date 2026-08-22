@@ -1,11 +1,3 @@
-/**
- * The tab-switch auto-save must surface its own failure.
- *
- * requestSave({ errorMode: "silent" }) reports failure by RESOLVING to false,
- * so beforeVisibilityChange has to read the return value; a .catch() chained
- * onto it is unreachable and the failure would be completely silent.
- */
-
 import { expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
 import {
@@ -48,7 +40,6 @@ function captureConsoleWarn() {
     return { warnings, unpatch };
 }
 
-/** Counts the save attempts so no assertion can pass by never running. */
 function failEverySave() {
     const attempts = { count: 0 };
     onRpc("web_save", () => {
@@ -86,8 +77,6 @@ test("a failing tab-switch auto-save leaves the record dirty and uninterrupted",
     expect(attempts.count).toBe(1, {
         message: "control: the auto-save really was attempted and really failed",
     });
-    // the tab is hidden: interrupting with a dialog/notification would be
-    // pointless, but the record must stay dirty so the normal guards still fire
     expect(".o_notification").toHaveCount(0, {
         message: "no notification is raised",
     });

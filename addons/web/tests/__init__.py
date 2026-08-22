@@ -56,3 +56,4 @@ from . import test_web_search_read
 from . import test_webmanifest
 from . import test_res_config_settings
 from . import test_res_config_doc_links
+from . import test_trace_probes

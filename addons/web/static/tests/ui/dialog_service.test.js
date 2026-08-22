@@ -9,6 +9,7 @@ import {
     mountWithCleanup,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { browser } from "@web/core/browser/browser";
 import { useAutofocus } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
@@ -313,7 +314,7 @@ test("two dialogs, close the first one twice, then closeAll", async () => {
 test.tags("mobile");
 test("closing stacked dialogs restores the scroll position from before the first one", async () => {
     const scrollCalls = [];
-    patchWithCleanup(window, {
+    patchWithCleanup(browser, {
         scrollTo: (arg) => scrollCalls.push(arg),
     });
     const setScrollY = (value) =>
@@ -329,7 +330,6 @@ test("closing stacked dialogs restores the scroll position from before the first
     const closeFirst = getService("dialog").add(DialogComp, {});
     await animationFrame();
 
-    // Whatever the page scrolled to once the first dialog took over.
     setScrollY(0);
     const closeSecond = getService("dialog").add(DialogComp, {});
     await animationFrame();
@@ -344,11 +344,6 @@ test("closing stacked dialogs restores the scroll position from before the first
 });
 
 test("a component overriding the header slot can reuse web.Dialog.header", async () => {
-    // `web.Dialog.header` used to read `data.isClosing`, `id` and `props.title`
-    // straight off whatever component t-called it — an invisible contract only
-    // `Dialog` itself satisfies. Any other caller (SelectCreateDialog is the
-    // real one) threw `Cannot read properties of undefined (reading
-    // 'isClosing')` and took the whole dialog down.
     class HeaderOverridingDialog extends Component {
         static components = { Dialog };
         static template = xml`
@@ -374,28 +369,16 @@ test("a component overriding the header slot can reuse web.Dialog.header", async
     expect("header .modal-title").toHaveText("Welcome");
     expect(".o_extra_header_button").toHaveCount(1);
 
-    // The title element must be the one Dialog's `aria-labelledby` points at,
-    // which the hard-coded `id + '_title'` silently broke for every external
-    // caller (`id` was undefined there, yielding `id="undefined_title"`).
     const labelledBy = queryOne("[role=dialog]").getAttribute("aria-labelledby");
     expect(labelledBy).toMatch(/^dialog_\d+_title$/);
     expect(`#${labelledBy}`).toHaveText("Welcome");
 
-    // `[aria-label=Close]`, not `.btn-close`: `web.Dialog.header` renders the
-    // close button on desktop and a back arrow once `isFullscreen` (which
-    // `env.isSmall` turns on), so keying on the desktop class made this test
-    // fail under the mobile preset for a reason that has nothing to do with
-    // the slot contract it covers.
     await click(".o_dialog header [aria-label=Close]");
     await animationFrame();
     expect(".o_dialog").toHaveCount(0);
 });
 
 test("destroy() closes open dialogs and runs their onClose", async () => {
-    // On the usual teardown path `overlay` is destroyed first (it is a
-    // dependency) and takes the dialogs with it, which hid that destroying this
-    // service on its own only dropped its bookkeeping: the modal stayed
-    // mounted, `onClose` never ran, and the service reported nothing open.
     class Body extends Component {
         static props = ["*"];
         static template = xml`<div class="destroy-probe"/>`;
@@ -414,10 +397,6 @@ test("destroy() closes open dialogs and runs their onClose", async () => {
     expect(document.body).not.toHaveClass("modal-open");
 });
 
-// `aria-modal` claims everything OUTSIDE the element is inert, so exactly one
-// dialog may carry it. Three stacked dialogs all carried it, i.e. each buried
-// one told assistive technology that the dialog on top of it -- the only one
-// the user can reach -- was inert.
 test("only the topmost dialog claims aria-modal", async () => {
     class CustomDialog extends Component {
         static components = { Dialog };
@@ -442,7 +421,6 @@ test("only the topmost dialog claims aria-modal", async () => {
         ["three", "true"],
     ]);
 
-    // Closing the top hands the claim back to the one beneath it.
     closers.at(-1)();
     await animationFrame();
     expect(modalState()).toEqual([
@@ -451,10 +429,6 @@ test("only the topmost dialog claims aria-modal", async () => {
     ]);
 });
 
-// `closeAll` discarded every close it started, so a caller could not tell when
-// the dialogs were actually gone. The one caller that tried -- pos_restaurant's
-// idle timeout, chaining off its return with `&&` -- got `undefined` and never
-// reached the navigation behind it.
 test("closeAll settles only once every dialog has gone", async () => {
     class Slow extends Component {
         static template = xml`<Dialog title="'s'">body</Dialog>`;
@@ -485,4 +459,32 @@ test("closeAll settles only once every dialog has gone", async () => {
     await animationFrame();
     expect(settled).toBe(true);
     expect(".modal").toHaveCount(0);
+});
+
+test("the function add() hands back closes through the closing state", async () => {
+    class CustomDialog extends Component {
+        static components = { Dialog };
+        static template = xml`<Dialog title="'Slow'">content</Dialog>`;
+        static props = ["*"];
+    }
+    /** @type {(v?: any) => void} */
+    let release = () => {};
+    const blocked = new Promise((resolve) => (release = resolve));
+    const close = getService("dialog").add(
+        CustomDialog,
+        {},
+        { onClose: () => blocked },
+    );
+    await animationFrame();
+    expect(".o_dialog").not.toHaveClass("o_dialog_closing");
+
+    const closing = close();
+    await animationFrame();
+    expect(".o_dialog").toHaveClass("o_dialog_closing");
+    expect(".modal-header button[aria-label='Close']").toHaveAttribute("disabled");
+
+    release();
+    await closing;
+    await animationFrame();
+    expect(".o_dialog").toHaveCount(0);
 });

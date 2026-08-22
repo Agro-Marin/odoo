@@ -24,20 +24,8 @@ function promiseState(promise) {
     );
 }
 
-/**
- * ``invalidate`` scopes both halves of its job by table: it clears ram and disk
- * for the named tables, and drops the pending requests whose key starts with
- * one of them. ``invalidateByModel`` scoped only the first half, so a request
- * on a table nobody asked about was still marked invalidated -- and an
- * invalidated request skips the cleanup in ``onRejected``, which is what left
- * the ram cache holding a rejected promise.
- */
 describe("invalidateByModel scopes pending requests by table too", () => {
     /**
-     * An `update: "always"` read joins a request that is still pending and
-     * issues its own when there is none, so "is this still a pending request"
-     * is observable as "did the fallback run a second time".
-     *
      * @param {string[]} invalidatedTables
      */
     async function secondFallbackRan(invalidatedTables) {
@@ -91,14 +79,11 @@ describe("a failed read never leaves a rejected promise in the cache", () => {
             model: "res.partner",
         });
 
-        // drop the request from `pendingRequests` while it is still in flight
         cache.invalidateByModel(["table_b"], "res.partner");
         inFlight.reject(new Error("boom"));
         await expect(read).rejects.toThrow(/boom/);
         await tick();
 
-        // a later read must issue a fresh request and settle, not join a
-        // rejected cache entry and hang on it
         const second = cache.read("table_a", "k", () => Promise.resolve({ ok: 1 }), {
             model: "res.partner",
             update: "always",
@@ -110,9 +95,6 @@ describe("a failed read never leaves a rejected promise in the cache", () => {
     });
 
     test("an update:always read over a rejected ram entry still settles", async () => {
-        // `invalidateByModel` no longer produces this state, but the ram cache
-        // holds promises and nothing stops one from rejecting, so the read has
-        // to cope. Seeded directly rather than through the bug it used to have.
         const cache = new RPCCache("mock", 1, SECRET);
         const poisoned = Promise.reject(new Error("stale"));
         poisoned.catch(() => {});
@@ -124,8 +106,6 @@ describe("a failed read never leaves a rejected promise in the cache", () => {
         });
         await tick();
         await tick();
-        // it used to hang: `onRejected`/`onFulfilled` both wait on a gate that
-        // only the fulfilled path opened
         expect((await promiseState(read)).status).toBe("fulfilled");
         expect(await read).toEqual({ ok: 1 });
     });
@@ -139,7 +119,6 @@ describe("a failed read never leaves a rejected promise in the cache", () => {
         /** @type {any} */
         let reason = null;
         let settled = false;
-        // handled synchronously: an escaping rejection is an unhandled one
         cache
             .read("t", "k", () => Promise.reject(new Error("fresh")), {
                 model: "m",
@@ -154,8 +133,6 @@ describe("a failed read never leaves a rejected promise in the cache", () => {
             );
         await tick();
         await tick();
-        // it used to hang: `onRejected` waits on a gate only the fulfilled path
-        // opened, so this read never settled at all
         expect(settled).toBe(true);
         expect(String(reason)).toMatch(/fresh/);
     });

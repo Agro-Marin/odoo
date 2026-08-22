@@ -4,14 +4,14 @@ import { makeErrorFromResponse } from "@web/core/network/rpc";
 
 /**
  * @typedef {{
- *  code?: number;
- *  context?: import("@web/core/context").Context;
- *  description?: string;
- *  message?: string;
- *  subType?: string;
- *  errorName?: string;
- *  type?: string;
- *  args?: unknown[];
+ * code?: number;
+ * context?: import("@web/core/context").Context;
+ * description?: string;
+ * message?: string;
+ * subType?: string;
+ * errorName?: string;
+ * type?: string;
+ * args?: unknown[];
  * }} ServerErrorInit
  */
 
@@ -20,18 +20,9 @@ import { makeErrorFromResponse } from "@web/core/network/rpc";
  * @typedef {import("./mock_server").KwArgs} KwArgs
  */
 
-/**
- * This is a flag on keyword arguments, so that they can easily be distinguished
- * from args in ORM methods. They can then be easily retrieved with {@link getKwArgs}.
- */
 const KWARGS_SYMBOL = Symbol("is_kwargs");
 
 /**
- * Flags keyword arguments, so that they can easily be distinguished from regular
- * arguments in ORM methods.
- *
- * They can then be easily retrieved with {@link getKwArgs}.
- *
  * @template T
  * @param {T} kwargs
  * @returns {T}
@@ -42,12 +33,10 @@ export function makeKwArgs(kwargs) {
 }
 
 /**
- * Retrieves keyword arguments flagged by {@link makeKwArgs} from an arguments list.
- *
  * @template {string} T
- * @param {Iterable<any>} allArgs arguments of method
- * @param  {...T} argNames ordered names of positional arguments
- * @returns {KwArgs<Record<T, any>>} kwargs normalized params
+ * @param {Iterable<any>} allArgs
+ * @param {...T} argNames
+ * @returns {KwArgs<Record<T, any>>}
  */
 export function getKwArgs(allArgs, ...argNames) {
     const args = [...allArgs];
@@ -120,8 +109,6 @@ export function safeSplit(value, separator) {
 }
 
 /**
- * Removes the flag for keyword arguments.
- *
  * @template T
  * @param {T} kwargs
  * @returns {T}

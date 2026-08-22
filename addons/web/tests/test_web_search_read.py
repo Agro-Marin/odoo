@@ -2,7 +2,6 @@ from unittest.mock import patch
 
 from odoo.tests import common
 
-# Screening a stale spec key is only safe because it is reported.
 SCREENING_LOGGER = "odoo.addons.web.models.web_onchange"
 
 
@@ -71,13 +70,6 @@ class TestWebSearchRead(common.TransactionCase):
         )
 
     def test_empty_page_past_end_reports_real_length(self):
-        """An empty page PAST the end must still report the real total.
-
-        Records can be deleted under a user paged to offset > 0; the page then
-        returns no rows. Returning length 0 would collapse the pager and hide
-        the records still present on earlier pages. A genuinely empty result set
-        (offset 0) still short-circuits to length 0 with no count query.
-        """
         self.assertGreater(self.max, 0)
         res = self.ResCurrency.web_search_read(
             domain=[], specification={"id": {}}, offset=self.max + 50, limit=5
@@ -97,9 +89,6 @@ class TestWebSearchRead(common.TransactionCase):
         self.assertIn("__formatted_display_name", result)
 
     def test_stale_specification_key_is_screened(self):
-        """A stale field name in the spec must be dropped (mirroring
-        web_read's tolerance), not 500: ``_determine_fields_to_fetch`` is
-        strict and used to ValueError on the whole call."""
         with self.assertLogs(SCREENING_LOGGER, "WARNING") as capture:
             res = self.env["res.partner"].web_search_read(
                 domain=[],
@@ -113,7 +102,6 @@ class TestWebSearchRead(common.TransactionCase):
             self.assertNotIn("stale_zz", rec)
 
     def test_stale_sub_specification_key_is_screened(self):
-        """Stale names inside a relational sub-spec are screened too."""
         parent = self.env["res.partner"].create(
             {"name": "WSR Sub Parent", "is_company": True}
         )

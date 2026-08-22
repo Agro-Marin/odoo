@@ -4,6 +4,7 @@ import { expect, test } from "@odoo/hoot";
 import { queryAllTexts, queryFirst } from "@odoo/hoot-dom";
 import { runAllTimers } from "@odoo/hoot-mock";
 import { Component, onError, useState, xml } from "@odoo/owl";
+import { MODEL_LIFECYCLE_PROTO } from "@web/../tests/model/relational_model/model_doubles";
 import {
     contains,
     defineModels,
@@ -822,6 +823,7 @@ test(`don't duplicate a useRecordObserver effect when switching back and forth b
                     activeFields: { foo: {} },
                     isMonoRecord: true,
                 },
+                __proto__: MODEL_LIFECYCLE_PROTO,
                 hooks: {
                     onRecordSaved: () => {},
                     onWillSaveRecord: () => {},

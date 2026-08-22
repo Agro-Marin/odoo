@@ -1,25 +1,3 @@
-"""Tests for the ``__version`` content-hash stamp on cached read endpoints.
-
-Background: ``rpc_cache.js`` ``payloadChanged`` prefers a cheap version
-compare over deep ``jsonEqual`` when the server response carries
-``__version``.  The ``versioned``/``versioned_envelope`` decorators
-(``odoo/tools/cache_version.py``) opt a method into this contract.
-
-Currently covered:
-  - ``search_panel_select_range`` / ``search_panel_select_multi_range``
-  - ``web_search_read`` (hot path: every list/kanban refresh)
-  - ``web_read_group`` (hot path: every grouped view refresh)
-
-These tests pin:
-  1. The decorator stamps a sha256 hex hash on dict returns.
-  2. Identical queries produce identical hashes across calls (cache
-     stability invariant — without it, the client would always think
-     the payload changed).
-  3. A change in the underlying records produces a different hash
-     (correctness invariant — without it, the client would miss
-     genuine changes).
-"""
-
 import json
 
 from odoo.exceptions import UserError
@@ -28,8 +6,6 @@ from odoo.tests.common import HttpCase, TransactionCase, tagged
 
 @tagged("web_unit", "web_search_panel")
 class TestSearchPanelVersion(TransactionCase):
-    """Pins the ``__version`` stamp contract on search-panel endpoints."""
-
     def setUp(self):
         super().setUp()
         self.parent = self.env["res.partner"].create(
@@ -89,9 +65,6 @@ class TestSearchPanelVersion(TransactionCase):
 
 @tagged("web_unit", "web_search_panel")
 class TestSearchPanelStaleSelection(TransactionCase):
-    """A stored selection value no longer in the field's options (e.g. after a
-    module upgrade removed it) must not KeyError-500 the whole search panel."""
-
     def test_select_range_on_removed_selection_value(self):
         partner = self.env["res.partner"].create({"name": "Stale Sel"})
         self.env.flush_all()
@@ -107,12 +80,6 @@ class TestSearchPanelStaleSelection(TransactionCase):
 
 @tagged("web_unit", "web_search_panel")
 class TestWebSearchReadVersion(TransactionCase):
-    """``web_search_read`` is the hot-path cached read used by every
-    list/kanban refresh; the ``__version`` stamp lets the client cache
-    skip its deep ``jsonEqual`` comparison on stale-while-revalidate
-    refreshes (``relational_model.js:377``).
-    """
-
     def setUp(self):
         super().setUp()
         self.partners = self.env["res.partner"].create(
@@ -147,10 +114,6 @@ class TestWebSearchReadVersion(TransactionCase):
 
 @tagged("web_unit", "web_search_panel")
 class TestSearchPanelUnknownField(TransactionCase):
-    """An unknown ``field_name`` must raise a clean ``UserError``, not a raw
-    ``KeyError`` bubbling up as a 500 (``self._fields[field_name]``).
-    """
-
     def test_select_range_unknown_field_raises_usererror(self):
         with self.assertRaises(UserError):
             self.env["res.partner"].search_panel_select_range("no_such_field_xyz")
@@ -166,12 +129,6 @@ class TestSearchPanelUnknownField(TransactionCase):
 
 @tagged("post_install", "-at_install", "web_http", "web_search_panel")
 class TestWebReadEnvelopeVersion(HttpCase):
-    """``web_read`` returns a ``list`` and uses the envelope-side channel
-    (``@versioned_envelope``) instead of in-payload stamping.  The hash
-    rides as a sibling of ``result`` in the JSON-RPC envelope; verify it
-    appears in the wire response of an actual ``call_kw`` HTTP round-trip.
-    """
-
     def setUp(self):
         super().setUp()
         self.partner = self.env["res.partner"].create(
@@ -182,7 +139,6 @@ class TestWebReadEnvelopeVersion(HttpCase):
         )
 
     def _call_web_read(self):
-        """POST a real call_kw against /web/dataset/call_kw and decode the envelope."""
         self.authenticate("admin", "admin")
         response = self.url_open(
             "/web/dataset/call_kw/res.partner/web_read",
@@ -225,11 +181,6 @@ class TestWebReadEnvelopeVersion(HttpCase):
 
 @tagged("web_unit", "web_search_panel")
 class TestWebReadGroupVersion(TransactionCase):
-    """``web_read_group`` is the hot-path cached read used by every
-    grouped list / kanban / pivot refresh; ``__version`` lets the
-    client cache skip ``jsonEqual`` on stale-while-revalidate.
-    """
-
     def setUp(self):
         super().setUp()
         self.env["res.partner"].create(

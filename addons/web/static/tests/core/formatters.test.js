@@ -6,9 +6,9 @@ import { allowTranslations, patchWithCleanup } from "@web/../tests/web_test_help
 import { currencies } from "@web/core/currency";
 import {
     formatBinary,
-    formatDate,
-    formatDateTime,
-    formatFloat,
+    formatFieldDate,
+    formatFieldDateTime,
+    formatFieldFloat,
     formatFloatFactor,
     formatFloatTime,
     formatInteger,
@@ -41,25 +41,27 @@ beforeEach(() => {
     });
 });
 
-test("formatFloat", () => {
-    expect(formatFloat(false)).toBe("");
-    expect(formatFloat(200)).toBe("200.00");
-    expect(formatFloat(200, { trailingZeros: false })).toBe("200");
+test("formatFieldFloat", () => {
+    expect(formatFieldFloat(false)).toBe("");
+    expect(formatFieldFloat(200)).toBe("200.00");
+    expect(formatFieldFloat(200, { trailingZeros: false })).toBe("200");
 });
 
-test("formatFloat does not mutate a shared options object across fields", () => {
+test("formatFieldFloat does not mutate a shared options object across fields", () => {
     const options = {};
 
     options.field = { digits: [16, 4] };
-    expect(formatFloat(1.23456, options)).toBe("1.2346");
+    expect(formatFieldFloat(1.23456, options)).toBe("1.2346");
     options.field = { digits: [16, 1] };
-    expect(formatFloat(1.23456, options)).toBe("1.2");
+    expect(formatFieldFloat(1.23456, options)).toBe("1.2");
 
     expect(options.digits).toBe(undefined, {
-        message: "formatFloat must not write digits back into its options argument",
+        message:
+            "formatFieldFloat must not write digits back into its options argument",
     });
     expect(options.minDigits).toBe(undefined, {
-        message: "formatFloat must not write minDigits back into its options argument",
+        message:
+            "formatFieldFloat must not write minDigits back into its options argument",
     });
 
     const factorOptions = { factor: 2, field: { digits: [16, 3] } };
@@ -147,10 +149,6 @@ test("formatInteger", () => {
 
 test("formatInteger past the exponential-notation threshold", () => {
     patchWithCleanup(localization, { grouping: [3, 3, 3, 3] });
-    // `Number.prototype.toFixed` switches to exponential notation at 1e21, and
-    // the thousands grouping then chops up the exponent rather than the digits:
-    // 1e21 used to render as "1e,+21". (The leading run stays ungrouped because
-    // this grouping list is finite — that part is `intersperse`'s contract.)
     expect(formatInteger(1e20)).toBe("100000000,000,000,000,000");
     expect(formatInteger(1e21)).toBe("1000000000,000,000,000,000");
     expect(formatInteger(-1e21)).toBe("-1000000000,000,000,000,000");
@@ -269,20 +267,20 @@ test("formatMany2oneReference", () => {
     expect(formatMany2oneReference({ resId: 9, displayName: "Chair" })).toBe("Chair");
 });
 
-test("formatDate", () => {
-    expect(formatDate(false)).toBe("");
-    expect(formatDate(DateTime.fromObject({ day: 22, month: 1, year: 1990 }))).toBe(
-        "Jan 22, 1990",
-    );
+test("formatFieldDate", () => {
+    expect(formatFieldDate(false)).toBe("");
     expect(
-        formatDate(DateTime.fromObject({ day: 22, month: 1, year: 1990 }), {
+        formatFieldDate(DateTime.fromObject({ day: 22, month: 1, year: 1990 })),
+    ).toBe("Jan 22, 1990");
+    expect(
+        formatFieldDate(DateTime.fromObject({ day: 22, month: 1, year: 1990 }), {
             numeric: true,
         }),
     ).toBe("01/22/1990");
-    expect(formatDate(DateTime.fromObject({ day: 22, month: 1 }))).toBe("Jan 22");
+    expect(formatFieldDate(DateTime.fromObject({ day: 22, month: 1 }))).toBe("Jan 22");
 });
 
-test("formatDateTime", () => {
+test("formatFieldDateTime", () => {
     const datetime = DateTime.fromObject({
         day: 22,
         month: 1,
@@ -291,29 +289,26 @@ test("formatDateTime", () => {
         minute: 30,
         second: 45,
     });
-    expect(formatDateTime(false)).toBe("");
-    expect(formatDateTime(datetime)).toBe("Jan 22, 1990, 10:30 AM");
-    expect(formatDateTime(datetime, { showDate: false })).toBe("10:30 AM");
-    expect(formatDateTime(datetime, { showSeconds: true })).toBe(
+    expect(formatFieldDateTime(false)).toBe("");
+    expect(formatFieldDateTime(datetime)).toBe("Jan 22, 1990, 10:30 AM");
+    expect(formatFieldDateTime(datetime, { showDate: false })).toBe("10:30 AM");
+    expect(formatFieldDateTime(datetime, { showSeconds: true })).toBe(
         "Jan 22, 1990, 10:30:45 AM",
     );
-    expect(formatDateTime(datetime, { showTime: false })).toBe("Jan 22, 1990");
-    expect(formatDateTime(datetime, { numeric: true })).toBe("01/22/1990 10:30:45");
+    expect(formatFieldDateTime(datetime, { showTime: false })).toBe("Jan 22, 1990");
+    expect(formatFieldDateTime(datetime, { numeric: true })).toBe(
+        "01/22/1990 10:30:45",
+    );
     expect(
-        formatDateTime(
+        formatFieldDateTime(
             DateTime.fromObject({ day: 22, month: 1, hour: 10, minute: 30 }),
         ),
     ).toBe("Jan 22, 10:30 AM");
 });
 
 test("numeric formatters agree on absent and non-finite values", () => {
-    // Every numeric formatter shares one "nothing to format" guard. Before it,
-    // each carried its own partial version and they disagreed: formatFloat
-    // rendered "NaN" for undefined/null and "In,fin,ity" for Infinity (the
-    // thousands separator grouping the letters of the word), while
-    // formatInteger already returned "" for the same inputs.
     for (const format of [
-        formatFloat,
+        formatFieldFloat,
         formatFloatFactor,
         formatFloatTime,
         formatInteger,
@@ -329,27 +324,18 @@ test("numeric formatters agree on absent and non-finite values", () => {
 });
 
 test("humanReadable numeric formatting is guarded too", () => {
-    // The guard used to sit AFTER the humanReadable branch in formatInteger, so
-    // that branch reached humanNumber(undefined) and threw
-    // "TypeError: ... reading 'toExponential'". formatFloat routes to the same
-    // humanNumber and had no guard at all. Reachable from any caller that
-    // formats a field absent from the record spec - e.g. the gauge widget's
-    // tooltip when its `max_field` names a field the arch does not declare.
-    for (const format of [formatFloat, formatInteger]) {
+    for (const format of [formatFieldFloat, formatInteger]) {
         for (const value of [undefined, null, NaN, Infinity]) {
             expect(format(value, { humanReadable: true })).toBe("", {
                 message: `${format.name}(${String(value)}, {humanReadable}) should not throw`,
             });
         }
     }
-    // Real numbers still format normally.
     expect(formatInteger(1500, { humanReadable: true })).toBe("2k");
-    expect(formatFloat(1500, { humanReadable: true, decimals: 1 })).toBe("1.5k");
+    expect(formatFieldFloat(1500, { humanReadable: true, decimals: 1 })).toBe("1.5k");
 });
 
 test("formatBinary reports sizes in the same units as every upload widget", () => {
-    // There used to be a second, private `humanSize` here rendering powers of
-    // ten with a "b" suffix, so one byte count had two spellings in one UI.
     expect(formatBinary("")).toBe("");
     expect(formatBinary(false)).toBe("");
     expect(formatBinary("1.5 MB")).toBe("1.5 MB");

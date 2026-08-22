@@ -109,10 +109,13 @@ test(`Rendering with default ControlPanel and SearchPanel`, async () => {
         static components = { Layout };
 
         setup() {
-            this.searchModel = new SearchModel(this.env, {
-                orm: useService("orm"),
-                view: useService("view"),
-            });
+            this.searchModel = new SearchModel(
+                /** @type {import("@web/env").OdooEnv} */ (this.env),
+                {
+                    orm: useService("orm"),
+                    view: useService("view"),
+                },
+            );
             useSubEnv({ searchModel: this.searchModel });
             onWillStart(async () => {
                 await this.searchModel.load({ resModel: "foo", searchViewId: false });

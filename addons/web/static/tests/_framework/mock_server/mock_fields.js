@@ -10,13 +10,11 @@ import { MockServerError } from "./mock_server_utils.js";
  * @typedef {import("fields").FieldDefinitionsByType} FieldDefinitionsByType
  * @typedef {import("fields").FieldType} FieldType
  * @typedef {import("./mock_model").ModelRecord} ModelRecord
- *
  * @typedef {{
- *  compute?: (() => void) | string;
- *  default?: RecordFieldValue | ((record: ModelRecord) => RecordFieldValue);
- *  onChange?: (record: ModelRecord) => void;
+ * compute?: (() => void) | string;
+ * default?: RecordFieldValue | ((record: ModelRecord) => RecordFieldValue);
+ * onChange?: (record: ModelRecord) => void;
  * }} MockFieldProperties
- *
  * @typedef {number | string | boolean | number[]} RecordFieldValue
  */
 
@@ -31,16 +29,12 @@ function camelToPascal(name) {
 }
 
 /**
- * Two-level factory: this "generator" is called once per field type below to
- * produce a "constructor" function; that constructor is what test model
- * definitions call to build the actual field descriptor.
- *
  * @template {FieldType} T
  * @template [R=never]
  * @param {T} type
  * @param {{
- *  aggregator?: Aggregator;
- *  requiredKeys?: R[];
+ * aggregator?: Aggregator;
+ * requiredKeys?: R[];
  * }} params
  */
 function makeFieldGenerator(type, { aggregator, defaults, requiredKeys = [] } = {}) {

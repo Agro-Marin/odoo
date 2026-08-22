@@ -7,10 +7,6 @@ describe.current.tags("headless");
 
 const CACHE_NAME = "unit_test_idb_rejection";
 
-/**
- * Stub ``indexedDB.open`` to throw synchronously, mimicking private-browsing /
- * storage-disabled contexts. Restored after the test.
- */
 function patchOpenToThrow() {
     const original = indexedDB.open;
     indexedDB.open = () => {
@@ -51,12 +47,6 @@ test("a failing open flips the instance to degraded mode", async () => {
 });
 
 /**
- * Record when the invalidation transaction actually completes.
- *
- * The listener is attached at transaction creation, so it precedes the
- * `oncomplete` the code under test assigns and its flag is already set by the
- * time that handler runs. Restored after the test.
- *
  * @param {{ completed: boolean }} state
  */
 function patchTransactionToRecordCompletion(state) {
@@ -74,10 +64,6 @@ function patchTransactionToRecordCompletion(state) {
 }
 
 test("invalidate() settles on the transaction, not on its clear() requests", async () => {
-    // A request's `onsuccess` fires before the transaction commits, so
-    // resolving there reported success for a transaction that could still go
-    // on to abort -- the later `reject` lands on an already settled promise
-    // and is lost.
     const db = new IndexedDB(`${CACHE_NAME}_settle`, "1");
     await db.write("mytable", "key", { a: 1 });
 
@@ -97,11 +83,6 @@ test("invalidate() settles on the transaction, not on its clear() requests", asy
 });
 
 /**
- * Stub ``indexedDB.open`` so it *returns* a request that then fails
- * asynchronously — what a browser does when storage is denied or the stored
- * database is unreadable, as opposed to `open` throwing outright. Counts the
- * attempts. Restored after the test.
- *
  * @param {{ opens: number }} state
  */
 function patchOpenToFailAsynchronously(state) {
@@ -126,9 +107,6 @@ function patchOpenToFailAsynchronously(state) {
 }
 
 test("an open that fails asynchronously is not retried on every call", async () => {
-    // A synchronous throw already flips `_degraded`; a request that resolves to
-    // an error did not, so a permanently unusable IndexedDB was reopened once
-    // per cached RPC, each attempt logging its own console error.
     const state = { opens: 0 };
     patchOpenToFailAsynchronously(state);
 

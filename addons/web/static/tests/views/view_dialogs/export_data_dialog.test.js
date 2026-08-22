@@ -1328,19 +1328,6 @@ test("Export dialog: no raw properties fields in default export list", async () 
 });
 
 test("Export dialog: superseded SUBfield fetch must not paint stale fields", async () => {
-    // Root-level staleness is covered above ("stale import-compatible fields
-    // must not leak into the field tree"). This is the sibling path nothing
-    // exercised: expanding a relational field issues its own
-    // `/web/export/get_fields`, and toggling compatibility while that request
-    // is in flight supersedes it.
-    //
-    // Note what holds this together, because it is NOT the supersession check
-    // in `loadFields` — that one returns the fetched fields anyway when the
-    // mode moved under it. The toggle runs `fetchFields`, which swaps
-    // `knownFields` wholesale and rebuilds the tree, so each `ExportDataItem`
-    // is recreated and its `state.subfields` goes with it. The late resolution
-    // then lands on a component nobody is rendering. This test pins that
-    // outcome, so a future change to either half has to keep it true.
     const slowSubfields = new Deferred();
     onRpc("/web/export/formats", () => [{ tag: "csv", label: "CSV" }]);
     onRpc("/web/export/get_fields", async (request) => {
@@ -1362,11 +1349,9 @@ test("Export dialog: superseded SUBfield fetch must not paint stale fields", asy
     await openExportDialog();
     expect(queryAllTexts(".o_export_tree_item")).toEqual(["Activities", "Foo", "Bar"]);
 
-    // Expand "Activities" — its subfield request now hangs.
     await contains(".o_export_tree_item[data-field_id='activity_ids']").click();
     await animationFrame();
 
-    // Supersede it by switching compatibility mode.
     await contains(".o_import_compat input").click();
     await animationFrame();
 
@@ -1374,7 +1359,6 @@ test("Export dialog: superseded SUBfield fetch must not paint stale fields", asy
     await animationFrame();
     await animationFrame();
 
-    // The subfields belong to the pre-toggle mode, so none of them may appear.
     const shown = queryAllTexts(".o_export_tree_item");
     expect(shown).not.toInclude("Attendants", {
         message:

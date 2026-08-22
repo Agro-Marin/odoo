@@ -123,7 +123,6 @@ test(`click on record`, async () => {
 test(`getSortedRecordGroups is a valid total order`, async () => {
     const popover = await start();
 
-    /** build a group-like object with luxon start/end from day offsets */
     const group = (startOffset, endOffset, title) => ({
         title,
         start: DEFAULT_DATE.plus({ days: startOffset }),

@@ -10,9 +10,6 @@ import {
 import { isVisible } from "@web/core/utils/dom/ui";
 
 /**
- * Create a fake object 'dataTransfer', linked to some files,
- * which is passed to drag and drop events.
- *
  * @param {Object[]} files
  * @returns {Object}
  */
@@ -27,11 +24,8 @@ function createFakeDataTransfer(files) {
 }
 
 /**
- * Waits until exactly one element matching the given `selector` is present in
- * `options.target` and then clicks on it.
- *
  * @param {string} selector
- * @param {ContainsOptions} [options] forwarded to `contains`
+ * @param {ContainsOptions} [options]
  * @param {boolean} [options.shiftKey]
  */
 export async function click(selector, options = {}) {
@@ -41,83 +35,62 @@ export async function click(selector, options = {}) {
 }
 
 /**
- * Waits until exactly one element matching the given `selector` is present in
- * `options.target` and then dragenters `files` on it.
- *
  * @param {string} selector
  * @param {Object[]} files
- * @param {ContainsOptions} [options] forwarded to `contains`
+ * @param {ContainsOptions} [options]
  */
 export async function dragenterFiles(selector, files, options) {
     await contains(selector, { dragenterFiles: files, ...options });
 }
 
 /**
- * Waits until exactly one element matching the given `selector` is present in
- * `options.target` and then dragovers `files` on it.
- *
  * @param {string} selector
  * @param {Object[]} files
- * @param {ContainsOptions} [options] forwarded to `contains`
+ * @param {ContainsOptions} [options]
  */
 export async function dragoverFiles(selector, files, options) {
     await contains(selector, { dragoverFiles: files, ...options });
 }
 
 /**
- * Waits until exactly one element matching the given `selector` is present in
- * `options.target` and then drops `files` on it.
- *
  * @param {string} selector
  * @param {Object[]} files
- * @param {ContainsOptions} [options] forwarded to `contains`
+ * @param {ContainsOptions} [options]
  */
 export async function dropFiles(selector, files, options) {
     await contains(selector, { dropFiles: files, ...options });
 }
 
 /**
- * Waits until exactly one element matching the given `selector` is present in
- * `options.target` and then inputs `files` on it.
- *
  * @param {string} selector
  * @param {Object[]} files
- * @param {ContainsOptions} [options] forwarded to `contains`
+ * @param {ContainsOptions} [options]
  */
 export async function inputFiles(selector, files, options) {
     await contains(selector, { inputFiles: files, ...options });
 }
 
 /**
- * Waits until exactly one element matching the given `selector` is present in
- * `options.target` and then pastes `files` on it.
- *
  * @param {string} selector
  * @param {Object[]} files
- * @param {ContainsOptions} [options] forwarded to `contains`
+ * @param {ContainsOptions} [options]
  */
 export async function pasteFiles(selector, files, options) {
     await contains(selector, { pasteFiles: files, ...options });
 }
 
 /**
- * Waits until exactly one element matching the given `selector` is present in
- * `options.target` and then focuses on it.
- *
  * @param {string} selector
- * @param {ContainsOptions} [options] forwarded to `contains`
+ * @param {ContainsOptions} [options]
  */
 export async function focus(selector, options) {
     await contains(selector, { setFocus: true, ...options });
 }
 
 /**
- * Waits until exactly one element matching the given `selector` is present in
- * `options.target` and then inserts the given `content`.
- *
  * @param {string} selector
  * @param {string} content
- * @param {ContainsOptions} [options] forwarded to `contains`
+ * @param {ContainsOptions} [options]
  * @param {boolean} [options.replace=false]
  */
 export async function insertText(selector, content, options = {}) {
@@ -127,24 +100,18 @@ export async function insertText(selector, content, options = {}) {
 }
 
 /**
- * Waits until exactly one element matching the given `selector` is present in
- * `options.target` and then sets its `scrollTop` to the given value.
- *
  * @param {string} selector
  * @param {number|"bottom"} scrollTop
- * @param {ContainsOptions} [options] forwarded to `contains`
+ * @param {ContainsOptions} [options]
  */
 export async function scroll(selector, scrollTop, options) {
     await contains(selector, { setScroll: scrollTop, ...options });
 }
 
 /**
- * Waits until exactly one element matching the given `selector` is present in
- * `options.target` and then triggers `event` on it.
- *
  * @param {string} selector
  * @param {(import("@web/../tests/helpers/utils").EventType|[import("@web/../tests/helpers/utils").EventType, EventInit])[]} events
- * @param {ContainsOptions} [options] forwarded to `contains`
+ * @param {ContainsOptions} [options]
  */
 export async function triggerEvents(selector, events, options) {
     await contains(selector, { triggerEvents: events, ...options });
@@ -160,50 +127,30 @@ function log(ok, message) {
 
 let hasUsedContainsPositively = false;
 /**
- * @typedef {[string, ContainsOptions]} ContainsTuple tuple representing params of the contains
- *  function, where the first element is the selector, and the second element is the options param.
+ * @typedef {[string, ContainsOptions]} ContainsTuple
  * @typedef {Object} ContainsOptions
- * @property {ContainsTuple} [after] if provided, the found element(s) must be after the element
- *  matched by this param.
- * @property {ContainsTuple} [before] if provided, the found element(s) must be before the element
- *  matched by this param.
- * @property {Object} [click] if provided, clicks on the first found element
- * @property {ContainsTuple|ContainsTuple[]} [contains] if provided, the found element(s) must
- *  contain the provided sub-elements.
- * @property {number} [count=1] numbers of elements to be found to declare the contains check
- *  as successful. Elements are counted after applying all other filters.
- * @property {Object[]} [dragenterFiles] if provided, dragenters the given files on the found element
- * @property {Object[]} [dragoverFiles] if provided, dragovers the given files on the found element
- * @property {Object[]} [dropFiles] if provided, drops the given files on the found element
- * @property {Object[]} [inputFiles] if provided, inputs the given files on the found element
- * @property {{content:string, replace:boolean}} [insertText] if provided, adds to (or replace) the
- *  value of the first found element by the given content.
- * @property {ContainsTuple} [parent] if provided, the found element(s) must have as
- *  parent the node matching the parent parameter.
- * @property {Object[]} [pasteFiles] if provided, pastes the given files on the found element
- * @property {number|"bottom"} [scroll] if provided, the scrollTop of the found element(s)
- *  must match.
- *  Note: when using one of the scrollTop options, it is advised to ensure the height is not going
- *  to change soon, by checking with a preceding contains that all the expected elements are in DOM.
- * @property {boolean} [setFocus] if provided, focuses the first found element.
- * @property {boolean} [shadowRoot] if provided, targets the shadowRoot of the found elements.
- * @property {number|"bottom"} [setScroll] if provided, sets the scrollTop on the first found
- *  element.
- * @property {Element} [target=getFixture()] `Element`, not `HTMLElement`: the
- *  default comes from `getFixture()`, which is typed `Element`.
+ * @property {ContainsTuple} [after]
+ * @property {ContainsTuple} [before]
+ * @property {Object} [click]
+ * @property {ContainsTuple|ContainsTuple[]} [contains]
+ * @property {number} [count=1]
+ * @property {Object[]} [dragenterFiles]
+ * @property {Object[]} [dragoverFiles]
+ * @property {Object[]} [dropFiles]
+ * @property {Object[]} [inputFiles]
+ * @property {{content:string, replace:boolean}} [insertText]
+ * @property {ContainsTuple} [parent]
+ * @property {Object[]} [pasteFiles]
+ * @property {number|"bottom"} [scroll]
+ * @property {boolean} [setFocus]
+ * @property {boolean} [shadowRoot]
+ * @property {number|"bottom"} [setScroll]
+ * @property {Element} [target=getFixture()]
  * @property {(import("@web/../tests/helpers/utils").EventType | [import("@web/../tests/helpers/utils").EventType, EventInit])[]} [triggerEvents]
- *  if provided, triggers the given events on the found element. Mirrors the
- *  `eventDefs` parameter of `helpers/utils.triggerEvents`, which is what
- *  consumes it — it was declared `string[]`, which neither the public
- *  `triggerEvents` wrapper below nor that call could satisfy.
- * @property {string} [text] if provided, the textContent of the found element(s) or one of their
- *  descendants must match. Use `textContent` option for a match on the found element(s) only.
- * @property {string} [textContent] if provided, the textContent of the found element(s) must match.
- *  Prefer `text` option for a match on the found element(s) or any of their descendants, usually
- *  allowing for a simpler and less specific selector.
- * @property {string} [value] if provided, the input value of the found element(s) must match.
- *  Note: value changes are not observed directly, another mutation must happen to catch them.
- * @property {boolean} [visible] if provided, the found element(s) must be (in)visible
+ * @property {string} [text]
+ * @property {string} [textContent]
+ * @property {string} [value]
+ * @property {boolean} [visible]
  */
 class Contains {
     /**
@@ -267,10 +214,6 @@ class Contains {
     }
 
     /**
-     * Starts this contains check: resolves immediately on a match, otherwise
-     * registers listeners and waits for a match or a timeout. Logs
-     * success/failure messages to the console.
-     *
      * @returns {Promise}
      */
     run() {
@@ -305,10 +248,6 @@ class Contains {
     }
 
     /**
-     * Runs this contains check once, returning the matched elements or
-     * undefined if unsuccessful. May resolve/reject the main promise and
-     * log to the console depending on options.
-     *
      * @param {string} whenMessage
      * @param {Object} [options={}]
      * @param {boolean} [options.crashOnFail=false]
@@ -361,9 +300,6 @@ class Contains {
     }
 
     /**
-     * Executes the action(s) given to this constructor on the found element,
-     * prints the success messages, and resolves the main deferred.
-
      * @param {HTMLElement} el
      */
     executeAction(el) {
@@ -407,10 +343,6 @@ class Contains {
                 dataTransfer.items.add(file);
             }
             el.files = dataTransfer.files;
-            /**
-             * Programmatic file changes shouldn't trigger "change", but do in Chrome
-             * <73 (used on runbot) — skip the manual dispatch there to avoid duplicates.
-             */
             const versionRaw = navigator.userAgent.match(/Chrom(e|ium)\/([0-9]+)\./);
             const chromeVersion = versionRaw ? parseInt(versionRaw[2], 10) : false;
             if (!chromeVersion || chromeVersion >= 73) {
@@ -474,9 +406,6 @@ class Contains {
     }
 
     /**
-     * Returns the found element(s) according to this constructor setup.
-     * If undefined is returned it means the parent cannot be found
-     *
      * @returns {HTMLElement[]|undefined}
      */
     select() {
@@ -587,13 +516,6 @@ class Contains {
     }
 
     /**
-     * Returns the found element that should act as the target (parent) for the
-     * main selector.
-     * If undefined is returned it means the parent cannot be found.
-     *
-     * `Element`, matching `ContainsOptions.target` (whose default is
-     * `getFixture()`, typed `Element`) — one branch returns that value verbatim.
-     *
      * @returns {Element|undefined}
      */
     selectParent() {
@@ -611,9 +533,6 @@ class Contains {
 }
 
 /**
- * Waits until `count` elements matching the given `selector` are present in
- * `options.target`.
- *
  * @param {string} selector
  * @param {ContainsOptions} [options]
  * @returns {Promise}

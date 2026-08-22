@@ -1,28 +1,10 @@
 // @ts-check
 
-/**
- * @module tests/views/kanban/kanban_render_context
- *
- * ``getFormattedRecord`` builds the ``record`` object a kanban card template
- * sees. It is a Proxy, so every property access runs its membership test — and
- * ``record.fieldNames`` is a GETTER that rebuilds its array from
- * ``activeFields`` on each read. Resolving it per access made a card template's
- * handful of ``record.x.value`` reads re-derive the whole field list once per
- * read, per card, per render.
- *
- * These pin the memoized form: same answers, resolved once, and still correct
- * when the datapoint's ``activeFields`` is swapped underneath it.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { getFormattedRecord } from "@web/views/kanban/kanban_record";
 
 describe.current.tags("headless");
 
-/**
- * Minimal datapoint stand-in with the same ``fieldNames`` shape as
- * ``DataPoint`` (a getter deriving a fresh array from ``activeFields``).
- */
 function makeRecord(
     /** @type {{ data: Record<string, any>, activeFields: Record<string, any> }} */ {
         data,
@@ -102,7 +84,6 @@ describe("getFormattedRecord", () => {
         const formatted = getFormattedRecord(record);
         expect("b" in formatted).toBe(true);
 
-        // A config swap drops `b` from the active fields.
         record.activeFields = { a: {} };
         expect("b" in formatted).toBe(false);
         expect("a" in formatted).toBe(true);

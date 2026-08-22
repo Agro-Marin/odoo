@@ -6,14 +6,6 @@ import { reposition } from "@web/core/position/utils";
 describe.current.tags("headless");
 
 /**
- * A popper whose container is `<html>` reads its bounds from a viewport-relative
- * box, so the container's own scroll has to be added back. Only `scrollTop` was,
- * and it was added to whichever axis happened to be the "variant" one -- so a
- * horizontally scrolled document displaced every popper by `scrollLeft`.
- *
- * An iframe gives a real `documentElement` that can be scrolled without
- * disturbing the test runner's own page.
- *
  * @param {(win: Window, doc: Document) => any} callback
  */
 async function withScrollableDocument(callback) {
@@ -48,7 +40,6 @@ function measure(win, doc, position, scrollLeft, scrollTop) {
     popper.style.cssText = "width:200px;height:50px;";
     doc.body.appendChild(popper);
 
-    // Hold the target at a constant VIEWPORT position; vary only the scroll.
     target.style.left = `${scrollLeft + 200}px`;
     target.style.top = `${scrollTop + 150}px`;
     win.scrollTo(scrollLeft, scrollTop);

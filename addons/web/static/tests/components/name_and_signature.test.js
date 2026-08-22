@@ -146,11 +146,6 @@ test("printImage serializes concurrent calls with KeepLast (only the last draws)
         },
     });
 
-    // The contract is about the canvas, not about promise timing: a superseded
-    // call must not paint. It used to be asserted by checking that the loser's
-    // promise never settled, which pinned the dangling continuation rather than
-    // the behaviour -- a superseded call now returns early, and still does not
-    // draw.
     const ctx = res.signaturePad.canvas.getContext("2d");
     patchWithCleanup(ctx, {
         drawImage() {
@@ -169,7 +164,6 @@ test("printImage serializes concurrent calls with KeepLast (only the last draws)
 });
 
 test("a signature model handed over without a name is normalised, not crashed on", async () => {
-    // A portal template that defines no default_name serialises it as null.
     for (const name of [null, undefined, ""]) {
         /** @type {any} */
         const signature = { name };
@@ -178,4 +172,25 @@ test("a signature model handed over without a name is normalised, not crashed on
         expect(signature.name).toBe("");
         expect(".o_web_sign_name_input").toHaveValue("");
     }
+});
+
+test("an auto-drawn name counts as a signature, and clearing it does not", async () => {
+    const props = {
+        signature: { name: "Brandon Freeman" },
+        mode: "auto",
+        signatureType: "signature",
+        noInputName: true,
+    };
+    const component = await mountWithCleanup(NameAndSignature, { props });
+    await animationFrame();
+
+    expect(component.signaturePad.isEmpty()).toBe(true, {
+        message: "the pad itself cannot see a canvas painted behind its back",
+    });
+    expect(component.isSignatureEmpty).toBe(false);
+    expect(props.signature.isSignatureEmpty).toBe(false);
+
+    component.clear();
+    expect(component.isSignatureEmpty).toBe(true);
+    expect(props.signature.isSignatureEmpty).toBe(true);
 });

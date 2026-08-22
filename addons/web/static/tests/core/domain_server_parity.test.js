@@ -7,42 +7,6 @@ import { session } from "@web/session";
 
 describe.current.tags("headless");
 
-/**
- * A domain must mean the same thing to all THREE of its evaluators.
- *
- * The ORM already pins two of them against each other
- * (`test_orm/tests/test_domain_evaluator_parity.py`: `search()` -> `_to_sql`
- * vs `filtered_domain()` -> `_as_predicate`). `Domain.contains` is the third,
- * and nothing tied it to the other two -- so `('f', '=', None)` matched
- * nothing here while both server evaluators matched every unset record, and a
- * trailing backslash in a `like` pattern meant two different things.
- *
- * Every expectation below is what `filtered_domain()` answered for the record
- * set in `RECORDS`, swept over in two passes (3331 legal cases). Domains the
- * server rejects outright (708 of them, e.g. `('bool_field', 'like', 'a')`)
- * are excluded at generation time: the client answers them, the server raises,
- * and pinning either verdict would pin a fiction.
- *
- * Verdicts are one bit per record, in `RECORDS` order.
- *
- * To re-derive these expectations against a live server, and to find out
- * whether they have drifted from it:
- *
- *     python tooling/domain_parity/check_parity.py --database <db>
- *
- * It reads `RECORDS` and `CASES` straight out of this file, replays each case
- * through `filtered_domain()` inside a rolled-back savepoint, and exits
- * non-zero on any expectation the server no longer agrees with. Without it the
- * snapshot's provenance is prose, and a change to the server's evaluator would
- * leave the numbers below quietly meaning nothing.
- *
- * `RECORDS` alone is not enough to rebuild that database, which is why the
- * script carries a small table of its own: `read()` reports a NULL numeric
- * column and a stored 0 identically, and the two do not filter alike --
- * `partner_latitude like "_"` matches the stored 0 and not the NULL, and
- * `=like "\\"` does the reverse. Twelve of the cases below turn on exactly
- * that distinction.
- */
 const RECORDS = [
     {
         name: "P-unset",
@@ -2468,15 +2432,6 @@ const CASES = [
     ["type", "=?", "_", "00000"],
     ["type", "=?", "a\\", "00000"],
     ["type", "=?", "\\", "00000"],
-    // ---- second sweep: the stringified operand alphabet -------------------
-    //
-    // The sweep above varies field x operator x operand, but its operand
-    // alphabet was drawn from the CHAR columns' values, so no case ever put a
-    // numeric- or boolean-looking STRING against a non-text field. That is the
-    // one shape where the server's coercion succeeds and MATCHES while the
-    // client's strict comparison does not, so the gap it opens was invisible
-    // here: 82 of the 956 rows below diverge, every one of them a fresh
-    // KNOWN_DIVERGENCES entry rather than a case the old alphabet had covered.
     ["name", "=", "0", "00000"],
     ["name", "=", "1", "00000"],
     ["name", "=", "3", "00000"],
@@ -3435,19 +3390,6 @@ const CASES = [
     ["type", "not in", ["True"], "11111"],
 ];
 
-/**
- * Cases where the client cannot agree, because it has no field metadata.
- *
- * The server coerces the comparand through the field's type before comparing
- * (`Field._inequality_comparand`, `Field._pattern_text`); `Domain.contains`
- * sees only JS runtime types, so on a non-text field it renders `0` as `"0"`
- * where the server renders a degenerate pattern, and treats `""` as "unset"
- * where the server's `falsy_value` for the column is `0`.
- *
- * This list is a ratchet, exact like the others in this repo: a NEW divergence
- * and a FIXED one both fail here. If you narrow the gap, shrink the list in
- * the same commit.
- */
 const KNOWN_DIVERGENCES = new Set([
     "name|<|true",
     "name|<=|true",
@@ -3709,7 +3651,6 @@ const KNOWN_DIVERGENCES = new Set([
     "type|ilike|0",
     "type|not ilike|0",
 
-    // second sweep (stringified operands against non-text fields)
     'comment|<|"True"',
     'comment|<|"False"',
     'comment|<=|"True"',
@@ -3795,11 +3736,6 @@ const KNOWN_DIVERGENCES = new Set([
 ]);
 
 function pinCorpusDatabaseShape() {
-    // The corpus was generated on a database WITH the unaccent extension, so
-    // `ilike` folds accents in these expectations. Pin it rather than inherit
-    // whatever database the runner happens to be pointed at: `--unaccent`
-    // defaults to off, and on a database without it `ilike "cafe"` correctly
-    // stops matching "café".
     patchWithCleanup(session, { has_unaccent: true });
 }
 
@@ -3816,7 +3752,7 @@ function caseKey(field, operator, value) {
  * @param {string} field
  * @param {string} operator
  * @param {any} value
- * @returns {string | null} one bit per record, or null if the client threw
+ * @returns {string | null}
  */
 function clientVerdict(field, operator, value) {
     let domain;

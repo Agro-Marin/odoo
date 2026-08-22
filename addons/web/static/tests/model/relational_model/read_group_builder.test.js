@@ -1,13 +1,5 @@
 // @ts-check
 
-/**
- * `buildWebReadGroupParams` composes the whole `web_read_group` RPC: which
- * aggregates to ask for, and — through `opening_info` — which groups the server
- * should unfold and at what page. It had no test of its own, so the shape of
- * that payload was pinned only indirectly, by view tests that would report a
- * rendering difference rather than the wrong request.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { buildWebReadGroupParams } from "@web/model/relational_model/read_group_builder";
 
@@ -46,7 +38,6 @@ test("aggregates come from the declared scope, not the whole field set", () => {
     const { aggregates } = buildWebReadGroupParams(makeConfig(), DEPS);
     expect(aggregates).toInclude("amount:sum");
     expect(aggregates).toInclude("qty:sum");
-    // `id` has no aggregator; `name` is not aggregatable
     expect(aggregates.join(",")).not.toInclude("name:");
 });
 
@@ -139,7 +130,6 @@ describe("opening_info", () => {
             },
         });
         const { params } = buildWebReadGroupParams(config, DEPS);
-        // getGroupServerValue would wrap a m2m as [3]; opening_info must not
         expect(params.opening_info).toEqual([{ value: 3, folded: true }]);
     });
 

@@ -1,11 +1,5 @@
 // @ts-check
 
-/**
- * Direct coverage for `onModelMutation`'s error policy. It was previously
- * exercised only through its consumers, which is how three of them drifted
- * into three different, all-wrong policies in the first place.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { RpcEvent } from "@web/core/events";
 import { onModelMutation, UPDATE_METHODS } from "@web/core/network/model_mutation";
@@ -75,8 +69,6 @@ test("a server rejection is SKIPPED: the transaction rolled back", () => {
 });
 
 test("a duck-typed RPC_ERROR is skipped too", () => {
-    // Mock servers and cross-bundle errors fail `instanceof`; the name check is
-    // what actually catches them.
     const seen = [];
     const dispose = onModelMutation(["res.partner"], (info) => seen.push(info));
     fire("res.partner", "write", { name: "RPC_ERROR", message: "boom" });
@@ -120,8 +112,6 @@ test("methods narrows (and replaces) the watched set", () => {
 });
 
 test("a malformed event is ignored rather than thrown out of the bus", () => {
-    // The shared bus is written to by tests and synthetic fires; a throwing
-    // listener would surface as an unrelated test failing.
     const seen = [];
     const dispose = onModelMutation(["res.partner"], (info) => seen.push(info));
     rpcBus.trigger(RpcEvent.RESPONSE, null);
@@ -141,6 +131,6 @@ test("the disposer really detaches the listener", () => {
     fire("res.partner", "write");
     dispose();
     fire("res.partner", "write");
-    dispose(); // idempotent
+    dispose();
     expect(seen).toHaveLength(1);
 });

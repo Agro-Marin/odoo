@@ -168,9 +168,6 @@ test("parseTime (arabic numbers)", async () => {
 describe("Time.equals", () => {
     test("returns a boolean, including for a nullish other", () => {
         const t = new Time({ hour: 9, minute: 30 });
-        // `other && ...` handed back the falsy operand itself, so `equals(null)`
-        // was `null` and `equals(undefined)` was `undefined`, both of which fail
-        // a `=== false` check the @returns tag invites.
         expect(t.equals(null)).toBe(false);
         expect(t.equals(undefined)).toBe(false);
         expect(t.equals(new Time({ hour: 9, minute: 30 }))).toBe(true);

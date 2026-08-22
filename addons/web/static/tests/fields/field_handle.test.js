@@ -5,7 +5,7 @@ import { animationFrame } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { SignalStore } from "@web/core/utils/reactive";
-import { fieldHandle, useFieldHandle } from "@web/fields/field_handle";
+import { fieldHandle, fieldHandleFor } from "@web/fields/field_handle";
 
 describe.current.tags("headless");
 
@@ -118,12 +118,6 @@ test("the handle follows a swapped name prop", async () => {
     expect("span").toHaveText("b");
 });
 
-// The two below are why `useFieldHandle` is a hook and not a `field` prop. OWL
-// keys a subscription on the proxy a read travels through, at read time, so a
-// handle built by the parent carries the PARENT's subscription. Both shapes are
-// mounted here rather than argued about, because the failure is silent: the
-// child renders once with a correct value and then stops updating.
-
 test("a parent-built handle does NOT subscribe the child", async () => {
     const record = new FakeRecord();
     class Leaf extends Component {
@@ -182,9 +176,6 @@ test("wrapping the record in useState in the PARENT does not fix it", async () =
 });
 
 test("the handle survives a subclass that overrides setup without super", async () => {
-    // THE regression: `this.field = useFieldHandle()` in setup is lost by such a
-    // subclass, and web's own form_view suite contains one
-    // (`AsyncField extends CharField`). A prototype getter resolves regardless.
     const record = new FakeRecord();
 
     class Base extends Component {
@@ -198,7 +189,7 @@ test("the handle survives a subclass that overrides setup without super", async 
         }
     }
     class Derived extends Base {
-        setup() {} // deliberately does not call super.setup()
+        setup() {}
     }
     class Parent extends Component {
         static template = xml`<Derived record="record" name="'foo'"/>`;
@@ -216,30 +207,20 @@ test("the handle survives a subclass that overrides setup without super", async 
     expect("span").toHaveText("z");
 });
 
-test("the hook spelling returns the same handle as the getter", async () => {
+test("the handle exposes no readonly, on either constructor", () => {
     const record = new FakeRecord();
-    let fromHook;
-    class W extends Component {
-        static template = xml`<span t-esc="field.value"/>`;
-        static props = ["record", "name"];
-        setup() {
-            fromHook = useFieldHandle();
-        }
-        get field() {
-            return fieldHandle(this);
-        }
-    }
-    class Parent extends Component {
-        static template = xml`<W record="record" name="'foo'"/>`;
-        static components = { W };
-        static props = {};
-        setup() {
-            this.record = record;
-        }
-    }
-    const parent = await mountWithCleanup(Parent);
-    const widget = Object.values(/** @type {any} */ (parent).__owl__.children)[0];
-    expect(fromHook).toBe(/** @type {any} */ (widget).component.field, {
-        message: "memoized per component, so both spellings are one object",
+    const handle = fieldHandleFor(record, "foo");
+
+    expect("readonly" in handle).toBe(false, {
+        message: "a handle member restating props.readonly has no reader",
     });
+    expect(Object.keys(handle).sort()).toEqual([
+        "definition",
+        "name",
+        "type",
+        "update",
+        "value",
+    ]);
+    expect(fieldHandleFor(record, "foo")).toBe(handle);
+    expect(fieldHandleFor(record, "bar")).not.toBe(handle);
 });

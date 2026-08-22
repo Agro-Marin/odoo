@@ -1,16 +1,5 @@
 // @ts-check
 
-/**
- * Unit tests for list_focus.js — where focus goes inside a list, as pure
- * functions of a cell or a row.
- *
- * These are the parts of list keyboard handling that need no component: give
- * them a table and ask where focus should land. Until this file they had no
- * direct coverage at all — `useListKeyboardNavigation` (610 lines) and
- * `makeEditHandlers` (320) were reached only through the list view suite, which
- * is the one pair in the length budget with no unit tests behind it.
- */
-
 import { after, describe, expect, test } from "@odoo/hoot";
 import {
     containsActiveElement,
@@ -24,9 +13,6 @@ import {
 describe.current.tags("headless");
 
 /**
- * Build a detached-but-rendered <td> so getTabableElements' visibility filter
- * sees real layout.
- *
  * @param {string} innerHTML
  * @returns {HTMLTableCellElement}
  */
@@ -39,7 +25,7 @@ function makeCell(innerHTML) {
 }
 
 /**
- * @param {string} cellsHTML the <td> elements of a single row
+ * @param {string} cellsHTML
  * @returns {HTMLTableRowElement}
  */
 function makeRow(cellsHTML) {
@@ -66,8 +52,6 @@ describe("getElementToFocus", () => {
     });
 
     test("falls back to the cell when it holds nothing tabable", () => {
-        // Load-bearing: both row scans use `toFocus !== candidate` to mean
-        // "this cell cannot take focus", which only works because of this.
         const cell = makeCell(`<span>plain</span>`);
         expect(getElementToFocus(cell, 0)).toBe(cell);
     });
@@ -148,7 +132,6 @@ describe("findPreviousFocusableOnRow", () => {
     });
 
     test("without a cell it scans back from past the end of the row", () => {
-        // list_keyboard_edit calls it this way to enter a row from its right.
         const row = makeRow(
             dataCell(`<input class="a"/>`) + dataCell(`<input class="b"/>`),
         );
@@ -227,9 +210,6 @@ describe("togglesFocusInsideCell", () => {
     });
 
     test("a focused contenteditable is not in the tab ring: no toggle either way", () => {
-        // An html field renders a focusable contenteditable that getTabableElements
-        // never matches; the cell's toolbar button IS in the ring. Tab must reach
-        // the list's own cell navigation instead of being reported as intra-cell.
         const cell = makeCell(
             `<div class="ed" contenteditable="true">x</div><button class="b">b</button>`,
         );

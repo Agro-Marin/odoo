@@ -1,20 +1,5 @@
 // @ts-check
 
-/**
- * Behavioral regression test for the command engine's UPDATE case
- * (static_list_command_engine.js): server-originated onchange commands must
- * flow through the SERVER slot of ``record._applyChanges`` so the child
- * record's ``_textValues`` keeps the RAW server value.
- *
- * The engine used to pre-parse the UPDATE payload and pass it as the USER
- * slot, where the char/text deserializer's ``false → ""`` mapping was stored
- * in ``_textValues``. The row eval context builds char/text entries from
- * ``_textValues`` (record_value_transforms.js — computeDataContext), so a
- * sibling-cell modifier like ``[("field", "=", False)]`` mis-evaluated
- * (``"" == False`` is False in py_js) until the record was reloaded. Parent
- * records never had the bug — only command-engine-applied child updates.
- */
-
 import { expect, test } from "@odoo/hoot";
 import {
     contains,

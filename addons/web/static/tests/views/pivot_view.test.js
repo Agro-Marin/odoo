@@ -4217,3 +4217,32 @@ test("scroll position is restored when coming back to pivot view (mobile)", asyn
     expect(".o_content .o_pivot").toHaveCount(1);
     expect(".o_pivot_view").toHaveProperty("scrollTop", 200);
 });
+
+test("a row group-by hidden by a context expression is dropped from the arch", async () => {
+    const arch = `
+        <pivot>
+            <field name="product_id" type="row" invisible="context.get('hide_product', False)"/>
+            <field name="customer" type="row"/>
+        </pivot>`;
+
+    const shown = await mountView({ type: "pivot", resModel: "partner", arch });
+    expect(
+        findComponent(shown, (c) => c instanceof PivotController).model.metaData
+            .rowGroupBys,
+    ).toEqual(["product_id", "customer"], {
+        message: "with the expression false, the arch row group-by stands",
+    });
+
+    const hidden = await mountView({
+        type: "pivot",
+        resModel: "partner",
+        arch,
+        context: { hide_product: true },
+    });
+    expect(
+        findComponent(hidden, (c) => c instanceof PivotController).model.metaData
+            .rowGroupBys,
+    ).toEqual(["customer"], {
+        message: "with it true, the group-by the arch asked to hide is gone",
+    });
+});

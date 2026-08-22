@@ -206,8 +206,8 @@ test("session-expired RPC error (code 100) routes to SessionExpiredDialog", asyn
     expect.verifyErrors(["RPC_ERROR: Odoo Session Expired"]);
 });
 
-test("ServerActionWithWarningsError routes to WarningDialog (fork and legacy names)", async () => {
-    expect.errors(2);
+test("ServerActionWithWarningsError routes to WarningDialog", async () => {
+    expect.errors(1);
     mockService("dialog", {
         add(dialogClass, props) {
             expect(dialogClass).toBe(WarningDialog);
@@ -217,7 +217,6 @@ test("ServerActionWithWarningsError routes to WarningDialog (fork and legacy nam
     await makeMockEnv();
     const serializedNames = [
         "odoo.addons.base.models.ir_actions_server.ServerActionWithWarningsError",
-        "odoo.addons.base.models.ir_actions.ServerActionWithWarningsError",
     ];
     for (const name of serializedNames) {
         const error = makeErrorFromResponse({
@@ -234,10 +233,7 @@ test("ServerActionWithWarningsError routes to WarningDialog (fork and legacy nam
         Promise.reject(error);
         await animationFrame();
     }
-    expect.verifyErrors([
-        "RPC_ERROR: Odoo Server Error",
-        "RPC_ERROR: Odoo Server Error",
-    ]);
+    expect.verifyErrors(["RPC_ERROR: Odoo Server Error"]);
     expect.verifySteps(serializedNames);
 });
 
@@ -646,8 +642,6 @@ describe("Error Service Logs", () => {
             return true;
         });
         await makeMockEnv();
-        // SupersededError is handled (supersededErrorHandler default-prevents it),
-        // so it is never logged -- and therefore never beaconed.
         const errorEvent = new PromiseRejectionEvent("unhandledrejection", {
             reason: new SupersededError(),
             promise: null,
@@ -658,12 +652,6 @@ describe("Error Service Logs", () => {
     });
 
     test("a visitor's swallowed defect is still beaconed (dialog hidden, defect observable)", async () => {
-        // The visitor handler hides the crash dialog from a public visitor by
-        // returning true, which breaks the handler chain before the dialog
-        // handler runs -- but it must NOT preventDefault, so `shouldLogError()`
-        // stays true and the defect still beacons. This locks that separation
-        // end to end: a plausible "fix" that preventDefaulted the swallow would
-        // blind ops to every public-page error with this suite still green.
         patchWithCleanup(user, { isInternalUser: false });
         patchWithCleanup(session, { test_mode: false });
         errorHandlerRegistry.add("swallowAllVisitorErrors", swallowAllVisitorErrors, {
@@ -691,9 +679,9 @@ describe("Error Service Logs", () => {
         errorEvent.filename = "foo.js";
         await errorCb(errorEvent);
 
-        expect(dialogShown).toBe(false); // swallowed: the visitor sees no crash dialog
-        expect(beacons).toHaveLength(1); // ...but the defect still reaches ops
-        expect(errorEvent.defaultPrevented).toBe(true); // the log/beacon path ran
+        expect(dialogShown).toBe(false);
+        expect(beacons).toHaveLength(1);
+        expect(errorEvent.defaultPrevented).toBe(true);
         const payload = JSON.parse(await beacons[0].blob.text());
         expect(payload.message).toBe("public page defect");
     });
@@ -762,10 +750,6 @@ describe("Error Service Logs", () => {
 test("a 403 Forbidden routes to WarningDialog, not the session-expired dialog", async () => {
     expect.assertions(4);
     expect.errors(1);
-    // an access denial is not an expiry: routing it to SessionExpiredDialog told
-    // the user their session had ended and offered a reload, which either loops
-    // or hides the permission problem. `SessionExpiredException` has its own
-    // mapping and is a plain Exception, unrelated to werkzeug's Forbidden.
     const error = makeErrorFromResponse({
         code: 200,
         message: "Odoo Server Error",

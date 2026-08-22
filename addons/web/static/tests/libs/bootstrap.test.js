@@ -38,7 +38,6 @@ function mount(html) {
 
 const MODAL_HTML = `<div class="modal"><div class="modal-dialog"><div class="modal-content">m</div></div></div>`;
 
-/** A second document, to exercise the cross-document paths. */
 async function scrollingIframe(bodyInner = "") {
     const iframe = document.createElement("iframe");
     iframe.style.cssText = "width:300px;height:200px;border:0";
@@ -92,17 +91,9 @@ describe("sanitizer allow list", () => {
         ]) {
             expect(pattern.test(attr)).toBe(false);
         }
-        // only the API's own prefix, not anything merely starting with it
         expect(pattern.test("data-tooltipfoo")).toBe(true);
     });
 
-    // The tooltip service delegates from body in the capture phase and opens on
-    // any [data-tooltip], [data-tooltip-template] it sees, and a tip is appended
-    // to body. `web.Tooltip` then renders t-call="{{props.template}}" with
-    // t-call-context="{ env, ...props.info }", so a surviving pair would let a
-    // stored record choose which internal template renders, and with what
-    // context. Server-side html_sanitize keeps every data-*, so this list is
-    // the only thing in the way.
     test("stored content cannot drive Odoo's tooltip service", async () => {
         const root = mount(`<div><span id="a">hover</span></div>`);
         const tt = new Tooltip(root.querySelector("#a"), {
@@ -122,8 +113,6 @@ describe("sanitizer allow list", () => {
     });
 
     test("stored content cannot paint a viewport overlay", async () => {
-        // verbatim output of Odoo's server-side html_sanitize() for a crafted
-        // record, fed through website_forum's [data-bs-toggle=tooltip] sweep
         const root = mount(
             `<div><span data-bs-toggle="tooltip" title='&lt;b style="position:fixed;top:0;left:0;width:100vw;height:100vh"&gt;OVERLAY&lt;/b&gt;'>hover</span></div>`,
         );
@@ -159,10 +148,6 @@ describe("tooltip defaults", () => {
         expect(Tooltip.Default.boundary).toBe("viewport");
     });
 
-    // `Popover.Default` spreads `Tooltip.Default` when the bundle loads, before
-    // this module runs, so it snapshots the scalars and shares only the
-    // allowList reference. Call sites depend on both halves: website_forum
-    // passes `html: true` explicitly because popovers do not inherit it.
     test("the tooltip defaults do not reach Popover, but the allow list does", async () => {
         expect(Popover.Default.allowList).toBe(Tooltip.Default.allowList);
         expect(Popover.Default.html).toBe(false);
@@ -172,8 +157,6 @@ describe("tooltip defaults", () => {
         expect(Tooltip.Default.html).toBe(true);
     });
 
-    // The iframe fix keys on `document.body`; a popover reaches that value
-    // through Bootstrap resolving `container: false`, not through the default.
     test("a popover anchored in an iframe is appended to that iframe", async () => {
         const iframe = await scrollingIframe(`<button id="p">P</button>`);
         const idoc = iframe.contentDocument;
@@ -258,15 +241,6 @@ describe("Tooltip.show", () => {
         ttB.dispose();
     });
 
-    // Characterises a deliberate deviation from Bootstrap's contract, not a
-    // desired behaviour. A dismissal takes the tip off screen without going
-    // through hide(), so neither event fires and anything cleaning up from
-    // `hidden.bs.tooltip` never runs. Nothing listens for it today -- the one
-    // listener in the tree, website's page_properties, is on
-    // `hidden.bs.popover`, and popovers are never dismissed this way. Firing
-    // them here would mean re-entering listener code from inside another
-    // tooltip's show(), which is why it is not done. Flip this the day a
-    // consumer appears.
     test("dismissing fires no hide/hidden, where a real hide does", async () => {
         const root = mount(
             `<div><button id="a">A</button><button id="b">B</button></div>`,
@@ -287,7 +261,6 @@ describe("Tooltip.show", () => {
         await animationFrame();
         expect(seen).toEqual([]);
 
-        // the same instance taken down the supported way still reports itself
         ttA.show();
         await animationFrame();
         ttA.hide();
@@ -420,9 +393,6 @@ describe("Tooltip.show", () => {
             title: "A",
             animation: false,
         });
-        // an empty title makes Bootstrap's show() give up before it inserts
-        // anything, the same silent bail-out as a disabled instance or a
-        // prevented show.bs.tooltip
         const ttB = new Tooltip(root.querySelector("#b"), {
             title: "",
             animation: false,
@@ -459,9 +429,6 @@ describe("Tooltip.show", () => {
         ttB.dispose();
     });
 
-    // Bootstrap keys instances in a strong Map that only dispose() clears, so an
-    // anchor thrown away by a re-render keeps its element, its instance and its
-    // listeners alive for the lifetime of the page.
     test("an anchor dropped by a re-render is not retained", async () => {
         const host = mount(`<div></div>`);
         const anchors = [];
@@ -487,9 +454,6 @@ describe("Tooltip.show", () => {
         ttLive.dispose();
     });
 
-    // Bootstrap's dispose nulls every own property, so a second call would
-    // dereference a null `_element`. Call sites register unconditional
-    // teardowns and cannot know whether a dismissal already disposed for them.
     test("dispose is idempotent", async () => {
         const el = mount(`<button>y</button>`);
         const tt = new Tooltip(el, { title: "Y", animation: false });
@@ -563,12 +527,6 @@ describe("Modal", () => {
         modal.dispose();
     });
 
-    // Pins the premise of dropping the upstream scrollbar-compensation patch:
-    // it only ever acted when getScrollingElement() answered with a child of
-    // body. Since 6454eb52086 the webclient scrolls the document instead, so
-    // this is documentElement and Bootstrap's own ScrollBarHelper covers it.
-    // If this ever fails, a layout grew a scrollable body child and the
-    // compensation question is live again.
     test("the webclient scrolls the document, not a body child", async () => {
         const scrollable = getScrollingElement(document);
         expect(scrollable).toBe(document.documentElement);
@@ -587,14 +545,6 @@ describe("Modal", () => {
         modal.dispose();
     });
 
-    // Characterises an unfixed Bootstrap defect, not a desired behaviour:
-    // `_showElement` tests containment with `document.body.contains(...)` and
-    // `Backdrop` resolves its `rootElement` with `getElement("body")`, both of
-    // which mean the top-level document whatever document owns the modal. An
-    // iframe-owned modal is therefore adopted out of the document that styles
-    // and positions it. Fixing it means editing the vendored bundle - wrapping
-    // cannot express it - so until then, do not open a Bootstrap Modal inside
-    // the website editor's iframe. Flip these assertions when it is fixed.
     test("an iframe-owned modal is adopted into the top document (Bootstrap bug)", async () => {
         const iframe = await scrollingIframe(MODAL_HTML);
         const idoc = iframe.contentDocument;
@@ -611,9 +561,6 @@ describe("Modal", () => {
     });
 });
 
-// The patches in `@web/libs/bootstrap` reach into Bootstrap internals that carry
-// no compatibility promise. This suite is the upgrade tripwire: it fails on the
-// bundle bump rather than silently in production.
 describe("patched Bootstrap internals still exist", () => {
     test("the pinned version is the one the patches were written against", async () => {
         expect(Modal.VERSION).toBe("5.3.8");
@@ -668,10 +615,6 @@ describe("patched Bootstrap internals still exist", () => {
 });
 
 describe("Dropdown", () => {
-    // Characterises why call sites must not keep a toggle across a re-render:
-    // the constructor resolves its menu with `findOne(menu, this._element
-    // .parentNode)`, which throws on a null parent. Guarding belongs there, not
-    // behind a fabricated stand-in instance in web.
     test("a toggle removed from the DOM is a hard error", async () => {
         expect(() =>
             Dropdown.getOrCreateInstance(document.createElement("button")),
@@ -707,9 +650,6 @@ describe("Dropdown", () => {
 });
 
 describe("Font Awesome 4 shims", () => {
-    // Every name declared in v4-shims.css, not a sample: these are the FA4 names
-    // still hardcoded across ~178 files, and FA7 renders an undefined `--fa` as
-    // nothing at all, so a missing shim is a silently blank icon.
     const LEGACY_NAMES = [
         "fa-arrow-circle-o-up",
         "fa-bell-o",

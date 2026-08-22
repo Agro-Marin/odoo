@@ -35,8 +35,6 @@ async function describe(domain, limit) {
 
 test("a negated `=` is not absorbed into a sibling's merged `in`", async () => {
     await makeMockEnv();
-    // `qty != 1 or qty = 2` matches almost every record; merging it into
-    // `qty in [1, 2]` would invert the meaning.
     const description = await describe(["|", "!", ["qty", "=", 1], ["qty", "=", 2]]);
     expect(description).toBe("Qty not = 1 or Qty = 2");
 });
@@ -88,8 +86,6 @@ test("merging two paths under OR keeps every unrelated sibling", async () => {
 
 test("a second merge does not overwrite a later non-mergeable sibling", async () => {
     await makeMockEnv();
-    // Counterexample found by fuzzing simplifyTree for semantic equivalence:
-    // the `qty3 != 1` leaf was overwritten by the `qty2` merge and vanished.
     const description = await describe([
         "|",
         "|",
@@ -153,12 +149,6 @@ test("negated OR collapsing to one merged `in` keeps its negation", async () => 
     expect(description).toInclude("not");
 });
 
-/**
- * `simplifyTree` rewrites a tree that is then rendered as text, so its one hard
- * invariant is that it must not change which records the tree describes. Each
- * case below is a domain whose simplification once changed that record set;
- * they were found by fuzzing the rewrite against `Domain.contains`.
- */
 const SEMANTIC_CORPUS = [
     ["|", "!", ["a", "=", 1], ["a", "=", 2]],
     ["|", "!", ["a", "in", [1, 3]], ["a", "=", 2]],
@@ -237,21 +227,11 @@ test("simplifyTree preserves the record set it describes", () => {
 });
 
 test("a tree's field defs and display names are resolved once, not once per leaf", async () => {
-    // `describeSimplifiedTree` used to build a fresh `makeGetConditionDescription`
-    // for every leaf, re-running the whole-tree resolution N times and defeating
-    // the batching those helpers exist to provide. It also made display-name
-    // batching depend on microtask alignment: leaves at different depths reached
-    // `loadDisplayNames` on different ticks and fragmented into separate RPCs.
     await makeMockEnv();
     const field = getService("field");
     const name = getService("name");
     let loadFieldInfoCalls = 0;
     let loadDisplayNamesCalls = 0;
-    // Counted with the receiver preserved. These used to capture the method and
-    // call it back bare — `origLoadFieldInfo(...args)` — which happened to work
-    // only because both services were closures whose "methods" ignored `this`.
-    // `field` is a class now, so a bare call arrives with `this` undefined and
-    // throws on its first internal `this.loadPath(...)`.
     const origLoadFieldInfo = field.loadFieldInfo;
     const origLoadDisplayNames = name.loadDisplayNames;
     field.loadFieldInfo = (...args) => {
@@ -264,7 +244,6 @@ test("a tree's field defs and display names are resolved once, not once per leaf
     };
 
     const treeProcessor = getService("tree_processor");
-    // Nested AND: the 6 leaves sit at depths 1..6.
     const domain = ["&", "&", "&", "&", "&"];
     for (let i = 0; i < 6; i++) {
         domain.push(["manager_id", "in", [i + 1]]);
@@ -274,7 +253,6 @@ test("a tree's field defs and display names are resolved once, not once per leaf
     loadDisplayNamesCalls = 0;
     await treeProcessor.getDomainTreeDescription("partner", tree);
 
-    // One path (`manager_id`) and one co-model (`partner`) across all 6 leaves.
     expect(loadFieldInfoCalls).toBe(1);
     expect(loadDisplayNamesCalls).toBe(1);
 });
@@ -287,9 +265,6 @@ test("a sub-expression inherits the caller's value and path limits", async () =>
     ];
     const tree = await treeProcessor.treeFromDomain("partner", domain);
 
-    // `limit`/`pathLimit` are threaded through the whole description recursion
-    // for the sole benefit of this nested call. Dropping them silently handed
-    // the sub-domain the DEFAULTS (5 values, unlimited path segments).
     expect(
         await treeProcessor.getDomainTreeDescription("partner", tree, false, 2, 1),
     ).toBe("Manager : ( Manager... = 1 or ... )");

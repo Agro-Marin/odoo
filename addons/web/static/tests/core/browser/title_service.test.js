@@ -46,9 +46,6 @@ test("all at once", () => {
 });
 
 test("get title parts", () => {
-    // `current` reports the title the service's own state describes, so before
-    // any part is set it is the "Odoo" fallback — not whatever `document.title`
-    // happens to hold in the fixture.
     expect(titleService.current).toBe("Odoo");
     titleService.setParts({ one: "MyOdoo", two: "Import" });
     expect(titleService.current).toBe("MyOdoo - Import");

@@ -1,11 +1,3 @@
-"""Behavioral tests for ``web_read`` relational resolution.
-
-``web_read`` is the primary data fetcher for the entire webclient, yet its
-relational resolution (many2one sub-fields, x2many ``limit``/``order``,
-deleted-target handling) had no direct behavioral coverage — it was only
-exercised inside ``assertQueryCount`` perf tests that discard the return value.
-"""
-
 from odoo.tests import common
 
 
@@ -44,9 +36,6 @@ class TestWebReadRelational(common.TransactionCase):
         )
 
     def test_x2many_limit_resolves_fields_but_returns_all_ids(self):
-        """Documented contract (web_read.py): the FULL id list is returned,
-        sorted by ``order``; only the first ``limit`` co-records get their
-        ``fields`` resolved — the rest come back as ``{"id": id}`` stubs."""
         parent = self.env["res.partner"].create({"name": "P", "is_company": True})
         for i in range(5):
             self.env["res.partner"].create({"name": f"C{i}", "parent_id": parent.id})
@@ -68,15 +57,6 @@ class TestWebReadRelational(common.TransactionCase):
         self.assertEqual(first_two, sorted(first_two, reverse=True), "order honored")
 
     def test_x2many_no_order_filters_inaccessible_corecords(self):
-        """An x2many spec with ``fields`` but no ``order`` must drop co-records
-        the user cannot read (record rules) instead of raising AccessError on
-        the whole read.
-
-        Regression: the no-``order`` branch called ``co_records.web_read(...)``
-        without first filtering by access, so a single rule-restricted
-        co-record aborted the entire read with AccessError. The ``order``
-        branch was unaffected because ``search`` already enforces access.
-        """
         Partner = self.env["res.partner"]
         ok1 = Partner.create({"name": "VisibleChild1"})
         secret = Partner.create({"name": "ZZSECRET child"})
@@ -121,13 +101,6 @@ class TestWebReadRelational(common.TransactionCase):
 
 @common.tagged("post_install", "-at_install", "web_unit", "web_read")
 class TestWebResequence(common.TransactionCase):
-    """web_resequence must not silently bypass write() semantics.
-
-    The cache-dirty fast path skips write() entirely, so a model that overrides
-    write (guards, tracking, cache invalidation) must fall back to per-record
-    write(). Regression for the fork optimization that dropped write().
-    """
-
     def test_resequence_calls_write_on_overriding_model(self):
         from unittest.mock import patch
 
@@ -161,10 +134,6 @@ class TestWebResequence(common.TransactionCase):
 
 @common.tagged("post_install", "-at_install", "web_unit", "web_read")
 class TestWebReadFieldContext(common.TransactionCase):
-    """An x2many spec with `order` on a field whose context collides with the
-    caller's env context must not raise TypeError (fork double-splat regression).
-    """
-
     def test_ordered_x2many_with_active_test_context(self):
         parent = self.env["res.partner"].create({"name": "Parent"})
         self.env["res.partner"].create(

@@ -1,30 +1,5 @@
 // @ts-check
 
-/**
- * Regression tests for the page-anchor bug in ``applyCommands``.
- *
- * Sibling of static_list_offset_clamp.test.js, which covers the case
- * ``_clampOffset`` DOES catch: a batch removing every id at or after the page
- * start leaves ``offset`` past the end, so the window resolves to an empty
- * slice. This file covers the case it cannot catch — rows removed from BEFORE
- * the page start.
- *
- * There ``offset`` stays in range, so ``_clampOffset`` returns early, but the
- * whole membership has slid one index per removed row. ``records`` still holds
- * the right rows (the removal filter only drops the removed ones) while
- * ``_currentIds.slice(offset, offset + limit)`` now names entirely different
- * ids: the pager counted one page while another rendered, and the next
- * ``_load`` — which rebuilds ``records`` FROM that window — teleported the user
- * to rows they never asked for.
- *
- * Re-anchoring ``offset`` by the number of rows removed ahead of it keeps the
- * user on exactly the rows they were looking at, which is also what makes the
- * subsequent page-fill pass reason about the page actually on screen.
- *
- * Uses the REAL StaticList and RelationalRecord against a mock model, in the
- * style of static_list_offset_clamp.test.js.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";
@@ -67,7 +42,6 @@ function makeList({ resIds = [], limit = 3 } = {}) {
     });
 }
 
-/** The rows on screen must be the ids the window names. */
 function expectWindowMatchesRecords(list) {
     expect(list.records.map((r) => r.resId)).toEqual(
         list._currentIds.slice(list.offset, list.offset + list.limit),
@@ -80,7 +54,6 @@ describe("page anchor after rows are removed ahead of the offset", () => {
         await list._load({ offset: 3 });
         expect(list.records.map((r) => r.resId)).toEqual([4, 5, 6]);
 
-        // Rows 1-3 live on page 1; the user is on page 2.
         await list._applyCommands([
             [UNLINK, 1, false],
             [UNLINK, 2, false],

@@ -305,10 +305,6 @@ test("tooltip does not crash with disappearing target", async () => {
     expect(".o_popover").toHaveCount(0);
 });
 
-// A tooltip opens on hover, so the naive "watch the DOM while one is up" costs
-// something on every mouse traversal of a list of `data-tooltip` cells. It must
-// ride the shared MutationObserver the popover already arms for the same
-// anchor, never a timer, and must leave nothing behind when it closes itself.
 test.tags("desktop");
 test("a tooltip watches its target without polling, and releases it", async () => {
     const intervals = [];
@@ -451,9 +447,6 @@ test("a custom tooltip suppresses the native title, then restores it", async () 
     expect(document.querySelector(".mybtn").getAttribute("title")).toBe("native help");
 });
 
-// REGRESSION-BLOCK
-/** A bare click: hoot's `click()` replays a pointer sequence that would
- *  restart the touch flow instead of only ending it. */
 const bareClick = (/** @type {string} */ selector) =>
     queryOne(selector).dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
@@ -507,11 +500,6 @@ test("a hold-to-show tooltip is still cancelled by the click that ends the tap",
     expect(".o_popover").toHaveCount(0);
 });
 
-// A11Y-BLOCK
-// The service removes the element's `title` while a custom tooltip is up, so
-// the native one does not show alongside it. Without an ARIA association the
-// replacement is an unreferenced <div>, leaving assistive tech with strictly
-// less than it had before the hover.
 test.tags("desktop");
 test("a custom tooltip is exposed to assistive technology", async () => {
     class MyComponent extends Component {
@@ -563,10 +551,6 @@ test("a tooltip keeps a description the element already had", async () => {
 
 test.tags("desktop");
 test("clicking a child of the tooltipped element closes an OPEN tooltip", async () => {
-    // The pending case was already covered; the open one was not, and identity
-    // (`target === ev.target`) never matches when the click lands on the
-    // button's inner <span>, leaving the tooltip on top of whatever the click
-    // had just triggered.
     class MyComponent extends Component {
         static props = ["*"];
         static template = xml`<button class="mybtn" data-tooltip="hello"><span class="inner">Action</span></button>`;
@@ -585,9 +569,6 @@ test("clicking a child of the tooltipped element closes an OPEN tooltip", async 
 
 test.tags("desktop");
 test("tooltip info built from a t-set body survives the JSON round-trip", async () => {
-    // Callers assemble `data-tooltip-info` from `t-set` bodies, which are
-    // Markup rather than plain strings; the service JSON.parses the attribute,
-    // so the body has to serialise as text and keep its punctuation intact.
     class MyComponent extends Component {
         static props = ["*"];
         static template = xml`
@@ -626,13 +607,6 @@ test("tooltip info built from a t-set body survives the JSON round-trip", async 
 
 test.tags("mobile");
 test("a touch cancelled before the tooltip opens restores the native title", async () => {
-    // `openTooltip` strips `title` and arms a detach watcher as soon as the
-    // open is merely *pending*. `onTouchEnd` cancelled the timer and nothing
-    // else, so both stayed that way until some later tooltip cycle ran
-    // `cleanup` for its own reasons — leaving the element with no accessible
-    // name (screen readers fall back to `title`) and a live `MutationObserver`
-    // in between. A plain release hides this behind the `click` that follows
-    // it; `touchcancel` (the user started scrolling mid-hold) has no click.
     class MyComponent extends Component {
         static props = ["*"];
         static template = xml`<button class="mybtn" title="native help" data-tooltip="custom help">Action</button>`;
@@ -652,18 +626,13 @@ test("a touch cancelled before the tooltip opens restores the native title", asy
     expect(btn).toHaveAttribute("title", "native help");
     expect(getDetachedTargetObserverCount()).toBe(observersBefore);
 
-    // The cancelled open must not fire late either.
     await runAllTimers();
     expect(".o_popover").toHaveCount(0);
     expect(btn).toHaveAttribute("title", "native help");
 });
 
-// SERVICE-TEARDOWN-BLOCK
 test.tags("desktop");
 test("destroying the service restores what an open tooltip borrowed", async () => {
-    // `destroy` duplicated part of `cleanup` and skipped exactly the steps with
-    // effects outside the service: the target kept a suppressed `title`, an
-    // `aria-describedby` pointing at a removed node, and the popover itself.
     class MyComponent extends Component {
         static props = ["*"];
         static template = xml`<button class="mybtn" title="native tip" data-tooltip="rich tip">Action</button>`;
@@ -685,11 +654,6 @@ test("destroying the service restores what an open tooltip borrowed", async () =
     expect(".o_popover").toHaveCount(0);
 });
 
-// REOPEN-GUARD-BLOCK
-// Re-entering a target that already shows its tooltip must be a no-op. The
-// guard only covered tooltips declared with `data-tooltip`; one registered
-// through `tooltip.add()` fell through to `openTooltip`, whose first act is
-// `cleanup()` -- so the tooltip closed and restarted its delay.
 test.tags("desktop");
 test("a service-registered tooltip survives a repeated mouseenter", async () => {
     class MyComponent extends Component {
@@ -728,9 +692,6 @@ test("a service-registered tooltip survives the target taking focus", async () =
     expect(".o_popover").toHaveCount(1);
 });
 
-// `parseInt` answers NaN for a hand-authored typo and `setTimeout(NaN)` fires on
-// the next tick, so a malformed delay produced an INSTANT tooltip -- the exact
-// opposite of asking for a longer one.
 test.tags("desktop");
 test("a malformed tooltip delay falls back to the default", async () => {
     class Host extends Component {

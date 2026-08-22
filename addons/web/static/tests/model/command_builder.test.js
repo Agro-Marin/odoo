@@ -1,10 +1,5 @@
 // @ts-check
 
-/**
- * Unit tests for command_builder.js: x2many command serialization and
- * deduplication, without OWL, DOM, or mock server.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import {
     absorbUnlinkIntoSet,
@@ -29,7 +24,7 @@ describe("serializeCommands", () => {
 
     function makeParams(overrides = {}) {
         return {
-            unknownRecordCommands: {},
+            unknownRecordCommands: new Map(),
             fields,
             activeFields,
             context: {},
@@ -118,9 +113,9 @@ describe("serializeCommands", () => {
     test("handles unknown record commands via convertUnityValues", () => {
         const commands = [[UPDATE, 99]];
         const params = makeParams({
-            unknownRecordCommands: {
-                99: [[UPDATE, 99, { name: "unity_value" }]],
-            },
+            unknownRecordCommands: new Map([
+                [99, [[UPDATE, 99, { name: "unity_value" }]]],
+            ]),
             convertUnityValues: (values) => ({
                 name: `converted_${values.name}`,
             }),
@@ -132,12 +127,15 @@ describe("serializeCommands", () => {
     test("merges multiple unknown record commands for same id (last wins)", () => {
         const commands = [[UPDATE, 99]];
         const params = makeParams({
-            unknownRecordCommands: {
-                99: [
-                    [UPDATE, 99, { name: "first" }],
-                    [UPDATE, 99, { name: "second" }],
+            unknownRecordCommands: new Map([
+                [
+                    99,
+                    [
+                        [UPDATE, 99, { name: "first" }],
+                        [UPDATE, 99, { name: "second" }],
+                    ],
                 ],
-            },
+            ]),
             convertUnityValues: (v) => v,
         });
         const result = serializeCommands(commands, params);
@@ -147,9 +145,9 @@ describe("serializeCommands", () => {
     test("cached record's own changes are merged over deferred slices", () => {
         const commands = [[UPDATE, 42]];
         const params = makeParams({
-            unknownRecordCommands: {
-                42: [[UPDATE, 42, { invisible_lines: [[5, 0, 0]] }]],
-            },
+            unknownRecordCommands: new Map([
+                [42, [[UPDATE, 42, { invisible_lines: [[5, 0, 0]] }]]],
+            ]),
             convertUnityValues: (v) => v,
             getRecord: (id) => (id === 42 ? { resId: 42 } : undefined),
             getRecordChanges: () => ({ name: "user edit" }),
@@ -296,13 +294,6 @@ describe("absorbUnlinkIntoSet", () => {
     });
 
     test("touches ONLY the SET payload, never the rest of the log", () => {
-        // The caller rebuilds `list._commands` from its own index straight
-        // after this returns, so anything spliced out of the array passed in
-        // here is written to a value that is about to be discarded. Dropping
-        // the absorbed id's other commands is the caller's job -- see
-        // static_list_command_engine.test.js, "an UNLINK absorbed into a
-        // staged SET also drops that row's staged UPDATE", which asserts it
-        // where it is actually observable.
         const commands = [
             [SET, false, [1, 2, 3]],
             [UPDATE, 2, { name: "edited" }],

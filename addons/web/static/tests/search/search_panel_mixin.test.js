@@ -1,32 +1,19 @@
 // @ts-check
 
-/**
- * Pure unit tests for search/search_panel/search_panel_mixin.js.
- *
- * The panel logic is a mixin applied to SearchModel; here it is exercised on a
- * bare ``SearchPanelMixin(class {})`` instance with a minimal set of properties
- * assigned — no OWL, no DOM fixtures, no server calls. Because the methods use
- * ``this``, an instance is all that is needed.
- *
- * _fetchFilters, _fetchSections, _reloadSections are not tested here: they
- * involve live ORM calls and multi-step async orchestration covered by existing
- * search_panel integration tests. (_fetchCategories is exercised below with a
- * mock orm for its per-section stale guard.)
- */
-
 import { describe, expect, test } from "@odoo/hoot";
+import { animationFrame, Deferred } from "@odoo/hoot-mock";
+import { Mutex } from "@web/core/utils/concurrency";
 import { SearchPanelMixin } from "@web/search/search_panel/search_panel_mixin";
 import { hasValues } from "@web/search/search_state";
 
-/** Concrete class exercising the mixin methods in isolation. */
 const PanelModel = SearchPanelMixin(class {});
 
 /**
- * Build a minimal SearchModel-like instance for the panel mixin methods.
  * @param {Map<number,Object>} sections
  * @param {Object} [overrides]
  */
 function makeSearchModel(sections, overrides = {}) {
+    /** @type {string[]} */
     const notifications = [];
     const model = new PanelModel();
     Object.assign(model, {
@@ -43,7 +30,11 @@ function makeSearchModel(sections, overrides = {}) {
     return model;
 }
 
-/** Build a category section object. */
+/**
+ * @param {any} id
+ * @param {Record<string, any>} [overrides]
+ * @returns {any}
+ */
 function makeCategory(id, overrides = {}) {
     return {
         id,
@@ -57,7 +48,12 @@ function makeCategory(id, overrides = {}) {
     };
 }
 
-/** Build a filter section object. */
+/**
+ * @param {any} id
+ * @param {any[][]} [valueEntries]
+ * @param {Record<string, any>} [overrides]
+ * @returns {any}
+ */
 function makeFilter(id, valueEntries = [], overrides = {}) {
     const values = new Map(
         valueEntries.map(([vid, checked]) => [vid, { id: vid, checked }]),
@@ -513,7 +509,6 @@ describe("_createFilterTree", () => {
 });
 
 describe("_fetchCategories per-section stale guard", () => {
-    /** A resolvable promise. */
     function makeDeferred() {
         let resolve;
         const promise = new Promise((r) => {
@@ -522,10 +517,6 @@ describe("_fetchCategories per-section stale guard", () => {
         return { promise, resolve };
     }
 
-    /**
-     * Build a mock orm whose `.cache(opts).call(...)` returns a deferred keyed
-     * by the requested field name; the test resolves each call by hand.
-     */
     function makeMockOrm() {
         const deferredsByField = new Map();
         const orm = {
@@ -551,6 +542,7 @@ describe("_fetchCategories per-section stale guard", () => {
             [1, catA],
             [2, catB],
         ]);
+        /** @type {any[]} */
         const created = [];
         const { orm, deferredsByField } = makeMockOrm();
         const model = makeSearchModel(sections, {
@@ -562,7 +554,8 @@ describe("_fetchCategories per-section stale guard", () => {
             categories: [catA, catB],
             _getFilterDomain: () => [],
             _getCategoryDomain: () => [],
-            _createCategoryTree: (id, result) => created.push([id, result]),
+            _createCategoryTree: (/** @type {any} */ id, /** @type {any} */ result) =>
+                created.push([id, result]),
             _reset() {},
             trigger() {},
         });
@@ -585,12 +578,8 @@ describe("_fetchCategories per-section stale guard", () => {
     });
 
     test("a client-side failure is not laundered into a section error message", async () => {
-        // Building the RPC kwargs used to happen inside the try that guards the
-        // call, so a programming error (a category naming a field absent from
-        // searchViewFields makes _getCategoryDomain throw) was rendered in the
-        // search panel as "Cannot destructure property 'type' of 'e[t]'" —
-        // no dialog, no traceback, indistinguishable from a server refusal.
         const category = makeCategory(1, { fieldName: "a" });
+        /** @type {any[]} */
         const created = [];
         const { orm } = makeMockOrm();
         const model = makeSearchModel(new Map([[1, category]]), {
@@ -603,7 +592,8 @@ describe("_fetchCategories per-section stale guard", () => {
             _getCategoryDomain: () => {
                 throw new TypeError("cannot read type of undefined");
             },
-            _createCategoryTree: (id, result) => created.push([id, result]),
+            _createCategoryTree: (/** @type {any} */ id, /** @type {any} */ result) =>
+                created.push([id, result]),
             _reset() {},
             trigger() {},
         });
@@ -677,7 +667,6 @@ describe("_shouldWaitForData", () => {
 });
 
 describe("a failing section fetch leaves a usable section", () => {
-    /** An orm whose cached call always rejects. */
     function makeThrowingOrm(error) {
         return {
             cache() {
@@ -717,8 +706,6 @@ describe("a failing section fetch leaves a usable section", () => {
         await model._fetchCategories([category]);
 
         expect(category.errorMsg).toBe("boom");
-        // SearchPanel.expandValues iterates rootIds; getAncestorValueIds and
-        // getCategorySelection look activeValueId up in values.
         expect(category.rootIds).toEqual([false]);
         expect(category.activeValueId).toBe(false);
         expect(category.values.get(category.activeValueId)).toBeOfType("object");
@@ -739,6 +726,162 @@ describe("a failing section fetch leaves a usable section", () => {
     });
 });
 
-// The section-refresh notification path (formerly `_notifySectionRefreshed`) is
-// now `SearchModel._notify({ reloadSections: false })`; its behaviour is
-// unit-tested in search_model.test.js, where the base method lives.
+describe("invalidateSections", () => {
+    test("marks the sections stale and notifies once", async () => {
+        const model = makeSearchModel(new Map(), {
+            searchPanelInfo: { loaded: true, shouldReload: false },
+        });
+        await model.invalidateSections();
+        expect(model.searchPanelInfo.shouldReload).toBe(true);
+        expect(model._notifications).toEqual(["notify"]);
+    });
+
+    test("answers a promise, so a caller can await the reload", async () => {
+        let resolved = false;
+        const model = makeSearchModel(new Map(), {
+            searchPanelInfo: { shouldReload: false },
+            _notify: async () => {
+                await Promise.resolve();
+                resolved = true;
+            },
+        });
+        await model.invalidateSections();
+        expect(resolved).toBe(true);
+    });
+
+    test("stays set when it was already set, rather than toggling", async () => {
+        const model = makeSearchModel(new Map(), {
+            searchPanelInfo: { shouldReload: true },
+        });
+        await model.invalidateSections();
+        expect(model.searchPanelInfo.shouldReload).toBe(true);
+    });
+});
+
+describe("_reloadSections choreography", () => {
+    /**
+     * @param {Object} [overrides]
+     */
+    function makeReloadModel(overrides = {}) {
+        /** @type {any[]} */
+        const steps = [];
+        const model = makeSearchModel(new Map(), {
+            searchPanelInfo: { loaded: true, shouldReload: false },
+            display: { searchPanel: true },
+            searchDomain: [],
+            _reloadMutex: new Mutex(),
+            _getDomain: () => [],
+            _shouldWaitForData: () => false,
+            _fetchSections: async () => {
+                steps.push("fetch");
+            },
+            _steps: steps,
+            ...overrides,
+        });
+        return model;
+    }
+
+    test("notifications are blocked for the duration and RESTORED, not cleared", async () => {
+        const seen = [];
+        const model = makeReloadModel({
+            blockNotification: true,
+            _getDomain: () => [["a", "=", 1]],
+            _fetchSections: async () => seen.push(this),
+        });
+        await model._reloadSections();
+        expect(model.blockNotification).toBe(true);
+
+        model.blockNotification = false;
+        await model._reloadSections();
+        expect(model.blockNotification).toBe(false);
+    });
+
+    test("an unchanged domain fetches nothing", async () => {
+        const model = makeReloadModel({ searchDomain: [] });
+        await model._reloadSections();
+        expect(model._steps).toEqual([]);
+    });
+
+    test("a changed domain fetches, and the new domain is recorded", async () => {
+        const model = makeReloadModel({
+            searchDomain: [],
+            _getDomain: () => [["a", "=", 1]],
+        });
+        await model._reloadSections();
+        expect(model._steps).toEqual(["fetch"]);
+        expect(model.searchDomain).toEqual([["a", "=", 1]]);
+    });
+
+    test("shouldReload forces a fetch even when the domain is identical", async () => {
+        const model = makeReloadModel({
+            searchPanelInfo: { loaded: true, shouldReload: true },
+        });
+        await model._reloadSections();
+        expect(model._steps).toEqual(["fetch"]);
+    });
+
+    test("a hidden panel records that it must reload when shown again", async () => {
+        const model = makeReloadModel({
+            display: { searchPanel: false },
+            _getDomain: () => [["a", "=", 1]],
+        });
+        await model._reloadSections();
+        expect(model._steps).toEqual([]);
+        expect(model.searchPanelInfo.shouldReload).toBe(true);
+    });
+
+    test("a displayed panel clears the flag once it has refetched", async () => {
+        const model = makeReloadModel({
+            searchPanelInfo: { loaded: true, shouldReload: true },
+        });
+        await model._reloadSections();
+        expect(model.searchPanelInfo.shouldReload).toBe(false);
+    });
+
+    test("the fetch is left on sectionsPromise when it is not awaited", async () => {
+        let release;
+        const model = makeReloadModel({
+            _getDomain: () => [["a", "=", 1]],
+            _shouldWaitForData: () => false,
+            _fetchSections: () => new Promise((resolve) => (release = resolve)),
+        });
+        let settled = false;
+        await model._reloadSections();
+        model.sectionsPromise.then(() => (settled = true));
+        expect(settled).toBe(false);
+        release();
+        await model.sectionsPromise;
+        expect(settled).toBe(true);
+    });
+
+    test("the mutex serialises overlapping reloads", async () => {
+        /** @type {any[]} */
+        const order = [];
+        const firstFetch = new Deferred();
+        let started = 0;
+        let domainSeq = 0;
+        const model = makeReloadModel({
+            _getDomain: () => [["a", "=", ++domainSeq]],
+            _shouldWaitForData: () => true,
+            _fetchSections: () => {
+                started++;
+                if (started === 1) {
+                    order.push("start1");
+                    return firstFetch.then(() => order.push("end1"));
+                }
+                order.push("start2");
+                order.push("end2");
+                return Promise.resolve();
+            },
+        });
+        const first = model._reloadSections();
+        const second = model._reloadSections();
+
+        await animationFrame();
+        expect(order).toEqual(["start1"]);
+
+        firstFetch.resolve();
+        await Promise.all([first, second]);
+        expect(order).toEqual(["start1", "end1", "start2", "end2"]);
+    });
+});

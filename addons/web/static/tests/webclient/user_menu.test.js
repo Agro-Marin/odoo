@@ -28,8 +28,6 @@ import { getOrigin } from "@web/core/utils/urls";
 import { UserMenu } from "@web/webclient/user_menu/user_menu";
 
 const userMenuRegistry = registry.category("user_menuitems");
-// Captured from the real registrations before each test clears the registry:
-// the items are exercised exactly as production registers them.
 const preferencesItem = userMenuRegistry.get("preferences");
 const odooAccountItem = userMenuRegistry.get("odoo_account");
 
@@ -196,11 +194,6 @@ test("can use component as registry item", async () => {
 });
 
 test("sequence 0 sorts first, not as the default 100", async () => {
-    // `sequence` used to be read as `x.sequence ? x.sequence : 100`, so the one
-    // value that means "before everything" was silently demoted to the value
-    // that means "no preference". No in-tree item uses 0 today — mail's status
-    // item is 45, web_enterprise's share is 25 — which is exactly why this
-    // could sit here unnoticed until an addon picked 0 and landed mid-menu.
     userMenuRegistry.add("last_item", () => ({
         type: "item",
         id: "last",
@@ -231,9 +224,6 @@ test("sequence 0 sorts first, not as the default 100", async () => {
 });
 
 test("the user menu toggle is named as a menu, not as an image", async () => {
-    // The avatar's `alt="User"` was the button's only accessible name, so the
-    // control announced as "User" rather than as something openable — and the
-    // image is decorative next to a name that already says whose menu it is.
     await mountWithCleanup(UserMenu);
     expect(".o_user_menu button").toHaveAttribute("aria-label", "User menu");
     expect(".o_user_menu button img").toHaveAttribute("alt", "");

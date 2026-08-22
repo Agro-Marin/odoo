@@ -1,5 +1,3 @@
-"""Tests for the JS error beacon: /web/observability/js_error → web.js.error."""
-
 import json
 from unittest.mock import patch
 
@@ -9,10 +7,6 @@ from odoo.tools import mute_logger
 
 @tagged("-at_install", "post_install", "web_http", "web_js_error")
 class TestWebJsErrorBeacon(HttpCase):
-    """Behaviour of the /web/observability/js_error controller, plus
-    ``web.js.error``'s retention sweep, which is exercised through the model.
-    """
-
     def _beacon(self, payload):
         return self.url_open(
             "/web/observability/js_error",
@@ -72,8 +66,6 @@ class TestWebJsErrorBeacon(HttpCase):
         )
 
     def test_js_error_reloaded_flag_is_logged(self):
-        """``reloaded`` separates a page that self-healed from one that stayed
-        broken, so both values must reach the log distinctly."""
         for sent, expected in ((True, "reloaded=True"), (False, "reloaded=False")):
             with self.assertLogs(
                 "odoo.addons.web.controllers.observability", level="WARNING"
@@ -91,8 +83,6 @@ class TestWebJsErrorBeacon(HttpCase):
             )
 
     def test_js_error_absent_reloaded_logs_none(self):
-        """Every other kind omits the field; it must not read as False, which
-        would claim a reload was suppressed when none was ever attempted."""
         with self.assertLogs(
             "odoo.addons.web.controllers.observability", level="WARNING"
         ) as capture:
@@ -123,8 +113,6 @@ class TestWebJsErrorBeacon(HttpCase):
         self.assertFalse(row.reloaded, "no reloaded was sent, so it stays unset")
 
     def test_js_error_reloaded_maps_to_selection(self):
-        """The wire sends a bool; the model stores a tristate so that 'not
-        applicable' stays distinguishable from 'the reload was suppressed'."""
         for sent, expected in ((True, "reloaded"), (False, "suppressed")):
             message = f"reload probe {sent}"
             self._beacon(
@@ -138,12 +126,8 @@ class TestWebJsErrorBeacon(HttpCase):
             self.assertEqual(row.reloaded, expected)
 
     def test_js_error_rate_limited_beacon_persists_nothing(self):
-        """A 429 must not leave a row behind, or the rate limit would cap the
-        log while the table grew unbounded."""
         from odoo.addons.web.controllers import observability
 
-        # _rate_state is process-global: clear it on both sides or this test
-        # poisons the budget for whatever runs next in the same worker.
         observability._rate_state.clear()
         self.addCleanup(observability._rate_state.clear)
 
@@ -176,7 +160,6 @@ class TestWebJsErrorBeacon(HttpCase):
         )
         param = self.env["ir.config_parameter"].sudo()
 
-        # 0 disables retention entirely — the transit-buffer case.
         param.set_param("web.js_error.retention_days", "0")
         Model._gc_old_errors()
         self.assertTrue(Model.search([("message", "=", "old row")]))
@@ -216,7 +199,7 @@ class TestWebJsErrorBeacon(HttpCase):
         self.assertIn("x" * 4096, logged)
 
     def test_js_error_cause_is_clamped_and_logged(self):
-        cause = "Caused by: TypeError: boom " * 200  # well over 4096 chars
+        cause = "Caused by: TypeError: boom " * 200
         with self.assertLogs(
             "odoo.addons.web.controllers.observability", level="WARNING"
         ) as capture:

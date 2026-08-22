@@ -5208,12 +5208,6 @@ test(`aggregates monetary (different currencies, record without value)`, async (
 });
 
 test(`aggregates monetary (currency field named only by the option)`, async () => {
-    // The option now declares its field as a dependency, so the currency is
-    // loaded and the amounts carry its symbol. Before that the field was absent
-    // from the read and every cell rendered bare -- money with no currency --
-    // unless the arch also named it. 144 of the 164 arch usages in this
-    // workspace already carried that manual `<field name="..."/>`; these are
-    // the other 20.
     Foo._fields.currency_test = fields.Many2one({
         relation: "res.currency",
         default: 1,
@@ -15929,9 +15923,6 @@ test(`change the viewType of the current action`, async () => {
 });
 
 test(`optional columns follow a storage write made elsewhere`, async () => {
-    // The key is shared by every renderer resolving to the same view, and by
-    // every tab. Snapshotting it at setup left each renderer with a private
-    // copy that went stale the moment anyone else wrote.
     await mountView({
         resModel: "foo",
         type: "list",
@@ -15945,21 +15936,15 @@ test(`optional columns follow a storage write made elsewhere`, async () => {
     });
     expect(`th[data-name=m2o]`).toHaveCount(0);
 
-    // enable it through the UI so the real key is the one under test
     await contains(`table .o_optional_columns_dropdown_toggle`).click();
     await contains(`.o-dropdown--menu span.dropdown-item [name=m2o]`).click();
     expect(`th[data-name=m2o]`).toHaveCount(1);
 
-    // Enumerated through the Storage API rather than `Object.keys`: a real
-    // `Storage` exposes its entries as own properties, but neither the RAM
-    // fallback in `browser.js` nor the per-test store the framework installs
-    // does — and `length`/`key(i)` is the contract all three actually honour.
     const key = Array.from({ length: browser.localStorage.length }, (_, i) =>
         browser.localStorage.key(i),
     ).find((k) => k.startsWith("optional_fields,"));
     expect(typeof key).toBe("string");
 
-    // another renderer / another tab hides it again
     browser.localStorage.setItem(key, "");
     await contains(`th[data-name=foo]`).click();
     expect(`th[data-name=m2o]`).toHaveCount(0);
@@ -16191,10 +16176,6 @@ test(`Date in evaluation context works with date field`, async () => {
 test(`Datetime in evaluation context works with datetime field`, async () => {
     mockDate("1997-01-09 12:00:00");
 
-    /**
-     * Returns "1997-01-DD HH:MM:00" using current UTC values from patched date +
-     * deltaMinutes, so the test works regardless of the browser's timezone.
-     */
     function dateStringDelta(deltaMinutes) {
         return luxon.DateTime.now()
             .plus({ minutes: deltaMinutes })
@@ -20235,17 +20216,6 @@ test("scroll position is restored when coming back to list view", async () => {
 });
 
 test("column tooltip cache is invalidated when debug mode is toggled", async () => {
-    // `makeTooltip` is called from the template as a bare `makeTooltip(column)`,
-    // so it runs against OWL's per-render context rather than the component
-    // (see §4.3.2 of doc/coding_guidelines.rst). The cache invalidation used to
-    // live inside it, which meant `this.tooltipInfoDebug = …` and
-    // `this.tooltipInfoByColumn = {}` were written to that throwaway object:
-    // the component's flag never advanced, so after a runtime debug toggle the
-    // reset branch re-ran on every single call and handed each render a fresh
-    // empty context-local cache, rebuilding every column's tooltip on every
-    // render — while the component's real cache kept its stale pre-toggle
-    // entries forever. Invalidation now lives in `onWillRender`, which is
-    // component-bound.
     let renderer;
     patchWithCleanup(ListRenderer.prototype, {
         setup() {

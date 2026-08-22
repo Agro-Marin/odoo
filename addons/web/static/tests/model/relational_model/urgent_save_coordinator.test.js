@@ -122,10 +122,6 @@ describe("the reentrant drain is bounded", () => {
     test("a save that keeps re-entering still returns", async () => {
         const coordinator = new UrgentSaveCoordinator();
         let spawned = 0;
-        // Each reentrant save schedules another one a microtask later, so every
-        // one is its own DRAIN ROUND. Unbounded, the `finally` never reaches
-        // `_transition("end")` and `run()` never settles -- inside a
-        // beforeunload handler that is the whole tab.
         const reenter = () => {
             spawned++;
             return coordinator.run(async () => {
@@ -139,7 +135,6 @@ describe("the reentrant drain is bounded", () => {
         const originalWarn = console.warn;
         console.warn = (...args) => warnings.push(args.join(" "));
         try {
-            // The contract is that this settles at all.
             await coordinator.run(async () => {
                 reenter();
             });

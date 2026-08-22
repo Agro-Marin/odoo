@@ -822,19 +822,8 @@ test("action is removed while waiting for another action with selectMenu", async
     expect(".o_action_manager").toHaveText("My client action");
 });
 
-// Action 3 is a list+kanban window action, and mobile resolves it to the kanban
-// view, so the list controller this reproduces the bug through never mounts.
 test.tags("desktop");
 test("_getView answers null — not a throw — when the tip is not a window action", async () => {
-    // "no such view on this action" and "this action is not a window action at
-    // all" are the same answer to the caller, and the two callers already know
-    // what to do with it: switchView raises a typed ViewNotFoundError, and the
-    // openFormView helper (a live view's selectRecord/createRecord prop) falls
-    // through to opening a standalone form. The second case used to throw a
-    // bare Error, so which one you got depended on WHY the view was missing —
-    // and list_controller.openRecord awaits a save before calling selectRecord,
-    // so a navigation landing in that window turned a row click into an
-    // uncaught error.
     class PlainClientAction extends Component {
         static template = xml`<div class="plain_client_action"/>`;
         static props = ["*"];
@@ -844,12 +833,7 @@ test("_getView answers null — not a throw — when the tip is not a window act
     await mountWithCleanup(WebClient);
     const actionService = getService("action");
     await actionService.doAction(3);
-    // The multi-record view the action opens with is preset-dependent (mobile
-    // resolves `mobile_view_mode`), and irrelevant here: what matters is that a
-    // window action is on the tip and exposes the prop captured below.
     expect(actionService.currentController.action.type).toBe("ir.actions.act_window");
-    // Captured while the multi-record view is on top, exactly as openRecord()
-    // holds it across its `await record.save()`.
     const selectRecord = actionService.currentController.props.selectRecord;
 
     await actionService.doAction({
@@ -860,15 +844,11 @@ test("_getView answers null — not a throw — when the tip is not a window act
     expect(actionService.currentController.action.type).toBe("ir.actions.client");
 
     expect(actionService._getView("form")).toBe(null);
-    // No throw: the stale closure degrades to a no-op instead of an error dialog.
     await selectRecord(1, {});
     expect(".plain_client_action").toHaveCount(1);
 });
 
 test("a handler registered for a built-in action type is reported as dead", async () => {
-    // `action_handlers` is the extension point for NEW types; the six the
-    // service implements itself always win. Registering against one of them
-    // looks like it took effect and never runs.
     patchWithCleanup(odoo, { debug: "1" });
     patchWithCleanup(console, {
         warn: (message) => expect.step(message),
@@ -886,8 +866,6 @@ test("a handler registered for a built-in action type is reported as dead", asyn
 });
 
 test("an onClose dropped by an inline dispatch is reported in debug", async () => {
-    // `onClose` only ever fires for dialogs; an inline (non-dialog) dispatch
-    // silently ignores it. In debug, say so instead.
     patchWithCleanup(odoo, { debug: "1" });
     patchWithCleanup(console, {
         warn: (message) => expect.step(message),
@@ -897,18 +875,11 @@ test("an onClose dropped by an inline dispatch is reported in debug", async () =
     expect.verifySteps([
         `[action] "onClose" is ignored for inline dispatches: action "1" does not open a dialog.`,
     ]);
-    // A dialog dispatch keeps its onClose: no warning.
     await getService("action").doAction(5, { onClose: () => {} });
     expect.verifySteps([]);
 });
 
 test("a button's onClose is not reported when the action turns out to be inline", async () => {
-    // Every `<button type="object">` attaches a reload callback through
-    // `view_button_hook` BEFORE the RPC that decides whether the action is a
-    // dialog. Warning there blamed the caller for a choice the server makes,
-    // and fired on the most ordinary case there is: a settings button whose
-    // method returns a `target: current` act_window (mail's
-    // `open_mail_templates` is one).
     patchWithCleanup(odoo, { debug: "1" });
     patchWithCleanup(console, {
         warn: (message) => expect.step(message),
@@ -933,13 +904,6 @@ test("a button's onClose is not reported when the action turns out to be inline"
 });
 
 test("ACTION_MANAGER:SETTLED fires for an action that changes nothing on screen", async () => {
-    // The signal exists for exactly this case: a server action returning
-    // nothing pushes no UI update, so anything waiting on the visible effect
-    // waits forever. `clickbot` is the caller that used to.
-    //
-    // Once, though: the server action becomes an act_window_close, which
-    // re-enters `doAction`. Announcing from every level told a waiter the
-    // dispatch was over while the outer one was still running.
     onRpc("/web/action/run", () => false);
     await mountWithCleanup(WebClient);
     await getService("action").doAction(1);
@@ -964,7 +928,6 @@ test("ACTION_MANAGER:SETTLED fires for an action that changes nothing on screen"
 });
 
 test("ACTION_MANAGER:SETTLED fires even when the dispatch fails", async () => {
-    // A waiter told only about successes hangs on the cases worth noticing.
     await mountWithCleanup(WebClient);
     let settled = 0;
     getService("action").env.bus.addEventListener(

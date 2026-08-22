@@ -334,12 +334,6 @@ test("non-debug: refuses (quarantines) an invalid entry without throwing", async
 });
 
 test("non-debug: a quarantined invalid entry beacons the anomaly (observability)", async () => {
-    // The prod branch of the validation fork must not merely drop-and-warn: it
-    // reports the anomaly through the js_error beacon, so a silently-refused
-    // registration stays observable in production, where a console warning
-    // reaches no one. This is the "debug throws, prod beacons" contract, and the
-    // beacon is the half a console.warn assertion does not pin -- removing it
-    // would let prod go silent again with the suite still green.
     /** @type {any[]} */
     const calls = [];
     mockSendBeacon((url, blob) => {
@@ -352,8 +346,8 @@ test("non-debug: a quarantined invalid entry beacons the anomaly (observability)
     registry.addValidation({ name: String });
     registry.add("bad_entry", { name: 50 });
 
-    expect(registry.contains("bad_entry")).toBe(false); // dropped, not stored...
-    expect(calls).toHaveLength(1); // ...and the drop is observable, not silent
+    expect(registry.contains("bad_entry")).toBe(false);
+    expect(calls).toHaveLength(1);
     const payload = JSON.parse(await calls[0].blob.text());
     expect(payload.message).toInclude("[registry]");
     expect(payload.message).toInclude(`Validation error for key "bad_entry"`);
@@ -361,10 +355,6 @@ test("non-debug: a quarantined invalid entry beacons the anomaly (observability)
 });
 
 test("non-debug: a duplicate add with a different value beacons the anomaly (observability)", async () => {
-    // First-wins semantics silently drop the second value; outside debug mode
-    // the old code emitted nothing at all, so a real addon collision was
-    // invisible in production. The collision must go through the same js_error
-    // beacon as validation failures.
     /** @type {any[]} */
     const calls = [];
     mockSendBeacon((url, blob) => {
@@ -377,8 +367,8 @@ test("non-debug: a duplicate add with a different value beacons the anomaly (obs
     registry.add("colliding_key", "first");
     registry.add("colliding_key", "second");
 
-    expect(registry.get("colliding_key")).toBe("first"); // first-wins kept...
-    expect(calls).toHaveLength(1); // ...and the dropped add is observable
+    expect(registry.get("colliding_key")).toBe("first");
+    expect(calls).toHaveLength(1);
     const payload = JSON.parse(await calls[0].blob.text());
     expect(payload.message).toInclude("[registry]");
     expect(payload.message).toInclude(`Duplicate add for key "colliding_key"`);
@@ -448,16 +438,6 @@ test("useRegistry: listens from setup time, not onWillStart", async () => {
     expect(state.entries.map(([/** @type {any} */ k]) => k)).toEqual(["a", "b"]);
 });
 
-// SEMANTICS-PARITY-BLOCK
-// The hoot bootstrap used to rewrite `Registry.prototype.add` to force every
-// registration for the whole run. That did not merely relax the rule, it
-// INVERTED it: production keeps the FIRST registration, the suite kept the
-// LAST. Duplicate-registration bugs -- two envs starting the same service, an
-// addon colliding with a core key -- could therefore pass their test while
-// doing the opposite in the browser, and a test written to pin the correct
-// behaviour was structurally unable to fail. Tests run with production
-// semantics; anything that needs to replace an entry passes `force` itself,
-// exactly as an addon does.
 test("tests see production first-registration-wins semantics", () => {
     const registry = new Registry();
     registry.add("k", "first");

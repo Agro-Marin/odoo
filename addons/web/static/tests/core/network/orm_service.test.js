@@ -466,6 +466,37 @@ test("optimize read and unlink if no ids", async () => {
     expect.verifySteps([]);
 });
 
+test("webSave with no ids still reaches the server, because that is a create", async () => {
+    onRpc((params) => {
+        expect.step(params.route);
+        return [{ id: 1 }];
+    });
+
+    const { services } = await makeMockEnv();
+
+    await services.orm.webSave("res.partner", [], { name: "new" });
+    expect.verifySteps(["/web/dataset/call_kw/res.partner/web_save"]);
+
+    await services.orm.webSave("res.partner", [1], { name: "edited" });
+    expect.verifySteps(["/web/dataset/call_kw/res.partner/web_save"]);
+});
+
+test("webRead and webResequence do short-circuit on no ids", async () => {
+    onRpc((params) => {
+        expect.step(params.route);
+        return [];
+    });
+
+    const { services } = await makeMockEnv();
+
+    await services.orm.webRead("res.partner", []);
+    await services.orm.webResequence("res.partner", []);
+    expect.verifySteps([]);
+
+    await services.orm.webRead("res.partner", [1]);
+    expect.verifySteps(["/web/dataset/call_kw/res.partner/web_read"]);
+});
+
 test("Cache: can cache a simple orm call", async () => {
     rpc.setCache(
         new RPCCache(

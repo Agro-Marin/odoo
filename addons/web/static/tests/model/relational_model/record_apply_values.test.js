@@ -1,17 +1,5 @@
 // @ts-check
 
-/**
- * Pins ``record._applyValues``'s handling of x2many pending edits: a list
- * held in ``_changes`` with staged commands must be MERGED with the fresh
- * server rows (same datapoint, commands preserved), never wholesale-replaced
- * by a freshly parsed StaticList whose empty ``_commands`` would silently
- * drop the pending sub-edits from the next save. Reachable via
- * ``extendRecord``'s first-extension load, ``_updateSimilarRecords``
- * (m2m-grouped kanban), and ``_createRecordDatapoint``'s cached-dirty branch.
- *
- * Uses the REAL RelationalRecord and StaticList classes against a mock model.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";
@@ -70,7 +58,7 @@ describe("_applyValues x2many merge", () => {
         expect(record._values.lines).toBe(list);
         expect(record.data.lines).toBe(list);
         expect(list._commands).toEqual([[LINK, 11, false]]);
-        expect(list._cache[10].data.name).toBe("L1-updated");
+        expect(list._cache.get(10).data.name).toBe("L1-updated");
         expect(list.records.find((r) => r.resId === 10).data.name).toBe("L1-updated");
         expect(list._currentIds).toEqual([10, 11]);
     });
@@ -84,7 +72,7 @@ describe("_applyValues x2many merge", () => {
         record._applyValues({ id: 1, lines: [{ id: 10, name: "L1-updated" }] });
 
         expect(record.data.lines).not.toBe(list);
-        expect(record.data.lines._cache[10].data.name).toBe("L1-updated");
+        expect(record.data.lines._cache.get(10).data.name).toBe("L1-updated");
         expect(record._changes.lines).toBe(record.data.lines);
     });
 });

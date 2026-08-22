@@ -15,6 +15,7 @@ import {
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
+import { patch } from "@web/core/utils/patch";
 import { NavBar } from "@web/webclient/navbar/navbar";
 
 const systrayRegistry = registry.category("systray");
@@ -423,10 +424,6 @@ test("'more' menu sections adaptations do not trigger render in some cases", asy
 
 test.tags("desktop");
 test("'more' menu sections follow a menu reload that keeps the overflow count", async () => {
-    // The count and the app are unchanged, so the guard on the final render
-    // used to hold — while the render that carried the new sections had
-    // already gone out with the PREVIOUS overflow list. The bar showed the new
-    // menus and the "more" dropdown beside it went on offering the old ones.
     const SECTIONS = [10, 11, 12, 13, 14, 15];
     const build = (names) => {
         const menus = {
@@ -453,7 +450,6 @@ test("'more' menu sections follow a menu reload that keeps the overflow count", 
         return menus;
     };
     const before = ["Aaaaaaaa", "Bbbbbbbb", "Cccccccc", "Dddddddd", "Eeeeeeee", "Ffffffff"]; // prettier-ignore
-    // Same lengths, so the same number of sections overflow.
     const after = ["Aaaaaaaa", "Bbbbbbbb", "Cccccccc", "Wwwwwwww", "Xxxxxxxx", "Yyyyyyyy"]; // prettier-ignore
 
     let names = before;
@@ -628,11 +624,6 @@ test("Do not execute adapt when navbar is destroyed", async () => {
 
 test.tags("desktop");
 test("the icon-only navbar toggles carry an accessible name", async () => {
-    // `title` is the weakest source of an accessible name and some assistive
-    // technology ignores it, so an icon-only button that relies on it alone can
-    // be announced as an unlabelled button. The sidebar close button in the
-    // same template already pairs `title` with `aria-label`; the apps and
-    // "more" toggles did not.
     defineMenus([
         {
             id: 1,
@@ -648,7 +639,6 @@ test("the icon-only navbar toggles carry an accessible name", async () => {
 
     expect(".o_navbar_apps_menu button").toHaveAttribute("aria-label", "Home Menu");
     expect(".o_menu_sections_more button").toHaveAttribute("aria-label", "More Menu");
-    // The glyphs themselves must not be announced alongside the name.
     expect(".o_navbar_apps_menu button i").toHaveAttribute("aria-hidden", "true");
     expect(".o_menu_sections_more button i").toHaveAttribute("aria-hidden", "true");
 });
@@ -665,4 +655,42 @@ test("the systray holds only its items, with no filler elements between them", a
         message: `empty filler elements in the systray: ${filler.length}`,
     });
     expect(systray.children.length).toBe(systrayRegistry.getEntries().length);
+});
+
+test.tags("desktop");
+test("the navbar accessors tolerate assignment, so a subclass cannot throw on one", () => {
+    for (const name of ["currentAppSections", "systrayItems"]) {
+        const descriptor = Object.getOwnPropertyDescriptor(NavBar.prototype, name);
+        expect(typeof descriptor.get).toBe("function");
+        expect(typeof descriptor.set).toBe("function", {
+            message:
+                `NavBar.prototype.${name} lost its setter. Assigning a ` +
+                `getter-only accessor throws in strict mode, which is what a ` +
+                `subclass such as EnterpriseNavBar would do.`,
+        });
+    }
+    class Sub extends NavBar {}
+    const instance = Object.create(Sub.prototype);
+    expect(() => {
+        instance.currentAppSections = [];
+        instance.systrayItems = [];
+    }).not.toThrow();
+});
+
+test.tags("desktop");
+test("a getter-only patch keeps the setter, so patch order cannot break assignment", () => {
+    const unpatch = patch(NavBar.prototype, {
+        get systrayItems() {
+            return [];
+        },
+    });
+    try {
+        const descriptor = Object.getOwnPropertyDescriptor(
+            NavBar.prototype,
+            "systrayItems",
+        );
+        expect(typeof descriptor.set).toBe("function");
+    } finally {
+        unpatch();
+    }
 });

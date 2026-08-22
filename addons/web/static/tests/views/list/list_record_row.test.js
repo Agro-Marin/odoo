@@ -1,31 +1,5 @@
 // @ts-check
 
-/**
- * @module tests/views/list/list_record_row
- *
- * Contract tests for the ``ListRecordRow`` explicit row context
- * (see the class comment in ``list_record_row.js``):
- *
- * - C1: ``api`` members dispatch against the RENDERER instance (subclass
- *   ``buildRowApi()`` extensions included), with the row's own ``record``
- *   as their argument.
- * - C2: action callbacks resolve their record argument back to the
- *   renderer's reactivity context, so identity comparisons against
- *   renderer-side state keep holding.
- * - C3: renderer reactive state passed through a ``getRowProps()``
- *   extension re-renders the rows that read it — without a full renderer
- *   render.
- * - C4: a subclass ``static recordRowTemplate`` (template inheriting
- *   ``web.ListRenderer.RecordRow``) is resolved and rendered by the row
- *   component; the inherited row body stays intact.
- * - C5: the derived row class exposes the renderer class's ``components``
- *   as a live view, not a snapshot.
- * - C7: ``record``/``group``/``groupId`` are the row's own props — the
- *   explicit row context, not a grid lookup.
- * - C8: the row template's actual reads define the row's reactive
- *   subscriptions: one record's data change re-renders that row standalone.
- */
-
 import { expect, test } from "@odoo/hoot";
 import { queryAll } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
@@ -73,11 +47,6 @@ registerTemplate(
 );
 
 /**
- * Register a ``custom_row_list`` js_class whose renderer uses the inheriting
- * row template above — following the documented extension recipe
- * (``buildRowApi()`` for methods, ``getRowProps()`` for state) — and expose
- * the mounted renderer instance.
- *
  * @returns {{ get renderer(): any, rendererRenders: number }}
  */
 function setupCustomRowList() {
@@ -156,8 +125,6 @@ test("action callbacks resolve the record to the renderer's context (C2)", async
     const secondRow = queryAll(".o_data_row")[1];
     await contains(secondRow.querySelector(".o_data_cell")).click();
     expect(captured.renderer.notedRecord.id).toBe(secondRow.dataset.id);
-    // Not just id-equal: the SAME reactive the renderer itself holds, so
-    // identity comparisons in renderer/model code keep working.
     expect(captured.renderer.notedRecord).toBe(captured.renderer.props.list.records[1]);
 });
 
@@ -173,8 +140,6 @@ test("getRowProps state re-renders rows without a renderer render (C3)", async (
     captured.renderer.rowState.highlight = true;
     await animationFrame();
     expect(rows.map((row) => row.dataset.highlight)).toEqual(["on", "on", "on"]);
-    // The rows re-rendered through their own subscription to the prop's
-    // reactive — the renderer itself never read `highlight`, so it did not.
     expect(captured.rendererRenders).toBe(rendererRendersBefore);
 });
 
@@ -190,9 +155,6 @@ test("row component class components are a live view over the renderer's (C5)", 
 });
 
 test("record, group and groupId come from the row's own props (C7)", () => {
-    // The row context is explicit: `record`/`group`/`groupId` are the row's
-    // own props — `props.record` is the reactive OWL re-targets to the row,
-    // so template reads through these getters subscribe THIS row.
     const get = (/** @type {string} */ name) =>
         /** @type {any} */ (
             Object.getOwnPropertyDescriptor(ListRecordRow.prototype, name)
@@ -207,9 +169,6 @@ test("record, group and groupId come from the row's own props (C7)", () => {
 
 test.tags("desktop");
 test("a record data change re-renders that row standalone (C8)", async () => {
-    // The template's actual reads define the row's reactive subscriptions:
-    // mutating one record's data re-renders that row — and only that row —
-    // without a full renderer render.
     /** @type {any[]} */
     const rowRenders = [];
     patchWithCleanup(ListRecordRow.prototype, {

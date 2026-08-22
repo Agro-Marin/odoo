@@ -1,21 +1,5 @@
 // @ts-check
 
-/**
- * Unit tests for DynamicGroupList.moveRecord (dynamic_group_list.js).
- *
- * A cross-group move optimistically splices the datapoint into the target
- * group, then persists via ``record.update({ save: true })`` (whose own
- * ``mutex.exec`` serializes concurrent saves). The splice is deliberately NOT
- * serialized — see the comment on ``moveRecord``. On a failed save the move must
- * be reverted — and crucially the record's (unsaved) groupby-field change must
- * be DISCARDED, not just the datapoint moved back. Otherwise the reverted card
- * renders in its original column while still carrying the target column's value
- * with dirty=true.
- *
- * Uses ``Object.create(DynamicGroupList.prototype)`` with hand-built state,
- * mirroring the model suite's mock style.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { DynamicGroupList } from "@web/model/relational_model/dynamic_group_list";
 

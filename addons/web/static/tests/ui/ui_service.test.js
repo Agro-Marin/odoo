@@ -314,21 +314,10 @@ test("UI active element: trap focus is not bypassed using invisible elements", a
     expect("input[placeholder=withFocus]").toBeFocused();
 });
 
-// REGRESSION-BLOCK
 test("the service releases its breakpoint listeners on destroy", async () => {
-    // A first env makes sure `MEDIAS` is already bound, so the next start
-    // rebuilds it from the patched `matchMedia` below.
     await makeMockEnv();
 
     let attached = 0;
-    // `browser`, not `window`: `viewport.js` goes through the same indirection
-    // as the rest of the codebase, and `browser.matchMedia` is bound to
-    // `window.matchMedia` once at module load — so patching `window` after
-    // that point no longer reaches it.
-    // Only the breakpoint queries: `browser.matchMedia` is shared, and the
-    // color-scheme service binds `(prefers-color-scheme:dark)` for the life of
-    // the env. Counting every query charged the ui service for a listener it
-    // does not own and cannot release.
     patchWithCleanup(browser, {
         matchMedia: (/** @type {string} */ query) => {
             const isBreakpoint = query.startsWith("(min-width:");
@@ -355,12 +344,6 @@ test("the service releases its breakpoint listeners on destroy", async () => {
     expect(attached).toBe(0);
 });
 
-// MULTI-ENV-BLOCK
-// `main_components` is ONE registry shared by every env, and `add` is
-// first-registration-wins. Publishing the bus as a prop there pinned every
-// container on the page to whichever env started first: the second env's
-// `block()` was a no-op, and the first env's `block()` drew its spinner across
-// a container it does not own. `BlockUI` must resolve the bus from its own env.
 test("each env blocks its own container, not its neighbour's", async () => {
     const envA = await makeMockEnv();
     const envB = await makeMockEnv(undefined, { makeNew: true });
@@ -383,7 +366,6 @@ test("each env blocks its own container, not its neighbour's", async () => {
     await animationFrame();
 });
 
-// BLOCKUI-A11Y-BLOCK
 test("the blocking overlay announces its message politely", async () => {
     await mountWithCleanup(MainComponentsContainer);
     getService("ui").block();
@@ -391,19 +373,13 @@ test("the blocking overlay announces its message politely", async () => {
 
     expect(".o_blockUI .o_message").toHaveAttribute("role", "status");
     expect(".o_blockUI .o_message").toHaveAttribute("aria-live", "polite");
-    // The spinner is decorative: the live region already carries the text.
     expect(".o_blockUI .o_spinner img").toHaveAttribute("alt", "");
 
     getService("ui").unblock();
     await animationFrame();
 });
 
-// BREAKPOINT-COVERAGE-BLOCK
 /**
- * Evaluates a width media query the way a browser does, whatever bounds the
- * implementation chose to express -- so these tests check the invariant rather
- * than assuming the very query shape they exist to verify.
- *
  * @param {() => number} getWidth
  */
 function mockMatchMediaAtWidth(getWidth) {
@@ -418,8 +394,6 @@ function mockMatchMediaAtWidth(getWidth) {
             const media = {
                 get matches() {
                     if (min === undefined && max === undefined) {
-                        // Not a width query (`prefers-reduced-motion`, ...):
-                        // claiming a match would answer for the whole codebase.
                         return false;
                     }
                     const width = getWidth();
@@ -444,11 +418,6 @@ function mockMatchMediaAtWidth(getWidth) {
 }
 
 test("every viewport width maps to a size, including between breakpoints", async () => {
-    // Sizes used to be `(min-width) and (max-width)` pairs, which cover the
-    // integers and nothing between them: at a fractional device scale factor a
-    // 575px viewport is 575.xx, matched no query, and `findIndex` returned -1.
-    // `isSmall` then said true while `ui.size` indexed past every size table --
-    // `button_box` read `undefined` and fell back to its widest layout.
     for (const width of [575.5, 767.5, 991.5, 1199.5, 1399.5]) {
         mockMatchMediaAtWidth(() => width);
         const env = await makeMockEnv(undefined, { makeNew: true });
@@ -482,23 +451,18 @@ test("a resize that does not change the size does not broadcast", async () => {
     ui.bus.addEventListener(AppEvent.RESIZE, () => expect.step("resize"));
     expect(ui.size).toBe(SIZES.LG);
 
-    width = 1100; // still LG
+    width = 1100;
     notifyAll();
     expect.verifySteps([]);
     expect(ui.size).toBe(SIZES.LG);
 
-    width = 1300; // now XL
+    width = 1300;
     notifyAll();
     expect.verifySteps(["resize"]);
     expect(ui.size).toBe(SIZES.XL);
 });
 
 test("an element activated twice stays active after one deactivation", async () => {
-    // `activateElement` is public and driven from focus events, so an element
-    // can legitimately be pushed twice -- knowledge's embedded view re-activates
-    // its host whenever the active element is no longer inside it, which an
-    // overlay stacked on top makes true. Removing every occurrence discarded an
-    // activation that was still outstanding and dropped straight to `document`.
     const env = await makeMockEnv();
     const ui = env.services.ui;
     const host = document.createElement("div");

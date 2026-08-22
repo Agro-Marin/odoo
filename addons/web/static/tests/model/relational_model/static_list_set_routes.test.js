@@ -1,19 +1,5 @@
 // @ts-check
 
-/**
- * A ``SET`` command reaches a StaticList by two routes, and they are NOT
- * interchangeable:
- *
- *  - **client-authored** (``record.update({field: [[6, false, ids]]})``) —
- *    ``preprocessX2manyChanges`` intercepts it and calls ``_replaceWith``;
- *  - **server-authored** (an onchange payload, reaching ``_applyCommands``) —
- *    ``expandSetCommands`` rewrites it as ``CLEAR`` + one ``LINK`` per id.
- *
- * These tests pin the difference so it cannot drift silently. See the
- * cross-referenced comments on ``StaticList._replaceWith`` and
- * ``expandSetCommands``.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { markRaw } from "@odoo/owl";
 import { x2ManyCommands } from "@web/core/network/commands";
@@ -26,7 +12,6 @@ const { UPDATE, SET, CLEAR, LINK } = x2ManyCommands;
 function makeList(resIds) {
     const list = Object.create(StaticList.prototype);
     Object.assign(list, {
-        // Membership owner first: the keys below write through its accessors.
         _membership: new ListMembership(),
         id: "datapoint_test",
         _config: {
@@ -40,12 +25,12 @@ function makeList(resIds) {
             fields: { display_name: { type: "char" } },
         },
         records: [],
-        _cache: markRaw({}),
+        _cache: markRaw(new Map()),
         _commands: [],
         _initialCommands: [],
         _commandsPromise: null,
         _savePoint: undefined,
-        _unknownRecordCommands: {},
+        _unknownRecordCommands: new Map(),
         _loadingStubIds: new Set(),
         _currentIds: [...resIds],
         _tmpIncreaseLimit: 0,
@@ -68,13 +53,13 @@ function makeList(resIds) {
                 _applyChanges() {},
                 _applyValues() {},
             };
-            this._cache[id] = record;
+            this._cache.set(id, record);
             return record;
         },
     });
     for (const resId of resIds) {
         list._createRecordDatapoint({ id: resId });
-        list.records.push(list._cache[resId]);
+        list.records.push(list._cache.get(resId));
     }
     return list;
 }

@@ -1,28 +1,5 @@
 // @ts-check
 
-/**
- * Every "a mutating RPC touched model X" consumer routes through
- * ``onModelMutation`` (``@web/core/network/model_mutation``), so the error
- * policy lives in one place — unit-tested directly in
- * ``core/network/model_mutation.test.js``; what follows is the wiring of the
- * ``web``-side consumers onto it:
- *
- *   - ``RPCError``            the server raised -> transaction rolled back ->
- *                             nothing changed -> SKIP (reacting is pure waste).
- *   - any other failure       the response was lost but the write may have
- *                             COMMITTED -> FIRE (skipping would leave a stale
- *                             cache with no other trigger).
- *   - ``successOnly: true``   opt-out for consumers whose reaction is
- *                             destructive rather than merely costly.
- *
- * Before consolidation the consumers had drifted into three different
- * policies: ``action_cache_invalidation`` and ``view_service`` reacted to every
- * failure, ``currency_service`` and ``reload_company_service`` to none, and
- * ``web_studio``'s approval-rule cache clear did not look at ``error`` at all.
- * ``analytic`` and ``stock_warehouse`` (both full context reloads) map onto
- * ``successOnly``.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
 import {
@@ -49,7 +26,6 @@ class Partner extends models.Model {
 
 defineModels([Partner, ResCompany, ResPartner, ResUsers]);
 
-/** Build the error object for a given failure mode ("ok" = success). */
 function makeError(mode) {
     if (mode === "ok") {
         return undefined;
@@ -62,7 +38,6 @@ function makeError(mode) {
     return new ConnectionLostError("/web/dataset/call_kw");
 }
 
-/** Fire a mutating RPC:RESPONSE for `model`, with the given failure mode. */
 function fireWrite(model, mode) {
     rpcBus.trigger(RpcEvent.RESPONSE, {
         data: { params: { model, method: "write" } },
@@ -72,7 +47,6 @@ function fireWrite(model, mode) {
     });
 }
 
-/** Record every CLEAR-CACHES emitted while `fn` runs. */
 async function recordClearCaches(fn) {
     const seen = [];
     const onClear = (ev) => seen.push(ev.detail);
@@ -86,7 +60,6 @@ async function recordClearCaches(fn) {
     return seen;
 }
 
-/** Minimal ActionManager stand-in: the listener only needs these slots. */
 function makeFakeActionManager() {
     return {
         breadcrumbCache: new BreadcrumbCache(),
@@ -193,7 +166,6 @@ describe("view_service", () => {
 });
 
 describe("reload_company_service (successOnly)", () => {
-    /** Capture reload_context dispatches without actually reloading. */
     async function setupReloadTracking() {
         await makeMockEnv();
         const action = getService("action");

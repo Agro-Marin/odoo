@@ -278,10 +278,6 @@ class ResCurrency extends models.Model {
 
 defineModels([Partner, ResCompany, User, ResCurrency]);
 
-/**
- * Without write access to the parent, the user can edit the properties
- * values but not their definition.
- */
 test("properties: no access to parent", async () => {
     onRpc("has_access", () => false);
 
@@ -326,10 +322,6 @@ test("properties: no access to parent", async () => {
     ).toHaveValue("char value");
 });
 
-/**
- * If the current user can write on the parent, he should
- * be able to change the properties definition.
- */
 test.tags("desktop");
 test("properties: access to parent", async () => {
     onRpc("has_access", () => true);
@@ -1149,10 +1141,6 @@ test("properties: many2many", async () => {
     });
 });
 
-/**
- * The model loaded by the "Search more..." modal must track the co-model
- * selected for a many2one/many2many property, and update dynamically.
- */
 test.tags("desktop");
 test("properties: many2one 'Search more...' +  internal link save keeps data", async () => {
     onRpc(({ method, model }) => {
@@ -1306,10 +1294,6 @@ test("properties: date(time) property manipulations", async () => {
         },
     ];
     onRpc(({ method, args }) => {
-        // Ambient access checks, not steps: how many fire depends on which
-        // addons patch the property field (`html_editor` asks for
-        // `base.group_portal`), and `web`'s own suite runs with only `web`'s
-        // dependency closure loaded.
         if (method === "has_access" || method === "has_group") {
             return true;
         }
@@ -1367,11 +1351,6 @@ test("properties: date(time) property manipulations", async () => {
     expect.verifySteps(["web_save"]);
 });
 
-/**
- * Changing a property's type or model must regenerate its name (so other
- * records' values for it are reset to False); reverting restores the
- * original name.
- */
 test.tags("desktop");
 test("properties: name reset", async () => {
     onRpc(({ method, model }) => {
@@ -1678,10 +1657,6 @@ test("properties: kanban view with multiple sources of properties definitions", 
     ]);
 });
 
-/**
- * To check label for int, float, boolean, date and datetime fields.
- *  Also check if border class is applied to boolean field or not.
- */
 test("properties: kanban view with label and border", async () => {
     Partner._records.push({
         id: 12,
@@ -1858,11 +1833,6 @@ test("properties: switch view on mobile", async () => {
     });
 });
 
-/**
- * Test the behavior of the default value. It should be propagated on the property
- * value only when we create a new property. If the property already exists, and we
- * change the default value, it should never update the property value.
- */
 test("properties: default value", async () => {
     onRpc("has_access", () => true);
 
@@ -2045,10 +2015,6 @@ test("properties: close property popover once clicked on delete icon", async () 
     expect(".o_field_property_definition").toHaveCount(0);
 });
 
-/**
- * Check the behavior of the domain (properties with "definition_deleted" should be ignored).
- * In that case, some properties start without the flag "definition_deleted".
- */
 test("properties: form view and falsy domain, properties are not empty", async () => {
     ResCompany._records[0].definitions.splice(1, 1);
 
@@ -2103,10 +2069,6 @@ test("properties: form view and falsy domain, properties are not empty", async (
     expect(".o_test_properties_not_empty").toHaveCount(0);
 });
 
-/**
- * Check the behavior of the domain (properties with "definition_deleted" should be ignored).
- * In that case, all properties start with the flag "definition_deleted".
- */
 test("properties: form view and falsy domain, properties are empty", async () => {
     ResCompany._records[0].definitions = [];
 
@@ -2364,9 +2326,6 @@ test("properties: save separator folded state", async () => {
     ]);
 });
 
-/**
- * Test the behavior of the properties when we move them inside folded groups
- */
 test.tags("desktop");
 test("properties: separators move properties", async () => {
     await makePropertiesGroupView([false, true, true, false, true, true, false]);
@@ -2668,7 +2627,7 @@ test("properties: start in edit mode", async () => {
                 <sheet>
                     <group>
                         <field name="company_id"/>
-                        <field name="properties" editMode="True"/>
+                        <field name="properties" edit_mode="True"/>
                     </group>
                 </sheet>
             </form>`,
@@ -3194,11 +3153,6 @@ test("properties: monetary with multiple currency field", async () => {
     );
 });
 
-/**
- * A confirmed pending deletion must survive any later properties update
- * before save: the saved value must still carry the `definition_deleted`
- * tombstone, otherwise the server never deletes the definition.
- */
 test("properties: pending deletion survives a later value edit", async () => {
     onRpc("has_access", () => true);
     onRpc("web_save", ({ args }) => {
@@ -3246,11 +3200,6 @@ test("properties: pending deletion survives a later value edit", async () => {
     expect.verifySteps(["web_save"]);
 });
 
-/**
- * When the properties hold a single (separator) group and the form uses
- * several columns, the group is normally split across the columns. If that
- * lone group is folded, no property may leak into the extra columns.
- */
 test.tags("desktop");
 test("properties: folded single group does not leak properties into columns", async () => {
     onRpc("has_access", () => true);
@@ -3300,11 +3249,6 @@ test("properties: folded single group does not leak properties into columns", as
 
 test.tags("desktop");
 test("properties: the 'Show in Kanban Cards' toggle keeps the state it was clicked into", async () => {
-    // The template read `props.propertyDefinition.view_in_cards` while every
-    // handler writes `state.propertyDefinition` — and popover props are frozen
-    // at open time, so the prop never moved. `CheckBox.toggle` re-asserts its
-    // `value` prop right after calling onChange, so the box the user had just
-    // ticked reverted while the change itself went through.
     onRpc("has_access", () => true);
 
     await mountView({
@@ -3341,5 +3285,51 @@ test("properties: the 'Show in Kanban Cards' toggle keeps the state it was click
     await animationFrame();
     expect(kanbanCheckbox).not.toBeChecked({
         message: "the toggle must stay on the value the user clicked it into",
+    });
+});
+
+test("properties: an entry that parses to the stored value still reformats", async () => {
+    onRpc("has_access", () => true);
+
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <sheet>
+                    <group>
+                        <field name="company_id"/>
+                        <field name="properties"/>
+                    </group>
+                </sheet>
+            </form>`,
+        actionMenus: {},
+    });
+
+    await toggleActionMenu();
+    await toggleMenuItem("Edit Properties");
+    await click(".o_property_field:nth-child(2) .o_field_property_open_popover");
+    await animationFrame();
+    await changeType("float");
+    await closePopover();
+
+    const input = ".o_property_field:nth-child(2) .o_field_property_input";
+    await contains(input).edit("5");
+    await animationFrame();
+    expect(input).toHaveValue("5.00");
+
+    await contains(input).edit("5");
+    await animationFrame();
+    expect(input).toHaveValue("5.00", {
+        message: "a re-entry of the stored value must still be reformatted",
+    });
+
+    await contains(input).edit("0");
+    await animationFrame();
+    await contains(input).edit("azerty");
+    await animationFrame();
+    expect(input).toHaveValue("0.00", {
+        message: "garbage must not survive in the input",
     });
 });

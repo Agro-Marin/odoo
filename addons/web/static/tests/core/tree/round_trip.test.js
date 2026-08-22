@@ -42,11 +42,6 @@ const options = {
     },
 };
 
-/**
- * The strongest invariant of the tree stack: converting through a tree and
- * back must reach a FIXPOINT after at most one round trip — a second pass
- * over its own output must be the identity.
- */
 test("domain -> tree -> domain reaches a fixpoint after one round trip", () => {
     const corpus = [
         `[]`,

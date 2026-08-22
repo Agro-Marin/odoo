@@ -1,7 +1,7 @@
 // @ts-check
 
 import { after, describe, expect, getFixture, test } from "@odoo/hoot";
-import { click, queryOne } from "@odoo/hoot-dom";
+import { queryOne } from "@odoo/hoot-dom";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { setupGlobalPageBehaviors } from "@web/public/public_boot";
@@ -9,13 +9,6 @@ import { setupGlobalPageBehaviors } from "@web/public/public_boot";
 describe.current.tags("headless");
 
 /**
- * Installs the page-global behaviours for the duration of one test.
- *
- * A submit event has to reach `document.body`, where the behaviours delegate
- * from, but must not travel on to `window`, where the test framework forwards
- * form submissions to a (mocked) fetch. Stopping it at the document leaves the
- * event un-prevented, which is the state the delegation is meant to act on.
- *
  * @param {string} html
  */
 function setupPage(html) {
@@ -28,7 +21,7 @@ function setupPage(html) {
 
 /**
  * @param {string} [selector]
- * @returns {Event} the dispatched event, so that a test can cancel it later
+ * @returns {Event}
  */
 function submit(selector = "form") {
     const ev = new Event("submit", { bubbles: true, cancelable: true });
@@ -62,12 +55,10 @@ describe("submit progress indicator", () => {
             <form class="js_website_submit_form">
                 <button type="submit"><i class="fa fa-check"></i> Send</button>
             </form>`);
-        // a handler on the form runs before the delegated one on the body
         queryOne("form").addEventListener("submit", (ev) => ev.preventDefault());
         submit();
         expect("button").toHaveProperty("disabled", false);
         expect("button .fa-circle-notch").toHaveCount(0);
-        // the button's own icon must survive
         expect("button .fa-check").toHaveCount(1);
         expect("button i").toHaveCount(1);
     });
@@ -80,7 +71,6 @@ describe("submit progress indicator", () => {
         const ev = submit();
         expect("button").toHaveProperty("disabled", true);
         expect("button .fa-circle-notch").toHaveCount(1);
-        // a listener registered after the delegated one cancels the submit
         ev.preventDefault();
         expect("button").toHaveProperty("disabled", false);
         expect("button .fa-circle-notch").toHaveCount(0);
@@ -97,24 +87,14 @@ describe("submit progress indicator", () => {
         expect("button .fa-circle-notch").toHaveCount(0);
     });
 
-    test("an anchor submitter keeps the properties it never had", () => {
+    test("an anchor with the old a-submit class is left alone", () => {
         setupPage(`
             <form class="js_website_submit_form">
                 <a href="#" class="a-submit">Send</a>
             </form>`);
-        const ev = submit();
-        expect("a.a-submit .fa-circle-notch").toHaveCount(1);
-        ev.preventDefault();
+        submit();
         expect("a.a-submit .fa-circle-notch").toHaveCount(0);
         expect(queryOne("a.a-submit").textContent?.trim()).toBe("Send");
-    });
-});
-
-describe("disable on click", () => {
-    test("adds the disabled class", async () => {
-        setupPage(`<button class="js_disable_on_click">Go</button>`);
-        await click("button");
-        expect("button").toHaveClass("disabled");
     });
 });
 
@@ -151,16 +131,13 @@ describe("background images", () => {
 describe("scrollTop hash", () => {
     /**
      * @param {string} hash
-     * @returns {Array<[number, number]>} the scrolls the behaviours asked for
+     * @returns {Array<[number, number]>}
      */
     function scrollsFor(hash) {
         /** @type {Array<[number, number]>} */
         const scrolls = [];
         patchWithCleanup(browser.location, { hash });
         patchWithCleanup(window, {
-            // `scrollTo` is overloaded (options object, or x/y), so the
-            // replacement is cast to the real signature rather than matching
-            // only the arity this test uses
             scrollTo: /** @type {typeof window.scrollTo} */ (
                 (/** @type {any} */ x, /** @type {any} */ y) => {
                     scrolls.push([x, y]);

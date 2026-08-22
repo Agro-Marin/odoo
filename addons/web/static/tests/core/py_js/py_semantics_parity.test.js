@@ -6,17 +6,8 @@ import { formatAST } from "@web/core/py_js/py_utils";
 
 describe.current.tags("headless");
 
-/**
- * Cases where py_js used to answer where ``safe_eval`` raises. A wrong answer
- * that keeps flowing is worse than an error: it comes back as a *different
- * result* instead of a failure the caller can see.
- */
 describe("py_js answers only what safe_eval answers", () => {
     test("a name is looked up on BUILTINS itself, not on Object.prototype", () => {
-        // `in` walked the prototype chain, so every Object.prototype member was
-        // a defined name. The function-valued ones died with the sandbox's
-        // "Invalid Function Call"; `__proto__` is not a function and escaped as
-        // a live JS object.
         for (const name of [
             "__proto__",
             "constructor",
@@ -31,15 +22,12 @@ describe("py_js answers only what safe_eval answers", () => {
                 new RegExp(`'${name}' is not defined`),
             );
         }
-        // the real builtins, including the accessor ones, still resolve
         expect(evaluateExpr("bool(1)")).toBe(true);
         expect(typeof evaluateExpr("today")).toBe("string");
     });
 
     test("a missing dict key raises KeyError", () => {
         expect(() => evaluateExpr("{'a': 1}['b']")).toThrow(/KeyError: 'b'/);
-        // it used to be `undefined`, which compared unequal to everything and
-        // let the expression finish with a wrong answer
         expect(() => evaluateExpr("{'a': 1}['b'] == None")).toThrow(/KeyError: 'b'/);
         expect(evaluateExpr("{'a': 1}['a']")).toBe(1);
         expect(evaluateExpr("{'a': 1}.get('b')")).toBe(null);
@@ -103,8 +91,6 @@ describe("py_js answers only what safe_eval answers", () => {
 
 describe("chained comparisons", () => {
     test("the middle operand is evaluated exactly once", () => {
-        // `a < b < c` used to desugar to `(a < b) and (b < c)` sharing one node
-        // for `b`, so `t1 < now() < t2` read the clock twice.
         let reads = 0;
         const context = {
             get b() {
@@ -140,8 +126,6 @@ describe("chained comparisons", () => {
     });
 
     test("the expression survives a round trip through formatAST", () => {
-        // the desugaring rewrote the user's text on every pass through the
-        // domain and expression editors
         for (const expr of ["1 < 2 < 3", "a < b <= c", "a == b != c"]) {
             expect(formatAST(parseExpr(expr))).toBe(expr);
         }
@@ -168,5 +152,30 @@ describe("the AST cache hands out immutable trees", () => {
         expect(() => {
             ast.op = "-";
         }).toThrow(/read only|not extensible/);
+    });
+});
+
+describe("py_js refuses arguments CPython refuses", () => {
+    test("the no-argument str methods take no arguments", () => {
+        for (const method of ["lower", "upper", "capitalize", "title"]) {
+            expect(evaluateExpr(`'aBc'.${method}()`)).toBeOfType("string");
+            expect(() => evaluateExpr(`'aBc'.${method}(1)`)).toThrow();
+            expect(() => evaluateExpr(`'aBc'.${method}('x')`)).toThrow();
+            expect(() => evaluateExpr(`'aBc'.${method}(nope=1)`)).toThrow();
+        }
+    });
+
+    test("the no-argument str methods still answer correctly", () => {
+        expect(evaluateExpr("'aBc'.lower()")).toBe("abc");
+        expect(evaluateExpr("'aBc'.upper()")).toBe("ABC");
+        expect(evaluateExpr("'aBc dEf'.capitalize()")).toBe("Abc def");
+        expect(evaluateExpr("'aBc dEf'.title()")).toBe("Abc Def");
+    });
+
+    test("methods that do take arguments still bind them", () => {
+        expect(evaluateExpr("'a,b'.split(',')")).toEqual(["a", "b"]);
+        expect(evaluateExpr("' a '.strip()")).toBe("a");
+        expect(evaluateExpr("'abc'.startswith(('x', 'a'))")).toBe(true);
+        expect(evaluateExpr("{'a': 1}.get('x', {'b': 2})")).toEqual({ b: 2 });
     });
 });

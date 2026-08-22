@@ -9,10 +9,6 @@ import { useClickAway } from "@web/core/utils/dom/click_away";
 describe.current.tags("headless");
 
 /**
- * `useClickAway` decides when a popover, dropdown or autocomplete closes. It
- * had no test of its own: not the iframe arming, not the `SecurityError` it
- * swallows for cross-origin frames, and not the teardown.
- *
  * @param {Parameters<typeof useClickAway>[1]} [options]
  */
 async function mountClickAway(options) {
@@ -132,10 +128,6 @@ describe("iframes", () => {
     });
 
     test("a frame that refuses inspection is skipped, not thrown out of", async () => {
-        // A cross-origin `contentWindow` is a restricted WindowProxy: reading
-        // it is fine, reading anything off it that is not on the cross-origin
-        // whitelist -- `addEventListener` among them -- raises SecurityError.
-        // The hook swallows exactly that one and rethrows anything else.
         const iframe = document.createElement("iframe");
         fixture().appendChild(iframe);
         Object.defineProperty(iframe, "contentWindow", {

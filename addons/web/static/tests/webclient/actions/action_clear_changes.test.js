@@ -7,24 +7,6 @@ import { AppEvent } from "@web/core/events";
 import { clearUncommittedChanges } from "@web/webclient/actions/action_clear_changes";
 
 /**
- * Mount-free tests for ``action_clear_changes.js``.
- *
- * This is the veto that stands between the user and losing their edits: every
- * mounted controller gets a chance to refuse an action transition. It takes the
- * env rather than the manager, so a bare EventBus is the whole fixture — yet
- * its semantics were only ever asserted through form-view save dialogs.
- *
- * Subscribers push callbacks into a shared array rather than returning values,
- * which is unusual enough to be worth pinning directly.
- */
-
-/**
- * An env whose bus lets tests register controller-style subscribers.
- *
- * ``any``: ``clearUncommittedChanges`` declares a full ``OdooEnv``, but it
- * touches exactly one member. A partial stand-in is the point of the seam, so
- * widen here rather than casting at nine call sites.
- *
  * @returns {any}
  */
 function makeEnv() {
@@ -32,8 +14,6 @@ function makeEnv() {
 }
 
 /**
- * Subscribe like ``ControllerComponent`` does: push a callback onto the array
- * carried by the event.
  * @param {{bus: EventBus}} env
  * @param {Function} callback
  */

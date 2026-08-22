@@ -1,22 +1,5 @@
 // @ts-check
 
-/**
- * Characterization of the ``home`` client action's server-wait loop
- * (``webclient/actions/client_actions.js``).
- *
- * It polls ``/web/webclient/version_info`` until the server answers, so the
- * user lands on a booted instance after an install/upgrade. Dispatched for
- * real by ``base_install_request`` and ``spreadsheet_edition``.
- *
- * It used to retry on a FIXED 250 ms period with no attempt cap and no
- * deadline: a server that never came back was hammered at 4 req/s forever
- * while the action's promise never settled. These tests pin the bounded
- * replacement -- exponential backoff up to ``HOME_POLL_MAX_DELAY``, then a
- * ``HOME_POLL_DEADLINE`` after which it navigates anyway.
- *
- * Setup mirrors "test home client action" in ``client_action.test.js``.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { advanceTime, animationFrame } from "@odoo/hoot-mock";
 import {
@@ -29,12 +12,46 @@ import { browser } from "@web/core/browser/browser";
 import { redirect } from "@web/core/utils/urls";
 import { WebClient } from "@web/webclient/webclient";
 
-/** Dispatch `home` exactly as client_action.test.js does. */
 function doHome() {
     getService("action").doAction({ type: "ir.actions.client", tag: "home" });
 }
 
 describe("home action: bounded server-wait loop", () => {
+    test("probes immediately when the server is already up", async () => {
+        redirect("/odoo");
+        browser.location.search = "";
+        patchWithCleanup(browser.location, { assign: () => {} });
+
+        let elapsed = 0;
+        const realSetTimeout = browser.setTimeout;
+        patchWithCleanup(browser, {
+            setTimeout(fn, delay) {
+                return realSetTimeout.call(
+                    this,
+                    () => {
+                        elapsed += delay || 0;
+                        return fn();
+                    },
+                    delay,
+                );
+            },
+        });
+
+        let firstProbeAt = null;
+        onRpc("/web/webclient/version_info", () => {
+            firstProbeAt ??= elapsed;
+            return true;
+        });
+
+        await mountWithCleanup(WebClient);
+        doHome();
+        await animationFrame();
+        await advanceTime(1500);
+        await animationFrame();
+
+        expect(firstProbeAt).toBe(0);
+    });
+
     test("backs off exponentially up to a ceiling instead of a flat 250ms", async () => {
         redirect("/odoo");
         browser.location.search = "";
@@ -66,7 +83,7 @@ describe("home action: bounded server-wait loop", () => {
             await animationFrame();
         }
 
-        expect(attempts).toBe(6);
+        expect(attempts).toBe(7);
         expect(delays.slice(0, 5)).toEqual([1000, 2000, 4000, 8000, 8000]);
         expect(delays.every((d) => d <= 8000)).toBe(true);
     });

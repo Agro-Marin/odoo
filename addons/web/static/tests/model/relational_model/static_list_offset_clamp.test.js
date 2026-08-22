@@ -1,22 +1,5 @@
 // @ts-check
 
-/**
- * Regression tests for the stale-page-offset bug: ``applyCommands`` rebuilds
- * ``_currentIds``/``count`` but used to leave ``offset`` pointing past the end
- * whenever a batch removed every id at or after the current page start. The
- * window then resolved to an empty slice, so an x2many sitting on page 2
- * rendered BLANK — with a correct record count next to it — until the user
- * paginated back by hand.
- *
- * Reachable from the two commonest shrinking batches: an onchange answering
- * with the conventional "here is the whole (shorter) relation" payload, and a
- * bulk unlink. ``StaticList._clampOffset`` re-anchors the window on the last
- * page that still holds data before the page-fill step runs.
- *
- * Uses the REAL StaticList and RelationalRecord against a mock model, in the
- * style of static_list_link_full_page.test.js.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";

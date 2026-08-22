@@ -1,11 +1,3 @@
-"""Tests for the database-manager master-password handling.
-
-Covers the loopback gating of ``_handle_insecure_password``: the "auto-secure a
-fresh install on first use" convenience must fire only for loopback callers, so
-a remote request to an exposed database manager can never silently adopt an
-attacker-chosen master password (locking the real admin out).
-"""
-
 from unittest.mock import MagicMock, patch
 
 import odoo
@@ -18,8 +10,6 @@ CONTROLLER_LOGGER = "odoo.addons.web.controllers.database"
 
 @tagged("web_unit", "database_manager")
 class TestDatabaseMasterPassword(TransactionCase):
-    """Loopback gating + audit logging of the default-master-password promotion."""
-
     def test_is_loopback(self):
         for addr in ("127.0.0.1", "127.0.0.5", "::1", "::ffff:127.0.0.1"):
             self.assertTrue(_is_loopback(addr), addr)
@@ -36,8 +26,6 @@ class TestDatabaseMasterPassword(TransactionCase):
             self.assertFalse(_is_loopback(addr), addr)
 
     def _promote_calls(self, *, insecure, remote_addr, master_pwd="new-strong-pw"):
-        """Run ``_handle_insecure_password`` with the three dependencies stubbed
-        and return the list of ``dispatch_rpc`` calls it made."""
         calls = []
         fake_request = MagicMock()
         fake_request.httprequest.remote_addr = remote_addr

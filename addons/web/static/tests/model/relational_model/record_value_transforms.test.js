@@ -1,11 +1,5 @@
 // @ts-check
 
-/**
- * Pure unit tests for record_value_transforms.js: formatServerValue,
- * getDefaultValues, getTextValues, and computeDataContext — no OWL, DOM, or
- * mock server. Date/datetime paths use luxon.DateTime (global in Hoot).
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { luxon } from "@web/core/l10n/luxon";
 import {
@@ -387,19 +381,11 @@ describe("computeDataContext", () => {
 });
 
 /**
- * Builds the minimum record shape consumed by parseServerValues.
- *
- * The two instance methods the helper calls back into are stubs by default:
- *   - _createStaticListDatapoint: returns a synthetic StaticList carrying
- *     the data it was constructed with + spy methods for command application
- *   - _processProperties: returns the per-property values that should be
- *     spliced into the parsed bag
- *
  * @param {Object} [opts]
  * @param {Object} [opts.activeFields={}]
  * @param {Object} [opts.fields={}]
- * @param {Function|null} [opts.createStaticList] - override for the stub
- * @param {Function|null} [opts.processProperties] - override for the stub
+ * @param {Function|null} [opts.createStaticList]
+ * @param {Function|null} [opts.processProperties]
  * @returns {Object}
  */
 function makeParseRecord({

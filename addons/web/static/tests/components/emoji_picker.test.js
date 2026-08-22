@@ -123,7 +123,6 @@ test("the active emoji is read from the rendered list, not from the DOM", async 
     await animationFrame();
     expect(matchesList()).toBe(true);
 
-    // Reading it without a mounted grid must not throw.
     instance.gridRef = { el: null };
     expect(() => instance.activeEmoji).not.toThrow();
 });
@@ -144,8 +143,6 @@ test("hovering an emoji updates the placeholder without re-rendering the grid", 
     cells[3].dispatchEvent(new MouseEvent("mouseenter"));
     await animationFrame();
 
-    // A repaint of the whole grid to change one placeholder cost 14-61ms per
-    // cell the pointer crossed; the placeholder is written straight to the DOM.
     expect(renders).toBe(0);
     expect(".o-EmojiPicker input").toHaveAttribute(
         "placeholder",
@@ -154,10 +151,6 @@ test("hovering an emoji updates the placeholder without re-rendering the grid", 
 });
 
 test("adaptNavbar survives a navbar with no emoji rendered", async () => {
-    // Driven by a ResizeObserver, so it can fire on a navbar that has been
-    // emptied (emoji data failed to load, or a resize landing between two
-    // patches) -- where the unguarded querySelector threw out of the observer
-    // callback, which nothing catches.
     let picker;
     patchWithCleanup(EmojiPicker.prototype, {
         setup() {
@@ -250,8 +243,6 @@ test("every cell with a neighbouring row can be left with an arrow key", async (
     await mountWithCleanup(Probe, { props: { onSelect: () => {} } });
     await animationFrame();
 
-    // Rows are per-category runs of the real grid, so they are ragged: a row
-    // can be wider than the one under it, and the cursor must still get out.
     for (const searchTerm of ["", "cat", "a"]) {
         picker.state.searchTerm = searchTerm;
         await animationFrame();
@@ -283,9 +274,6 @@ test("every cell with a neighbouring row can be left with an arrow key", async (
 
 test.tags("desktop");
 test("an externally driven search brings the keyboard selection back in range", async () => {
-    // The picker's own search box resets the selection inline (t-on-input in
-    // web.EmojiPicker.searchInput); a parent driving `state.searchTerm` does not
-    // go through it, so the invariant has to hold in the component.
     const external = reactive({ searchTerm: "" });
     let picker;
     class Probe extends EmojiPicker {
@@ -314,7 +302,6 @@ test("an externally driven search brings the keyboard selection back in range", 
     expect(cells.length).toBeLessThan(300);
     expect(picker.activeEmoji).not.toBe(undefined);
 
-    // Enter clicks whatever data-index the selection points at.
     await press("enter");
     await animationFrame();
     expect.verifySteps([picker.getEmojisFromSearch()[0].codepoints]);
@@ -344,7 +331,6 @@ test("the keyboard grid is rebuilt when the picker is resized", async () => {
     const parent = await mountWithCleanup(Parent);
     await animationFrame();
 
-    // The true first row, read back from the layout.
     const domRow = () => {
         const els = queryAll(".o-EmojiPicker-content .o-Emoji");
         const top = els[0]?.offsetTop;
@@ -373,13 +359,9 @@ test("the keyboard grid is rebuilt when picking an emoji grows the recents", asy
             picker = this;
         }
     }
-    // Returning false keeps the picker open, the way a shift-click does.
     await mountWithCleanup(Probe, { props: { onSelect: () => false } });
     await animationFrame();
 
-    // Empty the frequency store through the service the picker actually reads,
-    // not through localStorage: the recents are capped, so a store another
-    // suite left full would swallow the one this test is about to add.
     for (const codepoints of Object.keys(picker.frequentEmojiService.all)) {
         delete picker.frequentEmojiService.all[codepoints];
     }
@@ -395,9 +377,6 @@ test("the keyboard grid is rebuilt when picking an emoji grows the recents", asy
     };
     expect(picker.emojiMatrix[0]).toEqual(domRow());
 
-    // Picking an emoji prepends a recents section, so the first row becomes the
-    // single recent and every data-index below it shifts: the matrix stops
-    // mapping the grid unless the pick rebuilds it.
     const before = queryAll(".o-EmojiPicker-content .o-Emoji").length;
     await click(".o-EmojiPicker-content .o-Emoji:eq(12)");
     await waitUntil(
@@ -415,8 +394,6 @@ test("resetting the emoji data also drops what was derived from it", async () =>
     await resetLoadedEmojiData();
     expect(loader.loaded).toBe(undefined);
 
-    // Loading again rebuilds it from the freshly parsed data rather than
-    // handing back the parse the reset was meant to discard.
     await loadEmoji();
     expect(loader.loaded).not.toBe(undefined);
     expect(loader.loaded).not.toBe(before);

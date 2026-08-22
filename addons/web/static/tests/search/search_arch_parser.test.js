@@ -1,20 +1,17 @@
 // @ts-check
 
-/**
- * Pure unit tests for the date-filter period window handling of
- * search/search_arch_parser.js.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
+import { mockDate, mockTimeZone } from "@odoo/hoot-mock";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
+import { luxon } from "@web/core/l10n/luxon";
 import { SearchArchParser } from "@web/search/search_arch_parser";
+import { getPeriodOptions } from "@web/search/utils/dates";
 
 describe.current.tags("headless");
 
 const FIELDS = { d: { type: "date", string: "D" } };
 
-/** Parse a single date filter node and return its pre-search item. */
-function parseDateFilter(attrs) {
+function parseDateFilter(/** @type {string} */ attrs) {
     const parser = new SearchArchParser(
         { arch: `<search><filter name="f" date="d" ${attrs}/></search>` },
         FIELDS,
@@ -23,7 +20,23 @@ function parseDateFilter(attrs) {
     return preSearchItems[0][0];
 }
 
-describe("date filter month window", () => {
+describe("date filter period windows", () => {
+    function optionsFor(/** @type {any} */ item) {
+        mockTimeZone(0);
+        mockDate("2020-06-01T13:00:00");
+        return getPeriodOptions(luxon.DateTime.local(), item.optionsParams);
+    }
+
+    /** @type {[string, string, number][]} */
+    const NON_INTEGER_CASES = [
+        [`start_month="abc"`, "startMonth", -2],
+        [`end_month="abc"`, "endMonth", 0],
+        [`start_year="abc"`, "startYear", -2],
+        [`end_year="abc"`, "endYear", 0],
+        [`start_month="1.5"`, "startMonth", -2],
+        [`end_year="2.5"`, "endYear", 0],
+    ];
+
     test("an inverted month window is normalized with a warning", () => {
         patchWithCleanup(console, { warn: () => expect.step("warn") });
 
@@ -35,6 +48,17 @@ describe("date filter month window", () => {
         expect(item.defaultGeneratorIds).toEqual(["month"]);
     });
 
+    test("an inverted YEAR window is normalized with a warning", () => {
+        patchWithCleanup(console, { warn: () => expect.step("warn") });
+
+        const item = parseDateFilter(`start_year="0" end_year="-3"`);
+
+        expect.verifySteps(["warn"]);
+        expect(item.optionsParams.startYear).toBe(-3);
+        expect(item.optionsParams.endYear).toBe(0);
+        expect(optionsFor(item).length).toBeGreaterThan(0);
+    });
+
     test("a valid window is kept and the default offset is clamped into it", () => {
         const item = parseDateFilter(`start_month="-6" end_month="-3"`);
 
@@ -42,13 +66,39 @@ describe("date filter month window", () => {
         expect(item.optionsParams.endMonth).toBe(-3);
         expect(item.defaultGeneratorIds).toEqual(["month-3"]);
     });
+
+    test("a non-integer bound falls back to its default, with a warning", () => {
+        /** @type {string[]} */
+        const warnings = [];
+        patchWithCleanup(console, {
+            warn: (/** @type {string} */ msg) => warnings.push(msg),
+        });
+
+        for (const [attrs, key, expected] of NON_INTEGER_CASES) {
+            const item = parseDateFilter(attrs);
+            expect(item.optionsParams[key]).toBe(expected);
+            expect(optionsFor(item).length).toBeGreaterThan(0);
+        }
+
+        expect(warnings.length).toBe(NON_INTEGER_CASES.length);
+        expect(warnings[0]).toMatch(/start_month="abc" is not a whole number/);
+    });
+
+    test("an implausibly wide window warns but is kept as declared", () => {
+        patchWithCleanup(console, { warn: () => expect.step("warn") });
+
+        const item = parseDateFilter(`start_year="-500"`);
+
+        expect.verifySteps(["warn"]);
+        expect(item.optionsParams.startYear).toBe(-500);
+        expect(optionsFor(item).length).toBe(508);
+    });
 });
 
 const FILTER_FIELDS = { bar: { type: "many2one", string: "Bar", relation: "partner" } };
 
 describe("separator visibility", () => {
-    /** groupIds of `a` and `b` in an arch whose middle separator carries `invisible`. */
-    function parseAroundSeparator(invisible) {
+    function parseAroundSeparator(/** @type {string} */ invisible) {
         const parser = new SearchArchParser(
             {
                 arch: `
@@ -67,12 +117,6 @@ describe("separator visibility", () => {
     }
 
     test("`invisible` never suppresses the split a separator performs", () => {
-        // 44 shipped search views put `<separator invisible="1"/>` in the middle
-        // of the Activities block. That split is what makes
-        // search_default_filter_activities_my AND with
-        // search_default_activities_overdue rather than OR with it — honouring
-        // the attribute rewrites those production domains. See
-        // search_model.test.js, "the Activities block ANDs across …".
         const [a, b] = parseAroundSeparator("1");
         expect(a).not.toBe(b);
     });
@@ -109,7 +153,9 @@ describe("search panel field visibility", () => {
 });
 
 describe("search panel category default", () => {
-    function parseCategoryDefault(searchPanelDefaults) {
+    function parseCategoryDefault(
+        /** @type {Record<string, any>} */ searchPanelDefaults,
+    ) {
         const parser = new SearchArchParser(
             { arch: `<search><searchpanel><field name="bar"/></searchpanel></search>` },
             FILTER_FIELDS,
@@ -153,7 +199,7 @@ describe("unknown field diagnostics", () => {
 
         const parser = new SearchArchParser(
             { arch: `<search><field name="nope"/></search>` },
-            FIELDS, // only "d" exists
+            FIELDS,
         );
         const items = parser.parse().preSearchItems.flat();
 
@@ -170,7 +216,7 @@ describe("unknown field diagnostics", () => {
 
         const parser = new SearchArchParser(
             { arch: `<search><filter name="f" date="nope"/></search>` },
-            FIELDS, // only "d" exists
+            FIELDS,
         );
         const items = parser.parse().preSearchItems.flat();
 

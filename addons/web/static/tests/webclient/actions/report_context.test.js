@@ -3,16 +3,6 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { getReportContext, getReportUrl } from "@web/webclient/actions/reports/utils";
 
-/**
- * A report renders under the user's context with the ACTION's on top.
- *
- * The two halves of one action used to disagree: the html preview's url carried
- * ``user.context`` alone, while the pdf download posted ``{...user, ...action}``.
- * An action carrying ``lang`` therefore previewed in one language and printed in
- * another. ``preprocessAction`` does not fold ``user.context`` into
- * ``action.context`` — the former is only the evaluation context — so neither
- * one alone is the render context.
- */
 describe.current.tags("desktop");
 
 const USER_CONTEXT = { lang: "en_US", tz: "UTC", uid: 2 };
@@ -20,8 +10,7 @@ const USER_CONTEXT = { lang: "en_US", tz: "UTC", uid: 2 };
 /**
  * @param {Record<string, any>} [context]
  * @param {any} [data]
- * @returns {any} a ReportAction-shaped literal; the helper only fills the keys
- *   these tests read, so it is handed over untyped rather than widened.
+ * @returns {any}
  */
 function reportAction(context, data) {
     return {

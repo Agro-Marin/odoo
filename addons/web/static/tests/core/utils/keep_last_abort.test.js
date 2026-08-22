@@ -5,12 +5,11 @@ import { animationFrame, Deferred } from "@odoo/hoot-mock";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 
 /**
- * A promise carrying the `abort` that `rpc()` attaches to the one it returns.
  * @returns {Promise<any> & {
- *     abort: (rejectError?: boolean) => void,
- *     aborts: boolean[],
- *     resolve: (value?: any) => void,
- *     reject: (reason?: any) => void,
+ * abort: (rejectError?: boolean) => void,
+ * aborts: boolean[],
+ * resolve: (value?: any) => void,
+ * reject: (reason?: any) => void,
  * }}
  */
 function abortablePromise() {
@@ -31,8 +30,6 @@ test("supersede aborts the promise it drops", async () => {
     expect(first.aborts).toEqual([]);
 
     keepLast.add(second);
-    // Rejecting form: unwinds the async frames behind the dropped request
-    // instead of leaving them pending. See the comment in `KeepLast.add`.
     expect(first.aborts).toEqual([true]);
     expect(second.aborts).toEqual([]);
 
@@ -62,7 +59,6 @@ test("an explicit abort handler wins over the promise's own", async () => {
     keepLast.add(Promise.resolve("newer"));
 
     expect(controller.signal.aborted).toBe(true);
-    // The explicit handler replaces the default; the promise's own is not run.
     expect(composite.aborts).toEqual([]);
 
     composite.resolve(1);
@@ -77,7 +73,6 @@ test("the winner is never aborted, before or after it settles", async () => {
     winner.resolve("value");
     expect(await result).toBe("value");
 
-    // A later cancel() must not reach back into work that already finished.
     keepLast.cancel();
     expect(winner.aborts).toEqual([]);
 });

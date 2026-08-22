@@ -1,19 +1,5 @@
 // @ts-check
 
-/**
- * Pure unit tests for graph's data shaping.
- *
- * `GraphModel.loadDataPoints` was 195 lines sitting between two
- * `orm.formattedReadGroup` awaits, so every branch below — eight label shapes,
- * the many2one disambiguation counter, the cumulated-start fold and the
- * multi-currency fallback — was reachable only by mounting a webclient
- * (F-U12-2). `graph_data_points.js` extracts them; this file tests them as
- * functions, which is the shape `views/pivot` has had all along.
- *
- * Modules under test:
- *  - views/graph/graph_data_points.js
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import {
     applyCurrencyFallback,
@@ -101,7 +87,6 @@ describe("getGroupCurrencies", () => {
     const aggs = ["currency_id:array_agg_distinct", "amount:sum_currency"];
 
     test("a group with no currencies at all yields none", () => {
-        // array_agg_distinct returns false, not [], when nothing aggregated
         expect(
             getGroupCurrencies({ "currency_id:array_agg_distinct": false }, aggs),
         ).toEqual([]);
@@ -129,7 +114,6 @@ describe("foldCumulatedStart", () => {
             fieldAggregate: "amount:sum",
             graphCurrencies: new Set(),
         });
-        // the key must match the main pass's JSON.stringify(rawValues.slice(1))
         expect(cumulatedStartValue).toEqual({ '[{"user_id":[7,"Al"]}]': 5 });
     });
 

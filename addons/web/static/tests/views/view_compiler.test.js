@@ -1,33 +1,19 @@
 // @ts-check
 
-/**
- * Cache coherence: useViewCompiler must register OWL templates under a name
- * derived deterministically from the arch, so resetViewCompilerCache() +
- * recompiling the same arch overwrites the same globalTemplates slot instead
- * of accumulating entries (the leak from the original FIXME).
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { App, Component } from "@odoo/owl";
 import { patchWithCleanup, serverState } from "@web/../tests/web_test_helpers";
 import {
+    compileViewTemplates,
     DEFAULT_COMPILER_SEQUENCE,
     getShadowedCompilerReports,
     makeIsVisibleExpr,
     resetViewCompilerCache,
-    useViewCompiler,
+    toInterpolatedStringExpression,
     ViewCompiler,
 } from "@web/views/view_compiler";
 import { toStringExpression } from "@web/views/view_utils";
 
-/**
- * Minimal ViewCompiler stub accepted by useViewCompiler.
- *
- * Satisfies the three requirements of the real ViewCompiler:
- *  - `static .name` — used as the template namespace prefix in the key
- *  - `constructor(templates)` — instantiated once per useViewCompiler call
- *  - `compile(tname, params) → Element` — returns a compilable DOM element
- */
 class TestCompiler {
     constructor(/** @type {any} */ templates) {
         this._templates = templates;
@@ -41,9 +27,6 @@ class TestCompiler {
 }
 
 /**
- * Build a `templates` object (Record<string, Element>) from a list of
- * [name, tag, attrs?] triples, matching what view loaders produce.
- *
  * @param {Array<[string, string, Record<string,string>?]>} specs
  * @returns {Record<string, Element>}
  */
@@ -113,14 +96,14 @@ describe("makeIsVisibleExpr", () => {
     });
 });
 
-describe("useViewCompiler — cache coherence after reset", () => {
+describe("compileViewTemplates — cache coherence after reset", () => {
     test("same arch returns the same OWL template name after resetViewCompilerCache", () => {
         resetViewCompilerCache();
         const templates = makeTemplates([["form", "form", { string: "Test" }]]);
 
-        const name1 = useViewCompiler(TestCompiler, templates).form;
+        const name1 = compileViewTemplates(TestCompiler, templates).form;
         resetViewCompilerCache();
-        const name2 = useViewCompiler(TestCompiler, templates).form;
+        const name2 = compileViewTemplates(TestCompiler, templates).form;
 
         expect(name1).toBe(name2);
     });
@@ -132,8 +115,8 @@ describe("useViewCompiler — cache coherence after reset", () => {
         const bigArch = document.createElement("list");
         bigArch.setAttribute("string", "L".repeat(5000));
 
-        const name = useViewCompiler(TestCompiler, { list: arch }).list;
-        const bigName = useViewCompiler(TestCompiler, { list: bigArch }).list;
+        const name = compileViewTemplates(TestCompiler, { list: arch }).list;
+        const bigName = compileViewTemplates(TestCompiler, { list: bigArch }).list;
 
         expect(name).toMatch(/^TestCompiler#\d+\/\/\d+\/\d+-\d+$/);
         expect(name).not.toInclude(arch.outerHTML);
@@ -145,25 +128,25 @@ describe("useViewCompiler — cache coherence after reset", () => {
         resetViewCompilerCache();
         const templates = makeTemplates([["form", "form", { string: "Stable" }]]);
 
-        const name1 = useViewCompiler(TestCompiler, templates).form;
+        const name1 = compileViewTemplates(TestCompiler, templates).form;
         resetViewCompilerCache();
-        const name2 = useViewCompiler(TestCompiler, templates).form;
+        const name2 = compileViewTemplates(TestCompiler, templates).form;
         resetViewCompilerCache();
-        const name3 = useViewCompiler(TestCompiler, templates).form;
+        const name3 = compileViewTemplates(TestCompiler, templates).form;
 
         expect(name1).toBe(name2);
         expect(name2).toBe(name3);
     });
 });
 
-describe("useViewCompiler — template name uniqueness", () => {
+describe("compileViewTemplates — template name uniqueness", () => {
     test("different arches produce different template names", () => {
         resetViewCompilerCache();
         const t1 = makeTemplates([["form", "form", { string: "Form1" }]]);
         const t2 = makeTemplates([["form", "form", { string: "Form2" }]]);
 
-        const name1 = useViewCompiler(TestCompiler, t1).form;
-        const name2 = useViewCompiler(TestCompiler, t2).form;
+        const name1 = compileViewTemplates(TestCompiler, t1).form;
+        const name2 = compileViewTemplates(TestCompiler, t2).form;
 
         expect(name1).not.toBe(name2);
     });
@@ -185,18 +168,14 @@ describe("useViewCompiler — template name uniqueness", () => {
         }
 
         const templates = makeTemplates([["form", "form", {}]]);
-        const nameA = useViewCompiler(CompilerA, templates).form;
-        const nameB = useViewCompiler(CompilerB, templates).form;
+        const nameA = compileViewTemplates(CompilerA, templates).form;
+        const nameB = compileViewTemplates(CompilerB, templates).form;
 
         expect(nameA).not.toBe(nameB);
     });
 
     test("the same arch under a different sibling set gets a different name", () => {
         resetViewCompilerCache();
-        // `KanbanCompiler.compileTCall` reads the sibling names while compiling,
-        // so an identical template compiles two ways depending on the set it
-        // arrives in. Sharing a cache slot let whichever view compiled first
-        // decide how the other rendered.
         const withSibling = makeTemplates([
             ["card", "div", { class: "c" }],
             ["sub", "div", {}],
@@ -204,8 +183,8 @@ describe("useViewCompiler — template name uniqueness", () => {
         const withoutSibling = makeTemplates([["card", "div", { class: "c" }]]);
 
         expect(withSibling.card.outerHTML).toBe(withoutSibling.card.outerHTML);
-        expect(useViewCompiler(TestCompiler, withSibling).card).not.toBe(
-            useViewCompiler(TestCompiler, withoutSibling).card,
+        expect(compileViewTemplates(TestCompiler, withSibling).card).not.toBe(
+            compileViewTemplates(TestCompiler, withoutSibling).card,
         );
     });
 
@@ -220,8 +199,8 @@ describe("useViewCompiler — template name uniqueness", () => {
             ["other", "div", {}],
         ]);
 
-        expect(useViewCompiler(TestCompiler, asSub).card).not.toBe(
-            useViewCompiler(TestCompiler, asOther).card,
+        expect(compileViewTemplates(TestCompiler, asSub).card).not.toBe(
+            compileViewTemplates(TestCompiler, asOther).card,
         );
     });
 
@@ -235,8 +214,8 @@ describe("useViewCompiler — template name uniqueness", () => {
         b.sub = makeTemplates([["sub", "div", {}]]).sub;
         b.card = makeTemplates([["card", "div", { class: "c" }]]).card;
 
-        expect(useViewCompiler(TestCompiler, a).card).toBe(
-            useViewCompiler(TestCompiler, b).card,
+        expect(compileViewTemplates(TestCompiler, a).card).toBe(
+            compileViewTemplates(TestCompiler, b).card,
         );
     });
 
@@ -247,7 +226,7 @@ describe("useViewCompiler — template name uniqueness", () => {
             ["buttons", "div", { class: "o_btn_box" }],
         ]);
 
-        const result = useViewCompiler(TestCompiler, templates);
+        const result = compileViewTemplates(TestCompiler, templates);
 
         expect(result.form).not.toBe(result.buttons);
         expect(result.form).toMatch(/\/\d+-\d+$/);
@@ -255,7 +234,7 @@ describe("useViewCompiler — template name uniqueness", () => {
     });
 });
 
-describe("useViewCompiler — cache hits", () => {
+describe("compileViewTemplates — cache hits", () => {
     test("calling twice with the same arch compiles only once", () => {
         resetViewCompilerCache();
         let compilations = 0;
@@ -269,8 +248,8 @@ describe("useViewCompiler — cache hits", () => {
         }
 
         const templates = makeTemplates([["form", "form", {}]]);
-        useViewCompiler(CountingCompiler, templates);
-        useViewCompiler(CountingCompiler, templates);
+        compileViewTemplates(CountingCompiler, templates);
+        compileViewTemplates(CountingCompiler, templates);
 
         expect(compilations).toBe(1);
     });
@@ -288,10 +267,10 @@ describe("useViewCompiler — cache hits", () => {
         }
 
         const templates = makeTemplates([["form", "form", {}]]);
-        useViewCompiler(CountingCompiler, templates);
+        compileViewTemplates(CountingCompiler, templates);
         resetViewCompilerCache();
-        useViewCompiler(CountingCompiler, templates);
-        useViewCompiler(CountingCompiler, templates);
+        compileViewTemplates(CountingCompiler, templates);
+        compileViewTemplates(CountingCompiler, templates);
 
         expect(compilations).toBe(2);
     });
@@ -299,10 +278,8 @@ describe("useViewCompiler — cache hits", () => {
 
 describe("ViewCompiler — codegen escaping", () => {
     /**
-     * Compile a one-node arch through the real ViewCompiler.
-     *
      * @param {string} raw
-     * @returns {string} the compiled template's outerHTML
+     * @returns {string}
      */
     function compileArch(raw) {
         const el = new DOMParser().parseFromString(raw, "text/xml").documentElement;
@@ -310,13 +287,9 @@ describe("ViewCompiler — codegen escaping", () => {
     }
 
     /**
-     * Whether OWL can actually tokenize + compile the produced template. A
-     * template that only *looks* right is worthless: the failure mode being
-     * guarded here is a tokenizer error that kills the whole view.
-     *
      * @param {string} compiled
      * @param {string} name
-     * @returns {string | null} the error message, or null when it compiles
+     * @returns {string | null}
      */
     function owlCompileError(compiled, name) {
         try {
@@ -395,9 +368,6 @@ describe("ViewCompiler — button disabled", () => {
 });
 
 test("a <details>/<summary> block compiles through with its field intact", async () => {
-    // `<details>` is how collapsible form arch is spelled now that Bootstrap's
-    // collapse data-api is gone: it needs no whitelist entry server-side and no
-    // JS client-side, but it must survive compileGenericNode with its children.
     const compiler = new ViewCompiler({});
     const arch = `
         <form>
@@ -431,7 +401,6 @@ test("a bootstrap dropdown container compiles into an OWL Dropdown", async () =>
     const doc = new DOMParser().parseFromString(arch, "text/xml").documentElement;
     const compiled = compiler.compileNode(doc, {});
 
-    // The container survives; the toggle/menu pair becomes a Dropdown.
     const container = compiled.querySelector("div.dropdown");
     expect(container).not.toBe(null);
     expect(compiled.querySelectorAll("Dropdown").length).toBe(1);
@@ -439,11 +408,9 @@ test("a bootstrap dropdown container compiles into an OWL Dropdown", async () =>
 
     const dropdown = compiled.querySelector("Dropdown");
     expect(dropdown.getAttribute("menuClass")).toInclude("extra-menu");
-    // The toggle is the default slot and is no longer a Bootstrap control.
     const toggle = dropdown.querySelector("button");
     expect(toggle.hasAttribute("data-bs-toggle")).toBe(false);
     expect(toggle.getAttribute("data-self-handled")).toBe("1");
-    // The menu's action item still compiled into a ViewButton.
     const slot = dropdown.querySelector("t[t-set-slot='content']");
     expect(slot.querySelectorAll("ViewButton").length).toBe(1);
 });
@@ -480,10 +447,6 @@ test("a positioning class with no dropdown inside is left alone", async () => {
     expect(compiled.querySelectorAll("ViewButton").length).toBe(2);
 });
 
-/**
- * The modal pairing runs in `compile()`, so these go through a real template
- * rather than calling `compileNode` directly.
- */
 function compileArch(/** @type {any} */ arch) {
     const doc = new DOMParser().parseFromString(arch, "text/xml").documentElement;
     return new ViewCompiler({ root: doc }).compile("root", {});
@@ -511,7 +474,6 @@ test("a bootstrap modal and its trigger compile into a Dialog driven by archDial
     expect(dialog).not.toBe(null);
     expect(dialog.getAttribute("title")).toInclude("Hide Tips");
 
-    // Both halves address the same archDialogs entry.
     const openExpr = dialog.getAttribute("t-if");
     expect(openExpr).toInclude("__comp__.archDialogs");
     const key = openExpr.match(/\['(.+?)'\]/)[1];
@@ -520,7 +482,6 @@ test("a bootstrap modal and its trigger compile into a Dialog driven by archDial
     expect(opener.getAttribute("t-on-click")).toInclude(`['${key}'] = true`);
     expect(opener.hasAttribute("data-bs-toggle")).toBe(false);
 
-    // The footer's dismiss control closes that same entry.
     const footer = dialog.querySelector("t[t-set-slot='footer']");
     expect(footer.querySelector(".cancel").getAttribute("t-on-click")).toInclude(
         `['${key}'] = false`,
@@ -528,8 +489,6 @@ test("a bootstrap modal and its trigger compile into a Dialog driven by archDial
 });
 
 test("a dismiss control that compiles to a component gets no DOM handler", async () => {
-    // OWL does not bind `t-on-*` on a component node; emitting one would make
-    // the compiled template fail to compile.
     const compiled = compileArch(`
         <form>
             <a href="#" data-bs-toggle="modal" data-bs-target=".m" class="opener">Open</a>
@@ -613,7 +572,6 @@ test("the Odoo spelling drives the same modal construct as the Bootstrap one", a
 });
 
 describe("ViewCompiler — shadowed compiler warning", () => {
-    /** Build a bare ViewCompiler and drive its dispatch with a controlled set. */
     function compilerWith(/** @type {any} */ base, /** @type {any} */ appended) {
         const compiler = new ViewCompiler({});
         compiler.compilers = [...base];
@@ -640,7 +598,6 @@ describe("ViewCompiler — shadowed compiler warning", () => {
         expect(warnings[0]).toInclude(`The compiler for "div.shadow_probe" never runs`);
         expect(warnings[0]).toInclude(`"div"`);
 
-        // Once per selector: a second matching node does not re-warn.
         const node2 = document.createElement("div");
         node2.classList.add("shadow_probe");
         compiler.compileNode(node2, {}, false);
@@ -666,10 +623,6 @@ describe("ViewCompiler — shadowed compiler warning", () => {
     test("does not warn for a built-in-vs-built-in overlap (deliberate ordering)", () => {
         serverState.debug = "1";
         const compiler = new ViewCompiler({});
-        // Both overlapping entries are built-ins: the overlap is intended. A
-        // third, non-built-in entry that matches nothing is appended so the
-        // detection loop actually runs — without it the compiler carries no
-        // extension at all and the assertion would hold vacuously.
         compiler.compilers = [
             {
                 selector: "div",
@@ -698,10 +651,6 @@ describe("ViewCompiler — shadowed compiler warning", () => {
     });
 
     test("records the shadowing even with debug off", () => {
-        // Detection used to be gated behind odoo.debug along with the warning,
-        // which put the only signal that an extension never runs behind the flag
-        // least likely to be set in production. The console stays quiet; the
-        // record does not.
         serverState.debug = "";
         resetViewCompilerCache();
         const compiler = compilerWith(
@@ -788,14 +737,10 @@ describe("ViewCompiler — dispatch sequence", () => {
             compiler.compileNode(document.createElement("field"), {}, false)
         );
         expect(compiled.tagName.toLowerCase()).toBe("intercepted");
-        // And nothing is reported as shadowed: the extension won.
         expect(getShadowedCompilerReports()).toHaveLength(0);
     });
 
     test("without a sequence, push still loses to the built-ins", () => {
-        // The behaviour that made this gate necessary, kept as the control: the
-        // default is unchanged, so `sequence` is opt-in rather than a silent
-        // reordering of every existing compiler.
         resetViewCompilerCache();
         const compiler = new AppendedCompiler({});
         const compiled = /** @type {Element} */ (
@@ -807,9 +752,6 @@ describe("ViewCompiler — dispatch sequence", () => {
     });
 
     test("without a sequence, unshift still beats the built-ins", () => {
-        // The existing workaround (project_task_kanban_compiler) must keep
-        // working: the sort is stable and every built-in carries the same
-        // default, so an unshifted entry stays at index 0.
         resetViewCompilerCache();
         const compiler = new UnshiftedCompiler({});
         const compiled = /** @type {Element} */ (
@@ -819,13 +761,58 @@ describe("ViewCompiler — dispatch sequence", () => {
     });
 
     test("built-ins keep their documented order relative to each other", () => {
-        // The sort must be a no-op on a stock compiler. `.modal` is declared
-        // after the arch-dialog control and before the dropdown container; if
-        // the sort were unstable that order could change and dispatch with it.
         const stock = new ViewCompiler({});
         const selectors = stock.compilers.map((c) => c.selector);
         expect(selectors.at(-2)).toBe("field");
         expect(selectors.at(-1)).toBe("widget");
         expect(stock.compilers.every((c) => c.builtIn)).toBe(true);
+    });
+});
+
+describe("toInterpolatedStringExpression", () => {
+    /**
+     * @param {string} src
+     * @returns {string}
+     */
+    function compiledInterpolation(src) {
+        const expr = toInterpolatedStringExpression(src);
+        new Function(`return (${expr});`);
+        return expr;
+    }
+
+    test("splits literal text from expressions", () => {
+        expect(compiledInterpolation("a{{b}}c")).toBe("`a`+(b)+`c`");
+        expect(compiledInterpolation("#{x}")).toBe("(x)+``");
+        expect(compiledInterpolation("no delimiters")).toBe("`no delimiters`");
+    });
+
+    test("a brace inside the expression is not a closer", () => {
+        expect(compiledInterpolation("{{ {'a': 1}[k] }}")).toBe("( {'a': 1}[k] )+``");
+        expect(compiledInterpolation("{{`col-${n}`}}")).toBe("(`col-${n}`)+``");
+        expect(compiledInterpolation("{{ g ? `bg: ${g}` : '' }};")).toBe(
+            "( g ? `bg: ${g}` : '' )+`;`",
+        );
+        expect(toInterpolatedStringExpression("{{f'url({u});' if u else ''}}")).toBe(
+            "(f'url({u});' if u else '')+``",
+        );
+    });
+
+    test("a delimiter inside a string literal is text", () => {
+        expect(compiledInterpolation("#{a} {{ '#{' }} #{b}")).toBe(
+            "(a)+` `+( '#{' )+` `+(b)+``",
+        );
+    });
+
+    test("a stray closer in literal text stays literal", () => {
+        expect(compiledInterpolation("{{ a }} }} tail")).toBe("( a )+` }} tail`");
+    });
+
+    test("an unterminated interpolation names itself instead of emitting bad JS", () => {
+        expect(() => toInterpolatedStringExpression("{{{{a}}")).toThrow(
+            /Unterminated "\{\{" interpolation/,
+        );
+        expect(() => toInterpolatedStringExpression("{{ a")).toThrow(
+            /expected a matching "\}\}"/,
+        );
     });
 });

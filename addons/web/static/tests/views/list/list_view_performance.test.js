@@ -1,25 +1,5 @@
 // @ts-check
 
-/**
- * @module tests/views/list/list_view_performance
- *
- * Regression-guard tests for the web list view performance optimisations.
- *
- * - R4: ListAggregatesRow must not re-render when a data cell click only
- *   toggles `editedRecord` on the parent — it has no reactive subscription
- *   to that.
- * - D3/D3b: unlink / action_archive / action_unarchive emit CLEAR-CACHES
- *   with `{ tables, model }` so only the affected model's entries are
- *   evicted (both remove records from the active-domain result set, which
- *   the model can't self-update). write/create/web_save are EXCLUDED — see
- *   `RESULT_SET_REMOVING_METHODS` in `result_set_cache_invalidator_service.js`.
- * - D3c: verifies the FULL CHAIN — `rpcBus.RPC:RESPONSE` →
- *   `result_set_cache_invalidator_service` → `CLEAR-CACHES` → `rpc.js` →
- *   `rpcCache.invalidateByModel` — actually drops the target model's RAM
- *   cache entries while other models' survive (`rpc_cache.test.js` covers
- *   `invalidateByModel` in isolation).
- */
-
 import { after, beforeEach, expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
 import { onRendered } from "@odoo/owl";
@@ -66,11 +46,6 @@ beforeEach(async () => {
     }
 });
 
-/**
- * Clicking a data cell toggles `editedRecord` on the parent ListRenderer.
- * `ListAggregatesRow` has no reactive subscription to `editedRecord`, so it
- * MUST NOT re-render.
- */
 test.tags("desktop");
 test.todo("aggregate row does not re-render when entering edit mode (R4)", async () => {
     patchWithCleanup(ListAggregatesRow.prototype, {
@@ -98,11 +73,6 @@ test.todo("aggregate row does not re-render when entering edit mode (R4)", async
     expect.verifySteps([]);
 });
 
-/**
- * Selecting a record changes `record.selected`, which computeAggregates()
- * depends on when rendering "selected records only" sums. The aggregate row
- * MUST re-render in response.
- */
 test.tags("desktop");
 test("aggregate row re-renders when a record is selected (R4 positive case)", async () => {
     patchWithCleanup(ListAggregatesRow.prototype, {
@@ -130,13 +100,6 @@ test("aggregate row re-renders when a record is selected (R4 positive case)", as
     expect.verifySteps(["ListAggregatesRow render"]);
 });
 
-/**
- * Rows are components whose props stay referentially stable for unchanged
- * records, so OWL must skip them: toggling ONE record's selection checkbox
- * changes only that record's `selected` atom — exactly one row component may
- * re-render (the header checkbox and footer aggregates row have their own
- * subscriptions and are allowed to update).
- */
 test.tags("desktop");
 test("toggling one checkbox re-renders only that record's row (R5)", async () => {
     const rowRenders = [];
@@ -168,12 +131,6 @@ test("toggling one checkbox re-renders only that record's row (R5)", async () =>
     expect(".o_data_row:first-child").toHaveClass("o_data_row_selected");
 });
 
-/**
- * When a record is unlinked, `relational_model.js` must emit CLEAR-CACHES with
- * `{ tables: string[], model: string }` (not just the tables array).
- * This allows `rpc.js` to dispatch to `invalidateByModel` and evict only the
- * affected model's cache entries.
- */
 test("unlink emits CLEAR-CACHES with model name in payload (D3)", () => {
     const received = [];
     const handler = (ev) => received.push(ev.detail);
@@ -197,14 +154,6 @@ test("unlink emits CLEAR-CACHES with model name in payload (D3)", () => {
     }
 });
 
-/**
- * RPC responses for methods other than the documented result-set-removing
- * set (``unlink`` / ``action_archive`` / ``action_unarchive``) must NOT
- * trigger CLEAR-CACHES.  Broadly invalidating on every write was attempted
- * 2026-05-17 and reverted (see "cache web_search_read (onUpdate called
- * after another load)" in ``list_view.test.js``).  This guard regression-
- * tests every method that the audit considered and rejected.
- */
 test("non-removing RPC:RESPONSE does not emit CLEAR-CACHES (D3 guard)", () => {
     const received = [];
     const handler = (ev) => received.push(ev.detail);
@@ -228,12 +177,6 @@ test("non-removing RPC:RESPONSE does not emit CLEAR-CACHES (D3 guard)", () => {
     }
 });
 
-/**
- * Archive must invalidate the same tables for the same reason as unlink:
- * the record disappears from the active-domain result set and the model
- * has no way to self-update an entry that no longer matches the implicit
- * ``active = True`` filter.  Tests the positive path.
- */
 test("action_archive emits CLEAR-CACHES with model name (D3b)", () => {
     const received = [];
     const handler = (ev) => received.push(ev.detail);
@@ -256,11 +199,6 @@ test("action_archive emits CLEAR-CACHES with model name (D3b)", () => {
     }
 });
 
-/**
- * Symmetric coverage: unarchive promotes a record back into the active
- * result set; the cache backing that result set is now incomplete and
- * must be cleared.
- */
 test("action_unarchive emits CLEAR-CACHES with model name (D3b)", () => {
     const received = [];
     const handler = (ev) => received.push(ev.detail);
@@ -284,11 +222,6 @@ test("action_unarchive emits CLEAR-CACHES with model name (D3b)", () => {
 });
 
 /**
- * Build a JSON cache key matching the real shape that
- * ``rpc.js`` writes (``JSON.stringify({url, params})``).  ``invalidateByModel``
- * parses each key and matches on ``params.model``, so the seeded keys must
- * carry the model in ``params``.
- *
  * @param {string} model
  * @param {string} method
  * @param {any[]} [args]
@@ -302,12 +235,6 @@ function makeCacheKey(model, method, args = []) {
 }
 
 /**
- * Install a fresh ``RPCCache`` as the singleton consumer of ``CLEAR-CACHES``
- * events on ``rpcBus``, with cleanup that restores ``null`` after the test.
- * The third constructor arg is the registry-hash secret the cache uses to
- * key its IndexedDB store — value content is irrelevant for RAM-only
- * assertions but must be a syntactically valid hex string.
- *
  * @returns {RPCCache}
  */
 function installFreshRpcCache() {
@@ -322,13 +249,6 @@ function installFreshRpcCache() {
 }
 
 /**
- * Seed the RAM cache with one ``web_search_read`` entry per model so we can
- * verify that the target-model entry is removed while the unrelated-model
- * entry survives.  Seeding via ``ramCache.write`` skips the encrypted
- * IndexedDB write path — the integration we want to test lives entirely
- * in the RAM layer and the bus wiring, not in the disk path that is
- * already covered by ``rpc_cache.test.js``.
- *
  * @param {RPCCache} cache
  * @returns {{ partnerKey: string, userKey: string }}
  */
@@ -396,13 +316,6 @@ test("end-to-end: action_unarchive invalidates RAM cache for target model only (
     void partnerKey;
 });
 
-/**
- * End-to-end negative: ``write`` must NOT clear the cache.  This is the
- * integration-level counterpart to the D3 guard (which asserts no event
- * is emitted).  If either layer were misconfigured — listener accidentally
- * extended OR the rpc.js consumer accidentally re-routing — this test
- * would catch the regression because the RAM entry would disappear.
- */
 test("end-to-end: write does NOT invalidate RAM cache (D3c negative)", () => {
     const cache = installFreshRpcCache();
     const { partnerKey, userKey } = seedTwoModels(cache);

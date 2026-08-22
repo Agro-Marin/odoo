@@ -13,9 +13,6 @@ from odoo.tools.misc import limited_field_access_token
 @tagged("-at_install", "post_install", "web_http", "web_image")
 class TestImage(HttpCase):
     def test_01_content_image_resize_placeholder(self):
-        """Check that the placeholder image is resized per the URL's size
-        parameters, keeping its original (square) aspect ratio."""
-
         response = self.url_open("/web/image/0/200x150")
         response.raise_for_status()
         image = Image.open(io.BytesIO(response.content))
@@ -42,11 +39,6 @@ class TestImage(HttpCase):
         self.assertEqual(image.size, (256, 256))
 
     def test_01b_broken_image_download_false_serves_placeholder(self):
-        """``?download=false`` on a missing image must serve the placeholder
-        (200), not 404. The ``except UserError`` branch used to test the raw
-        query string, where the string "false" is truthy; it now coerces with
-        ``str2bool`` like the send_file path.
-        """
         resp = self.url_open("/web/image/fake/0/image_128?download=false")
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp.headers["Content-Type"].startswith("image/"))
@@ -54,19 +46,6 @@ class TestImage(HttpCase):
         self.assertEqual(resp.status_code, 404)
 
     def test_01c_malformed_id_is_not_a_server_error(self):
-        """A non-integer ``?id=`` must degrade like a missing record, never 500.
-
-        ``/web/image`` and ``/web/content`` are ``auth="public"`` and used to
-        pass the raw query value through ``id and int(id)``. Neither route's
-        exception handling covers ``ValueError`` (``except UserError`` /
-        ``replace_exceptions(UserError, ...)``), so ``?id=abc`` produced an
-        unauthenticated HTTP 500 with a full traceback — a free log-flooding
-        primitive on a route any visitor can reach.
-
-        The expected outcome is whatever a well-formed but non-existent id
-        already yields: a placeholder image for ``/web/image``, a 404 for
-        ``/web/content``.
-        """
         for bad_id in ("abc", "1e9", " ", "1.5", "0x10", "-", "%00"):
             with self.subTest(id=bad_id):
                 resp = self.url_open(f"/web/image?id={bad_id}")
@@ -88,14 +67,6 @@ class TestImage(HttpCase):
         self.assertEqual(self.url_open("/web/content?id=999999999").status_code, 404)
 
     def test_01d_asset_nocache_is_coerced(self):
-        """``?nocache=`` on /web/assets is a query-string value, not a bool.
-
-        A bare truthiness test made ``?nocache=false`` and ``?nocache=0`` TRUE,
-        dropping ``max-age`` from asset-bundle responses while leaving
-        ``immutable`` set — emitting the self-contradictory pair
-        ``Cache-Control: no-cache, immutable``. The sibling ``/web/content`` and
-        ``/web/image`` routes already coerce with ``str2bool``.
-        """
         url = "/web/assets/any/web.assets_web.min.css"
         cached = self.url_open(url).headers.get("Cache-Control", "")
         self.assertIn("max-age", cached)
@@ -117,8 +88,6 @@ class TestImage(HttpCase):
         self.assertNotIn("immutable", opted_out)
 
     def test_02_content_image_Etag_304(self):
-        """Check that a matching If-None-Match returns 304 Not Modified."""
-
         attachment = self.env["ir.attachment"].create(
             {
                 "datas": b"R0lGODdhAQABAIAAAP///////ywAAAAAAQABAAACAkQBADs=",
@@ -142,9 +111,6 @@ class TestImage(HttpCase):
         self.assertEqual(len(response2.content), 0)
 
     def test_03_web_content_filename(self):
-        """Check that Content-Disposition's filename matches the URL-given
-        filename, with or without an explicit extension."""
-
         att = self.env["ir.attachment"].create(
             {
                 "datas": b"R0lGODdhAQABAIAAAP///////ywAAAAAAQABAAACAkQBADs=",
@@ -176,10 +142,6 @@ class TestImage(HttpCase):
         )
 
     def test_04_web_content_filename_secure(self):
-        """Check Content-Disposition filename sanitization: newlines/CR are
-        stripped, quotes are escaped, and non-ASCII names fall back to the
-        RFC 5987 ``filename*`` parameter alongside an ASCII ``filename``."""
-
         att = self.env["ir.attachment"].create(
             {
                 "datas": b"R0lGODdhAQABAIAAAP///////ywAAAAAAQABAAACAkQBADs=",
@@ -253,11 +215,6 @@ class TestImage(HttpCase):
         )
 
     def test_05_web_image_access_token(self):
-        """Check token-gated access to attachment binary data: only a
-        matching, non-expired, correctly-scoped token grants access, and
-        the generated token stays stable within a 14-day window and rolls
-        over predictably across windows."""
-
         def get_datetime_from_token(token):
             return datetime.fromtimestamp(int(token.rsplit("o", 1)[1], 16))
 
@@ -306,9 +263,7 @@ class TestImage(HttpCase):
                 res.headers["Content-Disposition"],
                 "inline; filename=placeholder.png",
             )
-        start_of_period = datetime(
-            2021, 2, 18, 0, 0, 0
-        )
+        start_of_period = datetime(2021, 2, 18, 0, 0, 0)
         base_result = datetime(2021, 3, 24, 15, 25, 40)
         for i in range(14):
             with freeze_time(
@@ -354,8 +309,6 @@ class TestImage(HttpCase):
             self.assertNotIn(model_res, [base_result, record_res, field_res])
 
     def test_06_web_image_attachment_access(self):
-        """Check every combination of user type and access-token kind for
-        reading an attachment through the ``/web/image`` route."""
         new_test_user(self.env, "portal_user", groups="base.group_portal")
         new_test_user(self.env, "internal_user")
         restricted_record = self.env["res.users.settings"].create(

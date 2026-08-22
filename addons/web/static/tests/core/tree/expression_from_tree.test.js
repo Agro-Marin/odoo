@@ -216,7 +216,6 @@ test("expressionFromTree: complex conditions are parenthesized when needed", () 
 test("expressionFromTree: a negated complex condition is parenthesised, not dropped", () => {
     const tree = connector("&", [complexCondition("a.b")], true);
     expect(expressionFromTree(tree)).toBe("not ( a.b )");
-    // `not` binds tighter than `and`/`or`, so the parentheses are load-bearing.
     const wide = connector("&", [complexCondition("x or y")], true);
     expect(expressionFromTree(wide)).toBe("not ( x or y )");
 });

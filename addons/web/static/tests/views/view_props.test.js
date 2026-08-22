@@ -6,11 +6,6 @@ import { fieldProps } from "@web/fields/field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { STANDARD_PROPS, viewProps } from "@web/views/view";
 
-/**
- * `View` decides what to forward to the controller with `STANDARD_PROPS` and
- * what to validate with `viewProps`. They were two hand-maintained lists of
- * overlapping sets; this is the join that keeps them honest.
- */
 test("every STANDARD_PROPS key carries a declared type in viewProps", () => {
     const undeclared = STANDARD_PROPS.filter((key) => !(key in viewProps));
     expect(undeclared).toEqual([], {
@@ -39,7 +34,6 @@ test("viewProps rejects a wrongly-typed known prop", () => {
     expect(() =>
         validate({ resModel: "res.partner", type: "list" }, viewProps),
     ).not.toThrow();
-    // `domain` is an Array, and passing the unevaluated string is the classic slip
     expect(() =>
         validate({ resModel: "res.partner", type: "list", domain: "[]" }, viewProps),
     ).toThrow();
@@ -55,8 +49,6 @@ test("viewProps rejects a wrongly-typed known prop", () => {
 });
 
 test("resModel and type stay optional so setup() owns those two messages", () => {
-    // View.setup() throws `View props should have a "resModel" key`, which names
-    // the key. A required schema entry would pre-empt it with a generic error.
     expect(() => validate({}, viewProps)).not.toThrow();
 });
 
@@ -67,7 +59,6 @@ test("fieldProps extends standardFieldProps and stays open", () => {
         });
     }
     expect(fieldProps["*"]).toBe(true);
-    // widget-specific props are forwarded by fieldComponentProps, so they pass
     expect(() =>
         validate({ name: "foo", record: {}, someWidgetOption: true }, fieldProps),
     ).not.toThrow();
@@ -82,6 +73,5 @@ test("fieldProps rejects a wrongly-typed prop Field itself reads", () => {
     expect(() =>
         validate({ name: "foo", record: {}, fieldInfo: "nope" }, fieldProps),
     ).toThrow();
-    // `record` is what every widget dereferences; omitting it must not be silent
     expect(() => validate({ name: "foo" }, fieldProps)).toThrow();
 });

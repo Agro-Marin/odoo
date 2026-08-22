@@ -13,11 +13,6 @@ import {
 import { FileUploader } from "@web/core/file_upload/file_handler";
 import { session } from "@web/session";
 
-/**
- * Minimal host exposing a toggler so the hidden file input is "interacted with"
- * the same way the real widgets drive it (button -> onSelectFileButtonClick ->
- * input.click()), which is what `setInputFiles` needs.
- */
 class Parent extends Component {
     static components = { FileUploader };
     static template = xml`
@@ -83,8 +78,6 @@ test("FileUploader multi-upload continues past a too-large file and resets input
         new File(["way-too-big"], "big.txt", { type: "text/plain" }),
         new File(["cd"], "small_2.txt", { type: "text/plain" }),
     ]);
-    // Each file is read asynchronously and in sequence; wait for the uploads
-    // themselves rather than for a fixed number of frames.
     await waitUntil(() => uploaded.length === 2);
 
     expect(uploaded).toEqual(["small_1.txt", "small_2.txt"]);
@@ -92,9 +85,6 @@ test("FileUploader multi-upload continues past a too-large file and resets input
 });
 
 test("FileUploader checkSize accepts a per-file predicate", async () => {
-    // A caller that routes SOME files past the server (cloud storage) exempts
-    // exactly those; switching the check off wholesale removed the size warning
-    // from every other file too.
     patchWithCleanup(session, { max_file_upload_size: 3 });
     const notifications = [];
     mockService("notification", { add: (message) => notifications.push(message) });

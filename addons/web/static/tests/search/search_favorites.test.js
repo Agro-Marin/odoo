@@ -1,12 +1,5 @@
 // @ts-check
 
-/**
- * Pure unit tests for search/search_favorites.js: ir.filters → favorite
- * conversion (including the isInvalid quarantine paths), the favorite →
- * ir.filters description round-trip, and favorite reconciliation on state
- * import.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { user } from "@web/core/user";
 import {
@@ -21,7 +14,6 @@ import {
 
 describe.current.tags("headless");
 
-/** Build a well-formed ir.filters record (as returned by get_filters). */
 function makeIrFilter(overrides = {}) {
     return {
         id: 7,
@@ -174,7 +166,6 @@ describe("irFilterToFavorite", () => {
 });
 
 describe("buildIrFilterDescription", () => {
-    /** Minimal params for buildIrFilterDescription. */
     function makeParams(overrides = {}) {
         return {
             description: "Sales this year",
@@ -227,11 +218,6 @@ describe("buildIrFilterDescription", () => {
     });
 
     test("strips a user-context key whose value is a shared array", () => {
-        // `user.context` spreads a FRESH object per access but copies its values
-        // by reference, so the identity test that drops seeded keys still holds
-        // for `allowed_company_ids`. If that spread ever deep-copies, favorites
-        // would silently start pinning the company selection they were saved
-        // under — this test is the tripwire for that.
         const userCtx = user.context;
         expect(Array.isArray(userCtx.allowed_company_ids)).toBe(true);
 

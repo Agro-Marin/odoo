@@ -1,12 +1,5 @@
 // @ts-check
 
-/**
- * End-to-end probe: a parent onchange clears a REQUIRED field on an existing
- * o2m line via an x2many UPDATE command. That reaches the line through
- * _applyChanges, which fills _changes but never raises `dirty`. If validity
- * gates on `dirty`, the invalid line is invisible to the parent's save.
- */
-
 import { expect, test } from "@odoo/hoot";
 import { click, queryOne } from "@odoo/hoot-dom";
 import {
@@ -56,7 +49,6 @@ test("a required o2m line field cleared by an onchange blocks the save", async (
             </form>`,
     });
 
-    // typing in the parent field fires the onchange that empties the line
     const input = /** @type {HTMLInputElement} */ (
         queryOne(".o_field_widget[name=name] input")
     );
@@ -70,6 +62,5 @@ test("a required o2m line field cleared by an onchange blocks the save", async (
     await click(".o_form_button_save");
     await new Promise((resolve) => setTimeout(resolve, 50));
 
-    // the line is invalid, so the model must never reach the server
     expect.verifySteps([]);
 });

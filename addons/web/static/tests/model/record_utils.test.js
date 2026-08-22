@@ -1,10 +1,5 @@
 // @ts-check
 
-/**
- * Pure unit tests for record_utils.js: no OWL, no DOM, no mock server —
- * exercises the domain logic extracted from Record directly.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import {
     computeChangeset,

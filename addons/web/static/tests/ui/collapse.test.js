@@ -91,12 +91,7 @@ test("keeps the slot content mounted while closed", async () => {
 });
 
 test("an animation always starts from the size the region currently has", async () => {
-    // The keyframe used to be anchored to the FULL size on every close, so a
-    // region that was not currently full-height jumped there before collapsing.
-    // In a real browser that shows up as a half-open region snapping to full on
-    // a double toggle; hoot settles WAAPI instantly, so the observable here is
-    // the keyframe itself, taken on mount while the region is still collapsed.
-    defineStyle(/* css */ `.collapse:not(.show) { display: none !important; }`);
+    defineStyle(`.collapse:not(.show) { display: none !important; }`);
 
     /** @type {{ keyframes: any, measured: string }[]} */
     const frames = [];
@@ -114,8 +109,6 @@ test("an animation always starts from the size the region currently has", async 
     await mountWithCleanup(TallParent);
     await animationFrame();
 
-    // Mount pass: the region is collapsed and 0 tall, and its content is far
-    // taller, so anchoring to the full size would be visible as a jump.
     expect(frames.length).toBeGreaterThan(0);
     expect(frames[0].measured).toBe("0px");
     expect(frames[0].keyframes.height[0]).toBe("0px");

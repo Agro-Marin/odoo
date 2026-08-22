@@ -451,9 +451,6 @@ test("async method loadFields is protected", async () => {
 });
 
 test("followRelationalProperties survives a relational hop", async () => {
-    // The flag was dropped when `_loadPath` recursed through a relation, so the
-    // SAME property field resolved fine at depth 0 and became `isInvalid:
-    // "path"` (against resModel "*") one hop later.
     await makeMockEnv();
     const field = getService("field");
 

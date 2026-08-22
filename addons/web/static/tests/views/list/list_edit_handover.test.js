@@ -36,12 +36,6 @@ const ARCH = `
     </list>
 `;
 
-/**
- * Counts row re-renders, and records `rowFlags.canSelectRecord` once per
- * renderer render -- that flag is the one value every row subscribes to, so its
- * value SEQUENCE across an interaction is what decides how much of the list
- * repaints.
- */
 function instrument() {
     const s = {
         rowRenders: 0,
@@ -72,16 +66,9 @@ test(`moving the edited row does not repaint every row`, async () => {
     await mountView({ resModel: "foo", type: "list", arch: ARCH });
     await animationFrame();
 
-    // Entering edition legitimately touches every row: each selector checkbox
-    // becomes disabled. That cost is expected and is NOT what this pins.
     await contains(`tbody tr:eq(0) td[name=foo]`).click();
     await animationFrame();
 
-    // Handing edition to another row changes only the two rows involved.
-    // Before DynamicList#isEditing, `canSelectRecord` went false -> true ->
-    // false across the handover and every row re-rendered twice (81 renders on
-    // a 40-row list). A handful of renders is fine; a multiple of the row count
-    // is the regression.
     s.rowRenders = 0;
     s.flagPerRender = [];
     await contains(`tbody tr:eq(2) td[name=foo]`).click();
@@ -96,10 +83,6 @@ test(`moving the edited row does not repaint every row`, async () => {
     });
 });
 
-// The RecordRow template reads `editedRecord` (-> `flags.isEditing`) only
-// inside `column.buttons`, so a button column is what subscribes rows to that
-// second flag. It used to be derived from `editedRecord` too, and carried the
-// identical round-trip: 81 row renders on a 40-row list.
 test(`a button column does not repaint every row on handover`, async () => {
     const s = instrument();
     await mountView({
@@ -163,8 +146,6 @@ test(`leaving edition re-enables the selectors`, async () => {
         true,
     );
 
-    // Clicking outside the table leaves edition entirely: `isEditing` must go
-    // false, so this is the guard against `_editHandover` stranding the list.
     await contains(`.o_content`).click();
     await animationFrame();
     expect(`tbody tr.o_selected_row`).toHaveCount(0);
@@ -175,11 +156,6 @@ test(`leaving edition re-enables the selectors`, async () => {
     );
 });
 
-// Tab reaches the next row through `list.enterEditMode`, which claims the
-// handover itself. Enter goes through `ListRenderer#editNextRecord`, which
-// cannot -- it needs `leaveEditMode({ validate: true })` -- so it claims the
-// handover explicitly. Both are the same user action ("edit the next line"),
-// and they must cost the same.
 test(`keyboard handover costs the same as the mouse`, async () => {
     const s = instrument();
     await mountView({ resModel: "foo", type: "list", arch: ARCH });
@@ -190,9 +166,9 @@ test(`keyboard handover costs the same as the mouse`, async () => {
 
     s.rowRenders = 0;
     s.isEditingPerRender = [];
-    await press("Tab"); // foo -> int_field, same row
+    await press("Tab");
     await animationFrame();
-    await press("Tab"); // int_field -> next row
+    await press("Tab");
     await animationFrame();
 
     expect(`tbody tr:eq(1)`).toHaveClass("o_selected_row");
@@ -202,7 +178,7 @@ test(`keyboard handover costs the same as the mouse`, async () => {
 
     s.rowRenders = 0;
     s.isEditingPerRender = [];
-    await press("Enter"); // Enter moves edition down a row too
+    await press("Enter");
     await animationFrame();
 
     expect(`tbody tr:eq(2)`).toHaveClass("o_selected_row");
@@ -211,5 +187,55 @@ test(`keyboard handover costs the same as the mouse`, async () => {
     });
     expect(s.isEditingPerRender.some((v) => v === false)).toBe(false, {
         message: "isEditing must span the two-step leave-then-enter",
+    });
+});
+
+test(`a refused handover releases the slot instead of wedging isEditing`, async () => {
+    /** @type {any} */
+    let list;
+    patchWithCleanup(ListRenderer.prototype, {
+        setup() {
+            super.setup();
+            list = /** @type {any} */ (this).props.list;
+        },
+    });
+    await mountView({ type: "list", resModel: "foo", arch: ARCH });
+
+    const [first, second] = list.records;
+    patchWithCleanup(list, { leaveEditMode: async () => false });
+
+    expect(await list.enterEditMode(first)).toBe(false, {
+        message: "the move was refused",
+    });
+    expect(list._editHandover.record).toBe(null, {
+        message: "the handover slot is released on the refused branch too",
+    });
+    expect(list.isEditing).toBe(false, {
+        message: "so isEditing does not wedge true with nothing in edition",
+    });
+    expect(await list.enterEditMode(second)).toBe(false);
+    expect(list.isEditing).toBe(false);
+});
+
+test(`beginEditHandover releases even when the caller throws`, async () => {
+    /** @type {any} */
+    let listModel;
+    patchWithCleanup(ListRenderer.prototype, {
+        setup() {
+            super.setup();
+            listModel = /** @type {any} */ (this).props.list;
+        },
+    });
+    await mountView({ type: "list", resModel: "foo", arch: ARCH });
+
+    const record = listModel.records[0];
+    expect(listModel.isEditing).toBe(false);
+    const release = listModel.beginEditHandover(record);
+    expect(listModel.isEditing).toBe(true, {
+        message: "the slot spans the gap before any record is in edition",
+    });
+    release();
+    expect(listModel.isEditing).toBe(false, {
+        message: "and releasing it puts the flag back",
     });
 });

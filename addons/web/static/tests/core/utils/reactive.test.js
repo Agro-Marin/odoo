@@ -55,19 +55,11 @@ test("disposableEffect delegates to effect", () => {
     expect(seen).toEqual([0, 1]);
 });
 
-// The two tests below pin *why* `@web/core/utils/reactive` exports no
-// free-standing computed primitive, and why one cannot be added: OWL keys a
-// subscription on the proxy a read travels through, at the moment of the read.
-// There is no active-effect stack to consult, so a value derived outside a
-// component cannot know who is reading it. See machine_doc_v1/STATE_MANAGEMENT.md.
-
 test("a subscription belongs to the proxy the read went through", async () => {
     const store = new (class extends SignalStore {
         first = "Ada";
         last = "Lovelace";
     })();
-    // Closes over the store's own NO_CALLBACK proxy, exactly as a free-standing
-    // `derived(() => ...)` helper would.
     const fullName = () => `${store.first} ${store.last}`;
 
     class Name extends Component {

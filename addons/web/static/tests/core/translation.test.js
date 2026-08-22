@@ -47,8 +47,6 @@ class TestComponent extends Component {
 }
 
 /**
- * Patches the 'lang' of the user session and context.
- *
  * @param {string} lang
  * @returns {Promise<void>}
  */
@@ -644,11 +642,6 @@ describe("_pl", () => {
 });
 
 describe("TranslatedString primitive conversion", () => {
-    // `Markup extends String`, so returning one from both `toString` and
-    // `valueOf` left `ToPrimitive` with no primitive to fall back on: every
-    // conversion of a lazy _t carrying a markup substitution — `String(x)`, a
-    // template literal, `x + ""`, and so `htmlEscape` — threw "Cannot convert
-    // object to primitive value".
     test("a markup substitution still converts to a primitive", () => {
         const ts = new TranslatedString("Hello %s", [markup`<b>x</b>`], "base");
         ts.lazy = false;
@@ -667,8 +660,6 @@ describe("TranslatedString primitive conversion", () => {
         expect(ts.valueOf()).toBe("Hello world");
     });
 
-    // The eager path must keep handing back Markup, or the substitution would
-    // be escaped a second time on render.
     test("_t keeps returning Markup once translations are loaded", () => {
         const eager = basic_t("Could not save file %s", markup`<strong>a&b</strong>`);
         expect(isMarkup(eager)).toBe(true);

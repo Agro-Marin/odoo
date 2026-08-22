@@ -14,10 +14,6 @@ describe.current.tags("headless");
 const KEY = "test.storage_json";
 
 /**
- * Replace `browser.localStorage` with a stub whose four methods can each be
- * made to throw, so the private-mode / quota paths are exercised for real
- * rather than assumed.
- *
  * @param {{ store?: Record<string, string>, throwOn?: string[] }} [options]
  */
 function mockStorage({ store = {}, throwOn = [] } = {}) {
@@ -68,8 +64,6 @@ test("unparsable JSON yields the fallback instead of throwing", () => {
 });
 
 test("valid JSON of the wrong shape is rejected by validate", () => {
-    // The failure mode a bare try/catch misses: `JSON.parse` succeeds and the
-    // caller only explodes later, on every render.
     for (const raw of ["null", "42", '"a string"', "[1,2]", "true"]) {
         mockStorage({ store: { [KEY]: raw } });
         expect(readJSONStorage(KEY, { fallback: {}, validate: isPlainObject })).toEqual(

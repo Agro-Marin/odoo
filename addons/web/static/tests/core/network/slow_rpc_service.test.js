@@ -14,9 +14,6 @@ import { SLOW_RPC_CONFIG } from "@web/core/network/slow_rpc_service";
 describe.current.tags("headless");
 
 /**
- * Manually dispatch the same RPC bus event shape as ``rpc.js`` does,
- * so the service runs end-to-end without a real fetch.
- *
  * @param {number} id
  * @param {{silent?: boolean}} [settings]
  */
@@ -37,7 +34,6 @@ function fireResponse(id) {
     );
 }
 
-/** Patch the notification service to step-assert add/close order without rendering. */
 function patchNotification() {
     const notification = getService("notification");
     patchWithCleanup(notification, {
@@ -71,15 +67,11 @@ test("notifies when RPC exceeds threshold", async () => {
 
     expect.verifySteps(["add:This is taking longer than usual…|sticky=true"]);
 
-    // Settle it: an in-flight slow request left behind is now cleaned up by the
-    // service's destroy() at env teardown, which would emit an unverified step.
     fireResponse(1);
     expect.verifySteps(["close:This is taking longer than usual…"]);
 });
 
 test("env teardown closes a toast still open for an in-flight request", async () => {
-    // `env.destroy()` reaches the service disposers, so a sticky toast whose
-    // request never got a response does not outlive the env that created it.
     patchWithCleanup(SLOW_RPC_CONFIG, { thresholdMs: 100 });
     const env = await makeMockEnv();
     patchNotification();
@@ -170,11 +162,6 @@ test("response without matching request is a no-op", async () => {
 });
 
 test("a real aborted RPC clears its sticky toast", async () => {
-    // The tests above drive the service with hand-built bus events, so none of
-    // them proves rpc.js actually emits a RESPONSE on every terminal path. An
-    // abort that emitted only REQUEST would strand `slowCount` above zero and
-    // pin the sticky toast for the rest of the session, with no later response
-    // able to clear it.
     patchWithCleanup(SLOW_RPC_CONFIG, { thresholdMs: 100 });
     await makeMockEnv();
     patchNotification();

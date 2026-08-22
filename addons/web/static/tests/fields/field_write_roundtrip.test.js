@@ -1,18 +1,5 @@
 // @ts-check
 
-/**
- * One invariant, checked for every widget that edits through `useInputField`:
- * what the user types must reach `web_save`, under the field the widget claims
- * to edit.
- *
- * `progressbar` broke it. It declared its `current_value` / `max_value` target
- * as a *readonly* field dependency while rendering a writable input for it, and
- * readonly active fields are stripped from `web_save` -- so the edit was
- * accepted, echoed back into the input, and silently dropped, with the form
- * left permanently dirty. Nothing else in the layer had a test for the round
- * trip itself, only for formatting and parsing.
- */
-
 import { expect, test } from "@odoo/hoot";
 import { click, edit, press } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";

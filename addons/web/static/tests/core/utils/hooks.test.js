@@ -3,7 +3,7 @@
 import { describe, expect, getFixture, test } from "@odoo/hoot";
 import { click, queryOne } from "@odoo/hoot-dom";
 import { animationFrame, Deferred, mockTouch } from "@odoo/hoot-mock";
-import { Component, onMounted, reactive, useState, xml } from "@odoo/owl";
+import { Component, onMounted, reactive, useRef, useState, xml } from "@odoo/owl";
 import {
     contains,
     getService,
@@ -21,6 +21,7 @@ import {
     useService,
     useServiceProtectMethodHandling,
     useSpellCheck,
+    useSyncedInputProperty,
 } from "@web/core/utils/hooks";
 import { CommandPalette } from "@web/ui/commands/command_palette";
 
@@ -335,13 +336,6 @@ describe("useService", () => {
     });
 
     test("an async: method of a class-shaped service writes to the service, not the view", async () => {
-        // `useService` hands each component `Object.create(service)`, so a
-        // `this.x = …` inside an `async:`-listed method used to land on that
-        // per-component view and leave the service untouched -- silently,
-        // because reads still resolve down the prototype chain. TWO components
-        // are needed to see it: with one view in play the shadowed counter
-        // looks perfectly consistent, which is why the suite could not catch
-        // it while `file_upload` was minting duplicate upload ids.
         class Counter {
             constructor() {
                 this.nextId = 1;
@@ -360,7 +354,6 @@ describe("useService", () => {
             static props = ["*"];
             static template = xml`<div/>`;
             setup() {
-                // Cast: a test-only service is not in `keyof Services`.
                 const counter = useService(/** @type {any} */ ("toy_counter"));
                 onMounted(async () => {
                     minted.push(await counter.mint());
@@ -375,7 +368,6 @@ describe("useService", () => {
         await mountWithCleanup(Parent);
         await animationFrame();
 
-        // Distinct ids across components, and the service itself advanced.
         expect(minted).toEqual([1, 2]);
         expect(getService(/** @type {any} */ ("toy_counter")).nextId).toBe(3);
     });
@@ -471,10 +463,6 @@ describe("useService", () => {
         useServiceProtectMethodHandling.fn = useServiceProtectMethodHandling.mocked;
     });
 
-    // The resolve path above is withheld once the owner is destroyed. The
-    // reject path used to escape instead, reaching error_service's
-    // `unhandledrejection` listener and raising a crash dialog for a view the
-    // user had already left.
     test("a rejection after destroy is withheld, like a resolution", async () => {
         useServiceProtectMethodHandling.fn = useServiceProtectMethodHandling.original;
         const state = reactive({ child: true });
@@ -514,7 +502,6 @@ describe("useService", () => {
             () => expect.step("resolved"),
             (error) => expect.step(`rejected:${error.message}`),
         );
-        // No handler at all: this is the shape that used to surface globally.
         failing.boom();
 
         state.child = false;
@@ -560,12 +547,6 @@ describe("useService", () => {
         useServiceProtectMethodHandling.fn = useServiceProtectMethodHandling.mocked;
     });
 
-    // A getter modifier (the shape of `orm.silent` / `orm.dedup`) returns an
-    // object created off the service via `Object.create(this)`. Accessed through
-    // the guarded view the getter runs with the RAW service as `this`, so the
-    // derived object's async methods used to resolve on the unguarded prototype
-    // and escape the destroy protection -- e.g. `orm.silent.read(...)` in
-    // kanban_header resolving into a component the user had already left.
     test("a getter modifier's async methods stay destroy-guarded", async () => {
         useServiceProtectMethodHandling.fn = useServiceProtectMethodHandling.original;
         const state = reactive({ child: true });
@@ -605,14 +586,10 @@ describe("useService", () => {
 
         await mountWithCleanup(Parent);
 
-        // Alive: the direct call and the modifier call both resolve, and the
-        // modifier's `_silent` flag is honoured.
         def.resolve();
         await expect(svc.asyncMethod()).resolves.toBe(false);
         await expect(svc.silent.asyncMethod()).resolves.toBe(true);
 
-        // In flight when the owner is destroyed: the modifier call must be
-        // withheld exactly like a direct one, not resolved into a dead view.
         def = new Deferred();
         svc.asyncMethod().then(() => expect.step("resolved"));
         svc.silent.asyncMethod().then(() => expect.step("resolved"));
@@ -861,5 +838,91 @@ describe("useChildRef and useForwardRefToParent", () => {
 
         expect(".my_span").toHaveCount(1);
         expect(parentComponent.someRef.el).toBe(queryOne(".my_span"));
+    });
+});
+
+describe("useSyncedInputProperty", () => {
+    /**
+     * @param {any} initial
+     */
+    function makeHost(initial) {
+        class Host extends Component {
+            static props = {};
+            static template = xml`<input t-ref="i" t-att-value="state.v"/>`;
+            setup() {
+                this.state = useState({ v: initial });
+                this.ref = useRef("i");
+                this.sync = useSyncedInputProperty(
+                    () => this.ref.el,
+                    () => this.state.v,
+                );
+            }
+        }
+        return Host;
+    }
+
+    test("a value the user typed over is written back on the next patch", async () => {
+        const host = await mountWithCleanup(makeHost("a"));
+        queryOne("input").value = "typed over";
+
+        host.state.v = "a";
+        host.render();
+        await animationFrame();
+
+        expect(queryOne("input").value).toBe("a");
+    });
+
+    test("undefined means the component is not the authority", async () => {
+        class Host extends Component {
+            static props = {};
+            static template = xml`<input t-ref="i"/>`;
+            setup() {
+                this.state = useState({ v: undefined });
+                this.ref = useRef("i");
+                this.sync = useSyncedInputProperty(
+                    () => this.ref.el,
+                    () => this.state.v,
+                );
+            }
+        }
+        const host = await mountWithCleanup(Host);
+        queryOne("input").value = "user owns this";
+
+        expect(host.sync()).toBe(false);
+        host.render();
+        await animationFrame();
+
+        expect(queryOne("input").value).toBe("user owns this");
+    });
+
+    test("the returned sync reports whether it had to write", async () => {
+        const host = await mountWithCleanup(makeHost("a"));
+
+        expect(host.sync()).toBe(false);
+        queryOne("input").value = "drifted";
+        expect(host.sync()).toBe(true);
+        expect(queryOne("input").value).toBe("a");
+        expect(host.sync()).toBe(false);
+    });
+
+    test("a boolean property is synced too", async () => {
+        class Host extends Component {
+            static props = {};
+            static template = xml`<input type="checkbox" t-ref="i" t-att-checked="state.v"/>`;
+            setup() {
+                this.state = useState({ v: true });
+                this.ref = useRef("i");
+                this.sync = useSyncedInputProperty(
+                    () => this.ref.el,
+                    () => this.state.v,
+                    { property: "checked" },
+                );
+            }
+        }
+        const host = await mountWithCleanup(Host);
+        queryOne("input").checked = false;
+
+        expect(host.sync()).toBe(true);
+        expect(queryOne("input").checked).toBe(true);
     });
 });

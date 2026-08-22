@@ -17,17 +17,11 @@ import { DensityToggle } from "@web/webclient/density/density_toggle";
 
 const { ResCompany, ResPartner, ResUsers, ResUsersSettings } = webModels;
 
-// `density.set()` persists through `user.setUserSettings`, which writes to
-// res.users.settings — without the model the RPC rejects and the assertions
-// never run.
 defineModels([ResCompany, ResPartner, ResUsers, ResUsersSettings]);
 
 describe.current.tags("desktop");
 
 test("nextDensity walks the declared order and wraps", () => {
-    // The cycle used to be spelled out three times (DENSITIES, a re-declared
-    // `order` inside cycle(), and DENSITY_META's `next:` chain). Deriving the
-    // step from the one list is what keeps them from drifting.
     expect(DENSITIES.map(nextDensity)).toEqual([...DENSITIES.slice(1), DENSITIES[0]]);
 });
 
@@ -71,9 +65,6 @@ test("an unknown density is refused", async () => {
 });
 
 test("the systray toggle tracks a density set from elsewhere", async () => {
-    // The toggle used to mirror `current` into its own useState and re-read it
-    // only inside its own toggle(), so a density changed by anything else left
-    // the icon and tooltip stale until an unrelated render.
     await makeMockEnv();
     const toggle = await mountWithCleanup(DensityToggle);
     const compactIcon = toggle.icon;
@@ -88,9 +79,6 @@ test("the systray toggle tracks a density set from elsewhere", async () => {
 });
 
 test("a failed persist rolls the density back instead of rejecting", async () => {
-    // Applying optimistically and letting the persist reject left the body
-    // class, the cookie and `current` on a value the server never accepted —
-    // and the rejection escaped through the systray toggle's click handler.
     await makeMockEnv();
     const density = getService("density");
     patchWithCleanup(user, {

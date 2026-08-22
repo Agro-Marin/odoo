@@ -1,13 +1,5 @@
 // @ts-check
 
-/**
- * FetchRecordError calls _t() in its constructor, so tests need a full mock
- * environment (localization service) via makeMockEnv().
- *
- * The module-level error handler registration is not tested here — it
- * requires a notification service.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { makeMockEnv } from "@web/../tests/web_test_helpers";
 import { FetchRecordError } from "@web/model/relational_model/errors";

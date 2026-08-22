@@ -1,18 +1,5 @@
 // @ts-check
 
-/**
- * `SampleServer._generateFieldValue` is an extension point, not an internal
- * helper: `timesheet_grid` patches it and `web_cohort` *calls* it — with two
- * arguments, letting `id` default, because it only wants a plausible value for
- * a measure field. Inserting the field descriptor as a third parameter shifted
- * every external argument by one and made that 2-argument call throw
- * `TypeError: Cannot read properties of undefined (reading 'type')`, i.e. every
- * cohort view rendered in sample-data mode with a real (non-`__count`) measure.
- *
- * These tests pin the published arity so a future extraction cannot re-break
- * out-of-repo callers silently.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { MAX_FLOAT, MAX_INTEGER } from "@web/model/sample_data";
 import { SampleServer } from "@web/model/sample_server";

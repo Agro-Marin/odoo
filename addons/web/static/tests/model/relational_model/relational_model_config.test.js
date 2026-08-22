@@ -1,13 +1,5 @@
 // @ts-check
 
-/**
- * Tests for the config-patching API of RelationalModel.
- *
- * ``_patchConfig`` must stay synchronous: 20+ call sites read the patched
- * config in the very next statement without awaiting. Exercised directly
- * on the prototype (no ``this``) without building a full model/env.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
 

@@ -7,8 +7,6 @@ import { cookie } from "@web/core/browser/cookie";
 describe.current.tags("headless");
 
 /**
- * Captures the raw strings the cookie util writes to `document.cookie`, without
- * touching the real one.
  * @returns {string[]}
  */
 function captureCookieWrites() {
@@ -79,9 +77,6 @@ test("delete removes the cookie by name", () => {
 });
 
 test("set escapes the characters that let a key smuggle cookie syntax", () => {
-    // Unescaped, `set("a=b", "c")` made the browser store the cookie `a` with
-    // the value `b=c`, and `set("a; Max-Age=0", ...)` clobbered whatever `a`
-    // already held. Only the value was ever escaped.
     const writes = captureCookieWrites();
     cookie.set("a=b", "c");
     expect(writes[0].startsWith("a%3Db=c; ")).toBe(true);
@@ -109,11 +104,6 @@ test("keys round-trip through get()", () => {
 });
 
 describe("against the real document.cookie jar", () => {
-    // These deliberately do NOT patch `_cookieMonster`: they run against HOOT's
-    // `MockCookie`, and the expected values are what real Chrome produced for
-    // the same calls. The jar used to disagree with Chrome on every one of
-    // them -- it treated each `;`-separated part as its own cookie, split the
-    // name/value pair on *every* `=`, and ignored `max-age`.
     test("delete really removes the entry", () => {
         cookie.set("gone", "here");
         expect(cookie.get("gone")).toBe("here");
@@ -134,7 +124,6 @@ describe("against the real document.cookie jar", () => {
     });
 
     test("values survive the round trip whatever they contain", () => {
-        // Chrome round-trips all of these; the jar truncated at the first `=`.
         for (const value of ["a=b", "a b", "a,b", "a;b", "a%b", 'a"b', "1=2=3"]) {
             cookie.set("probe", value);
             expect(cookie.get("probe")).toBe(value, {

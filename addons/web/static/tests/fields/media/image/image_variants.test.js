@@ -7,11 +7,9 @@ import {
     ImageDecodeError,
 } from "@web/fields/media/image/image_variants";
 
-/** A valid 5x5 png. */
 const PNG_5X5 =
     "iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg==";
 
-/** Records every orm.call so a test can assert the attachment set. */
 function makeOrmSpy(idsByCall = [[1], [2, 3, 4], true]) {
     const calls = [];
     let index = 0;
@@ -43,8 +41,6 @@ test("convertUploadToWebp re-encodes a png and renames it", async () => {
         expect(result.name).toBe("photo.webp");
         expect(result.data).not.toBe(PNG_5X5);
     } else {
-        // A browser without webp encoding must pass the upload through
-        // unchanged rather than half-converting it.
         expect(result.type).toBe("image/png");
         expect(result.name).toBe("photo.png");
         expect(result.data).toBe(PNG_5X5);
@@ -86,8 +82,6 @@ test("createWebpVariantAttachments stores the original verbatim and a jpeg fallb
     const orm = makeOrmSpy();
     await createWebpVariantAttachments(orm, { data: PNG_5X5, name: "photo.webp" });
 
-    // A 5x5 source is below every variant size, so there are no smaller
-    // variants and therefore only two calls: the original and its jpeg.
     expect(orm.calls).toHaveLength(2);
 
     const [original] = orm.calls[0].records;

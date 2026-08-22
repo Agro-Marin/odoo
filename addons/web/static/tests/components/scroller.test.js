@@ -11,12 +11,6 @@ import { scrollTo } from "@web/core/utils/dom/scrolling";
 import { redirect } from "@web/core/utils/urls";
 import { WebClient } from "@web/webclient/webclient";
 
-//: `scrollTo` aligns by a fractional offset while the engine rounds `scrollTop`
-//: to whole device pixels, so an element flush with an edge lands a fraction
-//: either side of it — the same anchor measured +1.83px and -0.17px on
-//: consecutive runs. Visibility is asserted to the pixel because the subject is
-//: whether the element was scrolled into view, not which way the engine
-//: rounded; anything genuinely off-screen misses by far more than a pixel.
 const SUBPIXEL_TOLERANCE = 1;
 
 test("Ignore empty hrefs", async () => {

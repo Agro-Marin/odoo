@@ -121,8 +121,6 @@ test("a native prompt is consumed once, so a second show() cannot reject", async
     const beforeInstallPromptEvent = new CustomEvent("beforeinstallprompt");
     beforeInstallPromptEvent.preventDefault = () => {};
     beforeInstallPromptEvent.prompt = async () => {
-        // A BeforeInstallPromptEvent may be prompted ONCE; the real one rejects
-        // with InvalidStateError afterwards, which surfaced as an error dialog.
         if (++prompts > 1) {
             throw new DOMException("already prompted", "InvalidStateError");
         }
@@ -172,4 +170,21 @@ test("a failed manifest fetch is retried rather than memoised forever", async ()
     await expect(pwaService.getManifest()).rejects.toThrow();
     expect(await pwaService.getManifest()).toEqual({ name: "Odoo PWA" });
     expect(attempts).toBe(2);
+});
+
+test("a native prompt that rejects leaves no install affordance behind", async () => {
+    const beforeInstallPromptEvent = new Event("beforeinstallprompt");
+    /** @type {any} */ (beforeInstallPromptEvent).prompt = () =>
+        Promise.reject(new Error("prompt() may only be called once"));
+    patchWithCleanup(browser, { BeforeInstallPromptEvent: Event });
+    await makeMockEnv();
+    const pwaService = await getService("pwa");
+    browser.dispatchEvent(beforeInstallPromptEvent);
+    expect(pwaService.canPromptToInstall).toBe(true);
+
+    await expect(pwaService.show()).rejects.toThrow();
+
+    // no prompt left, so nothing may claim one can still be shown
+    expect(pwaService.nativePrompt).toBe(null);
+    expect(pwaService.canPromptToInstall).toBe(false);
 });

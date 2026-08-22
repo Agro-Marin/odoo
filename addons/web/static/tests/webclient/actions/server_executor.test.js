@@ -9,16 +9,6 @@ import { executeServerAction } from "@web/webclient/actions/action_executors/ser
 import { NavigationTracker } from "@web/webclient/actions/navigation_token";
 
 /**
- * Mount-free unit tests for the ``ir.actions.server`` executor.
- *
- * ``server.js`` reaches two ActionManager members — ``navigation`` and
- * ``doAction`` — plus the module-level ``rpc``. A real ``NavigationTracker``
- * is used (it is a small pure utility, and its interaction with the executor
- * is precisely what several of these tests pin); only the manager itself is
- * faked. ``server_action.test.js`` covers the same executor end-to-end with a
- * mounted WebClient; these isolate the response-normalisation rules, which are
- * invisible from the outside.
- *
  * @param {Object} [overrides]
  */
 function makeFakeAm(overrides = {}) {

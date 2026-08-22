@@ -14,33 +14,25 @@ import {
 import { NavigationTracker } from "@web/webclient/actions/navigation_token";
 
 /**
- * Build a fake ActionManager that counts ui.block/unblock calls and lets each
- * test stub the action-loading / dispatching seams executeActionButton uses.
- * `am.__ui.count` must return to 0 (balanced block/unblock); `am.__ui.blocked`
- * counts how many times the overlay was raised.
  * @param {Object} [overrides]
  * @returns {Object}
  */
 function makeFakeAm(overrides = {}) {
     const ui = { count: 0, blocked: 0 };
     const am = {
-        env: {
-            bus: new EventBus(),
-            services: {
-                ui: {
-                    block() {
-                        ui.count++;
-                        ui.blocked++;
-                    },
-                    unblock() {
-                        ui.count--;
-                    },
-                },
-                effect: {
-                    add(effect) {
-                        am.__effects.push(effect);
-                    },
-                },
+        env: { bus: new EventBus() },
+        uiService: {
+            block() {
+                ui.count++;
+                ui.blocked++;
+            },
+            unblock() {
+                ui.count--;
+            },
+        },
+        effectService: {
+            add(effect) {
+                am.__effects.push(effect);
             },
         },
         navigation: { guard: (prom) => prom },
@@ -268,12 +260,6 @@ test("filterActionContext: tolerates an undefined context", () => {
 });
 
 test("an embedded-action delegation still settles the click's obligations", async () => {
-    // A view button on an action that carries embedded actions delegates the
-    // whole click to the configured embedded one and returns early. That return
-    // used to drop `onClose` — how `view_button_hook` reloads the view and how
-    // `list_controller.openRecord` reloads its root — along with `close` and
-    // `effect`, so the view sat on pre-action data with nothing left to
-    // refresh it.
     const embedded = {
         id: 7,
         action_id: [99],
@@ -292,7 +278,6 @@ test("an embedded-action delegation still settles the click's obligations", asyn
         },
         _executeCloseAction: async () => expect.step("closeAction"),
     });
-    // The real manager routes this straight back into executeActionButton.
     am.doActionButton = (params, options) => executeActionButton(am, params, options);
 
     user.updateUserSettings("embedded_actions_config_ids", {

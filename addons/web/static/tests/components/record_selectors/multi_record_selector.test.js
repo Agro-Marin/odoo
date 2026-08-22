@@ -137,6 +137,44 @@ test("Can display avatars with the right model", async () => {
     );
 });
 
+test("switching resModel and resIds together re-reads the avatar model", async () => {
+    class ResPartner extends models.Model {
+        _name = "res.partner";
+
+        name = fields.Char();
+
+        _records = [
+            { id: 1, name: "Alice" },
+            { id: 2, name: "Bob" },
+        ];
+    }
+    defineModels([ResPartner]);
+
+    class Parent extends Component {
+        static components = { MultiRecordSelector };
+        static template = xml`<MultiRecordSelector resModel="state.resModel" resIds="state.resIds" update="() => {}"/>`;
+        static props = ["*"];
+        setup() {
+            this.state = useState({ resModel: "res.partner", resIds: [2] });
+        }
+    }
+
+    const parent = await mountWithCleanup(Parent);
+    expect(".o_tag img.o_m2m_avatar").toHaveCount(1);
+
+    // Both move in the same update. `getTags` runs inside onWillUpdateProps,
+    // after an await, while `this.props` still holds the OUTGOING model -- so
+    // reading the model off `this.props` there paired the new id with the old
+    // model and kept an avatar the new model has no concept of.
+    parent.state.resModel = "partner";
+    parent.state.resIds = [1];
+    await animationFrame();
+    await animationFrame();
+
+    expect(".o_tag").toHaveText("Alice");
+    expect(".o_tag img.o_m2m_avatar").toHaveCount(0);
+});
+
 test("Display name is correctly fetched", async () => {
     expect.assertions(4);
     onRpc("partner", "web_search_read", ({ kwargs }) => {
@@ -342,4 +380,23 @@ test("Can pass domain to search more", async () => {
     await animationFrame();
 
     expect(".o_data_row").toHaveCount(8, { message: "should contain 8 records" });
+});
+
+test("deleting a tag removes that record, not that position", async () => {
+    await mountMultiRecordSelector({ resModel: "partner", resIds: [1, 2, 3] });
+    expect(queryAllTexts(".o_tag")).toEqual(["Alice", "Bob", "Charlie"]);
+
+    await contains(".o_tag:eq(1) .o_delete").click();
+
+    expect(queryAllTexts(".o_tag")).toEqual(["Alice", "Charlie"]);
+});
+
+test("backspace deletes the last tag", async () => {
+    await mountMultiRecordSelector({ resModel: "partner", resIds: [1, 2, 3] });
+
+    await contains(".o-autocomplete input").click();
+    await press("backspace");
+    await animationFrame();
+
+    expect(queryAllTexts(".o_tag")).toEqual(["Alice", "Bob"]);
 });

@@ -1,11 +1,5 @@
 // @ts-check
 
-/**
- * Integration tests for X2ManyFieldDialog: open (add/edit), save, discard,
- * title, and the delete flow, using a non-editable one2many field so rows
- * open in the dialog. Module under test: fields/relational/x2many_dialog.js
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import {
     clickSave,

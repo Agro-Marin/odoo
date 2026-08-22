@@ -42,16 +42,11 @@ describe("bridge source generation", () => {
         expect(source).toInclude("_e0 as valid_name");
         expect(source).not.toInclude("invalid-name");
         expect(source).not.toInclude("0invalid");
-        // `export default <expr>` is NOT a live binding; `export { _d as default }` is.
         expect(source).not.toInclude("export default");
         expect(source.match(/_d as default/g)).toHaveLength(1);
     });
 
     test("a producer that registers later still reaches the bridge", async () => {
-        // The defect this shape exists for: a shim reached before its producer
-        // registered bound `undefined` with `const` and kept it forever, and an
-        // import-map entry cannot be re-mapped once the document holds it, so
-        // the consumer had no second chance either.
         const spec = "@probe/registers/late";
         const mod = await import(
             toDataModuleUrl(buildBridgeModuleSource(spec, ["alpha", "beta"]))
@@ -159,8 +154,6 @@ describe("bridge source with awkward export names", () => {
     });
 
     test("the generated source parses as a module", async () => {
-        // A single `export const class = ...` is a SyntaxError that takes the
-        // whole bridge down, every other export of it included.
         const source = buildBridgeModuleSource("@web/x", [
             "ok",
             "class",

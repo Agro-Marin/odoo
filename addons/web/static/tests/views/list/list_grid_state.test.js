@@ -265,9 +265,6 @@ describe("rebuild", () => {
 });
 
 describe("origin row index validation", () => {
-    // `data-row-index` is read off the DOM, which can be one rebuild behind
-    // this state (or malformed). moveFocus must answer "no move" rather than
-    // throw out of the list's keydown handler.
     test("a rowIndex one past the end yields no move", () => {
         const gs = makeGridState({ records: [1, 2, 3].map(mockRecord) });
         expect(gs.moveFocus(3, 0, "up")).toBe(null);
@@ -288,12 +285,6 @@ describe("origin row index validation", () => {
 });
 
 describe("canonical column index", () => {
-    // A row may render a per-record SUBSET of the grid's columns: the section
-    // renderers (account/sale order lines, resource, survey, website_slides)
-    // override `ListRenderer.getColumns(record)` to collapse a section row down
-    // to a handle + title pair. The cell's position inside its own row is then
-    // NOT its position in the grid, so `data-col-index` has to be resolved
-    // through the column's identity for arrow navigation to stay on-column.
     test("resolves a column to its position in the full column set", () => {
         const columns = [
             mockColumn("handle"),
@@ -313,8 +304,6 @@ describe("canonical column index", () => {
             mockColumn("qty"),
         ];
         const gs = makeGridState({ columns });
-        // what getSectionColumns() builds: a filtered subset, title spread into
-        // a clone carrying a colspan — same `id`, new object identity.
         const sectionColumns = [columns[0], { ...columns[2], colspan: 2 }];
         expect(sectionColumns.map((c) => gs.getColIndexOfColumn(c))).toEqual([0, 2]);
     });
@@ -339,63 +328,58 @@ describe("canonical column index", () => {
         gs.update({ columns: second });
         gs.rebuild();
         expect(gs.getColIndexOfColumn(second[0])).toBe(0);
-        // same id as second[1] -> resolves to its NEW position
         expect(gs.getColIndexOfColumn(first[0])).toBe(1);
     });
 });
 
-describe("generation counter", () => {
-    test("holds steady when a rebuild finds the same rows", () => {
-        // rebuild() runs on EVERY render of the renderer, over every loaded
-        // record. Advancing the generation regardless would invalidate
-        // ListRecordRow's memo on every render for no reason.
+describe("row reuse across rebuilds", () => {
+    test("an unchanged rebuild hands back the same row objects", () => {
         const gs = makeGridState();
-        const first = gs.generation;
         gs.rebuild();
+        const before = gs.flatRows.slice();
         gs.rebuild();
-        expect(gs.generation).toBe(first);
+        expect(gs.flatRows.every((row, i) => row === before[i])).toBe(true);
     });
 
-    test("advances whenever the row set changes", () => {
+    test("a changed row set replaces only what changed", () => {
         const records = [1, 2, 3].map(mockRecord);
         const list = mockList(records);
         const gs = makeGridState({ list });
-        const first = gs.generation;
+        const before = gs.flatRows.slice();
 
         records.push(mockRecord(4));
         gs.rebuild();
-        expect(gs.generation).toBe(first + 1);
         expect(gs.rowCount).toBe(4);
+        expect(gs.flatRows.slice(0, 3).every((row, i) => row === before[i])).toBe(
+            true,
+            {
+                message: "the three untouched rows keep their objects",
+            },
+        );
 
         records.pop();
         records.pop();
         gs.rebuild();
-        expect(gs.generation).toBe(first + 2);
         expect(gs.rowCount).toBe(2);
     });
 
-    test("is the only signal — instance and array identity are not", () => {
-        // `ListRecordRow`'s record/group memoize a lookup into the flat rows.
-        // The renderer holds ONE ListGridState for its whole life and
-        // `rebuild()` mutates it in place, so a cache keyed on the instance —
-        // or on the array — would never invalidate and rows would resolve to
-        // stale flat entries.
+    test("neither the instance nor the array is replaced when rows shift", () => {
         const records = [1, 2, 3].map(mockRecord);
         const gs = makeGridState({ list: mockList(records) });
         const before = {
             self: gs,
             rows: gs.flatRows,
-            generation: gs.generation,
             row2: gs.findRowByRecordId("2"),
         };
 
         records.shift();
         gs.rebuild();
 
-        expect(gs).toBe(before.self); // instance unchanged...
-        expect(gs.flatRows).toBe(before.rows); // ...array reused in place...
-        expect(gs.generation).not.toBe(before.generation); // ...generation is the signal
-        expect(gs.findRowByRecordId("2")).not.toBe(before.row2);
+        expect(gs).toBe(before.self);
+        expect(gs.flatRows).toBe(before.rows);
+        expect(gs.findRowByRecordId("2")).not.toBe(before.row2, {
+            message: "row 2 moved to index 0, so it is a new FlatRow",
+        });
         expect(gs.findRowByRecordId("2").globalIndex).toBe(0);
     });
 });

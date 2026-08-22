@@ -29,7 +29,7 @@ import { DateTimeInput } from "@web/components/datetime/datetime_input";
 import { CheckboxItem } from "@web/components/dropdown/checkbox_item";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownGroup } from "@web/components/dropdown/dropdown_group";
-import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
+import { useDropdownState } from "@web/components/dropdown/dropdown_hook";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { Popover } from "@web/ui/popover/popover";
@@ -1645,8 +1645,6 @@ test("a mouseenter on an open dropdown does not hijack focus on the next open", 
     }
     await mountWithCleanup(Parent);
 
-    // Open by gesture, then hover the toggler again while it is already open:
-    // `state.open()` is a no-op, so nothing consumes a focus snapshot.
     await click(".toggler");
     await animationFrame();
     queryOne(".decoy").focus();
@@ -1655,13 +1653,10 @@ test("a mouseenter on an open dropdown does not hijack focus on the next open", 
     state.close();
     await animationFrame();
 
-    // Reopen programmatically -- the SelectMenu / TimePicker pattern, which
-    // never re-captures -- with the focus on the element that really opened it.
     queryOne(".realOwner").focus();
     state.open();
     await animationFrame();
 
-    // Focus inside the menu, as keyboard navigation leaves it.
     queryOne(".item").focus();
     state.close();
     await animationFrame();
@@ -1688,7 +1683,6 @@ test("a toggler the slot stops rendering is left as it was found", async () => {
     expect(first).toHaveClass("o-dropdown");
     expect(first).toHaveAttribute("aria-expanded", "false");
 
-    // The slot hands the dropdown a different element to drive.
     parent.state.primary = false;
     await animationFrame();
     expect(queryOne("button.second")).toHaveClass("o-dropdown");
@@ -1699,10 +1693,6 @@ test("a toggler the slot stops rendering is left as it was found", async () => {
 
 test.tags("desktop");
 test("a dropdown that opens in the tick it mounts still closes its peers", async () => {
-    // `activeEl` used to be assigned only in a microtask after the mount
-    // effect, and shouldIgnoreChanges reads a different activeEl as "another
-    // UI scope, not my business" -- so a dropdown opened in the same tick it
-    // mounted looked like it lived somewhere else, and the peer stayed open.
     class Parent extends Component {
         static components = { Dropdown, DropdownItem };
         static template = xml`
@@ -1768,9 +1758,6 @@ test("an established dropdown closes an already-open peer", async () => {
 
 test.tags("desktop");
 test("a menuClass that changes while the menu is open reaches it", async () => {
-    // The popover reads its `class` option once, when the overlay is added, so
-    // a menuClass bound to something that moves -- a theme toggle, a viewport
-    // crossing the small breakpoint -- used to leave the open menu behind.
     class Parent extends Component {
         static components = { Dropdown, DropdownItem };
         static template = xml`
@@ -1877,4 +1864,45 @@ test("reopening after a menuClass change while closed uses the current one", asy
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveClass("ccc");
     expect(DROPDOWN_MENU).not.toHaveClass("aaa");
+});
+
+test("multi-level dropdown: opening a grandchild leaves its ancestors open", async () => {
+    await mountWithCleanup(MultiLevelDropdown);
+
+    await click(".dropdown-a");
+    await animationFrame();
+    await click(".dropdown-b");
+    await animationFrame();
+    await click(".dropdown-c");
+    await animationFrame();
+    expect(DROPDOWN_MENU).toHaveCount(3, {
+        message: "A, B and C are all open: C is a grandchild of A, not a rival",
+    });
+});
+
+test("an unrelated dropdown opening closes the open one", async () => {
+    class Parent extends Component {
+        static components = { Dropdown, DropdownItem };
+        static props = [];
+        static template = xml`
+            <Dropdown>
+                <button class="dropdown-one">One</button>
+                <t t-set-slot="content"><DropdownItem>Item one</DropdownItem></t>
+            </Dropdown>
+            <Dropdown>
+                <button class="dropdown-two">Two</button>
+                <t t-set-slot="content"><DropdownItem>Item two</DropdownItem></t>
+            </Dropdown>`;
+    }
+    await mountWithCleanup(Parent);
+
+    await click(".dropdown-one");
+    await animationFrame();
+    expect(DROPDOWN_MENU).toHaveCount(1);
+
+    await click(".dropdown-two");
+    await animationFrame();
+    expect(DROPDOWN_MENU).toHaveCount(1, {
+        message: "neither is an ancestor of the other, so the first gives way",
+    });
 });

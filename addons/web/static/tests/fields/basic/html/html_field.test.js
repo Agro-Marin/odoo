@@ -16,18 +16,6 @@ import {
 import { registry } from "@web/core/registry";
 import { htmlField as webHtmlFallback } from "@web/fields/basic/html/html_field";
 
-// This suite covers the plain-textarea `html` fallback that `@web` ships for
-// when `html_editor` is absent, so it has to pin that implementation for the
-// duration — `html_editor` is in the test bundle and registers the rich
-// widget under the same key.
-//
-// `{ force: true }` on BOTH calls is load-bearing. `Registry.add` treats a
-// duplicate key without `force` as "first registration wins" and silently
-// returns (it only warns, and only in debug), so the plain `add` below never
-// took effect: every edit-mode test then drove `html_editor`'s contenteditable
-// while asserting on `textarea`, and 8 of the 10 tests here failed. The
-// restore needs it for the same reason — and needs it MORE, since without it
-// the fallback would leak into every suite that runs after this one.
 beforeEach(() => {
     const fieldsRegistry = registry.category("fields");
     const previous = fieldsRegistry.contains("html")

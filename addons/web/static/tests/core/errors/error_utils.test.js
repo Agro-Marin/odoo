@@ -10,10 +10,6 @@ import {
 describe.current.tags("headless");
 
 /**
- * An error whose stack carries one frame with a RELATIVE filename.
- * `mapFramesToSource` passes such frames through untouched, so annotation stays
- * hermetic — no sourcemap fetch, no network, no console warning.
- *
  * @param {string} message
  * @param {unknown} [cause]
  */
@@ -48,7 +44,6 @@ describe("fullTraceback", () => {
         const traceback = fullTraceback(a);
         expect(traceback).toInclude("a");
         expect(traceback).toInclude("b");
-        // Each link appears once: the `seen` set stops the walk on revisit.
         expect(traceback.match(/Caused by:/g)?.length).toBe(1);
     });
 });
@@ -62,12 +57,6 @@ describe("fullAnnotatedTraceback", () => {
         expect(/** @type {any} */ (error).annotatedTraceback).toBe(traceback);
     });
 
-    // This is the contract a reader is most likely to "fix": the function THROWS
-    // the error it was handed. It is the mechanism, not a failure — annotating is
-    // async, while `preventDefault()` only suppresses the browser's unannotated
-    // log if it runs synchronously inside the event handler, so the error is
-    // re-thrown to re-enter error handling once the annotation is cached.
-    // Deleting the throw drops the report entirely.
     test("throws the same error the first time, after caching the annotation", async () => {
         const error = makeError("with event");
         let prevented = 0;
@@ -100,7 +89,6 @@ describe("fullAnnotatedTraceback", () => {
         await fullAnnotatedTraceback(error).catch(() => {});
         const cached = /** @type {any} */ (error).annotatedTraceback;
 
-        // No throw, no second preventDefault, same string.
         await expect(fullAnnotatedTraceback(error)).resolves.toBe(cached);
         expect(prevented).toBe(1);
     });

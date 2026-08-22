@@ -1,19 +1,3 @@
-"""Tests for the /web/export controllers.
-
-Covered fixes:
-- export.py         : optional ``order`` param — Export All follows the
-                      on-screen sort; unknown/malformed order raises a clean
-                      UserError instead of leaking a raw ORM error
-- export.py         : ``fields_info`` skips stale 2-level saved-template paths
-                      (removed or no-longer-relational base field) instead of
-                      raising a KeyError through /web/export/namelist
-- export_writers.py : XLSX row-limit enforcement — the header row is budgeted
-                      by the upfront check and every worksheet write is
-                      checked, so exports past the XLSX row limit fail loudly
-                      instead of silently truncating the file (including
-                      grouped exports whose group header rows are unbudgeted)
-"""
-
 import io
 import zipfile
 from http import HTTPStatus
@@ -31,13 +15,6 @@ _XLSX_NS = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
 
 
 def _sheet_text(xlsx_bytes: bytes) -> str:
-    """Return the first worksheet's string-cell values, in row order,
-    joined into one searchable string.
-
-    The export writers write string cells through the shared-strings table
-    (``in_memory`` overrides ``constant_memory`` in xlsxwriter), so the
-    sheet XML itself only holds indexes; resolve them before matching.
-    """
     with zipfile.ZipFile(io.BytesIO(xlsx_bytes)) as archive:
         shared_root = etree.fromstring(archive.read("xl/sharedStrings.xml"))
         sheet_root = etree.fromstring(archive.read("xl/worksheets/sheet1.xml"))
@@ -55,8 +32,6 @@ def _sheet_text(xlsx_bytes: bytes) -> str:
 
 
 class ExportControllerCase(HttpCase):
-    """Common helper to POST the export payload like the web client does."""
-
     def _export(self, export_format: str, **params):
         self.authenticate("admin", "admin")
         data = json_dumps(
@@ -156,10 +131,6 @@ class TestExportOrder(ExportControllerCase):
 @tagged("post_install", "-at_install", "web_export")
 class TestNamelistStaleTemplate(HttpCase):
     def test_namelist_skips_stale_two_level_paths(self):
-        """A saved template whose 2-level paths went stale (base field removed
-        or no longer relational) must yield the surviving fields, not raise a
-        KeyError through /web/export/namelist.
-        """
         export = self.env["ir.exports"].create(
             {
                 "name": "stale template",
@@ -184,13 +155,6 @@ class TestNamelistStaleTemplate(HttpCase):
 
 
 def _tiny_rowmax(limit: int):
-    """Patch ``add_worksheet`` so new worksheets get a tiny row limit.
-
-    ``xls_rowmax`` is an instance attribute set in ``Worksheet.__init__``, so
-    class-level patching does not stick; shrink it on each new worksheet
-    instead. Both the export writers' guards and xlsxwriter's own
-    ``_check_dimensions`` read the instance attribute.
-    """
     original_add_worksheet = xlsxwriter.Workbook.add_worksheet
 
     def add_worksheet(self, *args, **kwargs):

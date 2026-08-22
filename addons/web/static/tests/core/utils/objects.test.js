@@ -86,11 +86,6 @@ test("deepEqual", () => {
     expect(deepEqual([1, [2, 3]], [1, [2, 3]])).toBe(true);
     expect(deepEqual([1, 2], [1, 2, 3])).toBe(false);
 
-    // Epoch timestamps, not (year, month, day): hoot's MockDate fills the
-    // components a multi-arg construction omits from the mocked clock, whose
-    // millisecond term drifts with real time while time is not frozen — so two
-    // `new Date(2020, 0, 1)` a millisecond apart are not equal, and this
-    // assertion failed intermittently.
     const jan2020 = Date.UTC(2020, 0, 1);
     const jan2021 = Date.UTC(2021, 0, 1);
     expect(deepEqual(new Date(jan2020), new Date(jan2020))).toBe(true);
@@ -132,10 +127,6 @@ test("deepEqual", () => {
     d.self = d;
     expect(deepEqual(c, d)).toBe(false);
 
-    // The Set branch probes candidate counterparts and discards the ones that
-    // do not match. Those rejected pairs must not survive in the cycle guard:
-    // `p` is compared against `r`, fails, then matches `u` — and the later
-    // `[p]` vs `[r]` comparison must still be able to say they differ.
     const p = { v: 1 };
     const u = { v: 1 };
     const r = { v: 999 };
@@ -343,11 +334,6 @@ test("pick", () => {
 });
 
 test("deepMerge treats an own __proto__ key as data, never as a prototype", () => {
-    // Everything JSON.parse produces carries __proto__ as an OWN key, and both
-    // of deepMerge's writes used to go through [[Set]] — which for that one key
-    // name runs Object.prototype's accessor. The merged object came back with a
-    // REPLACED prototype: it inherited the extension's members while
-    // Object.keys reported nothing, and the key was lost as data.
     const evil = JSON.parse('{"a": 1, "__proto__": {"isAdmin": true}}');
     const out = deepMerge({ a: 0 }, evil);
 
@@ -358,21 +344,15 @@ test("deepMerge treats an own __proto__ key as data, never as a prototype", () =
     expect(Object.hasOwn(out, "__proto__")).toBe(true);
     expect(/** @type {any} */ (out).__proto__).toEqual({ isAdmin: true });
 
-    // Same for a nested subtree, which recursed through Object.prototype.
     const nested = deepMerge({ n: {} }, JSON.parse('{"n": {"__proto__": {"x": 9}}}'));
     expect(Object.getPrototypeOf(nested.n)).toBe(Object.prototype);
     expect(nested.n.x).toBe(undefined);
 
-    // A __proto__ carried by the TARGET is copied as data too (the shallow
-    // copy of `target` was an Object.assign, with the same hazard).
     const fromTarget = deepMerge(JSON.parse('{"__proto__": {"y": 1}}'), { b: 2 });
     expect(Object.getPrototypeOf(fromTarget)).toBe(Object.prototype);
     expect(/** @type {any} */ (fromTarget).y).toBe(undefined);
     expect(fromTarget.b).toBe(2);
 
-    // Only ONE operand has to be a plain object to get past the early return,
-    // so `target` can still be a primitive here — it is boxed, exactly as
-    // `Object.assign({}, "foo")` used to do. `Reflect.ownKeys` throws on one.
     expect(deepMerge("foo", { a: 1 })).toEqual({ 0: "f", 1: "o", 2: "o", a: 1 });
     expect(deepMerge(7, { a: 1 })).toEqual({ a: 1 });
 });
@@ -463,4 +443,66 @@ test("deepMerge", () => {
         a: { b: 2, c: 3 },
     });
     expect(deepMerge({ a: 1 }, { a: null })).toEqual({ a: null });
+});
+
+describe("key-set policy", () => {
+    test("comparing counts every own key, symbols included", () => {
+        const S = Symbol("s");
+        expect(shallowEqual({ [S]: 1 }, { [S]: 1 })).toBe(true);
+        expect(shallowEqual({ [S]: 1 }, { [S]: 2 })).toBe(false);
+        expect(deepEqual({ [S]: { a: 1 } }, { [S]: { a: 1 } })).toBe(true);
+    });
+
+    test("comparing agrees about NaN across both depths", () => {
+        expect(deepEqual({ a: NaN }, { a: NaN })).toBe(true);
+        expect(shallowEqual({ a: NaN }, { a: NaN })).toBe(true);
+        expect(shallowEqual([NaN], [NaN])).toBe(true);
+        expect(shallowEqual({ a: 0 }, { a: -0 })).toBe(true);
+        expect(shallowEqual({ a: 1 }, { a: "1" })).toBe(false);
+    });
+
+    test("an explicit comparison function still wins", () => {
+        expect(shallowEqual({ a: NaN }, { a: NaN }, (x, y) => x === y)).toBe(false);
+    });
+
+    test("constructing carries own enumerable keys, symbols included", () => {
+        const S = Symbol("s");
+        const T = Symbol("t");
+        const source = { [S]: 1, [T]: 2, a: 3, b: 4 };
+        const result = omit(source, "a", /** @type {any} */ (T));
+        expect(Reflect.ownKeys(result)).toEqual(["b", S]);
+        expect(result[S]).toBe(1);
+    });
+
+    test("constructing drops non-enumerable own keys from BOTH sides of a merge", () => {
+        const target = { a: 1 };
+        Object.defineProperty(target, "hiddenOnTarget", { value: 9 });
+        const extension = { b: 2 };
+        Object.defineProperty(extension, "hiddenOnExtension", { value: 9 });
+
+        const merged = deepMerge(target, extension);
+        expect(Reflect.ownKeys(merged)).toEqual(["a", "b"]);
+    });
+
+    test("omit does not carry a non-enumerable own key either", () => {
+        const source = { a: 1 };
+        Object.defineProperty(source, "hidden", { value: 9 });
+        expect(Reflect.ownKeys(omit(source, /** @type {any} */ ("nothing")))).toEqual([
+            "a",
+        ]);
+    });
+
+    test("looking up walks the prototype chain but not into Object.prototype", () => {
+        class WithAccessor {}
+        Object.defineProperty(WithAccessor.prototype, "field", {
+            get: () => 5,
+            enumerable: true,
+        });
+        expect(pick(new WithAccessor(), /** @type {any} */ ("field"))).toEqual({
+            field: 5,
+        });
+        expect(
+            pick(/** @type {any} */ ({}), /** @type {any} */ ("hasOwnProperty")),
+        ).toEqual({});
+    });
 });

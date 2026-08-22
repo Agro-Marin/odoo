@@ -1,53 +1,3 @@
-"""Bundle-size regression tests for ESM bundles.
-
-Each test pins an upper-bound byte budget for a key bundle, so a
-regression (heavy dependency added, forgot to lazy-load, wildcard
-glob pulled in too much, un-tree-shaken dead code) is caught at PR
-time instead of showing up later in production CWV telemetry from
-``services/web_vitals/web_vitals_service.js``.
-
-Budgets are hardcoded inline (mirroring ``test_web_perf_regression.py``'s
-convention for query counts) rather than externalized to JSON: bumping
-one should be a deliberate review event with justification in the
-commit message.
-
-Calibration workflow when adding a new bundle target:
-
-  1. Add the bundle to ``BUDGETS`` with a placeholder large enough not
-     to fail (e.g. ``10_000_000``).
-  2. Run the test:
-
-         > ./odoo.log && ./core/odoo-bin -c ./conf/odoo.conf -d $DB \\
-             --test-tags '/web:TestWebBundleSize' -u web \\
-             --stop-after-init --workers=0
-         grep '\\[BUNDLE_SIZE\\]' ./odoo.log
-
-  3. Read the ``actual`` byte count from the log line and tighten the
-     budget to ``actual + ~10%`` headroom.
-
-A failing test's message names the bundle, the actual bytes, the
-budget, and the delta.
-
-PER-INPUT DIAGNOSTIC
---------------------
-On budget failure, the test parses the ``EsbuildResult.metafile`` field
-(esbuild's JSON output describing per-input contributions) and prints
-the top-N contributing files. With a baseline file
-(``tooling/scripts/bundle_size_inputs_baseline.json``) present, it
-shows deltas against that baseline instead of absolute sizes.
-
-To populate / refresh the per-input baseline::
-
-  ODOO_BUNDLE_SIZE_UPDATE_BASELINE=1 ./core/odoo-bin \\
-      -c ./conf/odoo.conf -d $DB \\
-      --test-tags '/web:TestWebBundleSize' -u web \\
-      --stop-after-init --workers=0
-
-In that mode each test writes its current per-input map into the
-baseline JSON instead of asserting against the budget. Commit the
-regenerated baseline alongside any PR that bumps ``BUDGETS``.
-"""
-
 import json
 import logging
 import os
@@ -80,20 +30,6 @@ _UPDATE_ENV_VAR = "ODOO_BUNDLE_SIZE_UPDATE_BASELINE"
     "web_bundle_size",
 )
 class TestWebBundleSize(TransactionCase):
-    """Pin upper-bound byte sizes for ESM bundles to catch regressions."""
-
-    #: The exact module set the budgets below were measured against.
-    #: A bundle is the union of what the installed modules contribute, so a
-    #: byte ceiling only means anything at a stated set: on a database
-    #: carrying more, the same bundle is legitimately larger and the budget
-    #: reports an install difference rather than a regression.
-    #:
-    #: This is the closure of ``INSTALL`` in
-    #: ``.github/workflows/asset_lint.yml`` — the lane that runs this class —
-    #: and it is the closure rather than that list because ``auto_install``
-    #: modules join on their own once their dependencies are satisfied, which
-    #: no walk of declared dependencies predicts. Regenerate by installing
-    #: that INSTALL set and reading ``ir.module.module`` in state installed.
     CALIBRATION_MODULES = frozenset(
         {
             "account",
@@ -198,7 +134,6 @@ class TestWebBundleSize(TransactionCase):
         }
     )
 
-    #: Measured at CALIBRATION_INSTALL on 2026-08-16, actual + ~10% headroom.
     BUDGETS = {
         "web.assets_web": 5_012_000,
         "web.assets_frontend": 3_290_000,
@@ -231,25 +166,6 @@ class TestWebBundleSize(TransactionCase):
 
     @staticmethod
     def _parse_metafile_inputs(metafile_raw):
-        """Extract ``{input_path: bytes_in_output}`` from esbuild's metafile.
-
-        The metafile has shape ``{outputs: {<out_path>: {inputs:
-        {<in_path>: {bytesInOutput: N}}}}}``.  Each output entry can
-        be a ``.js`` (the bundle) or ``.js.map`` (sourcemap); only
-        the ``.js`` output contributes meaningful per-input bytes.
-
-        Returns ``{}`` if the metafile is missing or malformed — the
-        diagnostic is non-fatal and should never break a budget check.
-
-        Static because it touches neither ``self`` nor ``env`` — and
-        the unit-test class exercises it directly via
-        ``TestWebBundleSize._parse_metafile_inputs(...)`` without
-        instantiating a budget test.
-
-        :param str|None metafile_raw: the ``metafile`` field of the
-            ``EsbuildResult`` returned by ``esbuild_native_bundle()``
-        :rtype: dict[str, int]
-        """
         if not metafile_raw:
             return {}
         try:
@@ -267,19 +183,6 @@ class TestWebBundleSize(TransactionCase):
         return inputs
 
     def _measure_esm_bundle_bytes(self, bundle_name):
-        """Trigger esbuild for the bundle; return total bytes + per-input map.
-
-        Calls ``esbuild_native_bundle()`` directly to measure a fresh
-        build — bypassing any cached ``ir.attachment`` so a stale
-        attachment cannot mask a regression.
-
-        :param str bundle_name: bundle key from a module manifest's
-            ``assets`` dict (e.g. ``"web.assets_web"``)
-        :return: ``(output_bytes, inputs_map)`` where ``inputs_map``
-            is ``{input_path: bytes_in_output}`` parsed from the
-            metafile sidecar; empty when the metafile is unavailable
-        :rtype: tuple[int, dict[str, int]]
-        """
         bundle = self.env["ir.qweb"]._get_asset_bundle(
             bundle_name,
             css=False,
@@ -298,12 +201,6 @@ class TestWebBundleSize(TransactionCase):
         )
 
     def _load_baseline(self):
-        """Read the per-input baseline JSON if present.
-
-        :rtype: dict — the full baseline document, or ``{}`` when
-            the file is missing or unreadable.  Callers must defensively
-            ``.get("bundles", {}).get(name, {}).get("inputs", {})``.
-        """
         if not _BASELINE_PATH.exists():
             return {}
         try:
@@ -312,11 +209,6 @@ class TestWebBundleSize(TransactionCase):
             return {}
 
     def _save_baseline_entry(self, bundle_name, total_bytes, inputs_map):
-        """Update the baseline JSON in place with one bundle's data.
-
-        Sorts keys for stable diffs (so PR review sees real changes,
-        not key reshuffling).  Creates the parent directory if needed.
-        """
         baseline = self._load_baseline()
         baseline["_generated_at"] = date.today().isoformat()
         baseline["_generator"] = f"test_web_bundle_size.py with {_UPDATE_ENV_VAR}=1"
@@ -333,18 +225,6 @@ class TestWebBundleSize(TransactionCase):
         )
 
     def _build_diagnostic(self, bundle_name, inputs_map):
-        """Return the per-input diagnostic block for a failure message.
-
-        With a baseline: shows top-N grown inputs (``delta = current -
-        baseline``, sorted descending), each line ``+N b   path
-        (base → cur)``.
-
-        Without a baseline: shows top-N absolute contributors with a
-        hint to populate the baseline.
-
-        Empty/missing metafile: brief notice that no breakdown is
-        available — does not raise.
-        """
         if not inputs_map:
             return "  (esbuild metafile unavailable — no per-input breakdown)"
 
@@ -371,8 +251,10 @@ class TestWebBundleSize(TransactionCase):
                         "regression may be in entry-glue overhead, not file content)"
                     )
                 lines = [
-                    "  No grown inputs vs baseline — "
-                    "regression appears to be NEW inputs:",
+                    (
+                        "  No grown inputs vs baseline — "
+                        "regression appears to be NEW inputs:"
+                    ),
                     *(
                         f"    {bytes_:>10,} b   {path} (new)"
                         for path, bytes_ in new_inputs[:_DIAGNOSTIC_TOP_N]
@@ -398,18 +280,6 @@ class TestWebBundleSize(TransactionCase):
         return "\n".join(lines)
 
     def _assert_bundle_under_budget(self, bundle_name):
-        """Measure the bundle and assert it stays within ``BUDGETS``.
-
-        Logs an ``[BUNDLE_SIZE]`` line on every run (pass or fail) so
-        operators can monitor headroom drift without waiting for a
-        failure.
-
-        When ``ODOO_BUNDLE_SIZE_UPDATE_BASELINE=1``: regenerates the
-        per-input baseline for this bundle instead of asserting.
-        Used to refresh the baseline after an approved size change.
-
-        :param str bundle_name: bundle key from ``BUDGETS``
-        """
         budget = self.BUDGETS.get(bundle_name)
         if budget is None:
             self.fail(
@@ -419,14 +289,6 @@ class TestWebBundleSize(TransactionCase):
             )
         actual, inputs_map = self._measure_esm_bundle_bytes(bundle_name)
 
-        # BUDGETS are calibrated at the CI scope
-        # (``--addons-path=odoo/addons,addons``). A workspace that also loads
-        # enterprise/ or a downstream addon repo feeds extra modules into the
-        # same bundle, so `actual` measures a different tree than the budget
-        # describes -- the same scope trap CLAUDE.md flags for the other
-        # ratchets. That is not a size regression, and regenerating the
-        # committed baseline from here would bake the foreign inputs in, so
-        # guard before the update branch too.
         foreign_inputs = sorted(
             {
                 path
@@ -478,107 +340,35 @@ class TestWebBundleSize(TransactionCase):
         )
 
     def test_assets_web_under_budget(self):
-        """``web.assets_web`` — full backend entry, TTI-critical.
-
-        Regressions here delay every backend page load. Common
-        regression sources: heavy dependency added to a glob-included
-        directory (``views/**/*``, ``fields/**/*``); a ``remove``
-        directive accidentally dropped from ``__manifest__.py``;
-        un-tree-shaken dead code in a new feature.
-        """
         self._assert_bundle_under_budget("web.assets_web")
 
     def test_assets_frontend_under_budget(self):
-        """``web.assets_frontend`` — public pages, mobile-critical.
-
-        Public-facing perf has higher stakes than backend: cold
-        visitors with no warm cache, often on mobile networks.
-        Anything imported from a backend-only widget that leaks here
-        is a regression.
-        """
         self._assert_bundle_under_budget("web.assets_frontend")
 
     def test_assets_frontend_lazy_under_budget(self):
-        """``web.assets_frontend_lazy`` — extended frontend bundle.
-
-        Loaded after ``assets_frontend`` to bring in the full set of
-        public components. Cumulative public-facing cost: this bundle
-        plus its parent. Leaks of backend-only code into this bundle
-        bloat every public visitor's session.
-        """
         self._assert_bundle_under_budget("web.assets_frontend_lazy")
 
     def test_assets_emoji_under_budget(self):
-        """``web.assets_emoji`` — lazy emoji picker data.
-
-        Single-file bundle (``emoji_data.js``, ~36k generated lines).
-        Bytes matter because every chat textarea / mail composer
-        triggers a load. Watch for: emoji-data regenerator producing
-        bigger output (new Unicode versions, extra metadata fields).
-        """
         self._assert_bundle_under_budget("web.assets_emoji")
 
     def test_assets_frontend_minimal_under_budget(self):
-        """``web.assets_frontend_minimal`` — bootstrap JS for public pages.
-
-        First JS every public visitor sees (session bootstrap, cookie
-        handling, minimal DOM helpers, lazyloader). Cold-cache LCP-
-        critical: even small regressions here delay first paint on
-        every public page. Watch for: anything that imports a heavy
-        utility module from the broader frontend bundle.
-        """
         self._assert_bundle_under_budget("web.assets_frontend_minimal")
 
     def test_assets_web_dark_under_budget(self):
-        """``web.assets_web_dark`` — CANARY for build-only JS.
-
-        None of this bundle's JS ships to users (see the ``BUDGETS``
-        entry for why). If this fails, the right fix is almost always
-        "remove the JS contribution", not "raise the budget".
-        """
         self._assert_bundle_under_budget("web.assets_web_dark")
 
     def test_assets_web_print_under_budget(self):
-        """``web.assets_web_print`` — CANARY for build-only JS.
-
-        Same shape as ``test_assets_web_dark_under_budget``; see the
-        ``BUDGETS`` entry for why this bundle's JS never reaches users.
-        """
         self._assert_bundle_under_budget("web.assets_web_print")
 
     def test_report_assets_common_under_budget(self):
-        """``web.report_assets_common`` — common report assets.
-
-        Loaded for every HTML/PDF report render. Regressions here
-        slow every printout (and every PDF-render-via-headless path
-        used by the chrome PDF subprocess).
-        """
         self._assert_bundle_under_budget("web.report_assets_common")
 
     def test_report_assets_pdf_under_budget(self):
-        """``web.report_assets_pdf`` — PDF-specific report assets.
-
-        Extends ``report_assets_common`` for PDF-only renders. Heavy
-        bundles here directly inflate every chrome-rendered PDF's
-        prep time.
-        """
         self._assert_bundle_under_budget("web.report_assets_pdf")
 
 
 @tagged("web_unit", "web_assets", "web_bundle_size")
 class TestParseMetafileInputs(TransactionCase):
-    """Unit coverage for the metafile-parsing helper used by the diagnostic.
-
-    These tests don't invoke esbuild — they feed hand-crafted metafile
-    JSON to ``_parse_metafile_inputs`` so the parsing path can be
-    exercised quickly (web_unit, ~1 ms each) without paying the cost
-    of a real bundle build.
-
-    The helper is a ``@staticmethod`` on ``TestWebBundleSize`` so we
-    can call it directly without instantiating that class (which would
-    require a valid budget-test method name in its ``__init__``).
-    """
-
     _parse = staticmethod(TestWebBundleSize._parse_metafile_inputs)
 
     def test_none_returns_empty(self):

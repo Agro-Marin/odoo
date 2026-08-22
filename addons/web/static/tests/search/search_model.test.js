@@ -11,6 +11,7 @@ import {
     onRpc,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { Domain } from "@web/core/domain";
 import { SearchModelEvent } from "@web/core/events";
 import { SearchModel } from "@web/search/search_model";
 import { SEARCH_MODEL_STATE_VERSION } from "@web/search/search_state";
@@ -18,8 +19,8 @@ import { SEARCH_MODEL_STATE_VERSION } from "@web/search/search_state";
 describe.current.tags("headless");
 
 describe("_notify — the single UPDATE-emission path", () => {
-    /** A minimal `this` for `SearchModel.prototype._notify` run in isolation. */
     function notifyStub(overrides = {}) {
+        /** @type {string[]} */
         const steps = [];
         return /** @type {any} */ ({
             _steps: steps,
@@ -44,9 +45,13 @@ describe("_notify — the single UPDATE-emission path", () => {
         expect(model._steps).toEqual(["reset", "reloadSections", "trigger:update"]);
     });
 
+    test("refresh() is the public spelling of _notify, options and all withheld", async () => {
+        const model = notifyStub({ _notify: SearchModel.prototype._notify });
+        await SearchModel.prototype.refresh.call(model);
+        expect(model._steps).toEqual(["reset", "reloadSections", "trigger:update"]);
+    });
+
     test("reloadSections:false triggers without re-fetching the sections", () => {
-        // The section-refresh path: a caller reacting to a section that already
-        // refreshed announces the change without re-triggering that fetch.
         const model = notifyStub();
         SearchModel.prototype._notify.call(model, { reloadSections: false });
         expect(model._steps).toEqual(["reset", "trigger:update"]);
@@ -54,8 +59,6 @@ describe("_notify — the single UPDATE-emission path", () => {
     });
 
     test("defers to the pending flag inside a blocked window", () => {
-        // A late disk-cache hit landing mid-`_reloadSections` must not trigger
-        // UPDATE on its own -- every path funnels through the same batching.
         const model = notifyStub({ blockNotification: true });
         SearchModel.prototype._notify.call(model, { reloadSections: false });
         expect(model._steps).toEqual(["reset"]);
@@ -703,9 +706,6 @@ test("parsing a groupBy and a filter", async () => {
     const groupNumbers = model
         .getSearchItems(() => true)
         .map((/** @type {any} */ i) => i.groupNumber);
-    // Arch order, not creation order: the parser collects every group-by into
-    // one pregroup and appends it last, so ordering by id alone reported this
-    // group-by after the filter that follows it in the arch.
     expect(groupNumbers).toEqual([1, 2]);
 });
 
@@ -800,6 +800,7 @@ test("process favorite filters", async () => {
 });
 
 test("favorite group_bys naming removed fields are screened at import", async () => {
+    /** @type {string[]} */
     const warnings = [];
     const originalWarn = console.warn;
     console.warn = (...args) => warnings.push(args.join(" "));
@@ -1231,6 +1232,106 @@ test("exportState returns a snapshot decoupled from the live model", async () =>
     expect(state.searchItems[someId].__probe).toBe(undefined);
 });
 
+/**
+ * @param {unknown} value
+ * @param {string} [path]
+ * @param {string[]} [found]
+ * @returns {string[]}
+ */
+function findNonWireValues(value, path = "state", found = []) {
+    if (value === null) {
+        return found;
+    }
+    const type = typeof value;
+    if (type === "string" || type === "number" || type === "boolean") {
+        return found;
+    }
+    if (type !== "object") {
+        found.push(`${path}: ${type}`);
+        return found;
+    }
+    const brand = Object.prototype.toString.call(value);
+    if (brand === "[object Array]") {
+        /** @type {unknown[]} */ (value).forEach((item, i) =>
+            findNonWireValues(item, `${path}[${i}]`, found),
+        );
+        return found;
+    }
+    if (brand !== "[object Object]") {
+        found.push(`${path}: ${brand}`);
+        return found;
+    }
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== Object.prototype && proto !== null) {
+        found.push(`${path}: instance of ${proto.constructor?.name}`);
+        return found;
+    }
+    for (const [key, item] of Object.entries(value)) {
+        findNonWireValues(item, `${path}.${key}`, found);
+    }
+    return found;
+}
+
+test("exportState is a wire format: every leaf survives JSON", async () => {
+    const model = await createSearchModel({
+        searchViewArch: `
+            <search>
+                <field name="foo"/>
+                <filter name="filter_1" string="Filter 1" domain="[['foo', '=', 'a']]"/>
+                <filter name="group_1" string="Group 1" context="{'group_by': 'foo'}"/>
+            </search>
+        `,
+        context: { search_default_filter_1: true, search_default_group_1: true },
+    });
+
+    expect(findNonWireValues(model.exportState())).toEqual([]);
+});
+
+test("the wire-format walk reports every shape JSON would eat", () => {
+    class Custom {
+        constructor() {
+            this.x = 1;
+        }
+    }
+    const nativeDate = structuredClone(new Date("2026-01-01T00:00:00Z"));
+    expect(nativeDate instanceof Date).toBe(false, {
+        message:
+            "precondition: a structuredClone'd Date escapes `instanceof Date` here",
+    });
+
+    expect(findNonWireValues({ ok: [1, "two", true, null] })).toEqual([]);
+    expect(findNonWireValues({ d: new Date() })).toEqual(["state.d: [object Date]"]);
+    expect(findNonWireValues({ d: nativeDate })).toEqual(["state.d: [object Date]"]);
+    expect(findNonWireValues({ m: new Map([["k", 1]]) })).toEqual([
+        "state.m: [object Map]",
+    ]);
+    expect(findNonWireValues({ s: new Set([1]) })).toEqual(["state.s: [object Set]"]);
+    expect(findNonWireValues({ u: undefined })).toEqual(["state.u: undefined"]);
+    expect(findNonWireValues({ f: () => {} })).toEqual(["state.f: function"]);
+    expect(findNonWireValues({ c: new Custom() })).toEqual([
+        "state.c: instance of Custom",
+    ]);
+    expect(findNonWireValues({ panel: { info: { at: new Date() } } })).toEqual([
+        "state.panel.info.at: [object Date]",
+    ]);
+    expect(findNonWireValues({ rows: [{ values: [[1, { d: new Date() }]] }] })).toEqual(
+        ["state.rows[0].values[0][1].d: [object Date]"],
+    );
+});
+
+test("searchPanelInfo is normalised to the wire like every other field", async () => {
+    const model = await createSearchModel({
+        searchViewArch: `<search/>`,
+    });
+    model.searchPanelInfo.stamp = new Date("2026-01-01T00:00:00Z");
+    model.searchPanelInfo.lookup = new Map([["a", 1]]);
+
+    const exported = model.exportState();
+    expect(findNonWireValues(exported)).toEqual([]);
+    expect(typeof exported.searchPanelInfo.stamp).toBe("string");
+    expect(exported.searchPanelInfo.lookup).toEqual({});
+});
+
 test("exportState stamps the schema version", async () => {
     const model = await createSearchModel({
         searchViewArch: `<search/>`,
@@ -1249,8 +1350,6 @@ test("a versionless legacy state imports identically to today's shape", async ()
         context: { search_default_filter_1: true },
     });
 
-    // What a pre-versioning build serialized: the same state minus the keys
-    // that joined the schema with the version field.
     const legacy = JSON.parse(JSON.stringify(model.exportState()));
     delete legacy.version;
     delete legacy.searchDomain;
@@ -1293,8 +1392,6 @@ test("a state of an unknown future version warns and imports best-effort", async
         globalState: { searchModel: JSON.stringify(state) },
     });
     expect.verifySteps(["warn"]);
-    // The known keys still land: refusing the import would throw away the
-    // user's search on every cross-build restore.
     expect(restored.query).toEqual(model.query);
 });
 
@@ -1330,22 +1427,15 @@ test("property-derived searchViewFields entries survive an export/import cycle",
         globalState: { searchModel: JSON.stringify(model.exportState()) },
     });
 
-    // The group-by item survived the restore AND resolves its field again:
-    // the property-derived entry is not part of the reloaded view description,
-    // so without the state carrying it the item pointed at nothing.
     expect(restored.groupBy).toEqual(["properties.my_char"]);
     const restoredField = restored.searchViewFields["properties.my_char"];
     expect(restoredField.string).toBe("My Char");
-    // The parent reference is re-aliased onto the live parent field.
     expect(restoredField.relatedPropertyField).toBe(
         restored.searchViewFields.properties,
     );
 });
 
 test("fillSearchViewItemsProperty refetches definitions on each sequential call", async () => {
-    // Deliberately NOT memoised across calls: definitions live on the parent
-    // record and change under us, and the only caller is one dropdown open.
-    // Concurrent calls still share one fetch — see the next test.
     const model = await createSearchModel({
         searchViewArch: `
             <search>
@@ -1354,6 +1444,7 @@ test("fillSearchViewItemsProperty refetches definitions on each sequential call"
         `,
     });
 
+    /** @type {string[]} */
     const fetchedFields = [];
     model._fetchPropertiesDefinition = (
         /** @type {any} */ resModel,
@@ -1443,9 +1534,6 @@ test("concurrent fillSearchViewItemsProperty calls both see the loaded items", a
 });
 
 test("a query mutation racing an in-flight reload still notifies", async () => {
-    // `reload` opens a notification-blocking window around `_reloadSections`;
-    // a toggle landing inside it used to set `_pendingNotification` with no
-    // consumer left to drain it, so the view kept the pre-toggle domain.
     const def = new Deferred();
     onRpc("search_panel_select_range", async () => {
         await def;
@@ -1465,8 +1553,6 @@ test("a query mutation racing an in-flight reload still notifies", async () => {
     model.addEventListener(SearchModelEvent.UPDATE, () => updates++);
 
     const reloadProm = model.reload({ domain: [["id", "=", 1]] });
-    // `_reloadSections` runs its body in a Mutex microtask: wait for the
-    // blocking window to actually be open before mutating the query.
     await tick();
     expect(model.blockNotification).toBe(true);
 
@@ -1503,8 +1589,6 @@ describe("memoized getter contracts", () => {
         const model = await createSearchModel({ groupBy: ["foo"] });
         const first = model.groupBy;
         const second = model.groupBy;
-        // Consumers park this on reactive models; Owl keys its reactive caches
-        // by raw target, so a shared array entangles their subscriptions.
         expect(first).toEqual(second);
         expect(first === second).toBe(false);
     });
@@ -1526,6 +1610,22 @@ describe("memoized getter contracts", () => {
         expect(model.filters === model.filters).toBe(true);
         expect(model.categories.length).toBe(1);
         expect(model.filters.length).toBe(0);
+    });
+
+    test("_reset invalidates the section memo, so in-place edits are seen", async () => {
+        const model = await createSearchModel({
+            searchViewArch: `<search><searchpanel><field name="bar"/></searchpanel></search>`,
+        });
+        await model.sectionsPromise;
+        expect(model.categories.length).toBe(1);
+
+        model.sections.set(99, {
+            id: 99,
+            type: "category",
+            values: new Map(),
+        });
+        model._reset();
+        expect(model.categories.length).toBe(2);
     });
 });
 
@@ -1574,10 +1674,6 @@ test("a property deleted on the parent record stops contributing to the domain",
 });
 
 test("an active property group-by is retired when its definition is deleted", async () => {
-    // The item used to be re-typed to "group_by_property_deleted" and left in
-    // the query: nothing renders that type, so it disappeared from the Group By
-    // menu while the search bar kept a chip with no icon, no colour and no
-    // label for it, and the memos the view reads were never invalidated.
     const model = await createSearchModel({
         searchViewArch: `
             <search>
@@ -1606,9 +1702,6 @@ test("an active property group-by is retired when its definition is deleted", as
 });
 
 test("a definition record dropping out entirely retires its group-bys", async () => {
-    // The retiring pass used to key on definitionRecordId taken from the
-    // result, so a record that stopped contributing definitions was never
-    // considered at all.
     const model = await createSearchModel({
         searchViewArch: `
             <search>
@@ -1671,10 +1764,6 @@ test("an untouched property group-by keeps its id across a refresh", async () =>
 });
 
 test("editing the domain of a favorite that group-bys a property", async () => {
-    // splitAndAddDomain re-creates the favorite's group-bys as custom ones,
-    // which needs field metadata a property only gets once the definitions have
-    // been fetched. It used to throw a TypeError out of createNewGroupBy AFTER
-    // deactivating the favorite's group, losing the whole search.
     const model = await createSearchModel({
         searchViewArch: `
             <search>
@@ -1752,9 +1841,6 @@ test("search() invalidates the memos consumers detect changes by", async () => {
 
     model.search();
 
-    // WithSearch passes these down as slot props and Owl skips a child whose
-    // props are all strictly identical, so re-running the search has to hand
-    // out new references or it never reaches the view.
     expect(model.context === before.context).toBe(false);
     expect(model.domain === before.domain).toBe(false);
     expect(model.orderBy === before.orderBy).toBe(false);
@@ -1803,8 +1889,6 @@ describe("invisible search items", () => {
                 </search>`,
         });
 
-        // The control panel reads every menu through getSearchItems; one bad
-        // arch expression must not take all of them down.
         expect(
             model
                 .getSearchItems((/** @type {any} */ i) => i.type === "filter")
@@ -1852,12 +1936,6 @@ test("getSearchItems is ordered whether or not a favorite is in scope", async ()
 });
 
 test("the Activities block ANDs across its invisible separator", async () => {
-    // Verbatim in shape from account/views/account_move_views.xml, repeated in
-    // 44 shipped search views. The activity systray combines
-    // search_default_filter_activities_my with one of the date filters; they sit
-    // on either side of `<separator invisible="1"/>`, so they must AND. The
-    // three date filters share a group and must OR. Honouring `invisible` on the
-    // separator turns the first pair into an OR.
     const arch = `
         <search>
             <filter string="Archived" name="inactive" domain="[('bar', '=', False)]"/>
@@ -1899,10 +1977,6 @@ test("the Activities block ANDs across its invisible separator", async () => {
 });
 
 test("property group-bys join the group-by group instead of one group each", async () => {
-    // Group-bys form a SINGLE query group, so activating several of them yields
-    // one ">"-separated facet the user can drop in one click. Property
-    // group-bys used to get a group of their own, so N of them produced N
-    // chips, each needing its own click to remove.
     const model = await createSearchModel({
         searchViewArch: `
             <search>
@@ -1970,4 +2044,84 @@ test("property group-bys form their own group when the view has none", async () 
             .map((item) => item.groupId),
     );
     expect(groupIds.size).toBe(1);
+});
+
+describe("the domain override seam", () => {
+    test("a subclass's _getFieldDomain reaches the domain", async () => {
+        let calls = 0;
+        class OverridingSearchModel extends SearchModel {
+            _getFieldDomain(
+                /** @type {any} */ field,
+                /** @type {any[]} */ autocompleteValues,
+            ) {
+                calls++;
+                expect(field.fieldName).toBe("foo");
+                expect(autocompleteValues).toEqual([
+                    { label: "abc", operator: "ilike", value: "abc" },
+                ]);
+                return new Domain([["overridden", "=", 1]]);
+            }
+        }
+        const model = await createSearchModel({
+            SearchModel: OverridingSearchModel,
+            searchViewArch: `<search><field name="foo"/></search>`,
+        });
+        const fieldItem = Object.values(model.searchItems).find(
+            (item) => item.type === "field",
+        );
+        await model.addAutoCompletionValues(fieldItem.id, {
+            label: "abc",
+            operator: "ilike",
+            value: "abc",
+        });
+
+        expect(calls).toBeGreaterThan(0);
+        expect(model.domain).toEqual([["overridden", "=", 1]]);
+    });
+
+    test("a subclass's _getDateFilterDomain reaches the domain", async () => {
+        let calls = 0;
+        class OverridingSearchModel extends SearchModel {
+            _getDateFilterDomain(
+                /** @type {any} */ dateFilter,
+                /** @type {any[]} */ generatorIds,
+                key = "domain",
+            ) {
+                if (key !== "domain") {
+                    return super._getDateFilterDomain(dateFilter, generatorIds, key);
+                }
+                calls++;
+                return new Domain([["overridden_date", "=", 1]]);
+            }
+        }
+        const model = await createSearchModel({
+            SearchModel: OverridingSearchModel,
+            searchViewArch: `
+                <search>
+                    <filter name="dt" string="Date" date="date_field"/>
+                </search>`,
+        });
+        const dateFilter = Object.values(model.searchItems).find(
+            (item) => item.type === "dateFilter",
+        );
+        await model.toggleDateFilter(dateFilter.id);
+
+        expect(calls).toBeGreaterThan(0);
+        expect(model.domain).toEqual([["overridden_date", "=", 1]]);
+    });
+
+    test("without an override the module functions still apply", async () => {
+        const model = await createSearchModel({
+            searchViewArch: `<search><field name="foo"/></search>`,
+        });
+        const fieldItem = Object.values(model.searchItems).find(
+            (item) => item.type === "field",
+        );
+        await model.addAutoCompletionValues(fieldItem.id, {
+            label: "abc",
+            operator: "ilike",
+            value: "abc",
+        });
+        expect(model.domain).toEqual([["foo", "ilike", "abc"]]);
+    });
 });

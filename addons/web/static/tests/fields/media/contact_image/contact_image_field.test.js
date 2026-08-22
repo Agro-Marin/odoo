@@ -28,7 +28,10 @@ const ARCH = `
         <field name="avatar" widget="contact_image" options="{'preview_image': 'image_preview'}"/>
     </form>`;
 
-/** @param {number} id @param {any} [patch] */
+/**
+ * @param {number} id
+ * @param {any} [patch]
+ */
 async function mountContact(id, patch) {
     Partner._records[0] = {
         id: 1,

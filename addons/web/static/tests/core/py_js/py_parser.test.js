@@ -104,9 +104,6 @@ test("expression with + and ==", () => {
 });
 
 test("can parse chained comparisons", () => {
-    // One node with N+1 operands, not `(a < b) and (b < c)`: the desugaring
-    // shared the middle operand between both halves, so it was evaluated twice
-    // and formatAST could not spell the expression back.
     expect(parseExpr("1 < 2 <= 3")).toEqual({
         type: 16,
         operands: [
@@ -126,7 +123,6 @@ test("can parse chained comparisons", () => {
         ],
         operators: ["<", "<=", ">"],
     });
-    // a single comparison stays a plain binary operator
     expect(parseExpr("1 < 2")).toEqual({
         type: 7,
         op: "<",
@@ -365,8 +361,6 @@ describe("AST cache", () => {
     test("repeatedly read entry survives eviction pressure (LRU, not FIFO)", () => {
         clearASTCache();
         const hot = parseExpr("hot_key + 1");
-        // Insert more distinct expressions than the cache holds (512), touching
-        // the hot entry between inserts: an LRU keeps it, a FIFO evicts it.
         for (let i = 0; i < 600; i++) {
             parseExpr(`filler_${i} + 1`);
             parseExpr("hot_key + 1");

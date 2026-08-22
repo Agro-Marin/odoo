@@ -1,13 +1,5 @@
 // @ts-check
 
-/**
- * @module tests/views/form/button_box
- *
- * Pins the ButtonBox per-breakpoint visible-button budget:
- * ``[0, 0, 4, 5, 7, 8]`` indexed by SIZES (XS SM MD LG XL XXL), monotonic so
- * growing the screen never hides stat buttons into the "More" dropdown.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { EventBus } from "@odoo/owl";
 import {
@@ -108,8 +100,6 @@ describe("visible-button budget per ui.size", () => {
 });
 
 describe("single rendering", () => {
-    // form_controller compiles the button box on its own: every compileForm
-    // branch must compile-and-drop the one found in the arch.
     test("button box outside the sheet renders once", async () => {
         await mountView({
             resModel: "partner",

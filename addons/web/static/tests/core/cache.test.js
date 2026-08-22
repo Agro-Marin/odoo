@@ -74,10 +74,6 @@ test("clear cache", async () => {
     cache.read("b");
     expect.verifySteps(["a"]);
 
-    // `clear` targets ONE entry, so a pathless call has nothing to target: it
-    // used to silently key on the string "undefined" and clear nothing, which
-    // read like a whole-cache flush that had quietly stopped working.
-    // `invalidate()` is the flush.
     expect(() => cache.clear()).toThrow(TypeError);
     cache.read("a");
     cache.read("b");

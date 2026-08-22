@@ -706,9 +706,6 @@ test("TemplateRegistry: extensions apply in registration order", () => {
         `<xpath expr="div" position="inside"><span>${word}</span></xpath></t>`;
     scoped.registerTemplate("tr-order", "/addon_a", `<t t-name="tr-order"><div/></t>`);
     scoped.registerTemplateExtension("tr-order", "/addon_b", makeExt("one"));
-    // A primary registration in between forces a new block id, so the two
-    // extensions land in DIFFERENT blocks and their relative order is decided
-    // by the block ordering rather than by array order within one block.
     scoped.registerTemplate("tr-order-sep", "/addon_a", `<t t-name="tr-order-sep"/>`);
     scoped.registerTemplateExtension("tr-order", "/addon_c", makeExt("two"));
 
@@ -721,9 +718,6 @@ test("TemplateRegistry: extensions apply in registration order", () => {
 
 test("TemplateRegistry: inheriting child only sees extensions registered before it", () => {
     const scoped = new TemplateRegistry();
-    // Burn block ids so the ones under test straddle the 9 -> 10 boundary,
-    // where comparing block ids as STRINGS ("10" > "9") answers differently
-    // from comparing them as numbers.
     for (let i = 0; i < 5; i++) {
         scoped.registerTemplate(`tr-fill-${i}`, "/f", `<t t-name="tr-fill-${i}"/>`);
         scoped.registerTemplateExtension(
@@ -749,7 +743,6 @@ test("TemplateRegistry: inheriting child only sees extensions registered before 
         (el) => el.textContent,
     );
     expect(words).toEqual(["before"]);
-    // The base itself, resolved with no cut-off, still gets both.
     expect(
         [...scoped.getTemplate("tr-cut").querySelectorAll("span")].map(
             (el) => el.textContent,
@@ -758,9 +751,6 @@ test("TemplateRegistry: inheriting child only sees extensions registered before 
 });
 
 test("a template build that throws does not leak its text nodes into the next one", async () => {
-    // `contextByTextNode` spans a whole inheritance chain, so it can only be
-    // drained once the chain completes. A chain that threw used to leave its
-    // nodes behind, and the *next* template's drain wrapped them.
     registerTemplates(
         { name: "Broken", content: `<div>broken text</div>` },
         {

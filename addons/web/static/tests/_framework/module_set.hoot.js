@@ -10,8 +10,6 @@ import { setupMockTemplates } from "./mock_templates.hoot.js";
 const { fetch: realFetch } = globals;
 
 /**
- * Reduce the size of the given field and freeze it.
- *
  * @param {Record<string, unknown>} field
  */
 function freezeField(field) {
@@ -38,8 +36,6 @@ function freezeField(field) {
 }
 
 /**
- * Reduce the size of the given model and freeze it.
- *
  * @param {Record<string, unknown>} model
  */
 function freezeModel(model) {
@@ -94,13 +90,6 @@ const serverModelCache = new Map();
 
 let nextRpcId = 1e9;
 
-/**
- * Prepare the test environment by patching registries and removing
- * app-specific services that crash without session state.
- *
- * Must be called BEFORE test modules are imported so that describe/test
- * calls don't encounter stale registry entries.
- */
 export function setupTestEnvironment() {
     onError((ev) => {
         const error = /** @type {any} */ (ev)?.reason ?? /** @type {any} */ (ev)?.error;
@@ -114,20 +103,6 @@ export function setupTestEnvironment() {
     if (!registryModule?.Registry) {
         return;
     }
-
-    /**
-     * Registry semantics are NOT relaxed for tests. Production `add` is
-     * first-registration-wins (see `registry.js`); forcing every add here made
-     * the suite last-registration-wins, which does not merely loosen the rule,
-     * it INVERTS it — a duplicate registration keeps the other entry than the
-     * one production keeps. Bugs in that exact class (two envs each starting
-     * the same service, an addon colliding with a core key) could therefore
-     * pass their test while doing the opposite in the browser, and a test
-     * written to pin the correct behaviour was structurally unable to fail.
-     *
-     * Tests that legitimately need to replace an entry pass `{ force: true }`
-     * themselves, which is also what an addon does in production.
-     */
 
     const translationModule = loader.modules.get("@web/core/translation");
     if (translationModule?.translatedTerms && translationModule.translationLoaded) {
@@ -146,12 +121,14 @@ export function setupTestEnvironment() {
         onServerStateChange(sessionModule.session, () => makeSession(serverState));
     }
 
+    const R_OWL_SYNTHETIC_LISTENER = /\bnativeToSyntheticEvent\b/;
+
     function trackTestListeners(target) {
         const origAdd = target.addEventListener;
         const origRemove = target.removeEventListener;
         let trackedListeners = null;
         target.addEventListener = function (type, listener, options) {
-            if (trackedListeners) {
+            if (trackedListeners && !R_OWL_SYNTHETIC_LISTENER.test(String(listener))) {
                 trackedListeners.push({ type, listener, options });
             }
             return origAdd.call(target, type, listener, options);
@@ -203,39 +180,29 @@ export function setupTestEnvironment() {
     if (routerModule?.routerBus) {
         trackTestListeners(routerModule.routerBus);
     }
-    const pagerModule = loader.modules.get("@web/components/pager/pager");
-    if (pagerModule?.pagerBus) {
-        trackTestListeners(pagerModule.pagerBus);
-    }
+    trackTestListeners(window);
+    trackTestListeners(document);
+    trackTestListeners(document);
     trackTestListeners(document.body);
 
-    // `getFieldFromRegistry` dedups its "Missing widget" / "widget doesn't
-    // support the type" warnings in a process-global Set, so the FIRST test to
-    // resolve a broken arch claims the key and every later test asserting the
-    // same warning sees silence — passing alone, vacuous in a full run. Looked
-    // up lazily, like the buses above, so this file stays usable in bundles
-    // that ship no field widgets.
     const fieldModule = loader.modules.get("@web/fields/field");
     if (fieldModule?.resetWidgetMissWarnings) {
         beforeEach(fieldModule.resetWidgetMissWarnings, { global: true });
     }
 
-    // A `beforeinstallprompt` fired while no pwa service is running is parked
-    // at module scope until one claims it, so an event a test never consumed
-    // makes the NEXT test's service report an install prompt it never saw.
     const pwaModule = loader.modules.get("@web/ui/pwa/pwa_service");
     if (pwaModule?._resetPwaInstallPrompt) {
         beforeEach(pwaModule._resetPwaInstallPrompt, { global: true });
     }
 
-    // `featureFlag` memoizes the parsed `?features=` overrides on first read.
-    // That memo is derived from `browser.location` but outlives it, so
-    // `patchWithCleanup(browser.location, ...)` — the correct way to install a
-    // URL — cannot reach it: any earlier read pins the answer and the patching
-    // test is silently told there are no overrides.
     const featureFlagsModule = loader.modules.get("@web/core/feature_flags");
     if (featureFlagsModule?._resetFeatureFlagsCache) {
         beforeEach(featureFlagsModule._resetFeatureFlagsCache, { global: true });
+    }
+
+    const viewportModule = loader.modules.get("@web/ui/viewport");
+    if (viewportModule?._resetMediaQueryLists) {
+        beforeEach(viewportModule._resetMediaQueryLists, { global: true });
     }
 
     setupMockCurrencies(loader);
@@ -308,13 +275,6 @@ export async function fetchModelDefinitions(modelNames) {
 }
 
 /**
- * `mockLocation` names a host that does not exist, so any URL the application
- * absolutized against it — which is the correct thing for app code to do, the
- * bundle really is same-origin — cannot be fetched for real. This is the one
- * place that leaves the mock for the network, so it is the place that has to
- * undo the mock's own fiction: drop the mocked origin and let the request
- * resolve against the page actually serving the test.
- *
  * @param {string | URL} input
  * @returns {string}
  */
@@ -357,9 +317,6 @@ export function registerModelToFetch(modelName) {
 }
 
 /**
- * Toned-down version of the RPC + ORM features since this file cannot depend on
- * them.
- *
  * @param {string} model
  * @param {string} method
  * @param {any[]} args

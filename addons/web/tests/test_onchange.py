@@ -1,21 +1,11 @@
-"""Behavioral tests for the ``onchange`` engine (``web_onchange.py``).
-
-The engine drives every form-view field change (default seeding on first call,
-recomputation of dependent fields) but had no direct coverage beyond an
-access-error case in ``test_partner``.
-"""
-
 from odoo.tests import common
 
 from odoo.addons.web.models.record_snapshot import RecordSnapshot
 
-# Dropping a stale name is only safe because it is reported; the warning is the
-# operator's only signal that a field disappeared from a form rather than failing.
 ONCHANGE_LOGGER = "odoo.addons.web.models.web_onchange"
 
 
 def _count_selects(cr, fn):
-    """Run *fn* and return how many SELECT statements it issued on *cr*."""
     cls = type(cr)
     orig = cls.execute
     n = [0]
@@ -37,7 +27,6 @@ def _count_selects(cr, fn):
 @common.tagged("post_install", "-at_install", "web_unit", "web_onchange")
 class TestOnchange(common.TransactionCase):
     def test_first_call_seeds_defaults(self):
-        """Empty ``field_names`` => first call: defaults are seeded into value."""
         result = self.env["res.partner"].onchange(
             {}, [], {"name": {}, "active": {}, "company_type": {}}
         )
@@ -45,7 +34,6 @@ class TestOnchange(common.TransactionCase):
         self.assertTrue(result["value"].get("active"))
 
     def test_field_change_recomputes_dependent(self):
-        """Changing company_type flips the dependent is_company flag."""
         result = self.env["res.partner"].onchange(
             {"company_type": "company", "is_company": False},
             ["company_type"],
@@ -58,13 +46,6 @@ class TestOnchange(common.TransactionCase):
         )
 
     def test_unknown_changed_field_is_dropped_not_fatal(self):
-        """An unknown name among the changed fields must not void the onchange.
-
-        A stale/cached view can still reference a field removed by a module
-        upgrade. The valid changed fields must still recompute; only the unknown
-        name is dropped (previously a single unknown name returned ``{}`` and
-        silently stopped recomputing every valid field too).
-        """
         with self.assertLogs(ONCHANGE_LOGGER, "WARNING") as capture:
             result = self.env["res.partner"].onchange(
                 {"company_type": "company", "is_company": False},
@@ -79,7 +60,6 @@ class TestOnchange(common.TransactionCase):
         )
 
     def test_all_unknown_changed_fields_is_noop(self):
-        """If every changed field is unknown, onchange is a no-op (``{}``)."""
         with self.assertLogs(ONCHANGE_LOGGER, "WARNING") as capture:
             result = self.env["res.partner"].onchange(
                 {"company_type": "company"},
@@ -90,13 +70,6 @@ class TestOnchange(common.TransactionCase):
         self.assertEqual(result, {})
 
     def test_snapshot_diff_link_lines_are_batched(self):
-        """``RecordSnapshot.diff`` must not issue one query per LINK line.
-
-        When an onchange links several existing records to an x2many, the diff
-        used to call ``base_line.web_read`` once per link line (an N+1). The
-        origins are now primed with a single batched read, so the query count is
-        bounded and does NOT scale with the number of link lines.
-        """
         Partner = self.env["res.partner"]
         spec = {"child_ids": {"fields": {"name": {}, "email": {}, "phone": {}}}}
 
@@ -121,9 +94,6 @@ class TestOnchange(common.TransactionCase):
         )
 
     def test_stale_top_level_spec_field_dropped(self):
-        """An unknown name in the top-level fields_spec must be dropped, not
-        500 (``self.fetch(fields_spec.keys())`` is strict and raised
-        ValueError). Valid fields still recompute."""
         with self.assertLogs(ONCHANGE_LOGGER, "WARNING") as capture:
             result = self.env["res.partner"].onchange(
                 {"company_type": "company", "is_company": False},
@@ -136,10 +106,6 @@ class TestOnchange(common.TransactionCase):
         self.assertNotIn("stale_field_zz", result["value"])
 
     def test_stale_sub_spec_field_dropped(self):
-        """An unknown name inside an x2many sub-spec must be dropped at that
-        nesting level: it used to ValueError in the o2m line prefetch
-        (``lines.fetch(sub_fields_spec.keys())``) and KeyError inside
-        ``RecordSnapshot.fetch`` (record_snapshot sub-spec)."""
         Partner = self.env["res.partner"]
         child = Partner.create({"name": "OC Sub Child"})
         parent = Partner.create({"name": "OC Sub Parent", "child_ids": [(4, child.id)]})
@@ -156,9 +122,6 @@ class TestOnchange(common.TransactionCase):
         self.assertIn("value", result)
 
     def test_first_call_stale_spec_dropped(self):
-        """First call (empty field_names): a stale spec name must not KeyError
-        in the defaults loop (``self._fields[field_name]``); defaults for the
-        valid fields are still seeded."""
         with self.assertLogs(ONCHANGE_LOGGER, "WARNING") as capture:
             result = self.env["res.partner"].onchange(
                 {}, [], {"name": {}, "active": {}, "stale_first_zz": {}}
@@ -169,14 +132,6 @@ class TestOnchange(common.TransactionCase):
         self.assertNotIn("stale_first_zz", result["value"])
 
     def test_changed_field_absent_from_values_does_not_crash(self):
-        """A known changed field missing from ``values`` must fail open, not 500.
-
-        The JS changeset builder can drop a field that is still in
-        ``field_names`` (a many2one awaiting ``name_create``, a non-StaticList
-        x2many on the urgent/beacon path). ``changed_values`` used to
-        ``pop(fname)`` without a default, raising ``KeyError`` -> 500. The
-        remaining valid fields must still recompute.
-        """
         result = self.env["res.partner"].onchange(
             {"company_type": "company", "is_company": False},
             ["company_type", "name"],

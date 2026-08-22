@@ -1,21 +1,12 @@
 // @ts-check
 
-/**
- * `Domain.contains` LIKE-family semantics, pinned against the SERVER.
- *
- * Every expectation here was executed against a live Odoo ORM (a database with
- * the `unaccent` extension, `has_unaccent = INDEXABLE`) through BOTH
- * `Model.filtered_domain` and `Model.search`, which agree with each other. The
- * client used to disagree with both on the transliteration cases.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { Domain } from "@web/core/domain";
 
 describe.current.tags("headless");
 
 /**
- * @param {any} value field value carried by the record
+ * @param {any} value
  * @param {string} operator
  * @param {any} pattern
  */
@@ -24,7 +15,6 @@ function matches(value, operator, pattern) {
 }
 
 describe("ilike folds the way the server folds", () => {
-    // Server: SELECT unaccent(v) ILIKE unaccent('%p%') -> all true.
     const CASES = [
         ["Ø", "o"],
         ["Œdipe", "oe"],
@@ -104,9 +94,6 @@ describe("LIKE pattern semantics", () => {
 
 describe("LIKE matching is linear, not exponential", () => {
     test("many wildcards against a repetitive subject stay fast", () => {
-        // The regex translation this replaced turned each `%` into `.*`; a
-        // backtracking engine then explored the ways to split the subject
-        // between them. Measured before the change, in this browser: 69 SECONDS.
         const pattern = "%a".repeat(10) + "Z";
         const subject = "axyz".repeat(60);
         const start = performance.now();
@@ -136,8 +123,6 @@ describe("Domain.compile / Domain.filter", () => {
     });
 
     test("a record-dependent domain is not hoisted and still resolves per record", () => {
-        // `qty` here is a NAME resolved against the record, so the domain cannot
-        // be compiled once; it must keep evaluating against each record.
         const domain = new Domain('[("a", "=", qty)]');
         expect(domain.contains({ a: 5, qty: 5 })).toBe(true);
         expect(domain.contains({ a: 5, qty: 6 })).toBe(false);

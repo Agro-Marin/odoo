@@ -13,7 +13,6 @@ from odoo.tests.common import HttpCase, tagged
 @tagged("web_http", "web_pivot")
 class TestPivotExport(HttpCase):
     def test_export_xlsx_with_integer_column(self):
-        """Int header titles and cell values are written as numbers, not coerced to text."""
         self.authenticate("admin", "admin")
         jdata = {
             "title": "Sales Analysis",
@@ -57,12 +56,6 @@ class TestPivotExport(HttpCase):
         self.assertEqual(xml_data["B2"], "42")
 
     def test_export_xlsx_non_numeric_sizes_are_handled(self):
-        """Non-numeric count/size fields must degrade to 0, not raise a 500.
-
-        ``measure_count``/``width``/``height``/``indent`` are raw client JSON. A
-        bare ``min(value, 100000)`` on a string raised ``TypeError`` (Py3 forbids
-        str/int comparison) -> 500; they are now coerced defensively.
-        """
         self.authenticate("admin", "admin")
         jdata = {
             "title": "Bad sizes",
@@ -90,12 +83,6 @@ class TestPivotExport(HttpCase):
         )
 
     def test_export_xlsx_oversized_cell_string_is_truncated(self):
-        """A multi-hundred-KB cell string is clamped to Excel's 32767 limit.
-
-        The cell-COUNT cap counts cells, not per-cell length, so an unbounded
-        title/value would be built into a single write and could OOM the worker.
-        Strings are now truncated at ``MAX_CELL_CHARS`` before any write.
-        """
         self.authenticate("admin", "admin")
         long_title = "A" * 100_000
         jdata = {
@@ -123,7 +110,6 @@ class TestPivotExport(HttpCase):
         self.assertIn("A" * 32_767, shared)
 
     def test_export_xlsx_with_empty_data(self):
-        """An empty request body is rejected with 422, not a 500."""
         self.authenticate("admin", "admin")
 
         response = self.url_open(
@@ -141,14 +127,6 @@ class TestPivotExport(HttpCase):
         5,
     )
     def test_export_xlsx_oversized_is_rejected(self):
-        """A pivot exceeding the cell budget is rejected with 422, not OOM.
-
-        The per-header width and measure_count are clamped, but the COUNT of
-        headers/rows is client-controlled and unbounded; the total-cell cap is
-        the backstop against a crafted body driving ~10^8 writes into RAM. Here
-        the cap is patched low so the test stays fast; a body writing more than
-        5 cells must 422.
-        """
         self.authenticate("admin", "admin")
         jdata = {
             "title": "Huge",

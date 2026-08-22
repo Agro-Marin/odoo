@@ -1,18 +1,5 @@
 // @ts-check
 
-/**
- * Unit tests for the shared quick-search core.
- *
- * `RecordAutocomplete` (components/record_selectors) and `Many2XAutocomplete`
- * (fields/relational) both implement name search -> bounded dropdown ->
- * "Search more..." -> SelectCreateDialog on top of this module; these tests
- * pin the pieces the two flows must agree on — the `web_name_search` call
- * shape, the limits, the only-on-overflow rule and the dialog helpers —
- * as functions, independently of either component.
- *
- * Module under test: components/autocomplete/name_search.js
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { makeMockEnv, onRpc } from "@web/../tests/web_test_helpers";
 import {

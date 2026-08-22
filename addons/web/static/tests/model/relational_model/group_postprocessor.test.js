@@ -1,14 +1,5 @@
 // @ts-check
 
-/**
- * Unit tests for the sticky-empty pass of ``postprocessReadGroup``: when the
- * same query re-runs and a group drops out of the response (records moved
- * out via kanban drag), it is re-inserted as an empty column. Insertion must
- * be positioned against the MERGED array — the old group's index is stale as
- * soon as the response comes back with fewer/reordered groups or one group
- * has already been re-inserted.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { postprocessReadGroup } from "@web/model/relational_model/group_postprocessor";
 

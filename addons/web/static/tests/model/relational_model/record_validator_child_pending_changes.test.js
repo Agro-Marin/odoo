@@ -1,14 +1,5 @@
 // @ts-check
 
-/**
- * ``checkValidity`` skips an x2many child whose ``dirty`` flag is false. But
- * ``dirty`` is only raised by ``_update()``: a child mutated through
- * ``_applyChanges`` — which is how a server onchange's ``UPDATE`` command and
- * ``_applyDefaultValues`` reach a line — carries pending entries in
- * ``_changes`` with ``dirty === false``. Those entries are sent on save, so a
- * child made invalid that way must be validated like any other.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { RecordEditState } from "@web/model/relational_model/record_edit_state";
 import { checkValidity } from "@web/model/relational_model/record_validator";
@@ -37,21 +28,17 @@ function makeChild(/** @type {any} */ { resId, dirty, changes }) {
     };
 }
 
-/** @returns {any} a partial RelationalRecord, enough for checkValidity */
+/** @returns {any} */
 function makeParent(/** @type {any} */ child) {
     const list = {
         count: 1,
         _currentIds: [child.resId],
-        _cache: { [child.resId]: child },
-        // Both are published getters over working memory, for the same reason
-        // they are on the real class: `_currentIds` / `_cache` are not in
-        // `STATIC_LIST_CONTRACT_SURFACE`, and the validator must read the list
-        // through what it publishes.
+        _cache: new Map([[child.resId, child]]),
         get currentIds() {
             return this._currentIds;
         },
         get cachedRecords() {
-            return Object.values(this._cache);
+            return [...this._cache.values()];
         },
     };
     const editState = new RecordEditState();

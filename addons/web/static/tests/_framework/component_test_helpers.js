@@ -20,7 +20,6 @@ import { getMockEnv, makeMockEnv } from "./env_test_helpers.js";
  * @typedef {import("@odoo/hoot").Target} Target
  * @typedef {import("@odoo/owl").Component} OwlComponent
  * @typedef {import("@web/env").OdooEnv} OdooEnv
- *
  * @typedef {ConstructorParameters<typeof App>[1]} AppConfig
  */
 
@@ -71,8 +70,6 @@ export function findComponent(parent, predicate) {
 }
 
 /**
- * Returns the dropdown menu for a specific toggler.
- *
  * @param {Target} togglerSelector
  * @returns {HTMLElement | undefined}
  */
@@ -93,27 +90,16 @@ export function getDropdownMenu(togglerSelector) {
 }
 
 /**
- * Mounts a given component to the test fixture.
- *
- * By default, a `MainComponentsContainer` component is also mounted to the
- * fixture if none is found in the component tree (this can be overridden by the
- * `noMainContainer` option).
- *
- * The type parameter threads the actual component subclass through so that
- * tests can assert `(await mountWithCleanup(MyComponent)).myField` without
- * widening the return type to `Component<any, Env>`. A string template input
- * widens to the base `Component`.
- *
  * @template {import("@odoo/owl").Component} TComponent
  * @param {(new (...args: any[]) => TComponent) | string} ComponentClass
  * @param {AppConfig & {
- *  componentEnv?: Partial<OdooEnv>;
- *  containerEnv?: Partial<OdooEnv>;
- *  fixtureClassName?: string | string[] | null;
- *  env?: any;
- *  noMainContainer?: boolean;
- *  props?: any;
- *  target?: Target;
+ * componentEnv?: Partial<OdooEnv>;
+ * containerEnv?: Partial<OdooEnv>;
+ * fixtureClassName?: string | string[] | null;
+ * env?: any;
+ * noMainContainer?: boolean;
+ * props?: any;
+ * target?: Target;
  * }} [options]
  * @returns {Promise<TComponent>}
  */

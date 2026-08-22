@@ -6,9 +6,9 @@ describe.current.tags("headless");
 
 /**
  * @type {Promise<{
- *  extractSessionInfo: (html: string) => string | null,
- *  isStaleWhileRevalidateURL: (url: URL) => boolean,
- *  restoreSessionInfo: (htmlBody: string, info: string) => string,
+ * extractSessionInfo: (html: string) => string | null,
+ * isStaleWhileRevalidateURL: (url: URL) => boolean,
+ * restoreSessionInfo: (htmlBody: string, info: string) => string,
  * }> | null}
  */
 let hooksPromise = null;

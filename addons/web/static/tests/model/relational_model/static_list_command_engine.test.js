@@ -1,12 +1,5 @@
 // @ts-check
 
-/**
- * Unit tests for applyCommands (static_list_command_engine.js): applies x2many
- * ORM commands (CREATE/UPDATE/DELETE/UNLINK/LINK) to a StaticList-shaped mock —
- * no OWL/DOM/mock server. It mutates its first argument, so assertions read
- * the mutated list state.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { applyCommands } from "@web/model/relational_model/static_list_command_engine";
 
@@ -20,8 +13,6 @@ const LINK = 4;
 const CLEAR = 5;
 
 /**
- * Minimal StaticList mock with the exact shape applyCommands requires.
- *
  * @param {Object} [overrides]
  * @returns {Object}
  */
@@ -32,16 +23,12 @@ function makeList(overrides = {}) {
         _commands: [],
         records: [],
         _currentIds: [],
-        _cache: {},
-        _unknownRecordCommands: {},
+        _cache: new Map(),
+        _unknownRecordCommands: new Map(),
         _loadingStubIds: new Set(),
         offset: 0,
         limit: 80,
         _tmpIncreaseLimit: 0,
-        // Derived, exactly as the real StaticList derives it. A fixture that
-        // can hold `count` out of step with `_currentIds` can be set up in a
-        // state the production code cannot reach, and then the assertions are
-        // about that impossible state rather than about the engine.
         get count() {
             return this._currentIds.length;
         },
@@ -69,9 +56,9 @@ function makeList(overrides = {}) {
                 data: { ...data },
             };
             if (data.id) {
-                list._cache[data.id] = record;
+                list._cache.set(data.id, record);
             } else {
-                list._cache[virtualId] = record;
+                list._cache.set(virtualId, record);
             }
             return record;
         },
@@ -90,6 +77,18 @@ function makeList(overrides = {}) {
                     ? Math.floor((length - 1) / this.limit) * this.limit
                     : 0;
         },
+        _commitCommands(/** @type {any[]} */ commands) {
+            this._commands = commands;
+        },
+        _commitCurrentIds(/** @type {any[]} */ ids) {
+            this._currentIds = ids;
+        },
+        _insertMemberAt(/** @type {number} */ index, /** @type {any} */ id) {
+            this._currentIds.splice(index, 0, id);
+        },
+        _appendMember(/** @type {any} */ id) {
+            this._currentIds.push(id);
+        },
         model: {
             _patchConfig: () => {},
             _loadRecords: () => Promise.resolve([]),
@@ -100,11 +99,9 @@ function makeList(overrides = {}) {
 }
 
 /**
- * Add a real record to the list (as if already loaded from server).
- *
  * @param {Object} list
  * @param {number} resId
- * @returns {Object} the record
+ * @returns {Object}
  */
 function addRecord(list, resId) {
     const record = {
@@ -122,7 +119,7 @@ function addRecord(list, resId) {
         },
         _parseServerValues: (/** @type {any} */ changes) => changes,
     };
-    list._cache[resId] = record;
+    list._cache.set(resId, record);
     list.records.push(record);
     list._currentIds.push(resId);
     return record;
@@ -168,7 +165,7 @@ describe("applyCommands — DELETE", () => {
         list._currentIds = ["virtual_1"];
         const fakeRecord = { resId: false, _virtualId: "virtual_1" };
         list.records = [fakeRecord];
-        list._cache["virtual_1"] = fakeRecord;
+        list._cache.set("virtual_1", fakeRecord);
 
         applyCommands(list, [[DELETE, "virtual_1"]]);
 
@@ -257,9 +254,6 @@ describe("applyCommands — UNLINK", () => {
     });
 
     test("an UNLINK absorbed into a staged SET also drops that row's staged UPDATE", () => {
-        // The observable half of absorbUnlinkIntoSet: once the row is gone from
-        // the SET payload, an UPDATE still naming it would be sent for a row
-        // this batch never links.
         const SET = 6;
         const list = makeList();
         list._commands = [[SET, false, [1, 2, 3]]];
@@ -284,7 +278,7 @@ describe("applyCommands — LINK", () => {
     test("adds a cached record to records and _currentIds", () => {
         const list = makeList();
         const rec = { resId: 9, _virtualId: null, activeFields: {}, data: {} };
-        list._cache[9] = rec;
+        list._cache.set(9, rec);
 
         applyCommands(list, [[LINK, 9, { id: 9, display_name: "Rec 9" }]]);
 
@@ -384,7 +378,7 @@ describe("applyCommands — UPDATE", () => {
 
         applyCommands(list, [[UPDATE, 99, { name: "Ghost" }]]);
 
-        expect(list._unknownRecordCommands[99]).toEqual([
+        expect(list._unknownRecordCommands.get(99)).toEqual([
             [UPDATE, 99, { name: "Ghost" }],
         ]);
     });
@@ -403,7 +397,7 @@ describe("applyCommands — UPDATE", () => {
         applyCommands(list, [[UPDATE, 20, { name: "Updated", lines: [[5, 0, 0]] }]]);
 
         expect(record.data.name).toBe("Updated");
-        expect(list._unknownRecordCommands[20]).toEqual([
+        expect(list._unknownRecordCommands.get(20)).toEqual([
             [UPDATE, 20, { lines: [[5, 0, 0]] }],
         ]);
     });
@@ -419,14 +413,14 @@ describe("applyCommands — UPDATE", () => {
 
         applyCommands(list, [[UPDATE, 20, { name: "First", lines: [[5, 0, 0]] }]]);
         expect(record.data.name).toBe("First");
-        expect(list._unknownRecordCommands[20]).toEqual([
+        expect(list._unknownRecordCommands.get(20)).toEqual([
             [UPDATE, 20, { lines: [[5, 0, 0]] }],
         ]);
         expect(list._loadingStubIds.has(20)).toBe(false);
 
         applyCommands(list, [[UPDATE, 20, { name: "Second" }]]);
         expect(record.data.name).toBe("Second");
-        expect(list._unknownRecordCommands[20]).toEqual([
+        expect(list._unknownRecordCommands.get(20)).toEqual([
             [UPDATE, 20, { lines: [[5, 0, 0]] }],
         ]);
     });
@@ -516,11 +510,6 @@ describe("applyCommands — CREATE", () => {
 });
 
 describe("applyCommands — re-adding within one batch", () => {
-    // Found by mutation: deleting `readdedIds.delete(id)` from the removal
-    // handler broke nothing in 805 model tests. `readdedIds` is per-batch, so
-    // only a LINK/UNLINK/LINK sequence inside ONE call reaches the interaction:
-    // the second LINK is skipped unless the removal forgot the first one, and
-    // the batch then drops the single remaining entry as the pending removal.
     test("LINK, UNLINK then LINK again on the same id keeps the record", () => {
         const list = makeList();
 
@@ -563,7 +552,7 @@ describe("applyCommands — command log integrity", () => {
         };
         list.records.push(fakeVirtual);
         list._currentIds.push("virtual_1");
-        list._cache["virtual_1"] = fakeVirtual;
+        list._cache.set("virtual_1", fakeVirtual);
 
         applyCommands(list, [[DELETE, 1]]);
 
@@ -594,15 +583,15 @@ describe("applyCommands — command log integrity", () => {
     test("DELETE/UNLINK prunes stashed _unknownRecordCommands for that id", () => {
         const list = makeList();
         applyCommands(list, [[UPDATE, 99, { name: "stashed" }]]);
-        expect(99 in list._unknownRecordCommands).toBe(true);
+        expect(list._unknownRecordCommands.has(99)).toBe(true);
 
         applyCommands(list, [[DELETE, 99]]);
-        expect(99 in list._unknownRecordCommands).toBe(false);
+        expect(list._unknownRecordCommands.has(99)).toBe(false);
 
         applyCommands(list, [[UPDATE, 77, { name: "stashed" }]]);
-        expect(77 in list._unknownRecordCommands).toBe(true);
+        expect(list._unknownRecordCommands.has(77)).toBe(true);
         applyCommands(list, [[UNLINK, 77]]);
-        expect(77 in list._unknownRecordCommands).toBe(false);
+        expect(list._unknownRecordCommands.has(77)).toBe(false);
     });
 });
 
@@ -646,7 +635,7 @@ describe("applyCommands — SET and CLEAR", () => {
 
         expect(list._currentIds).toEqual([1]);
         expect(list.count).toBe(1);
-        expect(list._cache[1].data.name).toBe("kept");
+        expect(list._cache.get(1).data.name).toBe("kept");
         expect(list._commands).toEqual([
             [CLEAR, false, false],
             [LINK, 1, false],
@@ -723,9 +712,9 @@ describe("applyCommands — record loading", () => {
             [LINK, 3],
         ]);
 
-        expect(list._cache[1].data).toEqual({ id: 1, name: "One" });
-        expect(list._cache[3].data).toEqual({ id: 3, name: "Three" });
-        expect(list._cache[2].data.id).toBe(2);
-        expect(list._cache[2].data.name).toBe(undefined);
+        expect(list._cache.get(1).data).toEqual({ id: 1, name: "One" });
+        expect(list._cache.get(3).data).toEqual({ id: 3, name: "Three" });
+        expect(list._cache.get(2).data.id).toBe(2);
+        expect(list._cache.get(2).data.name).toBe(undefined);
     });
 });

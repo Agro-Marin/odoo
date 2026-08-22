@@ -1332,8 +1332,6 @@ test("dynamic date<->datetime switch recomputes min/max with the NEW type", asyn
 
 test.tags("desktop");
 test("range with no end: end time defaults to start + 1h, not to the current time", async () => {
-    // `beforeEach` mocks the clock at 12:45, deliberately far from the start
-    // hour below, so a wall-clock-derived default is distinguishable.
     await mountWithCleanup(DateTimePicker, {
         props: {
             value: [DateTime.fromObject({ day: 5, hour: 3, minute: 0 }), false],
@@ -1359,9 +1357,6 @@ test("range with no end: start at 23h clamps the end time instead of wrapping", 
 
 test.tags("desktop");
 test("grid refreshes when isDateValid / dayCellClass change their answer", async () => {
-    // The rental date picker's shape: stable callbacks (a bound method, an
-    // arrow) closing over data that lands after mount. Keying the grid cache on
-    // their identity froze the first answer forever.
     const rules = { blockedWeekday: null };
     await mountWithCleanup(DateTimePicker, {
         props: {
@@ -1376,7 +1371,6 @@ test("grid refreshes when isDateValid / dayCellClass change their answer", async
     expect(".o_blocked").toHaveCount(0);
 
     rules.blockedWeekday = 6;
-    // Any re-render must pick the new answer up; hovering is the cheapest one.
     await hover(getPickerCell("10"));
     await animationFrame();
 
@@ -1384,12 +1378,41 @@ test("grid refreshes when isDateValid / dayCellClass change their answer", async
     expect(".o_blocked").toHaveCount(6);
 });
 
+test.tags("desktop");
+test("hovering re-asks the day callbacks without rebuilding the grid", async () => {
+    /** @type {any[]} */
+    const asked = [];
+    await mountWithCleanup(DateTimePicker, {
+        props: {
+            type: "date",
+            range: true,
+            value: [DateTime.fromObject({ day: 5 }), false],
+            focusedDateIndex: 1,
+            dayCellClass: (/** @type {any} */ date) => {
+                asked.push(date);
+                return "";
+            },
+        },
+    });
+
+    const firstPass = asked.length;
+    expect(firstPass).toBeGreaterThan(41);
+
+    await hover(getPickerCell("10"));
+    await animationFrame();
+
+    // The callback is an answer, not an identity: it has to be re-asked on
+    // every render, and the pinned test above depends on that.
+    expect(asked.length).toBeGreaterThan(firstPass);
+    // But it must be re-asked about the SAME DateTime objects -- identity here
+    // is the observable proof that the 42-cell skeleton was reused rather than
+    // rebuilt (each rebuild allocates a fresh `plus()`, `endOf("day")` and
+    // `toISODate()` per cell).
+    expect(asked[firstPass]).toBe(asked[0]);
+    expect(asked[firstPass + 41]).toBe(asked[41]);
+});
+
 test("without isDateValid every in-month day stays selectable", async () => {
-    // `isValid` was `isInRange(...) && isDateValid?.(day)`, which yields
-    // `undefined` when the callback is absent -- correct only because
-    // `toDateItem`'s parameter default rescued it two functions away. Pinned so
-    // that giving that parameter an explicit default cannot silently make every
-    // day in every picker unselectable.
     await mountWithCleanup(DateTimePicker, { props: { type: "date" } });
 
     const cells = queryAll(".o_date_item_cell:not(.o_out_of_range)");
@@ -1399,10 +1422,6 @@ test("without isDateValid every in-month day stays selectable", async () => {
 });
 
 test("the day grid restates today after the clock crosses midnight", async () => {
-    // The grid is memoised on the props it is built from, and "today" is not
-    // one of them: it comes from the clock. A picker left open overnight went
-    // on marking yesterday, and only a picker with `dayCellClass` or
-    // `isDateValid` -- which opts out of the memo entirely -- got it right.
     mockDate("2023-04-25T12:00:00");
     const picker = await mountWithCleanup(DateTimePicker, {
         props: { type: "date" },
@@ -1432,8 +1451,6 @@ test("a render that does not move the value leaves the browsed month alone", asy
     await animationFrame();
     expect(".o_datetime_picker_header").toHaveText(/May 2023/i);
 
-    // A parent that re-renders for its own reasons hands over the same value.
-    // What the user browsed to is theirs until the value itself moves.
     parent.state.tick++;
     await animationFrame();
     expect(".o_datetime_picker_header").toHaveText(/May 2023/i);

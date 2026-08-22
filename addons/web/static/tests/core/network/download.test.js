@@ -121,9 +121,6 @@ test("handles success download", async () => {
 });
 
 test("a FileReader failure rejects instead of hanging forever", async () => {
-    // `load` is not the reader's only terminal state. With `error`/`abort`
-    // unhandled, a body that could not be decoded settled the promise neither
-    // way and the caller waited for the lifetime of the page.
     mockFetch(() => new Blob(["boom"], { type: "text/html" }));
     patchWithCleanup(FileReader.prototype, {
         readAsText() {

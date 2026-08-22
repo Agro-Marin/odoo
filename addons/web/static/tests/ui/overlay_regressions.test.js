@@ -57,9 +57,6 @@ class DialogContent extends Component {
     static props = ["*"];
 }
 
-// A bottom sheet used to push a bare history entry, so dismissing one looked
-// like a browser navigation: the webclient re-ran loadState and refetched the
-// records behind the sheet.
 test.tags("mobile");
 test("closing a mobile dropdown does not reload the action behind it", async () => {
     mockTouch(true);
@@ -82,8 +79,6 @@ test("closing a mobile dropdown does not reload the action behind it", async () 
     const controllerBefore = getService("action").currentController?.jsId;
 
     recording = true;
-    // The first .o-dropdown of this layout is not visible; take the one that
-    // actually produces a sheet.
     for (const toggle of queryAll(".o-dropdown")) {
         toggle.click();
         await animationFrame();
@@ -106,9 +101,6 @@ test("closing a mobile dropdown does not reload the action behind it", async () 
     expect(getService("action").currentController?.jsId).toBe(controllerBefore);
 });
 
-// usePopover used to resolve its backend once, in setup(). Its only caller
-// derives the choice from a media query, and a breakpoint change does not
-// remount a component — so a rotated tablet kept opening desktop popovers.
 let wantSheet = false;
 class SheetHost extends Component {
     static template = xml`<div class="host"/>`;
@@ -130,7 +122,6 @@ test("usePopover re-reads useBottomSheet on every open", async () => {
     host.popover.close();
     await animationFrame();
 
-    // The screen got small after setup ran.
     wantSheet = true;
     host.popover.open(queryOne(".host"), {});
     await animationFrame();
@@ -170,9 +161,6 @@ test("Dropdown follows the breakpoint without being remounted", async () => {
     expect(".o_bottom_sheet").toHaveCount(1);
 });
 
-// Every Popover used to install its own document-wide subtree MutationObserver
-// just to notice its anchor leaving the DOM. Tooltips open popovers on hover,
-// so ordinary mouse travel armed and disarmed one per hovered element.
 test("popovers share one detached-target observer per root", async () => {
     await makeMockEnv();
     class Host extends Component {
@@ -185,9 +173,6 @@ test("popovers share one detached-target observer per root", async () => {
     await mountWithCleanup(Host);
     expect(getDetachedTargetObserverCount()).toBe(0);
 
-    // Counting live map entries is not enough: a per-watcher observer that
-    // overwrites its map slot would leave the count at 1 while still taxing
-    // every DOM mutation three times over. Count the observe() calls.
     let observeCalls = 0;
     let disconnectCalls = 0;
     const Native = MutationObserver;
@@ -239,8 +224,6 @@ test("a popover still closes when its target leaves the DOM", async () => {
     expect.verifySteps(["closed"]);
 });
 
-// The rainbow man closed on any body click, so the documented custom-Component
-// API could not hold anything the user was meant to interact with.
 test("a hosted rainbowman component keeps its clicks", async () => {
     class Hosted extends Component {
         static template = xml`<button class="rm-btn" t-on-click="onClick">go</button>`;
@@ -264,7 +247,6 @@ test("a hosted rainbowman component keeps its clicks", async () => {
     await animationFrame();
     expect.verifySteps(["button"]);
 
-    // Clicking outside the card still dismisses it.
     document.body.click();
     await animationFrame();
     expect.verifySteps(["closed"]);
@@ -285,9 +267,6 @@ test("a message-only rainbowman still closes on any click", async () => {
     expect.verifySteps(["closed"]);
 });
 
-// A dialog stays mounted until its onClose settles (a button action reloading
-// the view keeps it up on purpose), but the wait used to be invisible and every
-// further click on the close button was swallowed by the re-entrancy guard.
 test.tags("desktop");
 test("a dialog waiting on a slow onClose says so instead of looking stuck", async () => {
     await makeMockEnv();
@@ -316,9 +295,6 @@ test("a dialog waiting on a slow onClose says so instead of looking stuck", asyn
     expect(".o_dialog").toHaveCount(0);
 });
 
-// The footer buttons are declared in ConfirmationDialog's own template; the
-// disabled state that guards against double submits belongs there too, not in
-// a querySelectorAll over the rendered modal.
 test.tags("desktop");
 test("confirmation dialog disables its buttons declaratively", async () => {
     await makeMockEnv();
@@ -356,8 +332,6 @@ test("a popstate that does not move the page leaves popovers open", async () => 
     await animationFrame();
     expect(".o_popover").toHaveCount(1);
 
-    // What router.pushEphemeral/releaseEphemeral produce: same URL, so the user
-    // never left the page and the popover has no reason to collapse.
     window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
     await animationFrame();
     expect(".o_popover").toHaveCount(1);
@@ -377,13 +351,6 @@ test("unblocking more than blocking does not broadcast a phantom unblock", async
 });
 
 test("the overlay presenter reads each option getter exactly once", async () => {
-    // Options describe the moment of opening. makePopover takes care to hand
-    // them over without spreading, but the presenter reads them here and gives
-    // the overlay a plain snapshot -- so a caller writing `get class()` to
-    // follow live state gets the value it had when the overlay was added, and
-    // nothing after that.
-    // Both mapping paths are covered: `class` is a shared option the presenter
-    // maps itself, `position` reaches the props through the caller's toProps.
     let classReads = 0;
     let positionReads = 0;
     /** @type {any[]} */
@@ -423,12 +390,6 @@ test("the overlay presenter reads each option getter exactly once", async () => 
     expect(positionReads).toBe(1);
 });
 
-// `usePopover({ useBottomSheet })` routes one call to either presenter, so a
-// component hosted by them must get the same `close` either way. `web.Popover`
-// hands over the presenter's own `close` untouched; `web.BottomSheet` has to
-// intercept it to play the slide-out first, and used to drop the arguments on
-// the floor — so the very callers that pass a result back through `close(...)`
-// got `undefined` on exactly the breakpoints that produce a sheet.
 class ClosingContent extends Component {
     static template = xml`<button class="closer" t-on-click="() => this.props.close({ answer: 42 })">x</button>`;
     static props = ["*"];
@@ -490,11 +451,6 @@ test("a popover forwards its hosted component's close parameters", async () => {
     expect(seen).toEqual([{ answer: 42 }]);
 });
 
-// `Popover` declared a `slots` prop its template never rendered, so slotted
-// content vanished with no error. The prop is gone rather than implemented: the
-// overlay presenter is the only thing that ever builds a Popover and it always
-// passes `component`, so rendering a slot would only have traded a loud
-// validation error for a silently empty popover.
 test("a slotted popover is rejected rather than silently empty", async () => {
     await makeMockEnv();
     class SlotHost extends Component {
@@ -521,11 +477,7 @@ test("a slotted popover is rejected rather than silently empty", async () => {
     expect(".slotted").toHaveCount(0);
 });
 
-// The presenters share one options object (`usePopover({ useBottomSheet })`
-// picks between them at open time), so every option they both accept is mapped
-// once, in the presenter. These pin the mappings that used to be duplicated per
-// service and could drift apart.
-test("both presenters honour the popoverClass alias and the class option", async () => {
+test("both presenters honour the class alias and the class option", async () => {
     await makeMockEnv();
     await mountWithCleanup(MainComponentsContainer);
     class Host extends Component {
@@ -540,7 +492,7 @@ test("both presenters honour the popoverClass alias and the class option", async
         Content,
         {},
         {
-            popoverClass: "via-alias",
+            class: "via-alias",
         },
     );
     await animationFrame();
@@ -553,11 +505,6 @@ test("both presenters honour the popoverClass alias and the class option", async
     expect(".o_popover.via-class").toHaveCount(1);
 });
 
-// A default that lived in `popover_service` reached only popovers opened
-// through the service, so a <Popover> written in a template trapped no focus
-// while the <BottomSheet> it is interchangeable with did.
-// `useActiveElement` deliberately declines to claim a region nothing inside can
-// be focused, so both of these need focusable content to mean anything.
 class FocusableContent extends Component {
     static template = xml`<div class="popover-content"><button class="in">i</button></div>`;
     static props = ["*"];
@@ -590,7 +537,6 @@ test("Dropdown can still opt out of claiming the UI", async () => {
     await mountWithCleanup(Host);
     const anchor = queryOne(".anchor");
 
-    // Same content, so the only difference is the option under test.
     const close = getService("popover").add(anchor, FocusableContent, {}, {});
     await animationFrame();
     await animationFrame();
@@ -611,8 +557,6 @@ test("Dropdown can still opt out of claiming the UI", async () => {
     expect(getService("ui").activeElement).toBe(document);
 });
 
-// Removal awaits the caller's onClose, so the hook's close() is the only handle
-// on "the popover is actually gone". It discarded the promise.
 test("the popover hook hands back an awaitable close", async () => {
     await makeMockEnv();
     await mountWithCleanup(MainComponentsContainer);
@@ -644,9 +588,6 @@ test("the popover hook hands back an awaitable close", async () => {
     expect(order).toEqual(["onClose", "awaited"]);
 });
 
-// A target watched while still detached had its observer bound to the orphan
-// subtree, which nothing mutates again -- so the removal that mattered, once it
-// was in the page, never reached the watcher.
 test("a target watched before it is attached still reports its removal", async () => {
     const orphan = document.createElement("div");
     let detached = 0;

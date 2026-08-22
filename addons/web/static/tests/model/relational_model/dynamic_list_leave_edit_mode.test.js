@@ -1,16 +1,5 @@
 // @ts-check
 
-/**
- * Unit tests for DynamicList.leaveEditMode: the validate/abandon/save
- * decision tree runs inside ``model.mutex`` (``_leaveEditMode``, mirroring
- * StaticList.leaveEditMode), with a mutex-external ``_askChanges`` prelude.
- * Inside the critical section only ``_``-prefixed record internals may run —
- * the public save/discard/checkValidity re-take the mutex and would deadlock.
- *
- * Uses ``Object.create(DynamicList.prototype)`` with hand-built state,
- * mirroring dynamic_group_list_move.test.js.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { Deferred } from "@odoo/hoot-mock";
 import { Mutex } from "@web/core/utils/concurrency";

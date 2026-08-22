@@ -40,8 +40,6 @@ onRpc("has_group", () => true);
 defineModels([Partner, Turtle]);
 
 /**
- * Type `value` into the tags autocomplete and take the auto-selected option.
- *
  * @param {string} value
  */
 async function addTag(value) {
@@ -68,14 +66,6 @@ test("widget many2many_tags_avatar", async () => {
     expect(queryAllTexts("[name='partner_ids'] .o_tag")).toEqual([]);
     expect("[name='partner_ids'] .o_input_dropdown input").toHaveValue("");
 
-    // Type, let the debounced search resolve, *then* confirm -- the order
-    // `@web/fields/relational/many2x_autocomplete` uses throughout. `fill`
-    // confirms by default, which sent Enter while the search was still in
-    // flight: `autoSelect` had no option to take yet, so the tag was not
-    // created, and the option resolved by the following `runAllTimers` was
-    // instead committed by the *next* interaction. Each assertion then read the
-    // previous step's result and the pair looked like an off-by-one in the
-    // widget.
     await addTag("first record");
     expect(queryAllTexts("[name='partner_ids'] .o_tag")).toEqual(["first record"]);
     expect("[name='partner_ids'] .o_input_dropdown input").toHaveValue("");
@@ -477,9 +467,6 @@ test("Many2ManyTagsAvatarField: make sure that the arch context is passed to the
 
 test.tags("desktop");
 test("options declared on the field reach the embedded autocomplete", async () => {
-    // The avatar template used to spell its own Many2XAutocomplete prop list,
-    // and quietly omitted the ones the base template passed: `search_threshold`
-    // and `create_name_field` were declared, extracted into props, and dropped.
     onRpc("web_name_search", () => expect.step("web_name_search"));
     await mountView({
         type: "form",
@@ -508,8 +495,6 @@ test("options declared on the field reach the embedded autocomplete", async () =
 
 test.tags("desktop");
 test("create_name_field reaches the embedded autocomplete on the avatar widget", async () => {
-    // A non-default name: `Many2XAutocomplete` already defaults to "name", so
-    // only a value the field had to forward can be observed here.
     onRpc("partner", "onchange", ({ kwargs }) => {
         expect.step(String(kwargs.context.default_display_name));
     });

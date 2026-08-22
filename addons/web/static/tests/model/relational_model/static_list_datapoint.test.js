@@ -1,18 +1,5 @@
 // @ts-check
 
-/**
- * Tests two StaticList datapoint-lifecycle fixes:
- *  - ``extendRecord`` keeps the extended record's ``config.fields`` identical to
- *    the list's live ``fields`` object, not a caller/param snapshot, so mutations
- *    don't diverge.
- *  - ``_createRecordDatapoint`` merges into (never replaces) a cached datapoint
- *    with pending ``_changes``, so a restricted-field reload (e.g. ``sort()``)
- *    doesn't drop them.
- *
- * Uses ``Object.create(StaticList.prototype)`` against a hand-built state,
- * mirroring static_list_pending_commands.test.js.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { markRaw } from "@odoo/owl";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
@@ -25,7 +12,6 @@ describe("extendRecord fields identity", () => {
         const listFields = { display_name: { type: "char", name: "display_name" } };
         const list = Object.create(StaticList.prototype);
         Object.assign(list, {
-            // Membership owner first: the keys below write through its accessors.
             _membership: new ListMembership(),
             _config: {
                 activeFields: { display_name: makeActiveField() },
@@ -65,7 +51,6 @@ describe("extendRecord fields identity", () => {
     });
 });
 
-/** Minimal fake Record class for the clean-replacement path. */
 class FakeRecord {
     constructor(model, config, data, options) {
         this.config = config;
@@ -81,7 +66,6 @@ class FakeRecord {
 function makeBareList() {
     const list = Object.create(StaticList.prototype);
     Object.assign(list, {
-        // Membership owner first: the keys below write through its accessors.
         _membership: new ListMembership(),
         _config: {
             activeFields: {},
@@ -90,8 +74,8 @@ function makeBareList() {
             context: {},
             relationField: false,
         },
-        _cache: markRaw({}),
-        _unknownRecordCommands: {},
+        _cache: markRaw(new Map()),
+        _unknownRecordCommands: new Map(),
         _parent: {},
         model: { Class: { Record: FakeRecord } },
     });
@@ -112,7 +96,7 @@ describe("_createRecordDatapoint dirty-merge guard", () => {
                 this.appliedWith = data;
             },
         };
-        list._cache[1] = dirty;
+        list._cache.set(1, dirty);
 
         const out = list._createRecordDatapoint(
             { id: 1, name: "reloaded" },
@@ -120,7 +104,7 @@ describe("_createRecordDatapoint dirty-merge guard", () => {
         );
 
         expect(out).toBe(dirty);
-        expect(list._cache[1]).toBe(dirty);
+        expect(list._cache.get(1)).toBe(dirty);
         expect(dirty._changes.child_ids).toBe("PENDING_UPDATE");
         expect(dirty.appliedWith).toEqual({ id: 1, name: "reloaded" });
     });
@@ -136,13 +120,13 @@ describe("_createRecordDatapoint dirty-merge guard", () => {
                 throw new Error("clean records must be replaced, not merged");
             },
         };
-        list._cache[2] = clean;
+        list._cache.set(2, clean);
 
         const out = list._createRecordDatapoint({ id: 2, name: "Y" });
 
         expect(out).not.toBe(clean);
         expect(out.constructedByClass).toBe(true);
-        expect(list._cache[2]).toBe(out);
+        expect(list._cache.get(2)).toBe(out);
     });
 });
 
@@ -150,7 +134,6 @@ describe("sort restricted-field reload preserves dirty datapoint", () => {
     test("dirty record keeps its _changes across a sort reload", async () => {
         const list = Object.create(StaticList.prototype);
         Object.assign(list, {
-            // Membership owner first: the keys below write through its accessors.
             _membership: new ListMembership(),
             _config: {
                 activeFields: { name: makeActiveField(), other: makeActiveField() },
@@ -159,8 +142,8 @@ describe("sort restricted-field reload preserves dirty datapoint", () => {
                 context: {},
                 orderBy: [],
             },
-            _cache: markRaw({}),
-            _unknownRecordCommands: {},
+            _cache: markRaw(new Map()),
+            _unknownRecordCommands: new Map(),
             _parent: {},
             _needsReordering: true,
             model: {
@@ -183,28 +166,20 @@ describe("sort restricted-field reload preserves dirty datapoint", () => {
                 Object.assign(this.data, data);
             },
         };
-        list._cache[1] = dirty;
+        list._cache.set(1, dirty);
 
         await sort(list, [1], [{ name: "name", asc: true }]);
 
-        expect(list._cache[1]).toBe(dirty);
+        expect(list._cache.get(1)).toBe(dirty);
         expect(dirty._changes.other).toBe("PENDING_UPDATE");
         expect(dirty.data.name).toBe("A");
         expect(list._loadCalled).toBe(true);
     });
 });
 
-/**
- * Bare StaticList with no collaborator methods defined at all: if
- * _duplicateRecords fails to short-circuit on its early-return guard, it
- * calls one of them (e.g. `this._createNewRecordDatapoint`) and that throws
- * "is not a function" — the natural signal that the guard didn't hold,
- * with no manual instrumentation needed.
- */
 function makeBareStaticList({ records = [], handleField = "sequence" } = {}) {
     const list = Object.create(StaticList.prototype);
     Object.assign(list, {
-        // Membership owner first: the keys below write through its accessors.
         _membership: new ListMembership(),
         records,
         handleField,

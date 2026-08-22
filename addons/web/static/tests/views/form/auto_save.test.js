@@ -665,12 +665,6 @@ test("save on closing tab/browser (pending change)", async () => {
 });
 
 test("save on closing tab/browser (onchanges + pending change)", async () => {
-    // `trim: false` is what makes the name honest: `Char.trim` defaults to
-    // true (as in the ORM) and the widget enforces it client-side, so a plain
-    // `fields.Char()` would hand the record "John Doe" and the trailing space
-    // this test writes could never reach the beacon. What is under test here
-    // is the urgent-save flush, not the trim contract — that has its own
-    // coverage in `char_field.test.js` / `text_field.test.js`.
     Partner._fields.unformatted_name = fields.Char({ trim: false });
     Partner._onChanges = {
         unformatted_name(record) {

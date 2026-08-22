@@ -8,11 +8,6 @@ import { session } from "@web/session";
 
 describe.current.tags("headless");
 
-/**
- * The over-limit branch builds a notification via ``humanNumber``, which reads
- * ``localization.decimalPoint`` — unset in the headless unit harness. Seed it
- * (and translations) so the message can be formatted.
- */
 function enableFormatting() {
     allowTranslations();
     patchWithCleanup(localization, {
@@ -23,8 +18,6 @@ function enableFormatting() {
 }
 
 /**
- * Minimal notification-service double capturing ``add`` calls.
- *
  * @returns {{ add: (message: string, options?: any) => () => void, calls: {message: string, options: any}[] }}
  */
 function makeNotification() {

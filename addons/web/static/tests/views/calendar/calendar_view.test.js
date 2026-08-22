@@ -303,10 +303,9 @@ onRpc("has_group", () => true);
  * @param {import("@odoo/hoot-dom").Target} from
  * @param {import("@odoo/hoot-dom").Target} to
  * @param {{
- *  start: "top" | "center" | "bottom";
- *  end: "top" | "center" | "bottom";
- * }} [positions] specify where the touches will occur in the start and end elements
- *  (default: `"center"` for both)
+ * start: "top" | "center" | "bottom";
+ * end: "top" | "center" | "bottom";
+ * }} [positions]
  * @returns {Promise<void>}
  */
 async function selectRange(from, to, positions) {
@@ -378,11 +377,6 @@ function expectEventToBeOver(eventSelector, ranges) {
     expect(result).toBe(true);
 }
 
-/**
- * FC v7 renders day-grid events with ~1.5-4px of visual margin past the
- * nominal cell width (measured in headless Chrome); the fork's pre-v7
- * pixel-perfect assertions need this tolerance to survive the upgrade.
- */
 const FC_V7_EVENT_MARGIN_PX = 12;
 
 const checkFilterItems = async (amount) => {

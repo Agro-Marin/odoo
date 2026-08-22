@@ -46,9 +46,6 @@ function makeTranslationsResult({ hash = "hash1", messages = [] } = {}) {
  */
 function mockLocalizationDB({
     read = async () => undefined,
-    // `async`, like the real `IndexedDB.write`. A stub returning `undefined`
-    // silently narrows the contract: callers that chain off the write (to know
-    // when it actually landed) blow up only in tests.
     write = async () => {},
 } = {}) {
     patchWithCleanup(IndexedDB.prototype, { read, write });
@@ -142,11 +139,6 @@ test("fetch lang, Luxon locale, and localization.code share one source", async (
 });
 
 test("the localStorage cache marker is set only after the IndexedDB write lands", async () => {
-    // The marker tells the parse-time preload script in `web.webclient_bootstrap`
-    // that IndexedDB holds these translations, so it skips its early fetch.
-    // Setting it beside a fire-and-forget write can leave marker-present +
-    // IndexedDB-empty, and the next cold boot then pays a fully serialized
-    // translation fetch — the exact cost the cache exists to avoid.
     browser.localStorage.removeItem("webclient_translations_version");
     /** @type {string[]} */
     const order = [];
@@ -179,10 +171,6 @@ test("the localStorage cache marker is set only after the IndexedDB write lands"
 });
 
 test("applyLuxonLocale moves the locale and its numbering system together", () => {
-    // luxon takes the digits from `defaultNumberingSystem` and everything else
-    // from `defaultLocale`: a caller that re-points one without the other — as
-    // the public boot did when overriding the session language with the
-    // frontend one — renders an English page's dates in Arabic-Indic digits.
     patchWithCleanup(Settings, {
         defaultLocale: "ar-001",
         defaultNumberingSystem: "arab",
@@ -197,16 +185,12 @@ test("applyLuxonLocale moves the locale and its numbering system together", () =
 });
 
 /**
- * Pins the language the service resolves, by intercepting the request it makes.
- *
  * @param {{ isFrontend?: boolean, cookieLang?: string, htmlLang?: string }} setup
  * @returns {Promise<void>}
  */
 async function bootWith({ isFrontend, cookieLang, htmlLang }) {
     mockLocalizationDB();
     patchWithCleanup(session, { is_frontend: isFrontend });
-    // the browser language is deliberately one that is neither the cookie's nor
-    // the <html lang>'s, and whose numbering system is not latn
     patchWithCleanup(browser, {
         navigator: { ...browser.navigator, language: "ar-SA" },
     });
@@ -237,9 +221,6 @@ async function bootWith({ isFrontend, cookieLang, htmlLang }) {
 describe("the language a page is rendered in", () => {
     test("a frontend page follows the frontend_lang cookie, not the browser", async () => {
         await bootWith({ isFrontend: true, cookieLang: "en_US" });
-        // used to fall through to navigator.language on the login/portal pages,
-        // which render no <html lang> and carry no user_context: an English page
-        // fetched — and cached under — the visitor's browser language
         expect.verifySteps(["lang=en_US"]);
         expect(localization.code).toBe("en_US");
         expect(Settings.defaultLocale).toBe("en-US");
@@ -260,8 +241,6 @@ describe("the language a page is rendered in", () => {
     });
 
     test("the backend ignores the frontend_lang cookie", async () => {
-        // the cookie is set on the same host by any frontend visit; the backend
-        // must keep following the session user's language
         await bootWith({ isFrontend: false, cookieLang: "fr_FR" });
         expect.verifySteps(["lang=en"]);
     });

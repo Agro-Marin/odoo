@@ -1,20 +1,5 @@
 // @ts-check
 
-/**
- * `relational_model_contract.js` names what a datapoint may ask of its model.
- * Nothing checks a hand-written list against the class it describes, so a rename
- * in `RelationalModel` would leave the contract naming a member that no longer
- * exists — and every datapoint annotated with it would be typechecked against a
- * fiction.
- *
- * Split by half, for the same reason as the static-list suite. The `_` half is
- * operations and lives on the prototype, so it can be checked without an
- * instance. The public half is mostly per-instance state (`mutex`, `orm`,
- * `root`, `hooks`), which the prototype does not carry at all — those need a
- * constructed model, so they are checked against one built the way
- * `record_doubles_conformance` builds a real record.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { Mutex } from "@web/core/utils/concurrency";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
@@ -25,7 +10,6 @@ describe.current.tags("headless");
 const PRIVATE = RELATIONAL_MODEL_SURFACE.filter((k) => k.startsWith("_"));
 const PUBLIC = RELATIONAL_MODEL_SURFACE.filter((k) => !k.startsWith("_"));
 
-/** A real RelationalModel, built against the smallest possible config. */
 function makeRealModel() {
     return new RelationalModel(
         /** @type {any} */ ({ services: {}, bus: { addEventListener() {} } }),
@@ -67,12 +51,67 @@ describe("the RelationalModel contract and the class agree", () => {
     });
 
     test("control: the members really are what the contract claims", () => {
-        // Without this the two tests above pass on an empty list, and on a
-        // model whose members are all undefined.
         expect(PRIVATE.length).toBeGreaterThan(5);
         expect(PUBLIC.length).toBeGreaterThan(10);
         expect(makeRealModel().mutex).toBeInstanceOf(Mutex, {
             message: "`mutex` is the concurrency primitive datapoints serialise on",
         });
+    });
+});
+
+describe("the contract's declared SHAPES, which a name check cannot see", () => {
+    test("_reloadWithConfig calls `commit` — it is a function, not a flag", async () => {
+        const model = makeRealModel();
+        const loaded = { records: [{ id: 1 }], length: 1 };
+        /** @type {any[]} */
+        const received = [];
+        model._loadData = async () => loaded;
+        model._patchConfig = (/** @type {any} */ c, /** @type {any} */ p) =>
+            Object.assign(c, p);
+
+        await model._reloadWithConfig(
+            /** @type {any} */ ({ isRoot: false, activeFields: {}, fields: {} }),
+            {},
+            { commit: (data) => received.push(data) },
+        );
+
+        expect(received).toEqual([loaded], {
+            message: "`commit` must be invoked with the loaded data",
+        });
+    });
+
+    test("_loadRecords accepts the cache and signal it declares", async () => {
+        const model = makeRealModel();
+        /** @type {any[]} */
+        const seen = [];
+        model.orm = /** @type {any} */ ({
+            cache: (/** @type {any} */ c) => {
+                seen.push(["cache", c]);
+                return model.orm;
+            },
+            withSignal: (/** @type {any} */ sg) => {
+                seen.push(["signal", Boolean(sg)]);
+                return model.orm;
+            },
+            webRead: async () => [{ id: 1 }],
+        });
+        const controller = new AbortController();
+        await model._loadRecords(
+            /** @type {any} */ ({
+                resModel: "line",
+                resId: 1,
+                activeFields: { name: { context: "{}", invisible: "False" } },
+                fields: { name: { name: "name", type: "char" } },
+                context: {},
+            }),
+            {},
+            { type: "disk" },
+            controller.signal,
+        );
+
+        expect(seen).toEqual([
+            ["cache", { type: "disk" }],
+            ["signal", true],
+        ]);
     });
 });

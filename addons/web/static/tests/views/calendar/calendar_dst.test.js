@@ -15,20 +15,6 @@ import {
 import { IANAZone, Settings } from "@web/core/l10n/luxon";
 import { getFullCalendarTimeZone } from "@web/views/calendar/hooks/full_calendar_hook";
 
-/**
- * DST-transition coverage with a real IANA zone. The rest of the calendar
- * suite mocks fixed offsets (marker mode); these tests pin the IANA
- * passthrough path (FullCalendar `timeZone: "Europe/Brussels"`) around the
- * two European transitions:
- * - spring forward: 2024-03-31, 02:00 +01:00 -> 03:00 +02:00
- * - fall back:      2024-10-27, 03:00 +02:00 -> 02:00 +01:00
- *
- * Also pins `getFullCalendarTimeZone`'s zone classification: slash-less
- * IANA zones with working DST (CET, EET, GB, ...) must pass through by
- * name — hoot's `mockTimeZone` only accepts `Region/Location` strings, so
- * those tests patch `Settings.defaultZone` directly.
- */
-
 class Event extends models.Model {
     name = fields.Char();
     start = fields.Datetime();

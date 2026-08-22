@@ -7,17 +7,8 @@ import { webVitalsService } from "@web/core/network/web_vitals/web_vitals_servic
 
 describe.current.tags("headless");
 
-/**
- * `toBeCloseTo`'s `margin` DEFAULTS TO 1, which for CLS scores (0-5) accepts
- * essentially any value — a tolerance that silently passed these tests against
- * the very implementation they exist to reject. Always pass an explicit margin.
- */
 const TOL = 1e-9;
 
-/**
- * Minimal stand-in for `PerformanceObserver`: records what it was asked to
- * observe and lets a test push entries into the service's callback.
- */
 class FakePerformanceObserver {
     /** @type {FakePerformanceObserver[]} */
     static instances = [];
@@ -58,7 +49,6 @@ function observerFor(type) {
 }
 
 /**
- * A `layout-shift` entry as the browser reports it.
  * @param {number} startTime
  * @param {number} value
  * @param {boolean} [hadRecentInput]
@@ -92,7 +82,6 @@ afterEach(() => {
 });
 
 /**
- * Flush via `pagehide` and return the payload of the last beacon.
  * @returns {Promise<any>}
  */
 async function flush() {
@@ -102,13 +91,9 @@ async function flush() {
 }
 
 test("CLS is the largest session window, not the lifetime sum", async () => {
-    // Two bursts separated by a >1s gap. The sum is 0.8; CLS is the bigger
-    // burst, 0.6. Summing everything is what the service used to report and is
-    // unbounded across a long single-page session.
     observerFor("layout-shift").emit([
         shift(0, 0.1),
         shift(500, 0.1),
-        // >1s gap closes the first window
         shift(3000, 0.3),
         shift(3500, 0.3),
     ]);
@@ -121,8 +106,6 @@ test("CLS is the largest session window, not the lifetime sum", async () => {
 });
 
 test("a window also closes after 5s even with no 1s gap", async () => {
-    // Shifts every 900ms never open a gap, so only the 5s span cap can end the
-    // window. Without it a steady drizzle of shifts accumulates forever.
     observerFor("layout-shift").emit([
         shift(0, 0.1),
         shift(900, 0.1),
@@ -130,7 +113,6 @@ test("a window also closes after 5s even with no 1s gap", async () => {
         shift(2700, 0.1),
         shift(3600, 0.1),
         shift(4500, 0.1),
-        // 5400 - 0 >= 5000: new window despite the 900ms gap
         shift(5400, 0.1),
         shift(6300, 0.1),
     ]);
@@ -151,8 +133,6 @@ test("entries following recent input are excluded", async () => {
 });
 
 test("a page whose every shift was input-triggered reports cls: 0, not nothing", async () => {
-    // Omitting the key reads downstream as "not measured"; 0 is the real,
-    // meaningful answer.
     observerFor("layout-shift").emit([shift(0, 0.4, true), shift(100, 0.2, true)]);
 
     const payload = await flush();
@@ -168,9 +148,6 @@ test("the reported value never decreases when a later window is smaller", async 
 });
 
 test("a long session stays inside the server's accepted CLS range", async () => {
-    // `_clamp_cls` in controllers/observability.py DROPS anything above 5.0, so
-    // an accumulating total eventually stopped being recorded at all. 400 small
-    // shifts spread over an hour must still report a small windowed value.
     const entries = [];
     for (let i = 0; i < 400; i++) {
         entries.push(shift(i * 9000, 0.05));
@@ -183,8 +160,6 @@ test("a long session stays inside the server's accepted CLS range", async () => 
 });
 
 test("no beacon is sent when nothing was measured", async () => {
-    // `metrics` is empty: TTFB may be absent in the fixture and no observer
-    // fired. `flush()` must not post an payload of nothing.
     const before = beacons.length;
     browser.dispatchEvent(new Event("pagehide"));
     if (beacons.length > before) {
@@ -215,10 +190,6 @@ test("destroy detaches the observers and the page listeners", async () => {
 });
 
 test("a page with no layout shift still reports cls, rather than omitting it", async () => {
-    // A buffered PerformanceObserver never invokes its callback when no entry
-    // matches, so `cls` used to be absent here — indistinguishable downstream
-    // from "CLS was not measured", which is the confusion the unconditional
-    // assignment inside the callback exists to prevent.
     observerFor("paint").emit([{ name: "first-contentful-paint", startTime: 12 }]);
     const payload = await flush();
     expect(payload.cls).toBeCloseTo(0, { margin: TOL });

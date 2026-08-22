@@ -11648,8 +11648,6 @@ test("open a one2many record containing a one2many", async () => {
         viewId: 5,
     });
 
-    // `debug_open_view` is snapshotted at setup while `optional_fields` is read
-    // on each render, so the debug key is seen first.
     expect.verifySteps([
         "getItem: debug_open_view,partner,form,5,p,list,name",
         "getItem: optional_fields,partner,form,5,p,list,name",
@@ -11657,7 +11655,6 @@ test("open a one2many record containing a one2many", async () => {
 
     await contains(".o_data_cell").click();
     expect(".modal .o_data_row").toHaveCount(1);
-    // the outer list re-renders behind the dialog and re-reads its own key
     expect.verifySteps([
         "getItem: optional_fields,partner,form,5,p,list,name",
         "getItem: debug_open_view,partner,form,5,turtles,list,name",

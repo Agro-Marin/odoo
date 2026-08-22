@@ -1,40 +1,21 @@
 // @ts-check
 
-/**
- * ``_invalidFields`` and ``_unsetRequiredFields`` look like a set and its
- * subset. They are not, and the difference is load-bearing.
- *
- * Instrumenting ``isValid`` to throw whenever ``_unsetRequiredFields`` held a
- * field ``_invalidFields`` did not, then running the model + fields + form +
- * list suites, produced 11 failures -- every one of them raised from
- * ``useInputField``'s ``onInput``, i.e. from a user typing into a required
- * field. That is ``resetFieldValidity`` doing its job: it drops the error
- * styling on the first keystroke by deleting from ``_invalidFields`` and
- * deliberately NOT from ``_unsetRequiredFields``, which belongs to the last
- * full validity pass rather than to the display.
- *
- * So "tidying" the two into one set, or making the second a subset of the
- * first, would either keep a field marked invalid while the user is fixing it
- * or lose the pass's record of which flags are its own to clear. This test
- * pins the whole cycle so that change fails here, with a reason.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
+import { MODEL_LIFECYCLE_PROTO } from "@web/../tests/model/relational_model/model_doubles";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";
 
 describe.current.tags("headless");
 
 /**
- * A real record with one required char field.
- *
- * @param {string} [name] its value; empty means required-and-unset
+ * @param {string} [name]
  */
 function makeRecord(name = "") {
     const model = {
         Class: { Record: RelationalRecord },
         _patchConfig: (/** @type {any} */ config, /** @type {any} */ patch) =>
             Object.assign(config, patch),
+        __proto__: MODEL_LIFECYCLE_PROTO,
         hooks: { lifecycle: { onWillSetInvalidField: () => {} }, ui: {} },
     };
     const config = {
@@ -63,7 +44,6 @@ describe("the two validity sets are distinct on purpose", () => {
         expect([...record._invalidFields]).toEqual(["name"]);
         expect([...record._unsetRequiredFields]).toEqual(["name"]);
 
-        // What onInput does on the first keystroke.
         record._resetFieldValidity("name");
 
         expect([...record._invalidFields]).toEqual([], {
@@ -85,7 +65,6 @@ describe("the two validity sets are distinct on purpose", () => {
         record._resetFieldValidity("name");
         expect(record.isValid).toBe(true);
 
-        // The save path always runs a full pass.
         expect(record._checkValidity()).toBe(false);
         expect([...record._invalidFields]).toEqual(["name"]);
         expect([...record._unsetRequiredFields]).toEqual(["name"]);
@@ -95,7 +74,6 @@ describe("the two validity sets are distinct on purpose", () => {
         const record = makeRecord("filled");
         expect(record._checkValidity()).toBe(true);
 
-        // A widget rejects what was typed; the field is NOT required-unset.
         record._setInvalidFieldFlag("name");
 
         expect(record._checkValidity()).toBe(false, {

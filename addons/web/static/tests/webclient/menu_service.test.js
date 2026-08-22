@@ -20,10 +20,10 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
-import { user } from "@web/core/user";
 import { redirect } from "@web/core/utils/urls";
-import { computeAppsAndMenuItems } from "@web/webclient/menus/menu_helpers";
+import { session } from "@web/session";
 import { menuStorage } from "@web/webclient/menus/menu_storage";
+import { computeAppsAndMenuItems } from "@web/webclient/menus/menu_utils";
 
 defineActions([
     {
@@ -334,9 +334,6 @@ test(`cold boot: a null parse-time preload refetches menus (no blank client)`, a
 
 test.tags("desktop");
 test(`a preload of nothing is an opt-out, not a cache miss`, async () => {
-    // The PoS UI, the documents portal and project sharing set
-    // `odoo.loadMenusPromise = Promise.resolve()` to say the page has no menus.
-    // Treating that like the 304 above sent them the very request they declined.
     patchWithCleanup(
         odoo,
         /** @type {any} */ ({ loadMenusPromise: Promise.resolve() }),
@@ -375,10 +372,6 @@ test(`cold boot: falls back to stored menus when preload is null and refetch fai
 
 test.tags("desktop");
 test(`cold boot: another user's stored menus are never served, even as a last resort`, async () => {
-    // Same double-fetch failure as above, but the cached payload was written
-    // by a DIFFERENT user (version token user component 99, current user 7):
-    // the last-resort fallback must yield empty menus, not the other user's
-    // access-filtered tree.
     browser.localStorage.webclient_menus_version = `${CURRENT_REGISTRY_HASH}:99`;
     browser.localStorage.webclient_menus = JSON.stringify({
         1: { appID: 1, children: [], name: "OtherUserApp", id: 1, actionID: 666 },
@@ -462,9 +455,6 @@ test("the action index is rebuilt when the menu tree is reloaded", async () => {
 });
 
 test("the command palette's flattened menu list follows a reload", async () => {
-    // `menu_providers` memoizes `computeAppsAndMenuItems` on the tree object
-    // `getMenuAsTree` returns, so a stale entry would survive a reload and the
-    // palette would keep offering menus that no longer exist.
     defineMenus([
         { id: 0 },
         { id: 100, name: "Sale", appID: 100, actionID: 9001, children: [] },
@@ -495,9 +485,6 @@ test("the command palette's flattened menu list follows a reload", async () => {
 
 const CURRENT_REGISTRY_HASH =
     "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0";
-// The webclient now scopes the cache token to the current user (menu_storage
-// cacheVersion): `${registry_hash}:${user.userId}`. serverState's default
-// userId is 7, so a served-cache fixture must carry that suffix.
 const STORED_MENU_VERSION = `${CURRENT_REGISTRY_HASH}:7`;
 
 test.tags("desktop");
@@ -553,12 +540,6 @@ test(`a failed payload write closes the version gate`, async () => {
 
 test.tags("desktop");
 test("a cached menu tree with dangling child ids does not crash the consumers", async () => {
-    // `menu_storage` guarantees a corrupt *JSON* payload can never make
-    // `start()` throw, but a payload that parses and still references a menu id
-    // it does not define put `undefined` into `childrenTree` and into
-    // `getApps()` — which the command-palette walk and the navbar dereferenced.
-    // localStorage is the path that can actually deliver such a payload; the
-    // mock server normalises `serverState.menus` before it reaches the service.
     const def = new Deferred();
     redirect("/odoo/action-666");
     onRpc("/web/webclient/load_menus", () => def);
@@ -588,10 +569,6 @@ test("a cached menu tree with dangling child ids does not crash the consumers", 
 
 test.tags("desktop");
 test("a cached menu payload with no root entry degrades instead of crashing", async () => {
-    // Same class as the dangling-id case: `menu_storage` guarantees the cached
-    // copy PARSES, not that it is well-formed. Without a `root` entry every
-    // lookup starts from nothing — `getMenuAsTree("root")` returned undefined
-    // and the command-palette walk dereferenced it.
     const def = new Deferred();
     onRpc("/web/webclient/load_menus", () => def);
 
@@ -614,17 +591,19 @@ test("a cached menu payload with no root entry degrades instead of crashing", as
 
 test.tags("desktop");
 test(`menu cache is scoped per user on a shared browser`, async () => {
-    // A tree cached under the default user (serverState userId = 7).
     browser.localStorage.webclient_menus_version = STORED_MENU_VERSION;
     browser.localStorage.webclient_menus = JSON.stringify({
         1: { appID: 1, children: [], name: "UserSevenApp", id: 1, actionID: 666 },
         root: { id: "root", name: "root", appID: "root", children: [1] },
     });
-    // The same user is served the cache.
     expect(menuStorage.read().menus).not.toBe(null);
-    // A different user on the same browser must NOT be: the menu tree is
-    // access-filtered server-side, so serving it would leak apps/menus this
-    // user's groups cannot see.
-    patchWithCleanup(user, { userId: 99 });
-    expect(menuStorage.read().menus).toBe(null);
+    patchWithCleanup(session, {
+        uid: 99,
+        menus_cache_version: `${CURRENT_REGISTRY_HASH}:99`,
+    });
+    const read = menuStorage.read();
+    expect(read.menus).toBe(null);
+    expect(read.raw).toBe(null, {
+        message: "another user's payload must be discarded, not merely not served",
+    });
 });

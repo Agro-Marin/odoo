@@ -13,25 +13,6 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
 
-/**
- * WHO RUNS WHEN A DIALOG CLOSES.
- *
- * A ``target: "new"`` action replaces whatever dialog is standing, and the
- * caller of the REPLACED action is still owed its ``onClose``. So the incoming
- * dialog inherits it -- ``stolenOnClose`` from the committed dialog,
- * ``supersededOnClose`` from a pending one it displaced -- and closing the last
- * dialog has to discharge every debt, in order, exactly once. A dialog that
- * never mounts has to hand the inherited ones BACK.
- *
- * ``action_dispatch.test.js`` pins the dialog SLOTS (which of `dialog` /
- * `nextDialog` holds what, after a commit, a discard or a failure). This pins
- * the callbacks those slots carry, which is the part a user notices: an
- * ``onClose`` that reloads a list, dropped or run twice.
- *
- * Asserted through ``doAction`` and the close action only -- never against
- * ``nextDialog.stolenOnClose`` and friends, which are the bookkeeping.
- */
-
 const { ResCompany, ResPartner, ResUsers } = webModels;
 
 class Partner extends models.Model {
@@ -58,7 +39,6 @@ defineActions([
 
 describe.current.tags("desktop");
 
-/** A dialog action whose mount is held open until `def` resolves. */
 function defineSlowDialog(/** @type {any} */ tag, /** @type {any} */ def) {
     class SlowDialog extends Component {
         static template = xml`<div class="slow_dialog"/>`;
@@ -71,7 +51,6 @@ function defineSlowDialog(/** @type {any} */ tag, /** @type {any} */ def) {
     return { type: "ir.actions.client", tag, target: "new" };
 }
 
-/** A dialog action that throws on the way up. */
 function defineFailingDialog(/** @type {any} */ tag) {
     class FailingDialog extends Component {
         static template = xml`<div/>`;
@@ -102,7 +81,6 @@ test("a replacing dialog owes the replaced one's onClose too", async () => {
 
     expect.verifySteps([]);
     await closeDialog();
-    // B's own first, then the one it took over.
     expect.verifySteps(["B", "A"]);
 });
 
@@ -117,7 +95,6 @@ test("closing discharges each inherited onClose exactly once", async () => {
     await closeDialog();
     expect.verifySteps(["B", "A"]);
 
-    // Nothing is owed any more: a second close must not re-run them.
     await closeDialog();
     expect.verifySteps([]);
 });
@@ -132,11 +109,9 @@ test("a dialog superseded before mount still gets its onClose run by the winner"
     await action.doAction(3, { onClose: step("A") });
     await animationFrame();
 
-    // B is pending: it holds the `nextDialog` slot but has not mounted.
     const pending = action.doAction(slow, { onClose: step("B") });
     await animationFrame();
 
-    // C displaces B before B could commit.
     await action.doAction(3, { onClose: step("C") });
     await animationFrame();
     block.resolve();
@@ -161,9 +136,6 @@ test("a dialog that never mounts hands the inherited onClose back", async () => 
     const pending = action.doAction(slow, { onClose: step("B") });
     await animationFrame();
 
-    // C displaces B and then dies on the way up. Its OWN onClose is not owed —
-    // the action it belonged to never happened — but B's and A's still are, and
-    // the dialog still standing is A.
     const failure = await action.doAction(failing, { onClose: step("C") }).then(
         /** @returns {any} */ () => null,
         (/** @type {any} */ error) => error,
@@ -205,7 +177,6 @@ test("an onClose that throws does not swallow the ones chained after it", async 
     );
     await animationFrame();
 
-    // B threw, A still ran, and the failure reached the caller of the close.
     expect.verifySteps(["B", "A"]);
     expect(failure?.message).toMatch(/onClose boom/);
 });

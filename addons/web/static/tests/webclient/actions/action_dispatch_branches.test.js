@@ -9,27 +9,6 @@ import { SupersededError } from "@web/core/utils/concurrency";
 import { ActionDispatch } from "@web/webclient/actions/action_dispatch";
 import { NavigationTracker } from "@web/webclient/actions/navigation_token";
 
-/**
- * BRANCH COVERAGE for {@link ActionDispatch}, with NO OWL MOUNT.
- *
- * This is the payoff of extracting the transaction out of
- * ``ControllerComponent``'s lifecycle hooks: every commit / fail / discard
- * branch used to require mounting a real component and provoking a real error
- * to reach, which is why several of them had no direct coverage at all — only
- * the end-to-end consequences were asserted, from ``target.test.js`` and
- * friends. Driving the object directly reaches them in milliseconds.
- *
- * ``action_dispatch.test.js`` is the companion suite: same object, exercised
- * through a real mount, asserting only the observable surface. Keep both — this
- * one pins the branches, that one pins that the branches are wired to OWL
- * correctly.
- *
- * The fake manager is the sanctioned ``am`` seam (see "THE SIBLING CONTRACT"
- * in ``action_service.js``). ActionDispatch reaches exactly:
- *   controllerStack · dialog · navigation · nextDialog · env · pushState ·
- *   restore · settlePendingDispatch · _nextId · _pendingDispatch
- */
-
 describe.current.tags("desktop");
 
 /** @param {Object} [overrides] */
@@ -42,13 +21,9 @@ function makeFakeAm(overrides = {}) {
         dialog: /** @type {any} */ (null),
         navigation: new NavigationTracker(),
         nextDialog: /** @type {any} */ (null),
-        env: {
-            bus: new EventBus(),
-            services: {
-                title: {
-                    setParts: (/** @type {any} */ parts) => calls.title.push(parts),
-                },
-            },
+        env: { bus: new EventBus() },
+        titleService: {
+            setParts: (/** @type {any} */ parts) => calls.title.push(parts),
         },
         pushState: () => calls.pushState++,
         restore: (/** @type {any} */ jsId) => {
@@ -75,7 +50,7 @@ function makeFakeAm(overrides = {}) {
 
 /**
  * @param {Object} am
- * @param {Object} [params] overrides for controller/action/nextStack
+ * @param {Object} [params]
  */
 function makeDispatch(am, params = {}) {
     const controller = {
@@ -145,12 +120,6 @@ test("commit emits UI_UPDATED only after the stack is committed", async () => {
 });
 
 test("commit clears the manager's pending dispatch before UI_UPDATED listeners run", async () => {
-    // A dispatch riding a foreign stack (loadState) marks itself pending so
-    // `_effectiveStack` answers with the still-displayed base stack while it
-    // is in flight. Once `commit()` publishes `nextStack`, keeping it pending
-    // would make every `UI-UPDATED` listener that reads `currentController`
-    // see the controller this dispatch just replaced (web_studio's `inStudio`
-    // flag missed the studio action landing this way).
     const am = makeFakeAm();
     const dispatch = makeDispatch(am);
     am._pendingDispatch = dispatch;
@@ -430,22 +399,16 @@ test("the dispatch reaches only the documented manager members", async () => {
 
     expect([...reached].sort()).toEqual([
         "_nextId",
-        // read through `settlePendingDispatch` (the fake's implementation
-        // trips the proxy): `commit()` settles the manager's pending dispatch
-        // the moment it publishes the stack, so `UI-UPDATED` listeners
-        // reading `currentController` see the controller that just landed,
-        // not the one it replaced.
         "_pendingDispatch",
         "controllerStack",
         "dialog",
         "env",
-        // the constructor snapshots the manager's navigation clock so the
-        // dispatch carries the token of the navigation that produced it.
         "navigation",
         "nextDialog",
         "pushState",
         "restore",
         "settlePendingDispatch",
+        "titleService",
     ]);
     await expect.waitForErrors([/child/]);
 });

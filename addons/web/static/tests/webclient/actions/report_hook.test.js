@@ -8,16 +8,6 @@ import {
     useEnrichWithActionLinks,
 } from "@web/webclient/actions/reports/report_hook";
 
-/**
- * `useEnrichWithActionLinks` wraps every `[res-id][res-model][view-type]`
- * element in an anchor that opens the record. Wrapping does NOT stop the
- * element matching that selector, so a second pass over the same DOM used to
- * nest another anchor — and another click listener — around it.
- *
- * The iframe branch of the hook re-runs `enrich` on every `onload`, i.e. on
- * every navigation inside the frame, so a repeated pass is the normal case
- * rather than a hypothetical one.
- */
 class EnrichHost extends Component {
     static template = xml`
         <div t-ref="root">
@@ -43,8 +33,6 @@ test("every matching element is wrapped in exactly one action anchor", async () 
 });
 
 test("a wrapped element still matches the selector it was found by", async () => {
-    // This is WHY the pass has to be idempotent: it is the whole mechanism
-    // behind the nesting, so pin it rather than only the symptom.
     const comp = await mountWithCleanup(EnrichHost);
     expect(
         comp.root.el.querySelectorAll("[res-id][res-model][view-type]"),
@@ -57,8 +45,6 @@ test("re-running enrich on already-enriched DOM adds nothing", async () => {
     const anchorsAfterMount = rootEl.querySelectorAll("a").length;
     expect(anchorsAfterMount).toBe(2);
 
-    // The real function, on the real DOM — the same call the iframe onload
-    // handler makes on every navigation within the frame.
     enrich(comp, rootEl);
     enrich(comp, rootEl);
 
@@ -79,7 +65,6 @@ test("enrich still wraps elements added after the first pass", async () => {
 
     enrich(comp, rootEl);
 
-    // Idempotency must not degrade into "never enrich again".
     expect("a > .tgt").toHaveCount(3);
     expect("a > a").toHaveCount(0);
 });

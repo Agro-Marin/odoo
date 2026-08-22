@@ -484,11 +484,6 @@ test("add a custom input class", async () => {
 });
 
 test("typing after the dropdown was closed does not select the whole input", async () => {
-    // `onInput` reopens the dropdown, and reopening used to `select()` the
-    // input -- but `input` fires AFTER the character landed, so the field ended
-    // up fully selected and the NEXT keystroke replaced it. Measured in a
-    // browser from "10:30": typing "1" selected all six characters, typing "2"
-    // left "2".
     await mountWithCleanup(TimePicker, { props: { value: "10:30" } });
 
     await click(".o_time_picker_input");
@@ -513,8 +508,6 @@ test("typing after the dropdown was closed does not select the whole input", asy
 });
 
 test("focusing or clicking the input still selects it whole", async () => {
-    // The other half of the contract: landing on a filled time field and typing
-    // must overwrite it rather than append.
     await mountWithCleanup(TimePicker, { props: { value: "10:30" } });
     await click(".o_time_picker_input");
     await animationFrame();
@@ -525,9 +518,6 @@ test("focusing or clicking the input still selects it whole", async () => {
 });
 
 test("the input exposes combobox semantics and stays out of the tab order", async () => {
-    // Deliberately NOT tabbable: see the comment in the template. Announceable
-    // is the goal here, not reachable -- the owning field is what the user tabs
-    // to.
     await mountWithCleanup(TimePicker, { props: { value: "10:30" } });
     const input = queryOne(".o_time_picker_input");
     expect(input).toHaveAttribute("tabindex", "-1");
@@ -565,17 +555,14 @@ test("suggestions are rebuilt only when the rounding that shapes them changes", 
     const initial = picker.suggestions;
     expect(initial.length).toBe(96);
 
-    // showSeconds never reaches getSuggestions: same list, same identity.
     parent.state.showSeconds = true;
     await animationFrame();
     expect(picker.suggestions).toBe(initial);
 
-    // Roundings that collapse to the same step are the same list too.
     parent.state.minutesRounding = 1;
     await animationFrame();
     expect(picker.suggestions).toBe(initial);
 
-    // A rounding that changes the step rebuilds.
     parent.state.minutesRounding = 30;
     await animationFrame();
     expect(picker.suggestions).not.toBe(initial);
@@ -613,7 +600,6 @@ test("an unfocused box resyncs to the value, so a rejected edit is recoverable",
         }
         onInvalid() {
             expect.step("invalid");
-            // The owner re-asserts the value it still holds.
             this.render();
         }
     }

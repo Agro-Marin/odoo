@@ -1,20 +1,7 @@
 // @ts-check
 
-/**
- * AUDIT CHALLENGE — DynamicList._deleteRecords / _toggleArchive read `this.count`
- * as a RECORD count, but on a DynamicGroupList `count` is the NUMBER OF GROUPS
- * (see dynamic_group_list_create_group.test.js, which pins that meaning).
- *
- * Consequence: on a grouped list, the "only the first N were deleted" truncation
- * warning is gated behind `resIds.length < this.count` — i.e. 20000 < 12 — which
- * is false, so the warning is suppressed and the user is told nothing while the
- * remaining records survive.
- *
- * These tests assert the CORRECT behaviour (warning shown) and therefore fail
- * against the current implementation.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
+import { MODEL_LIFECYCLE_PROTO } from "@web/../tests/model/relational_model/model_doubles";
 import { DynamicGroupList } from "@web/model/relational_model/dynamic_group_list";
 import { DynamicRecordList } from "@web/model/relational_model/dynamic_record_list";
 
@@ -64,6 +51,7 @@ function makeList({ grouped }) {
             call: async () => ({}),
         },
         load: async () => {},
+        __proto__: MODEL_LIFECYCLE_PROTO,
         hooks: {
             ui: {
                 onDisplayLimitNotification: (/** @type {string} */ msg) =>

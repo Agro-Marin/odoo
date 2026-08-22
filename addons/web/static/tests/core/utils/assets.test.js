@@ -40,8 +40,6 @@ beforeEach(() => {
 });
 
 /**
- * Loads started fire-and-forget: the tests assert on the nodes that get
- * appended, not on the promise.
  * @type {Promise<any>[]}
  */
 let pendingLoads = [];
@@ -56,13 +54,6 @@ const startLoad = (prom) => {
 };
 
 afterEach(async () => {
-    // `head.appendChild` is stubbed here, so these elements are never inserted
-    // and never fire load/error: every unfinished load keeps a `pagehide`
-    // listener on window and a promise that never settles. `pagehide` is what
-    // interrupts a pending load, so settling them here removes both. Left
-    // behind, they detonate in the NEXT suite to dispatch `pagehide` -- which
-    // web_vitals' `flush()` does -- as unhandled rejections attributed to
-    // whatever test happens to be running then.
     window.dispatchEvent(new Event("pagehide"));
     await Promise.all(pendingLoads);
     pendingLoads = [];
@@ -152,16 +143,6 @@ test("loadCSS: content-addressed bundle URLs fail fast without retries", async (
     expect(appended).toBe(1);
 });
 
-// These two really attach the element, unlike the tests above which stub
-// `appendChild` away: "was it detached again?" is only a meaningful question
-// about a node that was actually connected. A dead `<link>`/`<script src>` left
-// behind is what `seedFromDocument` reads as "the page already delivered this",
-// seeding a resolved promise for a url that never loaded.
-//
-// `data:` urls, so attaching for real still costs no request — an earlier
-// version pointed at a 404 and its response landed in whatever test happened to
-// be running when it arrived, mutating the head mid-test. The failure is
-// dispatched synthetically either way, so the url is never fetched.
 /**
  * @param {(node: Node) => void} [afterAppend]
  */
@@ -320,8 +301,6 @@ test("loadBundle: load same bundle in main document and an iframe", async () => 
         "add iframe document SCRIPT - text/javascript - file2.js",
     ]);
 
-    // head.appendChild is stubbed, so the load can never complete; destroying
-    // the iframe settles it (see onLoadAndError) instead of hanging forever.
     iframe.remove();
     await expect(iframeLoad).rejects.toThrow(/was interrupted: the page was hidden/);
 });
@@ -385,10 +364,6 @@ test("loadBundle: load same bundles in 2 iframes", async () => {
         "add iframe document SCRIPT - text/javascript - file2.js",
     ]);
 
-    // head.appendChild is stubbed above, so neither load can ever complete.
-    // Tearing the iframes down must SETTLE them: the interrupt guard watches
-    // the window the asset element lives in, so a destroyed iframe rejects its
-    // pending loads instead of leaving the parent's await hanging forever.
     iframeFirst.remove();
     iframeSecond.remove();
     await expect(firstLoad).rejects.toThrow(/was interrupted: the page was hidden/);
@@ -446,8 +421,6 @@ test("loadESMBundle: same-document imports specifiers and registers them on odoo
 });
 
 /**
- * Build a detached iframe whose window carries a mock ``odoo.loader`` with the
- * given pre-registered modules, and capture every node appended to its head.
  * @param {Map<string, object>} modules
  */
 const makeCrossDocTarget = (modules) => {
@@ -516,16 +489,8 @@ test("loadESMBundle: cross-document builds bridge import map, reusing server bri
 });
 
 test("loadESMBundle: a specifier the document already maps is imported by URL", async () => {
-    // An import map entry cannot be re-mapped once the document holds it: a
-    // later map carrying the same key has that rule dropped. So a bundle whose
-    // specifier was claimed by someone else -- classically a bridge shim whose
-    // producer never loaded on this page -- used to import that one and get
-    // `undefined` for every export. It now imports the URL directly and
-    // registers the result under the specifier, which is what the bridges other
-    // modules resolve to will read.
     const { iframe, captured } = makeCrossDocTarget(new Map());
     const targetDoc = iframe.contentDocument;
-    // Not appendChild: that is patched to capture rather than insert.
     targetDoc.head.innerHTML =
         '<script type="importmap">' +
         JSON.stringify({
@@ -578,7 +543,6 @@ test("loadESMBundle: re-declaring the same target is not a conflict", async () =
     const pairs = JSON.parse(
         scriptNode.textContent.match(/const specs = (\[[\s\S]*\]);/)[1],
     );
-    // Same module, so the specifier still resolves through the map.
     expect(Object.fromEntries(pairs)["@web/same"]).toBe("@web/same");
 
     const token = scriptNode.textContent.match(/__odoo_esm_bundle_loaded_(\d+)/)[1];
@@ -615,8 +579,6 @@ test("loadBundle: an iframe's own assets are not requested again", async () => {
     const iframe = document.createElement("iframe");
     document.body.appendChild(iframe);
     const iframeDocument = iframe.contentDocument;
-    // The iframe already ships part of the bundle in its own markup, the way a
-    // website preview or a mass-mailing frame does.
     const existingLink = iframeDocument.createElement("link");
     existingLink.rel = "stylesheet";
     existingLink.setAttribute("href", "file1.css");
@@ -634,8 +596,6 @@ test("loadBundle: an iframe's own assets are not requested again", async () => {
 
     const iframeLoad = loadBundle("test.bundle", { targetDoc: iframeDocument });
     await animationFrame();
-    // file1 is already there; re-appending the script would run the library a
-    // second time in that document.
     expect.verifySteps([
         "fetch bundle: /web/bundle/test.bundle",
         "add LINK file2.css",

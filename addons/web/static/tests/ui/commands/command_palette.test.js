@@ -21,7 +21,9 @@ import {
     mountWithCleanup,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { browser } from "@web/core/browser/browser";
 import { CommandPaletteEvent } from "@web/core/events";
+import { useCommand } from "@web/ui/commands/command_hook";
 import { CommandPalette } from "@web/ui/commands/command_palette";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
 
@@ -1559,7 +1561,7 @@ test("checks that href is correctly used", async () => {
     getService("dialog").add(CommandPalette, {
         config,
     });
-    patchWithCleanup(window, {
+    patchWithCleanup(browser, {
         open: (href) => {
             expect.step(href.toString());
         },
@@ -1732,12 +1734,9 @@ test("category grouping is preserved while an async provider reloads", async () 
     expect(queryAllTexts(".o_command")).toEqual(["Command1", "Command2", "Command3"]);
 });
 
-// SELECTION-CONTRACT-BLOCK
-// `selectCommand` used to keep a detached copy of the highlighted command in
-// state and guard it with `index === -1 || index >= length`. That let every
-// other non-position through — a negative below -1, or the `undefined` a caller
-// produces when it computes no branch — straight into `markRaw(commands[index])`,
-// which throws on a non-object.
+/**
+ * @param {any[] | (() => any[])} commands
+ */
 async function mountPalette(commands) {
     await mountWithCleanup(MainComponentsContainer);
     /** @type {any} */
@@ -1748,8 +1747,9 @@ async function mountPalette(commands) {
             palette = this;
         },
     });
+    const provide = typeof commands === "function" ? commands : () => commands;
     getService("dialog").add(CommandPalette, {
-        config: { providers: [{ provide: () => commands }] },
+        config: { providers: [{ provide }] },
     });
     await animationFrame();
     return palette;
@@ -1780,7 +1780,126 @@ test("the highlighted command follows the list it is an index into", async () =>
     palette.selectCommand(2);
     expect(palette.selectedCommand.name).toBe("cmd c");
 
-    // A shorter result set arrives; the old position no longer exists.
     palette.state.commands = palette.state.commands.slice(0, 1);
     expect(palette.selectedCommand).toBe(null);
+});
+
+test("one command that cannot render loses its row, not the palette", async () => {
+    expect.errors(1);
+    let poison = false;
+    class Poisoned extends Component {
+        static template = xml`<span class="poisoned"/>`;
+        static props = ["*"];
+        setup() {
+            if (poison) {
+                throw new Error("provider component blew up");
+            }
+        }
+    }
+    await mountWithCleanup(MainComponentsContainer);
+    /** @type {any} */
+    let palette;
+    patchWithCleanup(CommandPalette.prototype, {
+        setup() {
+            super.setup();
+            palette = this;
+        },
+    });
+    getService("dialog").add(CommandPalette, {
+        config: {
+            providers: [
+                {
+                    provide: () => [
+                        { name: "cmd a", action: () => {} },
+                        {
+                            name: "cmd b",
+                            action: () => {},
+                            Component: Poisoned,
+                            props: {},
+                        },
+                        { name: "cmd c", action: () => {} },
+                        { name: "cmd d", action: () => {} },
+                    ],
+                },
+            ],
+        },
+    });
+    await animationFrame();
+    expect(".o_command").toHaveCount(4);
+    expect(".poisoned").toHaveCount(1);
+
+    poison = true;
+    await click(".o_command_palette_search input");
+    await edit("cmd");
+    await runAllTimers();
+    await animationFrame();
+
+    expect(".o_command_palette").toHaveCount(1);
+    expect(".poisoned").toHaveCount(0);
+    expect(queryAllTexts(".o_command_name")).toEqual(["cmd a", "cmd c", "cmd d"]);
+
+    expect(palette.state.commands.map((c) => c.index)).toEqual([0, 1, 2]);
+    expect(queryAll(".o_command").map((el) => el.id)).toEqual([
+        "o_command_0",
+        "o_command_1",
+        "o_command_2",
+    ]);
+    palette.selectCommand(2);
+    expect(palette.selectedCommand.name).toBe("cmd d");
+    expect.verifyErrors([/provider component blew up/]);
+});
+
+test("an item that throws before the palette mounts costs one attempt, not six", async () => {
+    expect.errors(1);
+    let provideCalls = 0;
+    class Poisoned extends Component {
+        static template = xml`<span class="poisoned"/>`;
+        static props = ["*"];
+        setup() {
+            throw new Error("broken on first render");
+        }
+    }
+    const palette = await mountPalette(() => {
+        provideCalls++;
+        return [
+            { name: "cmd a", action: () => {} },
+            { name: "cmd b", action: () => {}, Component: Poisoned, props: {} },
+            { name: "cmd c", action: () => {} },
+        ];
+    });
+    await animationFrame();
+
+    expect(".o_command_palette").toHaveCount(1);
+    expect(queryAllTexts(".o_command_name")).toEqual(["cmd a", "cmd c"]);
+    expect(palette.state.commands.map((c) => c.index)).toEqual([0, 1]);
+    expect(provideCalls).toBe(2);
+    expect.verifyErrors([/broken on first render/]);
+});
+
+test("hotkey props reach the item that renders them and no other", async () => {
+    class Owner extends Component {
+        static template = xml`<div class="owner"/>`;
+        static props = {};
+        setup() {
+            useCommand("with options only", () => {}, {
+                hotkeyOptions: { bypassEditableProtection: true },
+            });
+            useCommand("with a hotkey", () => {}, {
+                hotkey: "alt+j",
+                hotkeyOptions: { bypassEditableProtection: true },
+            });
+        }
+    }
+    await mountWithCleanup(MainComponentsContainer);
+    await mountWithCleanup(Owner);
+    getService("command").openMainPalette();
+    await animationFrame();
+    await runAllTimers();
+    await animationFrame();
+
+    expect(".o_command_palette").toHaveCount(1);
+    expect(queryAllTexts(".o_command_name")).toInclude("with options only");
+    expect(queryAllTexts(".o_command_name")).toInclude("with a hotkey");
+    expect(".o_command_hotkey kbd").toHaveCount(2);
+    await press("escape");
 });

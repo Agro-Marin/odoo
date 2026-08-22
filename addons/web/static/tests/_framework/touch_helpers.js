@@ -39,8 +39,6 @@ async function swipe(target, direction, dragOptions, moveToOptions) {
 }
 
 /**
- * Simulate a swipe left on the target element.
- *
  * @param {Target} target
  * @param {PointerOptions} [dragOptions]
  * @param {PointerOptions} [moveToOptions]
@@ -51,8 +49,6 @@ export async function swipeLeft(target, dragOptions, moveToOptions) {
 }
 
 /**
- * Simulate a swipe right on the target element.
- *
  * @param {Target} target
  * @param {PointerOptions} [dragOptions]
  * @param {PointerOptions} [moveToOptions]

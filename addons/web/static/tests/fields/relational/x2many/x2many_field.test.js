@@ -1,13 +1,5 @@
 // @ts-check
 
-/**
- * Integration tests for the X2ManyField component (one2many and many2many).
- * Covers inline add/remove, link/unlink, and the ORM command objects written
- * to web_save, plus opening X2ManyFieldDialog from a non-editable one2many.
- *
- * Module under test: fields/relational/x2many/x2many_field.js
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { runAllTimers } from "@odoo/hoot-mock";
 import {

@@ -263,10 +263,6 @@ test("keep popover if target sibling is removed", async () => {
 });
 
 test("close params reach onClose, as they do for a dialog", async () => {
-    // A hosted component is the only place that knows WHY it is closing;
-    // `makeOverlayPresenter` used to bind `close` as a zero-arg thunk, so that
-    // reason was unobservable from the popover and the bottom sheet while the
-    // dialog service forwarded it.
     /** @type {any} */
     let received = "NEVER CALLED";
     class Comp extends Component {

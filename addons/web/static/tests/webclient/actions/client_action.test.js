@@ -93,10 +93,6 @@ defineActions([
 ]);
 
 beforeEach(() => {
-    // `force`: `__test__client__action__` is the shared tag
-    // `useTestClientAction` claims at module scope, so it is already in the
-    // registry baseline; replacing it with this test's own component is a
-    // deliberate override, not a first registration.
     actionRegistry.add("__test__client__action__", TestClientAction, {
         force: true,
     });
@@ -553,11 +549,6 @@ test("test display_exception client action", async () => {
 });
 
 test("a notification link with an unsafe scheme is defused", async () => {
-    // `markup` escapes the interpolated url, which stops tag injection but does
-    // nothing about the SCHEME: `javascript:` survives escaping intact and fires
-    // on click. `params.links[].url` is not necessarily admin-authored — any
-    // model method can build a notification out of a record field a regular
-    // user filled in.
     await mountWithCleanup(WebClient);
     await getService("action").doAction({
         type: "ir.actions.client",
@@ -570,7 +561,6 @@ test("a notification link with an unsafe scheme is defused", async () => {
     });
     await animationFrame();
 
-    // Nothing clickable is left, but the label still reads in the message.
     expect(".o_notification_content a").toHaveCount(0);
     expect(".o_notification_content").toHaveText("click here");
 });
@@ -594,13 +584,6 @@ test("a notification link with a safe url is left alone", async () => {
 });
 
 test("a function client action settles onClose like a close action does", async () => {
-    // A function client action is a one-shot side effect: it is finished the
-    // moment it returns. A view button whose python method wrote something and
-    // returned `display_notification` therefore has to reload its view exactly
-    // as the same method returning NOTHING does — that one becomes an
-    // `act_window_close`, which settles `onClose`, which is how
-    // `view_button_hook` reloads. Only the notification path did not, so the
-    // user was left looking at pre-write data.
     await mountWithCleanup(WebClient);
 
     let closedByNotification = 0;
@@ -625,8 +608,6 @@ test("a function client action settles onClose like a close action does", async 
 });
 
 test("a function client action that chains hands onClose to the follow-up", async () => {
-    // When it returns another action the obligation moves along with it rather
-    // than being settled twice.
     registry.category("actions").add("chaining_probe", () => ({
         type: "ir.actions.client",
         tag: "display_notification",
@@ -646,10 +627,6 @@ test("a function client action that chains hands onClose to the follow-up", asyn
 
 test.tags("desktop");
 test("a button whose method returns a notification reloads its view", async () => {
-    // The user-facing half of the rule above: `view_button_hook` reloads off
-    // `onClose`, so a method that wrote something and answered with a
-    // notification left the form showing pre-write data, while the same method
-    // answering with nothing refreshed it.
     Partner._views.form = `
         <form>
             <header>

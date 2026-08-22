@@ -1,23 +1,10 @@
 // @ts-check
 
-/**
- * Pure unit tests for static_list_sort.js.
- *
- * Tests sort() early-exit path and sortBy() direction cycling.
- * The full sort path (with server record loading and list._load) requires
- * integration-level infrastructure and is covered by the existing
- * x2many/list view integration tests.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { sort, sortBy } from "@web/model/relational_model/static_list_sort";
 
 describe.current.tags("headless");
 
-/**
- * Minimal StaticList mock for sort/sortBy tests.
- * Captures calls to _load so we can assert the arguments.
- */
 function makeList(overrides = {}) {
     const loadCalls = [];
     const list = {
@@ -28,14 +15,11 @@ function makeList(overrides = {}) {
         activeFields: {},
         fields: {},
         config: {},
-        _cache: {},
+        _cache: new Map(),
         _getResIdsToLoad: () => [],
         _load: async (params) => {
             loadCalls.push(params);
         },
-        // `sort` clears the pending-reorder flag through this published method
-        // (the StaticList reorder-flag encapsulation), so the fake provides it
-        // alongside `_load`.
         markReordered() {
             this._needsReordering = false;
         },
@@ -76,11 +60,11 @@ describe("sort — with cached records", () => {
         const list = makeList({
             fields: { name: { type: "char" } },
         });
-        list._cache = {
-            1: { resId: 1, _virtualId: null, data: { name: "Zebra" } },
-            2: { resId: 2, _virtualId: null, data: { name: "Apple" } },
-            3: { resId: 3, _virtualId: null, data: { name: "Mango" } },
-        };
+        list._cache = new Map([
+            [1, { resId: 1, _virtualId: null, data: { name: "Zebra" } }],
+            [2, { resId: 2, _virtualId: null, data: { name: "Apple" } }],
+            [3, { resId: 3, _virtualId: null, data: { name: "Mango" } }],
+        ]);
 
         await sort(list, [1, 2, 3], [{ name: "name", asc: true }]);
 
@@ -93,9 +77,7 @@ describe("sort — with cached records", () => {
             fields: { name: { type: "char" } },
             _needsReordering: true,
         });
-        list._cache = {
-            1: { resId: 1, data: { name: "A" } },
-        };
+        list._cache = new Map([[1, { resId: 1, data: { name: "A" } }]]);
 
         await sort(list, [1], [{ name: "name", asc: true }]);
 
@@ -106,10 +88,10 @@ describe("sort — with cached records", () => {
         const list = makeList({
             fields: { name: { type: "char" } },
         });
-        list._cache = {
-            1: { resId: 1, data: { name: "Apple" } },
-            2: { resId: 2, data: { name: "Zebra" } },
-        };
+        list._cache = new Map([
+            [1, { resId: 1, data: { name: "Apple" } }],
+            [2, { resId: 2, data: { name: "Zebra" } }],
+        ]);
 
         await sort(list, [1, 2], [{ name: "name", asc: false }]);
 
@@ -122,9 +104,7 @@ describe("sortBy — direction cycling", () => {
         const list = makeList({
             orderBy: [],
             fields: { name: { type: "char" } },
-            _cache: {
-                1: { resId: 1, data: { name: "A" } },
-            },
+            _cache: new Map([[1, { resId: 1, data: { name: "A" } }]]),
         });
 
         await sortBy(list, "name");
@@ -138,9 +118,7 @@ describe("sortBy — direction cycling", () => {
             orderBy: [{ name: "name", asc: true }],
             _needsReordering: false,
             fields: { name: { type: "char" } },
-            _cache: {
-                1: { resId: 1, data: { name: "A" } },
-            },
+            _cache: new Map([[1, { resId: 1, data: { name: "A" } }]]),
         });
 
         await sortBy(list, "name");
@@ -153,9 +131,7 @@ describe("sortBy — direction cycling", () => {
             orderBy: [{ name: "name", asc: false }],
             _needsReordering: false,
             fields: { id: { type: "integer" } },
-            _cache: {
-                1: { resId: 1, data: {} },
-            },
+            _cache: new Map([[1, { resId: 1, data: {} }]]),
         });
 
         await sortBy(list, "name");

@@ -1,22 +1,5 @@
 // @ts-check
 
-/**
- * State-integrity tests for StaticList internals:
- *  - ``_pruneCache`` pins ids referenced by a live ``_savePoint`` (a later
- *    ``_discard`` maps them through ``_cache``) and drops ``_extendedRecords``
- *    entries only for evicted records (wholesale clearing forced the next
- *    dialog open through extendRecord's first-extension path again).
- *  - ``_abandonRecords`` must not splice with a -1 index when the abandoned
- *    record's virtualId is not in ``_currentIds`` (splice(-1, 1) removes the
- *    LAST id).
- *  - ``_addNewRecordAtIndex`` must survive an out-of-range index (account's
- *    section widget passes -1 for a first section) instead of crashing on
- *    ``records[-1].id``.
- *
- * Uses ``Object.create(StaticList.prototype)`` against hand-built state,
- * mirroring static_list_pending_commands.test.js.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { markRaw } from "@odoo/owl";
 import { ListMembership } from "@web/model/relational_model/list_membership";
@@ -25,7 +8,6 @@ import { StaticList } from "@web/model/relational_model/static_list";
 function makeList(overrides = {}) {
     const list = Object.create(StaticList.prototype);
     Object.assign(list, {
-        // Membership owner first: the keys below write through its accessors.
         _membership: new ListMembership(),
         _config: {
             limit: 40,
@@ -38,12 +20,12 @@ function makeList(overrides = {}) {
             fields: { sequence: { type: "integer" } },
         },
         records: [],
-        _cache: markRaw({}),
+        _cache: markRaw(new Map()),
         _commands: [],
         _initialCommands: [],
         _commandsPromise: null,
         _savePoint: undefined,
-        _unknownRecordCommands: {},
+        _unknownRecordCommands: new Map(),
         _currentIds: [],
         _tmpIncreaseLimit: 0,
         _needsReordering: false,
@@ -61,20 +43,20 @@ function makeList(overrides = {}) {
 describe("_pruneCache", () => {
     test("evicts ids absent from _currentIds, keeps live ones", () => {
         const list = makeList({ _currentIds: [1] });
-        list._cache[1] = { id: "dp1" };
-        list._cache[2] = { id: "dp2" };
+        list._cache.set(1, { id: "dp1" });
+        list._cache.set(2, { id: "dp2" });
 
         list._pruneCache();
 
-        expect(1 in list._cache).toBe(true);
-        expect(2 in list._cache).toBe(false);
+        expect(list._cache.has(1)).toBe(true);
+        expect(list._cache.has(2)).toBe(false);
     });
 
     test("ids referenced by a live _savePoint are pinned", () => {
         const list = makeList({ _currentIds: [1] });
-        list._cache[1] = { id: "dp1" };
-        list._cache[2] = { id: "dp2" };
-        list._cache[3] = { id: "dp3" };
+        list._cache.set(1, { id: "dp1" });
+        list._cache.set(2, { id: "dp2" });
+        list._cache.set(3, { id: "dp3" });
         list._savePoint = markRaw({
             _commands: [],
             _currentIds: [1, 2],
@@ -82,15 +64,15 @@ describe("_pruneCache", () => {
 
         list._pruneCache();
 
-        expect(1 in list._cache).toBe(true);
-        expect(2 in list._cache).toBe(true);
-        expect(3 in list._cache).toBe(false);
+        expect(list._cache.has(1)).toBe(true);
+        expect(list._cache.has(2)).toBe(true);
+        expect(list._cache.has(3)).toBe(false);
     });
 
     test("_extendedRecords only loses entries for evicted records", () => {
         const list = makeList({ _currentIds: [1] });
-        list._cache[1] = { id: "dp1" };
-        list._cache[2] = { id: "dp2" };
+        list._cache.set(1, { id: "dp1" });
+        list._cache.set(2, { id: "dp2" });
         list._extendedRecords.add("dp1");
         list._extendedRecords.add("dp2");
 
@@ -142,7 +124,7 @@ describe("_abandonRecords", () => {
 
 describe("_addNewRecordAtIndex", () => {
     function makeSequencedList() {
-        const cache = markRaw({});
+        const cache = markRaw(new Map());
         const makeRec = (resId, sequence) => {
             const rec = {
                 id: `dp_${resId}`,
@@ -157,7 +139,7 @@ describe("_addNewRecordAtIndex", () => {
                     return Promise.resolve();
                 },
             };
-            cache[resId] = rec;
+            cache.set(resId, rec);
             return rec;
         };
         const r1 = makeRec(1, 1);
@@ -191,7 +173,7 @@ describe("_addNewRecordAtIndex", () => {
                     return Promise.resolve();
                 },
             };
-            cache["virtual_new"] = rec;
+            cache.set("virtual_new", rec);
             return rec;
         };
         return list;

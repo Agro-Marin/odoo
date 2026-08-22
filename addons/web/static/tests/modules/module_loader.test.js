@@ -2,20 +2,6 @@
 
 import { after, describe, expect, mockSendBeacon, test } from "@odoo/hoot";
 
-/**
- * ``module_loader.js``'s pre-2026 AMD behaviors (``define()``, dependency-graph
- * resolution, cycle detection, lazy jobs, error reporter) were removed once the
- * fork-wide ESM migration completed: the esbuild entry exercises only
- * ``registerNativeModules``, and no ``odoo.define()`` calls remain anywhere in
- * the fork.
- *
- * ``module_loader.js`` is an inline pre-ESM shim that can't ``export`` its
- * class, so tests recover it via ``odoo.loader.constructor``. Using
- * ``Object.getPrototypeOf`` of the constructor would instead yield
- * ``Function.prototype`` for the shipped direct-instance shape and throw
- * "is not a constructor".
- */
-
 const ModuleLoader = /** @type {typeof OdooModuleLoader} */ (odoo.loader.constructor);
 
 describe.current.tags("headless");
@@ -226,16 +212,6 @@ describe("asset load self-heal", () => {
     });
 });
 
-/**
- * The beacon logic below is a byte-identical copy of
- * ``@web/core/errors/error_beacon`` — the shim is pre-ESM and cannot import it.
- * These tests reach it through ``odoo.loader._beacon``, the seam the shim
- * exposes for exactly this reason (same rationale as ``_reloadPage``).
- *
- * ``seenErrors`` is module-level and lives for the whole page, so every dedup
- * test clears it first; otherwise an earlier test's key silently suppresses a
- * later one's beacon and the failure looks like a logic bug.
- */
 describe("beacon (inlined copy)", () => {
     test("hashCode: stable per input, and distinct across inputs", () => {
         const { hashCode } = odoo.loader._beacon;
@@ -281,24 +257,22 @@ describe("beacon (inlined copy)", () => {
         expect(serializeCause(null)).toBe("");
     });
 
-    test("reportError: a different stack is a distinct beacon", async () => {
-        const { reportError, seenErrors } = odoo.loader._beacon;
+    test("reportJsError: a different stack is a distinct beacon", async () => {
+        const { reportJsError, seenErrors } = odoo.loader._beacon;
         seenErrors.clear();
         const calls = [];
         mockSendBeacon((url, blob) => {
             calls.push(blob);
             return true;
         });
-        // The regression: OWL reports every lifecycle failure with one generic
-        // message at 0:0, so these two used to collapse into a single beacon.
         const base = { message: "owl lifecycle", line: 0, col: 0 };
-        reportError({ ...base, stack: "at A (a.js:1:1)" });
-        reportError({ ...base, stack: "at B (b.js:2:2)" });
+        reportJsError({ ...base, stack: "at A (a.js:1:1)" });
+        reportJsError({ ...base, stack: "at B (b.js:2:2)" });
         expect(calls).toHaveLength(2);
     });
 
-    test("reportError: an exact repeat is still throttled", () => {
-        const { reportError, seenErrors } = odoo.loader._beacon;
+    test("reportJsError: an exact repeat is still throttled", () => {
+        const { reportJsError, seenErrors } = odoo.loader._beacon;
         seenErrors.clear();
         const calls = [];
         mockSendBeacon((url, blob) => {
@@ -306,8 +280,8 @@ describe("beacon (inlined copy)", () => {
             return true;
         });
         const info = { message: "same", line: 1, col: 1, stack: "at same (s.js:1:1)" };
-        reportError({ ...info });
-        reportError({ ...info });
+        reportJsError({ ...info });
+        reportJsError({ ...info });
         expect(calls).toHaveLength(1);
     });
 });

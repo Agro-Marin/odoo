@@ -11,10 +11,6 @@ describe.current.tags("headless");
 const SCRIPT_LOAD_TIMEOUT_DELAY = 60000;
 
 /**
- * Creates a *detached* lazy script node: a script element outside the DOM
- * never fetches (setting `src` on it is inert), so tests can dispatch "load"
- * and "error" deterministically without any network involvement.
- *
  * @param {string} name
  * @returns {HTMLScriptElement}
  */
@@ -32,7 +28,7 @@ test("success path: scripts load sequentially, in order", async () => {
 
     expect(script1.src).toInclude("lazy_1.js");
     expect(script1.hasAttribute("data-src")).toBe(false);
-    expect(script1.getAttribute("defer")).toBe("defer");
+    expect(script1.hasAttribute("defer")).toBe(false);
     expect(script2.src).toBe("");
     expect(doneCalls).toBe(0);
 
@@ -105,7 +101,6 @@ test("a script that settles after the watchdog still runs, but is not reported t
             ` unblocking the page anyway: ${script1.src}`,
     ]);
 
-    // the page is already unblocked, but the rest of the chain must still load
     script1.dispatchEvent(new Event("load"));
     expect(script2.src).toInclude("lazy_2.js");
     script2.dispatchEvent(new Event("load"));
@@ -131,7 +126,6 @@ test("a stalled chain keeps its own watchdog when another chain completes", asyn
     let stalledDone = 0;
     lazyloader.loadScripts([stalled], 0, () => stalledDone++);
 
-    // a second, unrelated chain runs to completion while the first waits
     const quick = makeLazyScript("lazy_quick.js");
     let quickDone = 0;
     lazyloader.loadScripts([quick], 0, () => quickDone++);
@@ -148,9 +142,6 @@ test("a stalled chain keeps its own watchdog when another chain completes", asyn
 
 describe("waiting for the lazy JS", () => {
     /**
-     * `getFixture()` is typed as nullable; casting once here keeps every test
-     * below free of null checks that say nothing about what is under test.
-     *
      * @param {string} html
      * @returns {HTMLElement}
      */
@@ -160,10 +151,6 @@ describe("waiting for the lazy JS", () => {
         return fixture;
     }
 
-    /**
-     * `waitLazy` freezes the page and `stopWaitingLazy` releases it; both are
-     * module-level singletons, so every test here must undo its own freeze.
-     */
     function freeze() {
         waitLazy();
         after(() => stopWaitingLazy());
@@ -182,8 +169,6 @@ describe("waiting for the lazy JS", () => {
         button.addEventListener("click", () => seen.push("own-listener"));
         const ev = new MouseEvent("click", { bubbles: true, cancelable: true });
         queryOne(".inner").dispatchEvent(ev);
-        // the freeze runs on an ancestor's capture phase, so it suppresses the
-        // control's own listeners too
         expect(seen).toEqual([]);
         expect(ev.defaultPrevented).toBe(true);
     });
@@ -191,8 +176,6 @@ describe("waiting for the lazy JS", () => {
     test("a control added after the freeze is left alone", async () => {
         fixtureWith(`<div id="wrapwrap"></div>`);
         freeze();
-        // the freeze applies to the controls chosen when it started: making it
-        // cheaper must not quietly make it wider
         queryOne("#wrapwrap").innerHTML = `<button class="late">x</button>`;
         /** @type {string[]} */
         const seen = [];
@@ -239,8 +222,6 @@ describe("waiting for the lazy JS", () => {
         a.dispatchEvent(first);
         const second = new MouseEvent("click", { bubbles: true, cancelable: true });
         b.dispatchEvent(second);
-        // a shared wrapper would have let the lock taken by the first control
-        // drop the second one's event without ever replaying it
         expect(first.defaultPrevented).toBe(true);
         expect(second.defaultPrevented).toBe(true);
     });
@@ -256,7 +237,6 @@ describe("waiting for the lazy JS", () => {
         for (const sel of ["form.outside", "form.opted"]) {
             const formEl = queryOne(sel);
             formEl.addEventListener("submit", (ev) => {
-                // also keeps the test harness from turning this into a request
                 ev.preventDefault();
                 seen.push(sel);
             });
@@ -264,9 +244,6 @@ describe("waiting for the lazy JS", () => {
                 new Event("submit", { bubbles: true, cancelable: true }),
             );
         }
-        // the freeze stops the event before the form's own listener ever runs;
-        // the opted-out form is left alone. Both sit outside the main element
-        // on purpose: the form freeze is page-wide.
         expect(seen).toEqual(["form.opted"]);
     });
 

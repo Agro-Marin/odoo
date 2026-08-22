@@ -438,16 +438,7 @@ export async function selectTimeRange(startDateTime, endDateTime) {
 }
 
 /**
- * Tap a single time-grid slot via its interactive column.
- *
- * FC v7 renders ``.fc-timegrid-slot-lane`` elements as non-interactive visual
- * background rows outside the ``TimeGridCols`` subtree -- a pointer event on a
- * lane never reaches FC's ``dateClick`` handler. The interactive element per
- * date is the ``TimeGridCol`` (``role='gridcell'`` + ``data-date``, excluding
- * the all-day ``.fc-daygrid-day`` cell); click it at the slot's vertical offset
- * (derived from the lane's rect, as ``selectTimeRange`` does).
- *
- * @param {string} dateTime - e.g. "2016-12-12 08:30:00"
+ * @param {string} dateTime
  * @returns {Promise<void>}
  */
 export async function clickTimeSlot(dateTime) {

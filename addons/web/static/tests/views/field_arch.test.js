@@ -7,13 +7,6 @@ import { parseFieldNode, resetUnknownOptionWarnings } from "@web/views/field_arc
 
 describe.current.tags("headless");
 
-/**
- * An arch option a widget does not declare is dropped in silence — the prop is
- * simply never set and the default stands. Scanning a 93-module database found
- * nine such pairs in shipped views (`no_open` on `many2many_tags`, `safe` on
- * `html`, `not_delete` on `many2many_tags`), every one of them inert.
- */
-
 const MODELS = {
     "res.partner": {
         fields: {
@@ -26,7 +19,7 @@ const MODELS = {
 
 /**
  * @param {string} arch
- * @returns {string[]} the warnings emitted while parsing
+ * @returns {string[]}
  */
 function parseWithWarnings(arch) {
     /** @type {any[]} */
@@ -51,8 +44,6 @@ describe("getSupportedOptionNames", () => {
     });
 
     test("undeclared is null, not an empty set", () => {
-        // The distinction is load-bearing: an empty set would mean "accepts no
-        // option" and would report every option an undeclared widget reads.
         expect(getSupportedOptionNames({})).toBe(null);
         expect(getSupportedOptionNames({ supportedOptions: [] })).toEqual(new Set());
     });
@@ -69,8 +60,6 @@ describe("unknown field options", () => {
     });
 
     test("a declared option is not reported", () => {
-        // Guards the inverse failure: a check that reports everything is as
-        // useless as one that reports nothing.
         expect(
             parseWithWarnings(
                 `<field name="parent_id" widget="many2one" options="{'no_open': True}"/>`,
@@ -87,8 +76,6 @@ describe("unknown field options", () => {
     });
 
     test("a widget declaring nothing is left alone", () => {
-        // `boolean` declares no supportedOptions, so its options cannot be
-        // judged. 78 of the 228 registry keys are in this position.
         expect(
             parseWithWarnings(
                 `<field name="active" widget="boolean" options="{'whatever': 1}"/>`,

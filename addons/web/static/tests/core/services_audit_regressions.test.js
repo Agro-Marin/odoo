@@ -1,11 +1,5 @@
 // @ts-check
 
-/**
- * Regression guards for the services audit fixes. Each test pins a
- * behaviour that was verified broken beforehand; the comment on each names the
- * failure it prevents.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, Deferred, press } from "@odoo/hoot-dom";
 import {
@@ -75,10 +69,6 @@ function accessError(companyId) {
 
 describe("multi_company_recovery", () => {
     test("save-error recovery propagates the child companies into the model context", async () => {
-        // The model context wins on the retried save. It used to receive only
-        // `suggested_company.id` while `activateCompanies` additionally pulled in
-        // that company's children, so a record owned by a child kept failing with
-        // the same AccessError the recovery was meant to clear.
         await makeMockEnv();
         patchWithCleanup(cookie, { set: () => {}, get: () => "" });
         patchWithCleanup(
@@ -109,8 +99,6 @@ describe("multi_company_recovery", () => {
     });
 
     test("save-error recovery keeps a model-scoped company the user has not active", async () => {
-        // The union must not regress into an overwrite: a form scoped to company
-        // 3 must keep it even though it is absent from the user's companies.
         await makeMockEnv();
         patchWithCleanup(user, {
             allowedCompanies: [{ id: 1 }, { id: 2 }],
@@ -133,11 +121,6 @@ describe("multi_company_recovery", () => {
 
 describe("field_service", () => {
     test("base definitions resolve by (model, field) and ignore the caller domain", async () => {
-        // Pins the contract deliberately: `search_properties_mixin` passes
-        // `["id", "=", active_id]` for the OTHER branch, where definitions hang
-        // off a real parent record. `properties.base.definition` has no such
-        // parent — `active_id` is an id of the action's model — so forwarding
-        // the domain would filter by an unrelated id and return nothing.
         await makeMockEnv();
         /** @type {any[]} */
         const calls = [];
@@ -178,8 +161,6 @@ describe("field_service", () => {
 
 describe("command_palette", () => {
     test("a synchronously throwing provider does not take down the palette", async () => {
-        // `Promise.allSettled` only contains rejections; a sync throw escaped the
-        // map and propagated to `onWillStart`, losing every other provider.
         await mountWithCleanup(MainComponentsContainer);
         patchWithCleanup(console, { error: () => {} });
         getService("dialog").add(CommandPalette, {
@@ -248,9 +229,6 @@ describe("command_palette", () => {
 
 describe("feature_flags", () => {
     test("setFeatureFlag round-trips every FeatureFlagValue shape", async () => {
-        // `String(value)` was not an inverse of `_parseValue`: the parser
-        // reserves "true"/"false"/"null"/""/numeric tokens, so a string flag with
-        // one of those shapes came back as the literal instead.
         _resetFeatureFlagsCache();
         patchWithCleanup(browser.location, { href: "http://localhost/odoo" });
 
@@ -304,10 +282,6 @@ describe("title_service", () => {
 
 describe("currency", () => {
     test("a fetch issued before a company switch cannot land after it", async () => {
-        // Rates are expressed against the ACTIVE company's currency, so an
-        // in-flight fetch belongs to the company that issued it. Landing it
-        // afterwards wrote the OLD company's conversions over the shared object,
-        // with no further trigger to correct them.
         await makeMockEnv();
         serverState.currencies = [{ id: 1, position: "after", symbol: "€" }];
         let companyCurrency = 1;
@@ -333,8 +307,6 @@ describe("currency", () => {
         expect(rates[1].toCompanyRate).toBe(0.5);
         expect.verifySteps(["read to_currency=1"]);
 
-        // A fetch for company 2 goes out, then the active companies change again
-        // while it is still on the wire.
         companyCurrency = 2;
         const inFlight = getCurrencyRates();
         userBus.trigger(UserEvent.ACTIVE_COMPANIES_CHANGED);
@@ -348,9 +320,6 @@ describe("currency", () => {
     });
 
     test("a company switch does not by itself cost an RPC", async () => {
-        // The switch changes `to_currency`, hence the rpc cache key, so the next
-        // consumer call refetches on its own. Firing one here would tax every
-        // company switch on pages that never show a monetary conversion.
         await makeMockEnv();
         serverState.currencies = [{ id: 1, position: "after", symbol: "€" }];
         onRpc("read", ({ model }) => {
@@ -365,11 +334,6 @@ describe("currency", () => {
 });
 
 describe("hotkey_service", () => {
-    // CONTRACT test, not a regression guard: verified to pass both with and
-    // without the `registrationsByHotkey` cleanup in `unregisterHotkey`, because
-    // re-registering reuses the emptied Set either way. That cleanup is memory
-    // hygiene with no observable behaviour, so it is not testable behaviourally;
-    // this pins the re-registration contract the cleanup must not break.
     test("a hotkey re-registered after full unregistration still dispatches", async () => {
         await makeMockEnv();
         const hotkey = getService("hotkey");

@@ -16,21 +16,6 @@ import { AppEvent } from "@web/core/events";
 import { SupersededError } from "@web/core/utils/concurrency";
 import { WebClient } from "@web/webclient/webclient";
 
-/**
- * REGRESSION SUITE for the unified navigation clock (audit U3 proposal 4).
- *
- * One race per historical incident class, each asserted from the public
- * surface. The single supersession authority is `am.navigation`
- * (`navigation_token.js`); the mount stage keeps its occupancy sensor but
- * speaks the same `SupersededError`. These tests pin the CONTRACT of the
- * unification:
- *
- *  - a navigation superseded at the LOAD stage rejects with SupersededError;
- *  - a navigation superseded later (mount / skeleton) settles quietly;
- *  - in every case the LAST navigation the user asked for is what renders,
- *    and no superseded dispatch leaves the manager hanging.
- */
-
 describe.current.tags("desktop");
 
 const { ResCompany, ResPartner, ResUsers } = webModels;
@@ -77,9 +62,6 @@ defineActions([
 ]);
 
 test("a stale doAction whose load resolves late cannot dispatch", async () => {
-    // Incident class: a slow /web/action/load answering after the user has
-    // already navigated elsewhere. The stale navigation must reject at the
-    // load stage - eagerly, with the documented error - and must not repaint.
     const slowLoad = new Deferred();
     await mountWithCleanup(WebClient);
     const action = getService("action");
@@ -102,7 +84,6 @@ test("a stale doAction whose load resolves late cannot dispatch", async () => {
     await action.doAction(22);
     expect(".o_kanban_view").toHaveCount(1);
 
-    // The rejection must not wait for the slow load to answer.
     expect(await stale).toBeInstanceOf(SupersededError);
 
     slowLoad.resolve();
@@ -128,8 +109,6 @@ test("rapid navigation: the last of a burst wins, none of it hangs", async () =>
 
     expect(".o_kanban_view").toHaveCount(1);
     expect(".o_list_view").toHaveCount(0);
-    // Every superseded dispatch settled - rejected with the documented error
-    // at the load stage or resolved quietly past it - and the winner resolved.
     expect(outcomes.at(-1)?.status).toBe("fulfilled");
     for (const outcome of outcomes.slice(0, -1)) {
         if (outcome.status === "rejected") {
@@ -139,11 +118,6 @@ test("rapid navigation: the last of a burst wins, none of it hangs", async () =>
 });
 
 test("a doAction minted during a loadState's reconstruction supersedes it", async () => {
-    // Incident class: the user hits Back (loadState starts rebuilding the
-    // breadcrumb stack from the url), then clicks something else before the
-    // reconstruction lands. The click is the newer intent: the loadState must
-    // die with the documented error instead of dispatching a stale action
-    // over the user's choice.
     const reconstruction = new Deferred();
     await mountWithCleanup(WebClient);
     const action = getService("action");
@@ -174,9 +148,6 @@ test("a doAction minted during a loadState's reconstruction supersedes it", asyn
 });
 
 test("entering loadState cancels an in-flight doAction load eagerly", async () => {
-    // The mirror race: a doAction is still waiting on its load RPC when the
-    // user hits Back. The Back is the newer intent; the doAction must reject
-    // NOW - not mount late over the restored state.
     const slowLoad = new Deferred();
     await mountWithCleanup(WebClient);
     const action = getService("action");
@@ -208,14 +179,6 @@ test("entering loadState cancels an in-flight doAction load eagerly", async () =
 });
 
 test("a dialog above a clearBreadcrumbs skeleton does not cancel the dispatch beneath", async () => {
-    // The counter-example that keeps the mount stage on its occupancy sensor
-    // rather than the navigation clock: the dialog mints a newer epoch but
-    // takes no container, so the skeleton-stage dispatch must keep going and
-    // land - not die parked on its skeleton wait, stranding the skeleton on
-    // screen behind the dialog. Landing then closes the dialog, as every
-    // inline landing does (`dialog.closeAll` precedes the controller UPDATE);
-    // what this pins is that the dispatch SURVIVES, with the pre-unification
-    // outcome.
     await mountWithCleanup(WebClient);
     const action = getService("action");
 
@@ -227,8 +190,6 @@ test("a dialog above a clearBreadcrumbs skeleton does not cancel the dispatch be
     });
 
     const beneath = action.doAction(22, { clearBreadcrumbs: true });
-    // Let the inline dispatch get past its load stage and park on the
-    // skeleton wait; the dialog must supersede nothing when it opens.
     for (let i = 0; i < 50 && !skeletonPosted; i++) {
         await microTick();
     }

@@ -1087,9 +1087,6 @@ describe("extension objects stay pristine", () => {
         const unFoo = patch(A.prototype, extFoo);
         const unBar = patch(A.prototype, extBar);
 
-        // `patch()` used to reuse the previous extension as the skeleton store,
-        // so `extFoo` came back owning a `bar` it never declared. The
-        // double-patch audit in mail/ had to work around that.
         expect(Object.getOwnPropertyNames(extFoo)).toEqual(["foo"]);
         expect(Object.getOwnPropertyNames(extBar)).toEqual(["bar"]);
 
@@ -1187,8 +1184,6 @@ describe("extension objects stay pristine", () => {
         unA();
         expect(new A().fn()).toBe("orig");
 
-        // Another module patches the same target afterwards. The first
-        // unpatch no longer owns anything here and must not touch it.
         const unC = patch(A.prototype, {
             fn() {
                 return "C>" + super.fn();
@@ -1198,8 +1193,6 @@ describe("extension objects stay pristine", () => {
         expect(new A().fn()).toBe("C>orig");
         expect(patchInfo(A.prototype).extensions).toHaveLength(1);
 
-        // ...and C's own unpatch still works, rather than having been
-        // silently deregistered.
         unC();
         expect(new A().fn()).toBe("orig");
         expect(patchInfo(A.prototype)).toBe(null);
@@ -1207,19 +1200,6 @@ describe("extension objects stay pristine", () => {
 });
 
 describe("mixin chains", () => {
-    // `SearchModel` is
-    // `SearchQueryMixin(SearchSplitDomainMixin(SearchFavoritesMixin(
-    //     SearchPropertiesMixin(SearchPanelMixin(EventBus)))))`
-    // — five mixins holding 1,139 lines of class body. Every method they declare
-    // lives on an ANCESTOR prototype, not on `SearchModel.prototype`, so patching
-    // the composed class for one of those names is the case where `patch()` finds
-    // no own descriptor to record on its skeleton and `super` must resolve through
-    // the real prototype chain instead.
-    //
-    // Nothing else in this file covers that: every other test patches a key the
-    // target itself declares. The whole extensibility argument for mixin-composed
-    // classes rests on this working, so it is pinned here rather than assumed.
-
     const withDeep = (/** @type {any} */ Base) =>
         class extends Base {
             deep() {

@@ -616,8 +616,6 @@ test("ReferenceField on char field: editing writes the 'model,id' string", async
 });
 
 test("ReferenceField on char field: no quick-create option in the dropdown", async () => {
-    // quickCreate resolves to { id: false }, which the char branch would
-    // persist as the literal string "product,false".
     Partner._records[0].reference_char = "product,37";
     await mountView({
         type: "form",
@@ -641,8 +639,6 @@ test("ReferenceField on char field, reset by onchange", async () => {
     Partner._records[0].foo = "product,37";
     Partner._onChanges.int_field = (obj) => (obj.foo = "product," + obj.int_field);
     let nbNameGet = 0;
-    // reference names resolve through the name service, which batches them
-    // into a web_search_read rather than a per-record read
     onRpc("product", "web_search_read", ({ kwargs }) => {
         if (kwargs.specification && "display_name" in kwargs.specification) {
             nbNameGet++;
@@ -989,8 +985,6 @@ test("reference field should await fetch model before render", async () => {
     onRpc("ir.model", "read", async () => {
         await def;
     });
-    // Not awaited yet: the view stays blocked on `def` (the model read), which
-    // is the state under test.
     const mounted = mountView({
         type: "form",
         resModel: "partner",
@@ -1082,7 +1076,6 @@ test("AUDIT reference char: names are batched into one read, not one read each",
     });
     await animationFrame();
 
-    // two different references resolve through a single batched call
     expect.verifySteps(["web_search_read"]);
     expect(queryAllTexts(".o_field_reference")).toEqual(["xphone", "xpad", ""]);
 });

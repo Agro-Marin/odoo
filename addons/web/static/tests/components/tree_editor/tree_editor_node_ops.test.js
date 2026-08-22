@@ -1,15 +1,9 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { TreeEditor } from "@web/components/tree_editor/tree_editor";
+import { TreeEditor } from "@web/components/tree_editor";
 import { condition, connector } from "@web/core/tree/condition_tree";
 
-/**
- * The node-mutating primitives locate a node with `indexOf` and splice around
- * the result. A node that is not (or no longer) a child of `parent` yields -1,
- * which `splice` reads as "one from the end" -- silently hitting the wrong
- * position. These pin the -1 handling directly, without a mount.
- */
 const proto = /** @type {any} */ (TreeEditor.prototype);
 
 /** @param {any} tree */
@@ -70,4 +64,43 @@ test("_addNewConnector appends when the sibling is not a child", () => {
     );
     expect(parent.children.length).toBe(3);
     expect(/** @type {any} */ (parent.children.at(-1)).type).toBe("connector");
+});
+
+test("_updateComplexCondition refuses an unreadable expression", () => {
+    const node = { type: "complex_condition", value: "a == 1" };
+    proto._updateComplexCondition.call({}, node, "not valid ((");
+    expect(node.value).toBe("a == 1");
+
+    proto._updateComplexCondition.call({}, node, "b == 2");
+    expect(node.value).toBe("b == 2");
+});
+
+test("updateComplexCondition puts the node's value back into the input", () => {
+    const node = { type: "complex_condition", value: "a == 1" };
+    const input = /** @type {any} */ ({ value: "not valid ((" });
+    const self = {
+        _updateComplexCondition: proto._updateComplexCondition,
+        updateNode: (/** @type {any} */ _n, /** @type {any} */ fn) => fn(),
+    };
+
+    proto.updateComplexCondition.call(self, node, input.value, input);
+
+    expect(node.value).toBe("a == 1", { message: "the node kept its value" });
+    expect(input.value).toBe("a == 1", {
+        message: "and the box must not keep what was refused",
+    });
+});
+
+test("updateComplexCondition leaves an accepted expression in place", () => {
+    const node = { type: "complex_condition", value: "a == 1" };
+    const input = /** @type {any} */ ({ value: "b == 2" });
+    const self = {
+        _updateComplexCondition: proto._updateComplexCondition,
+        updateNode: (/** @type {any} */ _n, /** @type {any} */ fn) => fn(),
+    };
+
+    proto.updateComplexCondition.call(self, node, input.value, input);
+
+    expect(node.value).toBe("b == 2");
+    expect(input.value).toBe("b == 2");
 });

@@ -35,7 +35,6 @@ test("size never exceeds the limit", () => {
         cache.set(`k${i}`, i);
     }
     expect(cache.size).toBe(3);
-    // The three most recent survive; everything older is gone.
     expect(cache.has("k99")).toBe(true);
     expect(cache.has("k98")).toBe(true);
     expect(cache.has("k97")).toBe(true);
@@ -48,7 +47,6 @@ test("eviction is least-recently-used, not first-in", () => {
     cache.set("a", 1);
     cache.set("b", 2);
     cache.set("c", 3);
-    // Touching "a" makes it the most recent, so "b" is now the oldest.
     expect(cache.get("a")).toBe(1);
     cache.set("d", 4);
     expect(cache.has("b")).toBe(false);
@@ -63,7 +61,6 @@ test("a re-set key is refreshed, not left stale in the eviction order", () => {
     cache.set("b", 2);
     cache.set("a", 3);
     cache.set("c", 4);
-    // "b" was the oldest once "a" was rewritten.
     expect(cache.has("b")).toBe(false);
     expect(cache.get("a")).toBe(3);
     expect(cache.get("c")).toBe(4);

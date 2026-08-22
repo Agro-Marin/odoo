@@ -50,13 +50,8 @@ function registerService(name, dependencies, factory) {
 }
 
 /**
- * Capture calls to a console method for the duration of the test, restoring it
- * on cleanup. Service-startup failures are reported through the console by
- * design (see the resilience contract below), so asserting on them is how the
- * degrade-gracefully behaviour is specified.
- *
  * @param {"warn" | "error"} method
- * @returns {any[][]} captured argument lists, appended to as calls arrive
+ * @returns {any[][]}
  */
 function captureConsole(method) {
     const calls = [];
@@ -69,15 +64,6 @@ function captureConsole(method) {
 }
 
 /**
- * Create a bare env and begin its service startup.
- *
- * Deliberately NOT `makeMockEnv`: that helper conditionally awaits
- * `makeMockServer()`, which may perform a real `/web/model/get_definitions`
- * request, so the number of microtasks between the call and the first service
- * factory is an incidental scheduling detail rather than a contract. Tests that
- * observe startup mid-flight must synchronise on an observable signal (a
- * `Deferred` resolved inside the factory) instead of counting ticks.
- *
  * @returns {{ env: any, started: Promise<void> }}
  */
 function startEnv() {
@@ -368,10 +354,6 @@ test(`startServices: still throws on genuine circular dependency`, async () => {
     );
 });
 
-/**
- * Capture console.warn calls during ``body`` and return them.  Restores
- * the original function on completion.  Async-aware via try/finally.
- */
 async function captureWarns(/** @type {any} */ body) {
     const captured = [];
     const original = console.warn;
@@ -549,17 +531,9 @@ test(`env.isReady is resolved after services are loaded`, async () => {
     expect.verifySteps(["after", "env ready"]);
 });
 
-/**
- * Cross-test probe: `env.destroy()` runs during the FIRST test's teardown, so
- * the assertion has to live in a second test. Asserting inside the first one
- * would only ever observe the pre-teardown state.
- */
 const teardownProbe = { destroyed: 0 };
 
 test("service disposers run when the test env is torn down", async () => {
-    // `makeMockEnv` used to call only `disposeServiceRegistryListener()`, half
-    // of what `env.destroy()` does, so the per-service `destroy()` loop never
-    // ran and every service disposer in the codebase was unreachable.
     registry.category("services").add("zz_teardown_probe", {
         start() {
             return {
@@ -579,12 +553,6 @@ test("the previous test's service disposer actually ran", async () => {
 
 describe("service-start beacon", () => {
     /**
-     * ``reportJsError`` dedups on (message,line,col,stack-hash) in a
-     * module-level Set that lives for the whole page and has no seam to clear,
-     * so every test below uses a DISTINCT service name — that is what keeps the
-     * beacon keys apart. Reusing a name across tests would silently drop the
-     * second beacon and read as a logic failure.
-     *
      * @returns {Blob[]}
      */
     function spyBeacon() {
@@ -617,10 +585,7 @@ describe("service-start beacon", () => {
         expect(payload.message).toBe(
             'service "beacon-sync-fail" failed to start (sync)',
         );
-        // The whole point: the reason, not just the fact.
         expect(payload.cause).toInclude("cannot read subscribe of undefined");
-        // console.error must survive — the beacon adds a channel, it does not
-        // replace the one developers already rely on.
         expect(errors.length).toBe(1);
     });
 
@@ -652,8 +617,6 @@ describe("service-start beacon", () => {
         const { env, started } = startEnv();
         await started;
 
-        // One base failure can strand dozens of dependents; they are all
-        // consequences of the same fact, so only the cause is reported.
         expect(blobs).toHaveLength(1);
         expect((await payloadOf(blobs[0])).message).toInclude("beacon-base-fail");
         expect("beacon-dependent" in env.services).toBe(false);
@@ -667,8 +630,6 @@ describe("service-start beacon", () => {
         registerService("beacon-boot-fine", [], () => "ok");
 
         const { env, started } = startEnv();
-        // startServices must resolve, not reject: adding a report must not
-        // turn a swallowed failure into a fatal one.
         await expect(started).resolves.toBe(undefined);
         expect(env.services["beacon-boot-fine"]).toBe("ok");
     });

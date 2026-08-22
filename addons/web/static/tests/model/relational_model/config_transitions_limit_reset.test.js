@@ -1,19 +1,5 @@
 // @ts-check
 
-/**
- * ``computeNextConfig`` must drop ``config.limit`` when a load crosses the
- * grouped/ungrouped boundary: the number means "records per page" on a flat
- * list and "GROUPS per page" on a grouped one, and the two defaults differ
- * (``DEFAULT_LIMIT`` 80 vs ``DEFAULT_OPEN_GROUP_LIMIT`` 10 for an auto-unfolding
- * kanban). Carrying the old number over makes the list fetch the wrong page
- * size — 80 auto-unfolded groups, each pulling its own records, instead of 10.
- *
- * The reset used to live inside an ``if (params.domain)`` branch it has nothing
- * to do with, so it only fired when the caller happened to also pass a domain.
- * It usually does — ``getSearchParams`` forwards all four SEARCH_KEYS — which
- * is why this stayed latent rather than obviously broken.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { computeNextConfig } from "@web/model/relational_model/config_transitions";
 

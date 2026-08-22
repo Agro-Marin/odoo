@@ -71,11 +71,6 @@ test("openRecord does not navigate when the dirty record fails validation", asyn
 
 test.tags("desktop");
 test("onSelectionChanged fires for a cardinality-preserving selection swap", async () => {
-    // The effect dependency used to be `selection.length`, a cardinality proxy
-    // for a SET: deselecting one record and selecting another in the same tick
-    // (two ordinary clicks) left the count unchanged, so the callback never
-    // ran and consumers kept reporting the OLD ids — a silent stale-data
-    // window, not merely a missed notification.
     const seen = [];
     await mountView({
         resModel: "partner",
@@ -94,13 +89,13 @@ test("onSelectionChanged fires for a cardinality-preserving selection swap", asy
     const inputs = document.querySelectorAll(
         `.o_data_row .o_list_record_selector input`,
     );
-    inputs[0].click(); // deselect record 1
-    inputs[1].click(); // select record 2 — same cardinality
+    inputs[0].click();
+    inputs[1].click();
     await animationFrame();
     expect(seen.at(-1)).toBe("[2]");
 
     seen.length = 0;
-    inputs[2].click(); // cardinality changes too
+    inputs[2].click();
     await animationFrame();
     expect(seen.at(-1)).toBe("[2,3]");
 });
@@ -114,7 +109,6 @@ test("onSelectionChanged ignores a superseded resId resolution", async () => {
         getResIds(selected) {
             const result = super.getResIds(selected);
             if (++call === 1) {
-                // the first lookup resolves LAST, carrying stale ids
                 return new Promise((resolve) => {
                     releaseFirst = () => resolve(result);
                 });

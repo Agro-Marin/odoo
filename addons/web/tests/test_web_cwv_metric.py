@@ -1,11 +1,3 @@
-"""DB-level integrity guards on the Core Web Vitals metric model.
-
-``web.cwv.metric`` is anonymous-writable (the observability controller writes
-beacons via ``sudo()``) and high-volume, so it must not rely on the controller
-alone to clamp values: the model carries CHECK constraints and column-size caps
-that hold regardless of the write path.
-"""
-
 import json
 from unittest.mock import patch
 
@@ -17,8 +9,6 @@ from odoo.tools import mute_logger
 
 @tagged("web_unit", "web_cwv")
 class TestWebCwvMetric(TransactionCase):
-    """Constraints on ``web.cwv.metric`` (latency ranges, NaN/Infinity, sizes)."""
-
     def _create(self, vals):
         rec = self.env["web.cwv.metric"].sudo().create(vals)
         self.env.flush_all()
@@ -60,11 +50,6 @@ class TestWebCwvMetric(TransactionCase):
         self.assertLessEqual(len(rec.url), 2048)
 
     def test_controller_clamps_reject_non_finite(self):
-        """The observability controller must never forward NaN/Infinity to the
-        model (NaN slips past a naive range check, then trips the DB CHECK and
-        500s the beacon endpoint). The clamps reject non-finite/bool values so
-        the controller path stays constraint-safe.
-        """
         from odoo.addons.web.controllers.observability import _clamp_cls, _clamp_latency
 
         for bad in (float("nan"), float("inf"), float("-inf"), -1.0, True):
@@ -76,12 +61,6 @@ class TestWebCwvMetric(TransactionCase):
         self.assertEqual(_clamp_cls(0.05), 0.05)
 
     def test_rate_limiter_key_map_stays_bounded(self):
-        """A flood of distinct client keys must not grow ``_rate_state`` without
-        bound. Pruning stale windows can't help when every key is fresh (spoofed
-        X-Forwarded-For), so eviction hard-caps the map. The batch drops it to a
-        low-water mark via ``heapq`` (O(n)) rather than re-sorting the whole map
-        (O(n log n)) on every over-cap call.
-        """
         from odoo.addons.web.controllers import observability as obs
 
         obs._rate_state.clear()
@@ -97,8 +76,6 @@ class TestWebCwvMetric(TransactionCase):
 
 @tagged("-at_install", "post_install", "web_http", "web_cwv")
 class TestWebCwvBeacon(HttpCase):
-    """End-to-end behaviour of the /web/observability/cwv beacon controller."""
-
     def _beacon(self, payload):
         return self.url_open(
             "/web/observability/cwv",

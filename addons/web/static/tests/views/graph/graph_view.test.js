@@ -1307,7 +1307,9 @@ test("process simple arch (no field tag)", async () => {
         <graph order="ASC" disable_linking="1" type="line" />
     `;
 
-    expect(new GraphArchParser().parse(arch1, fooFields)).toEqual({
+    expect(
+        new GraphArchParser().parse(arch1, { foo: { fields: fooFields } }, "foo"),
+    ).toEqual({
         disableLinking: true,
         fields: fooFields,
         fieldAttrs: {},
@@ -1321,7 +1323,9 @@ test("process simple arch (no field tag)", async () => {
         <graph disable_linking="0" string="Title" stacked="False" />
     `;
 
-    expect(new GraphArchParser().parse(arch2, fooFields)).toEqual({
+    expect(
+        new GraphArchParser().parse(arch2, { foo: { fields: fooFields } }, "foo"),
+    ).toEqual({
         disableLinking: false,
         fields: fooFields,
         fieldAttrs: {},
@@ -1349,7 +1353,9 @@ test("process arch with field tags", async () => {
         </graph>
     `;
 
-    expect(new GraphArchParser().parse(arch, fooFields)).toEqual({
+    expect(
+        new GraphArchParser().parse(arch, { foo: { fields: fooFields } }, "foo"),
+    ).toEqual({
         fields: fooFields,
         fieldAttrs: {
             bar: { isInvisible: true, string: "My invisible field" },
@@ -1374,7 +1380,9 @@ test("process arch with non stored field tags of type measure", async () => {
             <field name="foo" type="measure"/>
         </graph>
     `;
-    expect(new GraphArchParser().parse(arch, fooFields)).toEqual({
+    expect(
+        new GraphArchParser().parse(arch, { foo: { fields: fooFields } }, "foo"),
+    ).toEqual({
         fields: fooFields,
         fieldAttrs: {},
         measure: "foo",
@@ -3385,4 +3393,47 @@ test("empty (false) aggregate group must not flip integer formatting chart-wide"
         arch: `<graph type="bar"><field name="product_id"/><field name="foo" type="measure"/></graph>`,
     });
     expect(getGraphModelMetaData(view).allIntegers).toBe(true);
+});
+
+test("a field hidden by a context expression is dropped from the arch group-bys", async () => {
+    const arch = `
+        <graph>
+            <field name="product_id" invisible="context.get('hide_product', False)"/>
+            <field name="color_id"/>
+        </graph>`;
+
+    const shown = await mountView({ type: "graph", resModel: "foo", arch });
+    expect(getGraphModelMetaData(shown).groupBy.map((gb) => gb.fieldName)).toEqual(
+        ["product_id", "color_id"],
+        {
+            message: "with the expression false, the arch axis stands",
+        },
+    );
+
+    const hidden = await mountView({
+        type: "graph",
+        resModel: "foo",
+        arch,
+        context: { hide_product: true },
+    });
+    expect(getGraphModelMetaData(hidden).groupBy.map((gb) => gb.fieldName)).toEqual(
+        ["color_id"],
+        {
+            message: "with it true, the axis the arch asked to hide is gone",
+        },
+    );
+});
+
+test("a static invisible still resolves at parse time, in every spelling", async () => {
+    for (const spelling of ["1", "True", "true"]) {
+        const view = await mountView({
+            type: "graph",
+            resModel: "foo",
+            arch: `<graph><field name="product_id" invisible="${spelling}"/><field name="color_id"/></graph>`,
+        });
+        expect(getGraphModelMetaData(view).groupBy.map((gb) => gb.fieldName)).toEqual(
+            ["color_id"],
+            { message: `invisible="${spelling}" hides the field` },
+        );
+    }
 });

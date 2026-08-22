@@ -178,6 +178,21 @@ describe("isSafeUrlScheme", () => {
         expect(isSafeUrlScheme("  //evil.example")).toBe(false);
     });
 
+    test("a backslash spelling of protocol-relative is rejected too", () => {
+        expect(isSafeUrlScheme("\\\\evil.com")).toBe(false);
+        expect(isSafeUrlScheme("/\\evil.com")).toBe(false);
+        expect(isSafeUrlScheme("\\/evil.com")).toBe(false);
+        expect(isSafeUrlScheme("\\\\\\evil.com")).toBe(false);
+        expect(isSafeUrlScheme("  /\\evil.com")).toBe(false);
+        expect(isSafeUrlScheme("\t\\\\evil.com")).toBe(false);
+    });
+
+    test("a single leading backslash stays safe, being a same-origin path", () => {
+        expect(isSafeUrlScheme("\\evil.com")).toBe(true);
+        expect(isSafeUrlScheme("/path/to/page")).toBe(true);
+        expect(isSafeUrlScheme("/")).toBe(true);
+    });
+
     test("non-string input is unsafe", () => {
         expect(isSafeUrlScheme(null)).toBe(false);
         expect(isSafeUrlScheme(undefined)).toBe(false);

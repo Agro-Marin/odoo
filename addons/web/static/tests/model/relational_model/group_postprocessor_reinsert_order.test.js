@@ -1,13 +1,5 @@
 // @ts-check
 
-/**
- * The sticky-empty pass of ``postprocessReadGroup`` re-inserts groups that
- * dropped out of the response. Its cursor must track positions in the array it
- * is splicing into; matching against indices captured before the first splice
- * makes every survivor after that splice compare stale and stops advancing the
- * cursor, so later re-insertions land in front of groups they must follow.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { postprocessReadGroup } from "@web/model/relational_model/group_postprocessor";
 
@@ -66,7 +58,6 @@ describe("sticky-empty re-insertion order", () => {
     });
 });
 
-/** Deterministic PRNG so a failure is reproducible from its seed. */
 function makeRng(/** @type {number} */ seed) {
     let state = seed >>> 0;
     return () => {
@@ -85,7 +76,6 @@ describe("sticky-empty merge properties", () => {
             const config = makeConfig();
             await runPostprocess(config, initial);
 
-            // every group is still configured, so every drop must be restored
             const survivors = initial.filter(() => rng() > 0.5);
             const { groups } = await runPostprocess(config, survivors);
             const merged = groups.map((g) => g.value);
@@ -106,7 +96,6 @@ describe("sticky-empty merge properties", () => {
             await runPostprocess(config, initial);
 
             const survivors = initial.filter(() => rng() > 0.5);
-            // forget one non-surviving group entirely (deleted column)
             const forgettable = initial.filter((n) => !survivors.includes(n));
             const forgotten = forgettable.length
                 ? forgettable[Math.floor(rng() * forgettable.length)]

@@ -1,16 +1,5 @@
 // @ts-check
 
-/**
- * End-to-end reachability check for the stale-page-offset bug, through a real
- * form view rather than a hand-built StaticList: an x2many sitting on page 2
- * whose onchange answers with a relation shorter than the current page start
- * must not render a blank page.
- *
- * Drives the same path the UI does — pager click, then a field edit whose
- * onchange returns the DELETE commands — so it proves the unit-level fix in
- * static_list_offset_clamp.test.js corresponds to something a user can hit.
- */
-
 import { expect, test } from "@odoo/hoot";
 import { queryAllTexts } from "@odoo/hoot-dom";
 import {
@@ -52,15 +41,10 @@ const ARCH = `
         </field>
     </form>`;
 
-// The offset is read back off `.o_pager_counter`, which `pager.xml` renders
-// under `t-if="!env.isSmall"` — the assertion this test is built around does
-// not exist on a small screen. `static_list_offset_clamp.test.js` covers the
-// same clamp at the model layer, in either preset.
 test.tags("desktop");
 test("an onchange shortening the relation while on page 2 does not blank the list", async () => {
     Partner._onChanges = { int_field: () => {} };
     onRpc("onchange", () => ({
-        // the conventional "here is the whole (shorter) relation" answer
         value: {
             p: [
                 [2, 13, false],
@@ -80,10 +64,8 @@ test("an onchange shortening the relation while on page 2 does not blank the lis
     ]);
     expect(".o_x2m_control_panel .o_pager_counter").toHaveText("3-4 / 4");
 
-    // the onchange drops exactly the two rows the user is looking at
     await contains(".o_field_widget[name=int_field] input").edit("64");
 
-    // the surviving rows must render, not an empty page past the end
     expect(".o_field_widget[name=p] .o_data_row").toHaveCount(2);
     expect(queryAllTexts(".o_field_widget[name=p] .o_data_cell")).toEqual([
         "line 1",
@@ -111,7 +93,6 @@ test("deleting the last row of the last page falls back to the previous page", a
     await contains(".o_field_widget[name=p] .o_pager_next").click();
     expect(queryAllTexts(".o_field_widget[name=p] .o_data_cell")).toEqual(["line 3"]);
 
-    // this is the path whose ad-hoc `count === offset` guard _clampOffset replaced
     await contains(".o_field_widget[name=p] .o_data_row .o_list_record_remove").click();
 
     expect(".o_field_widget[name=p] .o_data_row").toHaveCount(2);

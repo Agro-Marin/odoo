@@ -1,13 +1,5 @@
 // @ts-check
 
-/**
- * Pure unit tests for field_metadata.js.
- *
- * Tests makeActiveField, combineModifiers, patchActiveFields,
- * createPropertyActiveField, and addFieldDependencies
- * without OWL, DOM, or a mock server.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import {
     addFieldDependencies,
@@ -126,7 +118,9 @@ describe("combineModifiers — OR", () => {
 
 describe("combineModifiers — invalid operator", () => {
     test("throws for unknown operator", () => {
-        expect(() => combineModifiers("True", "False", "XOR")).toThrow(Error);
+        expect(() =>
+            combineModifiers("True", "False", /** @type {any} */ ("XOR")),
+        ).toThrow(Error);
     });
 });
 
@@ -235,8 +229,6 @@ describe("addFieldDependencies", () => {
     });
 
     test("written dependency is writable when it introduces the field", () => {
-        // Declared readonly by default, a dependency the widget edits is
-        // stripped from web_save and the edit is silently lost.
         const activeFields = {};
         const fields = { doc_name: { type: "char" } };
         addFieldDependencies(activeFields, fields, [
@@ -246,7 +238,6 @@ describe("addFieldDependencies", () => {
     });
 
     test("written dependency leaves an existing field's modifiers alone", () => {
-        // `readonly: false` would AND with the arch modifier and unlock it.
         const activeFields = {
             doc_name: makeActiveField({ readonly: "not datas", required: true }),
         };
@@ -259,8 +250,6 @@ describe("addFieldDependencies", () => {
     });
 
     test("readonly:false dependency DOES override an existing modifier", () => {
-        // Pinned so the difference with `written` stays visible: this is the
-        // behaviour that makes `readonly: false` the wrong tool for a write.
         const activeFields = { doc_name: makeActiveField({ readonly: "not datas" }) };
         const fields = { doc_name: { type: "char" } };
         addFieldDependencies(activeFields, fields, [

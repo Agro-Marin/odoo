@@ -6,9 +6,6 @@ import { getClassNameFromDecoration, getDecoration } from "@web/core/utils/decor
 describe.current.tags("headless");
 
 /**
- * Build an element carrying the given attributes, preserving insertion order
- * (``getAttributeNames`` reflects it, and ``getDecoration`` relies on it).
- *
  * @param {Record<string, string>} attrs
  * @returns {Element}
  */

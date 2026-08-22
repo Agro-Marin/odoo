@@ -1,11 +1,5 @@
 // @ts-check
 
-/**
- * A compiled template embeds its whole `t-inherit` ancestry and every extension
- * layered onto it, so invalidating only the name that changed left inheritors
- * serving a result built from the previous version.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { TemplateRegistry } from "@web/core/templates";
 
@@ -65,9 +59,6 @@ describe("compiled-template invalidation", () => {
     test("an extension invalidates the template it targets", () => {
         const r = new TemplateRegistry();
         r.registerTemplate("p", "/a/a.xml", PARENT_V1);
-        // Assert on a marker that cannot collide with template metadata: an
-        // earlier draft of this test asserted `toInclude("ext")`, which matched
-        // the substring inside `t-translation-context` and passed vacuously.
         expect(html(r, "p")).not.toInclude("EXT");
         const un = r.registerTemplateExtension("p", "/a/d.xml", EXTENSION);
         expect(html(r, "p")).toInclude("EXT");
@@ -76,11 +67,6 @@ describe("compiled-template invalidation", () => {
     });
 
     test("blockId still scopes an extension to the inheritors that follow it", () => {
-        // NOT a caching artefact: a `t-inherit-mode="primary"` child snapshots
-        // its parent at the child's own registration block, so an extension
-        // registered LATER is deliberately invisible to it — that is what the
-        // `blockId` comparison in `_getTemplate` exists for. Only the parent's
-        // own CONTENT changing has to reach the child (the test above).
         const before = new TemplateRegistry();
         before.registerTemplate("p", "/a/a.xml", PARENT_V1);
         before.registerTemplate("c", "/a/b.xml", CHILD);

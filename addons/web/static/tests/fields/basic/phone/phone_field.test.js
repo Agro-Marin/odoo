@@ -226,8 +226,6 @@ test("New record, fill in phone field, then click on call icon and save", async 
 });
 
 test("PhoneField honours the field's trim attribute", async () => {
-    // See the equivalent url_field test: Char.trim is client-enforced, so a
-    // widget without a `parse` writes untrimmed data to a trim=True column.
     onRpc("web_save", ({ args }) => {
         expect(args[1].foo).toBe("+32 494 44 44 44");
         expect.step("web_save");

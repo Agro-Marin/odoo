@@ -1,17 +1,5 @@
 // @ts-check
 
-/**
- * @module tests/views/list/list_group_layout
- *
- * ``list_group_layout.js`` is pure arithmetic over
- * ``(columns, fields, aggregates)``: it decides where a group header's name
- * cell stops, which columns carry an aggregate, and how wide the trailing
- * pager cell is. Every consumer (group headers AND the ``<tfoot>`` totals row)
- * addresses the SAME grid, so these numbers only line up if they are computed
- * from the SAME column list the body rendered — pinned end-to-end in
- * ``list_footer_alignment.test.js``.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import {
     countRecordsInGroup,

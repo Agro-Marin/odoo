@@ -17,19 +17,12 @@ import { makeMockServer, MockServer } from "./mock_server/mock_server.js";
 
 /**
  * @typedef {Record<keyof Services, any>} Dependencies
- *
  * @typedef {import("@web/env").OdooEnv} OdooEnv
- *
  * @typedef {import("@web/core/registry").Registry} Registry
- *
  * @typedef {import("services").ServiceFactories} Services
  */
 
 /**
- * TODO: remove when services do not have side effects anymore
- * This forsaken block of code ensures that all are properly cleaned up after each
- * test because they were populated during the starting process of some services.
- *
  * @param {Registry} registry
  */
 const registerRegistryForCleanup = (registry) => {
@@ -52,8 +45,6 @@ beforeEach(() => registerRegistryForCleanup(registry), { global: true });
 afterEach(() => restoreRegistry(registry), { global: true });
 
 /**
- * Empties the given registry.
- *
  * @param {Registry} registry
  */
 export function clearRegistry(registry) {
@@ -76,11 +67,9 @@ export function getService(name) {
 }
 
 /**
- * Makes a mock environment along with a mock server
- *
  * @param {Partial<OdooEnv>} [partialEnv]
  * @param {{
- *  makeNew?: boolean;
+ * makeNew?: boolean;
  * }} [options]
  */
 export async function makeMockEnv(partialEnv, options) {
@@ -115,12 +104,6 @@ export async function makeMockEnv(partialEnv, options) {
         });
     }
 
-    // `env.destroy()` — not just `disposeServiceRegistryListener()`, which is
-    // only the first half of what destroy() does. Skipping the second half (the
-    // per-service `destroy()` loop) left every service teardown in the codebase
-    // unreachable: `env.destroy` had no caller anywhere, so the disposers in
-    // name/slow_rpc/hotkey/error/result_set_cache_invalidator were dead code
-    // that could never be verified.
     after(() => env.destroy?.());
 
     await startServices(env);
@@ -129,8 +112,6 @@ export async function makeMockEnv(partialEnv, options) {
 }
 
 /**
- * Makes a mock environment for dialog tests
- *
  * @param {Partial<OdooEnv>} [partialEnv]
  * @returns {Promise<OdooEnv>}
  */
@@ -150,7 +131,7 @@ export async function makeDialogMockEnv(partialEnv) {
  * @template {keyof Services} T
  * @param {T} name
  * @param {Partial<Services[T]> |
- *  ((env: OdooEnv, dependencies: Dependencies) => Services[T])
+ * ((env: OdooEnv, dependencies: Dependencies) => Services[T])
  * } serviceFactory
  */
 export function mockService(name, serviceFactory) {

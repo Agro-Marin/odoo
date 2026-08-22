@@ -218,8 +218,6 @@ describe("DateTimeInput (date)", () => {
         expect(".o_datetime_input").toHaveValue("1997/01/09");
     });
 
-    // The 100vh spacer only exists on small screens (`ensureVisibility` defaults
-    // to `env.isSmall`); on desktop the popover service repositions instead.
     test.tags("mobile");
     test("popover should have enough space to be displayed", async () => {
         class Root extends Component {

@@ -1,8 +1,8 @@
 // @ts-check
 
-import { expect, test } from "@odoo/hoot";
+import { after, expect, getFixture, test } from "@odoo/hoot";
 import { middleClick, rightClick } from "@odoo/hoot-dom";
-import { Component, xml } from "@odoo/owl";
+import { App, Component, xml } from "@odoo/owl";
 import { contains, mountWithCleanup } from "@web/../tests/web_test_helpers";
 
 test(`main button click`, async () => {
@@ -174,4 +174,25 @@ test(`Secondary button clicked`, async () => {
     await rightClick(".clickMe");
 
     expect.verifySteps([]);
+});
+
+test(`the directive exists only for Apps built through mountComponent`, async () => {
+    class MyComponent extends Component {
+        static template = xml`<div t-custom-click="() => {}" class="clickMe">x</div>`;
+        static props = ["*"];
+    }
+
+    const target = document.createElement("div");
+    getFixture()?.appendChild(target);
+    const app = new App(MyComponent, { env: { services: {} } });
+    after(() => app.destroy());
+
+    let error;
+    try {
+        await app.mount(target);
+    } catch (e) {
+        error = e;
+    }
+    expect(error).toBeInstanceOf(Error);
+    expect(String(error?.message)).toInclude('Custom directive "click" is not defined');
 });

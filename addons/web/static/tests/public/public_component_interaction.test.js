@@ -38,7 +38,6 @@ test(`render Public Component`, async () => {
         "MyPublicComp: 3 - number",
         'MyPublicComp: {"test":"plop"} - object',
     ]);
-    // startInteractions() resolves once sub-component mounts have settled
     expect(`.my_public_comp`).toHaveCount(3);
     expect(queryAllTexts`.my_public_comp`).toEqual(["blibli", "3", `{"test":"plop"}`]);
 });
@@ -80,10 +79,6 @@ test(`an unregistered name leaves the placeholder markup alone`, async () => {
     );
     await animationFrame();
     expect.verifyErrors([/No public component registered/]);
-    // the component is resolved BEFORE the placeholder is dropped: the getter
-    // throws on an unknown name, and the children are removed with
-    // `insertBackOnClean = false`, so a typo in a template's `name` used to
-    // delete the fallback for good and put nothing in its place
     expect("owl-component").toHaveText("server-rendered fallback");
     expect("owl-component owl-root").toHaveCount(0);
 });

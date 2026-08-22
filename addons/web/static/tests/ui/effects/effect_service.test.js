@@ -83,9 +83,6 @@ test("rendering a rainbowman with a custom component", async () => {
         static template = xml`<div class="custom">foo is <t t-esc="props.foo"/></div>`;
         static props = ["*"];
         setup() {
-            // The caller's props, plus the `close` every hosted overlay
-            // component gets — a click inside this card does not dismiss the
-            // reward, so `close` is its only way out.
             expect(this.props.foo).toBe(props.foo);
             expect(this.props.close).toBeInstanceOf(Function);
         }
@@ -99,10 +96,6 @@ test("rendering a rainbowman with a custom component", async () => {
     );
 });
 
-// HOSTED-CARD-BLOCK
-// A click inside the hosted card deliberately does not dismiss the reward, so
-// that the card's own buttons work at all. That left it with no way out until
-// it was handed `close`, the way the popover and the bottom sheet hand theirs.
 test("a custom reward component can dismiss the reward", async () => {
     class Custom extends Component {
         static template = xml`<button class="dismiss" t-on-click="() => this.props.close()">Done</button>`;
@@ -169,8 +162,6 @@ test("add() hands back a handle that dismisses the rainbowman", async () => {
 });
 
 test("add() hands back a handle on the notification fallback too", async () => {
-    // `showEffect` off swaps the reward for a notification; the caller should
-    // not have to know which branch ran to be able to dismiss it.
     patchWithCleanup(user, { showEffect: false });
     const close = getService("effect").add({ message: "Well done" });
     await animationFrame();

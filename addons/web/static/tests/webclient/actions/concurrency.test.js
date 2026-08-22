@@ -1013,8 +1013,6 @@ test("superseded clearBreadcrumbs skeleton wait doesn't leave doAction pending",
     await mountWithCleanup(WebClient);
     const action = getService("action");
 
-    // The skeleton proposal is observable on the container's own event; the
-    // internal deferred deliberately is not.
     let skeletonsPosted = 0;
     action.env.bus.addEventListener(AppEvent.ACTION_MANAGER_UPDATE, (ev) => {
         if (ev.detail?.Component?.name === "SkeletonView") {

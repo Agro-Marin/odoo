@@ -1,37 +1,5 @@
 // @ts-check
 
-/**
- * @module tests/views/list/list_virtualization
- *
- * Regression guards for the list view row virtualization.
- *
- * V1 — stable row keys
- * Virtualized rows must be keyed by stable identity (record id), not by
- * `flatRow.globalIndex`: inserting a row above (editable="top" New) shifts
- * every following globalIndex, and positional keys would tear down and
- * recreate every following row instead of patching them in place. The test
- * anchors on a `<tr>` DOM node by `data-id` and asserts the exact same node
- * survives the insertion.
- *
- * V2 — spacer/threshold behavior
- * Above the activation threshold only a slice of rows is rendered, with a
- * spacer row absorbing the remaining height.
- *
- * V3/V4/V5 — keyboard navigation × virtualization
- * When an arrow key targets a row that exists but is virtualized out of the
- * DOM, the nav hook arms a pending focus (resolved after the next patch) and
- * must consume the event: the "grid boundary" fallbacks (focus the search
- * bar on ArrowUp, default browser scroll on ArrowDown) must not fire while
- * that focus move is in flight (V3, V4). The true boundary behavior — ArrowUp
- * from the header row focuses the search bar — is preserved (V5).
- *
- * V6 — inline edit × virtualization
- * Scrolling away from an inline-edited row must NOT extend the rendered
- * window up to that row (which would materialize every row in between): the
- * edited row is kept alive as a single island adjacent to the spacer, so
- * the rendered row count stays bounded and the pending edit survives.
- */
-
 import { expect, test } from "@odoo/hoot";
 import { press, queryAll, queryFirst, waitFor } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
@@ -259,12 +227,6 @@ test("virtualization engages on small screens too (V8)", async () => {
         arch: `<list limit="200"><field name="name"/></list>`,
     });
 
-    // Below the `md` breakpoint `.o_list_renderer` has no height constraint
-    // (`list_renderer.scss` scopes its `height: 100%` to `media-breakpoint-up(md)`),
-    // so it grows to fit and an ANCESTOR scrolls. Deriving the viewport from
-    // the renderer therefore measured a span as tall as the whole list, the
-    // computed window covered every row, and virtualization silently did
-    // nothing on the platform that needs it most: all 150 rows were rendered.
     const rows = queryAll(".o_data_row");
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.length).toBeLessThan(150);
@@ -303,14 +265,6 @@ test("every row stays reachable by scrolling on small screens (V9)", async () =>
     expect(names.at(-1)).toBe("record 150");
 });
 
-/**
- * V7 — the scroll-container lookup is not paid by non-virtualized lists.
- *
- * `getScrollContainer` calls `getComputedStyle` on every ancestor up to
- * `<html>`, which is a style flush. It used to run from `onPatched`
- * unconditionally, so every list paid it on every patch even though a list
- * under the activation threshold never consults the scroller.
- */
 test.tags("desktop");
 test("a short list does no ancestor style walk on patch", async () => {
     await mountView({
@@ -320,9 +274,6 @@ test("a short list does no ancestor style walk on patch", async () => {
     });
     await animationFrame();
 
-    // Only a walk of the whole ancestor chain reaches the document root, so
-    // that is what distinguishes `getScrollContainer` from the other, narrower
-    // style reads a list patch legitimately makes.
     const real = window.getComputedStyle;
     /** @type {string[]} */
     const walked = [];
@@ -343,14 +294,6 @@ test("a short list does no ancestor style walk on patch", async () => {
 
 test.tags("desktop");
 test("crossing the threshold still resolves the scroll container", async () => {
-    // Counterpart of the test above: the lookup is conditional, not removed.
-    // The flag is set by `refresh`, which runs in onWillRender — i.e. before
-    // the onPatched that consults it — so a list that only crosses the
-    // threshold later must still end up with a working scroller rather than
-    // staying permanently unresolved. Asserted through behaviour: scrolling the
-    // container moves the rendered window, which only happens once the scroll
-    // listener is bound to the element the lookup returned.
-    // folded groups keep the flat row count under the threshold at mount time
     await mountView({
         resModel: "foo",
         type: "list",
@@ -360,7 +303,6 @@ test("crossing the threshold still resolves the scroll container", async () => {
     await animationFrame();
     expect(".o_virtual_spacer").toHaveCount(0);
 
-    // unfolding the big group takes it over
     await contains(".o_group_header:last-child").click();
     await animationFrame();
 

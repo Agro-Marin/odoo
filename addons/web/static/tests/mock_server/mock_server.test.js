@@ -149,11 +149,11 @@ defineModels([Partner, Bar, Foo]);
 
 /**
  * @param {{
- *  model?: string;
- *  method?: string;
- *  args?: any[];
- *  kwargs?: Record<string, any>;
- *  [key: string]: any;
+ * model?: string;
+ * method?: string;
+ * args?: any[];
+ * kwargs?: Record<string, any>;
+ * [key: string]: any;
  * }} params
  */
 function fetchCallKw(params) {
@@ -177,11 +177,11 @@ function fetchCallKw(params) {
 
 /**
  * @param {{
- *  model?: string;
- *  method?: string;
- *  args?: any[];
- *  kwargs?: Record<string, any>;
- *  [key: string]: any;
+ * model?: string;
+ * method?: string;
+ * args?: any[];
+ * kwargs?: Record<string, any>;
+ * [key: string]: any;
  * }} params
  */
 const ormRequest = async (params) => {
@@ -194,9 +194,6 @@ const ormRequest = async (params) => {
     return result;
 };
 
-/**
- * Minimal parameters to have a request considered as a JSON-RPC request
- */
 const JSON_RPC_BASIC_PARAMS = {
     body: "{}",
     headers: {

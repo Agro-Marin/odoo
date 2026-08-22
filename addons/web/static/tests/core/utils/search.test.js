@@ -29,7 +29,6 @@ test("fuzzyLookup", () => {
         { name: "Jérémy Red" },
         { name: "Jane Yellow" },
     ]);
-    // An empty pattern constrains nothing, so it matches everything in order.
     expect(fuzzyLookup("", data, (d) => d.name)).toEqual(data);
     expect(fuzzyLookup("สมศ", data, (d) => d.name)).toEqual([{ name: "สมศรี จู่โจม" }]);
 });
@@ -75,8 +74,6 @@ test("fuzzyTest", () => {
 
 test("fuzzyLevenshteinLookup: the length prefilter does not change results", () => {
     const words = ["apple", "maple", "ape", "banana", "a", "applesauce"];
-    // A length gap larger than the correction budget cannot be within it, so
-    // skipping the matrix for those candidates is result-preserving.
     /** @type {[string, number][]} */
     const cases = [
         ["aple", 3],
@@ -89,7 +86,6 @@ test("fuzzyLevenshteinLookup: the length prefilter does not change results", () 
     ];
     for (const [pattern, errorRatio] of cases) {
         const got = fuzzyLevenshteinLookup(pattern, words, errorRatio);
-        // Recompute without the prefilter, straight from the definition.
         const expected = words
             .map((candidate) => {
                 const norm = normalize(candidate);
@@ -111,7 +107,6 @@ test("fuzzyLevenshteinLookup: the length prefilter does not change results", () 
     }
 });
 
-/** Straightforward reference implementation, used only to cross-check above. */
 function levenshtein(/** @type {string} */ a, /** @type {string} */ b) {
     const rows = [];
     for (let i = 0; i <= a.length; i++) {

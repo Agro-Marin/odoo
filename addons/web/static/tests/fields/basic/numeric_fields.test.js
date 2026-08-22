@@ -160,8 +160,6 @@ test("Numeric fields: NumpadDecimal key is different from the decimalPoint", asy
     const progressbarInput = queryFirst(".o_field_progressbar input");
 
     /**
-     * Common assertion steps are extracted in this procedure.
-     *
      * @param {object} params
      * @param {HTMLInputElement} params.el
      * @param {[number, number]} params.selectionRange
@@ -238,7 +236,6 @@ test("Numeric fields: NumpadDecimal key is different from the decimalPoint", asy
 
 test("useNumpadDecimal should synchronize handlers on input elements", async () => {
     /**
-     * Takes an array of input elements and asserts that each has the correct event listener.
      * @param {HTMLInputElement[]} inputEls
      */
     async function testInputElements(inputEls) {

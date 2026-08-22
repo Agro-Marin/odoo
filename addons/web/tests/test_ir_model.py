@@ -114,9 +114,6 @@ class IrModelAccessTest(TransactionCase):
         self.assertNotIn("base.language.export", result)
 
     def test_get_definitions_access_gated(self):
-        """``_get_definitions`` (behind /web/model/get_definitions) must not leak
-        schema of models the caller cannot read — same gate as its siblings.
-        """
         IrModel = self.env["ir.model"]
 
         result = IrModel.with_user(self.spreadsheet_user)._get_definitions(
@@ -242,7 +239,6 @@ class TestIrModel(TransactionCase):
         super().setUp()
 
     def test_model_order_constraint(self):
-        """Check that the order constraint is properly enforced."""
         VALID_ORDERS = [
             "id",
             "id desc",
@@ -304,7 +300,6 @@ class TestIrModel(TransactionCase):
         user_model._check_order()
 
     def test_model_order_search(self):
-        """Check that custom orders are applied when querying a model."""
         ORDERS = {
             "id asc": ["Banana #1", "Banana #2", "Banana #3"],
             "id desc": ["Banana #3", "Banana #2", "Banana #1"],
@@ -322,7 +317,6 @@ class TestIrModel(TransactionCase):
             )
 
     def test_model_fold_search(self):
-        """Check that a custom model's ``fold_name`` maps to ``_fold_name``."""
         self.assertEqual(self.bananas_model.fold_name, False)
         self.assertEqual(self.env["x_bananas"]._fold_name, None)
 
@@ -330,7 +324,6 @@ class TestIrModel(TransactionCase):
         self.assertEqual(self.env["x_bananas"]._fold_name, "x_name")
 
     def test_group_expansion(self):
-        """Check that the basic custom group expansion works."""
         model = self.env["x_bananas"].with_context(read_group_expand=True)
         groups = model.formatted_read_group([], ["x_ripeness_id"], ["__count"])
         expected = [
@@ -353,7 +346,6 @@ class TestIrModel(TransactionCase):
         self.assertEqual(groups, expected, "should include 2 empty ripeness stages")
 
     def test_rec_name_deletion(self):
-        """Check that unlinking the field used as ``_rec_name`` does not crash."""
         record = self.env["x_bananas"].create({"x_name": "Ifan Ben-Mezd"})
         self.assertEqual(record._rec_name, "x_name")
         ClassRecord = self.registry[record._name]
@@ -480,7 +472,6 @@ class TestIrModel(TransactionCase):
         )
 
     def test_invalid_field_domain(self):
-        """Ensure assigning an invalid domain raises ValidationError."""
         field_ripeness_id = self.env["ir.model.fields"]._get(
             "x_bananas", "x_ripeness_id"
         )

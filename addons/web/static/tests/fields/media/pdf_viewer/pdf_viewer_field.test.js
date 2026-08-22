@@ -101,8 +101,6 @@ test("PdfViewerField: upload file and download it", async () => {
     });
     patchWithCleanup(browser, {
         open: (url, type) => {
-            // The url matters: prefixing a slash onto the object url opened
-            // `/blob:…`, a relative path that could only 404.
             expect.step(`browser_open:${type}:${url.startsWith("blob:")}`);
         },
     });
@@ -142,9 +140,6 @@ test("PdfViewerField: uploaded blob does not leak across pager navigation", asyn
 });
 
 test("PdfViewerField opens on the page its companion field names", async () => {
-    // `<name>_page` is read straight out of `record.data`, so it only works if
-    // the widget declares it -- otherwise it is never loaded and the viewer
-    // silently opens on page 1 whatever the record says.
     onRpc("web_read", ({ kwargs }) => {
         expect(Object.keys(kwargs.specification)).toInclude("document_page");
     });

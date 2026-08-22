@@ -2192,7 +2192,6 @@ describe("ephemeral history entries", () => {
 
         browser.history.back();
         await tick();
-        // The route never moved, so dismissing the layer must not reload it.
         expect.verifySteps(["popped:1"]);
         expect(router.ephemeralDepth).toBe(0);
     });
@@ -2210,9 +2209,6 @@ describe("ephemeral history entries", () => {
     });
 
     test("dropEphemerals forgets the entries without traversing history", async () => {
-        // For a caller that is leaving the document: `releaseEphemeral` unwinds
-        // with `history.go(-1)`, and a history traversal cancels a navigation
-        // already in flight. Dropping must empty the stack and move nothing.
         redirect("/odoo");
         createRouter();
         on(routerBus, RouterEvent.EPHEMERAL_POPPED, () => expect.step("popped"));
@@ -2238,7 +2234,6 @@ describe("ephemeral history entries", () => {
 
         router.dropEphemerals();
         const before = browser.history.length;
-        // What the owning overlay does on unmount, once the page is leaving.
         router.releaseEphemeral(marker);
         await tick();
 
@@ -2259,10 +2254,6 @@ describe("ephemeral history entries", () => {
         expect.verifySteps(['popped:[{"sheet":1}]']);
         expect(router.ephemeralDepth).toBe(0);
 
-        // Forward lands on an entry whose recorded depth (1) EXCEEDS the live
-        // stack (0). Assigning that depth to `.length` grows the array with
-        // holes, so the router claims a layer is stacked when none is, and the
-        // next Back reports a marker nobody pushed.
         browser.history.forward();
         await tick();
         expect(router.ephemeralDepth).toBe(0);
@@ -2274,9 +2265,6 @@ describe("ephemeral history entries", () => {
 });
 
 test("a click whose target is not an Element does not throw out of the capture phase", () => {
-    // `router`'s and `anchor_scroll`'s handlers are window-level capture
-    // listeners; an unguarded `ev.target.closest()` threw for every other
-    // handler on the event too. Any uncaught error here fails the test.
     /** @type {EventTarget[]} */
     const reached = [];
     const probe = (/** @type {Event} */ ev) =>

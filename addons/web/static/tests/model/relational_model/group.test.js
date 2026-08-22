@@ -1,17 +1,5 @@
 // @ts-check
 
-/**
- * Focused unit tests for Group protected helpers (delegation-pattern mocks,
- * built on the real Group.prototype).
- *
- * Covers:
- *  - _deleteRecords: the group count must only shrink when the underlying
- *    unlink actually happened (a vetoed unlink returns false and does NOT
- *    reload, so a premature decrement would never self-correct).
- *  - _addRecord: resId dedupe — a record already present (same resId) must not
- *    be added twice (guards the kanban cross-group move / stale-reload race).
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { Group } from "@web/model/relational_model/group";
 

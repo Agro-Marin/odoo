@@ -1,16 +1,5 @@
 // @ts-check
 
-/**
- * Unit tests for the EmbeddedActions model and its config handler.
- *
- * Most tested methods are plain (async) functions that only touch this.orm,
- * this.configHandler and this.embeddedInfos, so those tests build a minimal
- * `this` and invoke them directly (EmbeddedActions.prototype.<method>.call)
- * rather than mounting the full OWL component tree. The last describe block is
- * the exception: it mounts a real ControlPanel, because what it guards is a
- * reactive subscription that only exists once components are rendering.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
 import {
@@ -24,10 +13,10 @@ import { ControlPanel } from "@web/search/control_panel/control_panel";
 import {
     EmbeddedActions,
     EmbeddedActionsConfigHandler,
-} from "@web/search/embedded_actions_bar/embedded_actions_bar";
+} from "@web/search/embedded_actions_bar/embedded_actions";
+import { EmbeddedActionsDropdown } from "@web/search/embedded_actions_bar/embedded_actions_dropdown";
 
 /**
- * Build a minimal `this` for deleteAction.
  * @param {Object} orm
  * @param {Function} setEmbeddedActionsConfig
  */
@@ -44,7 +33,6 @@ function makeSelf(orm, setEmbeddedActionsConfig) {
 }
 
 /**
- * Build a config handler without hitting user.settings in the constructor.
  * @param {Object} [params]
  * @param {Object} [params.orm]
  * @param {Object} [params.notification]
@@ -87,10 +75,13 @@ describe("EmbeddedActions.deleteAction", () => {
     test("successful unlink removes the tab and persists settings once", async () => {
         let savedConfig = null;
         let settingsCalls = 0;
-        const self = makeSelf({ unlink: async () => true }, async (config) => {
-            settingsCalls++;
-            savedConfig = config;
-        });
+        const self = makeSelf(
+            { unlink: async () => true },
+            async (/** @type {any} */ config) => {
+                settingsCalls++;
+                savedConfig = config;
+            },
+        );
 
         await EmbeddedActions.prototype.deleteAction.call(self, { id: 7 });
 
@@ -120,6 +111,7 @@ describe("EmbeddedActionsConfigHandler.setEmbeddedActionsConfig", () => {
     });
 
     test("RPC failure with an existing config reverts the array payload", async () => {
+        /** @type {any[]} */
         const notifications = [];
         const handler = makeConfigHandler({
             orm: {
@@ -127,7 +119,10 @@ describe("EmbeddedActionsConfigHandler.setEmbeddedActionsConfig", () => {
                     throw new Error("boom");
                 },
             },
-            notification: { add: (_msg, opts) => notifications.push(opts.type) },
+            notification: {
+                add: (/** @type {any} */ _msg, /** @type {any} */ opts) =>
+                    notifications.push(opts.type),
+            },
             initialConfig: { "1+": { embedded_actions_visibility: [7, 8] } },
         });
 
@@ -211,7 +206,7 @@ describe("EmbeddedActions.toggleActionVisibility", () => {
         const self = {
             embeddedInfos: { visibleEmbeddedActions: [7] },
             configHandler: {
-                setEmbeddedActionsConfig: async (config) => {
+                setEmbeddedActionsConfig: async (/** @type {any} */ config) => {
                     savedConfig = config;
                     return true;
                 },
@@ -295,12 +290,12 @@ describe("EmbeddedActions.toggleBar", () => {
 
 describe("EmbeddedActions.saveNewAction", () => {
     /**
-     * Build a minimal `this` for saveNewAction.
      * @param {Object} params
      * @param {Object} params.orm
      * @param {Object} params.currentEmbeddedAction
      */
     function makeSaveSelf({ orm, currentEmbeddedAction }) {
+        /** @type {any[]} */
         const notifications = [];
         return {
             embeddedInfos: {
@@ -312,7 +307,8 @@ describe("EmbeddedActions.saveNewAction", () => {
             },
             orm,
             notificationService: {
-                add: (_msg, opts) => notifications.push(opts.type),
+                add: (/** @type {any} */ _msg, /** @type {any} */ opts) =>
+                    notifications.push(opts.type),
             },
             configHandler: { setEmbeddedActionsConfig: async () => true },
             env: {
@@ -398,8 +394,6 @@ describe("EmbeddedActions.saveNewAction", () => {
 
 describe("EmbeddedActions.reorderFromDrop", () => {
     /**
-     * Build a minimal `this` for reorderFromDrop, keeping the real sortActions
-     * so the assertions cover the resulting tab order and not just the payload.
      * @param {number[]} ids
      * @param {Function} setEmbeddedActionsConfig
      */
@@ -412,8 +406,6 @@ describe("EmbeddedActions.reorderFromDrop", () => {
     }
 
     /**
-     * A tab as the template renders it: tagged with its position in the bar,
-     * never with its action id.
      * @param {number|string} index
      */
     function tab(index) {
@@ -480,9 +472,6 @@ describe("EmbeddedActions.reorderFromDrop", () => {
             },
         );
 
-        // The main action's id is `false`, which OWL strips from a `t-att-`
-        // attribute instead of rendering; tagging tabs by position is what
-        // keeps it addressable from a drop.
         await EmbeddedActions.prototype.reorderFromDrop.call(self, {
             element: tab(0),
             previous: tab(1),
@@ -534,10 +523,6 @@ describe("EmbeddedActionsBar rendering", () => {
 
     test.tags("desktop");
     test("toggling a tab's visibility re-renders the desktop bar", async () => {
-        // Guards the discarded `includes` read in `_isEmbeddedActionVisible`:
-        // it is the bar's only subscription to the contents of
-        // `visibleEmbeddedActions`, which `toggleActionVisibility` splices in
-        // place. Without it both tabs stay on screen after hiding one.
         onRpc("res.users.settings", "set_embedded_actions_setting", () => true);
         onRpc("res.users.settings", "get_embedded_actions_settings", () => ({}));
 
@@ -568,5 +553,144 @@ describe("EmbeddedActionsBar rendering", () => {
         await embeddedActions.toggleActionVisibility(2);
         await animationFrame();
         expect(".o_embedded_actions button.o_draggable").toHaveCount(2);
+    });
+});
+
+describe("EmbeddedActions.isVisible", () => {
+    test("an action outside the saved set is hidden", () => {
+        const infos = { visibleEmbeddedActions: [7] };
+        expect(EmbeddedActions.isVisible(infos, { id: 7 })).toBe(true);
+        expect(EmbeddedActions.isVisible(infos, { id: 8 })).toBe(false);
+    });
+
+    test("showAllEmbeddedActions shows one the saved set omits", () => {
+        // The account-return check panel asks for every action regardless of
+        // the user's saved set. It used to say so by overriding
+        // ControlPanel._isEmbeddedActionVisible; when that member moved to
+        // EmbeddedActionsBar the override went dead and the panel silently
+        // fell back to the saved set, with no error and no failing test --
+        // this is that test.
+        const infos = { visibleEmbeddedActions: [7], showAllEmbeddedActions: true };
+        expect(EmbeddedActions.isVisible(infos, { id: 7 })).toBe(true);
+        expect(EmbeddedActions.isVisible(infos, { id: 8 })).toBe(true);
+    });
+
+    test("the flag is read per call, so it survives a set that arrives later", () => {
+        // Seeding visibleEmbeddedActions in setup() would snapshot an empty
+        // list: the actions load asynchronously. The flag is read when the
+        // question is asked instead.
+        const infos = { visibleEmbeddedActions: [], showAllEmbeddedActions: true };
+        expect(EmbeddedActions.isVisible(infos, { id: 8 })).toBe(true);
+        infos.visibleEmbeddedActions = [7];
+        expect(EmbeddedActions.isVisible(infos, { id: 8 })).toBe(true);
+    });
+});
+
+describe("EmbeddedActionsDropdown", () => {
+    /**
+     * @param {Object} [embeddedActions]
+     * @param {Object} [embeddedInfos]
+     */
+    function makeDropdown(embeddedActions = {}, embeddedInfos = {}) {
+        const dropdown = Object.create(EmbeddedActionsDropdown.prototype);
+        const infos = {
+            visibleEmbeddedActions: [1, 2],
+            embeddedActions: [{ id: 1 }, { id: 2 }],
+            currentEmbeddedAction: { id: 1 },
+            newActionIsShared: false,
+            newActionName: "",
+            showEmbedded: true,
+            ...embeddedInfos,
+        };
+        dropdown.props = {
+            embeddedActions: { embeddedInfos: infos, ...embeddedActions },
+        };
+        dropdown.state = { embeddedInfos: infos };
+        dropdown.newActionNameRef = { el: null };
+        return dropdown;
+    }
+
+    test("setVisibility delegates to the model", async () => {
+        const toggled = [];
+        const dropdown = makeDropdown({
+            toggleActionVisibility: async (/** @type {any} */ id) => {
+                toggled.push(id);
+            },
+        });
+        await dropdown.setVisibility(2);
+        expect(toggled).toEqual([2]);
+    });
+
+    test("onEmbeddedActionClick opens the action through the model", async () => {
+        const opened = [];
+        const dropdown = makeDropdown({
+            openAction: async (/** @type {any} */ a) => {
+                opened.push(a.id);
+            },
+        });
+        await dropdown.onEmbeddedActionClick({ id: 2 });
+        expect(opened).toEqual([2]);
+    });
+
+    test("openConfirmationDialog delegates to the model", () => {
+        const asked = [];
+        const dropdown = makeDropdown({
+            confirmDelete: (/** @type {any} */ a) => asked.push(a.id),
+        });
+        dropdown.openConfirmationDialog({ id: 2 });
+        expect(asked).toEqual([2]);
+    });
+
+    test("onShareCheckboxChange flips the shared flag both ways", () => {
+        const dropdown = makeDropdown();
+        expect(dropdown.state.embeddedInfos.newActionIsShared).toBe(false);
+        dropdown.onShareCheckboxChange();
+        expect(dropdown.state.embeddedInfos.newActionIsShared).toBe(true);
+        dropdown.onShareCheckboxChange();
+        expect(dropdown.state.embeddedInfos.newActionIsShared).toBe(false);
+    });
+
+    test("saveNewAction refocuses the name input only when the save is refused", async () => {
+        let stopped = 0;
+        let focused = 0;
+        const dropdown = makeDropdown({ saveNewAction: async () => false });
+        dropdown.newActionNameRef = { el: { focus: () => focused++ } };
+
+        await dropdown.saveNewAction({ stopPropagation: () => stopped++ });
+        expect(stopped).toBe(1);
+        expect(focused).toBe(1);
+
+        dropdown.props.embeddedActions.saveNewAction = async () => true;
+        await dropdown.saveNewAction({ stopPropagation: () => stopped++ });
+        expect(stopped).toBe(1);
+        expect(focused).toBe(1);
+    });
+
+    test("onDeleteKeydown opens the dialog only for an activation key", () => {
+        const asked = [];
+        const dropdown = makeDropdown({
+            confirmDelete: (/** @type {any} */ a) => asked.push(a.id),
+        });
+        /** @param {string} key */
+        const ev = (key) => ({
+            key,
+            preventDefault: () => {},
+            stopPropagation: () => {},
+        });
+        dropdown.onDeleteKeydown(ev("a"), { id: 2 });
+        expect(asked).toEqual([]);
+        dropdown.onDeleteKeydown(ev("Enter"), { id: 2 });
+        expect(asked).toEqual([2]);
+    });
+
+    test("getDropdownClass reads visibility on desktop and currency on mobile", () => {
+        const dropdown = makeDropdown({}, { visibleEmbeddedActions: [1] });
+        dropdown.env = { isSmall: false };
+        expect(dropdown.getDropdownClass({ id: 1 })).toBe("selected");
+        expect(dropdown.getDropdownClass({ id: 2 })).toBe("");
+
+        dropdown.env = { isSmall: true };
+        expect(dropdown.getDropdownClass({ id: 1 })).toBe("selected");
+        expect(dropdown.getDropdownClass({ id: 2 })).toBe("");
     });
 });

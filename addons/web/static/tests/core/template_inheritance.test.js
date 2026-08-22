@@ -412,8 +412,6 @@ test("xpath with hasclass", async () => {
 });
 
 test("attribute remove= matches whole operands, not substrings", async () => {
-    // `remove="a"` used to find "a and " inside "ba and c" and leave "bc" --
-    // a different, still syntactically valid, modifier.
     const toTest = [
         {
             arch: `<t t-name="web.A"><div invisible="ba and c"/></t>`,

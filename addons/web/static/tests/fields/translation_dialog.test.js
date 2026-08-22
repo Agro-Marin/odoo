@@ -1,11 +1,5 @@
 // @ts-check
 
-/**
- * Integration tests for fields/translation_dialog.js: translate button
- * presence, dialog open/close, per-language row rendering, save payload
- * (update_field_translations), and current-language pre-fill.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { queryAll } from "@odoo/hoot-dom";
 import {

@@ -69,10 +69,6 @@ test("parseFloatTime", () => {
 });
 
 test("surrounding whitespace is not part of the number", () => {
-    // `Number()`, which the numeric parsers ultimately delegate to, ignores
-    // padding; the decimal-literal guard in front of it does not, so each
-    // parser has to normalise before its own positional inspection of the
-    // string. A value pasted from a spreadsheet routinely carries padding.
     expect(parseFloat(" 10 ")).toBe(10);
     expect(parseFloat("\t1e3\n")).toBe(1000);
     expect(parseInteger(" 10 ")).toBe(10);
@@ -83,15 +79,10 @@ test("surrounding whitespace is not part of the number", () => {
     expect(parseFloatTime(" 1:30 ")).toBe(1.5);
     expect(parseFloat(" = 1 + 2")).toBe(3);
 
-    // Positional reads must happen AFTER the trim, or padding silently shifts
-    // the meaning instead of merely being tolerated: parseFloatTime reads the
-    // sign by index, so a leading space used to leave "-" inside the hours
-    // token and yield -0.5 for "-1:30".
     expect(parseFloatTime(" -1:30")).toBe(-1.5);
     expect(parseFloatTime(" -1:30 ")).toBe(-1.5);
     expect(parseFloatTime("  -0:30  ")).toBe(-0.5);
 
-    // Padding is tolerated, not treated as a separator.
     expect(() => parseFloat("1 000,5")).toThrow();
     expect(() => parseInteger("1 0")).toThrow();
 });
@@ -233,23 +224,16 @@ test("parseMonetary", () => {
 });
 
 test("parseFloat: expressions with scientific notation", () => {
-    // The `=`-expression tokenizer used to split on every `-`, severing the
-    // sign of an exponent: `1e-5` became ["1e", "-", "5"] and failed, while
-    // `1e5` parsed fine.
     expect(parseFloat("=1e5")).toBe(100000);
     expect(parseFloat("=1e-5")).toBe(0.00001);
     expect(parseFloat("=2E+3")).toBe(2000);
     expect(parseFloat("=1e-5 + 1")).toBe(1.00001);
-    // Plain subtraction must still split.
     expect(parseFloat("=1e5-1")).toBe(99999);
     expect(parseFloat("=10-2")).toBe(8);
     expect(parseFloat("=1.5-2")).toBe(-0.5);
 });
 
 test("parseFloat: a malformed expression raises InvalidNumberError", () => {
-    // The python evaluator raises its own error type for these; they are still
-    // rejected user input, so the numeric contract must be preserved rather
-    // than leaking an unrelated error class to the input hook.
     for (const expr of ["=(", "=1+*2", "=)("]) {
         let caught = null;
         try {
@@ -264,41 +248,30 @@ test("parseFloat: a malformed expression raises InvalidNumberError", () => {
 });
 
 test("parseMonetary keeps the sign of accounting negatives", () => {
-    // The lenient extraction strips whatever surrounds the number so that a
-    // pasted "$ 1,234.50 USD" still parses. It used to strip the two standard
-    // negative notations along with the currency decoration, silently turning
-    // -1,234.50 into +1,234.50 - a sign flip on money, from an ordinary paste.
-    expect(parseMonetary("(1,234.50)")).toBe(-1234.5); // IFRS/GAAP, spreadsheets
-    expect(parseMonetary("1,234.50-")).toBe(-1234.5); // SAP / mainframe exports
+    expect(parseMonetary("(1,234.50)")).toBe(-1234.5);
+    expect(parseMonetary("1,234.50-")).toBe(-1234.5);
     expect(parseMonetary("(99)")).toBe(-99);
     expect(parseMonetary("USD (99)")).toBe(-99);
     expect(parseMonetary("$ (1,234.50)")).toBe(-1234.5);
 
-    // Already-working forms must not double-negate.
     expect(parseMonetary("-1,234.50")).toBe(-1234.5);
     expect(parseMonetary("$-99")).toBe(-99);
     expect(parseMonetary("-$99")).toBe(-99);
     expect(parseMonetary("1,234.50")).toBe(1234.5);
     expect(parseMonetary("$ 1,234.50 USD")).toBe(1234.5);
 
-    // An =-expression owns its own operators and is left alone.
     expect(parseMonetary("=100-1")).toBe(99);
 });
 
 test("numeric parsers reject non-decimal literals", () => {
-    // parseNumber ended in a bare Number(), which accepts every JS numeric
-    // literal syntax. A user typing "0x10" into a float field means neither 16
-    // nor a hex literal - it is simply not a number they can have meant.
     for (const value of ["0x10", "0b11", "0o17", "0xff", "1_000"]) {
         expect(() => parseFloat(value)).toThrow(InvalidNumberError);
         expect(() => parseInteger(value)).toThrow(InvalidNumberError);
     }
-    // Scientific notation IS a decimal literal people legitimately type.
     expect(parseFloat("1e5")).toBe(100000);
     expect(parseFloat("1E5")).toBe(100000);
     expect(parseFloat("1e-5")).toBe(0.00001);
     expect(parseFloat("-2.5e3")).toBe(-2500);
-    // ...and the ordinary forms keep working.
     expect(parseFloat(".5")).toBe(0.5);
     expect(parseFloat("5.")).toBe(5);
     expect(parseFloat("+5")).toBe(5);

@@ -443,9 +443,6 @@ test("property group-by menu reflects a group-by removed from outside the menu",
     await contains(".o_menu_item:contains(P1)").click();
     expect(".o_menu_item:contains(P1)").toHaveClass("selected");
 
-    // Deactivating from the model is what removing the facet does; the menu
-    // used to render from a snapshot taken when the accordion opened, so the
-    // item stayed selected forever.
     const item = Object.values(menu.env.searchModel.searchItems).find(
         (searchItem) => searchItem.isProperty && searchItem.description === "P1",
     );

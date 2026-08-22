@@ -8,8 +8,6 @@ import { makeAsyncHandler, makeButtonHandler } from "@web/public/minimal_dom";
 describe.current.tags("headless");
 
 test("makeAsyncHandler hands the failure to its caller", async () => {
-    // the lock can only be released by observing the outcome, so the returned
-    // promise is the sole channel: whoever discards it owns its errors
     const handler = makeAsyncHandler(async () => {
         throw new Error("caller channel boom");
     });
@@ -53,6 +51,25 @@ test("makeButtonHandler re-enables a button that was clickable", async () => {
     expect(buttonEl).not.toHaveClass("pe-none");
 });
 
+test("makeButtonHandler keeps a pre-existing pe-none across the loading effect", async () => {
+    const def = new Deferred();
+    const buttonEl = document.createElement("button");
+    buttonEl.className = "btn pe-none";
+    buttonEl.disabled = true;
+    /** @type {HTMLElement} */ (getFixture()).appendChild(buttonEl);
+    buttonEl.addEventListener(
+        "click",
+        makeButtonHandler(() => def),
+    );
+    buttonEl.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await advanceTime(401);
+    def.resolve();
+    await animationFrame();
+    await animationFrame();
+    expect(buttonEl).toHaveClass("pe-none");
+    expect(buttonEl.disabled).toBe(true);
+});
+
 test("makeButtonHandler puts the effect on the control it is bound to", async () => {
     /** @type {HTMLElement} */ (getFixture()).innerHTML =
         `<div class="btn outer"><a class="inner">go</a></div>`;
@@ -63,8 +80,6 @@ test("makeButtonHandler puts the effect on the control it is bound to", async ()
         makeButtonHandler(() => {}),
     );
     inner.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    // `target.closest()` stops at the innermost match, so the effect used to
-    // land on the link rather than on the control that owns the handler
     expect(outer).toHaveClass("pe-none");
     expect(inner).not.toHaveClass("pe-none");
 });
@@ -74,8 +89,6 @@ test("makeButtonHandler still finds the control when delegated", async () => {
         `<div class="host"><button class="btn target"><span>go</span></button></div>`;
     const host = queryOne(".host");
     const button = queryOne(".target");
-    // the bound element is a plain container, so the control has to be found
-    // by walking up from the event's target
     host.addEventListener(
         "click",
         makeButtonHandler(() => {}),
@@ -96,8 +109,6 @@ test("makeButtonHandler arms no loading timer that outlives its handler", async 
     buttonEl.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     await animationFrame();
     await animationFrame();
-    // the debounce timer is what decides whether to show a spinner; a handler
-    // that settled first has already answered that, so its timer goes with it
     expect(await runAllTimers()).toBe(0);
 });
 
@@ -113,8 +124,6 @@ test("makeButtonHandler still shows the debounced effect for a slow handler", as
     buttonEl.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     await animationFrame();
     expect(buttonEl).toHaveClass("pe-none");
-    // clearing the debounce timer on settle must not cost the effect the
-    // handlers that do outlive it
     await advanceTime(401);
     expect(buttonEl.querySelector(".fa-spin")).not.toBe(null);
     def.resolve();

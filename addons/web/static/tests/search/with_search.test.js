@@ -433,11 +433,6 @@ describe("a query mutation racing a props-driven reload", () => {
             <searchpanel><field name="friend_id" enable_counters="1"/></searchpanel>
         </search>`;
 
-    /**
-     * Mount a real WithSearch whose props are reactive, so changing `domain`
-     * drives `searchModel.reload` through onWillUpdateProps exactly as an
-     * action controller does.
-     */
     async function mountReactive() {
         let searchModel = null;
         const renderedDomains = [];
@@ -476,7 +471,6 @@ describe("a query mutation racing a props-driven reload", () => {
         return { parent, searchModel, renderedDomains };
     }
 
-    /** Block every search-panel fetch after the initial load. */
     function gateSectionFetches() {
         const gate = new Deferred();
         let calls = 0;
@@ -491,10 +485,6 @@ describe("a query mutation racing a props-driven reload", () => {
     }
 
     test("the mutation is not swallowed", async () => {
-        // `reload` blocks notifications around `_reloadSections`; a toggle
-        // landing inside that window parks a pending notification that only
-        // `_drainPendingNotification` can release. Without it the view keeps
-        // querying the pre-toggle domain until the next interaction.
         const gate = gateSectionFetches();
         const { parent, searchModel, renderedDomains } = await mountReactive();
         let updates = 0;

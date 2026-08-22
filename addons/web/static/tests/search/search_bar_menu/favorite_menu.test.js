@@ -3,6 +3,7 @@
 import { after, expect, test } from "@odoo/hoot";
 import { queryFirst } from "@odoo/hoot-dom";
 import { mockDate } from "@odoo/hoot-mock";
+import { Component, xml } from "@odoo/owl";
 import { editValue } from "@web/../tests/components/tree_editor/condition_tree_editor_test_helpers";
 import {
     contains,
@@ -269,4 +270,63 @@ test("shared favorites are partially shown if there is more than 4", async () =>
     await contains(".o_favorite_menu .o_expand_shared_favorites").click();
     expect(".o_favorite_menu .o_expand_shared_favorites").toHaveCount(0);
     expect(".o_favorite_menu .o_favorite_item").toHaveCount(5);
+});
+
+class ProbeMenuItem extends Component {
+    static template = xml`<div class="o_probe_menu_item">probe</div>`;
+    static props = {};
+}
+
+/**
+ * @param {() => any} isDisplayed
+ */
+function registerProbeFavorite(isDisplayed) {
+    favoriteMenuRegistry.add("probe-item", {
+        Component: ProbeMenuItem,
+        groupNumber: 99,
+        isDisplayed,
+    });
+    after(() => favoriteMenuRegistry.remove("probe-item"));
+}
+
+async function mountFavoriteMenu() {
+    await mountWithSearch(SearchBar, {
+        resModel: "foo",
+        searchViewId: false,
+        searchViewArch: `<search><field name="foo"/></search>`,
+        searchMenuTypes: ["filter", "groupBy", "favorite"],
+    });
+    await toggleSearchBarMenu();
+}
+
+test("favoriteMenu: an async isDisplayed resolving false hides the item", async () => {
+    registerProbeFavorite(async () => false);
+    await mountFavoriteMenu();
+    expect(".o_probe_menu_item").toHaveCount(0);
+});
+
+test("favoriteMenu: an async isDisplayed resolving true shows the item", async () => {
+    registerProbeFavorite(async () => true);
+    await mountFavoriteMenu();
+    expect(".o_probe_menu_item").toHaveCount(1);
+});
+
+test("favoriteMenu: a sync isDisplayed still decides both ways", async () => {
+    registerProbeFavorite(() => false);
+    await mountFavoriteMenu();
+    expect(".o_probe_menu_item").toHaveCount(0);
+});
+
+test("favoriteMenu: the item key is the registry key, not the class name", async () => {
+    registerProbeFavorite(() => true);
+    await mountFavoriteMenu();
+    expect(queryFirst(".o_probe_menu_item")).toHaveText("probe");
+    const menu = await mountWithSearch(SearchBarMenu, {
+        resModel: "foo",
+        searchViewId: false,
+        searchViewArch: `<search><field name="foo"/></search>`,
+    });
+    expect(menu.otherItems.map((/** @type {any} */ i) => i.key)).toInclude(
+        "probe-item",
+    );
 });

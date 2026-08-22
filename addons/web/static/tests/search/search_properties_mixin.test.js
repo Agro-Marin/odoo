@@ -1,19 +1,5 @@
 // @ts-check
 
-/**
- * Unit tests for search/search_properties_mixin.js that need MORE THAN ONE
- * properties field on the model — the single-field cases live alongside the
- * other model-level property tests in search_model.test.js, on the shared `Foo`
- * there. They are here rather than there because adding a second properties
- * field to that shared model would change what every field-enumerating test in
- * it sees.
- *
- * What these pin is the retirement pass: it deletes the group-by items whose
- * definition has disappeared, and it must scope that deletion to the one
- * properties field being refreshed, terminate when several refreshes overlap,
- * and retire nothing at all when the fetch fails.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { Component, xml } from "@odoo/owl";
 import {
@@ -69,10 +55,6 @@ async function createSearchModel() {
     return component.env.searchModel;
 }
 
-/**
- * Stub the definitions fetch from a { fieldName: definitions } map, read at
- * call time so a test can change it between fills.
- */
 function stubDefinitions(model, getDefinitions) {
     model._fetchPropertiesDefinition = async (_resModel, fieldName) => [
         {
@@ -108,8 +90,6 @@ test("retiring one properties field leaves the other field's group-bys alone", a
 });
 
 test("overlapping fills that both retire everything still settle", async () => {
-    // The retirement notifies the model, from inside the method the
-    // single-flight map is keyed on; two overlapping fills must not wedge.
     const model = await createSearchModel();
     let definitions = {
         properties: [{ name: "p1", string: "P1", type: "char" }],
@@ -146,8 +126,6 @@ test("retiring a property also retires its synthesised field metadata", async ()
     definitions = { properties: [], other_props: definitions.other_props };
     await model.fillSearchViewItemsProperty();
 
-    // Left behind, it kept describing a property that no longer exists, and
-    // createNewGroupBy would rebuild a group-by on it from a favorite.
     expect(model.searchViewFields["properties.p1"]).toBe(undefined);
     expect(model.searchViewFields["other_props.q1"]).not.toBe(undefined);
 });

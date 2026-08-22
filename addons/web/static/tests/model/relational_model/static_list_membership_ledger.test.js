@@ -1,39 +1,5 @@
 // @ts-check
 
-/**
- * Membership/ledger invariants of the x2many stack that no existing suite
- * pinned. Three holes, of clearly different severity:
- *
- *  1. ``count`` drifting away from ``_currentIds`` when a loader drops ids the
- *     server no longer returns. ``StaticList._load`` and ``static_list_sort.sort``
- *     both already trim membership (see static_list_partial_load.test.js and
- *     static_list_sort_partial_load.test.js) but used to leave ``count``
- *     untouched. On a ``StaticList`` ``count`` has exactly one consumer —
- *     ``x2many_field``'s ``pagerProps.total`` — so the symptom is a page total
- *     that outruns the rows. It does NOT reach ``findUnsetRequiredFields``:
- *     that tests ``!list.count``, and a load in which *every* id vanishes
- *     throws ``FetchRecordError`` before the trim, so a phantom count is never
- *     the difference between zero and non-zero.
- *
- *  2. ``removedIds`` was a boolean flag but drives a *positional* drop
- *     (``dropFirstOccurrences``). CLEAR-then-LINK-then-UNLINK marks one id
- *     twice and must drop two entries; one flag could only ever drop one, so
- *     the unlinked row survived in ``_currentIds``. No caller is known to emit
- *     such a batch today: this pins the invariant, it does not fix a live bug.
- *
- *  3. ``shouldEmitUnlink`` cancelled a LINK by clearing the id's whole ledger.
- *     When an UNLINK *preceded* that LINK — the row was a server member the
- *     user removed, restored, then removed again — the original UNLINK went
- *     with it. The record then read as clean, so ``web_save`` was never called
- *     at all: the UI dropped the row, the server kept it, and nothing was
- *     flagged dirty. Reachable in a ``many2many_tags`` field in three
- *     interactions (end-to-end proof in
- *     tests/views/fields/many2many_tags_field.test.js). The one2many *widget*
- *     path is unaffected -- it removes rows with DELETE, via
- *     ``shouldEmitDelete`` -- though a one2many can still carry UNLINK if a
- *     server onchange emits command 3.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { x2ManyCommands } from "@web/core/network/commands";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
@@ -66,11 +32,6 @@ const readable = (/** @type {[number, number][]} */ commands) =>
     commands.map(([code, id]) => `${NAMES[code]}:${id}`);
 
 /**
- * A StaticList over hand-rolled model/config/parent skeletons — enough of each
- * for the membership paths under test, deliberately not the real objects. The
- * defaults are typed because a bare `[]` infers `never[]`, which rejects every
- * caller's id list.
- *
  * @param {{ resIds?: number[], limit?: number, deleted?: Set<number> }} [options]
  */
 function makeList({ resIds = [], limit = 10, deleted = new Set() } = {}) {
@@ -100,8 +61,6 @@ function makeList({ resIds = [], limit = 10, deleted = new Set() } = {}) {
         evalContextWithVirtualIds: {},
         _isEvalContextReady: true,
     };
-    // Only the first page is materialised, exactly as the server sends it;
-    // membership legitimately outruns the cache on a paginated x2many.
     const data = resIds
         .slice(0, limit)
         .filter((id) => !deleted.has(id))
@@ -143,12 +102,6 @@ describe("count follows membership through a partial load", () => {
     });
 
     test("a growing load (_addRecord under an orderBy) grows count with it", async () => {
-        // `_addRecord` under an orderBy reaches `_load` through `sort()` with
-        // the new id already in `nextCurrentIds`. `count` is derived, so it
-        // grows the moment the id list does -- there is no window in which the
-        // list holds N+1 members and reports N, which is what the old
-        // count-follows-by-hand protocol left open between here and
-        // `_addRecord`'s own increment.
         const list = makeList({ resIds: [1, 2, 3], limit: 10 });
 
         await list._load({ nextCurrentIds: [1, 2, 3, 99] });
@@ -158,12 +111,6 @@ describe("count follows membership through a partial load", () => {
     });
 
     test("departures are a MULTISET difference, not a set difference", async () => {
-        // Membership held twice used to need a MULTISET difference to count
-        // departures: an id present twice that comes back once is one
-        // departure, not zero, and a set-based `!next.has(id)` reported zero.
-        // Deriving `count` from the id list removes the question entirely --
-        // kept as a regression test because the duplicate-membership state it
-        // exercises is still reachable.
         const list = makeList({ resIds: [1, 2], limit: 10 });
         list._currentIds = [1, 1, 2];
 
@@ -178,7 +125,7 @@ describe("removedIds counts removals rather than flagging them", () => {
     test("CLEAR then a repeated LINK of the same id adds it once", async () => {
         const list = makeList({ resIds: [1, 2] });
 
-        await applyCommands(list, [
+        await applyCommands(/** @type {any} */ (list), [
             [CLEAR, false, false],
             [LINK, 1, false],
             [LINK, 1, false],
@@ -194,7 +141,7 @@ describe("removedIds counts removals rather than flagging them", () => {
         const list = makeList({ resIds: [1, 2, 3] });
         await list._replaceWith([1, 2, 3]);
 
-        await applyCommands(list, [
+        await applyCommands(/** @type {any} */ (list), [
             [CLEAR, false, false],
             [LINK, 1, false],
             [UPDATE, 1, { display_name: "edited" }],

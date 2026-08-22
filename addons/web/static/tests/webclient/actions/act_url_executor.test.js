@@ -10,27 +10,14 @@ import {
 } from "@web/webclient/actions/action_executors/act_url";
 
 /**
- * Mount-free unit tests for the ``ir.actions.act_url`` executor.
- *
- * ``act_url.js`` reaches three ActionManager members — ``env``, ``router`` and
- * ``doAction`` — so the duck-typed instance parameter is satisfied by the
- * literal below. ``url_action.test.js`` already covers this executor without
- * mounting too; what is added here is the branch matrix (target self /
- * download / default, the close chaining, and the URL-safety guard), plus
- * blocked-popup handling, which the end-to-end tests do not isolate.
- *
  * @param {Object} [overrides]
  */
 function makeFakeAm(overrides = {}) {
     const calls = { notifications: [], doAction: [] };
     const am = {
-        env: {
-            services: {
-                notification: {
-                    add: (message, options) =>
-                        calls.notifications.push({ message, options }),
-                },
-            },
+        env: {},
+        notificationService: {
+            add: (message, options) => calls.notifications.push({ message, options }),
         },
         router: { stateToUrl: (state) => `/odoo/from-state/${state?.id ?? ""}` },
         doAction: async (action, options) => {
@@ -43,7 +30,6 @@ function makeFakeAm(overrides = {}) {
     return am;
 }
 
-/** Patch the browser surfaces act_url touches; returns a record of the calls. */
 function patchBrowser({ openReturns = { closed: false } } = {}) {
     const calls = { open: [], assign: [] };
     patchWithCleanup(browser, {
@@ -155,14 +141,6 @@ test('target "download" opens a new tab and never chains a close', async () => {
     expect(am.__calls.doAction).toEqual([]);
 });
 
-/**
- * ``options.onClose`` is the caller's continuation, and ``doAction(..., {
- * onClose: resolve })`` is a supported way to AWAIT a url action. A path that
- * skips it strands that caller — so every path settles it, and each of these
- * three used not to. ``target: "download"`` was inherited from upstream; the
- * missing-url and blocked-scheme guards are this fork's own additions, and
- * upstream's missing-url path did reach ``onClose`` through the default branch.
- */
 test("every path settles options.onClose — download", async () => {
     patchBrowser();
     let called = 0;

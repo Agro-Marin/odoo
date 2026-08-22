@@ -1323,10 +1323,6 @@ test("reposition preserves a consumer-authored inline maxHeight across calls", (
 });
 
 test("document listeners are bound once, not re-bound on every render", async () => {
-    // The scroll/load listeners depend only on which document owns the target,
-    // so they belong in an effect keyed on that — not in the unconditional one
-    // that triggers repositioning. Re-binding them per patch made a component
-    // that re-renders per keystroke churn capture-phase document listeners.
     let added = 0;
     const realAdd = document.addEventListener.bind(document);
     patchWithCleanup(document, {
@@ -1365,13 +1361,6 @@ test("document listeners are bound once, not re-bound on every render", async ()
     });
 });
 
-// RESILIENCE-BLOCK
-// `batchedUpdate` coalesces triggers behind an `executingUpdate` flag. Anything
-// throwing inside `update()` -- `reposition`, or the caller's own
-// `onPositioned`, which reaches into the DOM (see `Popover.updateArrow`) --
-// used to leave that flag stuck on, and the popper silently stopped
-// repositioning on scroll, resize, content change and unlock for the rest of
-// its life.
 test("a throwing onPositioned does not freeze positioning forever", async () => {
     expect.errors(1);
     let shouldThrow = false;

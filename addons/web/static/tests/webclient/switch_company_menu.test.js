@@ -20,10 +20,7 @@ import { router } from "@web/core/browser/router";
 import { user } from "@web/core/user";
 import { SwitchCompanyMenu } from "@web/webclient/switch_company_menu/switch_company_menu";
 
-const ORIGINAL_TOGGLE_DELAY = SwitchCompanyMenu.toggleDelay;
-
-async function createSwitchCompanyMenu(options = { toggleDelay: 0 }) {
-    patchWithCleanup(SwitchCompanyMenu, { toggleDelay: options.toggleDelay });
+async function createSwitchCompanyMenu() {
     await mountWithCleanup(SwitchCompanyMenu);
 }
 
@@ -78,13 +75,6 @@ test("basic rendering", async () => {
 test("companies can be toggled: toggle a second company", async () => {
     await createSwitchCompanyMenu();
 
-    /**
-     *   [x] **Hermit**
-     *   [ ] Herman's
-     *   [ ] Heroes TM
-     *   [ ]    Hercules
-     *   [ ]    Hulk
-     */
     expect(user.activeCompanies.map((c) => c.id)).toEqual([3]);
     expect(user.activeCompany.id).toBe(3);
     await openCompanyMenu();
@@ -102,13 +92,6 @@ test("companies can be toggled: toggle a second company", async () => {
         "false",
     ]);
 
-    /**
-     *   [x] **Hermit**
-     *   [x] Herman's      -> toggle
-     *   [ ] Heroes TM
-     *   [ ]    Hercules
-     *   [ ]    Hulk
-     */
     await toggleCompany(1);
     expect(".dropdown-menu").toHaveCount(1, { message: "dropdown is still opened" });
     expect("[data-company-id] .fa-square-check").toHaveCount(2);
@@ -128,15 +111,8 @@ test("companies can be toggled: toggle a second company", async () => {
 });
 
 test("can toggle multiple companies at once", async () => {
-    await createSwitchCompanyMenu({ toggleDelay: ORIGINAL_TOGGLE_DELAY });
+    await createSwitchCompanyMenu();
 
-    /**
-     *   [x] **Hermit**
-     *   [ ] Herman's
-     *   [ ] Heroes TM
-     *   [ ]    Hercules
-     *   [ ]    Hulk
-     */
     expect(user.activeCompanies.map((c) => c.id)).toEqual([3]);
     expect(user.activeCompany.id).toBe(3);
     await openCompanyMenu();
@@ -144,13 +120,6 @@ test("can toggle multiple companies at once", async () => {
     expect("[data-company-id] .fa-square-check").toHaveCount(1);
     expect("[data-company-id] .fa-regular.fa-square").toHaveCount(4);
 
-    /**
-     *   [ ] Hermit          -> toggle all
-     *   [x] **Herman's**    -> toggle all
-     *   [x] Heroes TM       -> toggle all
-     *   [ ]    Hercules
-     *   [ ]    Hulk
-     */
     await toggleCompany(0);
     await toggleCompany(1);
     await toggleCompany(2);
@@ -166,13 +135,6 @@ test("can toggle multiple companies at once", async () => {
 test("single company selected: toggling it off will keep it", async () => {
     await createSwitchCompanyMenu();
 
-    /**
-     *   [x] **Hermit**
-     *   [ ] Herman's
-     *   [ ] Heroes TM
-     *   [ ]    Hercules
-     *   [ ]    Hulk
-     */
     await runAllTimers();
     expect(cookie.get("cids")).toBe("3");
     expect(user.activeCompanies.map((c) => c.id)).toEqual([3]);
@@ -182,13 +144,6 @@ test("single company selected: toggling it off will keep it", async () => {
     expect("[data-company-id] .fa-square-check").toHaveCount(1);
     expect("[data-company-id] .fa-regular.fa-square").toHaveCount(4);
 
-    /**
-     *   [x] **Hermit**  -> toggle off
-     *   [ ] Herman's
-     *   [ ] Heroes TM
-     *   [ ]    Hercules
-     *   [ ]    Hulk
-     */
     await toggleCompany(0);
     await clickConfirm();
     await animationFrame();
@@ -202,15 +157,8 @@ test("single company selected: toggling it off will keep it", async () => {
 });
 
 test("single company mode: companies can be logged in", async () => {
-    await createSwitchCompanyMenu({ toggleDelay: ORIGINAL_TOGGLE_DELAY });
+    await createSwitchCompanyMenu();
 
-    /**
-     *   [x] **Hermit**
-     *   [ ] Herman's
-     *   [ ] Heroes TM
-     *   [ ]    Hercules
-     *   [ ]    Hulk
-     */
     expect(user.activeCompanies.map((c) => c.id)).toEqual([3]);
     expect(user.activeCompany.id).toBe(3);
     await openCompanyMenu();
@@ -218,13 +166,6 @@ test("single company mode: companies can be logged in", async () => {
     expect("[data-company-id] .fa-square-check").toHaveCount(1);
     expect("[data-company-id] .fa-regular.fa-square").toHaveCount(4);
 
-    /**
-     *   [ ] Hermit
-     *   [x] **Herman's**     -> log into
-     *   [ ] Heroes TM
-     *   [ ]    Hercules
-     *   [ ]    Hulk
-     */
     await contains(".log_into:eq(1)").click();
     expect(".dropdown-menu").toHaveCount(0, { message: "dropdown is directly closed" });
     expect(cookie.get("cids")).toEqual("2");
@@ -234,13 +175,6 @@ test("multi company mode: log into a non selected company", async () => {
     patchUserActiveCompanies([3, 1]);
     await createSwitchCompanyMenu();
 
-    /**
-     *   [x] Hermit
-     *   [ ] Herman's
-     *   [x] **Heroes TM**
-     *   [ ]    Hercules
-     *   [ ]    Hulk
-     */
     expect(user.activeCompanies.map((c) => c.id)).toEqual([3, 1]);
     expect(user.activeCompany.id).toBe(3);
     await openCompanyMenu();
@@ -248,13 +182,6 @@ test("multi company mode: log into a non selected company", async () => {
     expect("[data-company-id] .fa-square-check").toHaveCount(2);
     expect("[data-company-id] .fa-regular.fa-square").toHaveCount(3);
 
-    /**
-     *   [x] Hermit
-     *   [x] **Herman's**    -> log into
-     *   [x] Heroes TM
-     *   [ ]    Hercules
-     *   [ ]    Hulk
-     */
     await contains(".log_into:eq(1)").click();
     expect(".dropdown-menu").toHaveCount(0, { message: "dropdown is directly closed" });
     expect(cookie.get("cids")).toEqual("2-1-3");
@@ -264,13 +191,6 @@ test("multi company mode: log into an already selected company", async () => {
     patchUserActiveCompanies([2, 1]);
     await createSwitchCompanyMenu();
 
-    /**
-     *   [ ] Hermit
-     *   [x] **Herman's**
-     *   [x] Heroes TM
-     *   [ ]    Hercules
-     *   [ ]    Hulk
-     */
     expect(user.activeCompanies.map((c) => c.id)).toEqual([2, 1]);
     expect(user.activeCompany.id).toBe(2);
     await openCompanyMenu();
@@ -278,28 +198,14 @@ test("multi company mode: log into an already selected company", async () => {
     expect("[data-company-id] .fa-square-check").toHaveCount(2);
     expect("[data-company-id] .fa-regular.fa-square").toHaveCount(3);
 
-    /**
-     *   [ ] Hermit
-     *   [x] Herman's
-     *   [x] **Heroes TM**    -> log into
-     *   [x]    Hercules
-     *   [x]    Hulk
-     */
     await contains(".log_into:eq(2)").click();
     expect(".dropdown-menu").toHaveCount(0, { message: "dropdown is directly closed" });
     expect(cookie.get("cids")).toEqual("1-2-4-5");
 });
 
-test("companies can be logged in even if some toggled within delay", async () => {
-    await createSwitchCompanyMenu({ toggleDelay: ORIGINAL_TOGGLE_DELAY });
+test("logging into a company discards pending toggles", async () => {
+    await createSwitchCompanyMenu();
 
-    /**
-     *   [x] **Hermit**
-     *   [ ] Herman's
-     *   [ ] Heroes TM
-     *   [ ]    Hercules
-     *   [ ]    Hulk
-     */
     expect(user.activeCompanies.map((c) => c.id)).toEqual([3]);
     expect(user.activeCompany.id).toBe(3);
     await openCompanyMenu();
@@ -307,13 +213,6 @@ test("companies can be logged in even if some toggled within delay", async () =>
     expect("[data-company-id] .fa-square-check").toHaveCount(1);
     expect("[data-company-id] .fa-regular.fa-square").toHaveCount(4);
 
-    /**
-     *   [ ] Hermit         -> toggled
-     *   [x] **Herman's**   -> logged in
-     *   [ ] Heroes TM      -> toggled
-     *   [ ]    Hercules
-     *   [ ]    Hulk
-     */
     await contains("[data-company-id] [role=menuitemcheckbox]:eq(2)").click();
     await contains("[data-company-id] [role=menuitemcheckbox]:eq(0)").click();
     await contains(".log_into:eq(1)").click();
@@ -337,13 +236,6 @@ test("always show the name of the company on the top right of the app", async ()
 test("single company mode: from company loginto branch", async () => {
     await createSwitchCompanyMenu();
 
-    /**
-     *   [x] **Hermit**
-     *   [ ] Herman's
-     *   [ ] Heroes TM
-     *   [ ]    Hercules
-     *   [ ]    Hulk
-     */
     expect(user.activeCompanies.map((c) => c.id)).toEqual([3]);
     expect(user.activeCompany.id).toBe(3);
     await contains(".dropdown-toggle").click();
@@ -351,13 +243,6 @@ test("single company mode: from company loginto branch", async () => {
     expect("[data-company-id] .fa-square-check").toHaveCount(1);
     expect("[data-company-id] .fa-regular.fa-square").toHaveCount(4);
 
-    /**
-     *   [ ] Hermit
-     *   [ ] Herman's
-     *   [x] **Heroes TM** -> log into
-     *   [x]    Hercules
-     *   [x]    Hulk
-     */
     await contains(".log_into:eq(2)").click();
     expect(cookie.get("cids")).toEqual("1-4-5");
 });
@@ -366,13 +251,6 @@ test("single company mode: from branch loginto company", async () => {
     patchUserActiveCompanies([1, 4, 5]);
     await createSwitchCompanyMenu();
 
-    /**
-     *   [ ] Hermit
-     *   [ ] Herman's
-     *   [x] **Heroes TM**
-     *   [x]    Hercules
-     *   [x]    Hulk
-     */
     expect(user.activeCompanies.map((c) => c.id)).toEqual([1, 4, 5]);
     expect(user.activeCompany.id).toBe(1);
     await contains(".dropdown-toggle").click();
@@ -380,13 +258,6 @@ test("single company mode: from branch loginto company", async () => {
     expect("[data-company-id] .fa-square-check").toHaveCount(3);
     expect("[data-company-id] .fa-regular.fa-square").toHaveCount(2);
 
-    /**
-     *   [x] Hermit    -> log into
-     *   [ ] Herman's
-     *   [ ] Heroes TM
-     *   [ ]    Hercules
-     *   [ ]    Hulk
-     */
     await contains(".log_into:eq(0)").click();
     expect(cookie.get("cids")).toEqual("3");
 });
@@ -395,13 +266,6 @@ test("single company mode: from leaf (only one company in branch selected) login
     patchUserActiveCompanies([1]);
     await createSwitchCompanyMenu();
 
-    /**
-     *   [ ] Hermit
-     *   [ ] Herman's
-     *   [x] **Heroes TM**
-     *   [ ]    Hercules
-     *   [ ]    Hulk
-     */
     expect(user.activeCompanies.map((c) => c.id)).toEqual([1]);
     expect(user.activeCompany.id).toBe(1);
     await contains(".dropdown-toggle").click();
@@ -409,13 +273,6 @@ test("single company mode: from leaf (only one company in branch selected) login
     expect("[data-company-id] .fa-square-check").toHaveCount(1);
     expect("[data-company-id] .fa-regular.fa-square").toHaveCount(4);
 
-    /**
-     *   [ ] Hermit
-     *   [x] **Herman's**     -> log into
-     *   [ ] Heroes TM
-     *   [ ]    Hercules
-     *   [ ]    Hulk
-     */
     await contains(".log_into:eq(1)").click();
     expect(cookie.get("cids")).toEqual("2");
 });
@@ -424,13 +281,6 @@ test("multi company mode: switching company doesn't deselect already selected on
     patchUserActiveCompanies([1, 2, 4, 5]);
     await createSwitchCompanyMenu();
 
-    /**
-     *   [ ] Hermit
-     *   [x] Herman's
-     *   [x] **Heroes TM**
-     *   [x]    Hercules
-     *   [x]    Hulk
-     */
     expect(user.activeCompanies.map((c) => c.id)).toEqual([1, 2, 4, 5]);
     expect(user.activeCompany.id).toBe(1);
     await contains(".dropdown-toggle").click();
@@ -438,13 +288,6 @@ test("multi company mode: switching company doesn't deselect already selected on
     expect("[data-company-id] .fa-square-check").toHaveCount(4);
     expect("[data-company-id] .fa-regular.fa-square").toHaveCount(1);
 
-    /**
-     *   [ ] Hermit
-     *   [x] **Herman's** -> log into
-     *   [x] Heroes TM
-     *   [x]    Hercules
-     *   [x]    Hulk
-     */
     await contains(".log_into:eq(1)").click();
     expect(cookie.get("cids")).toEqual("2-1-4-5");
 });
@@ -641,8 +484,6 @@ test("de-select only changes visible companies", async () => {
         ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])",
     ).toHaveCount(2);
 
-    // "herm" holds Hermit and Herman's; "Heroes TM" and its branches are out
-    // of scope, so nothing the controls do below may reach them.
     await contains("input").edit("herm");
     await animationFrame();
     expect(".o_switch_company_item").toHaveCount(2);
@@ -667,8 +508,6 @@ test("de-select only changes visible companies", async () => {
 
     await contains("input").clear();
     await animationFrame();
-    // Hermit and Herman's from the select-all, Hulk from the toggle above --
-    // and nothing else: the filtered controls never reached Heroes TM.
     expect(
         ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])",
     ).toHaveCount(3);
@@ -678,9 +517,6 @@ test("de-select only changes visible companies", async () => {
 });
 
 test("select all takes exactly the branches the filter shows", async () => {
-    // Selecting a company selects its branches, so a filter that matched it
-    // has to show them: otherwise one click on one visible row silently
-    // selects companies that were never on screen.
     await createSwitchCompanyMenu();
     await openCompanyMenu();
 
@@ -706,13 +542,6 @@ test("closing the dropdown without confirming discards the pending selection", a
         pushState: () => expect.step("pushState"),
     });
 
-    /**
-     *   [x] **Hermit**
-     *   [x] Herman's      -> toggle (draft, never confirmed)
-     *   [ ] Heroes TM
-     *   [ ]    Hercules
-     *   [ ]    Hulk
-     */
     await openCompanyMenu();
     await toggleCompany(1);
     expect(".o_switch_company_menu_buttons button").toHaveCount(2);
@@ -762,11 +591,6 @@ test("select all does not select disallowed ancestor companies", async () => {
 
     await createSwitchCompanyMenu();
 
-    /**
-     *   [x] Parent
-     *   [ ]    Child A     (disallowed, only shown for the tree structure)
-     *   [x]        Child B
-     */
     expect(user.activeCompanies.map((c) => c.id)).toEqual([1, 3]);
     await openCompanyMenu();
 
@@ -800,11 +624,6 @@ test("disallowed companies in between allowed companies are not enabled", async 
 
     await createSwitchCompanyMenu();
 
-    /**
-     *   [ ] Parent
-     *   [ ]    Child A
-     *   [x]        Child B
-     */
     expect(user.activeCompanies.map((c) => c.id)).toEqual([3]);
     expect(user.activeCompany.id).toBe(3);
     await openCompanyMenu();
@@ -812,11 +631,6 @@ test("disallowed companies in between allowed companies are not enabled", async 
     expect("[data-company-id] .fa-square-check").toHaveCount(1);
     expect("[data-company-id] .fa-regular.fa-square").toHaveCount(2);
 
-    /**
-     *   [x] Parent -> toggle
-     *   [ ]    Child A
-     *   [x]        Child B
-     */
     await contains(".log_into:eq(0)").click();
     expect(cookie.get("cids")).toEqual("1-3");
 
@@ -941,8 +755,6 @@ test("switching company with no record open performs no access probe", async () 
 });
 
 test("a matching branch is shown under its parent, never on its own", async () => {
-    // Rendering a level-1 row without the level-0 row above it reads as an
-    // indented orphan, and hides that acting on the parent would reach it.
     await createSwitchCompanyMenu();
     await openCompanyMenu();
 
@@ -951,7 +763,6 @@ test("a matching branch is shown under its parent, never on its own", async () =
     await contains("input").edit("Hercules");
     await animationFrame();
 
-    // Hulk comes along because selecting Heroes TM would select it too.
     expect(queryAllTexts(".company_label")).toEqual(["Heroes TM", "Hercules", "Hulk"]);
 });
 
@@ -1046,6 +857,92 @@ describe("disallowed ancestors", () => {
         const cids = cookie.get("cids").split("-").map(Number);
         expect(cids).not.toInclude(99);
         expect(cids.toSorted((a, b) => a - b)).toEqual([10, 11, 12]);
+    });
+
+    test("select-all reads as fully checked once every selectable company is on", async () => {
+        await createSwitchCompanyMenu();
+        await openCompanyMenu();
+
+        await edit(" ");
+        await animationFrame();
+
+        await contains("[role=menuitemcheckbox][title='Deselect all']").click();
+        await contains("[role=menuitemcheckbox][title='Select all']").click();
+
+        expect(
+            "[role=menuitemcheckbox][title='Deselect all'] .fa-square-check",
+        ).toHaveCount(1);
+        expect(
+            "[role=menuitemcheckbox][title='Deselect all'] .fa-square-minus",
+        ).toHaveCount(0);
+    });
+});
+
+describe("two disallowed ancestors, as the server really serves them", () => {
+    beforeEach(() => {
+        cookie.set("cids", "8");
+        after(() => cookie.set("cids", "3"));
+        serverState.companies = [
+            { id: 8, name: "A", sequence: 1, parent_id: false, child_ids: [] },
+            { id: 10, name: "B Branch", sequence: 3, parent_id: 9, child_ids: [] },
+            { id: 11, name: "C", sequence: 4, parent_id: false, child_ids: [12] },
+            {
+                id: 13,
+                name: "C Branch Branch",
+                sequence: 6,
+                parent_id: 12,
+                child_ids: [],
+            },
+        ];
+        serverState.disallowedAncestorCompanies = [
+            { id: 9, name: "B", sequence: 2, parent_id: false, child_ids: [10] },
+            { id: 12, name: "C Branch", sequence: 5, parent_id: 11, child_ids: [13] },
+        ];
+    });
+
+    test("the two ancestors render disabled and never become selected", async () => {
+        await createSwitchCompanyMenu();
+        await openCompanyMenu();
+
+        expect(queryAllTexts(".company_label")).toEqual([
+            "A",
+            "B",
+            "B Branch",
+            "C",
+            "C Branch",
+            "C Branch Branch",
+        ]);
+        expect(
+            queryAllAttributes(".o_switch_company_item", "class").map((c) =>
+                c.includes("disabled"),
+            ),
+        ).toEqual([false, true, false, false, true, false]);
+
+        await edit(" ");
+        await animationFrame();
+        await contains("[role=menuitemcheckbox][title='Deselect all']").click();
+        await contains("[role=menuitemcheckbox][title='Select all']").click();
+
+        expect(
+            queryAllAttributes(
+                ".o_switch_company_item [role=menuitemcheckbox]",
+                "aria-checked",
+            ),
+        ).toEqual(["true", "false", "true", "true", "false", "true"]);
+    });
+
+    test("select-all reads fully checked with two ancestors present", async () => {
+        await createSwitchCompanyMenu();
+        await openCompanyMenu();
+
+        await edit(" ");
+        await animationFrame();
+        await contains("[role=menuitemcheckbox][title='Deselect all']").click();
+        await contains("[role=menuitemcheckbox][title='Select all']").click();
+
+        expect(
+            "[role=menuitemcheckbox][title='Deselect all'] .fa-square-check",
+        ).toHaveCount(1);
     });
 });
 

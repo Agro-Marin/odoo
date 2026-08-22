@@ -1,19 +1,8 @@
-"""Tests for web_read_group grouped-data operations.
-
-Covers:
-- ``max_number_opened_groups=0`` context key correctly disabling auto-open
-  (bug: ``0 or DEFAULT`` short-circuit made 0 an alias for the default).
-- ``_add_groupby_values`` with a granularity-decorated spec key not raising
-  KeyError (bug: ``self._fields[groupby_spec]`` included the ``:month`` suffix).
-"""
-
 from odoo.tests import TransactionCase, tagged
 
 
 @tagged("web_unit", "web_read_group")
 class TestWebReadGroup(TransactionCase):
-    """Unit tests for web_read_group and its internal helpers."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -27,12 +16,6 @@ class TestWebReadGroup(TransactionCase):
         cls.domain = [("id", "in", cls.partners.ids)]
 
     def test_open_groups_zero_max_disables_auto_open(self):
-        """``max_number_opened_groups=0`` must prevent all groups from auto-opening.
-
-        Before fix: ``ctx_value or MAX_NUMBER_OPENED_GROUPS`` short-circuited
-        ``0`` to the default 10, so setting 0 in context had no effect.
-        After fix: the ``is None`` check preserves 0 as a valid limit.
-        """
         result = (
             self.env["res.partner"]
             .with_context(max_number_opened_groups=0)
@@ -52,7 +35,6 @@ class TestWebReadGroup(TransactionCase):
             )
 
     def test_open_groups_nonzero_max_allows_auto_open(self):
-        """Sanity check: ``max_number_opened_groups=1`` opens at least one non-empty group."""
         result = (
             self.env["res.partner"]
             .with_context(max_number_opened_groups=1)
@@ -70,14 +52,6 @@ class TestWebReadGroup(TransactionCase):
         )
 
     def test_add_groupby_values_granularity_raises_value_error_not_key_error(self):
-        """A granularity-decorated spec key must yield ValueError, not KeyError.
-
-        Before fix: ``self._fields["create_date:month"]`` raised ``KeyError``
-        because the field registry is keyed by bare name, not decorated spec.
-        After fix: ``base_fname`` is split out first so ``self._fields["create_date"]``
-        succeeds; then ``ValueError`` is raised because ``create_date`` has no
-        ``comodel_name`` (it is not a relational field).
-        """
         with self.assertRaises(ValueError):
             self.env["res.partner"]._add_groupby_values(
                 groupby_read_specification={"create_date:month": {}},
@@ -86,17 +60,6 @@ class TestWebReadGroup(TransactionCase):
             )
 
     def test_read_progress_bar_datetime_keys_match_client_non_utc(self):
-        """read_progress_bar keys must match the kanban client's group keys for
-        datetime grouping under a non-UTC timezone.
-
-        Regression: keying on raw ``_read_group`` buckets emits local-naive
-        datetime strings (e.g. ``'2026-06-01 00:00:00'``) while the kanban
-        client derives its lookup key from ``web_read_group`` /
-        ``formatted_read_group`` (UTC, e.g. ``'2026-06-01 06:00:00'``). The
-        two never matched for non-UTC users, so every progress bar rendered
-        zero. ``read_progress_bar`` must therefore go through
-        ``formatted_read_group`` (which produces the same keys the client uses).
-        """
         model = self.env["res.partner"].with_context(tz="America/Mexico_City")
         group_by = "create_date:month"
         progress_bar = {"field": "is_company", "colors": {True: "green", False: "red"}}
@@ -120,14 +83,6 @@ class TestWebReadGroup(TransactionCase):
         self.assertEqual(total, len(self.partners))
 
     def test_web_read_group_length_counts_all_groups_when_page_full(self):
-        """When the first page fills ``limit``, ``length`` must report the true
-        total group count.
-
-        Regression: the total was computed as ``limit + len(_read_group(...,
-        offset=limit))``, materialising and post-processing every trailing
-        group row just to count them. It is now a single ``COUNT(*)`` over the
-        grouped sub-query, which must yield the same total.
-        """
         Partner = self.env["res.partner"]
         partners = Partner.create([{"name": f"WRG Count {i}"} for i in range(5)])
         domain = [("id", "in", partners.ids)]
@@ -138,9 +93,6 @@ class TestWebReadGroup(TransactionCase):
         self.assertEqual(result["length"], 5)
 
     def test_read_group_count_matches_len_read_group(self):
-        """``_read_group_count`` must equal ``len(_read_group(...))`` — the
-        semantics it replaces — across boolean, char and relational groupbys
-        (incl. an all-NULL relational group)."""
         Partner = self.env["res.partner"]
         for groupby in (["is_company"], ["name"], ["country_id"], ["parent_id"]):
             expected = len(Partner._read_group(self.domain, groupby=groupby))
@@ -151,7 +103,6 @@ class TestWebReadGroup(TransactionCase):
             )
 
     def test_read_group_count_edge_cases(self):
-        """Empty query => 0 groups; no groupby => exactly one implicit row."""
         Partner = self.env["res.partner"]
         self.assertEqual(
             Partner._read_group_count([("id", "in", [])], ["is_company"]), 0
@@ -159,14 +110,6 @@ class TestWebReadGroup(TransactionCase):
         self.assertEqual(Partner._read_group_count(self.domain, []), 1)
 
     def test_get_read_group_order_aggregator_fallback_and_no_duplicate(self):
-        """``_get_read_group_order`` must fall back to a field's aggregator and
-        not emit duplicate ORDER BY terms.
-
-        Regression: dropping upstream's nested ``for/else`` (a) silently
-        discarded ordering by an aggregatable field absent from groupby and
-        aggregates, and (b) appended a second, conflicting term for a field
-        present in both a groupby and an aggregate.
-        """
         Model = self.env["res.partner"]
         agg_field = next(
             (
@@ -200,22 +143,7 @@ class TestWebReadGroup(TransactionCase):
 
 @tagged("web_unit", "web_read_group")
 class TestWebReadGroupContracts(TransactionCase):
-    """Pins the web_read_group client contracts: within-group order tiebreaker,
-    fold-restore vs auto-unfold caps, progress-bar aggregate filtering, and
-    fill_temporal tolerance under group pagination."""
-
     def test_group_pagination_order_no_dup_no_loss(self):
-        """Within-group order contract: page 1 (web_read_group) and page 2+
-        (web_search_read with the client's "user order, id" string) must slice
-        ONE consistent ordering.
-
-        All 120 records share the same name (so the model ``_order``
-        "complete_name ASC, id DESC" cannot break ties) and the sort field has
-        only 2 values: every comparison inside "function ASC" is a tie.
-        Before the fix, page 1 appended the ``_order`` residue (ties resolved
-        id DESC) while page 2 used the client's "function ASC, id" (id ASC):
-        the two pages overlapped on some records and lost others.
-        """
         Partner = self.env["res.partner"]
         partners = Partner.create(
             [
@@ -268,10 +196,6 @@ class TestWebReadGroupContracts(TransactionCase):
         return partners, [("id", "in", partners.ids)]
 
     def test_opening_info_restores_more_groups_than_auto_cap(self):
-        """Explicit ``opening_info`` entries with ``folded: False`` must be
-        honored past the 10-group auto-unfold cap (regression: the cap also
-        truncated the saved-state restore path, force-folding groups the user
-        had opened — and the client permanently adopted the forced fold)."""
         _partners, domain = self._make_function_groups(12)
         opening_info = [{"value": f"wrgfn{i:02d}", "folded": False} for i in range(12)]
         result = self.env["res.partner"].web_read_group(
@@ -291,7 +215,6 @@ class TestWebReadGroupContracts(TransactionCase):
             self.assertEqual(len(group["__records"]), 1)
 
     def test_auto_unfold_cap_still_ten(self):
-        """The AUTO-unfold path keeps its tight cap of 10 opened groups."""
         _partners, domain = self._make_function_groups(12)
         result = self.env["res.partner"].web_read_group(
             domain=domain,
@@ -304,11 +227,6 @@ class TestWebReadGroupContracts(TransactionCase):
         self.assertEqual(len(opened), 10, "auto-unfold must stop at 10 groups")
 
     def test_progressbar_domain_filters_aggregates_keeps_count(self):
-        """Progress-bar aggregate contract: when a ``progressbar_domain``
-        applies to a group, sum-style aggregates describe the FILTERED records
-        (the ones in ``__records``) while ``__count`` stays UNFILTERED (it
-        feeds the "Other"-bar remainder math, the pager, and the stale-offset
-        reset)."""
         Partner = self.env["res.partner"]
         Partner.create(
             [
@@ -357,9 +275,6 @@ class TestWebReadGroupContracts(TransactionCase):
         self.assertEqual(len(group["__records"]), 10)
 
     def test_fill_temporal_ignored_with_limit_or_offset(self):
-        """A truthy ``fill_temporal`` context must not kill a paginated
-        web_read_group (hole-filling is meaningless on a paginated group set);
-        ``formatted_read_group`` keeps the strict ValueError for graph/pivot."""
         Partner = self.env["res.partner"]
         partner = Partner.create({"name": "WRG FT"})
         domain = [("id", "=", partner.id)]
@@ -383,14 +298,6 @@ class TestWebReadGroupContracts(TransactionCase):
 
 @tagged("web_unit", "web_read_group")
 class TestSearchOpenedGroupsBatching(TransactionCase):
-    """``_search_opened_groups`` batches the per-group record fetch.
-
-    Opening N groups used to issue N sequential ``search()`` calls. The batched
-    form must return EXACTLY what the per-group form returned — same records,
-    same order, same tie resolution — because the within-group order is a
-    contract with the client's page-2 fetch.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -438,9 +345,8 @@ class TestSearchOpenedGroupsBatching(TransactionCase):
         ]
 
     def test_batched_matches_per_group_search(self):
-        """Batched output is identical to the original per-group ``search()``."""
         Base = type(self.env["res.partner"])
-        batched = Base._search_opened_groups
+        batched = Base._get_records_opened_groups
 
         def per_group(model, records_opening_info, domain, order_searches):
             return [
@@ -467,16 +373,15 @@ class TestSearchOpenedGroupsBatching(TransactionCase):
         try:
             for n, order, limit, offset in scenarios:
                 with self.subTest(n=n, order=order, limit=limit, offset=offset):
-                    Base._search_opened_groups = per_group
+                    Base._get_records_opened_groups = per_group
                     expected = self._records_per_group(n, order, limit, offset)
-                    Base._search_opened_groups = batched
+                    Base._get_records_opened_groups = batched
                     actual = self._records_per_group(n, order, limit, offset)
                     self.assertEqual(actual, expected)
         finally:
-            Base._search_opened_groups = batched
+            Base._get_records_opened_groups = batched
 
     def test_batching_collapses_round_trips(self):
-        """Opening many groups must not issue one query per group."""
         n_groups = 60
         self.env.invalidate_all()
         self.env.cr.flush()

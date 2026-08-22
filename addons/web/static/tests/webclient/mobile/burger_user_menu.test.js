@@ -15,8 +15,6 @@ import { registry } from "@web/core/registry";
 import { BurgerUserMenu } from "@web/webclient/burger_menu/burger_user_menu/burger_user_menu";
 
 const userMenuRegistry = registry.category("user_menuitems");
-// Captured from the real registration before each test clears the registry:
-// the item is exercised exactly as production registers it.
 const preferencesItem = userMenuRegistry.get("preferences");
 
 beforeEach(() => clearRegistry(userMenuRegistry));

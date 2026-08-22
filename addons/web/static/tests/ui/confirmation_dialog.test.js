@@ -368,7 +368,6 @@ test("can't click twice on 'Ok' (AlertDialog)", async () => {
     expect.verifySteps(["Confirm action"]);
 });
 
-// REGRESSION-BLOCK
 const openConfirmation = async (/** @type {any[]} */ closeParams) => {
     await mountWithCleanup(MainComponentsContainer);
     getService("dialog").add(
@@ -400,11 +399,6 @@ test("confirming reports no close params", async () => {
     expect(closeParams).toEqual([undefined]);
 });
 
-// DISMISS-VETO-BLOCK
-// `execButton` has always let a button callback refuse to close by returning
-// `false`. The dismiss path ignored it: `Dialog.dismiss` discarded what
-// `dialogData.dismiss` returned and closed anyway, so escape and the header
-// `X` overrode a refusal the Cancel button honoured.
 const openConfirmationWith = async (/** @type {any} */ props) => {
     await mountWithCleanup(MainComponentsContainer);
     getService("dialog").add(ConfirmationDialog, {
@@ -462,8 +456,6 @@ test("escape: a dismiss callback returning false outranks cancel", async () => {
 });
 
 test("dismissing closes the dialog exactly once", async () => {
-    // Both `ConfirmationDialog._dismiss` and `Dialog.dismiss` used to close;
-    // only the overlay's re-entrancy guard kept that from closing twice.
     await mountWithCleanup(MainComponentsContainer);
     const overlay = getService("overlay");
     const originalAdd = overlay.add;

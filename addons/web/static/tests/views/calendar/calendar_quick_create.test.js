@@ -21,8 +21,8 @@ const FAKE_PROPS = {
 
 /**
  * @param {{
- *   props?: object;
- *   dialogOptions?: import("@web/ui/dialog/dialog_service").DialogServiceInterfaceAddOptions;
+ * props?: object;
+ * dialogOptions?: import("@web/ui/dialog/dialog_service").DialogServiceInterfaceAddOptions;
  * }} [params]
  */
 async function start(params = {}) {
@@ -57,15 +57,10 @@ test(`click on create button`, async () => {
         dialogOptions: { onClose: () => expect.step("close") },
     });
     await contains(`.o-calendar-quick-create--create-btn`).click();
-    // An empty title neither creates nor dismisses: the dialog stays up with
-    // the field flagged, so the user can fill it in.
     expect.verifySteps([]);
     expect(`.o_dialog`).toHaveCount(1);
     expect(`input[name=title]`).toHaveClass("o_field_invalid");
 
-    // Dismiss it here rather than leaving it open: tearing the env down
-    // removes any overlay still standing and runs its `onClose`, which would
-    // otherwise strand a "close" step this test never asked about.
     await contains(`.o-calendar-quick-create--cancel-btn`).click();
     expect.verifySteps(["close"]);
 });

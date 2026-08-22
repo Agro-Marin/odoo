@@ -13,7 +13,6 @@ describe("Cache.clear", () => {
     test("clearing a path that was never written allocates nothing", () => {
         const cache = new Cache((a, b) => `${a}/${b}`);
         cache.clear("never", "registered");
-        // An eviction call must not make the cache bigger.
         expect(Object.keys(cache.cache)).toEqual([]);
     });
 
@@ -55,7 +54,6 @@ describe("Cache path arities", () => {
         const cache = new Cache((...path) => ({ got: path.join("/") }));
         const shallow = cache.read("a");
         expect(cache.read("a", "b")).toEqual({ got: "a/b" });
-        // The object handed to the first caller must not have been stamped.
         expect(shallow).toEqual({ got: "a" });
         expect(cache.read("a")).toBe(shallow);
     });
@@ -82,7 +80,7 @@ describe("Cache path arities", () => {
 
 describe("RPCCache in-flight join", () => {
     test("a live in-flight request is joined, not refetched", async () => {
-        const cache = new RPCCache("probe-join", 1, null); // RAM-only
+        const cache = new RPCCache("probe-join", 1, null);
         let fetches = 0;
         const blocker = new Deferred();
 
@@ -102,11 +100,6 @@ describe("RPCCache in-flight join", () => {
     });
 
     test("an in-flight request the LRU evicted is refetched, by design", async () => {
-        // Complements "LRU eviction of a still-pending entry does not wedge
-        // later reads" in network/rpc_cache.test.js, from the caller's side: the
-        // duplicate fetch is the escape hatch, not a defect. Joining on the
-        // pending request alone would hand this reader a promise that never
-        // settles whenever the evicted request is a hung one.
         const cache = new RPCCache("probe-evicted", 1, null);
         let fetches = 0;
         const hung = new Deferred();

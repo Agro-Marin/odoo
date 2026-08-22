@@ -284,17 +284,15 @@ test("DropdownGroup: a changed group name moves its dropdowns to the new group",
     }
     const parent = await mountWithCleanup(Parent);
 
-    // Different groups: hovering "two" while "one" is open leaves "one" open.
     await click("button.one");
     await animationFrame();
     await hover("button.two");
     await animationFrame();
     expect(queryAllTexts(DROPDOWN_MENU)).toEqual(["c1"]);
 
-    // Same group: hovering "two" now hands the menu over.
     parent.state.groupB = "g1";
     await animationFrame();
-    await hover(".away"); // the pointer is still on "two": no mouseenter otherwise
+    await hover(".away");
     await hover("button.two");
     await animationFrame();
     expect(queryAllTexts(DROPDOWN_MENU)).toEqual(["c2"]);
@@ -329,7 +327,7 @@ test("DropdownGroup: a dropdown mounted after a group move joins the new group",
         }
     }
     const parent = await mountWithCleanup(Parent);
-    parent.state.g = "gx"; // the group moves before its dropdown exists
+    parent.state.g = "gx";
     await animationFrame();
     parent.state.show = true;
     await animationFrame();

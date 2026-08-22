@@ -8,6 +8,7 @@ import {
     contains,
     defineModels,
     fields,
+    mockService,
     models,
     mountView,
     onRpc,
@@ -170,7 +171,7 @@ test("dynamic placeholder properties", async () => {
     });
 });
 
-test("correctly cache model qweb variables and don't prevent opening of other popovers", async () => {
+test("opening a second popover is not blocked by the first", async () => {
     // Asserted as a non-editor: the allow-list only constrains those, and the
     // popover no longer spends the RPC on a user it cannot constrain.
     onRpc("has_group", () => false);
@@ -179,15 +180,15 @@ test("correctly cache model qweb variables and don't prevent opening of other po
     patchWithCleanup(DynamicPlaceholderPopover.prototype, {
         setup() {
             super.setup();
-            onWillStart(() => {
+            onWillStart(async () => {
                 willStarts++;
+                await def;
             });
         },
     });
 
     onRpc("partner", "mail_allowed_qweb_expressions", async () => {
         expect.step("mail_allowed_qweb_expressions");
-        await def;
         return [];
     });
 
@@ -200,7 +201,7 @@ test("correctly cache model qweb variables and don't prevent opening of other po
     def.resolve();
     await waitFor(".o_model_field_selector_popover");
     expect(willStarts).toBe(2);
-    expect.verifySteps(["mail_allowed_qweb_expressions"]);
+    expect.verifySteps([]);
 });
 
 test("a template editor does not pay for an allow-list that cannot constrain them", async () => {
@@ -215,11 +216,6 @@ test("a template editor does not pay for an allow-list that cannot constrain the
 });
 
 test("the model reference field is loaded without the view naming it", async () => {
-    // `useDynamicPlaceholder.updateModel` reads the option's field out of
-    // `record.data`. Without a declared dependency it was absent from the read
-    // and the picker silently fell back to `record.data.model`, so every
-    // consumer needed an `<field name="..." invisible="1"/>` of its own -- the
-    // form view above still carries one.
     onRpc("web_read", ({ kwargs }) => {
         expect(Object.keys(kwargs.specification)).toInclude("placeholder");
     });
@@ -292,7 +288,10 @@ test("a non-editor is offered only what the server will accept", async () => {
     // server the expression, so a datetime could be offered and then refused
     // on save. Both sides now judge the expression.
     onRpc("has_group", () => false);
-    onRpc("mail_allowed_qweb_expressions", () => ["object.char", "object.date_end"]);
+    mockService("allowed_qweb_expressions", () => async () => [
+        "object.char",
+        "object.date_end",
+    ]);
     await mountView({ type: "form", resModel: "partner", resId: 1 });
     await contains(".o_field_char input").edit("#", { confirm: false });
     const names = [

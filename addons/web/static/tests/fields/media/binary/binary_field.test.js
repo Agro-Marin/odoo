@@ -436,13 +436,7 @@ test("isUploading state should be set to false after upload", async () => {
     await animationFrame();
 
     expect.verifyErrors([/RPC_ERROR/]);
-    // The subject of this test: the uploader must leave its "uploading" state
-    // whatever the update did, or the button stays stuck on a spinner.
     expect(`.o_select_file_button`).toHaveText("Upload your file");
-    // A rejected onchange rolls the change back and lowers `dirty` again
-    // (Record._update's restoreDirty), so nothing is pending afterwards. This
-    // used to wait for the save button instead, which pinned the opposite —
-    // a record left dirty with an empty changeset.
     expect(`.o_form_button_save:visible`).toHaveCount(0);
 });
 
@@ -573,10 +567,6 @@ test("download sends the filename field NAME, not its resolved value", async () 
 });
 
 test("BinaryField: the filename field is loaded even when the view omits it", async () => {
-    // `filename=` names a field the widget both reads and writes. Nothing
-    // declared it as a dependency, so a view that did not also render it left
-    // `record.data[filename]` unset -- and `fileName` fell through to slicing
-    // the base64 payload, labelling and *downloading* the file under a blob.
     Partner._records[0].document = false;
     Partner._records[0].foo = false;
     onRpc("web_save", ({ args }) => {
@@ -600,9 +590,6 @@ test("BinaryField: the filename field is loaded even when the view omits it", as
 });
 
 test("BinaryField: a dependency never unlocks an arch-readonly filename field", async () => {
-    // The dependency must not hand itself write access: `patchActiveFields`
-    // combines readonly with AND, so a plain `readonly: false` would override
-    // the arch and silently make the field editable.
     Partner._records[0].document = false;
     Partner._records[0].foo = false;
     onRpc("web_save", ({ args }) => {

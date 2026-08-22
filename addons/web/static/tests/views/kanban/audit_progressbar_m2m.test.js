@@ -67,8 +67,6 @@ const ARCH = `
         </templates>
     </kanban>`;
 
-// CONTROL: many2one group-by. serverValue is a scalar, so it survived even the
-// old reference-identity lookup.
 test("progressbar sum_field survives a bar toggle when grouped by many2one", async () => {
     await mountView({
         type: "kanban",
@@ -80,8 +78,6 @@ test("progressbar sum_field survives a bar toggle when grouped by many2one", asy
     expect(".o_kanban_group").toHaveCount(2);
     expect(getKanbanCounters()).toEqual(["19", "22"]);
 
-    // select then deselect the "yop" bar of the first column -> forces
-    // _updateAggregateGroup / _updateAggregates to rebuild the aggregate map
     await contains(".o_kanban_group:first-child .progress-bar.bg-success").click();
     await animationFrame();
     expect(getKanbanCounters()).toEqual(["10", "22"]);
@@ -91,9 +87,6 @@ test("progressbar sum_field survives a bar toggle when grouped by many2one", asy
     expect(getKanbanCounters()).toEqual(["19", "22"]);
 });
 
-// SUBJECT: many2many group-by. getGroupServerValue returns a FRESH array
-// `[value]` per call, so a reference-identity lookup misses and every column's
-// sum_field collapsed to 0 as soon as any bar was clicked.
 test("progressbar sum_field survives a bar toggle when grouped by many2many", async () => {
     await mountView({
         type: "kanban",

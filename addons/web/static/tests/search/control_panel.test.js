@@ -211,8 +211,6 @@ test("keyboard activation of an embedded action's delete icon on mobile", async 
     await contains("button[name=openEmbeddedActions]").click();
     expect(".o_embedded_actions_dropdown_menu .fa-trash-can").toHaveCount(1);
 
-    // Keyboard activation must behave like a click: open the confirmation
-    // dialog.
     queryFirst(".o_embedded_actions_dropdown_menu .fa-trash-can").focus();
     await press("Enter");
     await animationFrame();

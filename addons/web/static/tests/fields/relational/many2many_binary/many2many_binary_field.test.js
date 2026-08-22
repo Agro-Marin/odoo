@@ -310,9 +310,6 @@ test("widget many2many_binary image MIME type preview", async () => {
 });
 
 test("removing the same attachment twice does not throw", async () => {
-    // Two clicks land on the delete icon before the first removal re-renders
-    // (double click, or a slow frame). The second lookup misses, and passing
-    // the resulting `undefined` on to `StaticList.forget` used to throw.
     await mountView({
         type: "form",
         resModel: "turtle",

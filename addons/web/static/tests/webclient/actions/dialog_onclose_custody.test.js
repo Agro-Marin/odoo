@@ -53,8 +53,6 @@ function slowDialog(/** @type {string} */ tag) {
     return def;
 }
 
-// 1 -- the restore branch of `_removeDialog`. B steals A's onClose,
-// B dies, A is still the current dialog, so the callback is handed back.
 test("a pending dialog that dies hands the stolen onClose back to A", async () => {
     const def = slowDialog("probe_dialog_1");
     await mountActionHost();
@@ -75,14 +73,11 @@ test("a pending dialog that dies hands the stolen onClose back to A", async () =
     await pending.catch(() => {});
     await animationFrame();
 
-    // A survived and got its callback back: closing A now runs it.
     await action.doAction({ type: "ir.actions.act_window_close" });
     await animationFrame();
     expect(calls).toEqual(["A"]);
 });
 
-// 2 -- custody transfer. A is closed while B is loading; B mounts and
-// adopts A's onClose, which fires when B is finally closed.
 test("when B commits it adopts the stolen onClose and runs it on close", async () => {
     const def = slowDialog("probe_dialog_2");
     await mountActionHost();
@@ -112,7 +107,6 @@ test("when B commits it adopts the stolen onClose and runs it on close", async (
     expect(calls).toEqual(["B", "A"]);
 });
 
-// 3 -- custody transfer where the custodian never mounts.
 test("a pending dialog that never mounts does not swallow the stolen onClose", async () => {
     const def = slowDialog("probe_dialog_3");
     await mountActionHost();
@@ -138,7 +132,5 @@ test("a pending dialog that never mounts does not swallow the stolen onClose", a
     await animationFrame();
     await animationFrame();
 
-    // B never opened, so its own onClose is not owed (same convention as the
-    // inline failure path). A's, held in custody, must still run.
     expect(calls).toEqual(["A"]);
 });

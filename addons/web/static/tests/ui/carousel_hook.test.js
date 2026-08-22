@@ -130,9 +130,6 @@ function makeShrinkingParent() {
 }
 
 test("a slide list that shrinks under the index still shows a slide", async () => {
-    // `count` is a callback because the slides change after setup. The stored
-    // index outlived its slide, matched nothing, and left the carousel blank
-    // until the user happened to navigate.
     const parent = await mountWithCleanup(makeShrinkingParent());
 
     await click(".next");
@@ -160,7 +157,6 @@ test("a shrunk list reports its bounds correctly", async () => {
     await click(".drop");
     await animationFrame();
 
-    // A single-slide carousel is at both ends at once.
     expect(parent.carousel.atStart).toBe(true);
     expect(parent.carousel.atEnd).toBe(true);
 });

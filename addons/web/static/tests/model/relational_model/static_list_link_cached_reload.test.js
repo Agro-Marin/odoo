@@ -1,17 +1,5 @@
 // @ts-check
 
-/**
- * A bare ``LINK id`` command (no inlined values) queues the record for a
- * webRead. When that record is already in the list's cache with every active
- * field loaded there is nothing to fetch — ``_getResIdsToLoad`` is the
- * existing answer to "does this still need loading?" and the LINK branch has
- * to ask it, like the page-refill branch below it already does.
- *
- * This matters for SET, which ``expandSetCommands`` rewrites into
- * CLEAR + one LINK per id: re-applying a SET over an untouched page currently
- * re-reads the whole page.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { applyCommands } from "@web/model/relational_model/static_list_command_engine";
 
@@ -20,7 +8,7 @@ describe.current.tags("headless");
 const LINK = 4;
 const SET = 6;
 
-/** @returns {any} a partial StaticList, enough for applyCommands */
+/** @returns {any} */
 function makeList() {
     /** @type {any[]} */
     const loadedIds = [];
@@ -28,8 +16,8 @@ function makeList() {
         _commands: [],
         records: [],
         _currentIds: [],
-        _cache: {},
-        _unknownRecordCommands: {},
+        _cache: new Map(),
+        _unknownRecordCommands: new Map(),
         _loadingStubIds: new Set(),
         offset: 0,
         limit: 80,
@@ -52,13 +40,25 @@ function makeList() {
                 },
                 _applyChanges() {},
             };
-            list._cache[data.id] = record;
+            list._cache.set(data.id, record);
             return record;
         },
         _getResIdsToLoad: (/** @type {any} */ ids) =>
-            ids.filter((/** @type {any} */ id) => !list._cache[id]?.complete),
+            ids.filter((/** @type {any} */ id) => !list._cache.get(id)?.complete),
         _bumpLimit() {},
         _clampOffset() {},
+        _commitCommands(/** @type {any[]} */ commands) {
+            this._commands = commands;
+        },
+        _commitCurrentIds(/** @type {any[]} */ ids) {
+            this._currentIds = ids;
+        },
+        _insertMemberAt(/** @type {number} */ index, /** @type {any} */ id) {
+            this._currentIds.splice(index, 0, id);
+        },
+        _appendMember(/** @type {any} */ id) {
+            this._currentIds.push(id);
+        },
         model: {
             _patchConfig: () => {},
             _loadRecords: (/** @type {any} */ { resIds }) => {
@@ -72,7 +72,6 @@ function makeList() {
     return list;
 }
 
-/** Seed the list with two fully-loaded records. */
 function seed(/** @type {any} */ list) {
     for (const id of [1, 2]) {
         const record = list._createRecordDatapoint({ id, name: `n${id}` });
@@ -87,7 +86,7 @@ describe("LINK of an already-loaded record", () => {
         const list = makeList();
         seed(list);
         list._currentIds = [1];
-        list.records = [list._cache[1]];
+        list.records = [list._cache.get(1)];
         list.count = 1;
 
         await applyCommands(list, [[LINK, 2, false]]);

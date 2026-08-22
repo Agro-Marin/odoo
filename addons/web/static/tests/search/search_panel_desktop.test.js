@@ -3403,8 +3403,6 @@ test("search panel with sample data", async () => {
 });
 
 test("a category tree survives an imported state that predates it", async () => {
-    // getGlobalState can run before onWillStart's expandDefaultValue has seeded
-    // state.expanded, so a restored panel may carry no entry for a category.
     onRpc("search_panel_select_range", () => ({
         parent_field: "parent_id",
         values: [
@@ -3439,10 +3437,6 @@ test("a category tree survives an imported state that predates it", async () => 
 });
 
 test("restoring a state with an identical domain does not refetch the sections", async () => {
-    // No enable_counters and no expand: these sections only refetch when the
-    // search domain changed. The exported state carries `searchDomain`, so a
-    // restore followed by a reload with the same inputs must recognize the
-    // unchanged domain in `_reloadSections` instead of refetching everything.
     Partner._views = {
         search: `
             <search>
@@ -3472,13 +3466,10 @@ test("restoring a state with an identical domain does not refetch the sections",
     });
     expect.verifySteps([]);
 
-    // Same inputs, same domain: nothing to refetch.
     await restored.env.searchModel.reload({});
     await animationFrame();
     expect.verifySteps([]);
 
-    // A genuine domain change still refetches — the restore must not wedge
-    // the panel into staleness.
     await restored.env.searchModel.reload({ domain: [["bar", "=", true]] });
     await animationFrame();
     expect.verifySteps([
@@ -3488,7 +3479,6 @@ test("restoring a state with an identical domain does not refetch the sections",
 });
 
 test("group and value checkboxes of one section get distinct ids", async () => {
-    // group ids and value ids come from different comodels and overlap freely
     onRpc("search_panel_select_multi_range", () => ({
         values: [
             {
@@ -3516,19 +3506,11 @@ test("group and value checkboxes of one section get distinct ids", async () => {
     expect(ids).toHaveLength(2);
     expect(new Set(ids).size).toBe(2);
     for (const id of ids) {
-        // The leading segment is the SearchPanel instance's own prefix: two
-        // panels on one page would otherwise both emit "1_input_1" (see "two
-        // search panels on one page do not share checkbox ids"). What this test
-        // pins is the `_group_` / `_input_` discriminator, since group ids and
-        // value ids come from different comodels and overlap freely.
         expect(id).toMatch(/^o_sp\d+_\d+_(group|input)_\d+$/);
     }
 });
 
 test("a filter's searchpanel default is in the filter_domain of the FIRST fetch", async () => {
-    // The defaults used to be checked only after `_fetchSections` resolved, so
-    // the first `search_panel_select_*` calls described the unfiltered set: the
-    // panel opened showing a selection whose counters belonged to no selection.
     Partner._views = {
         search: `
             <search>
@@ -3556,9 +3538,6 @@ test("a filter's searchpanel default is in the filter_domain of the FIRST fetch"
 });
 
 test("a searchpanel default the server does not return leaves no phantom filter", async () => {
-    // The default is seeded as a placeholder before the fetch; a value outside
-    // the returned range must drop out rather than linger as a checked value
-    // nothing can uncheck.
     Partner._views = {
         search: `
             <search>
@@ -3583,9 +3562,6 @@ test("a searchpanel default the server does not return leaves no phantom filter"
 });
 
 test("a cyclic category parent chain does not blow the stack", async () => {
-    // `parentId`s come from the server, so a comodel whose hierarchy loops (no
-    // `_check_recursion`, or a value whose parent was pruned and re-added) used
-    // to recurse forever and take the whole panel down with it.
     Partner._views = {
         search: `
             <search>
@@ -3630,13 +3606,8 @@ test("an unreachable ancestor yields the partial chain", async () => {
         (s) => s.type === "category",
     );
 
-    // 201's parent was pruned from the returned range.
     category.values.set(201, { id: 201, parentId: 202, childrenIds: [] });
 
-    // 202 does not resolve, so the chain from 201 upwards is empty. This used
-    // to return [202] — the id was collected before being looked up, which
-    // contradicted this test's own name and handed getCategorySelection an id
-    // it dereferences unguarded (see the next test).
     expect(searchPanel.getAncestorValueIds(category, 201)).toEqual([]);
     expect(searchPanel.getAncestorValueIds(category, 999)).toEqual([]);
 });
@@ -3657,8 +3628,6 @@ test("an unreachable ancestor does not break the collapsed sidebar", async () =>
     });
     const searchPanel = findComponent(component, (c) => c instanceof SearchPanel);
     const { searchModel } = component.env;
-    // The live section, not a getSections() copy: that copy shares the `values`
-    // Map by reference but carries its own `activeValueId` scalar.
     const [category] = [...searchModel.sections.values()].filter(
         (s) => s.type === "category",
     );
@@ -3672,16 +3641,12 @@ test("an unreachable ancestor does not break the collapsed sidebar", async () =>
     category.activeValueId = 201;
     searchModel._sections = null;
 
-    // getCategorySelection backs the collapsed-sidebar summary; it used to
-    // throw "Cannot read properties of undefined (reading 'display_name')".
     expect(searchPanel.getCategorySelection()).toEqual([
         { values: ["Orphan"], icon: category.icon, color: category.color },
     ]);
 });
 
 test("the sidebar collapse and expand toggles carry an accessible name", async () => {
-    // Icon-only buttons: with no text, no title and no aria-label, assistive
-    // technology announced them as an unnamed "button".
     Partner._views = {
         search: `
             <search>
@@ -3710,11 +3675,6 @@ test("the sidebar collapse and expand toggles carry an accessible name", async (
 });
 
 test("a category row is a keyboard-operable control", async () => {
-    // The row IS the control — it selects the value and folds its children —
-    // but it is a bare `<header>`: no role, no tab stop, no Enter/Space. The
-    // only thing standing in for that was the unlabeled `o_toggle_fold` button
-    // that happened to bubble its click, so selecting a category was
-    // effectively mouse-only.
     Partner._views = {
         search: `
             <search>
@@ -3733,11 +3693,8 @@ test("a category row is a keyboard-operable control", async () => {
     expect(rows.length).toBeGreaterThan(1);
     expect(rows[0]).toHaveAttribute("role", "button");
     expect(rows[0]).toHaveAttribute("tabindex", "0");
-    // "All" is active on load.
     expect(rows[0]).toHaveAttribute("aria-current", "true");
 
-    // The fold affordance is decorative now: no duplicate tab stop, and no
-    // unnamed button announced for every row.
     expect(".o_search_panel_category_value .o_toggle_fold").toHaveAttribute(
         "aria-hidden",
         "true",
@@ -3795,7 +3752,6 @@ test("a category row with children exposes aria-expanded, a leaf does not", asyn
         ),
     ).toHaveAttribute("aria-expanded", "true");
 
-    // A leaf must not claim to be collapsed.
     const child = queryFirst(
         ".o_search_panel_category_value header:has(.o_search_panel_label_title:contains(agrolait))",
     );
@@ -3803,10 +3759,6 @@ test("a category row with children exposes aria-expanded, a leaf does not", asyn
 });
 
 test("two search panels on one page do not share checkbox ids", async () => {
-    // Section ids restart at 1 for every search view, so building the checkbox
-    // ids from them alone made both panels emit "1_input_1". `<label for>`
-    // resolves to the FIRST match in the document, so clicking the second
-    // panel's label toggled the first panel's value.
     class TwoPanels extends Component {
         static template = xml`
             <div>

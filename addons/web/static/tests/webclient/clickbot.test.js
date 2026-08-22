@@ -30,10 +30,6 @@ const RPC_ERROR_MARKER =
     "A RPC in error was detected, maybe it's related to the error dialog : ";
 
 /**
- * Re-serialize a JSON string with every object's keys sorted recursively (arrays keep
- * their order). Lets two structurally-equal payloads compare equal regardless of the
- * order their keys were inserted at runtime.
- *
  * @param {string} jsonString
  * @returns {string}
  */

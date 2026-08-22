@@ -202,20 +202,12 @@ export function preloadBundle(bundleName) {
     });
 }
 
-/**
- * Preload Chart.js (+ luxon adapter) once before a suite. Uses `loadChartJS`
- * (real ESM via import map) instead of the old `window.Chart`-assigning bundle.
- */
 export function preloadChartJS() {
     before(async function preloadChartJS() {
         await withFetch(globalCachedFetch, () => loadChartJS());
     });
 }
 
-/**
- * Preload FullCalendar (+ locales, skeleton CSS) once before a suite, via the
- * `loadFullCalendar` ESM loader (replaces the old `window.FullCalendar` bundle).
- */
 export function preloadFullCalendar() {
     before(async function preloadFullCalendar() {
         await withFetch(globalCachedFetch, () => loadFullCalendar());

@@ -11,7 +11,6 @@ import { GraphRenderer } from "@web/views/graph/graph_renderer";
 
 /**
  * @typedef {"bar" | "line" | "pie"} GraphMode
- *
  * @typedef {import("@web/views/view").View} GraphView
  */
 
@@ -208,9 +207,6 @@ export async function clickOnLegend(view, text) {
     return contains(chart.canvas).click({ position: point, relative: true });
 }
 
-/**
- * Pre-loads Chart.js and disables its animations, for test suites that render charts.
- */
 export function setupChartJsForTests() {
     before(async () => {
         const Chart = await loadChartJS();

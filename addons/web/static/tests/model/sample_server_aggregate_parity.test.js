@@ -1,27 +1,9 @@
 // @ts-check
 
-/**
- * A sample group's aggregates are computed by one of two paths, chosen by
- * whether the real server returned any groups to hang the sample records on:
- *
- *   - no real groups → ``_mockFormattedReadGroup`` → ``_aggregateFields``
- *   - real groups    → ``_tweakExistingGroups``, which re-derives them inline
- *
- * They must agree. ``_aggregateFields`` rounds every numeric result through
- * ``sanitizeNumber``; the inline branch summed with a bare ``reduce`` and did
- * not, so a float column's group total came back as binary-float noise
- * (``57.97000000000001``) on one path and ``57.97`` on the other, for the same
- * records.
- *
- * Sample data is user-facing — it is what an empty list or kanban renders — so
- * this is a visible artifact, not a test-only concern.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { FLOAT_PRECISION } from "@web/model/sample_data";
 import { SampleServer } from "@web/model/sample_server";
 
-/** Deterministic subclass, mirroring sample_server.test.js. */
 class DeterministicSampleServer extends SampleServer {
     constructor(/** @type {any[]} */ ...args) {
         super(...args);
@@ -54,7 +36,6 @@ const FIELDS = {
     age: { string: "Age", type: "integer" },
 };
 
-/** How many decimals a number carries. */
 function decimals(value) {
     const text = String(value);
     return text.includes(".") ? text.split(".")[1].length : 0;

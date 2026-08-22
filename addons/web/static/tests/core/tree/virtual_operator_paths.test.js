@@ -33,9 +33,6 @@ describe("eliminating a virtual operator keeps the path", () => {
     });
 
     test("a non-string path survives", () => {
-        // `splitPath` returned "" for anything that is not a string, so the
-        // path was replaced by the empty string and the server answered
-        // "Invalid field ''".
         expect(eliminate(1, "between", [1, 5])).toBe(
             `["&", (1, ">=", 1), (1, "<=", 5)]`,
         );
@@ -52,8 +49,6 @@ describe("eliminating a virtual operator keeps the path", () => {
 
 describe("Domain.contains covers every operator the server defines", () => {
     test("the internal `any!` spellings are handled like `any`", () => {
-        // `any!` / `not any!` are in the server's STANDARD_CONDITION_OPERATORS
-        // and used to reach "could not match domain".
         expect(new Domain([["id", "any!", [1]]]).contains({ id: 1 })).toBe(true);
         expect(new Domain([["id", "not any!", [1]]]).contains({ id: 1 })).toBe(false);
         expect(new Domain([["id", "any", [1]]]).contains({ id: 1 })).toBe(true);

@@ -50,7 +50,7 @@ test("widget upgrade_boolean in a form view - label", async () => {
         resModel: "res.config.settings",
     });
 
-    expect(".o_field .badge").toHaveCount(0, {
+    expect(".o_field_widget .badge").toHaveCount(0, {
         message: "the upgrade badge shouldn't be inside the field section",
     });
     expect(".o_form_label .badge").toHaveCount(1, {
@@ -97,7 +97,7 @@ test("widget upgrade_boolean in a form view - label (enterprise version)", async
         resModel: "res.config.settings",
     });
 
-    expect(".o_field .badge").toHaveCount(0, {
+    expect(".o_field_widget .badge").toHaveCount(0, {
         message: "the upgrade badge shouldn't be inside the field section",
     });
     expect(".o_form_label .badge").toHaveCount(0, {

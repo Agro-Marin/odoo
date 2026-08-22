@@ -1,24 +1,5 @@
 // @ts-check
 
-/**
- * ``extendRecord`` opens an x2many row in a sub-form: it widens the row's
- * active fields to the dialog's, parks the row's pending edits in a savepoint
- * so a cancel can restore them, and marks the row extended.
- * ``validateExtendedRecord`` is the confirm side.
- *
- * Its three exits deliberately do NOT do the same thing. A row confirmed
- * without a single edit returns early and keeps the widened active fields,
- * because narrowing them back is not free: the command engine defers an
- * onchange payload naming a field the row no longer declares
- * (``!(fieldName in record.activeFields)``) into ``_unknownRecordCommands``,
- * and ``extendRecord`` replays those only the FIRST time a row is extended.
- * A row that lost its widened fields therefore shows a stale sub-form for the
- * rest of the record's life.
- *
- * These tests pin that asymmetry so it is not "tidied up" again -- it reads
- * like an oversight and is not.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";
@@ -89,7 +70,6 @@ describe("validateExtendedRecord", () => {
 
         expect(Object.keys(record.activeFields).sort()).toEqual(["name", "note"]);
         expect(record._activeFieldsToRestore).not.toBe(/** @type {any} */ (undefined));
-        // Nothing changed, so there is nothing to propagate upwards either.
         expect(updates).toEqual([]);
     });
 
@@ -105,7 +85,7 @@ describe("validateExtendedRecord", () => {
         await record._update({ name: "edited" });
         record._addSavePoint();
         record._activeFieldsToRestore = { ...list.config.activeFields };
-        updates.length = 0; // the edit itself already notified the parent
+        updates.length = 0;
 
         await list.validateExtendedRecord(/** @type {any} */ (record));
 
@@ -124,7 +104,7 @@ describe("validateExtendedRecord", () => {
 
         await list.validateExtendedRecord(/** @type {any} */ (record));
 
-        expect(list.currentIds).toInclude(record._virtualId);
+        expect(list.currentIds).toInclude(/** @type {string} */ (record._virtualId));
         expect(list.count).toBe(3);
         expect(record._savePoint).toBe(/** @type {any} */ (undefined));
         expect(record._activeFieldsToRestore).toBe(/** @type {any} */ (undefined));

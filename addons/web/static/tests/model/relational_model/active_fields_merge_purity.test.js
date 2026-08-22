@@ -1,14 +1,5 @@
 // @ts-check
 
-/**
- * ``StaticList.extendRecord`` merges the caller's ``activeFields`` with the
- * list's. Both merge helpers (``completeActiveFields``, ``patchActiveFields``)
- * rewrite their FIRST argument in place, and the x2many dialog builds its
- * params ONCE per open and reuses them for every "Save & New" — so a merge that
- * wrote through to the caller's map grew the modifier expressions by one clause
- * per click, unbounded, and re-parsed a new expression string every render.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import {
     cloneActiveFields,
@@ -26,7 +17,7 @@ describe("combineModifiers", () => {
     });
 
     test("still validates the operator", () => {
-        expect(() => combineModifiers("a", "a", "XOR")).toThrow();
+        expect(() => combineModifiers("a", "a", /** @type {any} */ ("XOR"))).toThrow();
     });
 });
 
@@ -59,18 +50,16 @@ describe("cloneActiveFields", () => {
                 fields: { name: { type: "char", name: "name" } },
             },
         });
-        expect(source.line_ids.required).toBe("qty > 0");
+        expect(/** @type {any} */ (source.line_ids).required).toBe("qty > 0");
         expect("name" in source.line_ids.related.activeFields).toBe(false);
         expect("name" in source.line_ids.related.fields).toBe(false);
     });
 });
 
 describe("extendRecord activeFields purity", () => {
-    /** A StaticList on the real prototype, taking extendRecord's already-extended path. */
     function makeList() {
         const list = Object.create(StaticList.prototype);
         Object.assign(list, {
-            // Membership owner first: the keys below write through its accessors.
             _membership: new ListMembership(),
             _config: {
                 activeFields: { name: makeActiveField({ required: "qty > 0" }) },
@@ -108,7 +97,6 @@ describe("extendRecord activeFields purity", () => {
         }
 
         expect(params.activeFields.name.required).toBe(before);
-        // the merged config the dialog renders from is equally stable
         expect(record.config.activeFields.name.required).toBe(before);
     });
 });

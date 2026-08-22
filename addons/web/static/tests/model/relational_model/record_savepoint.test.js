@@ -1,18 +1,5 @@
 // @ts-check
 
-/**
- * Tests addSavePoint() / restoreFromSavePoint() — the snapshot/restore logic
- * for discarded sub-flows (sub-form dialogs over x2many children, extended-
- * field reloads in static lists).
- *
- * Invariants mirror the doc block on ``RelationalRecord.dirty`` in record.js:
- *   - Invariant 1: a snapshot of populated ``_changes`` must round-trip it.
- *   - Invariant 2: a snapshot of populated ``_invalidFields`` (no ``_changes``)
- *     must round-trip it so ``dirty`` stays true after restore — the case the
- *     previous implementation got wrong ("ghost dirty").
- *   - Mixed and clean states are also covered.
- */
-
 import { describe, expect, test } from "@odoo/hoot";
 import { markRaw } from "@odoo/owl";
 import { makeRecordDouble } from "@web/../tests/model/relational_model/record_doubles";
@@ -24,9 +11,6 @@ import {
 } from "@web/model/relational_model/record_savepoint";
 
 /**
- * Thin wrapper over the shared {@link makeRecordDouble}: the savepoint helpers
- * only need the change bag, the text values and the validity pair.
- *
  * @param {Object} [opts]
  * @param {Record<string, any>} [opts.changes]
  * @param {Record<string, any>} [opts.textValues]
@@ -239,9 +223,6 @@ describe("restoreFromSavePoint — _textValues", () => {
 });
 
 /**
- * Build a record mock for discard tests. Provides the wider surface
- * that discard reads/mutates beyond what addSavePoint needs.
- *
  * @param {Object} [opts]
  * @param {boolean} [opts.hasSavePoint=false]
  * @param {boolean} [opts.isNew=false]
@@ -249,7 +230,7 @@ describe("restoreFromSavePoint — _textValues", () => {
  * @param {Object} [opts.changes={}]
  * @param {Object} [opts.initialTextValues={}]
  * @param {string[]} [opts.invalid=[]]
- * @param {Object} [opts.savePoint=null] - explicit snapshot to install
+ * @param {Object} [opts.savePoint=null]
  * @returns {Object}
  */
 function makeDiscardRecord({
@@ -413,8 +394,6 @@ describe("discard — common post-branch behavior", () => {
         rec.setInvalidFieldsNotification(originalCloser);
         discard(rec);
         expect(closeCalled).toBe(true);
-        // The reset is what stops a second discard re-closing a notification
-        // that is already gone, so assert it by behaviour rather than identity.
         closeCalled = false;
         rec.closeInvalidFieldsNotification();
         expect(closeCalled).toBe(false);
@@ -453,13 +432,14 @@ describe("discard — x2many child._discard() cascade", () => {
             changes: { line_ids: childList },
         });
         rec.fields = { line_ids: { type: "one2many" } };
-        const origClear = rec._clearChanges.bind(rec);
-        rec._clearChanges = () => {
-            order.push("_clearChanges");
-            origClear();
+        const origDiscardChanges = rec._discardChanges.bind(rec);
+        rec._discardChanges = () => {
+            order.push("_discardChanges");
+            origDiscardChanges();
         };
         discard(rec);
-        expect(order).toEqual(["child._discard", "_clearChanges"]);
+        expect(order).toEqual(["child._discard", "_discardChanges"]);
+        expect({ .../** @type {any} */ (rec)._changes }).toEqual({});
     });
 
     test("does NOT call _discard on scalar fields in _changes", () => {

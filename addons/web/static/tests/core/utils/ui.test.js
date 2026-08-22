@@ -11,7 +11,6 @@ import {
 describe.current.tags("headless");
 
 /**
- * Renders raw HTML into the test fixture and returns it.
  * @param {string} html
  * @returns {HTMLElement}
  */

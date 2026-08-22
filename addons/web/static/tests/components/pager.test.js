@@ -491,8 +491,6 @@ test("updateTotal props: click previous", async () => {
 });
 
 test("parse returns a plain object, not a promise", async () => {
-    // It was declared `async` while awaiting nothing, so every caller paid a
-    // microtask hop for a pure computation.
     let pager;
     patchWithCleanup(Pager.prototype, {
         setup() {
@@ -527,8 +525,6 @@ test("previous does not resolve the total twice on a double click", async () => 
         },
     });
 
-    // Resolving the real total is a round trip; the pager must stay disabled
-    // across it instead of starting a second one.
     await click(".o_pager_previous");
     await click(".o_pager_previous");
     expect.verifySteps(["updateTotal"]);
@@ -536,4 +532,30 @@ test("previous does not resolve the total twice on a double click", async () => 
     def.resolve(18);
     await animationFrame();
     expect.verifySteps(["update"]);
+});
+
+test.tags("desktop");
+test("a rejected pager entry is put back, not left in the input", async () => {
+    await mountWithCleanup(PagerController, {
+        props: { offset: 0, limit: 10, total: 50, onUpdate: () => {} },
+    });
+
+    expect(".o_pager_value").toHaveText("1-10");
+
+    await contains(".o_pager_value").click();
+    await contains("input.o_pager_value").edit("abc", { confirm: false });
+    await press("Enter");
+    await animationFrame();
+
+    expect(".o_pager_value").toHaveValue("1-10", {
+        message: "an unparseable entry reverts to the current range",
+    });
+
+    await contains("input.o_pager_value").edit("8-2", { confirm: false });
+    await press("Enter");
+    await animationFrame();
+
+    expect(".o_pager_value").toHaveValue("1-10", {
+        message: "a backwards range reverts too",
+    });
 });

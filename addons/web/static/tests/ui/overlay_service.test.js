@@ -97,10 +97,6 @@ test("double remove runs onRemove once (idempotent)", async () => {
     expect.verifySteps([]);
 });
 
-// Closing again while a removal is in flight used to hand back nothing at all,
-// so `await close()` on the second call resolved while the overlay was still on
-// screen and its `onClose` still running. The second caller must join the
-// removal already under way.
 test("a second close joins the removal already in flight", async () => {
     await mountWithCleanup(MainComponentsContainer);
     class MyComp extends Component {
@@ -133,9 +129,6 @@ test("a second close joins the removal already in flight", async () => {
     expect(".joined").toHaveCount(0);
 });
 
-// The joining caller gets the first removal's answer, and its own
-// `removeParams` never reach `onRemove`. Silent by design in production; in
-// debug, dropping defined params is worth a warning.
 test("joining a pending removal with removeParams warns in debug", async () => {
     patchWithCleanup(odoo, { debug: "1" });
     patchWithCleanup(console, {
@@ -352,9 +345,6 @@ test("mounting a second container does not transiently mount foreign overlays", 
 });
 
 test("destroy() does not leak an unhandled rejection from onRemove", async () => {
-    // `remove` drops the entry in its `finally` either way, so a rejecting
-    // `onClose` has nothing left to do but surface as an unhandled rejection
-    // and fail whatever unrelated thing runs next.
     const env = await makeMockEnv();
     class Boom extends Component {
         static props = ["*"];
@@ -382,9 +372,6 @@ test("destroy() does not leak an unhandled rejection from onRemove", async () =>
 });
 
 test("click-away containment spans sub-overlays without allocating per sibling", async () => {
-    // `contains` runs for every open overlay on every pointerdown in the app.
-    // The behaviour it encodes: an overlay contains its own subtree and that of
-    // anything stacked above it, and nothing below.
     await mountWithCleanup(MainComponentsContainer);
     class Layer extends Component {
         static props = ["*"];
@@ -400,8 +387,6 @@ test("click-away containment spans sub-overlays without allocating per sibling",
     expect(low).not.toBe(null);
     expect(high).not.toBe(null);
 
-    // Both live in the same container, so the stack is shared; the low one
-    // must see the high one as "inside", and the high one must not see the low.
     const items = [...document.querySelectorAll(".o-overlay-item")];
     expect(items).toHaveLength(2);
     expect(items[0].contains(low)).toBe(true);
@@ -410,10 +395,6 @@ test("click-away containment spans sub-overlays without allocating per sibling",
 });
 
 test("a hosted env REPLACES the container's env instead of extending it", async () => {
-    // Pins the contract `useHostedSubEnv` implements by writing
-    // `__owl__.childEnv` -- Owl internals, since it exposes no API for replacing
-    // an env. If an Owl upgrade changes that field, this fails loudly here
-    // rather than silently leaking the webclient env into hosted overlays.
     await mountWithCleanup(MainComponentsContainer);
 
     let seen;
@@ -423,8 +404,6 @@ test("a hosted env REPLACES the container's env instead of extending it", async 
         setup() {
             seen = {
                 hosted: this.env.HOSTED,
-                // `services` is on every real env, so its absence is proof the
-                // inherited env was replaced rather than merged.
                 inheritedServices: "services" in this.env,
                 overlay: Boolean(this.env[OVERLAY_SYMBOL]),
             };
@@ -436,8 +415,6 @@ test("a hosted env REPLACES the container's env instead of extending it", async 
 
     expect(seen.hosted).toBe("yes");
     expect(seen.inheritedServices).toBe(false);
-    // The click-away extension must survive the replacement: applied in the
-    // other order it would be dropped, and containment would silently break.
     expect(seen.overlay).toBe(true);
 });
 
@@ -460,11 +437,7 @@ test("a hosted overlay still reports containment to click-away", async () => {
     expect(contains(document.body)).toBe(false);
 });
 
-// The asymmetry with `destroy()` above is the contract, not an oversight: here
-// the rejection belongs to the caller that asked to close, and reaches the
 // global handler when nobody catches it. Either way the entry is gone, because
-// `remove` drops it in a `finally` -- a caller's failing `onClose` must never
-// strand an overlay on screen.
 test("a throwing onRemove removes the overlay and hands the caller the error", async () => {
     await mountWithCleanup(MainComponentsContainer);
     class MyComp extends Component {

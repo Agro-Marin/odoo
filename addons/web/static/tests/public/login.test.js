@@ -34,8 +34,6 @@ test("the pressed submit button is the one that spins", async () => {
     queryOne(".oe_login_form").dispatchEvent(
         new SubmitEvent("submit", { submitter: secondEl }),
     );
-    // decorating the first button in the markup left the visitor watching the
-    // wrong control spin
     expect("button.secondary").toHaveClass(["o_btn_loading", "disabled"]);
     expect("button.primary").not.toHaveClass(["o_btn_loading", "disabled"]);
 });
