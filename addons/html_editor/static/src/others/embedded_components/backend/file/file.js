@@ -13,7 +13,6 @@ export class EmbeddedFileComponent extends ReadonlyEmbeddedFileComponent {
 
     setup() {
         super.setup();
-        // override the state by an embedded state.
         this.state = useEmbeddedState(this.props.host);
         this.fileModel.state = this.state;
         this.localState = useState({
@@ -60,8 +59,6 @@ export class EmbeddedFileComponent extends ReadonlyEmbeddedFileComponent {
         if (newName === this.fileModel.filename) {
             return true;
         }
-        // filename is the name of the file as written in the editor by the
-        // user. It does not necessarily have the file extension.
         this.fileModel.filename = newName;
         if (this.fileModel.extension) {
             const pattern = new RegExp(`\\.${this.fileModel.extension}$`, "i");
@@ -69,8 +66,6 @@ export class EmbeddedFileComponent extends ReadonlyEmbeddedFileComponent {
                 newName += `.${this.fileModel.extension}`;
             }
         }
-        // name is the full name of the file (always with extension)
-        // and is used as the url queryParam when downloading it.
         this.fileModel.name = newName;
         return true;
     }

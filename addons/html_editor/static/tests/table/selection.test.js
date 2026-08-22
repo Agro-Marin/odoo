@@ -56,9 +56,7 @@ describe("custom selection", () => {
         const overlayColorTDs = queryAll("table td").map(
             (td) => getComputedStyle(td)["box-shadow"],
         );
-        // Unselected cells should have no box-shadow overlay
         expect(overlayColorTDs[0]).toBe("none");
-        // Selected cells should have a box-shadow color
         expect(overlayColorTDs[1]).not.toBe("none");
         expect(overlayColorTDs[2]).not.toBe("none");
     });
@@ -91,14 +89,12 @@ describe("custom selection", () => {
         const clientX = cellRect.right;
         const clientY = cellRect.top + cellRect.height / 2;
 
-        // Simulate mousedown at the right border of first cell.
         await manuallyDispatchProgrammaticEvent(firstTd, "mousedown", {
             detail: 1,
             clientX,
             clientY,
         });
 
-        // Simulate mousemove to resize cell.
         manuallyDispatchProgrammaticEvent(firstTd, "mousemove", {
             detail: 1,
             clientX: clientX + 100,
@@ -111,7 +107,7 @@ describe("custom selection", () => {
         });
         await animationFrame();
 
-        expect(firstTd.clientWidth).not.toBe(initialCellWidth); // Resize worked
+        expect(firstTd.clientWidth).not.toBe(initialCellWidth);
         expect(firstTd).toHaveClass("o_selected_td");
     });
 });
@@ -382,8 +378,6 @@ describe("select a full table on cross over", () => {
                     </table>
                     <p data-selection-placeholder=""><br></p>`),
                 stepFunction: async (editor) => {
-                    // Table selection happens on selectionchange
-                    // event which is fired in the next tick.
                     await tick();
                     setColor("aquamarine", "color")(editor);
                 },
@@ -510,8 +504,6 @@ describe("select a full table on cross over", () => {
                     "</tr></tbody></table>" +
                     '<p data-selection-placeholder=""><br></p>',
                 stepFunction: async (editor) => {
-                    // Table selection happens on selectionchange
-                    // event which is fired in the next tick.
                     await tick();
                     setColor("aquamarine", "color")(editor);
                 },
@@ -1770,7 +1762,6 @@ describe("symmetrical selection", () => {
         press(["Shift", "ArrowRight"]);
         await animationFrame();
 
-        // Select single empty cell
         expectContentToBe(
             el,
             `<p data-selection-placeholder=""><br></p>
@@ -1786,7 +1777,6 @@ describe("symmetrical selection", () => {
         press(["Shift", "ArrowRight"]);
         await animationFrame();
 
-        // Select two cells consecutively
         expectContentToBe(
             el,
             `<p data-selection-placeholder=""><br></p>
@@ -1802,7 +1792,6 @@ describe("symmetrical selection", () => {
         press(["Shift", "ArrowDown"]);
         await animationFrame();
 
-        // Extend selection from two cells to four cells
         expectContentToBe(
             el,
             `<p data-selection-placeholder=""><br></p>
@@ -1818,7 +1807,6 @@ describe("symmetrical selection", () => {
         press(["Shift", "ArrowLeft"]);
         await animationFrame();
 
-        // Shrink selection from four cells to two cells
         expectContentToBe(
             el,
             `<p data-selection-placeholder=""><br></p>
@@ -1834,7 +1822,6 @@ describe("symmetrical selection", () => {
         press(["Shift", "ArrowUp"]);
         await animationFrame();
 
-        // Shrink selection from two cells to single cell
         expectContentToBe(
             el,
             `<p data-selection-placeholder=""><br></p>
@@ -1879,7 +1866,7 @@ describe("symmetrical selection", () => {
             anchorOffset: 0,
             focusNode: firstTd,
             focusOffset: nodeSize(firstTd),
-        }); // <td>[ab]</td>
+        });
 
         press(["Shift", "ArrowRight"]);
         await animationFrame();
@@ -1915,7 +1902,7 @@ describe("symmetrical selection", () => {
             anchorOffset: nodeSize(secondTd),
             focusNode: secondTd,
             focusOffset: 0,
-        }); // <td>]ab[</td>
+        });
 
         press(["Shift", "ArrowLeft"]);
         await animationFrame();
@@ -2125,27 +2112,23 @@ describe("single cell selection", () => {
         const firstP = firstTd.firstElementChild;
         const textNode = firstP.firstChild;
 
-        // Get bounding rect of selection range at the end of text.
         const range = document.createRange();
         range.setStart(textNode, nodeSize(textNode));
         range.setEnd(textNode, nodeSize(textNode));
         const rangeRect = range.getBoundingClientRect();
 
-        // Simulate mousedown at the end of text.
         await manuallyDispatchProgrammaticEvent(firstP, "mousedown", {
             detail: 1,
             clientX: rangeRect.right,
             clientY: rangeRect.top,
         });
 
-        // Put cursor at the end of text.
         setSelection({
             anchorNode: textNode,
             anchorOffset: nodeSize(textNode),
         });
         await animationFrame();
 
-        // Simulate attempt to select single cell.
         manuallyDispatchProgrammaticEvent(firstP, "mousemove", {
             detail: 1,
             clientX: rangeRect.right,
@@ -2187,9 +2170,8 @@ describe("single cell selection", () => {
         const firstTd = el.querySelector("td");
         const firstP = firstTd.firstElementChild;
         const textNode = firstP.firstChild;
-        const targetOffset = 4; // abcd[]e
+        const targetOffset = 4;
 
-        // Dispatch mousedown between "d" and "e"
         const range = document.createRange();
         range.setStart(textNode, targetOffset);
         range.setEnd(textNode, targetOffset);
@@ -2202,7 +2184,6 @@ describe("single cell selection", () => {
             shiftKey: true,
         });
 
-        // Extend the selection to that offset, as shift + click would.
         const selection = editor.document.getSelection();
         selection.extend(textNode, targetOffset);
         await tick();

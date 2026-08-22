@@ -69,13 +69,6 @@ export class IconPlugin extends Plugin {
                     return;
                 }
                 const isIconInTargetedNodes = targetedNodes.some(isIconElement);
-                // All nodes should be icons, their ZWS children, or their
-                // ancestors. A U+FEFF filler only counts when an icon is
-                // actually among the targeted nodes AND the filler sits
-                // directly beside it: those fillers surround an icon, so
-                // accepting them unconditionally opened the icon toolbar for a
-                // plain collapsed caret that merely shared a paragraph with an
-                // icon.
                 const isIconRelatedNode = (node) => {
                     if (
                         node.matches?.(ICON_SELECTOR) ||
@@ -89,7 +82,6 @@ export class IconPlugin extends Plugin {
                             isIconElement(node.previousElementSibling),
                         );
                     }
-                    // Node only wraps the icon to apply style on it.
                     if (
                         isElement(node) &&
                         node.isContentEditable !== false &&

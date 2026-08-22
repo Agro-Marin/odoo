@@ -17,12 +17,6 @@ function getAriaLabel(element) {
 }
 
 /**
- * Replace the `o_editable` and `o_not_editable` on `banner` elements by
- * `o-contenteditable-true` and `o-content-editable-false`.
- * Add `o_editor_banner_content` to the content parent element.
- * Add accessibility editor-specific attributes (data-oe-role and
- * data-oe-aria-label).
- *
  * @param {HTMLElement} container
  */
 export function migrate(container) {

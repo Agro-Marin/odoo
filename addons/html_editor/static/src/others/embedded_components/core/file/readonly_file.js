@@ -32,11 +32,6 @@ export class ReadonlyEmbeddedFileComponent extends Component {
         this.attachmentViewer = useFileViewer();
     }
 
-    /**
-     * This function will simply open a link that will trigger the download of
-     * the associated file. If the url is not valid, the function will display
-     * an error message.
-     */
     async download() {
         try {
             await downloadFile(this.fileModel.downloadUrl);

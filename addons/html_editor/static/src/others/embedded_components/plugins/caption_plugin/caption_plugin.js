@@ -54,26 +54,21 @@ export class CaptionPlugin extends Plugin {
         after_save_media_dialog_handlers: this.onImageReplaced.bind(this),
         hints: [{ selector: "FIGCAPTION", text: _t("Write a caption...") }],
         unsplittable_node_predicates: [
-            (node) => ["FIGURE", "FIGCAPTION"].includes(node.nodeName), // avoid merge
+            (node) => ["FIGURE", "FIGCAPTION"].includes(node.nodeName),
         ],
         image_name_predicates: [this.getImageName.bind(this)],
         link_compatible_selection_predicates: this.isLinkAllowedOnSelection.bind(this),
-        // Consider a <figure> element as empty if it only contains a
-        // <figcaption> element (e.g. when its image has just been
-        // removed).
         empty_node_predicates: (el) =>
             el.matches?.("figure") &&
             el.children.length === 1 &&
             el.children[0].matches("figcaption"),
         move_node_whitelist_selectors: "figure",
 
-        /** Processors */
         clipboard_content_processors: this.processContentForClipboard.bind(this),
     };
 
     setup() {
         for (const figure of this.editable.querySelectorAll("figure")) {
-            // Embed the captions.
             const image = figure.querySelector("img");
             figure.before(image);
             const caption = figure.querySelector("figcaption")?.textContent;
@@ -87,7 +82,6 @@ export class CaptionPlugin extends Plugin {
         for (const figure of root.querySelectorAll("figure")) {
             figure.removeAttribute("contenteditable");
             const image = figure.querySelector("img");
-            // Remove embedding and convert caption attribute to text.
             figure.querySelector("figcaption").remove();
             const caption = root.ownerDocument.createElement("figcaption");
             caption.textContent = image.getAttribute("data-caption");
@@ -126,7 +120,6 @@ export class CaptionPlugin extends Plugin {
     }
 
     addImageCaption(image, captionText = "", focusInput = true) {
-        // Move the image within a figure element.
         const figure = this.document.createElement("figure");
         const link = image.parentElement.nodeName === "A" && image.parentElement;
         const target = link || image;
@@ -135,8 +128,6 @@ export class CaptionPlugin extends Plugin {
             (target.nextSibling || target.previousSibling) &&
             isParagraphRelatedElement(blockEl)
         ) {
-            // <p>wx<a><img/></a>yz</p> => <p>wx</p><p><a><img/></a></p><p>yz</p>
-            // <p>wx<img/>yz</p> => <p>wx</p><p><img/></p><p>yz</p>
             const block = this.dependencies.split.splitAroundUntil(target, blockEl);
             if (isBlock(block.previousSibling) && !isVisible(block.previousSibling)) {
                 block.previousSibling.remove();
@@ -145,29 +136,17 @@ export class CaptionPlugin extends Plugin {
                 block.nextSibling.remove();
             }
         }
-        // => <p><figure><img/></figure></p>
-        // or <p><a><figure><img/></figure></a></p>
         image.before(figure);
         figure.append(image);
         if (!link && isParagraphRelatedElement(figure.parentElement)) {
-            // => <figure><img/></figure></p>
-            // but still <p><a><figure><img/></figure></p>
             unwrapContents(figure.parentElement);
-            // Figure is contenteditable="false", so selection would jump
-            // to the nearest editable sibling <div>. Setting cursor at
-            // the end ensures caption input receives focus correctly.
             this.dependencies.selection.setCursorEnd(figure);
         }
-        // Set the caption and its ID.
         const captionId = this.getCaptionId();
         image.setAttribute("data-caption-id", captionId);
         image.setAttribute("data-caption", captionText || "");
-        // Ensure it's not possible to write inside the figure.
         figure.setAttribute("contenteditable", "false");
         image.classList.add(EDITABLE_MEDIA_CLASS);
-        // Add the caption component.
-        // => <p><figure><img/><figcaption>...</figcaption></figure></p>
-        // or <p><a><figure><img/><figcaption>...</figcaption></figure></a></p>
         const caption = renderToElement("html_editor.EmbeddedCaptionBlueprint", {
             embeddedProps: JSON.stringify({
                 id: captionId,
@@ -193,9 +172,8 @@ export class CaptionPlugin extends Plugin {
                 }
             }
             unwrapContents(figure);
-            image.removeAttribute("data-caption-id"); // (keep the data-caption for if we toggle again)
+            image.removeAttribute("data-caption-id");
             image.classList.remove(EDITABLE_MEDIA_CLASS);
-            // Select the image.
             const [anchorNode, anchorOffset, focusNode, focusOffset] =
                 boundariesOut(image);
             this.dependencies.selection.setSelection({
@@ -225,15 +203,10 @@ export class CaptionPlugin extends Plugin {
                         figcaption &&
                         figcaption.getAttribute("placeholder") !== caption
                     ) {
-                        // Adapt the figcaption element's placeholder to the new
-                        // caption for screen reader users.
                         figcaption.setAttribute("placeholder", caption);
                     }
                     if (didCaptionChanged) {
                         image.setAttribute("data-caption", caption);
-                        // If the caption is being added, we update without
-                        // adding a history step because it will be added at the
-                        // end of adding the caption, by `addImageCaption`.
                         this.dependencies.history.addStep();
                     }
                 },
@@ -298,7 +271,6 @@ export class CaptionPlugin extends Plugin {
             const sibling = figure.nextSibling || figure.previousSibling;
             figure.remove();
             if (isSelectionInFigure) {
-                // Note: this assumes the selection is collapsed after delete.
                 this.dependencies.selection.setSelection({
                     anchorNode: sibling,
                     anchorOffset: 0,

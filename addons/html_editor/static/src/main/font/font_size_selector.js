@@ -41,7 +41,6 @@ export class FontSizeSelector extends Component {
             const initFontSizeInput = () => {
                 const iframeDoc = iframeEl.contentWindow.document;
 
-                // Skip if already/still initialized.
                 if (
                     this.fontSizeInput?.closest("body") === iframeDoc.body ||
                     !iframeDoc.body
@@ -94,13 +93,11 @@ export class FontSizeSelector extends Component {
             if (iframeEl.contentDocument.readyState === "complete") {
                 initFontSizeInput();
             }
-            // If iframe is moved around in DOM, it restarts from scratch and needs to be repopulated.
             iframeEl.addEventListener("load", initFontSizeInput);
         });
         useEffect(
             () => {
                 if (this.fontSizeInput) {
-                    // Update `fontSizeInputValue` whenever the font size changes.
                     this.fontSizeInput.value = this.state.displayName;
                 }
             },
@@ -109,7 +106,6 @@ export class FontSizeSelector extends Component {
         useEffect(
             () => {
                 if (this.fontSizeInput) {
-                    // Focus input on dropdown open, blur on close.
                     if (this.dropdown.isOpen) {
                         this.fontSizeInput.select();
                     } else if (
@@ -133,7 +129,6 @@ export class FontSizeSelector extends Component {
             if (this.state.displayName !== fontSize) {
                 this.props.onFontSizeInput(`${fontSize}px`);
             } else {
-                // Reset input if state.displayName does not change.
                 this.fontSizeInput.value = this.state.displayName;
             }
         }

@@ -47,8 +47,8 @@ export class ColorSelector extends Component {
         this.solidColors = [
             ...DEFAULT_COLORS.flat(),
             ...defaultThemeColors,
-            getCSSVariableValue("body-color", htmlStyle), // Default applied color
-            "#00000000", //Default Background color
+            getCSSVariableValue("body-color", htmlStyle),
+            "#00000000",
         ];
         effect(
             (selectedColors) => {

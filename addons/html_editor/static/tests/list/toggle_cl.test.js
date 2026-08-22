@@ -136,17 +136,6 @@ describe("Range collapsed", () => {
                         </li>
                     </ul>`),
                 stepFunction: toggleCheckList,
-                /* @todo move this test case to a new file, with tests for checkitem IDs.
-                contentAfterEdit: unformat(`
-                    <ul class="o_checklist">
-                        <li><p>abc</p>
-                            <ul class="o_checklist">
-                                <li class="o_checked" id="checkId-2">def</li>
-                                <li id="checkId-4">g[]hi</li>
-                                <li class="o_checked" id="checkId-3">jkl</li>
-                            </ul>
-                        </li>
-                    </ul>`), */
                 contentAfterEdit: unformat(`
                     <ul class="o_checklist">
                         <li><p>abc</p>

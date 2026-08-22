@@ -9,12 +9,9 @@ export const closestPath = function* (node) {
 };
 
 /**
- * Iterate over `domPath` and return the first node for which `findCallback`
- * returns true, or null if `stopCallback` returns true first or the path ends.
- *
  * @param {Iterable<Node>} domPath
- * @param {Function} [findCallback] returns true for the node to return
- * @param {Function} [stopCallback] returns true to stop the search
+ * @param {Function} [findCallback]
+ * @param {Function} [stopCallback]
  * @returns {Node|null}
  */
 export function findNode(
@@ -35,7 +32,7 @@ export function findNode(
 
 /**
  * @param {Node} node
- * @param {HTMLElement} limitAncestor - non inclusive limit ancestor to search for
+ * @param {HTMLElement} limitAncestor
  * @param {Function} predicate
  * @returns {Node|null}
  */
@@ -51,7 +48,7 @@ export function findUpTo(node, limitAncestor, predicate) {
 
 /**
  * @param {Node} node
- * @param {HTMLElement} limitAncestor - non inclusive limit ancestor to search for
+ * @param {HTMLElement} limitAncestor
  * @param {Function} predicate
  * @returns {Node|undefined}
  */
@@ -65,12 +62,6 @@ export function findFurthest(node, limitAncestor, predicate) {
 }
 
 /**
- * Returns the closest HTMLElement of the provided Node. If the predicate is a
- * string, returns the closest HTMLElement that match the predicate selector. If
- * the predicate is a function, returns the closest element that matches the
- * predicate. Any returned element will be contained within the editable, or is
- * disconnected from any Document.
- *
  * @param {Node} node
  * @param {string | Function} [predicate='*']
  * @returns {HTMLElement|null}
@@ -85,10 +76,6 @@ export function closestElement(node, predicate = "*") {
     } else {
         element = element?.closest(predicate);
     }
-    // This helper is used to manipulate editor nodes, and should never match any
-    // node outside of that scope. Disconnected nodes are assumed to be from the
-    // editor, since they are likely removed nodes evaluated in the context of the
-    // MutationObserver handler @see ProtectedNodePlugin
     if ((editable && editable.contains(element)) || !node.isConnected) {
         return element || null;
     }
@@ -96,10 +83,8 @@ export function closestElement(node, predicate = "*") {
 }
 
 /**
- * Returns a list of all the ancestors nodes of the provided node.
- *
  * @param {Node} node
- * @param {Node} [editable] include to prevent bubbling up further than the editable.
+ * @param {Node} [editable]
  * @returns {HTMLElement[]}
  */
 export function ancestors(node, editable) {
@@ -112,11 +97,8 @@ export function ancestors(node, editable) {
 }
 
 /**
- * Get a static array of children, to avoid manipulating the live HTMLCollection
- * for better performances.
- *
  * @param {Element} elem
- * @returns {Array<Element>} children
+ * @returns {Array<Element>}
  */
 export function children(elem) {
     const children = [];
@@ -129,11 +111,8 @@ export function children(elem) {
 }
 
 /**
- * Get a static array of childNodes, to avoid manipulating the live NodeList for
- * better performances.
- *
  * @param {Node} node
- * @returns {Array<Node>} childNodes
+ * @returns {Array<Node>}
  */
 export function childNodes(node) {
     const childNodes = [];
@@ -146,8 +125,6 @@ export function childNodes(node) {
 }
 
 /**
- * Take a node, return all of its descendants, in depth-first order.
- *
  * @param {Node} node
  * @returns {Node[]}
  */
@@ -161,10 +138,6 @@ export function descendants(node, posterity = []) {
     return posterity;
 }
 
-/**
- * Values which can be returned while browsing the DOM which gives information
- * to why the path ended.
- */
 export const PATH_END_REASONS = {
     NO_NODE: 0,
     BLOCK_OUT: 1,
@@ -173,26 +146,12 @@ export const PATH_END_REASONS = {
 };
 
 /**
- * Creates a generator function according to the given parameters. Pre-made
- * generators to traverse the DOM are made using this function:
- *
- * @see leftLeafFirstPath
- * @see leftLeafOnlyNotBlockPath
- * @see leftLeafOnlyInScopeNotBlockEditablePath
- * @see rightLeafOnlyNotBlockPath
- * @see rightLeafOnlyNotBlockNotEditablePath
- *
  * @param {boolean} direction
  * @param {Object} options
- * @param {boolean} [options.leafOnly] if true, do not yield any non-leaf node
- * @param {boolean} [options.inScope] if true, stop the generator as soon as a node is not
- *                      a descendant of `node` provided when traversing the
- *                      generated function.
- * @param {Function} [options.stopTraverseFunction] a function that takes a node
- *                      and should return true when a node descendant should not
- *                      be traversed.
- * @param {Function} [options.stopFunction] function that makes the generator stop when a
- *                      node is encountered.
+ * @param {boolean} [options.leafOnly]
+ * @param {boolean} [options.inScope]
+ * @param {Function} [options.stopTraverseFunction]
+ * @param {Function} [options.stopFunction]
  */
 export function createDOMPathGenerator(
     direction,
@@ -210,8 +169,6 @@ export function createDOMPathGenerator(
             : (node, offset) =>
                   firstLeaf(node.childNodes[offset], stopTraverseFunction);
 
-    // Note "reasons" is a way for the caller to be able to know why the
-    // generator ended yielding values.
     return function* (node, offset, reasons = []) {
         let movedUp = false;
 
@@ -250,8 +207,6 @@ export function createDOMPathGenerator(
 }
 
 /**
- * Returns the deepest child in last position.
- *
  * @param {Node} node
  * @param {Function} [stopTraverseFunction]
  * @returns {Node}
@@ -267,8 +222,6 @@ export function lastLeaf(node, stopTraverseFunction) {
     return node;
 }
 /**
- * Returns the deepest child in first position.
- *
  * @param {Node} node
  * @param {Function} [stopTraverseFunction]
  * @returns {Node}
@@ -285,11 +238,8 @@ export function firstLeaf(node, stopTraverseFunction) {
 }
 
 /**
- * Returns all the previous siblings of the given node until the first
- * sibling that does not satisfy the predicate, in lookup order.
- *
  * @param {Node} node
- * @param {Function} [predicate] (node: Node) => boolean
+ * @param {Function} [predicate]
  */
 export function getAdjacentPreviousSiblings(node, predicate = (n) => !!n) {
     let previous = node.previousSibling;
@@ -301,11 +251,8 @@ export function getAdjacentPreviousSiblings(node, predicate = (n) => !!n) {
     return list;
 }
 /**
- * Returns all the next siblings of the given node until the first
- * sibling that does not satisfy the predicate, in lookup order.
- *
  * @param {Node} node
- * @param {Function} [predicate] (node: Node) => boolean
+ * @param {Function} [predicate]
  */
 export function getAdjacentNextSiblings(node, predicate = (n) => !!n) {
     let next = node.nextSibling;
@@ -317,12 +264,8 @@ export function getAdjacentNextSiblings(node, predicate = (n) => !!n) {
     return list;
 }
 /**
- * Returns all the adjacent siblings of the given node until the first sibling
- * (in both directions) that does not satisfy the predicate, in index order. If
- * the given node does not satisfy the predicate, an empty array is returned.
- *
  * @param {Node} node
- * @param {Function} [predicate] (node: Node) => boolean
+ * @param {Function} [predicate]
  */
 export function getAdjacents(node, predicate = (n) => !!n) {
     const previous = getAdjacentPreviousSiblings(node, predicate);
@@ -331,13 +274,9 @@ export function getAdjacents(node, predicate = (n) => !!n) {
 }
 
 /**
- * Returns the deepest common ancestor element of the given nodes within the
- * specified root element. If no root element is provided, the entire document
- * is considered as the root.
- *
- * @param {Node[]} nodes - The nodes for which to find the common ancestor.
- * @param {Element} [root] - The root element within which to search for the common ancestor.
- * @returns {Element|null} - The common ancestor element, or null if no common ancestor is found.
+ * @param {Node[]} nodes
+ * @param {Element} [root]
+ * @returns {Element|null}
  */
 export function getCommonAncestor(nodes, root = undefined) {
     const pathsToRoot = nodes.map((node) => [node, ...ancestors(node, root)]);
@@ -356,9 +295,6 @@ export function getCommonAncestor(nodes, root = undefined) {
 }
 
 /**
- * Basically a wrapper around `root.querySelectorAll` that includes the
- * root.
- *
  * @param {Element} root
  * @param {string} selector
  * @returns {Generator<Element>}

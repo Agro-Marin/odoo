@@ -39,36 +39,27 @@ export function cleanZWChars(text) {
 }
 
 /**
- * Returns a complete URL if text is a valid email address, http URL or telephone
- * number, null otherwise.
- * The optional link parameter is used to prevent protocol switching between
- * 'http' and 'https'.
- *
  * @param {String} text
  * @param {HTMLAnchorElement} [link]
  * @returns {String|null}
  */
 export function deduceURLfromText(text, link) {
     const label = cleanZWChars(text).trim();
-    // Check first for e-mail.
     let match = label.match(EMAIL_REGEX);
     if (match) {
         return match[1] ? match[0] : "mailto:" + match[0];
     }
-    // Check for http link.
     match = label.match(URL_REGEX);
     if (match && match[0] === label) {
         const currentHttpProtocol = (link?.href.match(/^http(s)?:\/\//gi) || [])[0];
         if (match[2]) {
             return match[0];
         } else if (currentHttpProtocol) {
-            // Avoid converting a http link to https.
             return currentHttpProtocol + match[0];
         } else {
             return "https://" + match[0];
         }
     }
-    // Check for telephone url.
     match = label.match(PHONE_REGEX);
     if (match) {
         return (match[1] ? match[0] : "tel:" + match[0]).replace(/\s+/g, "");

@@ -126,7 +126,7 @@ export const MAIN_PLUGINS = [
     TableUIPlugin,
     TabulationPlugin,
     ToolbarPlugin,
-    FontPlugin, // note: if before ListPlugin, there are a few split tests that fails
+    FontPlugin,
     FontFamilyPlugin,
     IconPlugin,
     IconColorPlugin,

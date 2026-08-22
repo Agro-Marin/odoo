@@ -55,7 +55,6 @@ const COLOR_COMBINATION_SELECTOR = COLOR_COMBINATION_CLASSES.map((c) => `.${c}`)
  * @typedef {((color: string, mode: "color" | "backgroundColor") => void)[]} color_apply_overrides
  * @typedef {((color: string, mode: "color" | "backgroundColor") => string)[]} apply_background_color_processors
  * @typedef {((color: string) => string)[]} get_background_color_processors
- *
  * @typedef {((el: HTMLElement, actionParam: string) => string)[]} color_combination_getters
  */
 
@@ -81,11 +80,9 @@ export class ColorPlugin extends Plugin {
                 isAvailable: isHtmlContentSupported,
             },
         ],
-        /** Handlers */
         remove_all_formats_handlers: this.removeAllColor.bind(this),
         color_combination_getters: getColorCombinationFromClass,
 
-        /** Predicates */
         has_format_predicates: [
             (node) => hasColor(closestElement(node), "color"),
             (node) => hasColor(closestElement(node), "backgroundColor"),
@@ -130,17 +127,6 @@ export class ColorPlugin extends Plugin {
     removeAllColor() {
         const colorModes = ["color", "backgroundColor"];
 
-        // Icons (``<i class="fa …">``) carry their colour on the element
-        // itself and contain nothing but a ZWS. ``applyColor`` clears colour by
-        // wrapping content in a ``<font>``, and its element branch explicitly
-        // skips nodes whose textContent is whitespace — so an icon can never be
-        // cleared that way. Meanwhile the loop below *detects* the icon's
-        // colour through that very ZWS, a node ``applyColor`` filters out for
-        // being non-editable. Left unhandled, that mismatch would keep the loop
-        // below from ever converging.
-        //
-        // Clear icons directly and up-front, which both removes the colour
-        // (what the user asked for) and takes the divergent node out of play.
         for (const icon of this.getTargetedIcons()) {
             for (const mode of colorModes) {
                 this.colorElement(icon, "", mode);
@@ -158,11 +144,6 @@ export class ColorPlugin extends Plugin {
                     max--;
                 }
                 if (max === 0) {
-                    // Now unreachable by construction (the detector only counts
-                    // nodes applyColor will act on), but keep the guard: a
-                    // future divergence must degrade to partially-removed
-                    // formatting, never to a thrown error that aborts the
-                    // user's removeFormat entirely.
                     this.services?.notification?.add?.(
                         _t("Some colors could not be removed."),
                         { type: "warning" },
@@ -174,9 +155,6 @@ export class ColorPlugin extends Plugin {
     }
 
     /**
-     * Editable icons in the current selection. Kept separate from the text-node
-     * scan because an icon's colour lives on the element, not on its contents.
-     *
      * @returns {HTMLElement[]}
      */
     getTargetedIcons() {
@@ -198,14 +176,6 @@ export class ColorPlugin extends Plugin {
     }
 
     /**
-     * Whether any node in the selection still carries a colour in *mode*.
-     *
-     * Restricted to the nodes ``applyColor`` will actually process — same
-     * editability filter — so that {@link removeAllColor}'s fixed-point loop
-     * converges by construction. Counting a node the mutator skips (a ZWS
-     * inside a ``contenteditable="false"`` icon, say) makes the loop
-     * non-terminating.
-     *
      * @param {"color"|"backgroundColor"} mode
      * @returns {boolean}
      */
@@ -223,11 +193,9 @@ export class ColorPlugin extends Plugin {
     }
 
     /**
-     * Apply a css or class color on the current selection (wrapped in <font>).
-     *
-     * @param {string} color hexadecimal or bg-name/text-name class
-     * @param {string} mode 'color' or 'backgroundColor'
-     * @param {boolean} [previewMode=false] true - apply color in preview mode
+     * @param {string} color
+     * @param {string} mode
+     * @param {boolean} [previewMode=false]
      */
     applyColor(color, mode, previewMode = false) {
         this.dependencies.selection.selectAroundNonEditable();
@@ -244,7 +212,6 @@ export class ColorPlugin extends Plugin {
         const selection = this.dependencies.selection.getEditableSelection();
         let cursors;
         let targetedNodes;
-        // Get the <font> nodes to color
         if (selection.isCollapsed) {
             let zws;
             if (
@@ -295,10 +262,6 @@ export class ColorPlugin extends Plugin {
         );
         const selectedNodes = targetedNodes
             .filter((node) => {
-                // Skip editor-owned scaffolding and any node a plugin declares
-                // unformattable (inline code, code blocks). Without these two
-                // guards a colour applied to a mixed selection also wraps the
-                // <code> element it merely overlaps.
                 if (systemNodesSelector && closestElement(node, systemNodesSelector)) {
                     return false;
                 }
@@ -360,13 +323,6 @@ export class ColorPlugin extends Plugin {
                 const isFullySelected =
                     children &&
                     children.every((child) => selectedNodes.includes(child));
-                // Same as ``isFullySelected``, but ignoring the editor's own
-                // zero-width scaffolding. Links are wrapped in FEFF isolation
-                // characters that the DOM range does not cover, so a link whose
-                // entire visible content is selected still fails the strict
-                // check above. Used only for the unsplittable guard below,
-                // where the question is "would a split be needed?" — and it
-                // would not be, since the leftover children carry no content.
                 const isFullySelectedIgnoringScaffolding =
                     children &&
                     children.every(
@@ -394,15 +350,9 @@ export class ColorPlugin extends Plugin {
                         color === "" ||
                         !hasInlineGradient ||
                         shouldReplaceExistingGradient) &&
-                    // "Unsplittable" must gate SPLITTING, not colouring. This
-                    // branch splits the font only for a PARTIAL selection; when
-                    // the element is fully selected it is coloured in place and
-                    // nothing is split, so refusing it here would wrongly
-                    // conflate the two.
                     (isFullySelectedIgnoringScaffolding ||
                         !this.dependencies.split.isUnsplittable(font))
                 ) {
-                    // Partially selected <font>: split it.
                     const selectedChildren = children.filter(
                         (child) => child.isConnected && selectedNodes.includes(child),
                     );
@@ -449,9 +399,6 @@ export class ColorPlugin extends Plugin {
                                 mode === "color"
                                     ? TEXT_CLASSES_REGEX
                                     : BG_CLASSES_REGEX;
-                            // When updating a gradient, remove color applied to
-                            // its descendants. This ensures the gradient remains
-                            // visible without being overwritten by a descendant's color.
                             for (const node of descendants(font)) {
                                 if (
                                     node.nodeType === Node.ELEMENT_NODE &&
@@ -493,8 +440,6 @@ export class ColorPlugin extends Plugin {
                         node.nodeName !== "A" &&
                         !(node.nodeName === "SPAN" && node.style["fontSize"]))
                 ) {
-                    // Node is a visible text or inline node without font nor a button:
-                    // wrap it in a <font>.
                     const previous = node.previousSibling;
                     const classRegex =
                         mode === "color" ? BG_CLASSES_REGEX : TEXT_CLASSES_REGEX;
@@ -508,11 +453,8 @@ export class ColorPlugin extends Plugin {
                         selectedNodes.includes(previous.firstChild) &&
                         selectedNodes.includes(previous.lastChild)
                     ) {
-                        // Directly follows a fully selected <font> that isn't
-                        // colored in the other mode: append to that.
                         font = previous;
                     } else {
-                        // No <font> found: insert a new one.
                         font = this.document.createElement("font");
                         node.after(font);
                         if (isTextGradient && mode === "color") {
@@ -525,7 +467,7 @@ export class ColorPlugin extends Plugin {
                         fillEmpty(font);
                     }
                 } else {
-                    font = []; // Ignore non-text or invisible text nodes.
+                    font = [];
                 }
                 return font;
             });
@@ -535,14 +477,10 @@ export class ColorPlugin extends Plugin {
         }
 
         let fonts = getFonts(selectedNodes);
-        // Dirty fix as the previous call could have unconnected elements
-        // because of the `splitAroundUntil`. Another call should provide the
-        // correct list of fonts.
         if (!fonts.every((font) => font.isConnected)) {
             fonts = getFonts(selectedNodes);
         }
 
-        // Color the selected <font>s and remove uncolored fonts.
         const fontsSet = new Set(fonts);
         for (const font of fontsSet) {
             this.colorElement(font, color, mode);
@@ -561,12 +499,9 @@ export class ColorPlugin extends Plugin {
     }
 
     /**
-     * Applies a css or class color (fore- or background-) to an element.
-     * Replace the color that was already there if any.
-     *
      * @param {Element} element
-     * @param {string} color hexadecimal or bg-name/text-name class
-     * @param {'color'|'backgroundColor'} mode 'color' or 'backgroundColor'
+     * @param {string} color
+     * @param {'color'|'backgroundColor'} mode
      */
     colorElement(element, color, mode) {
         const parts = backgroundImageCssToParts(element.style["background-image"]);
@@ -585,7 +520,6 @@ export class ColorPlugin extends Plugin {
                 getComputedStyle(element).backgroundImage.includes("-gradient");
             delete parts.gradient;
             let newBackgroundImage = backgroundImagePartsToCss(parts);
-            // we override the bg image if the new bg image is empty, but the previous one is a gradient.
             if (hasGradient && !newBackgroundImage) {
                 newBackgroundImage = "none";
             }
@@ -595,7 +529,7 @@ export class ColorPlugin extends Plugin {
 
         const newClassName = oldClassName
             .replace(mode === "color" ? TEXT_CLASSES_REGEX : BG_CLASSES_REGEX, "")
-            .replace(/\btext-gradient\b/g, "") // cannot be combined with setting a background
+            .replace(/\btext-gradient\b/g, "")
             .replace(/\s+/, " ");
         if (oldClassName !== newClassName) {
             element.setAttribute("class", newClassName);
@@ -620,15 +554,10 @@ export class ColorPlugin extends Plugin {
             if (hasGradientStyle && !backgroundImagePartsToCss(parts)) {
                 element.style["background-image"] = "";
             }
-            // Change camelCase to kebab-case.
             mode = mode.replace("backgroundColor", "background-color");
             this.applyColorStyle(element, mode, color);
         }
 
-        // It was decided that applying a color combination removes any "color"
-        // value (custom color, color classes, gradients, ...). Changing any
-        // "color", including color combinations, should still not remove the
-        // other background layers though (image, video, shape, ...).
         if (color.startsWith("o_cc")) {
             element.classList.remove(...COLOR_COMBINATION_CLASSES);
             element.classList.add("o_cc", color);
@@ -637,7 +566,6 @@ export class ColorPlugin extends Plugin {
             const hasGradient =
                 getComputedStyle(element).backgroundImage.includes("-gradient");
             const backgroundImage = element.style["background-image"];
-            // Override gradient background image if coming from css rather than inline style.
             if (hasBackgroundColor && hasGradient && !backgroundImage) {
                 element.style.backgroundImage = "none";
             }
@@ -645,16 +573,6 @@ export class ColorPlugin extends Plugin {
 
         this.fixColorCombination(element, color);
     }
-    /**
-     * There is a limitation with css. Defining a background image and a
-     * background gradient is done only by setting one style (background-image).
-     * If there is a class (in this case o_cc[1-5]) that defines a gradient, it
-     * will be overridden by the background-image property.
-     *
-     * This function will set the gradient of the o_cc in the background-image
-     * so that setting an image in the background-image property will not
-     * override the gradient.
-     */
     fixColorCombination(element, color) {
         const parts = backgroundImageCssToParts(element.style["background-image"]);
         const hasBackgroundColor =
@@ -668,7 +586,6 @@ export class ColorPlugin extends Plugin {
         ) {
             element.style["background-image"] = "";
             parts.gradient = backgroundImageCssToParts(
-                // Compute the style from o_cc class.
                 getComputedStyle(element).backgroundImage,
             ).gradient;
             element.style["background-image"] = backgroundImagePartsToCss(parts);
@@ -701,9 +618,6 @@ function getColorCombinationFromClass(el) {
     return el.className.match?.(COLOR_COMBINATION_CLASSES_REGEX)?.[0];
 }
 
-/**
- * Remove the gradient of the element only if it is the inheritance from the o_cc selector.
- */
 function removePresetGradient(element) {
     const oldBackgroundImage = element.style["background-image"];
     const parts = backgroundImageCssToParts(oldBackgroundImage);

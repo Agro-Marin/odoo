@@ -25,7 +25,6 @@ export class CollaborationSelectionAvatarPlugin extends Plugin {
     static dependencies = ["history", "position", "localOverlay", "collaborationOdoo"];
     /** @type {import("plugins").EditorResources} */
     resources = {
-        /** Handlers */
         collaboration_notification_handlers:
             this.handleCollaborationNotification.bind(this),
         external_history_step_handlers: this.refreshSelection.bind(this),
@@ -108,7 +107,6 @@ export class CollaborationSelectionAvatarPlugin extends Plugin {
 
         const containerRect = this.avatarOverlay.getBoundingClientRect();
 
-        // Draw user avatar.
         let avatarElement = selectionInfo.avatarElement;
         if (!avatarElement) {
             avatarElement = this.document.createElement("div");
@@ -120,11 +118,9 @@ export class CollaborationSelectionAvatarPlugin extends Plugin {
             image.setAttribute("src", avatarUrl);
             image.classList.add("object-fit-cover");
         }
-        // Avoid re-appending the element in the dom.
         if (!avatarElement.parentElement) {
             this.avatarOverlay.append(avatarElement);
         }
-        // Make sure data is up to date.
         selectionInfo.avatarElement = avatarElement;
         selectionInfo.peerName = peerName;
         selectionInfo.avatarTargetElement = anchorBlock;
@@ -133,7 +129,7 @@ export class CollaborationSelectionAvatarPlugin extends Plugin {
         const anchorBlockRect = anchorBlock.getBoundingClientRect();
         const top = anchorBlockRect.y - containerRect.y;
         avatarElement.style.top = top + "px";
-        const closestList = closestElement(anchorNode, "ul, ol"); // Prevent overlap bullets.
+        const closestList = closestElement(anchorNode, "ul, ol");
         const anchorX = closestList
             ? closestList.getBoundingClientRect().x
             : anchorBlockRect.x;
@@ -149,7 +145,6 @@ export class CollaborationSelectionAvatarPlugin extends Plugin {
             avatarsOverlaps[key].add(info);
         }
 
-        // Render avatars overlap.
         this.avatarsCountersOverlay.replaceChildren();
         for (const [overlapKey, infos] of Object.entries(avatarsOverlaps)) {
             const size = infos.size;

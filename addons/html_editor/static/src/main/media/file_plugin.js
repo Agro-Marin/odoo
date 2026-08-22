@@ -57,7 +57,6 @@ export class FilePlugin extends Plugin {
                 DISABLED_NAMESPACE,
         ),
 
-        /** Predicates */
         functional_empty_node_predicates: (node) =>
             node?.nodeName === "SPAN" && node.classList.contains("o_file_box"),
         is_node_editable_predicates: (node) => {
@@ -66,12 +65,6 @@ export class FilePlugin extends Plugin {
             }
         },
 
-        /** Overrides */
-        // A file box holds a rendered attachment, not rich content: pasting
-        // HTML into it would inject markup the box cannot represent, so paste
-        // as plain text instead. Dropped by the by-hand upstream port together
-        // with the "clipboard" dependency it needs — the consumer
-        // (clipboard_plugin) survived, so only file boxes stopped overriding.
         paste_overrides: (selection, clipboardData) => {
             if (closestElement(selection.anchorNode, ".o_file_box")) {
                 this.dependencies.clipboard.pasteText(
@@ -102,19 +95,15 @@ export class FilePlugin extends Plugin {
 
         let anchorNode, anchorOffset;
         if (this.document.caretPositionFromPoint) {
-            // Firefox API
             const pos = this.document.caretPositionFromPoint(ev.clientX, ev.clientY);
             anchorNode = pos?.offsetNode;
             anchorOffset = pos?.offset;
         } else if (this.document.caretRangeFromPoint) {
-            // Chrome / Safari API
             const range = document.caretRangeFromPoint(ev.clientX, ev.clientY);
             anchorNode = range?.startContainer;
             anchorOffset = range?.startOffset;
         }
 
-        // Place the cursor at the click position if it is inside filename,
-        // otherwise fall back to placing it at the start.
         if (anchorNode && fileNameEl.contains(anchorNode)) {
             this.dependencies.selection.setSelection({ anchorNode, anchorOffset });
         } else {
@@ -191,7 +180,6 @@ export class FilePlugin extends Plugin {
     }
 
     async uploadAndInsertFiles() {
-        // Upload
         const uploadParams = this.config.publicAttachments
             ? {}
             : { ...this.recordInfo };
@@ -200,16 +188,13 @@ export class FilePlugin extends Plugin {
             accessToken: true,
         });
         if (!attachments.length) {
-            // No files selected or error during upload
             this.editable.focus();
             return;
         }
         if (this.config.onAttachmentChange) {
             attachments.forEach(this.config.onAttachmentChange);
         }
-        // Render
         const fileCards = attachments.map(this.renderDownloadBox.bind(this));
-        // Insert
         fileCards.forEach(this.dependencies.dom.insert);
         this.dependencies.history.addStep();
     }

@@ -1,6 +1,3 @@
-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import binascii
 import json
 from unittest.mock import patch
@@ -28,20 +25,18 @@ class TestController(HttpCase):
 
     def test_01_upload_document(self):
         self.authenticate('admin', 'admin')
-        # Upload document.
         response = self.url_open(
             '/html_editor/attachment/add_data',
             headers={'Content-Type': 'application/json'},
             data=json_safe.dumps({'params': {
                 'name': 'test.txt',
-                'data': 'SGVsbG8gd29ybGQ=',  # base64 Hello world
+                'data': 'SGVsbG8gd29ybGQ=',
                 'is_image': False,
             }})
         ).json()
         self.assertFalse('error' in response, 'Upload failed: %s' % response.get('error', {}).get('message'))
         attachment_id = response['result']['id']
         checksum = response['result']['checksum']
-        # Download document and check content.
         response = self.url_open(
             '/web/content/%s?unique=%s&download=true' % (attachment_id, checksum)
         )
@@ -50,7 +45,6 @@ class TestController(HttpCase):
 
     def test_02_illustration_shape(self):
         self.authenticate('admin', 'admin')
-        # SVG with all replaceable colors.
         svg = b"""
 <svg viewBox="0 0 400 400">
   <rect width="300" height="300" style="fill:#3AADAA;" />
@@ -68,7 +62,6 @@ class TestController(HttpCase):
             'res_model': 'ir.ui.view',
             'res_id': 0,
         })
-        # Shape illustration with slug.
         slug = self.env['ir.http']._slug
         url = '/html_editor/shape/illustration/%s' % slug(attachment)
         palette = 'c1=%233AADAA&c2=%237C6576&&c3=%23F6F6F6&&c4=%23FFFFFF&&c5=%23383E45'
@@ -84,7 +77,6 @@ class TestController(HttpCase):
         self.assertTrue('ABCDEF' in str(response.content), 'Expect patched c1')
         self.assertTrue('3AADAA' not in str(response.content), 'Old c1 should not be there anymore')
 
-        # Shape illustration without slug.
         url = '/html_editor/shape/illustration/noslug'
         attachment['url'] = url
 
@@ -101,7 +93,6 @@ class TestController(HttpCase):
     def test_03_get_image_info(self):
         gif_base64 = "R0lGODdhAQABAIAAAP///////ywAAAAAAQABAAACAkQBADs="
         self.authenticate('admin', 'admin')
-        # Upload document.
         response = self.url_open(
             '/html_editor/attachment/add_data',
             headers={'Content-Type': 'application/json'},
@@ -117,7 +108,6 @@ class TestController(HttpCase):
         image_src = response['result']['image_src']
         mimetype = response['result']['mimetype']
         self.assertEqual('image/gif', mimetype, "Wrong mimetype")
-        # Ensure image info can be retrieved.
         response = self.url_open('/html_editor/get_image_info',
                                  headers={'Content-Type': 'application/json'},
                                  data=json_safe.dumps({
@@ -162,7 +152,6 @@ class TestController(HttpCase):
             else:
                 return False
 
-        # retrieve metadata of a record without customized link_preview_name but with display_name
         response_without_preview_name = self.url_open(
             '/html_editor/link_preview_internal',
             data=json_safe.dumps({
@@ -175,7 +164,6 @@ class TestController(HttpCase):
         self.assertEqual(200, response_without_preview_name.status_code)
         self.assertTrue('display_name' in response_without_preview_name.text)
 
-        # retrieve metadata of a url with wrong action name
         response_wrong_action = self.url_open(
             '/html_editor/link_preview_internal',
             data=json_safe.dumps({
@@ -188,7 +176,6 @@ class TestController(HttpCase):
         self.assertEqual(200, response_wrong_action.status_code)
         self.assertTrue('error_msg' in response_wrong_action.text)
 
-        # retrieve metadata of a url with wrong record id
         response_wrong_record = self.url_open(
             '/html_editor/link_preview_internal',
             data=json_safe.dumps({
@@ -201,10 +188,7 @@ class TestController(HttpCase):
         self.assertEqual(200, response_wrong_record.status_code)
         self.assertTrue('error_msg' in response_wrong_record.text)
 
-        # retrieve metadata of a url not directing to a record
         with patch.object(link_preview, 'get_link_preview_from_url', side_effect=_patched_get_link_preview_from_url):
-            # Check metadata for a URL that points to a valid frontend page with
-            # a page description set
             response_page_with_desc = self.url_open(
                 '/html_editor/link_preview_internal',
                 data=json_safe.dumps({
@@ -218,8 +202,6 @@ class TestController(HttpCase):
             result = response_page_with_desc.json()['result']
             self.assertEqual(result.get('description'), 'Mocked page description')
 
-            # Check metadata for a URL that points to a valid frontend page with
-            # no page description set
             response_page_without_desc = self.url_open(
                 '/html_editor/link_preview_internal',
                 data=json_safe.dumps({
@@ -246,7 +228,6 @@ class TestController(HttpCase):
             self.assertEqual(result, {})
             self.assertNotIn('error_msg', result)
 
-            # Check metadata for a URL that points to an invalid/unknown page
             invalid_page = self.url_open(
                 '/html_editor/link_preview_internal',
                 data=json_safe.dumps({
@@ -259,7 +240,6 @@ class TestController(HttpCase):
             self.assertEqual(200, invalid_page.status_code)
             self.assertEqual(invalid_page.json()['result'], {})
 
-        # Attempt to retrieve metadata for path format `odoo/<model>/<record_id>`
         response_model_record = self.url_open(
             '/html_editor/link_preview_internal',
             data=json_safe.dumps({
@@ -273,7 +253,6 @@ class TestController(HttpCase):
         self.assertTrue('display_name' in response_model_record.text)
         self.assertIn(self.portal_user.display_name, response_model_record.text)
 
-        # Attempt to retrieve metadata for an abstract model
         response_abstract_model = self.url_open(
             '/html_editor/link_preview_internal',
             data=json_safe.dumps({

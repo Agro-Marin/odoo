@@ -510,7 +510,6 @@ describe("with selection collapsed", () => {
                     <li>[]</li>
                 </ul>`),
         );
-        // add an empty text node to the list item
         el.firstChild.lastChild.append(editor.document.createTextNode(""));
         keydownShiftTab(editor);
         expect(getContent(el)).toBe(
@@ -529,9 +528,9 @@ describe("with selection collapsed", () => {
                     <li>[]<br></li>
                 </ul>`),
             stepFunction: (editor) => {
-                bold(editor); // produces a <strong> tag with zws inside
-                deleteBackward(editor); // removes the marker
-                deleteBackward(editor); // outdents the list item
+                bold(editor);
+                deleteBackward(editor);
+                deleteBackward(editor);
             },
             contentAfter: unformat(`
                 <ul>
@@ -705,10 +704,6 @@ describe("with selection", () => {
         });
     });
 
-    // @wrongCommand: the original test drove the "indentList" command (with
-    // mode="outdent"), which behaves differently from keydown shift+Tab. That
-    // command is only reachable from tests, so skipping hides no user-facing
-    // regression.
     test.skip("should outdent multiples list item in the middle element of a list with sublist (1)", async () => {
         await testEditor({
             contentBefore: unformat(`
@@ -744,7 +739,6 @@ describe("with selection", () => {
         });
     });
 
-    // @wrongCommand (same as above)
     test.skip("should outdent multiples list item in the middle element of a list with sublist (2)", async () => {
         await testEditor({
             contentBefore: unformat(`
@@ -779,7 +773,6 @@ describe("with selection", () => {
         });
     });
 
-    // @wrongCommand (same as above)
     test.skip("should outdent nested list and list with elements in a upper level than the rangestart", async () => {
         await testEditor({
             contentBefore: unformat(`

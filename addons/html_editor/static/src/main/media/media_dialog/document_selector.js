@@ -32,8 +32,6 @@ export class DocumentSelector extends FileSelector {
     get attachmentsDomain() {
         const domain = super.attachmentsDomain;
         domain.push(["mimetype", "not in", IMAGE_MIMETYPES]);
-        // The assets should not be part of the documents.
-        // All assets begin with '/web/assets/', see _get_asset_template_url().
         domain.unshift("&", "|", ["url", "=", null], "!", [
             "url",
             "=like",
@@ -66,9 +64,6 @@ export class DocumentSelector extends FileSelector {
         return attachments;
     }
 
-    /**
-     * Utility method used by the MediaDialog component.
-     */
     static async createElements(selectedMedia, { orm }) {
         return Promise.all(
             selectedMedia.map(async (attachment) => {

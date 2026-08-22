@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import contextlib
 import logging
 import re
@@ -15,10 +13,8 @@ from odoo.tools.image import image_process
 
 _logger = logging.getLogger(__name__)
 
-# To detect if we have a valid URL or not
 valid_url_regex = r'^(http://|https://|//)[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,5}(:[0-9]{1,5})?(/.*)?$'
 
-# Regex for few of the widely used video hosting services
 player_regexes = {
     'youtube': r'^(?:(?:https?:)?//)?(?:www\.|m\.)?(?:youtu\.be/|youtube(-nocookie)?\.com/(?:embed/|v/|shorts/|live/|watch\?v=|watch\?.+&v=))((?:\w|-){11})\S*$',
     'vimeo': r'//(player.)?vimeo.com/([a-z]*/)?(?P<id>[^/\?]+)(?:/(?P<hash>[^/\?]+))?(?:\?(?P<params>[^\s]+))?$',
@@ -29,9 +25,6 @@ player_regexes = {
 
 
 def get_video_source_data(video_url):
-    """ Computes the valid source, document ID and regex match from given URL
-        (or None in case of invalid URL).
-    """
     if not video_url:
         return None
 
@@ -56,23 +49,12 @@ def get_video_source_data(video_url):
 
 def _youtube_embed_url(video_id, platform_match, params, *, autoplay, loop,
                        hide_controls, hide_fullscreen, start_from):
-    """Build the YouTube embed URL, filling ``params`` in place.
-
-    ``params`` is mutated rather than returned because the caller hands the same
-    dict back to the template, and because ``urlencode`` renders it in insertion
-    order -- so the order these keys are set in is part of the output.
-    """
     params['rel'] = 0
     params['autoplay'] = (autoplay and 1) or 0
     if start_from:
         params["start"] = start_from.rstrip("s")
     if autoplay:
         params['mute'] = 1
-        # The youtube js api is needed for autoplay on mobile. Note: this
-        # was added as a fix, old customers may have autoplay videos
-        # without this, which will make their video autoplay on desktop but
-        # not in mobile (so no behavior change was done in stable, this
-        # should not be migrated).
         params['enablejsapi'] = 1
     if hide_controls:
         params['controls'] = 0
@@ -87,13 +69,7 @@ def _youtube_embed_url(video_id, platform_match, params, *, autoplay, loop,
 
 def _vimeo_embed_url(video_id, platform_match, params, *, autoplay, loop,
                      hide_controls, start_from):
-    """Build the Vimeo embed URL, filling ``params`` in place.
-
-    The private-video hash reaches us two ways -- as a named ``hash`` group, or
-    inside the URL's own query string -- and only the first one found is used.
-    """
     params['autoplay'] = (autoplay and 1) or 0
-    # Always enable "do not track" parameter.
     params['dnt'] = 1
     if autoplay:
         params['muted'] = 1
@@ -119,9 +95,6 @@ def get_video_url_data(video_url, autoplay=False, loop=False,
                        hide_controls=False, hide_fullscreen=False,
                        hide_dm_logo=False, hide_dm_share=False,
                        start_from=False):
-    """ Computes the platform name, the embed_url, the video id and the video params of the given URL
-        (or error message in case of invalid URL).
-    """
     source = get_video_source_data(video_url)
     if source is None:
         return {'error': True, 'message': _('The provided url is invalid')}
@@ -162,9 +135,6 @@ def get_video_url_data(video_url, autoplay=False, loop=False,
 
 
 def get_video_embed_code(video_url):
-    """ Computes the valid iframe from given URL that can be embedded
-        (or None in case of invalid URL).
-    """
     parsed_url = urlparse(video_url)
     query_params = parse_qs(parsed_url.query)
     param_name_mapping = {
@@ -187,9 +157,6 @@ def get_video_embed_code(video_url):
 
 
 def get_video_thumbnail(video_url):
-    """ Computes the valid thumbnail image from given URL
-        (or None in case of invalid URL).
-    """
     source = get_video_source_data(video_url)
     if source is None:
         return None
@@ -217,20 +184,15 @@ def get_video_thumbnail(video_url):
 diverging_history_regex = 'data-last-history-steps="([0-9,]+)"'
 
 
-# This method must be called in a context that has write access to the record as
-# it will write to the bus.
 def handle_history_divergence(record, html_field_name, vals):
-    # Do not handle history divergence if the field is not in the values.
     if html_field_name not in vals:
         return
-    # Do not handle history divergence if in module installation mode.
     if record.env.context.get('install_module'):
         return
     incoming_html = vals[html_field_name]
     incoming_history_matches = re.search(diverging_history_regex, incoming_html or '')
 
     def _notify_bus(last_step_id):
-        """Notify collaboration channel about a write, if in an HTTP request."""
         if not request:
             return
         channel = (request.db, 'editor_collaboration', record._name, html_field_name, record.id)
@@ -243,10 +205,6 @@ def handle_history_divergence(record, html_field_name, vals):
         }
         request.env['bus.bus']._sendone(channel, 'editor_collaboration', bus_data)
 
-    # When there is no incoming history id, it means that the value does not
-    # come from the odoo editor or the collaboration was not activated. In
-    # project, it could come from the collaboration pad. In that case, we do
-    # not handle history divergences.
     if incoming_history_matches is None:
         _notify_bus(None)
         return
@@ -257,7 +215,6 @@ def handle_history_divergence(record, html_field_name, vals):
 
     if record[html_field_name]:
         server_history_matches = re.search(diverging_history_regex, record[html_field_name] or '')
-        # Do not check old documents without data-last-history-steps.
         if server_history_matches:
             server_last_history_id = server_history_matches[1].split(',')[-1]
             if server_last_history_id not in incoming_history_ids:
@@ -269,5 +226,4 @@ def handle_history_divergence(record, html_field_name, vals):
                     id=record.id,
                 ))
 
-    # Save only the latest id.
     vals[html_field_name] = incoming_html[0:incoming_history_matches.start(1)] + last_step_id + incoming_html[incoming_history_matches.end(1):]

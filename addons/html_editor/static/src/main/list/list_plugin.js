@@ -186,12 +186,10 @@ export class ListPlugin extends Plugin {
             { selector: `LI, LI > ${baseContainerGlobalSelector}`, text: _t("List") },
         ],
 
-        /** Handlers */
         normalize_handlers: this.normalize.bind(this),
         step_added_handlers: this.updateToolbarButtons.bind(this),
         delete_handlers: this.adjustListPaddingOnDelete.bind(this),
 
-        /** Overrides */
         delete_backward_overrides: this.handleDeleteBackward.bind(this),
         delete_range_overrides: this.handleDeleteRange.bind(this),
         tab_overrides: this.handleTab.bind(this),
@@ -255,24 +253,10 @@ export class ListPlugin extends Plugin {
         return this.canToggleListMemoized(selection);
     }
 
-    // --------------------------------------------------------------------------
-    // Commands
-    // --------------------------------------------------------------------------
-
     /**
-     * Classifies the selected blocks into three categories:
-     * - LI that are part of a list of the same mode as the target one.
-     * - Lists (UL or OL) that need to have its mode switched to the target mode.
-     * - Blocks that need to be converted to lists.
-     *
-     *  If (and only if) all blocks fall into the first category, the list items
-     *  are converted into paragraphs (result is toggle list OFF).
-     *  Otherwise, the LIs in this category remain unchanged and the other two
-     *  categories are processed.
-     *
-     * @param {string} mode - The list mode to toggle (UL, OL, CL).
-     * @param {string} [listStyle] - The list style ( see listStyle css property)
-     * @throws {Error} If an invalid list type is provided.
+     * @param {string} mode
+     * @param {string} [listStyle]
+     * @throws {Error}
      */
     toggleList(mode, listStyle) {
         if (!["UL", "OL", "CL"].includes(mode)) {
@@ -282,10 +266,6 @@ export class ListPlugin extends Plugin {
             throw new Error(`listStyle is not compatible with "CL" list type`);
         }
 
-        // @todo @phoenix: original implementation removed whitespace-only text nodes from targetedNodes.
-        // Check if this is necessary.
-
-        // Classify targeted blocks.
         const sameModeListItems = new Set();
         const nonListBlocks = new Set();
         const listsToSwitch = new Set();
@@ -302,7 +282,6 @@ export class ListPlugin extends Plugin {
             }
         }
 
-        // Apply changes.
         if (listsToSwitch.size || nonListBlocks.size) {
             for (const list of listsToSwitch) {
                 const cursors = this.dependencies.selection.preserveSelection();
@@ -345,10 +324,6 @@ export class ListPlugin extends Plugin {
         }
     }
 
-    // --------------------------------------------------------------------------
-    // Helpers for toggleList
-    // --------------------------------------------------------------------------
-
     /**
      * @param {HTMLElement} element
      * @param {"UL"|"OL"|"CL"} mode
@@ -357,16 +332,12 @@ export class ListPlugin extends Plugin {
         if (element.matches(baseContainerGlobalSelector)) {
             return this.baseContainerToList(element, mode);
         }
-        // @todo @phoenix: check for callbacks registered as resources instead?
         if (element.matches("td, th, li.nav-item, blockquote")) {
             return this.blockContentsToList(element, mode);
         }
         let list;
         const cursors = this.dependencies.selection.preserveSelection();
         if (element === this.editable) {
-            // @todo @phoenix: check if this is needed
-            // Refactor insertListAfter in order to make proper preserveCursor
-            // possible.
             const callingNode = element.firstChild;
             const group = getAdjacents(callingNode, (n) => !isBlock(n));
             list = insertListAfter(this.document, callingNode, mode, group);
@@ -392,8 +363,7 @@ export class ListPlugin extends Plugin {
     }
 
     /**
-     * @param {HTMLElement} baseContainer baseContainer Element (can be a div with the
-     *        necessary classes/attributes).
+     * @param {HTMLElement} baseContainer
      * @param {"UL"|"OL"|"CL"} mode
      */
     baseContainerToList(baseContainer, mode) {
@@ -406,7 +376,6 @@ export class ListPlugin extends Plugin {
         );
         const textAlign = baseContainer.style.getPropertyValue("text-align");
         if (textAlign) {
-            // Copy text-align style from base container to li.
             list.firstElementChild.style.setProperty("text-align", textAlign);
             baseContainer.style.removeProperty("text-align");
         }
@@ -427,14 +396,9 @@ export class ListPlugin extends Plugin {
     }
 
     /**
-     * Converts a list element and its nested elements to the given list mode.
-     *
-     * @see switchListMode
-     * @param {HTMLUListElement|HTMLOListElement|HTMLLIElement} node - HTML element
-     * representing a list or list item.
-     * @param {string} newMode - Target list mode
-     * @returns {HTMLUListElement|HTMLOListElement|HTMLLIElement} node - Modified
-     * list element after conversion.
+     * @param {HTMLUListElement|HTMLOListElement|HTMLLIElement} node
+     * @param {string} newMode
+     * @returns {HTMLUListElement|HTMLOListElement|HTMLLIElement}
      */
     convertList(node, newMode) {
         if (!["UL", "OL", "LI"].includes(node.tagName)) {
@@ -465,11 +429,9 @@ export class ListPlugin extends Plugin {
     }
 
     /**
-     * Switches the list mode of the given list element.
-     *
-     * @param {HTMLOListElement|HTMLUListElement} list - The list element to switch the mode of.
-     * @param {"UL"|"OL"|"CL"} newMode - The new mode to switch to.
-     * @returns {HTMLOListElement|HTMLUListElement} The modified list element.
+     * @param {HTMLOListElement|HTMLUListElement} list
+     * @param {"UL"|"OL"|"CL"} newMode
+     * @returns {HTMLOListElement|HTMLUListElement}
      */
     switchListMode(list, newMode) {
         if (this.getListMode(list) === newMode) {
@@ -477,8 +439,6 @@ export class ListPlugin extends Plugin {
         }
         const newTag = newMode === "CL" ? "UL" : newMode;
         const newList = this.dependencies.dom.setTagName(list, newTag);
-        // Remove any previously set list-style so that when changing the list
-        // type, the new list can show its correct default marker style.
         newList.style.removeProperty("list-style");
         for (const li of newList.children) {
             li.style.removeProperty("list-style");
@@ -495,8 +455,6 @@ export class ListPlugin extends Plugin {
     }
 
     /**
-     * Unwraps LI's content into blocks. Equivalent to fully outdenting the LI.
-     *
      * @param {HTMLLIElement} li
      */
     liToBlocks(li) {
@@ -504,10 +462,6 @@ export class ListPlugin extends Plugin {
             li = this.outdentLI(li);
         }
     }
-
-    // --------------------------------------------------------------------------
-    // Helpers for normalize
-    // --------------------------------------------------------------------------
 
     liWithoutParentToP(element) {
         const isOrphan = element.nodeName === "LI" && !element.closest("ul, ol");
@@ -544,7 +498,6 @@ export class ListPlugin extends Plugin {
             const cursors = this.dependencies.selection.preserveSelection();
             cursors.update(callbacksForCursorUpdate.merge(element));
             previousSibling.append(...element.childNodes);
-            // @todo @phoenix: what if unremovable/unmergeable?
             element.remove();
             this.adjustListPadding(previousSibling);
             cursors.restore();
@@ -552,9 +505,6 @@ export class ListPlugin extends Plugin {
         }
     }
 
-    /**
-     * Wraps inlines in P to avoid inlines with block siblings.
-     */
     normalizeLI(element) {
         if (!isListItem(element)) {
             return;
@@ -609,10 +559,6 @@ export class ListPlugin extends Plugin {
         }
     }
 
-    // --------------------------------------------------------------------------
-    // Indentation
-    // --------------------------------------------------------------------------
-
     /**
      * @param {HTMLLIElement} li
      */
@@ -628,12 +574,10 @@ export class ListPlugin extends Plugin {
             li.querySelector("ol, ul") ||
             li.closest("ol, ul");
         const cursors = this.dependencies.selection.preserveSelection();
-        // Remove the LI first to force a removal mutation in collaboration.
         parentLi.removeChild(li);
         const ul = createList(this.document, this.getListMode(destul));
         lip.append(ul);
 
-        // lip replaces li
         li.before(lip);
         ul.append(li);
         const nestedLists = childNodes(li).filter((n) => isListElement(n));
@@ -654,7 +598,7 @@ export class ListPlugin extends Plugin {
 
     /**
      * @param {HTMLLIElement} li
-     * @returns {HTMLLIElement|null} li or null if it no longer exists.
+     * @returns {HTMLLIElement|null}
      */
     outdentLI(li) {
         const listToSplit = li.querySelector("ol, ul") || li.nextElementSibling;
@@ -671,13 +615,10 @@ export class ListPlugin extends Plugin {
     }
 
     /**
-     * Splits a list at the given LI element (li is moved to the new list).
-     *
-     * @param {HTMLUListElement|HTMLOListElement|HTMLLIElement} node - HTML element
+     * @param {HTMLUListElement|HTMLOListElement|HTMLLIElement} node
      */
     splitList(node) {
         const cursors = this.dependencies.selection.preserveSelection();
-        // Create new list
         const currentList = closestElement(node, "ul, ol");
         const newList = currentList.cloneNode(false);
         const isList = isListElement(node);
@@ -691,7 +632,6 @@ export class ListPlugin extends Plugin {
             );
             node.parentNode.parentNode.after(newList);
         } else if (isListItem(node.parentNode.parentNode)) {
-            // li is nested list item
             const lip = this.document.createElement("li");
             lip.classList.add("oe-nested");
             lip.append(newList);
@@ -725,20 +665,16 @@ export class ListPlugin extends Plugin {
         const cursors = this.dependencies.selection.preserveSelection();
         const ul = li.parentNode;
         const lip = ul.parentNode;
-        // Move LI
         cursors.update(callbacksForCursorUpdate.after(lip, li));
         lip.after(li);
         while (ul.nextSibling) {
             cursors.update(callbacksForCursorUpdate.append(li, ul.nextSibling));
             li.append(ul.nextSibling);
         }
-        // Remove UL and LI.oe-nested if left empty.
         if (!ul.children.length) {
             cursors.update(callbacksForCursorUpdate.remove(ul));
             ul.remove();
         }
-        // @todo @phoenix: not sure in which scenario lip would not have
-        // oe-nested class
         if (!lip.children.length && lip.classList.contains("oe-nested")) {
             cursors.update(callbacksForCursorUpdate.remove(lip));
             lip.remove();
@@ -766,13 +702,11 @@ export class ListPlugin extends Plugin {
             li.append(baseContainer);
             cursors.remapNode(li, baseContainer);
         }
-        // Move LI's children to after UL
         const blocksToMove = childNodes(li);
         for (const block of blocksToMove.toReversed()) {
             cursors.update(callbacksForCursorUpdate.after(ul, block));
             ul.after(block);
         }
-        // Preserve style properties
         const dir = li.getAttribute("dir") || ul.getAttribute("dir");
         const textAlign = li.style.getPropertyValue("text-align");
         const liColorStyle = getTextColorOrClass(li);
@@ -785,20 +719,16 @@ export class ListPlugin extends Plugin {
             return wrapper;
         };
         for (const block of blocksToMove) {
-            // text direction
             if (dir && !block.getAttribute("dir")) {
                 block.setAttribute("dir", dir);
             }
-            // text alignment
             if (textAlign && !block.style.getPropertyValue("text-align")) {
                 block.style.setProperty("text-align", textAlign);
             }
-            // text color
             if (liColorStyle) {
                 const font = wrapChildren(block, "font");
                 this.dependencies.color.colorElement(font, liColorStyle.value, "color");
             }
-            // font-size
             if (liFontSizeStyle && !isEmptyBlock(block)) {
                 const span = wrapChildren(block, "span");
                 if (liFontSizeStyle.type === "font-size") {
@@ -808,10 +738,8 @@ export class ListPlugin extends Plugin {
                 }
             }
         }
-        // Remove LI
         cursors.update(callbacksForCursorUpdate.remove(li));
         li.remove();
-        // Remove UL if left empty
         if (!ul.firstElementChild) {
             cursors.update(callbacksForCursorUpdate.remove(ul));
             ul.remove();
@@ -859,10 +787,6 @@ export class ListPlugin extends Plugin {
         };
     }
 
-    // --------------------------------------------------------------------------
-    // Handlers of other plugins commands
-    // --------------------------------------------------------------------------
-
     processNodeToInsert({ nodeToInsert, container }) {
         if (isListItemElement(container) && isParagraphRelatedElement(nodeToInsert)) {
             nodeToInsert = this.dependencies.dom.setTagName(nodeToInsert, "LI");
@@ -905,7 +829,6 @@ export class ListPlugin extends Plugin {
             for (const list of listsToAdjustPadding) {
                 this.adjustListPadding(list);
             }
-            // Do nothing to nav-items.
             this.dependencies.history.addStep();
             return true;
         }
@@ -929,7 +852,6 @@ export class ListPlugin extends Plugin {
         if (listItems.length || navListItems.length) {
             this.outdentListNodes(listItems);
             this.dependencies.tabulation.outdentBlocks(nonListItems);
-            // Do nothing to nav-items.
             this.dependencies.history.addStep();
             return true;
         }
@@ -964,23 +886,18 @@ export class ListPlugin extends Plugin {
         return true;
     }
 
-    /**
-     * Fully outdent list item if cursor is at its beginning.
-     */
     handleDeleteBackward(range) {
         const { startContainer, startOffset, endContainer, endOffset } = range;
         const closestLIendContainer = closestElement(endContainer, "LI");
         if (!closestLIendContainer) {
             return;
         }
-        // Detect if cursor is at beginning of LI (or the editable === collapsed range).
         const isCursorAtStartofLI =
             (startContainer === endContainer && startOffset === endOffset) ||
             closestElement(startContainer, "LI") !== closestLIendContainer;
         if (!isCursorAtStartofLI) {
             return;
         }
-        // Check if li or parent list(s) are unsplittable.
         let element = closestLIendContainer;
         while (["LI", "UL", "OL"].includes(element.tagName)) {
             if (this.dependencies.split.isUnsplittable(element)) {
@@ -989,11 +906,9 @@ export class ListPlugin extends Plugin {
             element = element.parentElement;
         }
         if (!closestLIendContainer.classList.contains("oe-nested")) {
-            // Remove LI marker on first backspace.
             closestLIendContainer.classList.add("oe-nested");
             closestLIendContainer.classList.remove("o_checked");
         } else {
-            // Fully outdent the LI but keep its direction.
             const list = closestElement(closestLIendContainer, "ul[dir], ol[dir]");
             const dir = list?.getAttribute("dir");
             if (dir) {
@@ -1004,7 +919,6 @@ export class ListPlugin extends Plugin {
         return true;
     }
 
-    // Uncheck checklist item left empty after deleting a multi-LI selection.
     handleDeleteRange(range) {
         const { startContainer, endContainer } = range;
         const startCheckedLi = closestElement(startContainer, "li.o_checked");
@@ -1065,10 +979,6 @@ export class ListPlugin extends Plugin {
         return node;
     }
 
-    // --------------------------------------------------------------------------
-    // Event handlers
-    // --------------------------------------------------------------------------
-
     /**
      * @param {MouseEvent | TouchEvent} ev
      */
@@ -1091,9 +1001,6 @@ export class ListPlugin extends Plugin {
             toggleClass(node, "o_checked");
             const { documentSelectionIsInEditable } =
                 this.dependencies.selection.getSelectionData();
-            // When the editable is not focused, clicking on checkbox
-            // wont make it focused So changes will be lost
-            // as no blur event will occur when clicking outside.
             if (!documentSelectionIsInEditable) {
                 this.editable.focus();
                 this.dependencies.selection.setSelection({
@@ -1114,13 +1021,12 @@ export class ListPlugin extends Plugin {
             isChecklistItem &&
             this.isPointerInsideCheckbox(node, ev.offsetX, ev.offsetY)
         ) {
-            // If pointer is inside checkbox, prevent tripleclick selection.
             return true;
         }
     }
 
     /**
-     * @param {HTMLLIElement} li - LI element inside a checklist.
+     * @param {HTMLLIElement} li
      * @param {number} pointerOffsetX
      * @param {number} pointerOffsetY
      */
@@ -1152,7 +1058,6 @@ export class ListPlugin extends Plugin {
         }
         const cursors = this.dependencies.selection.preserveSelection();
         for (const listItem of listItems) {
-            // Remove empty text nodes without breaking the current selection.
             removeEmptyTextNodes(listItem, cursors);
 
             if (this.dependencies.selection.areNodeContentsFullySelected(listItem)) {
@@ -1162,7 +1067,6 @@ export class ListPlugin extends Plugin {
                         (n) => isElement(n) && closestElement(n, "LI") === listItem,
                     ),
                 ]) {
-                    // Remove any color-related classes.
                     const classesToRemove = [...node.classList].filter(
                         (cls) =>
                             cls === "o_default_color" || TEXT_CLASSES_REGEX.test(cls),
@@ -1189,8 +1093,6 @@ export class ListPlugin extends Plugin {
                 const textNodes = targetedNodes.filter(
                     (n) => isVisibleTextNode(n) && closestElement(n, "li") === listItem,
                 );
-                // Remove inline color from partial selection by
-                // wrapping in font with default color.
                 for (const node of textNodes) {
                     const font = this.document.createElement("font");
                     font.classList.add("o_default_color");
@@ -1219,9 +1121,6 @@ export class ListPlugin extends Plugin {
         const listsSet = new Set();
         const cursors = this.dependencies.selection.preserveSelection();
         for (const listItem of listItems) {
-            // Skip list items with block descendants other than base
-            // container or a list related elements or no font size formatting
-            // to remove.
             const hasOnlyBaseBlocks = [...descendants(listItem)]
                 .filter(isBlock)
                 .every((n) => n.matches(`${baseContainerGlobalSelector}, ol, ul, li`));
@@ -1232,7 +1131,6 @@ export class ListPlugin extends Plugin {
                 continue;
             }
 
-            // Remove empty text nodes without breaking the current selection.
             removeEmptyTextNodes(listItem, cursors);
 
             if (this.dependencies.selection.areNodeContentsFullySelected(listItem)) {
@@ -1263,8 +1161,6 @@ export class ListPlugin extends Plugin {
                 const textNodes = targetedNodes.filter(
                     (n) => isVisibleTextNode(n) && closestElement(n, "li") === listItem,
                 );
-                // Remove inline font size from partial selection by
-                // wrapping in span with default font size.
                 for (const node of textNodes) {
                     const span = this.document.createElement("span");
                     span.classList.add("o_default_font_size");
@@ -1284,22 +1180,10 @@ export class ListPlugin extends Plugin {
     }
 
     /**
-     * Width of a list item's ``::marker`` box, in CSS pixels.
-     *
      * @param {HTMLElement} li
-     * @returns {number} marker width in px, or 0 when it cannot be measured
+     * @returns {number}
      */
     measureMarkerWidth(li) {
-        // Isolated as a method because it is the ONE input to adjustListPadding
-        // that the browser's font rasterizer decides: the same markup yields
-        // 19px on Chromium 149 and 20px on Chrome 150, and a different value
-        // again under a different default font. Production wants exactly that
-        // (the padding must follow whatever the marker really measures), but a
-        // unit test asserting a hard-coded pixel result cannot, which is why the
-        // surrounding arithmetic is verified against a stubbed measurement
-        // (patch(ListPlugin.prototype, { measureMarkerWidth }), see
-        // list_font_size.test.js). Patching the prototype is the supported seam;
-        // the module namespace is frozen and cannot be patched.
         const markerWidth = parseFloat(
             this.window.getComputedStyle(li, "::marker").width,
         );
@@ -1307,11 +1191,7 @@ export class ListPlugin extends Plugin {
     }
 
     /**
-     * Adjusts the left padding of a list (`ul` or `ol`) to ensure that
-     * its `::marker` is always visible and doesn't overflow, especially
-     * when the marker width exceeds the default padding.
-     *
-     * @param {HTMLElement} list - The `<ul>` or `<ol>` element whose padding is adjusted.
+     * @param {HTMLElement} list
      */
     adjustListPadding(list) {
         if (!isListElement(list) || ![...list.children].some(getFontSizeOrClass)) {
@@ -1322,26 +1202,15 @@ export class ListPlugin extends Plugin {
             return;
         }
 
-        // Force reflow so that ::marker pseudo-elements are fully laid out
-        // before measuring their widths (avoids stale values after DOM changes).
         void list.offsetWidth;
 
         const largestMarker = list.children[Symbol.iterator]()
             .map((li) => this.measureMarkerWidth(li))
             .reduce((accumulator, currentValue) => Math.max(accumulator, currentValue));
-        // For `UL` with large font size the marker width is so big that more padding is needed.
         const largestMarkerPadding =
             Math.round(largestMarker) * (list.nodeName === "UL" ? 2 : 1);
 
-        // bootstrap sets ul { padding-left: 2rem; } -- estimate the baseline
-        // from the root font-size (upstream parity). Reading the list's
-        // computed padding instead looks appealing but breaks wherever the
-        // Bootstrap rule isn't applied (e.g. bare test fixtures fall back to
-        // the 40px UA default), shifting every computed padding.
         const defaultPadding = parseFloat(getHtmlStyle(this.document).fontSize) * 2;
-        // Align the whole list based on the item that requires the largest padding.
-        // For smaller font sizes, doubling the width of the dot marker is still lower than the
-        // default. The default is kept in that case.
         if (largestMarkerPadding > defaultPadding) {
             list.style.paddingInlineStart = `${largestMarkerPadding}px`;
         }
@@ -1357,10 +1226,6 @@ export class ListPlugin extends Plugin {
             this.adjustListPadding(listItem.parentElement);
         }
     }
-
-    // --------------------------------------------------------------------------
-    // Toolbar buttons
-    // --------------------------------------------------------------------------
 
     updateToolbarButtons() {
         this.toolbarListSelectorKey.value++;
@@ -1379,7 +1244,6 @@ export class ListPlugin extends Plugin {
                 const button = composeToolbarButton(command, item);
                 return {
                     ...pick(button, "id", "icon", "run", "mode"),
-                    // We want short descriptions for these buttons.
                     description: command.title,
                 };
             });

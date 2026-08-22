@@ -25,33 +25,23 @@ import { composeToolbarButton, Toolbar } from "./toolbar.js";
  * @typedef {Object} ToolbarNamespace
  * @property {string} id
  * @property {(targetedNodes: Node[]) => boolean} isApplied
- *
- *
  * @typedef {Object} ToolbarGroup
  * @property {string} id
  * @property {string[]} [namespaces]
- *
- *
  * @typedef {ToolbarCommandItem | ToolbarComponentItem} ToolbarItem
- *
  * @typedef {Object} ToolbarCommandItem
- * Regular button: derives from a user command specified by commandId.
- * The properties marked with * can be omitted if they are present in the user command.
- * The ones marked with ?* are both optional and derivable from the user command.
  * @property {string} id
- * @property {string} groupId Id of a toolbar group
+ * @property {string} groupId
  * @property {string} commandId
  * @property {string[]} [namespaces]
- * @property {Object} [commandParams] Passed to the command's `run` function
- * @property {TranslatedString | TranslatedStringGetter} [description] * - becomes the button's title (and tooltip content)
- * @property {string} [icon] *
- * @property {string} [text] Can be used with (or instead of) `icon`
- * @property {(selection: EditorSelection) => boolean} [isAvailable] ? *
+ * @property {Object} [commandParams]
+ * @property {TranslatedString | TranslatedStringGetter} [description]
+ * @property {string} [icon]
+ * @property {string} [text]
+ * @property {(selection: EditorSelection) => boolean} [isAvailable]
  * @property {(selection: EditorSelection, nodes: Node[]) => boolean} [isActive]
  * @property {(selection: EditorSelection, nodes: Node[]) => boolean} [isDisabled]
- *
  * @typedef {Object} ToolbarComponentItem
- * Adds a custom component to the toolbar.
  * @property {string} id
  * @property {string} groupId
  * @property {string[]} [namespaces]
@@ -59,14 +49,9 @@ import { composeToolbarButton, Toolbar } from "./toolbar.js";
  * @property {Function} Component
  * @property {Object} props
  * @property {(selection: EditorSelection) => boolean} [isAvailable]
- *
- * ToolbarItem.id maps to the button's `name` attribute
- * ToolbarItem.description maps to the button's `title` attribute (tooltip content)
  */
 
 /**
- * Types after conversion to renderable toolbar buttons:
- *
  * @typedef {Object} ToolbarCommandButton
  * @property {string} id
  * @property {string} groupId
@@ -77,9 +62,7 @@ import { composeToolbarButton, Toolbar } from "./toolbar.js";
  * @property {(selection: EditorSelection) => boolean} isAvailable
  * @property {(selection: EditorSelection, nodes: Node[]) => boolean} [isActive]
  * @property {(selection: EditorSelection, nodes: Node[]) => boolean} [isDisabled]
- *
  * @typedef {Object} ToolbarComponentButton
- * Adds a custom component to the toolbar (processed version with required fields).
  * @property {string} id
  * @property {string} groupId
  * @property {string[]} [namespaces]
@@ -87,15 +70,11 @@ import { composeToolbarButton, Toolbar } from "./toolbar.js";
  * @property {Function} Component
  * @property {Object} props
  * @property {(selection: EditorSelection) => boolean} isAvailable
- *
  * @typedef {ToolbarCommandButton | ToolbarComponentButton} ToolbarButton
  */
 
-/** Delay in ms for toolbar open after keyup, double click or triple click. */
 export const DELAY_TOOLBAR_OPEN = 300;
-/** Number of buttons below which toolbar will open directly in its expanded form */
 const MIN_SIZE_FOR_COMPACT = 7;
-/** Special namespace that prevents the toolbar from opening */
 export const DISABLED_NAMESPACE = "disabled";
 
 /**
@@ -106,18 +85,12 @@ export const DISABLED_NAMESPACE = "disabled";
 /**
  * @typedef {((namespace: string) => boolean)[]} can_display_toolbar
  * @typedef {((selectionData: SelectionData) => boolean)[]} collapsed_selection_toolbar_predicate
- *
  * @typedef {ToolbarGroup[]} toolbar_groups
  * @typedef {ToolbarNamespace[]} toolbar_namespaces
  */
 
 /**
- * @see UserCommand
  * @typedef {(ToolbarCommandItem | ToolbarComponentItem)[]} toolbar_items
- *
- * A ToolbarCommandItem must derive from a user command (see UserCommand)
- * specified by commandId. Properties defined in a toolbar item override those
- * from a user command.
  */
 
 export class ToolbarPlugin extends Plugin {
@@ -187,12 +160,9 @@ export class ToolbarPlugin extends Plugin {
 
         if (this.isMobileToolbar) {
             this.addDomListener(this.editable, "pointerup", () => {
-                // Collapse toolbar to compact mode when tapping outside of it
                 this.isToolbarExpanded = false;
             });
         } else {
-            // Mouse interaction behavior:
-            // Close toolbar on mousedown and prevent it from opening until mouseup.
             this.addDomListener(this.editable, "mousedown", (ev) => {
                 this.closeToolbar(this.dependencies.selection.getSelectionData());
                 this.debouncedUpdateToolbar.cancel();
@@ -200,12 +170,9 @@ export class ToolbarPlugin extends Plugin {
             });
             this.addGlobalDomListener("mouseup", (ev) => {
                 if (ev.detail >= 2) {
-                    // Delayed open, waiting for a possible triple click.
                     this.onSelectionChangeActive = true;
                     this.debouncedUpdateToolbar();
                 } else {
-                    // Fast open, just wait for a possible selection change due
-                    // to mouseup.
                     setTimeout(() => {
                         this.updateToolbar();
                         this.onSelectionChangeActive = true;
@@ -213,14 +180,7 @@ export class ToolbarPlugin extends Plugin {
                 }
             });
 
-            // Keyboard interaction behavior:
-            // Close toolbar on keydown Arrows and prevent it from opening until
-            // keyup. Opening is debounced to avoid open/close between
-            // sequential keystrokes.
             this.addDomListener(this.editable, "keydown", (ev) => {
-                // reason for "key?":
-                // On Chrome, if there is a password saved for a login page,
-                // a mouse click trigger a keydown event without any key
                 if (ev.key?.startsWith("Arrow")) {
                     this.closeToolbar(this.dependencies.selection.getSelectionData());
                     this.onSelectionChangeActive = false;
@@ -320,15 +280,8 @@ export class ToolbarPlugin extends Plugin {
         }
     }
 
-    /**
-     * Different handlers might call updateToolbar (e.g. step added and
-     * selection change) in the same tick. To avoid unnecessary updates, we
-     * batch the calls.
-     */
     updateToolbar = debounce(this._updateToolbar, 0, { trailing: true });
     _updateToolbar(selectionData = this.dependencies.selection.getSelectionData()) {
-        // Prevent toolbar to open if the selection is not in the editable area,
-        // or if the selection is protected or protecting.
         if (
             !selectionData.currentSelectionIsInEditable ||
             selectionData.documentSelectionIsProtected ||
@@ -337,7 +290,6 @@ export class ToolbarPlugin extends Plugin {
             this.closeToolbar();
             return;
         }
-        // Prevent toolbar to open if the selection is only non-editable nodes.
         const targetedNodes = this.dependencies.selection.getTargetedNodes();
         if (
             targetedNodes.every(
@@ -347,7 +299,6 @@ export class ToolbarPlugin extends Plugin {
             this.closeToolbar();
             return;
         }
-        // Determine the namespace to use
         let currentNamespace = null;
         const filteredtargetedNodes = this.getFilteredTargetedNodes(targetedNodes);
         for (const fn of this.getResource("toolbar_namespace_providers")) {
@@ -371,7 +322,6 @@ export class ToolbarPlugin extends Plugin {
 
         if (currentNamespace) {
             this.state.namespace = currentNamespace;
-            // Do not reposition the toolbar if it's already open.
             if (!this.overlay.isOpen) {
                 this.overlay.open({ props: this.toolbarProps });
             }
@@ -408,13 +358,11 @@ export class ToolbarPlugin extends Plugin {
         if (isCollapsed) {
             return false;
         }
-        // Only allow the toolbar to open if the selection contains visible selected characters.
         const selectionText = editableSelection.textContent();
         const textCleaned = selectionText.replace(/(\r\n|\n|\r|\u200B|\uFEFF)/gm, "");
         if (textCleaned.length) {
             return true;
         }
-        // Even without textContent we display the toolbar if the selection contains a <br>
         return targetedNodes.some(
             (node) => node.nodeType === Node.ELEMENT_NODE && node.tagName === "BR",
         );
@@ -427,7 +375,6 @@ export class ToolbarPlugin extends Plugin {
         if (!this.overlay.isOpen) {
             return;
         }
-        // TODO: refactor candidate : Remove data-prevent-closing-overlay
         const anchor = selectionData?.documentSelectionIsInEditable
             ? selectionData.editableSelection?.anchorNode
             : document.getSelection()?.anchorNode;
@@ -467,13 +414,10 @@ export class ToolbarPlugin extends Plugin {
                               }),
                     })),
             }))
-            // Filter out groups left empty
             .filter((group) => group.buttons.length > 0);
     }
 
     /**
-     * Get the set of available buttons for the current namespace and selection.
-     *
      * @param {EditorSelection} selection
      * @returns {Set<ToolbarButton>}
      */
@@ -488,10 +432,6 @@ export class ToolbarPlugin extends Plugin {
     }
 
     /**
-     * We only display the toolbar in its compact form if the expanded form is
-     * larger than a threshold, and larger than the compact version itself.
-     * Otherwise, we display the expanded toolbar directly.
-     *
      * @param {EditorSelection} selection
      * @returns {Set<ToolbarButton>}
      */
@@ -500,9 +440,7 @@ export class ToolbarPlugin extends Plugin {
         const compact = this.getButtonsForNamespace("compact").filter(isAvailable);
         const expanded = this.getButtonsForNamespace("expanded").filter(isAvailable);
         const shouldDisplayCompactToolbar =
-            // Expanded version is big enough
             expanded.length >= MIN_SIZE_FOR_COMPACT &&
-            // Expanded version is bigger than the compact version
             expanded.length > compact.length;
         if (shouldDisplayCompactToolbar) {
             return new Set(compact);
@@ -525,7 +463,6 @@ class MobileToolbarOverlay {
         if (!this.isOpen) {
             const modal = this.editable.closest(".o_modal_full");
             if (modal) {
-                // Same height of the toolbar
                 modal.style.paddingBottom = "40px";
             }
             registry.category("main_components").add(this.overlayId, {

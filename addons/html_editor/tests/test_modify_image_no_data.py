@@ -1,6 +1,3 @@
-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import odoo.tests
 from odoo.tests.common import HttpCase
 from odoo.tools.json import scriptsafe as json_safe
@@ -15,7 +12,6 @@ class TestModifyImageNoData(HttpCase):
         self.pixel = 'R0lGODlhAQABAIAAAP///wAAACwAAAAAAQABAAACAkQBADs='
 
     def test_modify_image_no_data(self):
-        # Create an attachment
         attachment = self.env['ir.attachment'].create({
             'name': 'test_image.gif',
             'datas': self.pixel,
@@ -23,7 +19,6 @@ class TestModifyImageNoData(HttpCase):
             'res_id': 0,
         })
 
-        # Call the modify_image controller without the 'data' parameter
         response = self.url_open(
             f'/html_editor/modify_image/{attachment.id}',
             headers={'Content-Type': 'application/json'},

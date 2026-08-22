@@ -16,13 +16,9 @@ export function stripVersion(element) {
 }
 
 /**
- * Compare 2 versions
- *
  * @param {string} version1
  * @param {string} version2
- * @returns {number} -1 if version1 < version2
- *                   0 if version1 === version2
- *                   1 if version1 > version2
+ * @returns {number}
  */
 export function compareVersions(version1, version2) {
     version1 = version1.split(".").map((v) => parseInt(v));

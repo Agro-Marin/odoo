@@ -9,10 +9,7 @@ async function testCoreEditor(testConfig) {
     return testEditor({ ...testConfig, config: { Plugins: CORE_PLUGINS } });
 }
 
-// Tests the deleteRange shared method.
 async function deleteRange(editor) {
-    // Avoid SelectionPlugin methods to avoid normalization. The goal is to
-    // simulate the range passed as argument to the deleteRange method.
     const selection = editor.document.getSelection();
     let range = selection.getRangeAt(0);
 
@@ -22,7 +19,6 @@ async function deleteRange(editor) {
     selection.setBaseAndExtent(startContainer, startOffset, endContainer, endOffset);
 }
 
-// Tests the deleteSelection shared method.
 async function deleteSelection(editor) {
     editor.shared.delete.deleteSelection();
 }
@@ -129,9 +125,6 @@ describe("deleteRange method", () => {
         });
 
         test("should merge right block's content into fully selected left block", async () => {
-            // As opposed to the deleteSelection method, which removes a fully
-            // selected left block. See "should remove fully selected left block
-            // and keep second block".
             await testEditor({
                 contentBefore: "<h1>[abc</h1><p>d]ef</p>",
                 stepFunction: deleteRange,
@@ -178,7 +171,6 @@ describe("deleteRange method", () => {
         });
 
         test("should merge paragraph with inline content after it (2)", async () => {
-            // This is the kind of range passed to deleteRange on `...</p>[]def...` + deleteBackward
             await testEditor({
                 contentBefore: "<div><p>abc[</p>]def</div>",
                 stepFunction: deleteRange,
@@ -229,8 +221,6 @@ describe("deleteRange method", () => {
     });
     describe("Fake line breaks", () => {
         test("should not crash if cursor is inside a fake BR", async () => {
-            // deleteRange must not rely on selection normalization: it should
-            // not assume the cursor is never inside a BR.
             const contentBefore = unformat(
                 `<table><tbody>
                     <tr><td><br></td><td><br></td></tr>
@@ -238,18 +228,12 @@ describe("deleteRange method", () => {
                 </tbody></table>`,
             );
             const { editor, el } = await setupEditor(contentBefore);
-            // Place the selection focus inside the BR.
             setSelection({
                 anchorNode: el,
                 anchorOffset: 0,
                 focusNode: el.querySelector("tr:nth-child(2) td br"),
                 focusOffset: 0,
             });
-            /* [<table><tbody>
-                    <tr><td><br></td><td><br></td></tr>
-                    <tr><td><]br></td><td><br></td></tr>
-                </tbody></table>
-            */
             deleteRange(editor);
             const contentAfter = unformat(
                 `[<table><tbody>
@@ -274,7 +258,6 @@ describe("deleteRange method", () => {
             await testEditor({
                 contentBefore: `[<div class="container o_text_columns"><div class="row"><div class="col-4"><p>a</p></div><div class="col-4"><p>b</p></div><div class="col-4"><p>c</p></div></div></div>]`,
                 stepFunction: deleteRange,
-                // TODO: should an empty editable be allowed without allowInlineAtRoot?
                 contentAfter: `[]`,
             });
         });
@@ -298,10 +281,6 @@ describe("deleteRange method", () => {
 describe("deleteSelection", () => {
     describe("Merge blocks", () => {
         test("should remove fully selected left block and keep second block", async () => {
-            // As opposed to the deleteRange method.
-            // This is done by expanding the range to fully include the left
-            // block before calling deleteRange. See `includeEndOrStartBlock` method.
-            // <h1>[abc</h1><p>d]ef</p> -> [<h1>abc</h1><p>d]ef</p> -> deleteRange
             await testEditor({
                 contentBefore: "<h1>[abc</h1><p>d]ef</p>",
                 stepFunction: deleteSelection,
@@ -328,8 +307,6 @@ describe("deleteSelection", () => {
         });
 
         test("should remove unmergeable block that has been emptied", async () => {
-            // `includeEndOrStartBlock` fully includes the right block.
-            // <p>ab[c</p><div>def]</div> -> <p>ab[c</p><div>def</div>] -> deleteRange
             await testEditor({
                 contentBefore: `<p>ab[c</p><div class="oe_unbreakable">def]</div>`,
                 stepFunction: deleteSelection,
@@ -466,8 +443,6 @@ describe("deleteSelection", () => {
         });
         describe("Table cells", () => {
             test("should not remove table cell, but clear its content", async () => {
-                // Actually this is handled by the table plugin, and does not
-                // involve the unremovable mechanism.
                 await testEditor({
                     contentBefore: unformat(
                         `<table><tbody>

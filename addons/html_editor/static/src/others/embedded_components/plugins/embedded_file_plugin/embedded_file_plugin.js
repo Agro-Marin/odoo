@@ -9,14 +9,10 @@ import {
     renderEmbeddedFileBox,
 } from "./embedded_file_documents_selector.js";
 
-/**
- * This plugin is meant to replace the File plugin.
- */
 export class EmbeddedFilePlugin extends FilePlugin {
     static id = "embeddedFile";
     static dependencies = [...super.dependencies, "embeddedComponents", "selection"];
 
-    // Extends the base class resources
     /** @type {import("plugins").EditorResources} */
     resources = {
         ...this.resources,

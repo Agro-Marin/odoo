@@ -1,11 +1,7 @@
 /** @odoo-module native */
 /**
- * Transform a 2D point using a projective transformation matrix. Note that
- * this method is only well behaved for points that don't map to infinity!
- *
- * @param {number[][]} matrix - A projective transformation matrix
- * @param {number[]} point - A 2D point
- * @returns The transformed 2D point
+ * @param {number[][]} matrix
+ * @param {number[]} point
  */
 export function transform([[a, b, c], [d, e, f], [g, h, i]], [x, y]) {
     const z = g * x + h * y + i;
@@ -13,10 +9,7 @@ export function transform([[a, b, c], [d, e, f], [g, h, i]], [x, y]) {
 }
 
 /**
- * Calculate the inverse of a 3x3 matrix assuming it is invertible.
- *
- * @param {number[][]} matrix - A 3x3 matrix
- * @returns The resulting 3x3 matrix
+ * @param {number[][]} matrix
  */
 function invert([[a, b, c], [d, e, f], [g, h, i]]) {
     const determinant =
@@ -41,11 +34,8 @@ function invert([[a, b, c], [d, e, f], [g, h, i]]) {
 }
 
 /**
- * Multiply two 3x3 matrices.
- *
- * @param {number[][]} a - A 3x3 matrix
- * @param {number[][]} b - A 3x3 matrix
- * @returns The resulting 3x3 matrix
+ * @param {number[][]} a
+ * @param {number[][]} b
  */
 function multiply(a, b) {
     const [[a0, a1, a2], [a3, a4, a5], [a6, a7, a8]] = a;
@@ -70,30 +60,16 @@ function multiply(a, b) {
 }
 
 /**
- * Find a projective transformation mapping a rectangular area at origin (0,0)
- * with a given width and height to a certain quadrilateral.
- *
- * @param {number} width - The width of the rectangular area
- * @param {number} height - The height of the rectangular area
- * @param {number[][]} quadrilateral - The vertices of the quadrilateral
- * @returns A projective transformation matrix
+ * @param {number} width
+ * @param {number} height
+ * @param {number[][]} quadrilateral
  */
 export function getProjective(width, height, [[x0, y0], [x1, y1], [x2, y2], [x3, y3]]) {
-    // Calculate a set of homogeneous coordinates a, b, c of the first
-    // point using the other three points as basis vectors in the
-    // underlying vector space.
     const denominator = x3 * (y1 - y2) + x1 * (y2 - y3) + x2 * (y3 - y1);
     const a = (x0 * (y2 - y3) + x2 * (y3 - y0) + x3 * (y0 - y2)) / denominator;
     const b = (x0 * (y3 - y1) + x3 * (y1 - y0) + x1 * (y0 - y3)) / denominator;
     const c = (x0 * (y1 - y2) + x1 * (y2 - y0) + x2 * (y0 - y1)) / denominator;
 
-    // The reverse transformation maps the homogeneous coordinates of
-    // the last three corners of the original image onto the basis vectors
-    // while mapping the first corner onto (1, 1, 1). The forward
-    // transformation maps those basis vectors in addition to (1, 1, 1)
-    // onto homogeneous coordinates of the corresponding corners of the
-    // projective image. Combining these together yields the projective
-    // transformation we are looking for.
     const reverse = invert([
         [width, -width, 0],
         [0, -height, height],
@@ -109,14 +85,8 @@ export function getProjective(width, height, [[x0, y0], [x1, y1], [x2, y2], [x3,
 }
 
 /**
- * Find an affine transformation matrix that exactly maps the vertices of a
- * triangle to their corresponding images of a projective transformation. The
- * resulting transformation will be an approximation of the projective
- * transformation for the area inside the triangle.
- *
- * @param {number[][]} projective - A projective transformation matrix
- * @param {number[][]} triangle - The vertices of a triangle
- * @returns An affine transformation matrix
+ * @param {number[][]} projective
+ * @param {number[][]} triangle
  */
 export function getAffineApproximation(projective, [[x0, y0], [x1, y1], [x2, y2]]) {
     const a = transform(projective, [x0, y0]);

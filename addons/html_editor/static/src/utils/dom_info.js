@@ -24,12 +24,9 @@ export function isEmptyTextNode(node) {
     }
     const trimmedContent = node.textContent.trim();
     if (!trimmedContent) {
-        // Only `\n` is considered as empty
         if (node.textContent.includes("\n")) {
             return true;
         }
-        // Only spaces is not considered as empty
-        // we technically can apply styles on spaces
         if (node.textContent) {
             return false;
         }
@@ -38,10 +35,6 @@ export function isEmptyTextNode(node) {
 }
 
 /**
- * Return true if the given node appears bold. The node is considered to appear
- * bold if its font weight is bigger than 500 (eg.: Heading 1), or if its font
- * weight is bigger than that of its closest block.
- *
  * @param {Node} node
  * @returns {boolean}
  */
@@ -57,8 +50,6 @@ export function isBold(node) {
 }
 
 /**
- * Return true if the given node appears italic.
- *
  * @param {Node} node
  * @returns {boolean}
  */
@@ -67,8 +58,6 @@ export function isItalic(node) {
 }
 
 /**
- * Return true if the given node appears underlined.
- *
  * @param {Node} node
  * @returns {boolean}
  */
@@ -84,8 +73,6 @@ export function isUnderline(node) {
 }
 
 /**
- * Return true if the given node appears struck through.
- *
  * @param {Node} node
  * @returns {boolean}
  */
@@ -104,12 +91,9 @@ export function isStrikeThrough(node) {
 }
 
 /**
- * Return true if the given node font-size is equal to `props.size`.
- *
- * @param {Node} node A node to compare the font-size against.
+ * @param {Node} node
  * @param {Object} props
- * @param {String} props.size The font-size value of the node that will be
- *     checked against.
+ * @param {String} props.size
  * @returns {boolean}
  */
 export function isFontSize(node, props) {
@@ -118,11 +102,9 @@ export function isFontSize(node, props) {
 }
 
 /**
- * Return true if the given node classlist contains `props.className`.
- *
- * @param {Node} node A node whose classlist is checked.
+ * @param {Node} node
  * @param {Object} props
- * @param {String} props.className The name of the class.
+ * @param {String} props.className
  * @returns {boolean}
  */
 export function hasClass(node, props) {
@@ -131,12 +113,6 @@ export function hasClass(node, props) {
 }
 
 /**
- * Return true if the given node appears in a different direction than that of
- * the editable ('ltr' or 'rtl').
- *
- * Note: The direction of the editable is set on its "dir" attribute, to the
- * value of the "direction" option on instantiation of the editor.
- *
  * @param {Node} node
  * @param {Element} editable
  * @returns {boolean}
@@ -146,9 +122,6 @@ export function isDirectionSwitched(node, editable) {
     return getComputedStyle(closestElement(node)).direction !== defaultDirection;
 }
 
-// /**
-//  * Return true if the given node is a row element.
-//  */
 export function isRow(node) {
     return ["TH", "TD"].includes(node.tagName);
 }
@@ -158,8 +131,6 @@ export function isZWS(node) {
 }
 
 /**
- * Returns true if the given node is in a PRE context for whitespace handling.
- *
  * @param {Node} node
  * @returns {boolean}
  */
@@ -174,7 +145,7 @@ export function isInPre(node) {
 
 export const ZERO_WIDTH_CHARS = ["\u200b", "\ufeff"];
 
-export const whitespace = `[^\\S\\u00A0\\u0009\\ufeff]`; // for formatting (no "real" content) (TODO: 0009 shouldn't be included)
+export const whitespace = `[^\\S\\u00A0\\u0009\\ufeff]`;
 const whitespaceRegex = new RegExp(`^${whitespace}*$`);
 export function isWhitespace(value) {
     const str = typeof value === "string" ? value : value.nodeValue;
@@ -182,7 +153,7 @@ export function isWhitespace(value) {
 }
 
 // eslint-disable-next-line no-control-regex
-const visibleCharRegex = /[^\s\u200b]|[\u00A0\u0009]$/; // contains at least a char that is always visible (TODO: 0009 shouldn't be included)
+const visibleCharRegex = /[^\s\u200b]|[\u00A0\u0009]$/;
 export function isVisibleTextNode(testedNode) {
     if (!testedNode || !testedNode.length || testedNode.nodeType !== Node.TEXT_NODE) {
         return false;
@@ -197,14 +168,10 @@ export function isVisibleTextNode(testedNode) {
         return true;
     }
     if (ZERO_WIDTH_CHARS.includes(testedNode.textContent)) {
-        return false; // a ZW(NB)SP is always invisible, regardless of context.
+        return false;
     }
-    // The following assumes node is made entirely of whitespace and is not
-    // preceded or followed by a block.
-    // Find out contiguous preceding and following text nodes
     let preceding;
     let following;
-    // Control variable to know whether the current node has been found
     let foundTestedNode;
     const currentNodeParentBlock = closestBlock(testedNode);
     if (!currentNodeParentBlock) {
@@ -213,12 +180,6 @@ export function isVisibleTextNode(testedNode) {
     const nodeIterator = document.createNodeIterator(currentNodeParentBlock);
     for (let node = nodeIterator.nextNode(); node; node = nodeIterator.nextNode()) {
         if (node.nodeType === Node.TEXT_NODE) {
-            // If we already found the tested node, the current node is the
-            // contiguous following, and we can stop looping
-            // If the current node is the tested node, mark it as found and
-            // continue.
-            // If we haven't reached the tested node, overwrite the preceding
-            // node.
             if (foundTestedNode) {
                 following = node;
                 break;
@@ -228,15 +189,12 @@ export function isVisibleTextNode(testedNode) {
                 preceding = node;
             }
         } else if (isBlock(node)) {
-            // If we found the tested node, then the following node is irrelevant
-            // If we didn't, then the current preceding node is irrelevant
             if (foundTestedNode) {
                 break;
             } else {
                 preceding = null;
             }
         } else if (foundTestedNode && !isWhitespace(node)) {
-            // <block>space<inline>text</inline></block> -> space is visible
             following = node;
             break;
         }
@@ -244,8 +202,6 @@ export function isVisibleTextNode(testedNode) {
     while (following && !visibleCharRegex.test(following.textContent)) {
         following = following.nextSibling;
     }
-    // Missing preceding or following: invisible.
-    // Preceding or following not in the same block as tested node: invisible.
     if (
         !(preceding && following) ||
         currentNodeParentBlock !== closestBlock(preceding) ||
@@ -253,14 +209,10 @@ export function isVisibleTextNode(testedNode) {
     ) {
         return false;
     }
-    // Preceding is whitespace or following is whitespace: invisible
     return visibleCharRegex.test(preceding.textContent);
 }
 
 /**
- * Return whether the given node is a self-closing element, i.e. one that can be
- * considered removable by itself.
- *
  * @param {Node} node
  * @returns {boolean}
  */
@@ -270,13 +222,6 @@ export function isSelfClosingElement(node) {
 }
 
 /**
- * Returns whether removing the given node from the DOM will have a visible
- * effect or not.
- *
- * Note: TODO this is not handling all cases right now, just the ones the
- * caller needs at the moment. For example a space text node between two inlines
- * will always return 'true' while it is sometimes invisible.
- *
  * @param {Node} node
  * @returns {boolean}
  */
@@ -285,13 +230,10 @@ export function isVisible(node) {
         !!node &&
         ((node.nodeType === Node.TEXT_NODE && isVisibleTextNode(node)) ||
             isSelfClosingElement(node) ||
-            // @todo: handle it in resources?
             isMediaElement(node) ||
             hasVisibleContent(node) ||
             isProtecting(node) ||
             isEmbeddedComponent(node) ||
-            // Keep editor tables visible even when cells only contain
-            // placeholder ZWS content, as `.o_table` tables are always visible.
             (node.nodeName === "TD" && !!closestElement(node, "table.o_table")))
     );
 }
@@ -324,9 +266,6 @@ export const isNotEditableNode = (node) =>
     node.getAttribute("contenteditable").toLowerCase() === "false";
 
 const iconTags = ["I", "SPAN"];
-// @todo @phoenix: move the specific part in a proper plugin.
-// FA7 native style prefixes (fa-solid/fa-regular/fa-brands) are listed alongside
-// the legacy FA4 base class ("fa") and the FA5 short prefixes (fab/fad/far).
 export const iconClasses = [
     "fa",
     "fab",
@@ -347,9 +286,6 @@ export const MEDIA_SELECTOR = `${ICON_SELECTOR}, .media_iframe_video, .o_file_bo
 export const EDITABLE_MEDIA_CLASS = "o_editable_media";
 
 /**
- * Indicates if the given node is an icon element.
- *
- * @see ICON_SELECTOR
  * @param {?Node} [node]
  * @returns {boolean}
  */
@@ -360,7 +296,6 @@ export function isIconElement(node) {
         iconClasses.some((cls) => node.classList.contains(cls))
     );
 }
-// @todo @phoenix: move the specific part in a proper plugin.
 export function isMediaElement(node) {
     return (
         isIconElement(node) ||
@@ -372,12 +307,8 @@ export function isMediaElement(node) {
 }
 
 /**
- * Checks whether the content of mediaContainerEl is only made of "media"
- * (image, video, icon, document) - or links around "media".
- *
- * @param {HTMLElement} mediaContainerEl element within which to check
- * @param {boolean} [requiresSingleMedia=false] if true, limits the positive
- *     result to situations where only a single media is present
+ * @param {HTMLElement} mediaContainerEl
+ * @param {boolean} [requiresSingleMedia=false]
  * @returns {boolean}
  */
 export function hasMediaOnly(mediaContainerEl, requiresSingleMedia = false) {
@@ -400,7 +331,6 @@ export function hasMediaOnly(mediaContainerEl, requiresSingleMedia = false) {
     });
 }
 
-// See https://developer.mozilla.org/en-US/docs/Web/HTML/Content_categories#phrasing_content
 const phrasingTagNames = new Set([
     "ABBR",
     "AUDIO",
@@ -451,9 +381,7 @@ const phrasingTagNames = new Set([
     "VAR",
     "VIDEO",
     "WBR",
-    "FONT", // TODO @phoenix: font is deprecated, replace usage
-    // The following elements are phrasing content under specific conditions,
-    // evaluate if those conditions are applicable when using this set.
+    "FONT",
     "A",
     "AREA",
     "DEL",
@@ -510,13 +438,6 @@ export function isEmbeddedComponent(node) {
 }
 
 /**
- * A "protected" node will have its mutations filtered and not be registered
- * in an history step. Some editor features like selection handling, command
- * hint, toolbar, tooltip, etc. are also disabled. Protected roots have their
- * data-oe-protected attribute set to either "" or "true". If the closest parent
- * with a data-oe-protected attribute has the value "false", it is not
- * protected. Unknown values are ignored.
- *
  * @param {Node} node
  * @returns {boolean}
  */
@@ -534,8 +455,6 @@ export function isProtected(node) {
 }
 
 /**
- * A "protecting" element contains childNodes that are protected.
- *
  * @param {Node} node
  * @returns {boolean}
  */
@@ -557,9 +476,6 @@ export function isUnprotecting(node) {
     return node.nodeType === Node.ELEMENT_NODE && node.dataset.oeProtected === "false";
 }
 
-// This is a list of "paragraph-related elements", defined as elements that
-// behave like paragraphs. It is non-exhaustive and should not be used as a
-// standalone. @see isParagraphRelatedElement
 export const paragraphRelatedElements = [
     "P",
     "H1",
@@ -572,9 +488,6 @@ export const paragraphRelatedElements = [
 ];
 
 /**
- * Return true if the given node allows "paragraph-related elements".
- *
- * @see paragraphRelatedElements
  * @param {Node} node
  * @returns {boolean}
  */
@@ -651,21 +564,15 @@ export function isTableCell(node) {
 export function isAllowedContent(parentBlock, nodes) {
     let allowedContentSet = allowedContent[parentBlock.nodeName];
     if (!allowedContentSet) {
-        // Spec: a block not listed in allowedContent allows anything.
-        // See "custom-block" in tests.
         return true;
     }
     if (parentBlock.matches(baseContainerGlobalSelector)) {
-        // A baseContainer DIV can only have phrasingContent, as a P would.
         allowedContentSet = phrasingContent;
     }
     return nodes.every((node) => allowedContentSet.has(node.nodeName));
 }
 
 /**
- * Checks whether or not the given block has any visible content, except for
- * a placeholder BR.
- *
  * @param {HTMLElement} blockEl
  * @returns {boolean}
  */
@@ -680,15 +587,10 @@ export function isEmptyBlock(blockEl) {
         return false;
     }
     if (isProtecting(blockEl) || isProtected(blockEl)) {
-        // Protecting nodes should never be considered empty for editor
-        // operations, as their content is a "black box". Their content should
-        // be managed by a specialized plugin.
         return false;
     }
     const nodes = blockEl.querySelectorAll("*");
     for (const node of nodes) {
-        // There is no text and no double BR, the only thing that could make
-        // this visible is a "visible empty" node like an image.
         if (
             node.nodeName !== "BR" &&
             (isSelfClosingElement(node) ||
@@ -702,9 +604,6 @@ export function isEmptyBlock(blockEl) {
     return isBlock(blockEl);
 }
 /**
- * Checks whether or not the given block element has something to make it have
- * a visible height (except for padding / border).
- *
  * @param {HTMLElement} blockEl
  * @returns {boolean}
  */
@@ -726,11 +625,9 @@ export function getDeepestPosition(node, offset) {
     let next = node;
     while (next) {
         if (isTangible(next) || (isZWS(next) && isContentEditable(next))) {
-            // Valid node: update position then try to go deeper.
             if (next !== node) {
                 [node, offset] = [next, direction ? 0 : nodeSize(next)];
             }
-            // First switch direction to left if offset is at the end.
             const childrenNodes = childNodes(node);
             direction = offset < childrenNodes.length;
             next = childrenNodes[direction ? offset : offset - 1];
@@ -739,56 +636,35 @@ export function getDeepestPosition(node, offset) {
             next.nextSibling &&
             closestBlock(node).contains(next.nextSibling)
         ) {
-            // Invalid node: skip to next sibling (without crossing blocks).
             next = next.nextSibling;
         } else {
-            // Invalid node: skip to previous sibling (without crossing blocks).
             direction = DIRECTIONS.LEFT;
             next =
                 closestBlock(node).contains(next.previousSibling) &&
                 next.previousSibling;
         }
-        // Avoid too-deep ranges inside self-closing elements like [BR, 0].
         next = !isSelfClosingElement(next) && next;
     }
     return [node, offset];
 }
 
 /**
- * Return the deepest editable position from a given DOM position.
- *
- * This resolves a [node, offset] pair to the deepest descendant that is
- * allowed to contain the caret. If the resolved deepest position is inside
- * a non-editable element, the function walks up the DOM until it reaches
- * an editable ancestor and adjusts the offset so the caret sits just before
- * or after the non-editable region.
- *
- * Example:
- *   <div contenteditable="true">
- *       <span contenteditable="false">X</span>
- *   </div>
- *   getDeepestEditablePosition(div, 1)
- *   → [div, 1]
- *
- * @param {Node} node   - Node in which the position is being resolved.
- * @param {number} offset - Offset within node.
- * @returns {[Node, number]} A corrected editable node and offset.
+ * @param {Node} node
+ * @param {number} offset
+ * @returns {[Node, number]}
  */
 export function getDeepestEditablePosition(node, offset) {
     const [deepNode, deepOffset] = getDeepestPosition(node, offset);
 
-    // If deepest node is already editable, nothing to correct.
     if (isContentEditable(deepNode)) {
         return [deepNode, deepOffset];
     }
 
-    // The direct child of root that contains the deepest resolved node.
     const nodeLevelAncestor =
         isTextNode(deepNode) && deepNode.parentElement === node
             ? deepNode
             : closestElement(deepNode, (el) => el.parentElement === node);
 
-    // The closest non-editable ancestor whose parent is editable.
     const closestNonEditable = closestElement(
         deepNode,
         (el) => !isContentEditable(el) && isContentEditable(el.parentElement),
@@ -797,15 +673,12 @@ export function getDeepestEditablePosition(node, offset) {
     const nodeLevelAncestorIndex = childNodeIndex(nodeLevelAncestor);
     const closestNonEditableIndex = childNodeIndex(closestNonEditable);
 
-    // Decide whether the caret should be placed before or after
-    // the non-editable element based on the requested offset.
     const deepEditableNode = closestNonEditable.parentElement;
     const deepEditableOffset =
         nodeLevelAncestorIndex < offset
             ? closestNonEditableIndex + 1
             : closestNonEditableIndex;
 
-    // If caret lands on non-editable, resolve it from previous sibling.
     if (deepEditableOffset === closestNonEditableIndex) {
         const previousSiblingOfNonEditable = closestNonEditable.previousSibling;
         if (previousSiblingOfNonEditable) {
@@ -875,10 +748,10 @@ const NOT_A_NUMBER = /[^\d]/g;
 
 export function areSimilarElements(node, node2) {
     if (![node, node2].every((n) => n?.nodeType === Node.ELEMENT_NODE)) {
-        return false; // The nodes don't both exist or aren't both elements.
+        return false;
     }
     if (node.nodeName !== node2.nodeName) {
-        return false; // The nodes aren't the same type of element.
+        return false;
     }
     for (const name of new Set([
         ...node.getAttributeNames(),
@@ -890,10 +763,10 @@ export function areSimilarElements(node, node2) {
             }
         } else if (name === "class") {
             if (!hasSameClasses(node, node2)) {
-                return false; // The nodes don't have the same classes.
+                return false;
             }
         } else if (node.getAttribute(name) !== node2.getAttribute(name)) {
-            return false; // The nodes don't have the same attributes.
+            return false;
         }
     }
     if (
@@ -903,7 +776,7 @@ export function areSimilarElements(node, node2) {
                 hasPseudoElementContent(n, ":after"),
         )
     ) {
-        return false; // The nodes have pseudo elements with content.
+        return false;
     }
     if (isBlock(node)) {
         return false;
@@ -972,18 +845,12 @@ export function isContentEditableAncestor(node) {
     return node.isContentEditable && node.matches("[contenteditable]");
 }
 
-/**
- * Checks if all classes in node are present in node2 (subset check)
- */
 function hasClassesSubset(node, node2) {
     const getNodeClasses = (n) => (n || "").trim().split(/\s+/).filter(Boolean);
     const [nodeClasses, node2Classes] = [node, node2].map(getNodeClasses);
     return nodeClasses.every((cls) => node2Classes.includes(cls));
 }
 
-/**
- * Checks if all styles in node are present in node2 (subset check)
- */
 function hasStylesSubset(node, node2) {
     const getNodeStyles = (n) =>
         (n || "")
@@ -995,51 +862,35 @@ function hasStylesSubset(node, node2) {
 }
 
 /**
- * Checks if a node is redundant based on its closest element with same tag.
- *
- * A node is considered redundant if:
- * - It is an Element node with a parent.
- * - There is a closest element with the same tag name.
- * - All of the node's attributes are present in that closest element:
- *   - All classes exist in the closest element's class list (subset check).
- *   - All inline styles are present in the closest element's style attribute (subset check).
- *   - All other attributes must have identical values.
- *
- * @param {Node} node - The DOM node to evaluate.
- * @returns {boolean} True if the node is redundant, false otherwise.
+ * @param {Node} node
+ * @returns {boolean}
  */
 export function isRedundantElement(node) {
-    // Check for valid element node and existence of a parent.
     if (!node || node.nodeType !== Node.ELEMENT_NODE || !node.parentElement) {
         return false;
     }
 
-    // Find the closest element with the same tag name.
     const closestEl = closestElement(node.parentElement, node.tagName);
     if (!closestEl) {
         return false;
     }
 
-    // Check each attribute from node.
     for (const { name: attrName, value: nodeAttrVal } of node.attributes) {
         const closestElAttrVal = closestEl.getAttribute(attrName);
 
         if (!closestElAttrVal) {
-            return false; // Attribute missing in closest element.
+            return false;
         }
 
         if (attrName === "class") {
-            // All classes on the node must exist in closest element.
             if (!hasClassesSubset(nodeAttrVal, closestElAttrVal)) {
                 return false;
             }
         } else if (attrName === "style") {
-            // All inline styles on the node must exist in closest element.
             if (!hasStylesSubset(nodeAttrVal, closestElAttrVal)) {
                 return false;
             }
         } else {
-            // For other attributes, values must match exactly.
             if (nodeAttrVal !== closestElAttrVal) {
                 return false;
             }
@@ -1049,5 +900,4 @@ export function isRedundantElement(node) {
     return true;
 }
 
-// Selector for QWeb-specific attributes
 export const PROTECTED_QWEB_SELECTOR = "[t-esc], [t-raw], [t-out], [t-field]";

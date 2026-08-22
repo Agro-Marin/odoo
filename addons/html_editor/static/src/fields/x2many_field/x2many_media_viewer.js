@@ -34,7 +34,7 @@ export class X2ManyMediaViewer extends X2ManyField {
 
     addMedia() {
         this.dialogs.add(CustomMediaDialog, {
-            save: (el) => {}, // Simple rebound to fake its execution
+            save: (el) => {},
             multiImages: true,
             visibleTabs: ["IMAGES", "VIDEOS"],
             imageSave: this.onImageSave.bind(this),
@@ -68,8 +68,6 @@ export class X2ManyMediaViewer extends X2ManyField {
         for (const attachment of attachmentRecords) {
             const imageList = this.props.record.data[this.props.name];
             if (!attachment.datas) {
-                // URL type attachments are mostly demo records which don't have any ir.attachment datas
-                // TODO: make it work with URL type attachments
                 return this.notification.add(
                     `Cannot add URL type attachment "${attachment.name}". Please try to reupload this image.`,
                     {
@@ -81,10 +79,6 @@ export class X2ManyMediaViewer extends X2ManyField {
                 this.props.convertToWebp &&
                 !["image/gif", "image/svg+xml"].includes(attachment.mimetype)
             ) {
-                // This method is widely adapted from onFileUploaded in ImageField.
-                // Upon change, make sure to verify whether the same change needs
-                // to be applied on both sides.
-                // Generate alternate sizes and format for reports.
                 const image = document.createElement("img");
                 image.src = `data:${attachment.mimetype};base64,${attachment.datas}`;
                 await new Promise((resolve) => image.addEventListener("load", resolve));
@@ -113,7 +107,6 @@ export class X2ManyMediaViewer extends X2ManyField {
                         canvas.height,
                     );
 
-                    // WebP format
                     const webpData = canvas.toDataURL("image/webp").split(",")[1];
                     const [resizedId] = await this.orm.call(
                         "ir.attachment",
@@ -135,7 +128,6 @@ export class X2ManyMediaViewer extends X2ManyField {
 
                     referenceId = referenceId || resizedId;
 
-                    // JPEG format for compatibility
                     const jpegData = canvas.toDataURL("image/jpeg").split(",")[1];
                     await this.orm.call("ir.attachment", "create_unique", [
                         [

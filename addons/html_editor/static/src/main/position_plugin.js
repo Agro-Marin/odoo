@@ -8,15 +8,10 @@ import { Plugin } from "../plugin.js";
 /**
  * @typedef {(() => void)[]} layout_geometry_change_handlers
  */
-/**
- * This plugin broadcasts layout/geometry changes to other plugins when
- * scrolling, resizing, or history changes occur.
- */
 export class PositionPlugin extends Plugin {
     static id = "position";
     /** @type {import("plugins").EditorResources} */
     resources = {
-        // todo: it is strange that the position plugin is aware of external_history_step_handlers and history_reset_from_steps_handlers.
         external_history_step_handlers: this.layoutGeometryChange.bind(this),
         history_reset_from_steps_handlers: this.layoutGeometryChange.bind(this),
         step_added_handlers: this.layoutGeometryChange.bind(this),

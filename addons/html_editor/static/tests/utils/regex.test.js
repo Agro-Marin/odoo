@@ -41,7 +41,6 @@ function testPhoneRegex(value, isPhoneRegex = true) {
 testUrlRegex("google.com");
 testUrlRegex("a google.com b", { expectedUrl: "google.com" });
 
-// Url separator
 testUrlRegex("google.com/", { expectedUrl: "google.com/" });
 testUrlRegex("google.com?", { expectedUrl: "google.com?" });
 testUrlRegex("google.com#", { expectedUrl: "google.com#" });
@@ -53,7 +52,6 @@ testUrlRegex("google.com/ a", { expectedUrl: "google.com/" });
 testUrlRegex("google.com. a", { expectedUrl: "google.com" });
 testUrlRegex("google.com, a", { expectedUrl: "google.com" });
 
-// Some special characters should not be included if at the end.
 testUrlRegex("google.com/.", { expectedUrl: "google.com/" });
 testUrlRegex("google.com/,", { expectedUrl: "google.com/" });
 testUrlRegex("google.com/)", { expectedUrl: "google.com/" });
@@ -76,7 +74,6 @@ testUrlRegex("google.com?}", { expectedUrl: "google.com?" });
 testUrlRegex("google.com?'", { expectedUrl: "google.com?" });
 testUrlRegex('google.com?"', { expectedUrl: "google.com?" });
 
-// The previous special characters should be included when they are not at the end.
 testUrlRegex("google.com/.a", { expectedUrl: "google.com/.a" });
 testUrlRegex("google.com/,a", { expectedUrl: "google.com/,a" });
 testUrlRegex("google.com/)a", { expectedUrl: "google.com/)a" });
@@ -85,7 +82,6 @@ testUrlRegex("google.com/}a", { expectedUrl: "google.com/}a" });
 testUrlRegex("google.com/'a", { expectedUrl: "google.com/'a" });
 testUrlRegex('google.com/"a', { expectedUrl: 'google.com/"a' });
 
-// Other special characters can be included at the end.
 testUrlRegex("google.com/(", { expectedUrl: "google.com/(" });
 testUrlRegex("google.com/[", { expectedUrl: "google.com/[" });
 testUrlRegex("google.com/{", { expectedUrl: "google.com/{" });
@@ -128,7 +124,6 @@ testNotUrlRegex("a.b.bc");
 testNotUrlRegex("20.08.2022");
 testNotUrlRegex("31.12");
 
-// Url data and anchors count as part of the url.
 testUrlRegex("google.com?data=hello", { expectedUrl: "google.com?data=hello" });
 testUrlRegex("google.com/?data=hello", { expectedUrl: "google.com/?data=hello" });
 testUrlRegex("google.com/foo/?data=hello", {
@@ -151,7 +146,6 @@ testUrlRegex("google.com/foo/?data=hello&data2=foo#anchor", {
     expectedUrl: "google.com/foo/?data=hello&data2=foo#anchor",
 });
 
-// Url containing some special characters
 testUrlRegex("www.google.com/path/1-2-3", { expectedUrl: "www.google.com/path/1-2-3" });
 testUrlRegex("https://google.com/abc..def", {
     expectedUrl: "https://google.com/abc..def",
@@ -179,7 +173,6 @@ testUrlRegex(`http://google.com?a.b.c&d!e#e'f`, {
     expectedUrl: "http://google.com?a.b.c&d!e#e'f",
 });
 
-// URL inside text
 testUrlRegex("foo.com", { insideText: true });
 testNotUrlRegex("foo.else", { insideText: true });
 testUrlRegex("www.abc.abc", { insideText: true });
@@ -192,7 +185,6 @@ testUrlRegex("https://1234-abc.runbot007.odoo.com/web#id=3&menu_id=221", {
     insideText: true,
 });
 
-// Phone links
 testPhoneRegex("+32 470 12 34 56");
 testPhoneRegex("+ 32 470 12 34 56");
 testPhoneRegex("+14155552671");

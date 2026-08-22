@@ -281,11 +281,8 @@ describe("Simple text", () => {
                 contentAfter: '<p>a<span class="a">bx[]c</span>d</p>',
             });
         });
-        // TODO: We might want to have it consider \n as paragraph breaks
-        // instead of linebreaks but that would be an opinionated choice.
         test("should paste text and understand \\n newlines", async () => {
             await testEditor({
-                // content adapted to make it valid html
                 contentBefore: "<p>[]<br></p>",
                 stepFunction: async (editor) => {
                     pasteText(editor, "a\nb\nc\nd");
@@ -297,7 +294,6 @@ describe("Simple text", () => {
 
         test("should paste text and understand \\r\\n newlines", async () => {
             await testEditor({
-                // content adapted to make it valid html
                 contentBefore: "<p>[]<br></p>",
                 stepFunction: async (editor) => {
                     pasteText(editor, "a\r\nb\r\nc\r\nd");
@@ -1756,8 +1752,6 @@ describe("Complex html p", () => {
                 stepFunction: async (editor) => {
                     pasteHtml(editor, complexHtmlData);
                 },
-                // FIXME: bringing `e` and `f` into the `<p>` is a tradeoff;
-                // possible alternative: <div>1a<p>b12</p>34[]<span>e</span>f</div>
                 contentAfter:
                     '<div>1a<p>b12</p><p>34[]<span class="a">e</span>f</p></div>',
             });
@@ -3618,7 +3612,6 @@ describe("images", () => {
             pasteText(editor, imgUrl);
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 1);
-            // Pick the second command (Paste as URL)
             await press("ArrowDown");
             await press("Enter");
             expect(cleanLinkArtifacts(getContent(el))).toBe(
@@ -3629,12 +3622,10 @@ describe("images", () => {
         test("should not revert a history step when pasting an image URL as a link (1)", async () => {
             const { el, editor } = await setupEditor("<p>[]</p>");
 
-            // paste text to have a history step recorded
             pasteText(editor, "*should not disappear*");
             pasteText(editor, imgUrl);
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 1);
-            // Pick the second command (Paste as URL)
             await press("ArrowDown");
             await press("Enter");
             expect(cleanLinkArtifacts(getContent(el))).toBe(
@@ -3689,7 +3680,6 @@ describe("images", () => {
             pasteText(editor, imgUrl);
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 1);
-            // Pick the second command (Paste as URL)
             await press("ArrowDown");
             await press("Enter");
             expect(cleanLinkArtifacts(getContent(el))).toBe(
@@ -3700,9 +3690,7 @@ describe("images", () => {
         test("should not revert a history step when pasting an image URL as a link (2)", async () => {
             const { el, editor } = await setupEditor("<p>[]</p>");
 
-            // paste text (to have a history step recorded)
             pasteText(editor, "abxxxcd");
-            // select xxx in "<p>ab[xxx]cd</p>"
             const p = editor.editable.querySelector("p");
             const selection = {
                 anchorNode: p.childNodes[0],
@@ -3711,11 +3699,9 @@ describe("images", () => {
                 focusOffset: 5,
             };
             setSelection(selection);
-            // paste url
             pasteText(editor, imgUrl);
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 1);
-            // Pick the second command (Paste as URL)
             await press("ArrowDown");
             await press("Enter");
             expect(cleanLinkArtifacts(getContent(el))).toBe(
@@ -3728,9 +3714,7 @@ describe("images", () => {
             pasteText(editor, imgUrl);
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 1);
-            // Pick first command (Embed image)
             await press("Enter");
-            // Undo
             undo(editor);
             expect(getContent(el)).toBe("<p>[abc]</p>");
         });
@@ -3741,10 +3725,8 @@ describe("images", () => {
             pasteText(editor, imgUrl);
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 1);
-            // Pick second command (Paste as URL)
             await press("ArrowDown");
             await press("Enter");
-            // Undo
             undo(editor);
             expect(getContent(el)).toBe("<p>[abc]</p>");
         });
@@ -3768,9 +3750,7 @@ describe("youtube video", () => {
             pasteText(editor, videoUrl);
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 1);
-            // Force powerbox validation on the default first choice
             await press("Enter");
-            // Wait for the getYoutubeVideoElement promise to resolve.
             await tick();
             expect(getContent(el)).toBe(
                 `<p>ab</p><div data-oe-expression="${videoUrl}" class="media_iframe_video" contenteditable="false"><div class="css_editable_mode_display"></div><div class="media_iframe_video_size" contenteditable="false"></div><iframe frameborder="0" contenteditable="false" allowfullscreen="allowfullscreen" src="${videoUrl}"></iframe></div><p>[]cd</p>`,
@@ -3787,9 +3767,7 @@ describe("youtube video", () => {
             pasteText(editor, "https://youtu.be/dQw4w9WgXcQ");
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 1);
-            // Force powerbox validation on the default first choice
             await press("Enter");
-            // Wait for the getYoutubeVideoElement promise to resolve.
             await tick();
             expect(getContent(el)).toBe(
                 '<p>a<span class="a">b</span></p><div data-oe-expression="https://youtu.be/dQw4w9WgXcQ" class="media_iframe_video" contenteditable="false"><div class="css_editable_mode_display"></div><div class="media_iframe_video_size" contenteditable="false"></div><iframe frameborder="0" contenteditable="false" allowfullscreen="allowfullscreen" src="https://youtu.be/dQw4w9WgXcQ"></iframe></div><p><span class="a">[]c</span>d</p>',
@@ -3802,7 +3780,6 @@ describe("youtube video", () => {
                 { config },
             );
             pasteText(editor, "https://youtu.be/dQw4w9WgXcQ");
-            // Ensure the powerbox did not open
             const powerbox = plugins.get("powerbox");
             expect(powerbox.overlay.isOpen).not.toBe(true);
             expect(cleanLinkArtifacts(getContent(el))).toBe(
@@ -3816,7 +3793,6 @@ describe("youtube video", () => {
             pasteText(editor, url);
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 1);
-            // Pick the second command (Paste as URL)
             await press("ArrowDown");
             await press("Enter");
             expect(cleanLinkArtifacts(getContent(el))).toBe(
@@ -3827,12 +3803,10 @@ describe("youtube video", () => {
         test("should not revert a history step when pasting a youtube URL as a link (1)", async () => {
             const url = "https://youtu.be/dQw4w9WgXcQ";
             const { el, editor } = await setupEditor("<p>[]</p>", { config });
-            // paste text to have a history step recorded
             pasteText(editor, "*should not disappear*");
             pasteText(editor, url);
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 1);
-            // Pick the second command (Paste as URL)
             await press("ArrowDown");
             await press("Enter");
             expect(cleanLinkArtifacts(getContent(el))).toBe(
@@ -3854,9 +3828,7 @@ describe("youtube video", () => {
             pasteText(editor, "https://youtu.be/dQw4w9WgXcQ");
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 1);
-            // Force powerbox validation on the default first choice
             await press("Enter");
-            // Wait for the getYoutubeVideoElement promise to resolve.
             await tick();
             expect(getContent(el)).toBe(
                 '<p>ab</p><div data-oe-expression="https://youtu.be/dQw4w9WgXcQ" class="media_iframe_video" contenteditable="false"><div class="css_editable_mode_display"></div><div class="media_iframe_video_size" contenteditable="false"></div><iframe frameborder="0" contenteditable="false" allowfullscreen="allowfullscreen" src="https://youtu.be/dQw4w9WgXcQ"></iframe></div><p>[]cd</p>',
@@ -3871,9 +3843,7 @@ describe("youtube video", () => {
             pasteText(editor, videoUrl);
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 1);
-            // Force powerbox validation on the default first choice
             await press("Enter");
-            // Wait for the getYoutubeVideoElement promise to resolve.
             await tick();
             expect(getContent(el)).toBe(
                 `<p>a<span class="a">b</span></p><div data-oe-expression="${videoUrl}" class="media_iframe_video" contenteditable="false"><div class="css_editable_mode_display"></div><div class="media_iframe_video_size" contenteditable="false"></div><iframe frameborder="0" contenteditable="false" allowfullscreen="allowfullscreen" src="${videoUrl}"></iframe></div><p><span class="a">[]c</span>d</p>`,
@@ -3886,7 +3856,6 @@ describe("youtube video", () => {
                 { config },
             );
             pasteText(editor, videoUrl);
-            // Ensure the powerbox did not open
             const powerbox = plugins.get("powerbox");
             expect(powerbox.overlay.isOpen).not.toBe(true);
             expect(cleanLinkArtifacts(getContent(el))).toBe(
@@ -3899,7 +3868,6 @@ describe("youtube video", () => {
             pasteText(editor, videoUrl);
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 1);
-            // Pick the second command (Paste as URL)
             await press("ArrowDown");
             await press("Enter");
             expect(cleanLinkArtifacts(getContent(el))).toBe(
@@ -3909,9 +3877,7 @@ describe("youtube video", () => {
 
         test("should not revert a history step when pasting a youtube URL as a link (2)", async () => {
             const { el, editor } = await setupEditor("<p>[]</p>", { config });
-            // paste text (to have a history step recorded)
             pasteText(editor, "abxxxcd");
-            // select xxx in "<p>ab[xxx]cd</p>"
             const p = editor.editable.querySelector("p");
             const selection = {
                 anchorNode: p.childNodes[0],
@@ -3922,11 +3888,9 @@ describe("youtube video", () => {
             setSelection(selection);
             setSelection(selection);
 
-            // paste url
             pasteText(editor, videoUrl);
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 1);
-            // Pick the second command (Paste as URL)
             await press("ArrowDown");
             await press("Enter");
             expect(cleanLinkArtifacts(getContent(el))).toBe(
@@ -3939,9 +3903,7 @@ describe("youtube video", () => {
             pasteText(editor, videoUrl);
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 1);
-            // Force powerbox validation on the default first choice
             await press("Enter");
-            // Undo
             undo(editor);
             expect(getContent(el)).toBe("<p>[abc]</p>");
         });
@@ -3951,10 +3913,8 @@ describe("youtube video", () => {
             pasteText(editor, videoUrl);
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 1);
-            // Pick the second command (Paste as URL)
             await press("ArrowDown");
             await press("Enter");
-            // Undo
             undo(editor);
             expect(getContent(el)).toBe("<p>[abc]</p>");
         });
@@ -3976,7 +3936,6 @@ describe("youtube video with embedded components", () => {
         const { editor } = await setupEditor("<p>[]<br></p>", { config });
         pasteText(editor, videoUrl);
         await waitFor(".o-we-powerbox");
-        // Pick first command (Embed video)
         await press("Enter");
         await waitFor(`[data-embedded="video"] iframe`);
         expect(`[data-embedded="video"] iframe`).toHaveCount(1);
@@ -3985,7 +3944,6 @@ describe("youtube video with embedded components", () => {
         const { el, editor } = await setupEditor("<p>[]<br></p>", { config });
         pasteText(editor, videoUrl);
         await waitFor(".o-we-powerbox");
-        // Pick the second command (Paste as URL)
         await press("ArrowDown");
         await press("Enter");
         expect(cleanLinkArtifacts(getContent(el))).toBe(
@@ -4070,8 +4028,6 @@ describe("paste in contenteditable span", () => {
 });
 
 describe("Paste HTML tables", () => {
-    // The tests below are very sensitive to whitespaces as they do represent actual
-    // whitespace text nodes in the DOM. The tests will fail if those are removed.
     test("should keep all allowed style (Excel Online)", async () => {
         await testEditor({
             contentBefore: "<p>[]</p>",
@@ -4746,7 +4702,6 @@ describe("onDrop", () => {
             "text/html",
             `<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"><img src="${base64Image}">`,
         );
-        // Simulate the application/vnd.odoo.odoo-editor data that the browser would do.
         dropData.setData("application/vnd.odoo.odoo-editor", imageHTML);
         await dispatch(pElement, "drop", { dataTransfer: dropData });
         await animationFrame();
@@ -4787,7 +4742,6 @@ describe("onDrop", () => {
             "text/html",
             `<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"><img src="${base64Image}">`,
         );
-        // Simulate the application/vnd.odoo.odoo-editor data that the browser would do.
         dropData.setData("application/vnd.odoo.odoo-editor", imageHTML);
         await dispatch(pElement, "drop", { dataTransfer: dropData });
         await animationFrame();
@@ -4827,7 +4781,6 @@ describe("onDrop", () => {
             "text/html",
             `<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"><img src="${base64Image3}">`,
         );
-        // Simulate the application/vnd.odoo.odoo-editor data that the browser would do.
         dropData.setData("application/vnd.odoo.odoo-editor", imageHTML);
         await dispatch(pElement, "drop", { dataTransfer: dropData });
         await animationFrame();
@@ -4870,7 +4823,6 @@ describe("onDrop", () => {
             "text/html",
             `<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"><img src="${base64Image1}"><img src="${base64Image2}">`,
         );
-        // Simulate the application/vnd.odoo.odoo-editor data that the browser would do.
         dropData.setData("application/vnd.odoo.odoo-editor", imageHTML);
         await dispatch(pElement, "drop", { dataTransfer: dropData });
         await animationFrame();
@@ -4908,7 +4860,6 @@ describe("onDrop", () => {
         const textHtml = dragdata.getData("text/html");
         const dropData = new DataTransfer();
         dropData.setData("text/html", textHtml);
-        // Simulate the application/vnd.odoo.odoo-editor data that the browser would do.
         dropData.setData("application/vnd.odoo.odoo-editor", odooEditorData);
         await dispatch(targetNodeForDrop, "drop", { dataTransfer: dropData });
         await animationFrame();
@@ -4945,7 +4896,6 @@ describe("onDrop", () => {
         const textHtml = dragdata.getData("text/html");
         const dropData = new DataTransfer();
         dropData.setData("text/html", textHtml);
-        // Simulate the application/vnd.odoo.odoo-editor data that the browser would do.
         dropData.setData("application/vnd.odoo.odoo-editor", odooEditorData);
         await dispatch(targetNodeForDrop, "drop", { dataTransfer: dropData });
         await animationFrame();

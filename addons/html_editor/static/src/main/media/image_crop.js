@@ -20,7 +20,6 @@ import { useService } from "@web/core/utils/hooks";
 
 import { IMAGE_SHAPES } from "./image_plugin.js";
 
-// key: ratio identifier, label: displayed to user, value: used by cropper lib
 export const cropperAspectRatios = {
     "0/0": { label: _t("Flexible"), value: 0 },
     "16/9": { label: "16:9", value: 16 / 9 },
@@ -51,9 +50,6 @@ export class ImageCrop extends Component {
         this.discardButtonRef = useRef("discardButton");
         this.isCropperActive = false;
 
-        // We use capture so that the handler is called before other editor handlers
-        // like save, such that we can restore the src before a save.
-        // We need to add event listeners to the owner document of the widget.
         useExternalListener(this.document, "mousedown", this.onDocumentMousedown, {
             capture: true,
         });
@@ -90,9 +86,6 @@ export class ImageCrop extends Component {
         if (!this.isCropperActive && !this.forceClose) {
             return;
         }
-        // Deactivate before calling onClose to prevent re-entry: removing
-        // the registry key triggers OWL to destroy this component, which
-        // fires onWillDestroy → closeCropper again.
         this.isCropperActive = false;
         this.forceClose = false;
         this.cropper?.destroy?.();
@@ -106,9 +99,6 @@ export class ImageCrop extends Component {
         this.props?.onClose?.();
     }
 
-    /**
-     * Resets the crop
-     */
     async reset() {
         if (this.cropper) {
             this.cropper.reset();
@@ -131,7 +121,6 @@ export class ImageCrop extends Component {
         this.initialSrc = src;
         this.aspectRatio = data.aspectRatio || "0/0";
 
-        // todo: check that the mutations of loadImage are not problematic (they most probably are).
         Object.assign(this.media.dataset, await loadImageInfo(this.media));
         const isIllustration = /^\/(?:html|web)_editor\/shape\/illustration\//.test(
             this.media.dataset.originalSrc,
@@ -141,7 +130,6 @@ export class ImageCrop extends Component {
             this.originalSrc = this.media.dataset.originalSrc;
             this.originalId = this.media.dataset.originalId;
         } else {
-            // Couldn't find an attachment: not croppable.
             this.uncroppable = true;
         }
 
@@ -162,11 +150,8 @@ export class ImageCrop extends Component {
         }
 
         await this.scrollToInvisibleImage();
-        // Replacing the src with the original's so that the layout is correct.
         await loadImage(this.originalSrc, this.media);
         if (status(this) !== "mounted") {
-            // Abort if the component has been destroyed in the meantime
-            // since `this.imageRef.el` is `null` when it is not mounted.
             return;
         }
         const cropperImage = this.imageRef.el;
@@ -178,7 +163,6 @@ export class ImageCrop extends Component {
         const sel = this.document.getSelection();
         sel && sel.removeAllRanges();
 
-        // Overlaying the cropper image over the real image
         let offset;
         if (!this.media.getClientRects().length) {
             offset = { top: 0, left: 0 };
@@ -227,10 +211,6 @@ export class ImageCrop extends Component {
         this.applyButtonRef.el?.focus({ preventScroll: true });
     }
     /**
-     * Updates the DOM image with cropped data and associates required
-     * information for a potential future save (where required cropped data
-     * attachments will be created).
-     *
      * @private
      */
     async save() {
@@ -242,8 +222,6 @@ export class ImageCrop extends Component {
         this.closeCropper();
     }
     /**
-     * Resets the crop box to prevent it going outside the image.
-     *
      * @private
      */
     resetCropBox() {
@@ -251,22 +229,14 @@ export class ImageCrop extends Component {
         this.cropper.crop();
     }
     /**
-     * Make sure the targeted image is in the visible viewport before crop.
-     *
      * @private
      */
     async scrollToInvisibleImage() {
         const rect = this.media.getBoundingClientRect();
         const viewportTop = this.document.documentElement.scrollTop || 0;
         const viewportBottom = viewportTop + window.innerHeight;
-        // Give priority to the closest scrollable element (e.g. for images in
-        // HTML fields, the element to scroll is different from the document's
-        // scrolling element).
         const scrollable = closestScrollableY(this.media);
 
-        // The image must be in a position that allows access to it and its crop
-        // options buttons. Otherwise, the crop widget container can be scrolled
-        // to allow editing.
         if (rect.top < viewportTop || viewportBottom - rect.bottom < 100) {
             await scrollTo(this.media, {
                 behavior: "smooth",
@@ -274,10 +244,6 @@ export class ImageCrop extends Component {
             });
         }
     }
-
-    //--------------------------------------------------------------------------
-    // Handlers
-    //--------------------------------------------------------------------------
 
     onZoom(scale) {
         this.cropper.zoom(scale);
@@ -303,8 +269,6 @@ export class ImageCrop extends Component {
     }
 
     /**
-     * Discards crop if the user clicks outside of the widget.
-     *
      * @private
      * @param {MouseEvent} ev
      */
@@ -317,9 +281,6 @@ export class ImageCrop extends Component {
         }
     }
     /**
-     * Save crop if user hits enter,
-     * discard crop on escape.
-     *
      * @private
      * @param {KeyboardEvent} ev
      */
@@ -351,12 +312,9 @@ export class ImageCrop extends Component {
         );
     }
     /**
-     * Resets the cropbox on zoom to prevent crop box overflowing.
-     *
      * @private
      */
     async onCropZoom() {
-        // Wait for the zoom event to be fully processed before reseting.
         await new Promise((res) => setTimeout(res, 0));
         this.resetCropBox();
     }

@@ -17,7 +17,7 @@ import { fixInvalidHTML, initElementForEdition } from "./utils/sanitize.js";
 /**
  * @typedef {import("plugins").SharedMethods} SharedMethods
  * @typedef {import("plugins").PluginConstructor} PluginConstructor
- **/
+ */
 
 /**
  * @typedef { Object } CollaborationConfig
@@ -28,7 +28,6 @@ import { fixInvalidHTML, initElementForEdition } from "./utils/sanitize.js";
  * @property { String } collaboration.collaborationChannel.collaborationFieldName
  * @property { Number } collaboration.collaborationChannel.collaborationResId
  * @property { 'start' | 'focus' } [collaboration.collaborativeTrigger]
-
  * @typedef { Object } EditorConfig
  * @property { string } [content]
  * @property { boolean } [allowInlineAtRoot]
@@ -44,7 +43,6 @@ import { fixInvalidHTML, initElementForEdition } from "./utils/sanitize.js";
  * @property { boolean } [dropImageAsAttachment]
  * @property { CollaborationConfig } [collaboration]
  * @property { Function } getRecordInfo
- *
  * @typedef { Object } EditorContext
  * @property { Document } document
  * @property { HTMLElement } editable
@@ -63,8 +61,6 @@ import { fixInvalidHTML, initElementForEdition } from "./utils/sanitize.js";
  */
 
 /**
- * Clean up DOM before taking into account for next history step remaining in
- * edit mode
  * @typedef {((root: EditorContext["editable"] | HTMLElement, stepType?: "original"|"undo"|"redo"|"restore") => void)[]} normalize_handlers
  */
 
@@ -75,7 +71,6 @@ import { fixInvalidHTML, initElementForEdition } from "./utils/sanitize.js";
 function sortPlugins(plugins) {
     const initialPlugins = new Set(plugins);
     const inResult = new Set();
-    // need to sort them
     const result = [];
     let P;
 
@@ -117,9 +112,9 @@ export class Editor {
         /** @type { EditorResources } */
         this.resources = null;
         this.plugins = [];
-        /** @type { HTMLElement } **/
+        /** @type { HTMLElement } */
         this.editable = null;
-        /** @type { Document } **/
+        /** @type { Document } */
         this.document = null;
         /** @ts-ignore  @type { SharedMethods } **/
         this.shared = {};
@@ -184,13 +179,6 @@ export class Editor {
                 throw new Error(`Missing plugin id (class ${P.name})`);
             }
             if (this.pluginsMap.has(P.id)) {
-                // Idempotently dedupe a plugin already registered for this id.
-                // Either the same class reference appears twice in the list
-                // (caught by identity `===`), or two distinct class objects
-                // share the same id and class name (e.g. separate test bundles
-                // each re-evaluating the same plugin source); the first one
-                // wins. A genuine collision (same id string, different class
-                // names) still throws below.
                 const existing = this.pluginsMap.get(P.id);
                 if (existing === P || existing.name === P.name) {
                     continue;
@@ -307,46 +295,26 @@ export class Editor {
     }
 
     /**
-     * Execute the functions registered under resourceId with the given
-     * arguments, like an event dispatcher calling the handlers with `args` as
-     * the payload.
-     *
      * @template {GlobalResourcesId} R
      * @param {R} resourceId
-     * @param {Parameters<GlobalResources[R][0]>} args The arguments to pass to the handlers.
+     * @param {Parameters<GlobalResources[R][0]>} args
      */
     dispatchTo(resourceId, ...args) {
         this.getResource(resourceId).forEach((handler) => handler(...args));
     }
     /**
-     * Execute a series of functions until one of them returns a truthy value.
-     * A command "delegates" its execution to one of the overriding functions,
-     * which return a truthy value to signal it has been handled.
-     *
-     * It is the caller's responsibility to stop the execution when this
-     * function returns true.
-     *
      * @template {GlobalResourcesId} R
      * @param {R} resourceId
-     * @param {Parameters<GlobalResources[R][0]>} args The arguments to pass to the overrides.
-     * @returns {boolean} Whether one of the overrides returned a truthy value.
+     * @param {Parameters<GlobalResources[R][0]>} args
+     * @returns {boolean}
      */
     delegateTo(resourceId, ...args) {
         return this.getResource(resourceId).some((fn) => fn(...args));
     }
 
     /**
-     * Test the given arguments against all the predicates registered under
-     * `resourceId` (which ends with "_predicates" by convention), and return
-     * true if any predicate returns `true` and none returns `false` (ignoring
-     * those that return `undefined`).
-     *
-     * Since this treats booleans and nullish results differently, predicates
-     * should only return a boolean when it's meaningful, and callers should
-     * declare a default value in case it returns `undefined`.
-     *
      * @param {string} resourceId
-     * @param  {...any} args The arguments to pass to the predicates.
+     * @param {...any} args
      * @returns {boolean | undefined}
      */
     checkPredicates(resourceId, ...args) {
@@ -367,10 +335,6 @@ export class Editor {
     }
 
     destroy(willBeRemoved) {
-        // Every plugin must be destroyed even if one of them throws: aborting
-        // the loop would leak the DOM listeners, intervals and observers of
-        // every plugin registered before the thrower, and leave `isDestroyed`
-        // false. Errors are collected and re-raised once teardown is complete.
         const errors = [];
         if (this.editable) {
             let plugin;
@@ -383,9 +347,6 @@ export class Editor {
             }
             this.shared = {};
             if (!willBeRemoved) {
-                // we only remove class/attributes when necessary. If we know that the editable
-                // element will be removed, no need to make changes that may require the browser
-                // to recompute the layout
                 this.editable.removeAttribute("contenteditable");
                 removeClass(this.editable, "odoo-editor-editable");
             }

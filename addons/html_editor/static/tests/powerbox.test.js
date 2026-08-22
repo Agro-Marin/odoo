@@ -128,7 +128,6 @@ describe("search", () => {
         await insertText(editor, "line");
         await animationFrame();
         expect(commandNames(el).includes("Separator")).toBe(true);
-        // Replace "line" by "divider"
         for (let i = 0; i < 4; i++) {
             press("backspace");
         }
@@ -237,7 +236,7 @@ describe("search", () => {
 
         await insertText(editor, "head");
         await animationFrame();
-        expect(".active .o-we-command-name").toHaveText(commandNames(el)[0]); // "Heading 1"
+        expect(".active .o-we-command-name").toHaveText(commandNames(el)[0]);
 
         await insertText(editor, "/");
         await animationFrame();
@@ -345,23 +344,17 @@ describe("search", () => {
             insertText(editor, "/apple");
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 1);
-            // Both commands should be found with the keyword "apple", being the first
-            // one with a higher score
             expect(commandNames(el)).toEqual(["Test1", "Test2"]);
 
-            // Replace "apple" by "orange"
             for (let i = 0; i < 5; i++) {
                 press("backspace");
             }
             insertText(editor, "/orange");
             await animationFrame();
-            // Same as above
             expect(commandNames(el)).toEqual(["Test1", "Test2"]);
 
             insertText(editor, "s");
-            // "/oranges"
             await animationFrame();
-            // It no longer matches anything in the Test1 command
             expect(commandNames(el)).toEqual(["Test2"]);
         });
 
@@ -373,14 +366,14 @@ describe("search", () => {
                     powerbox_categories: { id: "test", name: "Test" },
                     powerbox_items: [
                         {
-                            title: "Change direction", // "icon" fuzzy matches this
+                            title: "Change direction",
                             description: "test",
                             categoryId: "test",
                             commandId: "testCommand",
                         },
                         {
                             title: "Some command",
-                            description: "add a big section", // "icon" fuzzy matches this
+                            description: "add a big section",
                             categoryId: "test",
                             commandId: "testCommand",
                         },
@@ -410,12 +403,10 @@ describe("search", () => {
             await expectElementCount(".o-we-powerbox", 1);
 
             const matchedCommands = commandNames(el);
-            // All three commands are found, as they all match "icon" in some way.
             expect(matchedCommands).toInclude("Change direction");
             expect(matchedCommands).toInclude("Some command");
             expect(matchedCommands).toInclude("Insert a pictogram");
 
-            // The one with the exact keyword match should come first.
             expect(matchedCommands[0]).toBe("Insert a pictogram");
         });
     });
@@ -436,9 +427,6 @@ describe("search", () => {
             await insertText(editor, "/");
             await animationFrame();
             await expectElementCount(".o-we-powerbox", 1);
-            // We need to add another character (b) otherwise the space will be
-            // considered invisible in the getContent(el). This is a limitation
-            // of the test suite that does not transform the space into a nbsp.
             await insertText(editor, " b");
             await animationFrame();
             expect(getContent(el)).toBe("<p>a/ b[]</p>");
@@ -520,7 +508,6 @@ test("should execute command and remove term and hot character on Enter", async 
     await press("Enter");
     expect(getContent(el)).toBe("<h1>ab[]</h1>");
     await expectElementCount(".o-we-powerbox", 1);
-    // need 1 animation frame to close
     await animationFrame();
     await expectElementCount(".o-we-powerbox", 0);
 });
@@ -536,12 +523,10 @@ test("should execute command and remove term and hot character on Tab", async ()
 test.todo(
     "should close the powerbox if keyup event is called on other block",
     async () => {
-        // TODO: the purpose of this test is unclear.
         const { editor } = await setupEditor("<p>ab</p><p>c[]d</p>");
         await insertText(editor, "/");
         await animationFrame();
         await expectElementCount(".o-we-powerbox", 1);
-        // await dispatch(editor.editable, "keyup");
         await expectElementCount(".o-we-powerbox", 1);
         await animationFrame();
         await expectElementCount(".o-we-powerbox", 0);
@@ -583,7 +568,6 @@ test("should insert a 3x3 table on type `/table` in mobile view", async () => {
 test("should toggle list on empty paragraph", async () => {
     const { el, editor } = await setupEditor("<p>[]<br></p>");
 
-    /** @todo fix warnings */
     patchWithCleanup(console, { warn: () => {} });
 
     await insertText(editor, "/checklist");
@@ -595,7 +579,6 @@ test("should toggle list on empty paragraph", async () => {
     expect(getContent(el)).toBe(
         `<ul class="o_checklist"><li o-we-hint-text="List" class="o-we-hint">[]<br></li></ul>`,
     );
-    // need 1 animation frame to close
     await animationFrame();
     await expectElementCount(".o-we-powerbox", 0);
 });
@@ -640,7 +623,6 @@ test("should restore state before /command insertion when command is executed (2
         config: { Plugins: [...MAIN_PLUGINS, NoOpPlugin] },
     });
 
-    /** @todo fix warnings */
     patchWithCleanup(console, { warn: () => {} });
 
     expect(getContent(el)).toBe(
@@ -660,14 +642,11 @@ test("should restore state before /command insertion when command is executed (2
 test("should discard /command insertion from history when command is executed", async () => {
     const { el, editor } = await setupEditor("<p>[]<br></p>");
 
-    /** @todo fix warnings */
     patchWithCleanup(console, { warn: () => {} });
 
     expect(getContent(el)).toBe(
         `<p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`,
     );
-    // TODO: remove this once we manage inputs.
-    // Simulate <br> removal by contenteditable when something is inserted
     el.querySelector("p > br").remove();
     await insertText(editor, "abc/heading1");
     expect(getContent(el)).toBe("<p>abc/heading1[]</p>");
@@ -782,8 +761,6 @@ test.tags("desktop");
 test("select command with 'mouseenter'", async () => {
     const { editor, el } = await setupEditor("<p>ab[]</p>");
 
-    // Hoot doesn't trigger a mousemove at the start of a hover unless another
-    // element was hovered before, hence this first hover.
     await hover(".odoo-editor-editable");
 
     await insertText(editor, "/head");
@@ -803,17 +780,15 @@ test.tags("desktop");
 test("select command with 'mouseenter' after scroll -- doc in iframe", async () => {
     const { editor } = await setupEditor("<p>ab[]</p>", { props: { iframe: true } });
 
-    // Hoot doesn't trigger a mousemove at the start of a hover unless another
-    // element was hovered before, hence this first hover.
-    await hover(document.body); // Hover on main document's body
+    await hover(document.body);
 
     await insertText(editor, "/");
     await animationFrame();
 
     await hover(".o-we-command-name:eq(1)");
-    await scroll(".o-we-powerbox", { y: 1000 }); // Scroll to bottom
+    await scroll(".o-we-powerbox", { y: 1000 });
     await animationFrame();
-    await scroll(".o-we-powerbox", { y: 0 }); // Scroll back to top
+    await scroll(".o-we-powerbox", { y: 0 });
 
     await hover(".o-we-command-name:eq(3)");
     await animationFrame();
@@ -833,7 +808,6 @@ test("click on a command", async () => {
 
 test("create a new <p> with press 'Enter' then apply a powerbox command", async () => {
     const { editor, el } = await setupEditor("<p>ab[]cd</p>");
-    // Event triggered when pressing "Enter": creates a new paragraph
     await manuallyDispatchProgrammaticEvent(editor.editable, "beforeinput", {
         inputType: "insertParagraph",
     });
@@ -843,7 +817,6 @@ test("create a new <p> with press 'Enter' then apply a powerbox command", async 
     expect(getContent(el)).toBe("<p>ab</p><h1>[]cd</h1>");
 });
 
-// TODO: needs a fix in hoot: duplicate errors are thrown.
 test.todo("add plugins with the same powerboxCategory should crash", async () => {
     expect.errors(1);
     patchWithCleanup(console, {

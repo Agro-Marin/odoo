@@ -40,9 +40,8 @@ export class EmojiPlugin extends Plugin {
 
     /**
      * @param {Object} options
-     * @param {HTMLElement} options.target - The target element to position the overlay.
-     * @param {Function} [options.onSelect] - The callback function to handle the selection of an emoji.
-     * If not provided, the emoji will be inserted into the editor and a step will be trigerred.
+     * @param {HTMLElement} options.target
+     * @param {Function} [options.onSelect]
      */
     showEmojiPicker({ target, onSelect } = {}) {
         this.overlay.open({

@@ -32,10 +32,8 @@ export class NoInlineRootPlugin extends Plugin {
     }
 
     /**
-     * Places the cursor in a safe place (not the editable root).
-     *
      * @param {import("./selection_plugin").EditorSelection} selection
-     * @returns {boolean} Whether the selection was fixed
+     * @returns {boolean}
      */
     fixSelectionOnEditableRoot(selection) {
         if (!selection.isCollapsed || selection.anchorNode !== this.editable) {
@@ -64,7 +62,7 @@ export class NoInlineRootPlugin extends Plugin {
      * @param {Node} nodeAfterCursor
      * @param {Node} nodeBeforeCursor
      * @param {string} key
-     * @returns {boolean} Whether the selection was fixed
+     * @returns {boolean}
      */
     fixSelectionOnEditableRootArrowKeys(nodeAfterCursor, nodeBeforeCursor, key) {
         if (!["ArrowRight", "ArrowLeft", "ArrowUp", "ArrowDown"].includes(key)) {
@@ -90,16 +88,14 @@ export class NoInlineRootPlugin extends Plugin {
     /**
      * @param {Node} nodeAfterCursor
      * @param {Node} nodeBeforeCursor
-     * @returns {boolean} Whether the selection was fixed
+     * @returns {boolean}
      */
     fixSelectionOnEditableRootGeneric(nodeAfterCursor, nodeBeforeCursor) {
         if (isParagraphRelatedElement(nodeAfterCursor)) {
-            // Cursor is right before a 'P'.
             this.dependencies.selection.setCursorStart(nodeAfterCursor);
             return true;
         }
         if (isParagraphRelatedElement(nodeBeforeCursor)) {
-            // Cursor is right after a 'P'.
             this.dependencies.selection.setCursorEnd(nodeBeforeCursor);
             return true;
         }

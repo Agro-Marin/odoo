@@ -10,10 +10,9 @@ test("should convert an rgb and rgba color to hexadecimal", async () => {
 test("should convert an rgba color to hexadecimal (background is hexadecimal)", async () => {
     const parent = getFixture();
     const node = document.createElement("div");
-    parent.style.backgroundColor = "#ff0000"; // red, should be irrelevant
-    node.style.backgroundColor = "#0000ff"; // blue
+    parent.style.backgroundColor = "#ff0000";
+    node.style.backgroundColor = "#0000ff";
     parent.append(node);
-    // white with 50% opacity over blue = light blue
     expect(rgbToHex("rgba(255, 255, 255, 0.5)", node)).toBe("#7f7fff");
     expect(blendColors("rgba(255, 255, 255, 0.5)", node)).toBe("#8080ff");
 });
@@ -21,10 +20,9 @@ test("should convert an rgba color to hexadecimal (background is hexadecimal)", 
 test("should convert an rgba color to hexadecimal (background is color name)", async () => {
     const parent = getFixture();
     const node = document.createElement("div");
-    parent.style.backgroundColor = "#ff0000"; // red, should be irrelevant
-    node.style.backgroundColor = "blue"; // blue
+    parent.style.backgroundColor = "#ff0000";
+    node.style.backgroundColor = "blue";
     parent.append(node);
-    // white with 50% opacity over blue = light blue
     expect(rgbToHex("rgba(255, 255, 255, 0.5)", node)).toBe("#7f7fff");
     expect(blendColors("rgba(255, 255, 255, 0.5)", node)).toBe("#8080ff");
 });
@@ -32,10 +30,9 @@ test("should convert an rgba color to hexadecimal (background is color name)", a
 test("should convert an rgba color to hexadecimal (background is rgb)", async () => {
     const parent = getFixture();
     const node = document.createElement("div");
-    parent.style.backgroundColor = "#ff0000"; // red, should be irrelevant
-    node.style.backgroundColor = "rgb(0, 0, 255)"; // blue
+    parent.style.backgroundColor = "#ff0000";
+    node.style.backgroundColor = "rgb(0, 0, 255)";
     parent.append(node);
-    // white with 50% opacity over blue = light blue
     expect(rgbToHex("rgba(255, 255, 255, 0.5)", node)).toBe("#7f7fff");
     expect(blendColors("rgba(255, 255, 255, 0.5)", node)).toBe("#8080ff");
     parent.remove();
@@ -44,10 +41,9 @@ test("should convert an rgba color to hexadecimal (background is rgb)", async ()
 test("should convert an rgba color to hexadecimal (background is rgba)", async () => {
     const parent = getFixture();
     const node = document.createElement("div");
-    parent.style.backgroundColor = "rgb(255, 0, 0)"; // red
-    node.style.backgroundColor = "rgba(0, 0, 255, 0.5)"; // blue
+    parent.style.backgroundColor = "rgb(255, 0, 0)";
+    node.style.backgroundColor = "rgba(0, 0, 255, 0.5)";
     parent.append(node);
-    // white with 50% opacity over blue with 50% opacity over red = light purple
     expect(rgbToHex("rgba(255, 255, 255, 0.5)", node)).toBe("#bf7fbf");
     expect(blendColors("rgba(255, 255, 255, 0.5)", node)).toBe("#c080c0");
 });

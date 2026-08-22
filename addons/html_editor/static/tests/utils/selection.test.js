@@ -31,8 +31,6 @@ describe("ensureFocus", () => {
                 await dispatch(editor.editable, "keydown", { key: "Enter" });
                 const activeElement = document.activeElement;
                 editor.shared.selection.setCursorStart(activeElement.lastElementChild);
-                // TODO: still needed?
-                // await nextTickFrame();
             },
             contentAfter: unformat(`
                 <div contenteditable="false"><div contenteditable="true">
@@ -42,7 +40,6 @@ describe("ensureFocus", () => {
         });
     });
 
-    // TODO: unskip when ensureFocus is implemented (it is a no-op stub for now).
     test.todo(
         "should preserve the focus on the child of this.editable even if it is enclosed in a contenteditable=false",
         async () => {
@@ -59,8 +56,6 @@ describe("ensureFocus", () => {
                         activeElement.lastElementChild,
                     );
                     await insertText(editor, "focusWasConserved");
-                    // Proof that a simple call to Element.focus would change
-                    // the focus in this case.
                     editor.editable.focus();
                     activeElement = document.activeElement;
                     editor.shared.selection.setCursorStart(
@@ -90,14 +85,10 @@ describe("ensureFocus", () => {
                 stepFunction: async (editor) => {
                     const element = editor.editable.querySelector("#target");
                     ensureFocus(element);
-                    // TODO: still needed?
-                    // await nextTickFrame();
                     const activeElement = document.activeElement;
                     editor.shared.selection.setCursorStart(
                         activeElement.lastElementChild,
                     );
-                    // TODO: still needed?
-                    // await nextTickFrame();
                 },
                 contentAfter: unformat(`
                 <div contenteditable="false"><div contenteditable="true">
@@ -171,7 +162,6 @@ describe("getAdjacentCharacter", () => {
     test("should return the ZWS character before the cursor", async () => {
         const { editor, el } = await setupEditor("<p><span>abc</span>\u200b</p>");
         const p = el.firstChild;
-        // Place the cursor at the end of the P (not in a leaf node)
         setSelection({ anchorNode: p, anchorOffset: nodeSize(p) });
         const selection = editor.document.getSelection();
         expect(getAdjacentCharacter(selection, "previous", el)).toBe("\u200b");

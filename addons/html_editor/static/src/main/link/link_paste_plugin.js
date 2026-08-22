@@ -25,12 +25,8 @@ export class LinkPastePlugin extends Plugin {
      */
     handlePasteText(selection, text) {
         let splitAroundUrl;
-        // todo: add placeholder plugin that prevent any other plugin
-        // Avoid transforming dynamic placeholder pattern to url.
         if (!text.match(/\${.*}/gi)) {
             splitAroundUrl = text.split(URL_REGEX);
-            // Remove 'http(s)://' capturing group from the result (indexes
-            // 2, 5, 8, ...).
             splitAroundUrl = splitAroundUrl.filter((_, index) => (index + 1) % 3);
         }
         if (
@@ -38,11 +34,9 @@ export class LinkPastePlugin extends Plugin {
             splitAroundUrl.length < 3 ||
             closestElement(selection.anchorNode, "pre")
         ) {
-            // Let the default paste handle the text.
             return false;
         }
         if (splitAroundUrl.length === 3 && !splitAroundUrl[0] && !splitAroundUrl[2]) {
-            // Pasted content is a single URL.
             this.handlePasteTextUrl(selection, text);
         } else {
             this.handlePasteTextMultiUrl(selection, splitAroundUrl);
@@ -70,8 +64,6 @@ export class LinkPastePlugin extends Plugin {
      * @param {string} url
      */
     handlePasteTextUrlInsideLink(text, url) {
-        // A url cannot be transformed inside an existing link.
-        // An image can be embedded inside an existing link, a video cannot.
         if (isImageUrl(url)) {
             const img = this.document.createElement("IMG");
             img.setAttribute("src", url);
@@ -90,8 +82,6 @@ export class LinkPastePlugin extends Plugin {
             const url = /^https?:\/\//gi.test(splitAroundUrl[i])
                 ? splitAroundUrl[i]
                 : "http://" + splitAroundUrl[i];
-            // Even indexes will always be plain text, and odd indexes will always be URL.
-            // A url cannot be transformed inside an existing link.
             if (i % 2 && !selectionIsInsideALink) {
                 this.dependencies.dom.insert(
                     this.dependencies.link.createLink(url, splitAroundUrl[i]),

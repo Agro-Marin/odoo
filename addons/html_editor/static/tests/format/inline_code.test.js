@@ -129,18 +129,15 @@ test("should open toolbar for mixed selection and apply formatting outside inlin
         `<p>abc<code class="o_inline_code">t[est</code>de]f</p>`,
     );
 
-    // Toolbar should be present as selection is not fully inside inline code.
     await expectElementCount(".o-we-toolbar", 1);
     await expandToolbar();
 
-    // Apply bold should affect only the part outside inline code ("de").
     await click(".o-we-toolbar button[name='bold']");
     await animationFrame();
     expect(getContent(el)).toBe(
         `<p>abc\ufeff<code class="o_inline_code">\ufefft[est\ufeff</code>\ufeff<strong>de]</strong>f</p>`,
     );
 
-    // Apply text color should still affect only the non-inline-code portion.
     await click(".o-we-toolbar .o-select-color-foreground");
     await expectElementCount(".o_font_color_selector", 1);
     await contains(".btn:contains('Solid')").click();
@@ -148,7 +145,6 @@ test("should open toolbar for mixed selection and apply formatting outside inlin
     expect(getContent(el)).toBe(
         `<p>abc\ufeff<code class="o_inline_code">\ufefft[est\ufeff</code>\ufeff<font style="color: rgb(0, 0, 255);"><strong>de]</strong></font>f</p>`,
     );
-    // Apply font size formatting should wrap only the external text.
     await contains(".o-we-toolbar [name='font_size_selector'].dropdown-toggle").click();
     await contains(`.o_font_size_selector_menu .dropdown-item:contains('80')`).click();
     expect(getContent(el)).toBe(

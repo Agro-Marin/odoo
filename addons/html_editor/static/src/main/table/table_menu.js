@@ -13,7 +13,7 @@ import { _t } from "@web/core/translation";
 export class TableMenu extends Component {
     static template = "html_editor.TableMenu";
     static props = {
-        type: String, // column or row
+        type: String,
         moveColumn: Function,
         addColumn: Function,
         removeColumn: Function,

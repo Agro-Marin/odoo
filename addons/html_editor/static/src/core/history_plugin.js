@@ -13,13 +13,11 @@ import { trackOccurrences, trackOccurrencesPair } from "../utils/tracking.js";
 
 /**
  * @typedef { import("./selection_plugin").EditorSelection } EditorSelection
- *
  * @typedef { Object } SerializedSelection
  * @property { string } anchorNodeId
  * @property { number } anchorOffset
  * @property { string } focusNodeId
  * @property { number } focusOffset
- *
  * @typedef { Object } SerializedNode
  * @property { number } nodeType
  * @property { string } nodeId
@@ -27,7 +25,6 @@ import { trackOccurrences, trackOccurrencesPair } from "../utils/tracking.js";
  * @property { string } tagName
  * @property { SerializedNode[] } children
  * @property { Record<string, string> } attributes
- *
  * @typedef { Object } HistoryStep
  * @property { string } id
  * @property {"original"|"undo"|"redo"|"restore"} type
@@ -35,44 +32,23 @@ import { trackOccurrences, trackOccurrencesPair } from "../utils/tracking.js";
  * @property { HistoryMutation[] } mutations
  * @property { string } previousStepId
  * @property { Object } extraStepInfos
- *
  * @typedef { Object } HistoryMutationCharacterData
  * @property { "characterData" } type
  * @property { string } nodeId
- * @property { string } value the node's ENTIRE new text
- * @property { string } oldValue the node's ENTIRE previous text
- *
- * Storing both values in full means typing n characters into one text node
- * retains exactly n^2 - 1 characters of history (measured: 1500 characters
- * typed into a single paragraph => 2.25M characters, ~2.75MB of heap). It is
- * tempting to store only the changed span instead.
- *
- * Do not, without first solving concurrent composition. The absolute values are
- * load-bearing for collaboration: `addExternalStep` reverts local steps, applies
- * the remote one and replays the local ones, and `makeSavePoint` replays draft
- * mutations over a rewound document. Overwriting the whole text makes those
- * replays converge whatever the intermediate state; a positional delta does not
- * -- its base no longer matches after a concurrent edit to the same node. A
- * delta encoding was implemented and reverted for exactly this reason: it broke
- * `collaboration: should insertText with peer 1 and deleteBackward with peer 2`
- * and `history/makeSavePoint: ... while handling draft mutations`. Fixing the
- * quadratic properly needs operational transformation of concurrent text edits,
- * not a cheaper mutation record.
- *
+ * @property { string } value
+ * @property { string } oldValue
  * @typedef { Object } HistoryMutationAttributes
  * @property { "attributes" } type
  * @property { string } nodeId
  * @property { string } attributeName
  * @property { string } value
  * @property { string } oldValue
- *
  * @typedef { Object } HistoryMutationClassList
  * @property { "classList" } type
  * @property { string } nodeId
  * @property { string } className
  * @property { boolean } value
  * @property { boolean } oldValue
- *
  * @typedef { Object } HistoryMutationAdd
  * @property { "add" } type
  * @property { string } nodeId
@@ -80,7 +56,6 @@ import { trackOccurrences, trackOccurrencesPair } from "../utils/tracking.js";
  * @property { SerializedNode } serializedNode
  * @property { string } nextNodeId
  * @property { string } previousNodeId
- *
  * @typedef { Object } HistoryMutationRemove
  * @property { "remove" } type
  * @property { string } nodeId
@@ -88,33 +63,27 @@ import { trackOccurrences, trackOccurrencesPair } from "../utils/tracking.js";
  * @property { SerializedNode } serializedNode
  * @property { string } nextNodeId
  * @property { string } previousNodeId
- *
  * @typedef { HistoryMutationCharacterData | HistoryMutationAttributes | HistoryMutationClassList | HistoryMutationAdd | HistoryMutationRemove } HistoryMutation
- *
  * @typedef {Object} MutationRecordClassList
  * @property { "classList" } type
  * @property { Node } target
  * @property { string } className
  * @property { boolean } oldValue
  * @property { boolean } value
- *
  * @typedef {Object} MutationRecordAttributes
  * @property { "attributes" } type
  * @property { Node } target
  * @property { string } attributeName
  * @property { string } oldValue
  * @property { string } value
- *
  * @typedef {Object} MutationRecordCharacterData
  * @property { "characterData" } type
  * @property { Node } target
  * @property { string } oldValue
  * @property { string } value
- *
  * @typedef {Object} Tree
  * @property {Node} node
  * @property {Tree[]} children
- *
  * @typedef {Object} MutationRecordChildList
  * @property { "childList" } type
  * @property { Node } target
@@ -122,9 +91,7 @@ import { trackOccurrences, trackOccurrencesPair } from "../utils/tracking.js";
  * @property { Node } nextSibling
  * @property { Tree[] } addedTrees
  * @property { Tree[] } removedTrees
- *
  * @typedef { MutationRecordClassList | MutationRecordAttributes | MutationRecordCharacterData | MutationRecordChildList } HistoryMutationRecord
- *
  * @typedef { Object } PreviewableOperation
  * @property { Function } commit
  * @property { Function } preview
@@ -172,29 +139,23 @@ import { trackOccurrences, trackOccurrencesPair } from "../utils/tracking.js";
  * @typedef {((revertedStep: HistoryStep) => void)[]} post_undo_handlers
  * @typedef {(() => void)[]} restore_savepoint_handlers
  * @typedef {((arg: { step: HistoryStep, stepCommonAncestor: HTMLElement, isPreviewing: boolean }) => void)[]} step_added_handlers
- *
  * @typedef {((record: HistoryMutationRecord) => boolean)[]} savable_mutation_record_predicates
  * @typedef {((step: HistoryStep) => boolean)[]} unreversible_step_predicates
- *
  * @typedef {((
- *    arg: {
- *      target: Node,
- *      attributeName: string,
- *      oldValue: string,
- *      value: string,
- *      reverse: boolean,
- *    },
- *    options: { forNewStep: boolean }
- *  ) => string)[]} attribute_change_processors
+ * arg: {
+ * target: Node,
+ * attributeName: string,
+ * oldValue: string,
+ * value: string,
+ * reverse: boolean,
+ * },
+ * options: { forNewStep: boolean }
+ * ) => string)[]} attribute_change_processors
  * @typedef {((step: HistoryStep) => HistoryStep)[]} history_step_processors
  * @typedef {((node: Node, childTreesToSerialize: Tree[]) => Tree[])[]} serializable_descendants_processors
  * @typedef {((node: Node, attributeName: string, attributeValue: string) => boolean)[]} set_attribute_overrides
  */
 
-/**
- * Mutation types that change the document's content, as opposed to its
- * presentation. @see HistoryPlugin#getIsCurrentStepModified
- */
 const CONTENT_MUTATION_TYPES = new Set(["characterData", "remove", "add"]);
 
 export class HistoryPlugin extends Plugin {
@@ -313,9 +274,9 @@ export class HistoryPlugin extends Plugin {
             previousStepId: undefined,
             extraStepInfos: {},
         });
-        /** @type {Set<string>} Steps reverted by undo/redo operations */
+        /** @type {Set<string>} */
         this.revertedSteps = new Set();
-        /** @type {Set<string>} Steps reverted by restoring to a save point */
+        /** @type {Set<string>} */
         this.discardedSteps = new Set();
         this.nodeMap = new NodeMap();
         /** @type { WeakMap<Node, { attributes: Map<string, string>, classList: Map<string, boolean>, characterData: Map<string, string> }> } */
@@ -331,8 +292,6 @@ export class HistoryPlugin extends Plugin {
         return this.nodeMap.getNode(id);
     }
     /**
-     * Reset the history.
-     *
      * @param { string } content
      */
     reset(content) {
@@ -354,11 +313,6 @@ export class HistoryPlugin extends Plugin {
             }
             this.steps = steps;
         });
-        // Dispatched once, and outside `withObserverOff`, so that handlers run
-        // with a live MutationObserver. Handlers do mutate the DOM (e.g.
-        // `embedded_component_plugin` mounts OWL components); doing that while
-        // disconnected leaves those nodes absent from the nodeMap, i.e.
-        // permanently unobserved. @see isObservedNode
         this.dispatchTo("history_reset_from_steps_handlers");
     }
     makeSnapshotStep() {
@@ -407,12 +361,6 @@ export class HistoryPlugin extends Plugin {
         });
     }
 
-    /**
-     * Disable the mutation observer.
-     *
-     * /!\ This method should be used with extreme caution. Not observing some
-     * mutations could lead to mutations that are impossible to undo/redo.
-     */
     disableObserver() {
         const enableObserver = () => {
             this.enableObserverCallbacks.delete(enableObserver);
@@ -429,14 +377,6 @@ export class HistoryPlugin extends Plugin {
     }
 
     /**
-     * Execute {@link callback} while the MutationObserver is disabled.
-     *
-     * /!\ This method should be used with extreme caution. Not observing some
-     * mutations could lead to mutations that are impossible to undo/redo.
-     *
-     * /!\ Do not re-introduce nodes that had been already added to the DOM in
-     * a history step. @see isObservedNode
-     *
      * @param {Function} callback
      */
     ignoreDOMMutations(callback) {
@@ -448,20 +388,12 @@ export class HistoryPlugin extends Plugin {
         }
     }
 
-    /**
-     * This is not shared as it is only used internally by the history plugin.
-     * Other plugins should use {@link ignoreDOMMutations} instead.
-     */
     withObserverOff(callback) {
         this.handleObserverRecords();
         this.observer.disconnect();
         try {
             return callback();
         } finally {
-            // Re-observing must happen even if the callback throws: leaving the
-            // observer disconnected silently stops recording every subsequent
-            // edit, which breaks undo/redo and content_updated for the rest of
-            // the session. @see ignoreDOMMutations, which has the same contract.
             this.enableObserver();
         }
     }
@@ -498,13 +430,10 @@ export class HistoryPlugin extends Plugin {
             case "attributes":
             case "classList":
             case "characterData":
-                // Filter out no-op
                 return record.value !== record.oldValue;
             case "childList":
                 return (
-                    // Filter out no-op
                     (record.addedTrees.length || record.removedTrees.length) &&
-                    // Filter out mutation without a valid position for node insertion
                     (record.previousSibling !== undefined ||
                         record.nextSibling !== undefined)
                 );
@@ -515,9 +444,6 @@ export class HistoryPlugin extends Plugin {
         if (!this.currentStep?.mutations?.length) {
             return;
         }
-        // @todo @phoenix remove this?
-        // @todo @phoenix this includes previous mutations that were already
-        // stored in the current step. Ideally, it should only include the new ones.
         const root = this.getMutationsRoot(this.currentStep.mutations);
         if (!root) {
             return;
@@ -532,13 +458,10 @@ export class HistoryPlugin extends Plugin {
     handleNewRecords(records, dispatch = true) {
         const processedRecords = this.processNewRecords(records);
         if (processedRecords.length) {
-            // TODO modify `handleMutations` of web_studio to handle
-            // `undoOperation`
             if (dispatch) {
                 const stepType = this.currentStep.type;
                 this.dispatchTo("handleNewRecords", processedRecords, stepType);
             }
-            // Process potential new records adds by handleNewRecords.
             this.processNewRecords(this.observer.takeRecords());
             this.dispatchContentUpdated();
         }
@@ -576,7 +499,6 @@ export class HistoryPlugin extends Plugin {
             if (record.type !== "attributes") {
                 return true;
             }
-            // Skip the attributes change on the dom.
             if (record.target === this.editable) {
                 return false;
             }
@@ -608,32 +530,18 @@ export class HistoryPlugin extends Plugin {
     }
 
     /**
-     * Mutation records of type "attribute" and "characterData" provide the old
-     * value, but not the new value. When multiple mutations occur in the same
-     * batch for an element's attribute or characterData, we only know the final
-     * value of the accumulated changes, which is the DOM's current state.
-     *
-     *  The oldValue provided by mutations after the first one are intermediate
-     *  states that we do not care about. Discarding them allows us to store a
-     *  single record representing the accumulated changes, instead of
-     *  reconstructing the new value introduced by each mutation.
-     *
      * @param { MutationRecord[] } records
      */
     filterOutIntermediateStateMutationRecords(records) {
-        // Keep track of visited attributes per each node
         const isFirstAttributeOccurrence = trackOccurrencesPair();
-        // Keep track of visited nodes for characterData mutations
         const isFirstCharDataOccurence = trackOccurrences();
         const filteredRecords = [];
         for (const record of records) {
             if (record.type === "attributes") {
-                // Keep only the first mutation record for each (node, attribute) pair.
                 if (isFirstAttributeOccurrence(record.target, record.attributeName)) {
                     filteredRecords.push(record);
                 }
             } else if (record.type === "characterData") {
-                // Keep only the first charData mutation record for each node.
                 if (isFirstCharDataOccurence(record.target)) {
                     filteredRecords.push(record);
                 }
@@ -645,13 +553,6 @@ export class HistoryPlugin extends Plugin {
     }
 
     /**
-     * Transforms MutationRecords into HistoryMutationRecords.
-     *
-     * ChildList record have added/removed trees added to them.
-     * Class attribute records are expanded into multiple classList records.
-     * Attribute records have their oldValue normalized and new value added to it.
-     * CharacterData records have the new value added to it.
-     *
      * @param {MutationRecord[]} records
      * @returns {HistoryMutationRecord[]}
      */
@@ -679,11 +580,6 @@ export class HistoryPlugin extends Plugin {
     }
 
     /**
-     * ChildList mutation records do not contain information about the
-     * descendants of the added/removed nodes at the time of the mutation. This
-     * method transforms childList mutation records to include information about
-     * the added/removed trees.
-     *
      * @param {MutationRecord[]} records
      * @returns {(HistoryMutationRecord|MutationRecord)[]}
      */
@@ -699,8 +595,6 @@ export class HistoryPlugin extends Plugin {
             children: getChildListSnapshot(node).map(makeSnapshotTree),
         });
 
-        // Reconstructs the child list before a mutation based on the state
-        // after it and the child list modifications
         /** @type {(childListAfter: Node[], record: MutationRecord) => Node[]} */
         const reconstructChildList = (childListAfter, record) => {
             const { removedNodes, previousSibling, nextSibling } = record;
@@ -724,7 +618,6 @@ export class HistoryPlugin extends Plugin {
                     addedTrees: [...record.addedNodes].map(makeSnapshotTree),
                     removedTrees: [...record.removedNodes].map(makeSnapshotTree),
                 };
-                // Update snapshot for previous mutations
                 const childListAfterMutation = getChildListSnapshot(record.target);
                 const childListBefore = reconstructChildList(
                     childListAfterMutation,
@@ -737,18 +630,13 @@ export class HistoryPlugin extends Plugin {
     }
 
     /**
-     * Breaks down a class attribute mutation into individual class
-     * addition/removal records for more precise history tracking.
-     *
-     * @param { MutationRecord } record of type "attributes" with attributeName === "class"
+     * @param { MutationRecord } record
      * @returns { MutationRecordClassList[]}
      */
     splitClassMutationRecord(record) {
-        // oldValue can be nullish, or have extra spaces
         const oldValue = record.oldValue?.split(" ").filter(Boolean);
         const classesBefore = new Set(oldValue);
         const classesAfter = new Set(record.target.classList);
-        // @todo: use Set.prototype.difference when it becomes widely available
         const setDifference = (setA, setB) => {
             const diff = new Set(setA);
             setB.forEach((item) => diff.delete(item));
@@ -765,7 +653,6 @@ export class HistoryPlugin extends Plugin {
             value: isAdded,
             oldValue: !isAdded,
         });
-        // Generate records for each class change
         return [
             ...[...addedClasses].map((cls) => createClassRecord(cls, true)),
             ...[...removedClasses].map((cls) => createClassRecord(cls, false)),
@@ -786,18 +673,6 @@ export class HistoryPlugin extends Plugin {
     }
 
     /**
-     * If the observer is disabled, store the last observed state of the
-     * target's affected property (attribute/class/textContent) and drop the
-     * record.
-     *
-     * Otherwise (observer enabled), update the record as follows:
-     * - mutations targeting an unobserved node are dropped
-     * - mutations of type "attributes", "classList", and "characterData" have
-     * their `oldValue` adjusted to the last observed state of that target's
-     * property
-     * - mutations of type "childList" are updated to not include references to
-     * unobserved nodes.
-     *
      * @param {HistoryMutationRecord[]} records
      * @returns {HistoryMutationRecord[]}
      */
@@ -832,15 +707,6 @@ export class HistoryPlugin extends Plugin {
     }
 
     /**
-     * Any node that was added to the DOM without a mutation record in a history
-     * step (typically due to {@link ignoreDOMMutations}) is considered an
-     * unobserved node.
-     *
-     * A known limitation to this approach is when a node that had been present
-     * in the editable before (and thus has an entry in the nodeMap) is re-added
-     * with {@link ignoreDOMMutations}. Such node will not be flagged as
-     * unobserved and history might become inconsistent.
-     *
      * @param {Node} node
      * @returns {boolean}
      */
@@ -849,42 +715,16 @@ export class HistoryPlugin extends Plugin {
     }
 
     /**
-     * This function, alongside @see updateOldValue, ensures mutation records
-     * have the correct historical "oldValue" by checking against the last
-     * observed state.
-     *
-     * When the observer is disabled, we store the record's `oldValue` for a
-     * node's attribute/class/textContent as the last observed value.
-     *
-     * As multiple mutations to the same node-attribute/class/textContent can
-     * happen with the observer disabled, we store only the first value
-     * encountered for each node-attribute/class/text. This way, we capture the
-     * state as it was before any modifications in the disabled observer
-     * sequence began.
-     *
-     * @see updateOldValue
-     *
      * @param {MutationRecordAttributes|MutationRecordClassList|MutationRecordCharacterData} record
      */
     storeOldValue(record) {
         const { stateMap, key } = this.getObservedStateStorage(record);
-        // Only store it if not already stored.
         if (!stateMap.has(key)) {
             stateMap.set(key, record.oldValue);
         }
     }
 
     /**
-     * This function, alongside @see storeOldValue, ensures mutation records
-     * have the correct historical "oldValue" by checking against the last
-     * observed state.
-     *
-     * When the observer is enabled, it updates a record's `oldValue` with the last
-     * observed state, and removes the entry to prevent reuse. Without removing
-     * the entry, the same historical value might be incorrectly applied to
-     * future mutation records targeting the same attribute/class of the same
-     * element, which would create incorrect history mutations.
-     *
      * @param {MutationRecordAttributes|MutationRecordClassList|MutationRecordCharacterData} record
      * @returns {MutationRecordAttributes|MutationRecordClassList|MutationRecordCharacterData}
      */
@@ -894,7 +734,6 @@ export class HistoryPlugin extends Plugin {
             return record;
         }
         const lastObservedValue = stateMap.get(key);
-        // Remove entry, so it won't be used again.
         stateMap.delete(key);
         return { ...record, oldValue: lastObservedValue };
     }
@@ -904,7 +743,6 @@ export class HistoryPlugin extends Plugin {
      * @returns { { stateMap: Map, key: string } }
      */
     getObservedStateStorage(record) {
-        // Add entry for current target if not already present.
         if (!this.lastObservedState.has(record.target)) {
             this.lastObservedState.set(record.target, {
                 attributes: new Map(),
@@ -930,14 +768,12 @@ export class HistoryPlugin extends Plugin {
      * @returns {MutationRecordChildList}
      */
     updateChildListRecord(record) {
-        // Invalidate sibling references to unobserved nodes
         const isValidReference = (node) => node === null || this.isObservedNode(node);
         const updateSibling = (sibling) =>
             isValidReference(sibling) ? sibling : undefined;
         const previousSibling = updateSibling(record.previousSibling);
         const nextSibling = updateSibling(record.nextSibling);
 
-        // Filter out unobserved nodes in removedTrees
         const removeUnobservedNodes = (tree) => {
             if (!this.isObservedNode(tree.node)) {
                 return null;
@@ -960,10 +796,6 @@ export class HistoryPlugin extends Plugin {
     }
 
     /**
-     * Check if a mutation consists of removing and adding a single text node
-     * with the same text content, which occurs in Firefox but is optimized
-     * away in Chrome.
-     *
      * @param { MutationRecord } record
      */
     isSameTextContentMutation(record) {
@@ -978,18 +810,6 @@ export class HistoryPlugin extends Plugin {
         );
     }
 
-    /**
-     * Set the serialized selection of the currentStep.
-     *
-     * This method is used to save a serialized selection in the currentStep.
-     * It will be necessary if the step is reverted at some point because we need
-     * to set the selection to where it was before any mutation was made.
-     *
-     * It means that we should not call this method in the middle of mutations
-     * because if a selection is set onto a node that is edited/added/removed
-     * within the same step, it might become impossible to set the selection
-     * when reverting the step.
-     */
     stageSelection() {
         this.stageFocus();
         const selection = this.dependencies.selection.getEditableSelection();
@@ -1001,14 +821,9 @@ export class HistoryPlugin extends Plugin {
         }
         this.currentStep.selection = this.serializeSelection(selection);
     }
-    /**
-     * Set the serialized focus of the currentStep.
-     */
     stageFocus() {
         let activeElement = this.document.activeElement;
         if (!activeElement) {
-            // null while the document is being torn down, or in a not-yet
-            // rendered iframe -- both reachable from the pointerup handler.
             return;
         }
         if (activeElement.contains(this.editable)) {
@@ -1070,7 +885,6 @@ export class HistoryPlugin extends Plugin {
                           ];
                 const [nextNodeId, previousNodeId] = [nextSibling, previousSibling].map(
                     (sibling) =>
-                        // Preserve undefined and null values
                         sibling ? this.nodeMap.getId(sibling) : sibling,
                 );
                 const nodeId = this.nodeMap.getId(node);
@@ -1137,19 +951,7 @@ export class HistoryPlugin extends Plugin {
      * @param {Object} [params.extraStepInfos]
      */
     addStep({ type = "original", extraStepInfos } = {}) {
-        // @todo @phoenix should we allow to pause the making of a step?
-        // if (!this.stepsActive) {
-        //     return;
-        // }
-        // @todo @phoenix link zws plugin
-        // this._resetLinkZws();
-        // @todo @phoenix sanitize plugin
-        // this.sanitize();
 
-        // Set the state of the step here.
-        // That way, the state of undo and redo is truly accessible when
-        // executing the onChange callback.
-        // It is useful for external components if they execute shared.can[Undo|Redo]
         const currentStep = this.currentStep;
         currentStep.type = type;
         this.handleObserverRecords();
@@ -1162,10 +964,6 @@ export class HistoryPlugin extends Plugin {
         this.dispatchTo("normalize_handlers", stepCommonAncestor, type);
         this.handleObserverRecords(false);
         if (currentMutationsCount === currentStep.mutations.length) {
-            // If there was no registered mutation during the normalization step,
-            // force the dispatch of a content_updated to allow i.e. the hint
-            // plugin to react to non-observed changes (i.e. a div becoming
-            // a baseContainer).
             this.dispatchContentUpdated();
         }
 
@@ -1175,8 +973,6 @@ export class HistoryPlugin extends Plugin {
             this.dependencies.selection.getEditableSelection(),
         );
         this.steps.push(currentStep);
-        // @todo @phoenix add this in the linkzws plugin.
-        // this._setLinkZws();
         this.dispatchTo("before_add_step_handlers");
         if (extraStepInfos) {
             currentStep.extraStepInfos = extraStepInfos;
@@ -1209,19 +1005,9 @@ export class HistoryPlugin extends Plugin {
             return;
         }
         this.handleObserverRecords();
-        // The last step is considered an uncommitted draft so always revert it.
-        // /!\ This is deliberate: discarding uncommitted work is what Ctrl+Z
-        // does first, and `history: makeSavePoint ... while handling draft
-        // mutations` asserts it explicitly ("`d` was still a draft that got
-        // discarded on undo"). Do not "fix" this into a no-op when there is no
-        // step left to undo.
         const lastStep = this.currentStep;
         this.revertMutations(lastStep.mutations);
-        // Discard mutations generated by the revert.
         this.observer.takeRecords();
-        // Clean the last step otherwise if no other step is created after, the
-        // mutations of the revert itself will be added to the same step and
-        // grow exponentially at each undo.
         lastStep.mutations = [];
 
         const pos = this.getNextUndoIndex();
@@ -1235,20 +1021,13 @@ export class HistoryPlugin extends Plugin {
             this.setSerializedSelection(revertedStep.selection);
             this.currentStep.selection = revertedStep.selectionAfter;
             this.addStep({ type: "undo", extraStepInfos: revertedStep.extraStepInfos });
-            // Consider the last position of the history as an undo.
         }
         this.dispatchTo("post_undo_handlers", revertedStep);
     }
     redo() {
         this.handleObserverRecords();
-        // Current step is considered an uncommitted draft, so revert it,
-        // otherwise a redo would not be possible. Same deliberate
-        // draft-discarding semantics as undo(); see the note there.
         this.revertMutations(this.currentStep.mutations);
-        // Discard mutations generated by the revert.
         this.observer.takeRecords();
-        // At this point, this.currentStep.mutations contains the current step's
-        // mutations plus the ones that revert it, with net effect zero.
         this.currentStep.mutations = [];
 
         const pos = this.getNextRedoIndex();
@@ -1286,9 +1065,6 @@ export class HistoryPlugin extends Plugin {
             newSelection.focusOffset = selection.focusOffset;
         }
         this.dependencies.selection.setSelection(newSelection, { normalize: false });
-        // @todo @phoenix add this in the selection or table plugin.
-        // // If a table must be selected, ensure it's in the same tick.
-        // this._handleSelectionInTable();
     }
     /**
      * @param { string } activeElementId
@@ -1305,12 +1081,7 @@ export class HistoryPlugin extends Plugin {
             elementToFocus.focus();
         }
     }
-    /**
-     * Get the step index in the history to undo.
-     * Return -1 if no undo index can be found.
-     */
     getNextUndoIndex() {
-        // Go back to first step that can be undone ("original" or "redo").
         for (let index = this.steps.length - 1; index >= 0; index--) {
             const step = this.steps[index];
             if (!this.isReversibleStep(index) || this.discardedSteps.has(step.id)) {
@@ -1323,13 +1094,9 @@ export class HistoryPlugin extends Plugin {
                 return index;
             }
         }
-        // There is no steps left to be undone, return an index that does not
-        // point to any step
         return -1;
     }
     /**
-     * Meant to be overridden.
-     *
      * @param { number } index
      */
     isReversibleStep(index) {
@@ -1341,13 +1108,7 @@ export class HistoryPlugin extends Plugin {
             predicate(step),
         );
     }
-    /**
-     * Get the step index in the history to redo.
-     * Return -1 if no redo index can be found.
-     */
     getNextRedoIndex() {
-        // Look for an "undo" step that has not yet been redone. Stop search if
-        // a "original" step is found.
         for (let index = this.steps.length - 1; index >= 0; index--) {
             const step = this.steps[index];
             if (!this.isReversibleStep(index) || this.discardedSteps.has(step.id)) {
@@ -1363,14 +1124,11 @@ export class HistoryPlugin extends Plugin {
         return -1;
     }
     /**
-     * Insert a step in the history.
-     *
      * @param { HistoryStep } newStep
      * @param { number } index
      */
     addExternalStep(newStep, index) {
         this.withObserverOff(() => {
-            // The last step is an uncommitted draft, revert it first
             this.revertMutations(this.currentStep.mutations);
 
             const stepsAfterNewStep = this.steps.slice(index);
@@ -1387,7 +1145,6 @@ export class HistoryPlugin extends Plugin {
             for (const stepToApply of stepsAfterNewStep) {
                 this.applyMutations(stepToApply.mutations);
             }
-            // Reapply the uncommitted draft, since this is not an operation which should cancel it
             this.applyMutations(this.currentStep.mutations);
             this.dispatchTo("external_step_added_handlers");
         });
@@ -1395,10 +1152,8 @@ export class HistoryPlugin extends Plugin {
     /**
      * @param { HistoryMutation[] } mutations
      * @param { Object } options
-     * @param { boolean } options.forNewStep whether the mutations will be used
-     *        to create a new step
-     * @param { boolean } options.reverse whether the mutations are the reverse
-     *        of other mutations
+     * @param { boolean } options.forNewStep
+     * @param { boolean } options.reverse
      */
     applyMutations(mutations, { forNewStep = false, reverse } = {}) {
         if (forNewStep) {
@@ -1459,27 +1214,10 @@ export class HistoryPlugin extends Plugin {
     }
 
     /**
-     * When applying mutations for a new step, we expect them to produce
-     * observable mutations, which will then be stored in a new step. However,
-     * there are situations where applying a classList mutation would not
-     * produce an observable mutation:
-     * - adding a class that is already present
-     * - removing a class that is already absent
-     * These scenarios might happen due to the class having been already added
-     * or removed by a previous unobserved mutation. We want, nevertheless to
-     * produce the observable mutation of adding/removing this class, as this
-     * does correspond to a state change in observable history and should be
-     * included in the new step. In order to produce such observable mutations,
-     * we set the dom state to the one that would produce the desired result.
-     * This is equivalent to restoring the dom to the observed state in recorded
-     * history before applying a mutation, that is, oldValue (as oldValue is
-     * always !value for staged classList records).
-     *
      * @param { HistoryMutation[] } mutations
      */
     fixClassListMutationsForNewStep(mutations) {
         const isFirstOcurrence = trackOccurrencesPair();
-        // Mutations that when applied would not produce observable classList mutations
         const nonObservableClassMutations = mutations
             .filter((mutation) => mutation.type === "classList")
             .filter(({ nodeId, className }) => isFirstOcurrence(nodeId, className))
@@ -1601,7 +1339,6 @@ export class HistoryPlugin extends Plugin {
     }
 
     /**
-     * Serialize an editor selection.
      * @param { EditorSelection } selection
      * @returns { SerializedSelection }
      */
@@ -1614,9 +1351,8 @@ export class HistoryPlugin extends Plugin {
         };
     }
     /**
-     * Returns the deepest common ancestor element of the given mutations.
-     * @param {HistoryMutation[]} mutations - The array of mutations.
-     * @returns {HTMLElement|null} - The common ancestor element.
+     * @param {HistoryMutation[]} mutations
+     * @returns {HTMLElement|null}
      */
     getMutationsRoot(mutations) {
         const nodes = mutations
@@ -1629,8 +1365,6 @@ export class HistoryPlugin extends Plugin {
         return commonAncestor;
     }
     /**
-     * Returns a function that can be later called to revert history to the
-     * current state.
      * @returns {Function}
      */
     makeSavePoint() {
@@ -1638,7 +1372,6 @@ export class HistoryPlugin extends Plugin {
         const draftMutations = this.currentStep.mutations.slice();
         const step = this.steps.at(-1);
         let applied = false;
-        // TODO ABD TODO @phoenix: selection may become obsolete, it should evolve with mutations.
         const selectionToRestore = this.dependencies.selection.preserveSelection();
         const extraToRestore = { ...this.currentStep.extraStepInfos };
         return () => {
@@ -1663,18 +1396,14 @@ export class HistoryPlugin extends Plugin {
                     cursor.focus.offset = lastRevertedStep.selection.focusOffset;
                 });
             }
-            // Apply draft mutations to recover the same currentStep state
-            // as before.
             this.applyMutations(draftMutations, { forNewStep: true });
             this.handleObserverRecords();
-            // TODO ABD TODO @phoenix: evaluate if the selection is not restorable at the desired position
             selectionToRestore.restore();
             this.currentStep.extraStepInfos = extraToRestore;
             this.dispatchTo("restore_savepoint_handlers");
         };
     }
     /**
-     * Creates a set of functions to preview, apply, and revert an operation.
      * @param {Function} operation
      * @returns {PreviewableOperation}
      */
@@ -1688,13 +1417,6 @@ export class HistoryPlugin extends Plugin {
                 this.isPreviewing = true;
                 this.stageSelection();
                 operation(...args);
-                // todo: We should not add a step on preview as it would send
-                // unnecessary steps in collaboration and let the other peer see
-                // what we preview.
-                //
-                // The operation should be similar than in the 'commit'
-                // (normalize etc...) hence the 'addStep' (but we need to remove
-                // it for the collaboration).
                 this.addStep();
             },
             commit: (...args) => {
@@ -1712,7 +1434,6 @@ export class HistoryPlugin extends Plugin {
     }
 
     /**
-     * Creates a set of functions to preview, apply, and revert an async operation.
      * @param {Function} operation
      * @returns {PreviewableOperation}
      */
@@ -1740,13 +1461,6 @@ export class HistoryPlugin extends Plugin {
                 if (this.isDestroyed) {
                     return;
                 }
-                // todo: We should not add a step on preview as it would send
-                // unnecessary steps in collaboration and let the other peer see
-                // what we preview.
-                //
-                // The operation should be similar than in the 'commit'
-                // (normalize etc...) hence the 'addStep' (but we need to remove
-                // it for the collaboration).
                 this.addStep();
             },
             commit: async (...args) => {
@@ -1773,17 +1487,10 @@ export class HistoryPlugin extends Plugin {
     }
 
     /**
-     * Restores the editable to the state of a previous step.
-     * It does so by discarding the current draft and reverting reversible steps
-     * until the specified step index, while ensuring that irreversible steps
-     * are maintained. This will add a new "restore" step and set the reverted
-     * steps's state to "discarded".
-     *
      * @param {Number} stepIndex
      * @returns {HistoryStep}
      */
     restoreToStep(stepIndex) {
-        // Discard current draft.
         this.handleObserverRecords();
         this.revertMutations(this.currentStep.mutations);
         this.observer.takeRecords();
@@ -1793,22 +1500,15 @@ export class HistoryPlugin extends Plugin {
         if (stepIndex === this.steps.length - 1) {
             return;
         }
-        // Revert all mutations until stepIndex, and mark all reversible
-        // steps as "discarded" in the process (typically current peer steps).
         for (let i = this.steps.length - 1; i > stepIndex; i--) {
             const currentStep = this.steps[i];
             this.revertMutations(currentStep.mutations, { forNewStep: true });
-            // Process (filter, handle and stage) mutations so that the
-            // attribute comparison for the state change is done with the
-            // intermediate attribute value and not with the final value in the
-            // DOM after all steps were reverted then applied again.
             this.processNewRecords(this.observer.takeRecords());
             if (this.isReversibleStep(i)) {
                 this.discardedSteps.add(currentStep.id);
                 lastRevertedStep = currentStep;
             }
         }
-        // Re-apply every non reversible steps (typically collaborators steps).
         for (let i = stepIndex + 1; i < this.steps.length; i++) {
             const currentStep = this.steps[i];
             if (!this.isReversibleStep(i)) {
@@ -1816,10 +1516,7 @@ export class HistoryPlugin extends Plugin {
                 this.processNewRecords(this.observer.takeRecords());
             }
         }
-        // TODO ABD TODO @phoenix: review selections, this selection could be obsolete
-        // depending on the non-reversible steps that were applied.
         this.setSerializedSelection(lastRevertedStep.selection);
-        // Register resulting mutations as a new "restore" step (prevent undo).
         this.dispatchContentUpdated();
         this.addStep({ type: "restore" });
         return lastRevertedStep;
@@ -1840,8 +1537,6 @@ export class HistoryPlugin extends Plugin {
         if (this.ignoreIsCurrentStepModified) {
             return false;
         }
-        // `some`, not `find`: the name promises a boolean and both call sites
-        // use it as one, but it used to leak the matching mutation object.
         return this.currentStep.mutations.some((mutation) =>
             CONTENT_MUTATION_TYPES.has(mutation.type),
         );
@@ -1864,7 +1559,6 @@ export class HistoryPlugin extends Plugin {
             return;
         }
 
-        // if attributeValue is falsy but not null, we still need to apply it
         if (attributeValue !== null) {
             node.setAttribute(attributeName, attributeValue);
         } else {
@@ -1872,15 +1566,12 @@ export class HistoryPlugin extends Plugin {
         }
     }
     /**
-     * Serialize a node and its children.
      * @param { Node } node
      */
     serializeNode(node) {
         return this.serializeTree(nodeToTree(node));
     }
     /**
-     * Unserialize a node and its children.
-     *
      * @param { SerializedNode } node
      * @returns { Node }
      */
@@ -1896,9 +1587,6 @@ export class HistoryPlugin extends Plugin {
         if (!unserializedNode) {
             return null;
         }
-        // Only assign id to the remaining nodes, otherwise the removed nodes
-        // will still be accessible through the nodeMap and could lead to
-        // security issues.
         for (const node of [unserializedNode, ...descendants(unserializedNode)]) {
             if (this.nodeMap.hasNode(node)) {
                 continue;
@@ -1943,7 +1631,6 @@ export class HistoryPlugin extends Plugin {
         return result;
     }
     /**
-     * Unserialize a node and its children.
      * @param { SerializedNode } serializedNode
      * @param { NodeMap} nodeMap
      * @param { Map<Node, string> } _map
@@ -2024,29 +1711,22 @@ function treeToNodes(tree) {
     return [tree.node, ...tree.children.flatMap(treeToNodes)];
 }
 
-/**
- * Bidirectional map between IDs (string) and Node objects.
- */
 class NodeMap {
     constructor() {
-        // Private properties enclosed in the constructor
         /** @type {Map<string, Node>} */
         const idToNodeMap = new Map();
         /** @type {Map<Node, string>} */
         const nodeToIdMap = new Map();
 
-        // Public methods
         /** @type {(id: string, node: Node) => void} */
         this.set = (id, node) => {
             if (!id || !node) {
                 throw new Error("Id and Node cannot be nullish");
             }
-            // Remove old mappings
             const oldNode = idToNodeMap.get(id);
             nodeToIdMap.delete(oldNode);
             const oldId = nodeToIdMap.get(node);
             idToNodeMap.delete(oldId);
-            // Set new mappings
             idToNodeMap.set(id, node);
             nodeToIdMap.set(node, id);
         };

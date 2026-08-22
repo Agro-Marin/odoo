@@ -74,9 +74,6 @@ export class DynamicPlaceholderPlugin extends Plugin {
                 { type: "danger" },
             );
         }
-        // Remembered so that `onValidate` resolves the timezone against the
-        // model the picker actually offered, not against whatever the editor
-        // was last configured with.
         this.openedResModel = resModel;
         this.overlay.open({
             props: {
@@ -103,9 +100,6 @@ export class DynamicPlaceholderPlugin extends Plugin {
             fieldType === "datetime"
                 ? await resolveTzPath(this.services.orm, resModel)
                 : undefined;
-        // The default is the element body, which QWeb emits when the value is
-        // falsy. Folding it into the expression as `or '...'` said the same
-        // thing in a second grammar, and needed its own quote escaping.
         const { expression, body } = buildQwebPlaceholder({
             path: chain,
             fieldType,

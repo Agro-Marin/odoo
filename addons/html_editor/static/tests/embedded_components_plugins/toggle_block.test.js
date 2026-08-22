@@ -232,7 +232,7 @@ describe("deleteBackward applied to toggle", () => {
             { config: getConfig([toggleBlockEmbedding]) },
         );
         await embeddedToggleMountedPromise;
-        await press(["CTRL", "A"]); // select all
+        await press(["CTRL", "A"]);
         deleteBackward(editor);
         expect(getContent(el)).toBe(
             `<p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`,
@@ -1303,7 +1303,7 @@ describe("hint", () => {
             '<p o-we-hint-text="Add something inside this toggle" class="o-we-hint"><br></p>',
         );
         setContent(content, "<p>[]<br></p>");
-        await tick(); // selectionChange
+        await tick();
         expect(content).toHaveInnerHTML(
             `<p o-we-hint-text='Type "/" for commands' class="o-we-hint"><br></p>`,
         );

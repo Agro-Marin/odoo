@@ -27,7 +27,6 @@ export class YoutubePlugin extends Plugin {
     getCommandForVideoUrlPaste(url) {
         const youtubeUrl = YOUTUBE_URL_GET_VIDEO_ID.exec(url);
         if (youtubeUrl) {
-            // URL is a YouTube video.
             return {
                 title: _t("Embed Youtube Video"),
                 description: _t("Embed the youtube video in the document."),
@@ -42,11 +41,9 @@ export class YoutubePlugin extends Plugin {
             };
         }
     }
-    // @todo @phoenix: Should this be in this plugin?
     /**
      * @param {string} url
-     * @returns {HTMLElement} saved video element or undefined if the URL
-     * is not a valid YouTube video URL.
+     * @returns {HTMLElement}
      */
     async getYoutubeVideoElement(url) {
         if (!URL.canParse(url)) {

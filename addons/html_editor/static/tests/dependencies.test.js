@@ -24,15 +24,11 @@ describe("Implicit plugin dependencies", () => {
             SearchPowerboxPlugin,
             SplitPlugin,
         ]) {
-            // Implicit dependency: the input plugin exposes no shared API,
-            // only the "beforeinput_handlers" and "input_handlers" resources.
             expect(P.dependencies).toInclude(InputPlugin.id);
         }
     });
     test("position as an implicit dependency", async () => {
         for (const P of [PowerButtonsPlugin, CollaborationSelectionPlugin]) {
-            // Implicit dependency, through the
-            // "layout_geometry_change_handlers" resource.
             expect(P.dependencies).toInclude(PositionPlugin.id);
         }
     });

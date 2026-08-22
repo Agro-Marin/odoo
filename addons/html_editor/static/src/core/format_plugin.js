@@ -56,11 +56,10 @@ function isFormatted(formatPlugin, format) {
 
 /**
  * @typedef {((formatName: string, options: {
- *      formatProps: object,
- *      applyStyle: boolean,
+ * formatProps: object,
+ * applyStyle: boolean,
  * }) => void | boolean)[]} format_selection_handlers
  * @typedef {(() => void)[]} remove_all_formats_handlers
- *
  * @typedef {((className: string) => boolean)[]} format_class_predicates
  * @typedef {((node: Node) => boolean)[]} has_format_predicates
  */
@@ -68,7 +67,6 @@ function isFormatted(formatPlugin, format) {
 export class FormatPlugin extends Plugin {
     static id = "format";
     static dependencies = ["selection", "history", "input", "split"];
-    // TODO ABD: refactor to handle Knowledge comments inside this plugin without sharing mergeAdjacentInlines.
     static shared = [
         "isSelectionFormat",
         "insertAndSelectZws",
@@ -178,7 +176,6 @@ export class FormatPlugin extends Plugin {
                 isDisabled: (sel, nodes) => !this.hasAnyFormat(nodes),
             }),
         ],
-        /** Handlers */
         beforeinput_handlers: withSequence(20, this.onBeforeInput.bind(this)),
         clean_for_save_handlers: this.cleanForSave.bind(this),
         normalize_handlers: this.normalize.bind(this),
@@ -238,10 +235,6 @@ export class FormatPlugin extends Plugin {
     }
 
     removeFontSizeFormat(el) {
-        // Node-based removal on the element and its descendants, NOT
-        // ``removeFormats``: that helper is selection-based (formatSelection),
-        // which splits formatting around the current selection instead of
-        // stripping the given nodes (upstream parity).
         for (const node of [el, ...descendants(el)]) {
             removeFormat(node, formatsSpecs.fontSize);
             removeFormat(node, formatsSpecs.setFontSizeClassName);
@@ -249,10 +242,7 @@ export class FormatPlugin extends Plugin {
     }
 
     /**
-     * Return true if the current selection on the editable contains a formated
-     * node
-     *
-     * @param {String} format 'bold'|'italic'|'underline'|'strikeThrough'|'switchDirection'
+     * @param {String} format
      * @param {Node[]} [targetedNodes]
      * @returns {boolean}
      */
@@ -271,11 +261,7 @@ export class FormatPlugin extends Plugin {
         );
     }
     /**
-     * Return true if the current selection on the editable appears as the given
-     * format. The selection is considered to appear as that format if every
-     * text node in it appears as that format.
-     *
-     * @param {String} format 'bold'|'italic'|'underline'|'strikeThrough'|'switchDirection'
+     * @param {String} format
      * @param {Node[]} [targetedNodes]
      * @returns {boolean}
      */
@@ -311,9 +297,6 @@ export class FormatPlugin extends Plugin {
                 formatsSpecs[format].removeStyle &&
                 this.hasSelectionFormat(format, targetedNodes)
             ) {
-                // Heading/typography-inherent bold is not removable formatting
-                // — only count bold when it comes from explicit inline tags
-                // (STRONG/B) or inline font-weight styles.
                 if (format === "bold") {
                     const textNodes = targetedNodes.filter(isTextNode);
                     if (!textNodes.some((n) => hasExplicitBoldFormatting(n))) {
@@ -337,7 +320,6 @@ export class FormatPlugin extends Plugin {
         }
     }
 
-    // @todo phoenix: refactor this method.
     _formatSelection(
         formatName,
         { applyStyle, formatProps, removeFormat: isRemoveFormat } = {},
@@ -354,7 +336,6 @@ export class FormatPlugin extends Plugin {
             return;
         }
         this.dependencies.selection.selectAroundNonEditable();
-        // note: does it work if selection is in opposite direction?
         const selection = this.dependencies.split.splitSelection();
         if (typeof applyStyle === "undefined") {
             applyStyle = !this.isSelectionFormat(formatName);
@@ -382,7 +363,7 @@ export class FormatPlugin extends Plugin {
         const systemNodesSelector = this.getResource("system_node_selectors").join(
             ", ",
         );
-        const selectedTextNodes = /** @type { Text[] } **/ (
+        const selectedTextNodes = /** @type { Text[] } */ (
             this.dependencies.selection
                 .getTargetedNodes()
                 .filter(
@@ -429,8 +410,6 @@ export class FormatPlugin extends Plugin {
             let currentNode = node;
             let parentNode = node.parentElement;
 
-            // Remove the format on all inline ancestors until a block or an element
-            // with a class that is not indicated as splittable.
             const isClassListSplittable = (classList) =>
                 [...classList].every((className) =>
                     this.getResource("format_class_predicates").some((cb) =>
@@ -438,11 +417,6 @@ export class FormatPlugin extends Plugin {
                     ),
                 );
 
-            // Special case: if the parent node is unsplittable and fully
-            // selected, the span has to go outside of it — the loop below
-            // stops at unsplittable parents, so without this the format would
-            // nest inside (e.g. a font size applied to a whole link produced
-            // `<a><span>…</span></a>` instead of `<span><a>…</a></span>`).
             if (
                 parentNode &&
                 !isBlock(parentNode) &&
@@ -511,10 +485,6 @@ export class FormatPlugin extends Plugin {
                         removeFormat(node, formatSpec, cursor);
                     }
                 } else {
-                    // During removeFormat, don't neutralize bold that is
-                    // inherent to the block (heading tags, typography classes)
-                    // — only neutralize when user explicitly toggled bold off
-                    // or there's inline font-weight on the block itself.
                     const skipNeutral =
                         isRemoveFormat &&
                         formatName === "bold" &&
@@ -601,7 +571,6 @@ export class FormatPlugin extends Plugin {
     normalize(root) {
         for (const el of selectElements(root, "[data-oe-zws-empty-inline]")) {
             if (!allWhitespaceRegex.test(el.textContent)) {
-                // The element has some meaningful text. Remove the ZWS in it.
                 delete el.dataset.oeZwsEmptyInline;
                 this.cleanZWS(el);
                 if (
@@ -609,7 +578,6 @@ export class FormatPlugin extends Plugin {
                     el.getAttributeNames().length === 0 &&
                     el.classList.length === 0
                 ) {
-                    // Useless span, unwrap it.
                     unwrapContents(el);
                 }
             }
@@ -652,10 +620,8 @@ export class FormatPlugin extends Plugin {
             this.lastEmptyInlineElement?.isConnected &&
             this.lastEmptyInlineElement !== inlineElement
         ) {
-            // Remove last empty inline element.
             this.cleanElement(this.lastEmptyInlineElement, { preserveSelection: true });
         }
-        // Skip if current block is empty.
         if (inlineElement && !isEmptyBlock(blockEl)) {
             this.lastEmptyInlineElement = inlineElement;
         } else {
@@ -665,7 +631,6 @@ export class FormatPlugin extends Plugin {
 
     cleanElement(element, { preserveSelection }) {
         if (!allWhitespaceRegex.test(element.textContent)) {
-            // The element has some meaningful text. Remove the ZWS in it.
             delete element.dataset.oeZwsEmptyInline;
             this.cleanZWS(element, { preserveSelection });
             return;
@@ -678,9 +643,6 @@ export class FormatPlugin extends Plugin {
                 this.getResource("format_class_predicates").some((p) => p(c)),
             )
         ) {
-            // We only remove the empty element if it has no class, to ensure we
-            // don't break visual styles (in that case, its ZWS was kept to
-            // ensure the cursor can be placed in it).
             return;
         }
         const restore = prepareUpdate(...leftPos(element), ...rightPos(element));
@@ -729,11 +691,7 @@ export class FormatPlugin extends Plugin {
     }
 
     /**
-     * Use the actual selection (assumed to be collapsed) and insert a
-     * zero-width space at its anchor point. Then, select that zero-width
-     * space.
-     *
-     * @returns {Node} the inserted zero-width space
+     * @returns {Node}
      */
     insertAndSelectZws() {
         const selection = this.dependencies.selection.getEditableSelection();
@@ -756,10 +714,6 @@ export class FormatPlugin extends Plugin {
             }
             const element = closestElement(selection.anchorNode);
             if (element?.hasAttribute("data-oe-zws-empty-inline")) {
-                // Select its ZWS content to make sure the text will be
-                // inserted inside the element, and not before (outside) it.
-                // This addresses an undesired behavior of the
-                // contenteditable.
                 const [anchorNode, anchorOffset, focusNode, focusOffset] =
                     boundariesIn(element);
                 this.dependencies.selection.setSelection({
@@ -836,8 +790,6 @@ function getOrCreateSpan(node, ancestors, cursor) {
         return span;
     } else {
         const span = document.createElement("span");
-        // Apply font span above current inline top ancestor so that
-        // the font style applies to the other style tags as well.
         if (lastInlineAncestor) {
             cursor?.update(callbacksForCursorUpdate.after(lastInlineAncestor, span));
             lastInlineAncestor.after(span);
@@ -852,11 +804,6 @@ function getOrCreateSpan(node, ancestors, cursor) {
         return span;
     }
 }
-/**
- * Check whether a text node has explicit inline bold formatting (STRONG/B tags
- * or font-weight inline styles), as opposed to bold inherited from a heading
- * tag or CSS class (typography/display classes).
- */
 function hasExplicitBoldFormatting(textNode) {
     const block = closestBlock(textNode);
     let el = closestElement(textNode);
@@ -891,7 +838,6 @@ function removeFormat(node, formatSpec, cursor) {
             .getAttributeNames()
             .filter((name) => name !== "data-oe-zws-empty-inline");
         if (attributesNames.length) {
-            // Change tag name
             const newNode = document.createElement("span");
             while (node.firstChild) {
                 cursor?.update(

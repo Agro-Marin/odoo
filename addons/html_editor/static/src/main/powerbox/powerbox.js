@@ -7,10 +7,6 @@ import {
     useRef,
 } from "@odoo/owl";
 
-/**
- * @todo @phoenix i think that most of the "control" code in this component
- * should move to the powerbox plugin instead. This would probably be more robust
- */
 export class Powerbox extends Component {
     static template = "html_editor.Powerbox";
     static props = {
@@ -35,9 +31,6 @@ export class Powerbox extends Component {
         const onMouseMove = () => (this.mouseSelectionActive = true);
         useExternalListener(this.props.document, "mousemove", onMouseMove);
 
-        // If necessary attach the same listener on the document on which
-        // the powerbox is mounted, serving the same purpose:
-        // do not trigger re-renderings when we are scrolling the powerbox
         useEffect(
             (ownDoc, propsDoc) => {
                 if (ownDoc && propsDoc && ownDoc !== propsDoc) {

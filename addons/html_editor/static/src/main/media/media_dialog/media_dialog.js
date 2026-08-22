@@ -73,8 +73,6 @@ export class MediaDialog extends Component {
 
         useEffect(
             (nbSelectedAttachments) => {
-                // Disable/enable the add button depending on whether some media
-                // are selected or not.
                 this.addButtonRef.el.toggleAttribute(
                     "disabled",
                     !nbSelectedAttachments || this.state.isSaving,
@@ -123,7 +121,6 @@ export class MediaDialog extends Component {
                 resModel: this.props.resModel,
                 resId: this.props.resId,
                 media: this.props.media,
-                // multiImages: this.props.multiImages,
                 selectedMedia: this.selectedMedia,
                 selectMedia: (...args) =>
                     this.selectMedia(...args, tab.id, additionalProps.multiSelect),
@@ -194,8 +191,6 @@ export class MediaDialog extends Component {
     }
 
     /**
-     * Render the selected media for insertion in the editor
-     *
      * @param {Array<Object>} selectedMedia
      * @returns {Array<HTMLElement>}
      */
@@ -227,7 +222,6 @@ export class MediaDialog extends Component {
                     if (typeof name === "string") {
                         extraClassesToRemove.push(name);
                     } else {
-                        // Regex
                         for (const className of element.classList) {
                             if (className.match(name)) {
                                 extraClassesToRemove.push(className);
@@ -235,7 +229,6 @@ export class MediaDialog extends Component {
                         }
                     }
                 }
-                // Remove classes that do not also exist in the target type.
                 element.classList.remove(
                     ...extraClassesToRemove.filter((candidateName) => {
                         for (const name of this.tabs[this.state.activeTab].Component
@@ -245,7 +238,6 @@ export class MediaDialog extends Component {
                                     return false;
                                 }
                             } else {
-                                // Regex
                                 if (candidateName.match(name)) {
                                     return false;
                                 }
@@ -267,7 +259,6 @@ export class MediaDialog extends Component {
 
     selectMedia(media, tabId, multiSelect) {
         if (media && !Object.keys(media).length) {
-            // Clear media selection when an empty object is passed
             this.selectedMedia[tabId] = [];
             return;
         }
@@ -295,9 +286,6 @@ export class MediaDialog extends Component {
             return;
         }
         const selectedMedia = this.selectedMedia[this.state.activeTab];
-        // TODO In master: clean the save method so it performs the specific
-        // adaptation before saving from the active media selector and find a
-        // way to simply close the dialog if the media element remains the same.
         const saveSelectedMedia =
             selectedMedia.length &&
             (this.state.activeTab !== TABS.ICONS.id ||

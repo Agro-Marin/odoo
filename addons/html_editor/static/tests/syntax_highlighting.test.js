@@ -17,10 +17,9 @@ import {
 } from "./_helpers/syntax_highlighting.js";
 import { insertText, splitBlock } from "./_helpers/user_actions.js";
 
-// Press a key combination, then wait for useEffect to kick in.
 const pressAndWait = async (...args) => {
     await press(...args);
-    await animationFrame(); // wait for effect
+    await animationFrame();
 };
 
 const insertPre = async (editor) => {
@@ -33,15 +32,12 @@ const insertPre = async (editor) => {
 
 const changeLanguage = async (textarea, from, to) => {
     await click(textarea);
-    // Code Toolbar should open.
     await waitFor(`.o_code_toolbar button[name='language'][title='${from}']`);
     await click(`.o_code_toolbar button[name='language'][title='${from}']`);
-    // Language selector dropdown should open.
     await waitFor(`.o_language_selector .o-dropdown-item[name='${to}']`);
     await click(`.o_language_selector .o-dropdown-item[name='${to}']`);
-    // Code Toolbar should show the new language name.
     await waitFor(`.o_code_toolbar button[name='language'][title='${to}']`);
-    await animationFrame(); // wait for effect
+    await animationFrame();
 };
 
 const configWithEmbeddings = {
@@ -70,7 +66,7 @@ test("starting edition with a pre activates syntax highlighting", async () => {
         contentAfterEdit:
             '<p data-selection-placeholder=""><br></p>' +
             highlightedPre({ value: "some code" }) +
-            '<p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>', // Undo did nothing.
+            '<p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>',
         contentAfter: `<pre data-embedded="readonlySyntaxHighlighting" data-language-id="plaintext">some code</pre>`,
     });
 });
@@ -78,8 +74,6 @@ test("starting edition with a pre activates syntax highlighting", async () => {
 test("starting edition with a pre activates syntax highlighting (with dataset values)", async () => {
     await testEditorWithHighlightedContent({
         contentBefore: `<pre data-language-id="javascript">Hello world!</pre>`,
-        // The pre is replaced by a wrapper holding a highlighted pre and a
-        // textarea, the pre's value and language matching the dataset.
         contentBeforeEdit:
             '<p data-selection-placeholder=""><br></p>' +
             highlightedPre({ value: "Hello world!", language: "javascript" }) +
@@ -102,7 +96,7 @@ test("starting edition with a pre activates syntax highlighting (with dataset va
                     highlightedPre({
                         value: "Hello world!a",
                         language: "javascript",
-                        textareaRange: 13, // "Hello world!a[]"
+                        textareaRange: 13,
                     }) +
                     '<p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>',
                 "Should have written at the end of the textarea.",
@@ -115,9 +109,9 @@ test("starting edition with a pre activates syntax highlighting (with dataset va
             highlightedPre({
                 value: "Hello world!",
                 language: "javascript",
-                textareaRange: 12, // "Hello world![]"
+                textareaRange: 12,
             }) +
-            '<p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>', // Undo did nothing.
+            '<p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>',
         contentAfter: `<pre data-embedded="readonlySyntaxHighlighting" data-language-id="javascript">Hello world!</pre>[]`,
     });
 });
@@ -140,7 +134,7 @@ test("inserting a code block activates syntax highlighting plugin, typing trigge
         contentAfterEdit:
             '<p data-selection-placeholder=""><br></p>' +
             highlightedPre({ value: "abcd", textareaRange: 4 }) +
-            '<p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>', // The change of value in the textarea is reflected in the pre.
+            '<p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>',
         contentAfter: `<pre data-embedded="readonlySyntaxHighlighting" data-language-id="plaintext">abcd</pre>[]`,
     });
 });
@@ -177,7 +171,7 @@ test("inserting a code block in an empty paragraph with a style placeholder acti
         contentAfterEdit: unformat(
             `<p><strong data-oe-zws-empty-inline="">\u200B</strong></p>
             ${highlightedPre({
-                value: "", // There should be no content (the zws is stripped)
+                value: "",
                 textareaRange: 0,
             })}
             <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
@@ -249,7 +243,7 @@ test("should fill an empty pre", async () => {
         contentAfterEdit:
             '<p data-selection-placeholder=""><br></p>' +
             highlightedPre({ value: "", textareaRange: 0 }) +
-            '<p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>', // Note: the BR is outside the highlight.
+            '<p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>',
         contentAfter: `<pre data-embedded="readonlySyntaxHighlighting" data-language-id="plaintext"><br></pre>[]`,
     });
 });
@@ -308,19 +302,16 @@ test("can copy content with the copy button", async () => {
             testTextareaRange(editor, { el: textarea, value: "abc", range: 3 });
             await animationFrame();
             await waitFor(".o_code_toolbar");
-            // Copy "abc".
             await click(".o_code_toolbar .o_clipboard_button");
             expect.verifySteps(["abc"]);
-            // Change text.
             await click(textarea);
             testTextareaRange(editor, { el: textarea, value: "abc", range: 3 });
             await pressAndWait("d");
             testTextareaRange(editor, { el: textarea, value: "abcd", range: 4 });
-            // Copy "abcd"
             await click(".o_code_toolbar .o_clipboard_button");
             expect.verifySteps(["abcd"]);
             textarea.focus();
-            await animationFrame(); // wait for effect
+            await animationFrame();
         },
         contentAfterEdit:
             '<p data-selection-placeholder=""><br></p>' +
@@ -340,14 +331,14 @@ test("tab in code block inserts 4 spaces", async () => {
         stepFunction: async () => {
             await click("textarea");
             const textarea = queryOne("textarea");
-            textarea.setSelectionRange(2, 2); // "co[]de"
+            textarea.setSelectionRange(2, 2);
             await pressAndWait("tab");
         },
         contentAfterEdit:
             '<p data-selection-placeholder=""><br></p>' +
             highlightedPre({
                 value: "co    de",
-                textareaRange: 6, // "co    []de"
+                textareaRange: 6,
             }) +
             '<p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>',
         contentAfter: `<pre data-embedded="readonlySyntaxHighlighting" data-language-id="plaintext">co    de</pre>[]`,
@@ -365,14 +356,14 @@ test("tab in selection in code block indents each selected line", async () => {
         stepFunction: async () => {
             await click("textarea");
             const textarea = queryOne("textarea");
-            textarea.setSelectionRange(1, 7); // "a[\nb c\n ]d"
+            textarea.setSelectionRange(1, 7);
             await pressAndWait("tab");
         },
         contentAfterEdit:
             '<p data-selection-placeholder=""><br></p>' +
             highlightedPre({
                 value: valueAfter,
-                textareaRange: [5, 19], // "    a[\n    b c\n     ]d"
+                textareaRange: [5, 19],
             }) +
             '<p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>',
         contentAfter: `<pre data-embedded="readonlySyntaxHighlighting" data-language-id="plaintext">${valueAfter.replaceAll(
@@ -393,14 +384,14 @@ test("shift+tab in code block outdents the current line", async () => {
         stepFunction: async (editor) => {
             await click("textarea");
             const textarea = queryOne("textarea");
-            textarea.setSelectionRange(22, 22); // "    some\n       co    []de\n    for you"
+            textarea.setSelectionRange(22, 22);
             await pressAndWait(["shift", "tab"]);
             await compareHighlightedContent(
                 getContent(editor.editable),
                 '<p data-selection-placeholder=""><br></p>' +
                     highlightedPre({
                         value: "    some\n   co    de\n    for you",
-                        textareaRange: 18, // "    some\n   co    []de\n    for you"
+                        textareaRange: 18,
                     }) +
                     '<p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>',
                 "The content was outdented a first time.",
@@ -412,7 +403,7 @@ test("shift+tab in code block outdents the current line", async () => {
             '<p data-selection-placeholder=""><br></p>' +
             highlightedPre({
                 value: valueAfter,
-                textareaRange: 15, // "    some\nco    []de\n    for you"
+                textareaRange: 15,
             }) +
             '<p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>',
         contentAfter: `<pre data-embedded="readonlySyntaxHighlighting" data-language-id="plaintext">${valueAfter.replaceAll(
@@ -432,27 +423,26 @@ test("shift+tab in selection in code block outdents each selected line", async (
         stepFunction: async (editor) => {
             await click("textarea");
             const textarea = queryOne("textarea");
-            textarea.setSelectionRange(5, 19); // "    a[\n    b c\n     ]d"
+            textarea.setSelectionRange(5, 19);
             await pressAndWait(["shift", "tab"]);
             await compareHighlightedContent(
                 getContent(editor.editable),
                 '<p data-selection-placeholder=""><br></p>' +
                     highlightedPre({
                         value: "a\nb c\n d",
-                        textareaRange: [1, 7], // "a[\nb c\n ]d"
+                        textareaRange: [1, 7],
                     }) +
                     '<p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>',
                 "The content was outdented a first time.",
                 editor,
             );
-            // Remove the last remaining leading space.
             await pressAndWait(["shift", "tab"]);
         },
         contentAfterEdit:
             '<p data-selection-placeholder=""><br></p>' +
             highlightedPre({
                 value: "a\nb c\nd",
-                textareaRange: [1, 6], // "a[\nb c\n]d"
+                textareaRange: [1, 6],
             }) +
             '<p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>',
         contentAfter: `<pre data-embedded="readonlySyntaxHighlighting" data-language-id="plaintext">a<br>b c<br>d</pre>[]`,
@@ -485,7 +475,6 @@ test("can switch between code blocks without issues", async () => {
     testTextareaRange(editor, { el: textarea1, value: "de", range: 2 });
     await click(textarea2);
     testTextareaRange(editor, { el: textarea2, value: "jk", range: 2 });
-    // Action 1: insert "l" in second pre.
     await pressAndWait("l");
     await compareHighlightedContent(
         getContent(editor.editable),
@@ -501,7 +490,6 @@ test("can switch between code blocks without issues", async () => {
     );
     await click(textarea1);
     testTextareaRange(editor, { el: textarea1, value: "de", range: 2 });
-    // Action 2: insert "f" in first pre.
     await pressAndWait("f");
     await compareHighlightedContent(
         getContent(editor.editable),
@@ -517,7 +505,6 @@ test("can switch between code blocks without issues", async () => {
     );
     await click(p1);
     editor.shared.selection.setCursorEnd(p1);
-    // Action 3: insert "c" in first paragraph.
     await insertText(editor, "c");
     await compareHighlightedContent(
         getContent(editor.editable),
@@ -533,7 +520,6 @@ test("can switch between code blocks without issues", async () => {
     );
     await click(p2);
     editor.shared.selection.setCursorEnd(p2);
-    // Action 4: insert "i" in second paragraph.
     await insertText(editor, "i");
     await compareHighlightedContent(
         getContent(editor.editable),
@@ -547,7 +533,6 @@ test("can switch between code blocks without issues", async () => {
         `4. Inserted "i" into the second paragraph.`,
         editor,
     );
-    // Action 5: change the language of first textarea.
     await changeLanguage(textarea1, "Plain Text", "Javascript");
     await compareHighlightedContent(
         getContent(editor.editable),
@@ -561,7 +546,6 @@ test("can switch between code blocks without issues", async () => {
         `5. Changed the language of the first textarea to "javascript".`,
         editor,
     );
-    // Action 6: change the language of second textarea.
     await changeLanguage(textarea2, "Plain Text", "Python");
     await compareHighlightedContent(
         getContent(editor.editable),
@@ -576,10 +560,6 @@ test("can switch between code blocks without issues", async () => {
         editor,
     );
 
-    // UNDO
-    // ----
-
-    // UNDO action 6: change the language of second textarea.
     await pressAndWait(["ctrl", "z"]);
     await compareHighlightedContent(
         getContent(editor.editable),
@@ -590,11 +570,9 @@ test("can switch between code blocks without issues", async () => {
             ${highlightedPre({ value: "jkl", textareaRange: 3 })}
             <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         ),
-        // TODO: is it correct to not move the focus?
         `Undo 6 changed back the language of the second textarea to "plaintext" (without losing the current focus, editor).`,
         editor,
     );
-    // UNDO action 5: change the language of first textarea.
     await pressAndWait(["ctrl", "z"]);
     await compareHighlightedContent(
         getContent(editor.editable),
@@ -605,11 +583,9 @@ test("can switch between code blocks without issues", async () => {
             ${highlightedPre({ value: "jkl" })}
             <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         ),
-        // TODO: is it correct to move the focus?
         `Undo 5 changed back the language of the first textarea to "plaintext" (and move the focus to the last focused textarea, editor).`,
         editor,
     );
-    // UNDO action 4: insert "i" in second paragraph.
     await pressAndWait(["ctrl", "z"]);
     await compareHighlightedContent(
         getContent(editor.editable),
@@ -623,7 +599,6 @@ test("can switch between code blocks without issues", async () => {
         `Undo 4 removed the "i" from the second paragraph.`,
         editor,
     );
-    // UNDO action 3: insert "c" in first paragraph.
     await pressAndWait(["ctrl", "z"]);
     await compareHighlightedContent(
         getContent(editor.editable),
@@ -637,7 +612,6 @@ test("can switch between code blocks without issues", async () => {
         `Undo 3 removed the "c" from the first paragraph.`,
         editor,
     );
-    // UNDO action 2: insert "f" in first pre.
     await pressAndWait(["ctrl", "z"]);
     await compareHighlightedContent(
         getContent(editor.editable),
@@ -651,7 +625,6 @@ test("can switch between code blocks without issues", async () => {
         `Undo 2 removed the "f" from the first pre and un-highlighted it.`,
         editor,
     );
-    // UNDO action 1: insert "l" in second pre.
     await pressAndWait(["ctrl", "z"]);
     await compareHighlightedContent(
         getContent(editor.editable),
@@ -665,7 +638,6 @@ test("can switch between code blocks without issues", async () => {
         `Undo 1 removed the "l" from the second pre and un-highlighted it.`,
         editor,
     );
-    // UNDO nothing.
     await pressAndWait(["ctrl", "z"]);
     await compareHighlightedContent(
         getContent(editor.editable),
@@ -680,10 +652,6 @@ test("can switch between code blocks without issues", async () => {
         editor,
     );
 
-    // REDO
-    // ----
-
-    // REDO action 1: insert "l" in second pre.
     await pressAndWait(["ctrl", "y"]);
     await compareHighlightedContent(
         getContent(editor.editable),
@@ -697,7 +665,6 @@ test("can switch between code blocks without issues", async () => {
         `Redo 1 reinserted "l" into the second pre and re-highlighted it.`,
         editor,
     );
-    // REDO action 2: insert "f" in first pre.
     await pressAndWait(["ctrl", "y"]);
     await compareHighlightedContent(
         getContent(editor.editable),
@@ -711,7 +678,6 @@ test("can switch between code blocks without issues", async () => {
         `Redo 2 reinserted "f" into the first pre and re-highlighted it.`,
         editor,
     );
-    // REDO action 3: insert "c" in first paragraph.
     await pressAndWait(["ctrl", "y"]);
     await compareHighlightedContent(
         getContent(editor.editable),
@@ -725,7 +691,6 @@ test("can switch between code blocks without issues", async () => {
         `Redo 3 reinserted "c" into the first paragraph.`,
         editor,
     );
-    // REDO action 4: insert "i" in second paragraph.
     await pressAndWait(["ctrl", "y"]);
     await compareHighlightedContent(
         getContent(editor.editable),
@@ -739,7 +704,6 @@ test("can switch between code blocks without issues", async () => {
         `Redo 4 reinserted "i" into the second paragraph.`,
         editor,
     );
-    // REDO action 5: change the language of first textarea.
     await pressAndWait(["ctrl", "y"]);
     await compareHighlightedContent(
         getContent(editor.editable),
@@ -753,7 +717,6 @@ test("can switch between code blocks without issues", async () => {
         `Redo 5 changed back the language of the first textarea to "javascript".`,
         editor,
     );
-    // REDO action 6: change the language of second textarea.
     await pressAndWait(["ctrl", "y"]);
     await compareHighlightedContent(
         getContent(editor.editable),
@@ -767,7 +730,6 @@ test("can switch between code blocks without issues", async () => {
         `Redo 6 changed back the language of the second textarea to "python".`,
         editor,
     );
-    // REDO nothing.
     await pressAndWait(["ctrl", "y"]);
     await compareHighlightedContent(
         getContent(editor.editable),
@@ -795,15 +757,11 @@ test("multiple ctrl+z in a highlighted code block undo changes in the block and 
             .map((actionNumber) => `${actionNumber}. ${actions[actionNumber - 1]}`)
             .join("\n");
 
-    // Perform a series of actions to undo later.
-    // ------------------------------------------
-
-    // Write in the P.
     actions.push(
         "type: insert 'o' into the paragraph",
         "type: insert '!' into the paragraph",
     );
-    await insertText(editor, "o!"); // <wrapper><pre>some code</pre></wrapper><p>hello![]</p>
+    await insertText(editor, "o!");
     await compareHighlightedContent(
         getContent(editor.editable),
         unformat(`
@@ -814,10 +772,9 @@ test("multiple ctrl+z in a highlighted code block undo changes in the block and 
         listActions(1, 2),
         editor,
     );
-    // Change the language -> code gets re-highlighted as javascript.
     actions.push("language: change the language to javascript and highlight the code");
     const textarea = queryOne("textarea");
-    await changeLanguage(textarea, "Plain Text", "Javascript"); // <wrapper><highlight><pre>some code</pre></highlight></wrapper><p>hello!</p>
+    await changeLanguage(textarea, "Plain Text", "Javascript");
     await compareHighlightedContent(
         getContent(editor.editable),
         unformat(`
@@ -828,11 +785,10 @@ test("multiple ctrl+z in a highlighted code block undo changes in the block and 
         listActions(3),
         editor,
     );
-    // Write in the TEXTAREA.
     actions.push("type: insert 'n' into the pre", "type: insert 'o' into the pre");
     await click("textarea");
-    await pressAndWait("n"); // <wrapper><highlight><pre>some coden</pre></highlight></wrapper><p>hello!</p>
-    await pressAndWait("o"); // <wrapper><highlight><pre>some codeno</pre></highlight></wrapper><p>hello!</p>
+    await pressAndWait("n");
+    await pressAndWait("o");
     await compareHighlightedContent(
         getContent(editor.editable),
         unformat(`
@@ -850,11 +806,11 @@ test("multiple ctrl+z in a highlighted code block undo changes in the block and 
         "type: insert 'e' into the pre",
         "type: insert 's' into the pre",
     );
-    await pressAndWait("Backspace"); // <wrapper><highlight><pre>some coden</pre></highlight></wrapper><p>hello!</p>
-    await pressAndWait("Backspace"); // <wrapper><highlight><pre>some code</pre></highlight></wrapper><p>hello!</p>
-    await pressAndWait("y"); // <wrapper><highlight><pre>some codey</pre></highlight></wrapper><p>hello!</p>
-    await pressAndWait("e"); // <wrapper><highlight><pre>some codeye</pre></highlight></wrapper><p>hello!</p>
-    await pressAndWait("s"); // <wrapper><highlight><pre>some codeyes</pre></highlight></wrapper><p>hello!</p>
+    await pressAndWait("Backspace");
+    await pressAndWait("Backspace");
+    await pressAndWait("y");
+    await pressAndWait("e");
+    await pressAndWait("s");
     await compareHighlightedContent(
         getContent(editor.editable),
         unformat(`
@@ -865,7 +821,6 @@ test("multiple ctrl+z in a highlighted code block undo changes in the block and 
         listActions(6, 7, 8, 9, 10),
         editor,
     );
-    // Write in the P again.
     actions.push(
         "type: insert 'o' into the paragraph",
         "type: insert 'k' into the paragraph",
@@ -873,7 +828,7 @@ test("multiple ctrl+z in a highlighted code block undo changes in the block and 
     const p = queryOne("p:not([data-selection-placeholder])");
     await click(p);
     editor.shared.selection.setCursorEnd(p);
-    await insertText(editor, "ok"); // <wrapper><highlight><pre>some codeyes</pre></highlight></wrapper><p>hello!ok[]</p>
+    await insertText(editor, "ok");
     await compareHighlightedContent(
         getContent(editor.editable),
         unformat(`
@@ -884,10 +839,9 @@ test("multiple ctrl+z in a highlighted code block undo changes in the block and 
         listActions(11, 12),
         editor,
     );
-    // Write in the TEXTAREA again.
     actions.push("type: insert 'h' into the pre");
     await click("textarea");
-    await pressAndWait("h"); // <wrapper><highlight><pre>some codeyesh</pre></highlight></wrapper><p>hello!ok[]</p>
+    await pressAndWait("h");
     await compareHighlightedContent(
         getContent(editor.editable),
         unformat(`
@@ -899,10 +853,7 @@ test("multiple ctrl+z in a highlighted code block undo changes in the block and 
         editor,
     );
 
-    // Undo everything.
-    // ----------------
-
-    await pressAndWait(["ctrl", "z"]); // <wrapper><highlight><pre>some codeyes</pre></highlight></wrapper><p>hello!ok</p>
+    await pressAndWait(["ctrl", "z"]);
     await compareHighlightedContent(
         getContent(editor.editable),
         unformat(`
@@ -913,8 +864,8 @@ test("multiple ctrl+z in a highlighted code block undo changes in the block and 
         `undo:\n${listActions(13)}`,
         editor,
     );
-    await pressAndWait(["ctrl", "z"]); // <wrapper><highlight><pre>some codeyes</pre></highlight></wrapper><p>hello!o[]</p>
-    await pressAndWait(["ctrl", "z"]); // <wrapper><highlight><pre>some codeyes</pre></highlight></wrapper><p>hello![]</p>
+    await pressAndWait(["ctrl", "z"]);
+    await pressAndWait(["ctrl", "z"]);
     await compareHighlightedContent(
         getContent(editor.editable),
         unformat(`
@@ -925,9 +876,9 @@ test("multiple ctrl+z in a highlighted code block undo changes in the block and 
         `undo:\n${listActions(12, 11)}`,
         editor,
     );
-    await pressAndWait(["ctrl", "z"]); // <wrapper><highlight><pre>some codeye</pre></highlight></wrapper><p>hello!</p>
-    await pressAndWait(["ctrl", "z"]); // <wrapper><highlight><pre>some codey</pre></highlight></wrapper><p>hello!</p>
-    await pressAndWait(["ctrl", "z"]); // <wrapper><highlight><pre>some code</pre></highlight></wrapper><p>hello!</p>
+    await pressAndWait(["ctrl", "z"]);
+    await pressAndWait(["ctrl", "z"]);
+    await pressAndWait(["ctrl", "z"]);
     await compareHighlightedContent(
         getContent(editor.editable),
         unformat(`
@@ -938,8 +889,8 @@ test("multiple ctrl+z in a highlighted code block undo changes in the block and 
         `undo:\n${listActions(10, 9, 8)}`,
         editor,
     );
-    await pressAndWait(["ctrl", "z"]); // <wrapper><highlight><pre>some coden</pre></highlight></wrapper><p>hello!</p>
-    await pressAndWait(["ctrl", "z"]); // <wrapper><highlight><pre>some codeno</pre></highlight></wrapper><p>hello!</p>
+    await pressAndWait(["ctrl", "z"]);
+    await pressAndWait(["ctrl", "z"]);
     await compareHighlightedContent(
         getContent(editor.editable),
         unformat(`
@@ -950,8 +901,8 @@ test("multiple ctrl+z in a highlighted code block undo changes in the block and 
         `undo:\n${listActions(7, 6)}`,
         editor,
     );
-    await pressAndWait(["ctrl", "z"]); // <wrapper><highlight><pre>some coden</pre></highlight></wrapper><p>hello!</p>
-    await pressAndWait(["ctrl", "z"]); // <wrapper><highlight><pre>some code</pre></highlight></wrapper><p>hello!</p>
+    await pressAndWait(["ctrl", "z"]);
+    await pressAndWait(["ctrl", "z"]);
     await compareHighlightedContent(
         getContent(editor.editable),
         unformat(`
@@ -962,7 +913,7 @@ test("multiple ctrl+z in a highlighted code block undo changes in the block and 
         `undo:\n${listActions(5, 4)}`,
         editor,
     );
-    await pressAndWait(["ctrl", "z"]); // <wrapper><pre>some code</pre></wrapper><p>hello!</p>
+    await pressAndWait(["ctrl", "z"]);
     await compareHighlightedContent(
         getContent(editor.editable),
         unformat(`
@@ -973,8 +924,8 @@ test("multiple ctrl+z in a highlighted code block undo changes in the block and 
         `undo:\n${listActions(3)}`,
         editor,
     );
-    await pressAndWait(["ctrl", "z"]); // <wrapper><pre>some code</pre></wrapper><p>hello</p>
-    await pressAndWait(["ctrl", "z"]); // <wrapper><pre>some code</pre></wrapper><p>hell</p>
+    await pressAndWait(["ctrl", "z"]);
+    await pressAndWait(["ctrl", "z"]);
     await compareHighlightedContent(
         getContent(editor.editable),
         unformat(`
@@ -985,7 +936,7 @@ test("multiple ctrl+z in a highlighted code block undo changes in the block and 
         `undo:\n${listActions(2, 1)}`,
         editor,
     );
-    await pressAndWait(["ctrl", "z"]); // <wrapper><pre>some code</pre></wrapper><p>hell</p>
+    await pressAndWait(["ctrl", "z"]);
     await compareHighlightedContent(
         getContent(editor.editable),
         unformat(`
@@ -997,11 +948,8 @@ test("multiple ctrl+z in a highlighted code block undo changes in the block and 
         editor,
     );
 
-    // Redo everything.
-    // ----------------
-
-    await pressAndWait(["ctrl", "y"]); // <wrapper><pre>some code</pre></wrapper><p>hello</p>
-    await pressAndWait(["ctrl", "y"]); // <wrapper><pre>some code</pre></wrapper><p>hello!</p>
+    await pressAndWait(["ctrl", "y"]);
+    await pressAndWait(["ctrl", "y"]);
     await compareHighlightedContent(
         getContent(editor.editable),
         unformat(
@@ -1012,7 +960,7 @@ test("multiple ctrl+z in a highlighted code block undo changes in the block and 
         `redo:\n${listActions(1, 2)}`,
         editor,
     );
-    await pressAndWait(["ctrl", "shift", "z"]); // <wrapper><highlight><pre>some code</pre></highlight></wrapper><p>hello!</p>
+    await pressAndWait(["ctrl", "shift", "z"]);
     await compareHighlightedContent(
         getContent(editor.editable),
         unformat(`
@@ -1023,8 +971,8 @@ test("multiple ctrl+z in a highlighted code block undo changes in the block and 
         `redo:\n${listActions(3)}`,
         editor,
     );
-    await pressAndWait(["ctrl", "y"]); // <wrapper><highlight><pre>some coden</pre></highlight></wrapper><p>hello!</p>
-    await pressAndWait(["ctrl", "y"]); // <wrapper><highlight><pre>some codeno</pre></highlight></wrapper><p>hello!</p>
+    await pressAndWait(["ctrl", "y"]);
+    await pressAndWait(["ctrl", "y"]);
     await compareHighlightedContent(
         getContent(editor.editable),
         unformat(`
@@ -1035,8 +983,8 @@ test("multiple ctrl+z in a highlighted code block undo changes in the block and 
         `redo:\n${listActions(4, 5)}`,
         editor,
     );
-    await pressAndWait(["ctrl", "shift", "z"]); // <wrapper><highlight><pre>some coden</pre></highlight></wrapper><p>hello!</p>
-    await pressAndWait(["ctrl", "shift", "z"]); // <wrapper><highlight><pre>some code</pre></highlight></wrapper><p>hello!</p>
+    await pressAndWait(["ctrl", "shift", "z"]);
+    await pressAndWait(["ctrl", "shift", "z"]);
     await compareHighlightedContent(
         getContent(editor.editable),
         unformat(`
@@ -1047,9 +995,9 @@ test("multiple ctrl+z in a highlighted code block undo changes in the block and 
         `redo:\n${listActions(6, 7)}`,
         editor,
     );
-    await pressAndWait(["ctrl", "y"]); // <wrapper><highlight><pre>some codey</pre></highlight></wrapper><p>hello!</p>
-    await pressAndWait(["ctrl", "y"]); // <wrapper><highlight><pre>some codeye</pre></highlight></wrapper><p>hello!</p>
-    await pressAndWait(["ctrl", "y"]); // <wrapper><highlight><pre>some codeyes</pre></highlight></wrapper><p>hello!</p>
+    await pressAndWait(["ctrl", "y"]);
+    await pressAndWait(["ctrl", "y"]);
+    await pressAndWait(["ctrl", "y"]);
     await compareHighlightedContent(
         getContent(editor.editable),
         unformat(`
@@ -1060,8 +1008,8 @@ test("multiple ctrl+z in a highlighted code block undo changes in the block and 
         `redo:\n${listActions(8, 9, 10)}`,
         editor,
     );
-    await pressAndWait(["ctrl", "shift", "z"]); // <wrapper><highlight><pre>some codeyes</pre></highlight></wrapper><p>hello!o</p>
-    await pressAndWait(["ctrl", "shift", "z"]); // <wrapper><highlight><pre>some codeyes</pre></highlight></wrapper><p>hello!ok</p>
+    await pressAndWait(["ctrl", "shift", "z"]);
+    await pressAndWait(["ctrl", "shift", "z"]);
     await compareHighlightedContent(
         getContent(editor.editable),
         unformat(`
@@ -1072,7 +1020,7 @@ test("multiple ctrl+z in a highlighted code block undo changes in the block and 
         `redo:\n${listActions(11, 12)}`,
         editor,
     );
-    await pressAndWait(["ctrl", "y"]); // <wrapper><highlight><pre>some codeyes</pre></highlight></wrapper><p>hello!ok</p>
+    await pressAndWait(["ctrl", "y"]);
     await compareHighlightedContent(
         getContent(editor.editable),
         unformat(`
@@ -1083,8 +1031,8 @@ test("multiple ctrl+z in a highlighted code block undo changes in the block and 
         `redo:\n${listActions(13)}`,
         editor,
     );
-    await pressAndWait(["ctrl", "shift", "z"]); // <wrapper><highlight><pre>some codeyes</pre></highlight></wrapper><p>hello!ok</p>
-    await pressAndWait(["ctrl", "y"]); // <wrapper><highlight><pre>some codeyes</pre></highlight></wrapper><p>hello!ok</p>
+    await pressAndWait(["ctrl", "shift", "z"]);
+    await pressAndWait(["ctrl", "y"]);
     await compareHighlightedContent(
         getContent(editor.editable),
         unformat(`
@@ -1213,26 +1161,20 @@ test("should keep textarea focused when changing code block language", async () 
         editor,
     );
 
-    // Focus the textarea inside the code block
     const textarea = editor.document.querySelector("textarea");
     await click(textarea);
     expect(editor.document.activeElement).toBe(textarea);
     const from = "Plain Text";
     const to = "Javascript";
-    // Wait until the language selector button is available in the toolbar
     await waitFor(`.o_code_toolbar button[name='language'][title='${from}']`);
     const dropdownButton = document.querySelector(
         `.o_code_toolbar button[name='language'][title='${from}']`,
     );
-    // Explicitly focus the dropdown button before opening it
     dropdownButton.focus();
     await click(dropdownButton);
-    // Language selector dropdown should open.
     await waitFor(`.o_language_selector .o-dropdown-item[name='${to}']`);
     await click(`.o_language_selector .o-dropdown-item[name='${to}']`);
-    // Code Toolbar should show the new language name.
     await waitFor(`.o_code_toolbar button[name='language'][title='${to}']`);
-    // Ensure focus is restored to the textarea after the dropdown closes
     expect(document.activeElement).toBe(textarea);
 });
 
@@ -1251,15 +1193,12 @@ test("should keep textarea focused after copying code content", async () => {
         editor,
     );
 
-    // Focus the textarea inside the code block
     const textarea = editor.document.querySelector("textarea");
     await click(textarea);
     expect(editor.document.activeElement).toBe(textarea);
 
-    // Wait for the code toolbar and trigger the copy action
     await waitFor(".o_code_toolbar");
     await click(".o_code_toolbar .o_clipboard_button");
 
-    // Ensure focus remains on the textarea after copying
     expect(document.activeElement).toBe(textarea);
 });

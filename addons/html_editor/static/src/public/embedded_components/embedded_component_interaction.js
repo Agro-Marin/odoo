@@ -17,9 +17,6 @@ export const getEmbeddingMap = memoize(
 
 const getTocManager = memoize((element) => new TableOfContentManager({ el: element }));
 
-/**
- * Mount EmbeddedComponent in the Knowledge public view.
- */
 export class EmbeddedComponentInteraction extends Interaction {
     static selector = "[data-embedded]";
 
@@ -51,8 +48,6 @@ export class EmbeddedComponentInteraction extends Interaction {
                 super.setup();
                 onMounted(() => {
                     for (const node of [...host.childNodes]) {
-                        // Ensure that only OWL renderings are kept inside
-                        // the host when the component is alive.
                         if (node.nodeName !== "OWL-ROOT") {
                             if (node.nodeType === Node.ELEMENT_NODE) {
                                 interactionsService.stopInteractions(node);
@@ -62,8 +57,6 @@ export class EmbeddedComponentInteraction extends Interaction {
                     }
                 });
                 onWillDestroy(() => {
-                    // Ensure that editableDescendants are kept inside the
-                    // host in case the component should be mounted again later.
                     const editableDescendants = getEditableDescendants?.(host) ?? {};
                     host.append(...Object.values(editableDescendants));
                 });
@@ -87,7 +80,6 @@ export class EmbeddedComponentInteraction extends Interaction {
     setupNewComponent({ name, env, props }) {
         if (name === "tableOfContent") {
             Object.assign(props, {
-                // Define the TOC scope to its siblings.
                 manager: getTocManager(this.el.parentElement),
             });
         }

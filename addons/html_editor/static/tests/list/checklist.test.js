@@ -5,10 +5,6 @@ import { testEditor } from "../_helpers/editor.js";
 import { unformat } from "../_helpers/format.js";
 import { clickCheckbox, pasteHtml } from "../_helpers/user_actions.js";
 
-// TODO: tests here can fail with "Cannot translate string: translations have not
-// been loaded" — the list plugin's lazy ``_t()`` titles throw before the harness
-// loads translations. The fix belongs to the test harness, not to the product.
-
 test("should do nothing if do not click on the checkbox", async () => {
     await testEditor({
         contentBefore: unformat(`
@@ -257,7 +253,6 @@ test("should uncheck a nested item and the wrapper wrapper title", async () => {
     });
 });
 
-// TODO: this test's contentAfter does not match its description.
 test("should check all nested checklist item", async () => {
     await testEditor({
         contentBefore: unformat(`
@@ -302,7 +297,6 @@ test("should check all nested checklist item", async () => {
     });
 });
 
-// TODO: this test's contentAfter does not match its description.
 test("should uncheck all nested checklist item", async () => {
     await testEditor({
         contentBefore: unformat(`

@@ -4,9 +4,8 @@ export const BASE_CONTAINER_CLASS = "o-paragraph";
 export const SUPPORTED_BASE_CONTAINER_NAMES = ["P", "DIV"];
 
 /**
- * @param {string} [nodeName] @see SUPPORTED_BASE_CONTAINER_NAMES
- *                 will return the global selector if nodeName is not specified.
- * @returns {string} selector for baseContainers.
+ * @param {string} [nodeName]
+ * @returns {string}
  */
 export function getBaseContainerSelector(nodeName) {
     if (!nodeName) {
@@ -25,13 +24,8 @@ export const baseContainerGlobalSelector = `:is(${SUPPORTED_BASE_CONTAINER_NAMES
 ).join(",")})`;
 
 /**
- * Create a new baseContainer element.
- *
- * @param {string} nodeName @see SUPPORTED_BASE_CONTAINER_NAMES
- * @param {Document} [document] Used to create new baseContainer elements.
- *                   For iframes, preferably use the iframe document.
- *                   Fallbacks to the window document if possible and unspecified.
- *                   Has to be specified otherwise.
+ * @param {string} nodeName
+ * @param {Document} [document]
  * @returns {HTMLElement}
  */
 export function createBaseContainer(nodeName, document) {

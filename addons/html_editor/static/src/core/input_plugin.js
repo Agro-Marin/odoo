@@ -17,16 +17,6 @@ export class InputPlugin extends Plugin {
 
     onKeyDown(ev) {
         const selection = this.document.getSelection();
-        // Some virtual keyboards (e.g. MS SwiftKey) fire keydown events with
-        // key === "Unidentified" before a `beforeinput` event. At that point,
-        // `document.getSelection()` reflects the correct caret position, but
-        // by the time `beforeinput` fires, the selection has already been
-        // moved by the keyboard's internal processing — before the input is
-        // actually applied to the DOM.
-        //
-        // To work around this, we snapshot the selection here in `keydown`
-        // and store it as a cached selection so that the `beforeinput` handler
-        // can use this snapshot instead of calling `getSelection()` itself.
         if (
             selection?.rangeCount &&
             selection.isCollapsed &&

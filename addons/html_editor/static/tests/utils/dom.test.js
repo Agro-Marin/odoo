@@ -21,7 +21,6 @@ describe("splitAroundUntil", () => {
         );
         const [p] = el.childNodes;
         const cde = p.childNodes[1].childNodes[1].firstChild;
-        // We want to test with "cde" being three separate text nodes.
         splitTextNode(cde, 2);
         const cd = cde.previousSibling;
         splitTextNode(cd, 1);
@@ -39,7 +38,6 @@ describe("splitAroundUntil", () => {
         );
         const [p] = el.childNodes;
         const cdefg = p.childNodes[1].childNodes[1].firstChild;
-        // We want to test with "cdefg" being five separate text nodes.
         splitTextNode(cdefg, 4);
         const cdef = cdefg.previousSibling;
         splitTextNode(cdef, 3);
@@ -362,15 +360,12 @@ describe("wrapInlinesInBlocks", () => {
         );
     });
     test("wrap block with display style inline in div", async () => {
-        // Second part should be wrapped automatically during initElementForEdition
         const { el, editor } = await setupEditor(
             `<div><br></div><div contenteditable="false" style="display: inline;">inline</div>`,
         );
         const div = el.querySelector("div");
         editor.shared.selection.setSelection({ anchorNode: div, anchorOffset: 0 });
         editor.shared.selection.focusEditable();
-        // dom insert must not put inline content at the root, and inline
-        // non-phrasing content must not go in a paragraph-related element.
         editor.shared.dom.insert(
             parseHTML(
                 editor.document,
@@ -378,9 +373,6 @@ describe("wrapInlinesInBlocks", () => {
             ),
         );
         editor.shared.history.addStep();
-        // Selection placeholders surround the non-editable blocks, and the
-        // inserted inline flow content is wrapped in a div, not in a
-        // paragraph-related element.
         expect(getContent(el)).toBe(
             unformat(`
                 <p data-selection-placeholder=""><br></p>
@@ -396,15 +388,12 @@ describe("wrapInlinesInBlocks", () => {
         );
     });
     test("wrap a mix of inline elements in div", async () => {
-        // Second part should be wrapped automatically during initElementForEdition
         const { el, editor } = await setupEditor(
             `<div><br></div>text<div contenteditable="false" style="display: inline;">inline</div><span class="a">span</span>`,
         );
         const div = el.querySelector("div");
         editor.shared.selection.setSelection({ anchorNode: div, anchorOffset: 0 });
         editor.shared.selection.focusEditable();
-        // dom insert must not put inline content at the root, and inline
-        // non-phrasing content must not go in a paragraph-related element.
         editor.shared.dom.insert(
             parseHTML(
                 editor.document,
@@ -429,14 +418,11 @@ describe("wrapInlinesInBlocks", () => {
         );
     });
     test("wrap a mix of inline elements in div with br", async () => {
-        // Second part should be wrapped automatically during initElementForEdition
         const { el, editor } = await setupEditor(
             `<div>[]<br></div>text<br><div contenteditable="false" style="display: inline;">inline</div><br><span class="a">span</span>`,
         );
         const div = el.querySelector("div");
         editor.shared.selection.setSelection({ anchorNode: div, anchorOffset: 0 });
-        // dom insert must not put inline content at the root, and inline
-        // non-phrasing content must not go in a paragraph-related element.
         editor.shared.dom.insert(
             parseHTML(
                 editor.document,

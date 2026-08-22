@@ -4,7 +4,6 @@ import { testEditor } from "./_helpers/editor.js";
 import { unformat } from "./_helpers/format.js";
 
 test("should remove empty class attribute", async () => {
-    // content after is compared after cleaning up DOM
     await testEditor({
         contentBefore: '<div class=""></div>',
         contentAfter: "<div><br></div>",

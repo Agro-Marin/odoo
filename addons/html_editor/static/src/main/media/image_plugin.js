@@ -223,12 +223,10 @@ export class ImagePlugin extends Plugin {
             },
         ],
 
-        /** Handlers */
         selectionchange_handlers: withSequence(READ, this.updateImageParams.bind(this)),
         post_undo_handlers: this.updateImageParams.bind(this),
         post_redo_handlers: this.updateImageParams.bind(this),
 
-        /** Providers */
         paste_media_url_command_providers: this.getCommandForImageUrlPaste.bind(this),
     };
 
@@ -308,7 +306,6 @@ export class ImagePlugin extends Plugin {
             return;
         }
         let imageName;
-        // Keep the result from the first predicate that returns something.
         this.getResource("image_name_predicates").find((p) => {
             imageName = p(targetedImg);
             return imageName;

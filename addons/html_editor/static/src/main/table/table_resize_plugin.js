@@ -20,10 +20,6 @@ export class TableResizePlugin extends Plugin {
     }
 
     /**
-     * If the mouse is hovering over one of the borders of a table cell element,
-     * return the side of that border ('left'|'top'|'right'|'bottom').
-     * Otherwise, return false.
-     *
      * @private
      * @param {MouseEvent} ev
      * @returns {string|boolean}
@@ -51,12 +47,8 @@ export class TableResizePlugin extends Plugin {
         return false;
     }
     /**
-     * Change the cursor to a resizing cursor, in the direction specified. If no
-     * direction is specified, return the cursor to its default.
-     *
      * @private
-     * @param {'col'|'row'|false} direction 'col'/'row' to hint column/row,
-     *                                      false to remove the hints
+     * @param {'col'|'row'|false} direction
      */
     setTableResizeCursor(direction) {
         const classList = this.editable.classList;
@@ -74,9 +66,6 @@ export class TableResizePlugin extends Plugin {
     }
 
     /**
-     * Resizes a table in the given direction, by "pulling" the border between
-     * the given targets (ordered left to right or top to bottom).
-     *
      * @param {MouseEvent} ev
      * @param {'col'|'row'} direction
      * @param {HTMLElement} target1
@@ -93,7 +82,6 @@ export class TableResizePlugin extends Plugin {
                 : ["height", "y", "clientY"];
 
         const isRTL = this.config.direction === "rtl";
-        // Preserve current width.
         if (sizeProp === "width") {
             const tableRect = table.getBoundingClientRect();
             table.style[sizeProp] = tableRect[sizeProp] + "px";
@@ -106,8 +94,6 @@ export class TableResizePlugin extends Plugin {
                 unsizedItem.getBoundingClientRect()[sizeProp] + "px";
         }
 
-        // TD widths should only be applied in the first row. Change targets and
-        // clean the rest.
         if (direction === "col") {
             let hostCell = closestElement(table, isTableCell);
             const hostCells = [];
@@ -133,7 +119,7 @@ export class TableResizePlugin extends Plugin {
             }
         }
 
-        const MIN_SIZE = 33; // TODO: ideally, find this value programmatically.
+        const MIN_SIZE = 33;
         switch (position) {
             case "first": {
                 const marginProp =
@@ -157,7 +143,6 @@ export class TableResizePlugin extends Plugin {
                 const newSize = currentSize + sizeDelta;
                 if (newMargin >= 0 && newSize > MIN_SIZE) {
                     const tableRect = table.getBoundingClientRect();
-                    // Check if a nested table would overflow its parent cell.
                     const hostCell = closestElement(table.parentElement, isTableCell);
                     const childTable = item.querySelector("table");
                     const endProp = isRTL ? "left" : "right";
@@ -204,13 +189,10 @@ export class TableResizePlugin extends Plugin {
                 const tableRect = table.getBoundingClientRect();
                 if (
                     newSize > MIN_SIZE &&
-                    // prevent resizing horizontally beyond the bounds of
-                    // the editable:
                     (direction === "row" ||
                         newNeighborSize > MIN_SIZE ||
                         tableRect[sizeProp] + sizeDelta < maxWidth)
                 ) {
-                    // Check if a nested table would overflow its parent cell.
                     const childTable = item.querySelector("table");
                     if (
                         direction === "col" &&
@@ -236,7 +218,7 @@ export class TableResizePlugin extends Plugin {
                 const itemRect = item.getBoundingClientRect();
                 let sizeDelta =
                     ev[clientPositionProp] -
-                    (itemRect[positionProp] + itemRect[sizeProp]); // todo: rephrase
+                    (itemRect[positionProp] + itemRect[sizeProp]);
                 if (direction === "col" && isRTL) {
                     sizeDelta = itemRect[positionProp] - ev[clientPositionProp];
                 }
@@ -244,7 +226,6 @@ export class TableResizePlugin extends Plugin {
                 const newSize = currentSize + sizeDelta;
                 if ((newSize >= 0 || direction === "row") && newSize > MIN_SIZE) {
                     const tableRect = table.getBoundingClientRect();
-                    // Check if a nested table would overflow its parent cell.
                     const hostCell = closestElement(table.parentElement, isTableCell);
                     const childTable = item.querySelector("table");
                     const endProp = isRTL ? "left" : "right";
@@ -270,11 +251,7 @@ export class TableResizePlugin extends Plugin {
     }
 
     /**
-     * Resizes rows and columns based on the mouse's double-click on the borders.
-     * Adjusts width of columns or height of rows depending on the cursor position.
-     * Adjacent rows/columns are resized as well.
-     *
-     * @param {MouseEvent} ev - The double-click mouse event.
+     * @param {MouseEvent} ev
      */
     fitToContent(ev) {
         const isHoveringTdBorder = this.isHoveringTdBorder(ev);

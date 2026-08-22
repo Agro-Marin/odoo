@@ -101,12 +101,11 @@ describe("should position the cursor outside the link", () => {
 
         const aElement = queryOne("p a");
         await pointerDown(el);
-        // Simulate the selection with mousedown
         setSelection({ anchorNode: aElement.childNodes[0], anchorOffset: 0 });
         expect(getContent(el)).toBe(
             '<p>\ufeff<a href="http://test.test/" class="o_link_in_selection">[]\ufefftest\ufeff</a>\ufeff</p>',
         );
-        await animationFrame(); // selection change
+        await animationFrame();
         await pointerUp(el);
         expect(getContent(el)).toBe(
             '<p>[]\ufeff<a href="http://test.test/">\ufefftest\ufeff</a>\ufeff</p>',
@@ -118,19 +117,16 @@ describe("should position the cursor outside the link", () => {
             '<p><strong><a href="#/">test</a></strong></p>',
         );
         expect(getContent(el)).toBe(
-            // The editable selection is in the link (first leaf of the editable
-            // upon initialization).
             '<p><strong>\ufeff<a href="#/">\ufefftest\ufeff</a>\ufeff</strong></p>',
         );
 
         const aElement = queryOne("p a");
         await pointerDown(el);
-        // Simulate the selection with mousedown
         setSelection({ anchorNode: aElement.childNodes[0], anchorOffset: 0 });
         expect(getContent(el)).toBe(
             '<p><strong>\ufeff<a href="#/">[]\ufefftest\ufeff</a>\ufeff</strong></p>',
         );
-        await animationFrame(); // selection change
+        await animationFrame();
         await pointerUp(el);
         expect(getContent(el)).toBe(
             '<p><strong>[]\ufeff<a href="#/">\ufefftest\ufeff</a>\ufeff</strong></p>',
@@ -147,7 +143,6 @@ describe("should position the cursor outside the link", () => {
 
         const aElement = queryOne("p a");
         await pointerDown(el);
-        // Simulate the selection with mousedown
         setSelection({
             anchorNode: aElement.childNodes[2],
             anchorOffset: nodeSize(aElement.childNodes[2]),
@@ -155,7 +150,7 @@ describe("should position the cursor outside the link", () => {
         expect(getContent(el)).toBe(
             '<p>\ufeff<a href="http://test.test/" class="o_link_in_selection">\ufefftest\ufeff[]</a>\ufeff</p>',
         );
-        await animationFrame(); // selectionChange
+        await animationFrame();
         await pointerUp(el);
         expect(getContent(el)).toBe(
             '<p>\ufeff<a href="http://test.test/">\ufefftest\ufeff</a>\ufeff[]</p>',
@@ -172,12 +167,11 @@ describe("should position the cursor outside the link", () => {
 
         const aElement = queryOne("p a");
         await pointerDown(el);
-        // Simulate the selection with mousedown
         setSelection({ anchorNode: aElement.childNodes[1], anchorOffset: 0 });
         expect(getContent(el)).toBe(
             '<p>\ufeff<a href="http://test.test/" class="o_link_in_selection">\ufeff[]test\ufeff</a>\ufeff</p>',
         );
-        await animationFrame(); // selection change
+        await animationFrame();
         await pointerUp(el);
         expect(getContent(el)).toBe(
             '<p>[]\ufeff<a href="http://test.test/">\ufefftest\ufeff</a>\ufeff</p>',
@@ -189,7 +183,7 @@ describe("should position the cursor outside the link", () => {
         );
 
         setSelection({ anchorNode: aElement.childNodes[1], anchorOffset: 0 });
-        await animationFrame(); // selectionChange
+        await animationFrame();
         expect(getContent(el)).toBe(
             '<p>link\ufeff<a href="http://test.test/" class="o_link_in_selection">\ufeff[]test\ufeff</a>\ufeff</p>',
         );
@@ -209,7 +203,6 @@ describe("should position the cursor outside the link", () => {
 
         const aElement = queryOne("p a");
         await pointerDown(el);
-        // Simulate the selection with mousedown
         setSelection({
             anchorNode: aElement.childNodes[1],
             anchorOffset: nodeSize(aElement.childNodes[1]),
@@ -217,7 +210,7 @@ describe("should position the cursor outside the link", () => {
         expect(getContent(el)).toBe(
             '<p>\ufeff<a href="http://test.test/" class="o_link_in_selection">\ufefftest[]\ufeff</a>\ufeff</p>',
         );
-        await animationFrame(); // selection change
+        await animationFrame();
         await pointerUp(el);
         expect(getContent(el)).toBe(
             '<p>\ufeff<a href="http://test.test/">\ufefftest\ufeff</a>\ufeff[]</p>',
@@ -232,7 +225,7 @@ describe("should position the cursor outside the link", () => {
             anchorNode: aElement.childNodes[1],
             anchorOffset: nodeSize(aElement.childNodes[1]),
         });
-        await animationFrame(); // selectionChange
+        await animationFrame();
         expect(getContent(el)).toBe(
             '<p>\ufeff<a href="http://test.test/" class="o_link_in_selection">\ufefftest[]\ufeff</a>\ufefflink</p>',
         );
@@ -261,9 +254,7 @@ describe("should zwnbsp-pad simple text link", () => {
             stepFunction: async (editor) => {
                 removeZwnbsp(editor);
                 const p = editor.editable.querySelector("p");
-                // set the selection via the parent
                 setSelection({ anchorNode: p, anchorOffset: 1 });
-                // insert the zwnbsp again
                 dispatchNormalize(editor);
             },
             contentAfterEdit: '<p>a\ufeff[]<a href="#/">\ufeffbc\ufeff</a>\ufeffd</p>',
@@ -277,10 +268,8 @@ describe("should zwnbsp-pad simple text link", () => {
             stepFunction: async (editor) => {
                 removeZwnbsp(editor);
                 const a = editor.editable.querySelector("a");
-                // set the selection via the parent
                 setSelection({ anchorNode: a, anchorOffset: 0 });
                 await tick();
-                // insert the zwnbsp again
                 dispatchNormalize(editor);
             },
             contentAfterEdit:
@@ -294,15 +283,10 @@ describe("should zwnbsp-pad simple text link", () => {
                 '<p>a\ufeff<a href="http://test.test/" class="o_link_in_selection">\ufeffb[]\ufeff</a>\ufeffd</p>',
             stepFunction: async (editor) => {
                 const a = editor.editable.querySelector("a");
-                // Insert an extra character as a text node so we can set
-                // the selection between the characters while still
-                // targeting their parent.
                 a.appendChild(editor.document.createTextNode("c"));
                 removeZwnbsp(editor);
-                // set the selection via the parent
                 setSelection({ anchorNode: a, anchorOffset: 1 });
                 await tick();
-                // insert the zwnbsp again
                 dispatchNormalize(editor);
             },
             contentAfterEdit:
@@ -317,10 +301,8 @@ describe("should zwnbsp-pad simple text link", () => {
             stepFunction: async (editor) => {
                 removeZwnbsp(editor);
                 const a = editor.editable.querySelector("a");
-                // set the selection via the parent
                 setSelection({ anchorNode: a, anchorOffset: 1 });
                 await tick();
-                // insert the zwnbsp again
                 dispatchNormalize(editor);
             },
             contentAfterEdit:
@@ -334,10 +316,8 @@ describe("should zwnbsp-pad simple text link", () => {
             stepFunction: async (editor) => {
                 removeZwnbsp(editor);
                 const p = editor.editable.querySelector("p");
-                // set the selection via the parent
                 setSelection({ anchorNode: p, anchorOffset: 2 });
                 await tick();
-                // insert the zwnbsp again
                 dispatchNormalize(editor);
             },
             contentAfterEdit: '<p>a\ufeff<a href="#/">\ufeffbc\ufeff</a>\ufeff[]d</p>',
@@ -375,11 +355,8 @@ test("should remove zwnbsp from middle of the link", async () => {
     await testEditor({
         contentBefore: '<p><a href="#/">content</a></p>',
         contentBeforeEdit:
-            // The editable selection is in the link (first leaf of the editable
-            // upon initialization).
             '<p>\ufeff<a href="#/">\ufeffcontent\ufeff</a>\ufeff</p>',
         stepFunction: async (editor) => {
-            // Cursor before the FEFF text node
             setSelection({
                 anchorNode: editor.editable.querySelector("a"),
                 anchorOffset: 0,
@@ -396,11 +373,8 @@ test("should remove zwnbsp from middle of the link (2)", async () => {
     await testEditor({
         contentBefore: '<p><a href="#/">content</a></p>',
         contentBeforeEdit:
-            // The editable selection is in the link (first leaf of the editable
-            // upon initialization).
             '<p>\ufeff<a href="#/">\ufeffcontent\ufeff</a>\ufeff</p>',
         stepFunction: async (editor) => {
-            // Cursor inside the FEFF text node
             setSelection({
                 anchorNode: editor.editable.querySelector("a").firstChild,
                 anchorOffset: 0,

@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
@@ -24,10 +22,6 @@ class MixinHtmlFieldHistory(models.AbstractModel):
 
     @api.model
     def _get_fields_versioned(self):
-        """This method should be overridden
-
-        :return: List[string]: A list of name of the fields to be versioned
-        """
         return []
 
     @api.depends("html_field_history")
@@ -40,8 +34,6 @@ class MixinHtmlFieldHistory(models.AbstractModel):
                     history_metadata[field_name] = []
                     for revision in rec.html_field_history[field_name]:
                         metadata = revision.copy()
-                        # tolerate a revision without a patch rather than
-                        # raising KeyError out of a compute
                         metadata.pop("patch", None)
                         history_metadata[field_name].append(metadata)
             rec.html_field_history_metadata = history_metadata
@@ -63,17 +55,11 @@ class MixinHtmlFieldHistory(models.AbstractModel):
             for rec in self:
                 rec_db_contents[rec.id] = {f: rec[f] for f in versioned_fields}
 
-        # Call super().write before generating the patch to be sure we perform
-        # the diff on sanitized data
         write_result = super().write(vals)
 
         if not vals_contain_versioned_fields:
             return write_result
 
-        # The sanitize contract is a property of the MODEL, not of a record, so
-        # it is checked once instead of once per record (it used to re-resolve
-        # `self.env[rec._name]._fields` on every iteration and raise the same
-        # error for whichever record came first).
         fields_data = self._fields
         if any(f in vals and not fields_data[f].sanitize for f in versioned_fields):
             raise ValidationError(  # pylint: disable=missing-gettext
@@ -81,14 +67,9 @@ class MixinHtmlFieldHistory(models.AbstractModel):
                 % (str(versioned_fields), self._name)
             )
 
-        # allow multi record write
         for rec in self:
             new_revisions = False
 
-            # Copy before mutating: `rec.html_field_history` may hand back the
-            # very dict held in the ORM cache, and mutating it in place would
-            # make the cache reflect revisions that were never written should
-            # the write below be skipped or rolled back.
             history_revs = {
                 name: list(revisions)
                 for name, revisions in (rec.html_field_history or {}).items()
@@ -122,7 +103,6 @@ class MixinHtmlFieldHistory(models.AbstractModel):
                     )
                     limit = rec._html_field_history_size_limit
                     history_revs[field] = history_revs[field][:limit]
-            # Call super().write again to include the new revision
             if new_revisions:
                 extra_vals = {"html_field_history": history_revs}
                 write_result = super(MixinHtmlFieldHistory, rec).write(extra_vals) and write_result
@@ -130,16 +110,6 @@ class MixinHtmlFieldHistory(models.AbstractModel):
         return write_result
 
     def _check_versioned_field(self, field_name):
-        """Validate a client-supplied field name.
-
-        The ``html_field_history_get_*`` methods are reachable over RPC, so
-        ``field_name`` is fully attacker-controlled. Without this check an
-        unknown name raised a bare ``KeyError`` (HTTP 500 + traceback) and a
-        non-versioned name would have reached ``self[field_name]``.
-
-        :param str field_name: the name of the field
-        :raise UserError: if the field is not versioned on this model
-        """
         if field_name not in self._get_fields_versioned():
             raise UserError(_(
                 'Field "%(field)s" is not versioned on model "%(model)s".',
@@ -148,20 +118,6 @@ class MixinHtmlFieldHistory(models.AbstractModel):
             ))
 
     def _check_revision_id(self, revision_id):
-        """Validate a client-supplied revision id.
-
-        Counterpart to :meth:`_check_versioned_field`: these methods are
-        reachable over RPC, so ``revision_id`` is attacker-controlled too.
-        Revision ids are compared with ``>=`` against stored integers, so a
-        string/None/dict raised a bare ``TypeError`` (HTTP 500 + traceback)
-        instead of a clean business error.
-
-        ``bool`` is rejected explicitly: it is a subclass of ``int`` and
-        ``True >= 1`` would silently mean "revision 1".
-
-        :param int revision_id: id of the revision
-        :raise UserError: if the revision id is not a usable integer
-        """
         if isinstance(revision_id, bool) or not isinstance(revision_id, int):
             raise UserError(_(
                 'Invalid revision id %(revision)r: expected an integer.',
@@ -169,13 +125,6 @@ class MixinHtmlFieldHistory(models.AbstractModel):
             ))
 
     def html_field_history_get_content_at_revision(self, field_name, revision_id):
-        """Get the requested field content restored at the revision_id.
-
-        :param str field_name: the name of the field
-        :param int revision_id: id of the last revision to restore
-
-        :return: string: the restored content
-        """
         self.ensure_one()
         self._check_versioned_field(field_name)
         self._check_revision_id(revision_id)
@@ -192,14 +141,6 @@ class MixinHtmlFieldHistory(models.AbstractModel):
         return content
 
     def html_field_history_get_comparison_at_revision(self, field_name, revision_id):
-        """Get a comparison between the current content of ``field_name`` and
-        the content restored at the requested revision_id.
-
-        :param str field_name: the name of the field
-        :param int revision_id: id of the last revision to compare
-
-        :return: string: the comparison
-        """
         self.ensure_one()
         self._check_versioned_field(field_name)
         self._check_revision_id(revision_id)
@@ -210,14 +151,6 @@ class MixinHtmlFieldHistory(models.AbstractModel):
         return generate_comparison(restored_content, self[field_name] or "")
 
     def html_field_history_get_unified_diff_at_revision(self, field_name, revision_id):
-        """Get a unified diff between the current content of ``field_name`` and
-        the content restored at the requested revision_id.
-
-        :param str field_name: the name of the field
-        :param int revision_id: id of the last revision to compare
-
-        :return: string: the unified diff
-        """
         self.ensure_one()
         self._check_versioned_field(field_name)
         self._check_revision_id(revision_id)

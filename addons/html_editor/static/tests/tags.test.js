@@ -127,7 +127,6 @@ describe("to paragraph", () => {
             contentBefore:
                 "<table><tbody><tr><td><h1>[a</h1></td><td><h1>b</h1></td><td><h1>c]</h1></td></tr></tbody></table>",
             stepFunction: setTag("p"),
-            // cleanForSave removes the custom table selection classes.
             contentAfter:
                 "<table><tbody><tr><td><p>[a</p></td><td><p>b</p></td><td><p>c]</p></td></tr></tbody></table>",
         });
@@ -260,7 +259,6 @@ describe("to heading 1", () => {
             contentBefore:
                 "<table><tbody><tr><td><p>[a</p></td><td><p>b</p></td><td><p>c]</p></td></tr></tbody></table>",
             stepFunction: setTag("h1"),
-            // cleanForSave removes the custom table selection classes.
             contentAfter:
                 "<table><tbody><tr><td><h1>[a</h1></td><td><h1>b</h1></td><td><h1>c]</h1></td></tr></tbody></table>",
         });
@@ -340,7 +338,6 @@ describe("to heading 2", () => {
             contentBefore:
                 "<table><tbody><tr><td><p>[a</p></td><td><p>b</p></td><td><p>c]</p></td></tr></tbody></table>",
             stepFunction: setTag("h2"),
-            // cleanForSave removes the custom table selection classes.
             contentAfter:
                 "<table><tbody><tr><td><h2>[a</h2></td><td><h2>b</h2></td><td><h2>c]</h2></td></tr></tbody></table>",
         });
@@ -415,7 +412,6 @@ describe("to heading 3", () => {
             contentBefore:
                 "<table><tbody><tr><td><p>[a</p></td><td><p>b</p></td><td><p>c]</p></td></tr></tbody></table>",
             stepFunction: setTag("h3"),
-            // cleanForSave removes the custom table selection classes.
             contentAfter:
                 "<table><tbody><tr><td><h3>[a</h3></td><td><h3>b</h3></td><td><h3>c]</h3></td></tr></tbody></table>",
         });
@@ -470,7 +466,6 @@ describe("to pre", () => {
             contentBefore:
                 "<table><tbody><tr><td><p>[a</p></td><td><p>b</p></td><td><p>c]</p></td></tr></tbody></table>",
             stepFunction: setTag("pre"),
-            // cleanForSave removes the custom table selection classes.
             contentAfter:
                 "<table><tbody><tr><td><pre>[a</pre></td><td><pre>b</pre></td><td><pre>c]</pre></td></tr></tbody></table>",
         });
@@ -565,7 +560,6 @@ describe("to blockquote", () => {
             contentBefore:
                 "<table><tbody><tr><td><p>[a</p></td><td><p>b</p></td><td><p>c]</p></td></tr></tbody></table>",
             stepFunction: setTag("blockquote"),
-            // cleanForSave removes the custom table selection classes.
             contentAfter:
                 "<table><tbody><tr><td><blockquote>[a</blockquote></td><td><blockquote>b</blockquote></td><td><blockquote>c]</blockquote></td></tr></tbody></table>",
         });

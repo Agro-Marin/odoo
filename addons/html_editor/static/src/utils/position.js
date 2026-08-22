@@ -1,6 +1,4 @@
 /** @odoo-module native */
-// Position and sizes
-//------------------------------------------------------------------------------
 
 export const DIRECTIONS = {
     LEFT: false,
@@ -51,9 +49,6 @@ export function endPos(node) {
     return [node, nodeSize(node)];
 }
 /**
- * Returns the given node's position relative to its parent (= its index in the
- * child nodes of its parent).
- *
  * @param {Node} node
  * @returns {number}
  */
@@ -66,9 +61,6 @@ export function childNodeIndex(node) {
     return i;
 }
 /**
- * Returns the size of the node = the number of characters for text nodes and
- * the number of child nodes for element nodes.
- *
  * @param {Node} node
  * @returns {number}
  */

@@ -50,12 +50,6 @@ export function insertListAfter(document, afterNode, mode, content = []) {
     return list;
 }
 
-/* Returns true if the two lists are of the same type among:
- * - OL
- * - regular UL
- * - checklist (ul.o_checklist)
- * - container for nested lists (li.oe-nested)
- */
 export function compareListTypes(a, b) {
     if (!a || !b || a.tagName !== b.tagName) {
         return false;

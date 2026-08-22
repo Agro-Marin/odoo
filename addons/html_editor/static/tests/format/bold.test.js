@@ -319,13 +319,9 @@ test("should insert a span zws when toggling a formatting command twice", () =>
             bold(editor);
             bold(editor);
         },
-        // TODO: it would be better to remove the zws entirely, but that is
-        // complex with the current implementation.
         contentAfterEdit: `<p o-we-hint-text='Type "/" for commands' class="o-we-hint"><span data-oe-zws-empty-inline="">\u200B[]</span></p>`,
     }));
 
-// This test uses execCommand to reproduce as closely as possible the browser's
-// default behaviour when typing in a contenteditable=true zone.
 test("should type in bold", async () => {
     async function typeChar(editor, char) {
         await manuallyDispatchProgrammaticEvent(editor.editable, "keydown", {
@@ -335,9 +331,7 @@ test("should type in bold", async () => {
             inputType: "insertText",
             data: char,
         });
-        // Simulate text insertion as done by the contenteditable.
         editor.document.execCommand("insertText", false, char);
-        // Input event is dispatched and handlers are called synchronously.
         await manuallyDispatchProgrammaticEvent(editor.editable, "keyup", {
             key: char,
         });
@@ -345,25 +339,19 @@ test("should type in bold", async () => {
 
     const { editor, el } = await setupEditor("<p>ab[]cd</p>");
 
-    /** @todo fix warnings */
     patchWithCleanup(console, { warn: () => {} });
 
-    // Toggle bold on.
     bold(editor);
     expect(getContent(el)).toBe(
         `<p>ab<strong data-oe-zws-empty-inline="">\u200B[]</strong>cd</p>`,
     );
 
-    // Simulate text insertion as done by the contenteditable.
     await typeChar(editor, "x");
-    // Check that character was inserted inside the strong tag.
     expect(getContent(el)).toBe(`<p>ab<strong>x[]</strong>cd</p>`);
 
-    // Keep typing.
     await typeChar(editor, "y");
     expect(getContent(el)).toBe(`<p>ab<strong>xy[]</strong>cd</p>`);
 
-    // Toggle bold off and type more.
     bold(editor);
     expect(getContent(el)).toBe(
         `<p>ab<strong>xy</strong><span data-oe-zws-empty-inline="">\u200B[]</span>cd</p>`,
@@ -381,7 +369,7 @@ test("create bold with shortcut + selected with arrow", async () => {
     );
 
     await simulateArrowKeyPress(editor, ["Shift", "ArrowRight"]);
-    await tick(); // await selectionchange
+    await tick();
     await animationFrame();
     await expectElementCount(".o-we-toolbar", 1);
     expect(getContent(el)).toBe(
@@ -389,7 +377,7 @@ test("create bold with shortcut + selected with arrow", async () => {
     );
 
     await simulateArrowKeyPress(editor, ["Shift", "ArrowLeft"]);
-    await tick(); // await selectionchange
+    await tick();
     await animationFrame();
     await expectElementCount(".o-we-toolbar", 0);
     expect(getContent(el)).toBe(
@@ -466,7 +454,7 @@ test("should remove empty bold tag when changing selection", async () => {
     );
 
     await simulateArrowKeyPress(editor, "ArrowLeft");
-    await tick(); // await selectionchange
+    await tick();
     expect(getContent(el)).toBe(`<p>a[]bcd</p>`);
 });
 
@@ -481,7 +469,7 @@ test("should remove multiple formatted empty bold tag when changing selection", 
     );
 
     await simulateArrowKeyPress(editor, "ArrowLeft");
-    await tick(); // await selectionchange
+    await tick();
     expect(getContent(el)).toBe(`<p>a[]bcd</p>`);
 });
 
@@ -495,7 +483,7 @@ test("should not remove empty bold tag in an empty block when changing selection
     );
 
     await simulateArrowKeyPress(editor, "ArrowUp");
-    await tick(); // await selectionchange
+    await tick();
     expect(getContent(el)).toBe(
         `<p>[]abcd</p><p><strong data-oe-zws-empty-inline="">\u200B</strong></p>`,
     );
@@ -506,8 +494,6 @@ test("should not add history step for bold on collapsed selection", async () => 
 
     patchWithCleanup(console, { warn: () => {} });
 
-    // A collapsed formatting shortcut must not add a phantom history step: the
-    // empty inline tag is temporary and auto-cleaned if unused.
     await press(["ctrl", "b"]);
     expect(getContent(el)).toBe(
         `<p>abcd<strong data-oe-zws-empty-inline="">\u200B[]</strong></p>`,

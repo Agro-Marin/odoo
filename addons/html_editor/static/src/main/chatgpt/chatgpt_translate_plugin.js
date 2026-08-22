@@ -59,8 +59,6 @@ export class ChatGPTTranslatePlugin extends Plugin {
             insert: (content) => {
                 const insertedNodes = this.dependencies.dom.insert(content);
                 this.dependencies.history.addStep();
-                // Add a frame around the inserted content to highlight it for 2
-                // seconds.
                 const start = insertedNodes?.length && closestElement(insertedNodes[0]);
                 const end =
                     insertedNodes?.length &&
@@ -102,7 +100,6 @@ export class ChatGPTTranslatePlugin extends Plugin {
         };
         dialogParams.baseContainer =
             this.dependencies.baseContainer.getDefaultNodeName();
-        // collapse to end
         const sanitize = this.dependencies.sanitize.sanitize;
         const originalText = selection.textContent() || "";
         this.dependencies.dialog.addDialog(ChatGPTTranslateDialog, {
@@ -111,15 +108,7 @@ export class ChatGPTTranslatePlugin extends Plugin {
             sanitize,
         });
         if (this.services.ui.isSmall) {
-            // TODO: Find a better way and avoid modifying range
-            // HACK: In the case of opening through dropdown:
-            // - when dropdown open, it keep the element focused before the open
-            // - when opening the dialog through the dropdown, the dropdown closes
-            // - upon close, the generic code of the dropdown sets focus on the kept element (in our case, the editable)
-            // - we need to remove the range after the generic code of the dropdown is triggered so we hack it by removing the range in the next tick
             Promise.resolve().then(() => {
-                // If the dialog is opened on a small screen, remove all selection
-                // because the selection can be seen through the dialog on some devices.
                 this.document.getSelection()?.removeAllRanges();
             });
         }

@@ -11,20 +11,6 @@ describe("Selection collapsed", () => {
                 stepFunction: insertLineBreak,
                 contentAfter: "<p><br>[]<br></p>",
             });
-            // TODO this cannot actually be tested currently as a
-            // backspace/delete in that case is not even detected
-            // (no input event to rollback)
-            // await testEditor({
-            //     contentBefore: '<p>[<br>]</p>',
-            //     stepFunction: insertLineBreak,
-            //     contentAfter: '<p><br>[]<br></p>',
-            // });
-            // TODO to check: the cursor cannot be in that position...
-            // await testEditor({
-            //     contentBefore: '<p><br>[]</p>',
-            //     stepFunction: insertLineBreak,
-            //     contentAfter: '<p><br>[]<br></p>',
-            // });
         });
 
         test("should insert a <br> at the beggining of a paragraph (1)", async () => {
@@ -39,7 +25,6 @@ describe("Selection collapsed", () => {
             await testEditor({
                 contentBefore: "<p>[] abc</p>",
                 stepFunction: insertLineBreak,
-                // The space should have been parsed away.
                 contentAfter: "<p><br>[]abc</p>",
             });
         });
@@ -56,8 +41,6 @@ describe("Selection collapsed", () => {
             await testEditor({
                 contentBefore: "<p>ab []cd</p>",
                 stepFunction: insertLineBreak,
-                // The space is converted to a non-breaking space so it
-                // is visible (because it's before a <br>).
                 contentAfter: "<p>ab&nbsp;<br>[]cd</p>",
             });
         });
@@ -66,8 +49,6 @@ describe("Selection collapsed", () => {
             await testEditor({
                 contentBefore: "<p>ab[] cd</p>",
                 stepFunction: insertLineBreak,
-                // The space is converted to a non-breaking space so it
-                // is visible (because it's after a <br>).
                 contentAfter: "<p>ab<br>[]&nbsp;cd</p>",
             });
         });
@@ -76,8 +57,6 @@ describe("Selection collapsed", () => {
             await testEditor({
                 contentBefore: "<p>abc[]</p>",
                 stepFunction: insertLineBreak,
-                // The second <br> is needed to make the first
-                // one visible.
                 contentAfter: "<p>abc<br>[]<br></p>",
             });
         });
@@ -93,28 +72,6 @@ describe("Selection collapsed", () => {
                 },
                 contentAfter: "<p><br><br>[]<br></p>",
             });
-            // TODO this cannot actually be tested currently as a
-            // backspace/delete in that case is not even detected
-            // (no input event to rollback)
-            // await testEditor({
-            //     contentBefore: '<p>[<br>]</p>',
-            //     stepFunction: async (editor) => {
-            //         await insertLineBreak(editor);
-            //         await insertLineBreak(editor);
-            //     },
-            //     contentAfter: '<p><br><br>[]<br></p>',
-            // });
-            // TODO seems like a theoretical case, if needed it could
-            // be about checking at the start of the shift-enter if
-            // we are not between left-state BR and right-state block.
-            // await testEditor({
-            //     contentBefore: '<p><br>[]</p>',
-            //     stepFunction: async (editor) => {
-            //         await insertLineBreak(editor);
-            //         await insertLineBreak(editor);
-            //     },
-            //     contentAfter: '<p><br><br>[]<br></p>',
-            // });
         });
 
         test("should insert two <br> at the beggining of a paragraph", async () => {
@@ -146,8 +103,6 @@ describe("Selection collapsed", () => {
                     await insertLineBreak(editor);
                     await insertLineBreak(editor);
                 },
-                // the last <br> is needed to make the first one
-                // visible.
                 contentAfter: "<p>abc<br><br>[]<br></p>",
             });
         });
@@ -174,10 +129,8 @@ describe("Selection collapsed", () => {
 
         test("should insert a <br> before a format node (2)", async () => {
             await testEditor({
-                // That selection is equivalent to []<b>
                 contentBefore: "<p>abc<b>[]def</b></p>",
                 stepFunction: insertLineBreak,
-                // JW cAfter: '<p>abc<br><b>[]def</b></p>',
                 contentAfter: "<p>abc<b><br>[]def</b></p>",
             });
         });
@@ -186,8 +139,6 @@ describe("Selection collapsed", () => {
             await testEditor({
                 contentBefore: "<p>abc <b>[]def</b></p>",
                 stepFunction: insertLineBreak,
-                // The space is converted to a non-breaking space so it
-                // is visible (because it's before a <br>).
                 contentAfter: "<p>abc&nbsp;<b><br>[]def</b></p>",
             });
         });
@@ -196,8 +147,6 @@ describe("Selection collapsed", () => {
             await testEditor({
                 contentBefore: "<p>abc<b>[] def </b></p>",
                 stepFunction: insertLineBreak,
-                // The space is converted to a non-breaking space so it
-                // is visible (because it's after a <br>).
                 contentAfter: "<p>abc<b><br>[]&nbsp;def </b></p>",
             });
         });
@@ -206,17 +155,14 @@ describe("Selection collapsed", () => {
             await testEditor({
                 contentBefore: "<p><b>abc</b>[]def</p>",
                 stepFunction: insertLineBreak,
-                // JW cAfter: '<p><b>abc[]<br></b>def</p>',
                 contentAfter: "<p><b>abc</b><br>[]def</p>",
             });
         });
 
         test("should insert a <br> after a format node (2)", async () => {
             await testEditor({
-                // That selection is equivalent to </b>[]
                 contentBefore: "<p><b>abc[]</b>def</p>",
                 stepFunction: insertLineBreak,
-                // JW cAfter: '<p><b>abc[]<br></b>def</p>',
                 contentAfter: "<p><b>abc<br>[]</b>def</p>",
             });
         });
@@ -226,11 +172,6 @@ describe("Selection collapsed", () => {
                 contentBefore: "<p><b>abc[]</b> def</p>",
                 stepFunction: insertLineBreak,
                 contentAfterEdit: "<p><b>abc<br>[]\ufeff</b> def</p>",
-                // The space is converted to a non-breaking space so
-                // it is visible (because it's after a <br>).
-                // Visually, the caret does show _after_ the line
-                // break.
-                // JW cAfter: '<p><b>abc[]<br></b>&nbsp;def</p>',
                 contentAfter: "<p><b>abc<br>[]</b>&nbsp;def</p>",
             });
         });
@@ -239,8 +180,6 @@ describe("Selection collapsed", () => {
             await testEditor({
                 contentBefore: "<p><b>abc []</b>def</p>",
                 stepFunction: insertLineBreak,
-                // The space is converted to a non-breaking space so it
-                // is visible (because it's before a <br>).
                 contentAfter: "<p><b>abc&nbsp;<br>[]</b>def</p>",
             });
         });
@@ -255,7 +194,6 @@ describe("Selection collapsed", () => {
 
         test("should insert a <br> at the beginning of a format node (2)", async () => {
             await testEditor({
-                // That selection is equivalent to []<b>
                 contentBefore: "<p><b>[]abc</b></p>",
                 stepFunction: insertLineBreak,
                 contentAfter: "<p><b><br>[]abc</b></p>",
@@ -266,7 +204,6 @@ describe("Selection collapsed", () => {
             await testEditor({
                 contentBefore: "<p><b>[] abc</b></p>",
                 stepFunction: insertLineBreak,
-                // The space should have been parsed away.
                 contentAfter: "<p><b><br>[]abc</b></p>",
             });
         });
@@ -283,8 +220,6 @@ describe("Selection collapsed", () => {
             await testEditor({
                 contentBefore: "<p><b>ab []cd</b></p>",
                 stepFunction: insertLineBreak,
-                // The space is converted to a non-breaking space so it
-                // is visible (because it's before a <br>).
                 contentAfter: "<p><b>ab&nbsp;<br>[]cd</b></p>",
             });
         });
@@ -293,8 +228,6 @@ describe("Selection collapsed", () => {
             await testEditor({
                 contentBefore: "<p><b>ab[] cd</b></p>",
                 stepFunction: insertLineBreak,
-                // The space is converted to a non-breaking
-                // space so it is visible.
                 contentAfter: "<p><b>ab<br>[]&nbsp;cd</b></p>",
             });
         });
@@ -312,19 +245,14 @@ describe("Selection collapsed", () => {
             await testEditor({
                 contentBefore: "<p><b>abc</b>[]</p>",
                 stepFunction: insertLineBreak,
-                // The second <br> is needed to make the first
-                // one visible.
                 contentAfter: "<p><b>abc<br>[]<br></b></p>",
             });
         });
 
         test("should insert a line break (2 <br>) at the end of a format node (2)", async () => {
             await testEditor({
-                // That selection is equivalent to </b>[]
                 contentBefore: "<p><b>abc[]</b></p>",
                 stepFunction: insertLineBreak,
-                // The second <br> is needed to make the first
-                // one visible.
                 contentAfter: "<p><b>abc<br>[]<br></b></p>",
             });
         });
@@ -333,9 +261,6 @@ describe("Selection collapsed", () => {
             await testEditor({
                 contentBefore: "<p><b>abc[] </b></p>",
                 stepFunction: insertLineBreak,
-                // The space should have been parsed away.
-                // The second <br> is needed to make the first
-                // one visible.
                 contentAfter: "<p><b>abc<br>[]<br></b></p>",
             });
         });
@@ -364,7 +289,6 @@ describe("Selection collapsed", () => {
 
 describe("Selection not collapsed", () => {
     test("should delete the first half of a paragraph, then insert a <br> (1)", async () => {
-        // Forward selection
         await testEditor({
             contentBefore: "<p>[ab]cd</p>",
             stepFunction: insertLineBreak,
@@ -373,7 +297,6 @@ describe("Selection not collapsed", () => {
     });
 
     test("should delete the first half of a paragraph, then insert a <br> (2)", async () => {
-        // Backward selection
         await testEditor({
             contentBefore: "<p>]ab[cd</p>",
             stepFunction: insertLineBreak,
@@ -382,7 +305,6 @@ describe("Selection not collapsed", () => {
     });
 
     test("should delete part of a paragraph, then insert a <br> (1)", async () => {
-        // Forward selection
         await testEditor({
             contentBefore: "<p>a[bc]d</p>",
             stepFunction: insertLineBreak,
@@ -391,7 +313,6 @@ describe("Selection not collapsed", () => {
     });
 
     test("should delete part of a paragraph, then insert a <br> (2)", async () => {
-        // Backward selection
         await testEditor({
             contentBefore: "<p>a]bc[d</p>",
             stepFunction: insertLineBreak,
@@ -400,29 +321,22 @@ describe("Selection not collapsed", () => {
     });
 
     test("should delete the last half of a paragraph, then insert a line break (2 <br>) (1)", async () => {
-        // Forward selection
         await testEditor({
             contentBefore: "<p>ab[cd]</p>",
             stepFunction: insertLineBreak,
-            // the second <br> is needed to make the first one
-            // visible.
             contentAfter: "<p>ab<br>[]<br></p>",
         });
     });
 
     test("should delete the last half of a paragraph, then insert a line break (2 <br>) (2)", async () => {
-        // Backward selection
         await testEditor({
             contentBefore: "<p>ab]cd[</p>",
             stepFunction: insertLineBreak,
-            // the second <br> is needed to make the first one
-            // visible.
             contentAfter: "<p>ab<br>[]<br></p>",
         });
     });
 
     test("should delete all contents of a paragraph, then insert a line break (1)", async () => {
-        // Forward selection
         await testEditor({
             contentBefore: "<p>[abcd]</p>",
             stepFunction: insertLineBreak,
@@ -431,7 +345,6 @@ describe("Selection not collapsed", () => {
     });
 
     test("should delete all contents of a paragraph, then insert a line break (2)", async () => {
-        // Backward selection
         await testEditor({
             contentBefore: "<p>]abcd[</p>",
             stepFunction: insertLineBreak,
@@ -442,7 +355,6 @@ describe("Selection not collapsed", () => {
 
 describe("table", () => {
     test("should remove all contents of an anchor td and insert a line break on forward selection", async () => {
-        // Forward selection
         await testEditor({
             contentBefore: `
                 <table>
@@ -478,7 +390,6 @@ describe("table", () => {
         });
     });
     test("should remove all contents of an anchor td and insert a line break on backward selection", async () => {
-        // Backward selection
         await testEditor({
             contentBefore: `
                 <table>

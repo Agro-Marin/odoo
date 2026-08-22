@@ -45,8 +45,6 @@ import { FONT_SIZE_CLASSES, TEXT_STYLE_CLASSES } from "../utils/formatting.js";
 import { childNodeIndex, nodeSize, rightPos } from "../utils/position.js";
 
 /**
- * Get distinct connected parents of nodes
- *
  * @param {Iterable} nodes
  * @returns {Set}
  */
@@ -73,12 +71,9 @@ function getConnectedParents(nodes) {
 /**
  * @typedef {((insertedNodes: Node[]) => void)[]} after_insert_handlers
  * @typedef {((el: HTMLElement) => void)[]} before_set_tag_handlers
- *
  * @typedef {((container: Element, block: Element) => container)[]} before_insert_processors
  * @typedef {((arg: { nodeToInsert: Node, container: HTMLElement }) => nodeToInsert)[]} node_to_insert_processors
- *
  * @typedef {((el: HTMLElement) => Promise<boolean>)[]} are_inlines_allowed_at_root_predicates
- *
  * @typedef {string[]} system_attributes
  * @typedef {string[]} system_classes
  * @typedef {string[]} system_style_properties
@@ -116,7 +111,6 @@ export class DomPlugin extends Plugin {
                 isAvailable: isHtmlContentSupported,
             },
         ],
-        /** Handlers */
         clean_for_save_handlers: ({ root }) => {
             this.removeEmptyClassAndStyleAttributes(root);
         },
@@ -135,8 +129,6 @@ export class DomPlugin extends Plugin {
             ...this.systemStyleProperties.map((prop) => `[style*="${prop}"]`),
         ].join(",");
     }
-
-    // Shared
 
     /**
      * @param {string | DocumentFragment | Element | null} content
@@ -190,13 +182,7 @@ export class DomPlugin extends Plugin {
         }
 
         const allInsertedNodes = [];
-        // In case the html inserted starts with a list and will be inserted within
-        // a list, unwrap the list elements from the list.
         const hasSingleChild = nodeSize(container) === 1;
-        // Walk up through blocks only: the insertion point is "within a list"
-        // for unwrapping purposes when its closest *block* is a list item, not
-        // merely when a list ancestor exists (which would wrongly unwrap a list
-        // inserted inside an inline element nested in a list item).
         const closestList = (node) => {
             if (isBlock(node)) {
                 return node && isListItemElement(node);
@@ -207,7 +193,6 @@ export class DomPlugin extends Plugin {
         if (closestList(selection.anchorNode) && isListElement(container.firstChild)) {
             unwrapContents(container.firstChild);
         }
-        // Similarly if the html inserted ends with a list.
         if (
             closestList(selection.focusNode) &&
             isListElement(container.lastChild) &&
@@ -235,11 +220,8 @@ export class DomPlugin extends Plugin {
                 block.nodeName === "PRE" ||
                 (block.nodeName === "DIV" &&
                     this.dependencies.split.isUnsplittable(block))) &&
-            // If the selection anchorNode is the editable itself, the content
-            // should not be unwrapped.
             !this.isEditionBoundary(selection.anchorNode);
 
-        // Empty block must contain a br element to allow cursor placement.
         const firstLeafNode = firstLeaf(container);
         if (
             isBlock(firstLeafNode) &&
@@ -261,9 +243,6 @@ export class DomPlugin extends Plugin {
             fillEmpty(lastLeafNode);
         }
 
-        // In case the html inserted is all contained in a single root <p> or <li>
-        // tag, we take the all content of the <p> or <li> and avoid inserting the
-        // <p> or <li>.
         if (
             container.childElementCount === 1 &&
             (this.dependencies.baseContainer.isCandidateForBaseContainer(
@@ -280,10 +259,7 @@ export class DomPlugin extends Plugin {
             const isSelectionAtEnd =
                 lastLeaf(block) === selection.focusNode &&
                 selection.focusOffset === nodeSize(selection.focusNode);
-            // Grab the content of the first child block and isolate it.
             if (shouldUnwrap(container.firstChild) && !isSelectionAtStart) {
-                // Unwrap the deepest nested first <li> element in the
-                // container to extract and paste the text content of the list.
                 if (isListItemElement(container.firstChild)) {
                     const deepestBlock = closestBlock(firstLeaf(container.firstChild));
                     this.dependencies.split.splitAroundUntil(
@@ -299,10 +275,7 @@ export class DomPlugin extends Plugin {
                 );
                 container.firstElementChild.remove();
             }
-            // Grab the content of the last child block and isolate it.
             if (shouldUnwrap(container.lastChild) && !isSelectionAtEnd) {
-                // Unwrap the deepest nested last <li> element in the container
-                // to extract and paste the text content of the list.
                 if (isListItemElement(container.lastChild)) {
                     const deepestBlock = closestBlock(lastLeaf(container.lastChild));
                     this.dependencies.split.splitAroundUntil(
@@ -335,8 +308,6 @@ export class DomPlugin extends Plugin {
             }
         }
 
-        // If we have isolated block content, first we split the current focus
-        // element if it's a block then we insert the content in the right places.
         let currentNode = startNode;
         const _insertAt = (reference, nodes, insertBefore) => {
             for (const child of insertBefore ? nodes.reverse() : nodes) {
@@ -346,22 +317,20 @@ export class DomPlugin extends Plugin {
         };
         const lastInsertedNodes = childNodes(containerLastChild);
         if (containerLastChild.hasChildNodes()) {
-            const toInsert = childNodes(containerLastChild); // Prevent mutation
+            const toInsert = childNodes(containerLastChild);
             _insertAt(currentNode, [...toInsert], insertBefore);
             currentNode = insertBefore ? toInsert[0] : currentNode;
             toInsert[toInsert.length - 1];
         }
         const firstInsertedNodes = childNodes(containerFirstChild);
         if (containerFirstChild.hasChildNodes()) {
-            const toInsert = childNodes(containerFirstChild); // Prevent mutation
+            const toInsert = childNodes(containerFirstChild);
             _insertAt(currentNode, [...toInsert], insertBefore);
             currentNode = toInsert[toInsert.length - 1];
             insertBefore = false;
         }
         allInsertedNodes.push(...firstInsertedNodes);
 
-        // If all the Html have been isolated, We force a split of the parent element
-        // to have the need new line in the final result
         if (!container.hasChildNodes()) {
             if (
                 this.dependencies.split.isUnsplittable(
@@ -373,7 +342,6 @@ export class DomPlugin extends Plugin {
                     targetOffset: 0,
                 });
             } else {
-                // If we arrive here, the o_enter index should always be 0.
                 const parent = currentNode.nextSibling.parentElement;
                 const index = childNodes(parent).indexOf(currentNode.nextSibling);
                 this.dependencies.split.splitBlockNode({
@@ -389,8 +357,6 @@ export class DomPlugin extends Plugin {
         const insertedNodes = childNodes(container);
         while ((nodeToInsert = container.firstChild)) {
             if (isBlock(nodeToInsert) && !doesCurrentNodeAllowsP) {
-                // Split blocks at the edges if inserting new blocks (preventing
-                // <p><p>text</p></p> or <li><li>text</li></li> scenarios).
                 while (
                     !this.isEditionBoundary(currentNode) &&
                     (!allowsParagraphRelatedElements(currentNode.parentElement) ||
@@ -402,8 +368,6 @@ export class DomPlugin extends Plugin {
                             currentNode.parentElement,
                         )
                     ) {
-                        // If we have to insert an unsplittable element, we cannot afford to
-                        // unwrap it we need to search for a more suitable spot to put it
                         if (this.dependencies.split.isUnsplittable(nodeToInsert)) {
                             if (this.isEditionBoundary(currentNode.parentElement)) {
                                 break;
@@ -432,8 +396,6 @@ export class DomPlugin extends Plugin {
                         if (isBlock(otherNode)) {
                             fillShrunkPhrasingParent(otherNode);
                         }
-                        // After the content insertion, the right-part of a
-                        // split is evaluated for removal.
                         candidatesForRemoval.push(right);
                     } else {
                         if (isBlock(currentNode)) {
@@ -457,8 +419,6 @@ export class DomPlugin extends Plugin {
                     ](br);
                 }
             }
-            // Ensure that all adjacent paragraph elements are converted to
-            // <li> when inserting in a list.
             const block = closestBlock(currentNode);
             for (const processor of this.getResource("node_to_insert_processors")) {
                 nodeToInsert = processor({ nodeToInsert, container: block });
@@ -475,7 +435,6 @@ export class DomPlugin extends Plugin {
             }
             currentNode = nodeToInsert;
         }
-        // Remove the empty text node created earlier
         textNode.remove();
         allInsertedNodes.push(...lastInsertedNodes);
         this.getResource("after_insert_handlers").forEach((handler) =>
@@ -488,7 +447,6 @@ export class DomPlugin extends Plugin {
                 this.isEditionBoundary(parent) &&
                 allowsParagraphRelatedElements(parent)
             ) {
-                // Ensure that edition boundaries do not have inline content.
                 wrapInlinesInBlocks(parent, {
                     baseContainerNodeName:
                         this.dependencies.baseContainer.getDefaultNodeName(),
@@ -533,11 +491,6 @@ export class DomPlugin extends Plugin {
         );
 
         if (!this.config.allowInlineAtRoot && this.isEditionBoundary(lastPosition[0])) {
-            // Correct the position if it happens to be in the editable root.
-            // Must stay editable-aware: the plain `getDeepestPosition` descends
-            // into `contenteditable="false"` subtrees, which parks the caret
-            // inside a protected embed (and then no hint, power buttons or
-            // typing work in the block that follows it).
             lastPosition = getDeepestEditablePosition(...lastPosition);
         }
         this.dependencies.selection.setSelection(
@@ -598,11 +551,6 @@ export class DomPlugin extends Plugin {
     }
 
     /**
-     * Basic method to change an element tagName.
-     * It is a technical function which only modifies a tag and its attributes.
-     * It does not modify descendants nor handle the cursor.
-     * @see setBlock for the more thorough command.
-     *
      * @param {HTMLElement} el
      * @param {string} newTagName
      */
@@ -628,9 +576,6 @@ export class DomPlugin extends Plugin {
     }
 
     /**
-     * Remove system-specific classes, attributes, and style properties from a
-     * fragment or an element.
-     *
      * @param {DocumentFragment|HTMLElement} root
      */
     removeSystemProperties(root) {
@@ -647,10 +592,6 @@ export class DomPlugin extends Plugin {
         }
     }
 
-    // --------------------------------------------------------------------------
-    // commands
-    // --------------------------------------------------------------------------
-
     insertFontAwesome({ faClass = "fa-solid fa-star" } = {}) {
         const fontAwesomeNode = document.createElement("i");
         fontAwesomeNode.className = faClass;
@@ -661,12 +602,6 @@ export class DomPlugin extends Plugin {
     }
 
     /**
-     * Determines if a block element can be safely retagged.
-     *
-     * Certain blocks (like 'o_editable') should not be retagged because doing so
-     * will recreate the block, potentially causing issues. This function checks
-     * if retagging a block is safe.
-     *
      * @param {HTMLElement} block
      * @returns {boolean}
      */
@@ -732,11 +667,6 @@ export class DomPlugin extends Plugin {
                 this.dispatchTo("before_set_tag_handlers", block, tagName, cursors);
                 const newEl = this.setTagName(block, tagName);
                 cursors.remapNode(block, newEl);
-                // We want to be able to edit the case `<h2 class="h3">`
-                // but in that case, we want to display "Header 2" and
-                // not "Header 3" as it is more important to display
-                // the semantic tag being used (especially for h1 ones).
-                // This is why those are not in `TEXT_STYLE_CLASSES`.
                 const headingClasses = ["h1", "h2", "h3", "h4", "h5", "h6"];
                 removeClass(
                     newEl,
@@ -750,8 +680,6 @@ export class DomPlugin extends Plugin {
                 }
                 newEls.push(newEl);
             } else {
-                // eg do not change a <div> into a h1: insert the h1
-                // into it instead.
                 newCandidate.append(...childNodes(block));
                 block.append(newCandidate);
                 cursors.remapNode(block, newCandidate);

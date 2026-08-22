@@ -44,9 +44,6 @@ export class IconSelector extends Component {
         this.props.selectMedia({
             ...icon,
             fontBase: font.base,
-            // To check if the icon has changed, we only need to compare
-            // an alias of the icon with the class from the old media (some
-            // icons can have multiple classes e.g. "fa-gears" ~ "fa-cogs")
             initialIconChanged:
                 this.props.media &&
                 !icon.names.some((name) => this.props.media.classList.contains(name)),
@@ -54,9 +51,6 @@ export class IconSelector extends Component {
         await this.props.save();
     }
 
-    /**
-     * Utility methods, used by the MediaDialog component.
-     */
     static createElements(selectedMedia) {
         return selectedMedia.map((icon) => {
             const iconEl = document.createElement("span");

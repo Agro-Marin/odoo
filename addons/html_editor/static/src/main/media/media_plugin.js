@@ -32,13 +32,12 @@ import { MediaDialog, TABS } from "./media_dialog/media_dialog.js";
  * @typedef {((elements: HTMLElement[], params: { node: Node }) => Promise<void>)[]} on_media_dialog_saved_handlers
  * @typedef {((arg: { newMediaEl: HTMLElement }) => void)[]} on_replaced_media_handlers
  * @typedef {((args: {imageEl: HTMLElement}) => void)[]} on_image_saved_handlers
- *
  * @typedef {{
- *      id: "DOCUMENTS" | "ICONS" | "IMAGES" | "VIDEOS";
- *      title: import("plugins").TranslatedString;
- *      Component: import("@odoo/owl").Component;
- *      sequence: number;
- *  }[]} media_dialog_extra_tabs
+ * id: "DOCUMENTS" | "ICONS" | "IMAGES" | "VIDEOS";
+ * title: import("plugins").TranslatedString;
+ * Component: import("@odoo/owl").Component;
+ * sequence: number;
+ * }[]} media_dialog_extra_tabs
  */
 
 export class MediaPlugin extends Plugin {
@@ -91,12 +90,11 @@ export class MediaPlugin extends Plugin {
         power_buttons: withSequence(1, { commandId: "insertMedia" }),
         closest_savable_providers: withSequence(20, (el) => this.editable),
 
-        /** Handlers */
         clean_for_save_handlers: ({ root }) => this.cleanForSave(root),
         normalize_handlers: this.normalizeMedia.bind(this),
         selectionchange_handlers: this.selectAroundIcon.bind(this),
 
-        unsplittable_node_predicates: isIconElement, // avoid merge
+        unsplittable_node_predicates: isIconElement,
         is_node_editable_predicates: this.isEditableMediaElement.bind(this),
         clipboard_content_processors: this.clean.bind(this),
         clipboard_text_processors: (text) => text.replace(/\u200B/g, ""),
@@ -120,7 +118,6 @@ export class MediaPlugin extends Plugin {
         return {
             categoryId: "media",
             commandId: "insertMedia",
-            // Evaluation is deferred because this.availableTabs is only ready after setup.
             get keywords() {
                 return self.availableTabs.map((tab) => tab.title);
             },
@@ -163,8 +160,6 @@ export class MediaPlugin extends Plugin {
                     ? el.getAttribute("contenteditable")
                     : "false",
             );
-            // Do not update the text if it's already OK to avoid recording a
-            // mutation on Firefox. (Chrome filters them out.)
             if (isIconElement(el) && el.textContent !== "\u200B") {
                 el.textContent = "\u200B";
             }
@@ -190,15 +185,11 @@ export class MediaPlugin extends Plugin {
 
     async onSaveMediaDialog(element, { node }) {
         if (!element) {
-            // @todo @phoenix to remove
             throw new Error("Element is required: onSaveMediaDialog");
-            // return;
         }
         if (node) {
             const changedIcon = isIconElement(node) && isIconElement(element);
             if (changedIcon) {
-                // Preserve tag name when changing an icon and not recreate the
-                // editors unnecessarily.
                 for (const attribute of element.attributes) {
                     node.setAttribute(attribute.nodeName, attribute.nodeValue);
                 }
@@ -211,7 +202,6 @@ export class MediaPlugin extends Plugin {
             this.dependencies.dom.insert(element);
             this.dispatchTo("on_added_media_handlers", { newMediaEl: element });
         }
-        // Collapse selection after the inserted/replaced element.
         const [anchorNode, anchorOffset] = rightPos(element);
         this.dependencies.selection.setSelection({ anchorNode, anchorOffset });
         this.dispatchTo("after_save_media_dialog_handlers", element);
@@ -245,7 +235,7 @@ export class MediaPlugin extends Plugin {
                 useMediaLibrary: !!(
                     field &&
                     ((resModel === "ir.ui.view" && field === "arch") || type === "html")
-                ), // @todo @phoenix: should be removed and moved to config.mediaModalParams
+                ),
                 media: params.node,
                 onAttachmentChange: this.config.onAttachmentChange || (() => {}),
                 noImages: !this.config.allowImage,

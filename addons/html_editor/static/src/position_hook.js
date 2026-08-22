@@ -4,13 +4,6 @@ import { useComponent, useEffect } from "@odoo/owl";
 import { couldBeScrollableX, couldBeScrollableY } from "@web/core/utils/dom/scrolling";
 import { throttleForAnimation } from "@web/core/utils/timing";
 
-/**
- * This hook has the same job as the PositionPlugin, but for Components.
- * It was created to be used within the Html Viewer and still have overlays.
- *
- * TODO ABD: refactor html viewer to: either use a plugin system, or generalize
- * the positioning logic so that both the plugin and the hook can use it.
- */
 export function usePositionHook(containerRef, document, callback) {
     const comp = useComponent();
     const onLayoutGeometryChange = throttleForAnimation(callback.bind(comp));

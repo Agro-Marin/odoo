@@ -79,15 +79,6 @@ test("inserted value from dynamic placeholder should contain the data-oe-t-inlin
 });
 
 test("a model chosen after the editor mounted still reaches the picker", async () => {
-    // `HtmlField` pushes the placeholder model at the plugin from a
-    // `useRecordObserver`, which is a reactive effect: it re-runs only on the
-    // record fields its callback actually read. The callback used to test
-    // `this.editor` first, and its first run happens in `onWillStart` -- before
-    // `onEditorLoad` assigns it -- so it returned having read nothing,
-    // subscribed to nothing, and never fired again. A record whose model is
-    // empty at mount and chosen afterwards (every new `mail.template`) then
-    // kept `undefined` forever, and `/field` answered with the "select a model
-    // first" notification instead of the popover.
     const pushed = [];
     patchWithCleanup(DynamicPlaceholderPlugin.prototype, {
         updateDphDefaultModel(resModel) {

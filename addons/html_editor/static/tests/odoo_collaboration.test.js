@@ -71,7 +71,6 @@ class PeerTest {
         ptpFrom.peersInfos[peer.peerId] ||= {};
         ptpTo.peersInfos[this.peerId] ||= {};
 
-        // Simulate the rtc_data_channel_open on both peers.
         await this.ptp.notifySelf("rtc_data_channel_open", {
             connectionPeerId: peer.peerId,
         });
@@ -210,9 +209,6 @@ class Wysiwygs extends Component {
                             delete this.peersInfos[peerId];
                         },
                         notifyAllPeers(...args) {
-                            // Not needed: the dataChannel is opened through
-                            // `openDataChannel`, so the events triggering its
-                            // opening are not simulated.
                             if (args[0] === "ptp_join") {
                                 return;
                             }
@@ -281,19 +277,12 @@ class Wysiwygs extends Component {
             el.replaceChildren(editable);
 
             oldAttach(editable);
-            // const configSelection = getSelection(editable, initialValue);
-            // if (configSelection) {
-            //     editable.focus();
-            // }
             setSelection(getSelection(editable, this.props.content));
         };
     }
 }
 
 async function createPeers(peerIds, content = initialValue) {
-    /**
-     * @type PeerPool
-     */
     const pool = {
         peers: Object.fromEntries(peerIds.map((peerId) => [peerId, new PeerTest()])),
         lastRecordSaved: "",
@@ -426,7 +415,6 @@ describe("Stale detection & recovery", () => {
 
             await peers.p3.focus();
             await peers.p1.openDataChannel(peers.p3);
-            // This tick is necessary for the selection to be set
             await tick();
 
             expect(peers.p3.plugins.collaborationOdoo.isDocumentStale).toBe(false, {
@@ -811,9 +799,6 @@ describe("Stale detection & recovery", () => {
                     message: "p2 resetFromPeer should not have been called",
                 });
 
-                // The p2.setOnline promise is not awaited, so p3 cannot
-                // reset from p2: this checks that p3 falls back to
-                // resetting from the server.
                 peers.p2.setOnline();
                 await peers.p3.setOnline();
 
@@ -991,9 +976,6 @@ describe("Stale detection & recovery", () => {
                 expect(p2Spies.onRecoveryPeerTimeout.callCount).toBe(1, {
                     message: "p2 onRecoveryPeerTimeout should have been called once",
                 });
-                // p1 and p3 are offline but not disconnected, so p2 tries
-                // to recover from both even though they are unavailable:
-                // this checks that the resetFromPeer code path is taken.
                 expect(p2Spies.resetFromPeer.callCount).toBe(2, {
                     message: "p2 resetFromPeer should have been called twice",
                 });
@@ -1042,13 +1024,9 @@ describe("Disconnect & reconnect", () => {
         peers.p1.setOnline();
         peers.p2.setOnline();
 
-        // TODO: p1PromiseForMissingStep and p2PromiseForMissingStep should be
-        // removed once undetected missing steps are fixed.
         const p1PromiseForMissingStep = new Promise((resolve) => {
             patch(peers.p2.plugins.collaborationOdoo, {
                 async processMissingSteps() {
-                    // Wait for the p2PromiseForMissingStep to resolve
-                    // to avoid undetected missing step.
                     await p2PromiseForMissingStep;
                     super.processMissingSteps(...arguments);
                     resolve();
@@ -1134,7 +1112,6 @@ describe("History steps Ids", () => {
 
         await peers.p2.focus();
         await peers.p1.openDataChannel(peers.p2);
-        // This timeout is necessary for the selection to be set
         await tick();
 
         expect(peers.p2.plugins.collaborationOdoo.isDocumentStale).toBe(false, {
@@ -1195,9 +1172,8 @@ describe("Indent List", () => {
 describe("Selection", () => {
     test("Selection should be updated for peer after delete backward", async () => {
         const pool = await createPeers(["p1", "p2"]);
-        // editor content : <p>a</p>
         const peers = pool.peers;
-        await peers.p1.focus(); // <p>a[]</p>
+        await peers.p1.focus();
         await peers.p2.focus();
         await peers.p1.openDataChannel(peers.p2);
         await animationFrame();

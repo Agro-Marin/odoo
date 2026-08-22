@@ -23,12 +23,10 @@ test("should update table of contents when heading is removed with backspace", a
     await expectElementCount(".o-we-powerbox", 1);
     expect(queryAllTexts(".o-we-command-name")[0]).toBe("Table of Contents");
     await press("Enter");
-    // TOC update is debounced
     await advanceTime(500);
     expect(queryAll(".o_embedded_toc_link")).toHaveCount(1);
     setSelection({ anchorNode: queryOne("h1"), anchorOffset: 0 });
     deleteBackward(editor);
-    // TOC update is debounced
     await advanceTime(500);
     expect(queryAll(".o_embedded_toc_link")).toHaveCount(0);
 });
@@ -41,7 +39,6 @@ test("should update table of contents when heading is converted to paragraph", a
     await expectElementCount(".o-we-powerbox", 1);
     expect(queryAllTexts(".o-we-command-name")[0]).toBe("Table of Contents");
     await press("Enter");
-    // TOC update is debounced
     await advanceTime(500);
     expect(queryAll(".o_embedded_toc_link")).toHaveCount(1);
     const h1 = queryOne("h1");
@@ -56,7 +53,6 @@ test("should update table of contents when heading is converted to paragraph", a
     await contains(
         ".o_font_selector_menu .dropdown-item:contains('Paragraph')",
     ).click();
-    // TOC update is debounced
     await advanceTime(500);
     expect(queryAll(".o_embedded_toc_link")).toHaveCount(0);
 });

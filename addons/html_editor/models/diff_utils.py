@@ -1,13 +1,7 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import re
 from difflib import SequenceMatcher, unified_diff
 
 from bs4 import BeautifulSoup
-
-# ------------------------------------------------------------
-# Patch and comparison functions
-# ------------------------------------------------------------
 
 
 OPERATION_SEPARATOR = "\n"
@@ -33,12 +27,6 @@ ADDITION_1ST_REPLACE_COMPARISON_REGEX = r"added>\2</added>"
 DELETION_COMPARISON_REGEX = r"\1<removed>\2</removed>"
 EMPTY_OPERATION_TAG = r"<(added|removed)><\/(added|removed)>"
 SAME_TAG_REPLACE_FIXER = r"<\/added><(?:[^\/>]|(?:><))+><removed>"
-# /!\ The ``*`` must apply to the *pair* ``[^<]`` + lookahead, not to the
-# zero-width lookahead alone. Written as ``([^<](?!…)*)`` the quantifier binds
-# to the lookahead, so the group matches exactly ONE character and the fixer
-# below only ever collapsed single-character runs -- every longer run of
-# unchanged text was rendered as both <added> and <removed>. The existing tests
-# all happened to use one-character text, which hid it.
 UNNECESSARY_REPLACE_FIXER = (
     r"<added>((?:[^<](?!<\/added>))*[^<]?)<\/added>"
     r"<removed>((?:[^<](?!<\/removed>))*[^<]?)<\/removed>"
@@ -46,64 +34,24 @@ UNNECESSARY_REPLACE_FIXER = (
 
 
 def _parse_operation_indexes(metadata):
-    """Parse the ``@<start>[,<end>]`` part of a patch operation's metadata.
-
-    ``patch`` values come from ``html_field_history``, which is server-written
-    and normally well-formed -- but a row migrated from an older format, or a
-    hand-edited JSON column, must not turn a read into an HTTP 500. Anything
-    unparseable yields ``None`` and the operation is skipped.
-
-    Note the previous guard ``int(indexes[0]) if len(indexes) else 0`` was
-    dead: ``"".split(",")`` returns ``['']``, never an empty list, so the
-    fallback never ran and a metadata without ``@`` raised ValueError.
-
-    :param str metadata: the operation metadata, e.g. ``R@12,15``
-    :return: tuple[int, int] | None
-    """
     _, separator, index_range = metadata.partition(PATCH_OPERATION_LINE_AT)
     if not separator:
         return None
-    # We need to remove PATCH_OPERATION_CONTENT char from the index range.
     indexes = index_range.split(PATCH_OPERATION_CONTENT)[0].split(",")
     try:
         start_index = int(indexes[0])
         end_index = int(indexes[1]) if len(indexes) > 1 else start_index
     except ValueError:
         return None
-    # NB: ``start_index`` may legitimately be -1. ``_format_line_index``
-    # emits ``@{start - 1}`` for a zero-length range, which is how an
-    # "insert before the first line" is encoded (``insert(-1 + 1, …)``).
-    # Rejecting negatives here would break valid patches.
     if end_index < start_index:
         return None
     return start_index, end_index
 
 
 def apply_patch(initial_content, patch):
-    """Apply a patch (multiple operations) on a content.
-
-    Operations referring to indexes outside the content are skipped rather than
-    raising: a corrupt revision should degrade the restored content, not break
-    the whole history dialog.
-
-    :param string initial_content: the initial content to patch
-    :param string patch: the patch to apply
-
-    :return: string: the patched content
-    """
-    # Each operation is a string with the format:
-    #     <operation_type>@<start_index>[,<end_index>][:<patch_text>*]
-    # e.g.:
-    #     +@4:<p>ab</p><p>cd</p>
-    #     +@4,15:<p>ef</p><p>gh</p>
-    #     -@32
-    #     -@125,129
-    #     R@523:<b>sdf</b>
     if not patch:
         return initial_content
 
-    # Replace break line in initial content to ensure they don't interfere with
-    # operations
     initial_content = initial_content.replace("\n", "")
     initial_content = _remove_html_attribute(
         initial_content, HTML_ATTRIBUTES_TO_REMOVE
@@ -111,7 +59,6 @@ def apply_patch(initial_content, patch):
 
     content = initial_content.split(LINE_SEPARATOR)
     patch_operations = patch.split(OPERATION_SEPARATOR)
-    # Apply operations in reverse order to preserve the indexes integrity.
     patch_operations.reverse()
 
     for operation in patch_operations:
@@ -122,7 +69,6 @@ def apply_patch(initial_content, patch):
         if parsed_indexes is None:
             continue
         start_index, end_index = parsed_indexes
-        # Only deletions can raise IndexError; ``list.insert`` clamps on its own.
         deletes = operation_type in [PATCH_OPERATION_REMOVE, PATCH_OPERATION_REPLACE]
         if deletes and not (
             -len(content) <= start_index < len(content)
@@ -130,8 +76,6 @@ def apply_patch(initial_content, patch):
         ):
             continue
 
-        # We need to insert lines from last to the first
-        # to preserve the indexes integrity.
         patch_content_line.reverse()
 
         if end_index > start_index:
@@ -152,14 +96,6 @@ def apply_patch(initial_content, patch):
 
 
 def generate_comparison(new_content, old_content):
-    """Compare a content to an older content
-    and generate a comparison html between both content.
-
-    :param string new_content: the current content
-    :param string old_content: the old content
-
-    :return: string: the comparison content
-    """
     new_content = _remove_html_attribute(new_content, HTML_ATTRIBUTES_TO_REMOVE)
     old_content = _remove_html_attribute(old_content, HTML_ATTRIBUTES_TO_REMOVE)
 
@@ -169,8 +105,6 @@ def generate_comparison(new_content, old_content):
     patch = generate_patch(new_content, old_content)
     comparison = new_content.split(LINE_SEPARATOR)
     patch_operations = patch.split(OPERATION_SEPARATOR)
-    # We need to apply operation from last to the first
-    # to preserve the indexes integrity.
     patch_operations.reverse()
 
     for operation in patch_operations:
@@ -184,14 +118,6 @@ def generate_comparison(new_content, old_content):
         start_index = int(indexes[0]) if len(indexes) else 0
         end_index = int(indexes[1]) if len(indexes) > 1 else start_index
 
-        # If the operation is a replace, we need to flag the changes that
-        # will generate ghost opening tags if we don't ignore
-        # them.
-        # this can happen when:
-        # * A change concerning only html parameters.
-        #   <p class="x">a</p> => <p class="y">a</p>
-        # * An addition in a previously empty element opening tag
-        #   <p></p> => <p>a</p>
         if operation_type == PATCH_OPERATION_REPLACE:
             for i, line in enumerate(patch_content_line):
                 current_index = start_index + i
@@ -207,8 +133,6 @@ def generate_comparison(new_content, old_content):
                 ):
                     comparison[start_index + i] = "delete_me>"
 
-        # We need to insert lines from last to the first
-        # to preserve the indexes integrity.
         patch_content_line.reverse()
 
         for index in range(end_index, start_index - 1, -1):
@@ -221,8 +145,6 @@ def generate_comparison(new_content, old_content):
                     DELETION_COMPARISON_REGEX,
                     comparison[index],
                 )
-                # Only use this line if it doesn't generate an empty
-                # <removed> tag
                 if not re.search(
                     EMPTY_OPERATION_TAG, deletion_flagged_comparison
                 ):
@@ -253,26 +175,12 @@ def generate_comparison(new_content, old_content):
                     comparison.insert(start_index, line)
 
     final_comparison = LINE_SEPARATOR.join(comparison)
-    # We can remove all the opening tags which are located between the end of an
-    # added tag and the start of a removed tag, because this should never happen
-    # as the added and removed tags should always be near each other.
-    # This can happen when the new container tag had a parameter change.
     final_comparison = re.sub(
         SAME_TAG_REPLACE_FIXER, "</added><removed>", final_comparison
     )
 
-    # Remove all the <delete_me> tags
     final_comparison = final_comparison.replace(r"<delete_me>", "")
 
-    # This fix the issue of unnecessary replace tags.
-    # ex: <added>abc</added><removed>abc</removed> -> abc
-    # This can occur when the new content is the same as the old content and
-    # their container tags are the same but the tags parameters are different
-    #
-    # Done with a single ``re.sub`` callback rather than iterating matches and
-    # calling ``str.replace``: ``replace`` substitutes EVERY occurrence of the
-    # matched text, so an identical pair elsewhere in the document was rewritten
-    # too, and each rewrite rebuilt the whole string (O(n*m)).
     def collapse_identical_pair(match):
         if match.group(1) == match.group(2):
             return match.group(1)
@@ -284,12 +192,6 @@ def generate_comparison(new_content, old_content):
 
 
 def _format_line_index(start, end):
-    """Format the line index to be used in a patch operation.
-
-    :param start: the start index
-    :param end: the end index
-    :return: string
-    """
     length = end - start
     if not length:
         start -= 1
@@ -299,40 +201,12 @@ def _format_line_index(start, end):
 
 
 def _patch_generator(new_content, old_content):
-    """Generate a patch (multiple operations) between two contents.
-
-    :param string new_content: the new content
-    :param string old_content: the old content
-
-    :return: string: the patch containing all the operations to reverse
-                     the new content to the old content
-    """
-    # Each operation is a string with the format:
-    #     <operation_type>@<start_index>[,<end_index>][:<patch_text>*]
-    # e.g.:
-    #     +@4:<p>ab</p><p>cd</p>
-    #     +@4,15:<p>ef</p><p>gh</p>
-    #     -@32
-    #     -@125,129
-    #     R@523:<b>sdf</b>
-    # remove break line in contents to ensure they don't interfere with
-    # operations
     new_content = new_content.replace("\n", "")
     old_content = old_content.replace("\n", "")
 
     new_content_lines = new_content.split(LINE_SEPARATOR)
     old_content_lines = old_content.split(LINE_SEPARATOR)
 
-    # ``autojunk=True`` (difflib's default). It was previously disabled, which
-    # removed the "popular element" heuristic that keeps ``find_longest_match``
-    # tractable. Splitting HTML on "<" produces many repeated tokens ("/p>",
-    # "/div>", ...), exactly the input shape that degenerates without it: a
-    # document where most lines differ cost 12s at 800 paragraphs versus 0.4ms
-    # with the heuristic on -- and this runs on the WRITE path (the history
-    # mixin patches every save of a versioned field), not just in the history
-    # dialog. Verified over 500 randomised round-trip cases: identical patch
-    # bytes, zero apply_patch mismatches. autojunk only changes which elements
-    # are eligible as alignment anchors, never the correctness of the opcodes.
     for group in SequenceMatcher(
         None, new_content_lines, old_content_lines
     ).get_grouped_opcodes(0):
@@ -379,34 +253,15 @@ def _remove_html_attribute(html_content, attributes_to_remove):
 
 
 def _indent(content):
-    """Indent the content using BeautifulSoup.
-
-    :param string content: the content to indent
-
-    :return: string: the indented content
-    """
     content = "<document>" + _remove_html_attribute(content, HTML_ATTRIBUTES_TO_REMOVE) + "</document>"
     soup = BeautifulSoup(content, 'html.parser')
     return soup.prettify()
 
 
 def generate_unified_diff(new_content, old_content):
-    """Generate a unified diff between two contents.
-
-    :param string new_content: the current content
-    :param string old_content: the old content
-
-    :return: string: the unified diff content
-    """
     new_content = _indent(new_content)
     old_content = _indent(old_content)
 
-    # ``lineterm=""``: the inputs are already split on newlines, so the default
-    # ``lineterm="\n"`` appended a terminator to the ---/+++/@@ header lines
-    # which, joined on "\n" again, produced a blank line after every header.
-    # The client used to strip those with /^\s*[\r\n]/gm -- a workaround that
-    # also ate legitimately blank context lines (a context line is " ", which
-    # that regex matches). Emitting a well-formed diff lets the client drop it.
     return OPERATION_SEPARATOR.join(
         list(unified_diff(
             old_content.split(OPERATION_SEPARATOR),

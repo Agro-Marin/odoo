@@ -63,8 +63,6 @@ export class HtmlViewer extends Component {
                 this.iframeRef.el.addEventListener("load", onLoadIframe, {
                     once: true,
                 });
-                // Force the iframe to call the `load` event. Without this line, the
-                // event 'load' might never trigger.
                 this.iframeRef.el.after(this.iframeRef.el);
             });
         } else {
@@ -90,7 +88,6 @@ export class HtmlViewer extends Component {
         }
 
         if (this.props.config.embeddedComponents) {
-            // TODO @phoenix: should readonly iframe with embedded components be supported?
             this.embeddedComponents = memoize((embeddedComponents = []) => {
                 const result = {};
                 for (const embedding of embeddedComponents) {
@@ -125,11 +122,6 @@ export class HtmlViewer extends Component {
     }
 
     /**
-     * Allows overrides to process the value used in the Html Viewer.
-     * Typically, if the value comes from the html_field, it is already fixed
-     * (invalid and obsolete elements were replaced). If used as a standalone,
-     * the HtmlViewer has to handle invalid nodes and html upgrades.
-     *
      * @param { string | Markup } value
      * @returns { string | Markup }
      */
@@ -165,10 +157,6 @@ export class HtmlViewer extends Component {
         });
     }
 
-    /**
-     * Ensure that elements with accessibility editor attributes correctly get
-     * the standard accessibility attribute (aria-label, role).
-     */
     applyAccessibilityAttributes(container) {
         for (const el of container.querySelectorAll("[data-oe-role]")) {
             el.setAttribute("role", el.dataset.oeRole);
@@ -178,11 +166,6 @@ export class HtmlViewer extends Component {
         }
     }
 
-    /**
-     * Retarget links to open in a new tab.
-     * When inside an iframe, all links are retargeted.
-     * Otherwise, only external links (different origin) are retargeted.
-     */
     retargetLinks(container) {
         const isInsideIframe = container.ownerDocument !== document;
         const retargetSelector = isInsideIframe
@@ -239,10 +222,6 @@ export class HtmlViewer extends Component {
         this.state.iframeVisible = true;
     }
 
-    //--------------------------------------------------------------------------
-    // Embedded Components
-    //--------------------------------------------------------------------------
-
     destroyComponent({ root, host }) {
         const { getEditableDescendants } = this.getEmbedding(host);
         const editableDescendants = getEditableDescendants?.(host) || {};
@@ -291,11 +270,6 @@ export class HtmlViewer extends Component {
 
     mountComponent(host, { Component, getEditableDescendants, getProps, name }) {
         const props = getProps?.(host) || {};
-        // TODO ABD TODO @phoenix: check if there is too much info in the htmlViewer env.
-        // i.e.: env has X because of parent component,
-        // embedded component descendant sometimes uses X from env which is set conditionally:
-        // -> it will override the one one from the parent => OK.
-        // -> it will not => the embedded component still has X in env because of its ancestors => Issue.
         const env = Object.create(this.env);
         if (getEditableDescendants) {
             env.getEditableDescendants = getEditableDescendants;
@@ -310,12 +284,7 @@ export class HtmlViewer extends Component {
             env,
         });
         const promise = root.mount(host);
-        // Don't show mounting errors as they will happen often when the host
-        // is disconnected from the DOM because of a patch
         promise.catch();
-        // Patch mount fiber to hook into the exact call stack where root is
-        // mounted (but before). This will remove host children synchronously
-        // just before adding the root rendered html.
         const fiber = root.node.fiber;
         const fiberComplete = fiber.complete;
         fiber.complete = function () {

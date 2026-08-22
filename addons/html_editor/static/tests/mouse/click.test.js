@@ -8,10 +8,8 @@ import { unformat } from "../_helpers/format.js";
 import { getContent, setSelection } from "../_helpers/selection.js";
 
 /**
- * Simulates placing the cursor at the editable root after a mouse click.
- *
  * @param {HTMLElement} node
- * @param {boolean} [before=false] whether to place the cursor before the node
+ * @param {boolean} [before=false]
  */
 async function simulateMouseClick(node, before = false) {
     await pointerDown(node);

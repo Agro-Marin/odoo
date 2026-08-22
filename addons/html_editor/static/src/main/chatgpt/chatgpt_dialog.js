@@ -8,8 +8,6 @@ import { Dialog } from "@web/ui/dialog";
 const POSTPROCESS_GENERATED_CONTENT = (content, baseContainer) => {
     let lines = content.split("\n");
     if (baseContainer.toUpperCase() === "P") {
-        // P has a margin bottom which is used as an interline, no need to
-        // keep empty lines in that case.
         lines = lines.filter((line) => line.trim().length);
     }
     const fragment = document.createDocumentFragment();
@@ -17,7 +15,6 @@ const POSTPROCESS_GENERATED_CONTENT = (content, baseContainer) => {
     let lineIndex = 0;
     for (const line of lines) {
         if (line.trim().startsWith("- ")) {
-            // Create or continue an unordered list.
             parentUl = parentUl || document.createElement("ul");
             const li = document.createElement("li");
             li.innerText = line.trim().slice(2);
@@ -28,9 +25,6 @@ const POSTPROCESS_GENERATED_CONTENT = (content, baseContainer) => {
                 line.startsWith("1. ") &&
                 lines[lineIndex + 1]?.startsWith("2. "))
         ) {
-            // Create or continue an ordered list (only if the line starts
-            // with the next number in the current ordered list (or 1 if no
-            // ordered list was in progress and it's followed by a 2).
             parentOl = parentOl || document.createElement("ol");
             const li = document.createElement("li");
             li.innerText = line.slice(line.indexOf(".") + 2);
@@ -40,8 +34,6 @@ const POSTPROCESS_GENERATED_CONTENT = (content, baseContainer) => {
             emptyLine.append(document.createElement("BR"));
             fragment.appendChild(emptyLine);
         } else {
-            // Insert any list in progress, and a new block for the current
-            // line.
             [parentUl, parentOl].forEach((list) => list && fragment.appendChild(list));
             parentUl = parentOl = undefined;
             const block = document.createElement(

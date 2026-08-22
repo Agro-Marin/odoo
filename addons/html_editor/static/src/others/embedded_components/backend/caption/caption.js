@@ -30,7 +30,6 @@ export class EmbeddedCaptionComponent extends Component {
             });
         }
         this._appliedNativeHistory = true;
-        // Ensure the state, the attribute and the placeholder are in sync.
         this.updateCaption();
         const observer = new MutationObserver((mutations) => {
             for (const mutation of mutations) {
@@ -57,9 +56,6 @@ export class EmbeddedCaptionComponent extends Component {
     }
 
     onInputBlur() {
-        // This is triggered before the selection changes. Wait before updating
-        // so when the history step triggers a normalization, it restores that
-        // new selection and not the old one.
         setTimeout(() => {
             if (this.captionInput.el) {
                 this.updateCaption(this.captionInput.el.value || "");
@@ -77,10 +73,6 @@ export class EmbeddedCaptionComponent extends Component {
     onInputBeforeInput(ev) {
         this._appliedNativeHistory = false;
         if (ev.inputType === "historyUndo" || ev.inputType === "historyRedo") {
-            // Input elements handle their own history, but this event is not
-            // triggered if no changes were made to the input. So we handle the
-            // editor history on keyup in those cases, but let the browser do
-            // its thing otherwise.
             this._appliedNativeHistory = true;
         }
     }

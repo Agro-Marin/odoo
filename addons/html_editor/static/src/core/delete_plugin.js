@@ -81,7 +81,6 @@ import {
 /**
  * @typedef {(() => void)[]} before_delete_handlers
  * @typedef {(() => void)[]} delete_handlers
- *
  * @typedef {((range: RangeLike) => void | true)[]} delete_backward_overrides
  * @typedef {((range: RangeLike) => void | true)[]} delete_backward_word_overrides
  * @typedef {((range: RangeLike) => void | true)[]} delete_backward_line_overrides
@@ -89,25 +88,17 @@ import {
  * @typedef {((range: RangeLike) => void | true)[]} delete_forward_word_overrides
  * @typedef {((range: RangeLike) => void | true)[]} delete_forward_line_overrides
  * @typedef {((range: RangeLike) => void | true)[]} delete_range_overrides
- *
  * @typedef {((node: Node) => boolean)[]} functional_empty_node_predicates
  * @typedef {((node: Node) => boolean)[]} is_empty_predicates
- *
  * @typedef {((node: Node) => Node[])[]} removable_descendants_providers
- *
  * @typedef {CSSSelector[]} system_node_selectors
  */
 /**
- * The `root` argument is used by some predicates in which a node is
- * conditionally unremovable (e.g. a table cell is only removable if its
- * ancestor table is also being removed).
  * @typedef {((node: Node, root: HTMLElement) => boolean)[]} unremovable_node_predicates
  */
 
-// @todo @phoenix: move these predicates to different plugins
 export const unremovableNodePredicates = [
     (node) => node.classList?.contains("oe_unremovable"),
-    // Monetary field
     (node) => node.matches?.("[data-oe-type='monetary'] > span"),
 ];
 
@@ -145,7 +136,6 @@ export class DeletePlugin extends Plugin {
             { hotkey: "control+shift+backspace", commandId: "deleteBackwardLine" },
             { hotkey: "control+shift+delete", commandId: "deleteForwardLine" },
         ],
-        /** Handlers */
         beforeinput_handlers: [
             withSequence(5, this.onBeforeInputInsertText.bind(this)),
             this.onBeforeInputDelete.bind(this),
@@ -154,7 +144,6 @@ export class DeletePlugin extends Plugin {
         selectionchange_handlers: withSequence(5, () =>
             this.onAndroidChromeSelectionChange?.(),
         ),
-        /** Overrides */
         delete_backward_overrides: withSequence(
             30,
             this.deleteBackwardUnmergeable.bind(this),
@@ -180,30 +169,24 @@ export class DeletePlugin extends Plugin {
         this.findPreviousPosition = this.makeFindPositionFn("backward");
         this.findNextPosition = this.makeFindPositionFn("forward");
         if (isMacOS()) {
-            // Bypass the hotkey service for Alt+Backspace and Cmd+Backspace
-            // on macOS which would otherwise conflict with other shortcuts.
             this.addDomListener(this.editable, "keydown", (event) => {
                 const runCommand = (commandId) => {
                     this.dependencies.userCommand.getCommand(commandId).run();
                     event.stopImmediatePropagation();
                     event.preventDefault();
                 };
-                // Delete word backward: Option + Backspace
                 if (event.altKey && event.key === "Backspace") {
                     return runCommand("deleteBackwardWord");
                 }
 
-                // Delete word forward: Option + Delete
                 if (event.altKey && event.key === "Delete") {
                     return runCommand("deleteForwardWord");
                 }
 
-                // Delete line backward: Command + Backspace
                 if (event.metaKey && event.key === "Backspace") {
                     return runCommand("deleteBackwardLine");
                 }
 
-                // Delete line forward: Command + Delete
                 if (event.metaKey && event.key === "Delete") {
                     return runCommand("deleteForwardLine");
                 }
@@ -230,25 +213,15 @@ export class DeletePlugin extends Plugin {
         return range;
     }
 
-    // --------------------------------------------------------------------------
-    // commands
-    // --------------------------------------------------------------------------
-
     /**
      * @param {EditorSelection} [selection]
      */
     deleteSelection(selection = this.dependencies.selection.getEditableSelection()) {
-        // @todo @phoenix: handle non-collapsed selection around a ZWS
-        // see collapseIfZWS
 
         let range = this.getNormalizedRange(selection);
         if (range.collapsed) {
             return;
         }
-        // Delete only if the targeted nodes are all editable or if every
-        // non-editable node's editable ancestor is fully selected. We use the
-        // targeted nodes here to be sure to include a partial text node
-        // selection.
         const selectedNodes = this.dependencies.selection.getTargetedNodes();
         const canBeDeleted = (node) => {
             const isEditableOrFullySelected = (a) =>
@@ -303,10 +276,6 @@ export class DeletePlugin extends Plugin {
         this.dispatchTo("delete_handlers");
         this.dependencies.history.addStep();
     }
-
-    // --------------------------------------------------------------------------
-    // Delete backward/forward
-    // --------------------------------------------------------------------------
 
     /**
      * @param {EditorSelection} selection
@@ -382,12 +351,6 @@ export class DeletePlugin extends Plugin {
     getRangeForDelete(node, offset, direction, granularity) {
         let destContainer, destOffset;
         if (granularity === "word") {
-            // In some browsers such as Firefox or Safari, if the cursor
-            // is at the start of a block (when direction is "backward") or
-            // at the end of a block (when direction is "forward"),
-            // Selection.modify("extend", direction, "word") ends up
-            // selecting the previous or next adjacent text node, respectively.
-            // To handle such cases, the granularity should be "character".
             const blockEl = closestBlock(node);
             if (
                 (direction === "backward" &&
@@ -436,57 +399,18 @@ export class DeletePlugin extends Plugin {
         return { startContainer, startOffset, endContainer, endOffset };
     }
 
-    // --------------------------------------------------------------------------
-    // Delete range
-    // --------------------------------------------------------------------------
-
-    /*
-    Inline:
-        Empty inlines get filled, no joining.
-        <b>[abc]</b> -> <b>[]ZWS</b>
-        <b>[abc</b> <b>d]ef</b> -> <b>[]ZWS</b> <b>ef</b>
-        <b>[abc</b> <b>def]</b> -> <b>[]ZWS</b> <b>ZWS</b>
-
-    Block:
-        Shrunk blocks get filled.
-        <p>[abc]</p> -> <p>[]<br></p>
-
-        End block's content is appended to start block on join.
-        <h1>a[bc</h1> <p>de]f</p> -> <h1>a[]f</h1>
-        <h1>[abc</h1> <p>def]</p> -> <h1>[]<br></h1>
-
-        To make left block disappear instead, use this range:
-        [<h1>abc</h1> <p>de]f</p> -> []<p>f</p> (which can be normalized later, see setCursorFromRange)
-
-    Block + Inline:
-        Inline content after block is appended to block on join.
-        <p>a[bc</p> d]ef -> <p>a[]ef</p>
-
-    Inline + Block:
-        Block content is unwrapped on join.
-        ab[c <p>de]f</p> -> ab[]f
-        ab[c <p>de]f</p> ghi -> ab[]f<br>ghi
-
-    */
 
     /**
-     * Removes (removable) nodes and merges block with block/inline when
-     * applicable (and mergeable).
-     * Returns the updated range, which is collapsed to start if the original
-     * range could be completely deleted and merged.
-     *
      * @param {RangeLike} range
      * @returns {RangeLike}
      */
     deleteRange(range) {
-        // Do nothing if the range is collapsed.
         if (
             range.startContainer === range.endContainer &&
             range.startOffset === range.endOffset
         ) {
             return range;
         }
-        // Split text nodes in order to have elements as start/end containers.
         range = this.splitTextNodes(range);
 
         const { startContainer, startOffset, endContainer, endOffset } = range;
@@ -500,13 +424,11 @@ export class DeletePlugin extends Plugin {
         let restoreFakeBRs;
         ({ restoreFakeBRs, range } = this.removeFakeBRs(range));
 
-        // Remove nodes.
         let allNodesRemoved;
         ({ allNodesRemoved, range } = this.removeNodes(range));
 
         this.fillEmptyInlines(range);
 
-        // Join fragments.
         const originalCommonAncestor = range.commonAncestorContainer;
         if (allNodesRemoved) {
             range = this.joinFragments(range);
@@ -520,7 +442,6 @@ export class DeletePlugin extends Plugin {
     }
 
     splitTextNodes({ startContainer, startOffset, endContainer, endOffset }) {
-        // Splits text nodes only if necessary.
         const split = (textNode, offset) => {
             let didSplit = false;
             if (offset === 0) {
@@ -561,8 +482,6 @@ export class DeletePlugin extends Plugin {
         };
     }
 
-    // Removes fake line breaks, so that each BR left is an actual line break.
-    // Returns the updated range and a function to later restore the fake BRs.
     removeFakeBRs(range) {
         let {
             startContainer,
@@ -612,7 +531,6 @@ export class DeletePlugin extends Plugin {
                 if (lastBR && isFakeLineBreak(lastBR)) {
                     lastBR.after(this.document.createElement("br"));
                 }
-                // Shrunk blocks are restored by `fillShrunkBlocks`.
             }
         };
 
@@ -625,9 +543,6 @@ export class DeletePlugin extends Plugin {
             nodes.push(range.endContainer);
         }
         for (const node of nodes) {
-            // @todo: mind Icons?
-            // Probably need to get deepest position's element
-            // @todo: update fillEmpty
             if (
                 !isBlock(node) &&
                 !isTangible(node) &&
@@ -646,7 +561,6 @@ export class DeletePlugin extends Plugin {
                 block.matches("div[contenteditable='true']") &&
                 !block.parentElement.isContentEditable
             ) {
-                // @todo: not sure we want this when allowInlineAtRoot is true
                 const baseContainer =
                     this.dependencies.baseContainer.createBaseContainer();
                 baseContainer.appendChild(this.document.createElement("br"));
@@ -655,9 +569,6 @@ export class DeletePlugin extends Plugin {
                 block.appendChild(this.document.createElement("br"));
             }
         };
-        // @todo: this ends up filling shrunk blocks outside the affected range.
-        // Ideally, it should only affect the block within the boundaries of the
-        // original range.
         for (const node of descendants(commonAncestor).reverse()) {
             if (isBlock(node) && isShrunkBlock(node)) {
                 fillBlock(node);
@@ -669,18 +580,12 @@ export class DeletePlugin extends Plugin {
         }
     }
 
-    // --------------------------------------------------------------------------
-    // Remove nodes
-    // --------------------------------------------------------------------------
-
     removeNodes(range) {
         const { startContainer, startOffset, endContainer, commonAncestorContainer } =
             range;
         let { endOffset } = range;
         const nodesToRemove = [];
 
-        // Pick child nodes to the right for later removal, propagate until
-        // commonAncestorContainer (non-inclusive)
         let node = startContainer;
         let startRemoveIndex = startOffset;
         while (node !== commonAncestorContainer) {
@@ -691,8 +596,6 @@ export class DeletePlugin extends Plugin {
             node = node.parentElement;
         }
 
-        // Pick child nodes to the left for later removal, propagate until
-        // commonAncestorContainer (non-inclusive)
         node = endContainer;
         let endRemoveIndex = endOffset;
         while (node !== commonAncestorContainer) {
@@ -703,12 +606,10 @@ export class DeletePlugin extends Plugin {
             node = node.parentElement;
         }
 
-        // Pick commonAncestorContainer's direct children for removal
         for (let i = startRemoveIndex; i < endRemoveIndex; i++) {
             nodesToRemove.push(commonAncestorContainer.childNodes[i]);
         }
 
-        // Remove nodes
         let allNodesRemoved = true;
         for (const node of nodesToRemove) {
             const parent = node.parentNode;
@@ -732,17 +633,12 @@ export class DeletePlugin extends Plugin {
         return { allNodesRemoved, range: { ...range, endOffset } };
     }
 
-    // The root argument is used by some predicates in which a node is
-    // conditionally unremovable (e.g. a table cell is only removable if its
-    // ancestor table is also being removed).
     isUnremovable(node, root = undefined) {
         return this.getResource("unremovable_node_predicates").some((p) =>
             p(node, root),
         );
     }
 
-    // Returns true if the entire subtree rooted at node was removed.
-    // Unremovable nodes take the place of removable ancestors.
     removeNode(node) {
         const root = node;
         const remove = (node) => {
@@ -757,7 +653,6 @@ export class DeletePlugin extends Plugin {
                     customHandling = true;
                     customIsUnremovable = this.isUnremovable(node, root);
                     if (!customIsUnremovable) {
-                        // TODO ABD: test protected + unremovable
                         node.remove();
                     }
                 }
@@ -786,13 +681,6 @@ export class DeletePlugin extends Plugin {
         return remove(node);
     }
 
-    // --------------------------------------------------------------------------
-    // Join
-    // --------------------------------------------------------------------------
-
-    // Joins both ends of the range if possible: block + block/inline.
-    // If joined, the range is collapsed to start.
-    // Returns the updated range.
     joinFragments(range) {
         const joinableLeft = this.getJoinableFragment(range, "start");
         const joinableRight = this.getJoinableFragment(range, "end");
@@ -808,11 +696,9 @@ export class DeletePlugin extends Plugin {
     }
 
     /**
-     * Retrieves the joinable fragment based on the given range and side.
-     *
-     * @param {Object} range - range-like object.
+     * @param {Object} range
      * @param {"start"|"end"} side
-     * @returns {Object} - { node: Node|null, type: "block"|"inline"|"null" }
+     * @returns {Object}
      */
     getJoinableFragment(range, side) {
         const commonAncestor = range.commonAncestorContainer;
@@ -820,9 +706,6 @@ export class DeletePlugin extends Plugin {
         const offset = side === "start" ? range.startOffset : range.endOffset;
 
         if (container === range.commonAncestorContainer) {
-            // This means a direct child of the commonAncestor was removed.
-            // The joinable in this case is its sibling (previous for the start
-            // side, next for the end side), but only if inline.
             const sibling =
                 childNodes(commonAncestor)[side === "start" ? offset - 1 : offset];
             if (
@@ -832,12 +715,8 @@ export class DeletePlugin extends Plugin {
             ) {
                 return { node: sibling, type: "inline" };
             }
-            // No fragment to join.
             return { node: null, type: "null" };
         }
-        // Starting from `container`, find the closest block up to
-        // (not-inclusive) the common ancestor. If not found, keep the common
-        // ancestor's child inline element.
         let last;
         let element = container;
         while (element !== commonAncestor) {
@@ -858,27 +737,19 @@ export class DeletePlugin extends Plugin {
                 "inline + block": this.joinBlockIntoInline,
             }[leftType + " + " + rightType] || (() => true)
         ).bind(this);
-        // "inline + inline": Nothing to do, consider it joined.
-        // Same any combination involving type "null" (no joinable element).
     }
 
-    /**
-     * An unsplittable element is also unmergeable and vice-versa (as split and
-     * merge are reverse operations from one another).
-     */
     isUnmergeable(node) {
         return this.getResource("unsplittable_node_predicates").some((p) => p(node));
     }
 
     joinBlocks(left, right, commonAncestor) {
-        // Check if both blocks are mergeable.
         const canMerge = (n) =>
             !findUpTo(n, commonAncestor, this.isUnmergeable.bind(this));
         if (!canMerge(left) || !canMerge(right)) {
             return false;
         }
 
-        // Check if left block allows right block's content.
         const rightChildNodes = childNodes(right);
         if (!isAllowedContent(left, rightChildNodes)) {
             return false;
@@ -887,7 +758,6 @@ export class DeletePlugin extends Plugin {
         left.append(...rightChildNodes);
         let toRemove = right;
         let parent = right.parentElement;
-        // Propagate until commonAncestor, removing empty blocks
         while (parent !== commonAncestor && parent.childNodes.length === 1) {
             toRemove = parent;
             parent = parent.parentElement;
@@ -898,11 +768,9 @@ export class DeletePlugin extends Plugin {
 
     joinInlineIntoBlock(leftBlock, rightInline, commonAncestor) {
         if (findUpTo(leftBlock, commonAncestor, (node) => this.isUnmergeable(node))) {
-            // Left block is unmergeable.
             return false;
         }
 
-        // @todo: avoid appending a BR as last child of the block
         while (rightInline && !isBlock(rightInline)) {
             const toAppend = rightInline;
             rightInline = rightInline.nextSibling;
@@ -913,19 +781,16 @@ export class DeletePlugin extends Plugin {
 
     joinBlockIntoInline(leftInline, rightBlock, commonAncestor) {
         if (findUpTo(rightBlock, commonAncestor, (node) => this.isUnmergeable(node))) {
-            // Right block is unmergeable.
             return false;
         }
 
         leftInline.after(...childNodes(rightBlock));
         let toRemove = rightBlock;
         let parent = rightBlock.parentElement;
-        // Propagate until commonAncestor, removing empty blocks
         while (parent !== commonAncestor && parent.childNodes.length === 1) {
             toRemove = parent;
             parent = parent.parentElement;
         }
-        // Restore line break between removed block and inline content after it.
         if (parent === commonAncestor) {
             const rightSibling = toRemove.nextSibling;
             if (rightSibling && !isBlock(rightSibling)) {
@@ -935,10 +800,6 @@ export class DeletePlugin extends Plugin {
         toRemove.remove();
         return true;
     }
-
-    // --------------------------------------------------------------------------
-    // Adjust range
-    // --------------------------------------------------------------------------
 
     /**
      * @param {RangeLike} range
@@ -959,8 +820,6 @@ export class DeletePlugin extends Plugin {
     }
 
     /**
-     * <h1>[abc</h1><p>d]ef</p> -> [<h1>abc</h1><p>d]ef</p>
-     *
      * @param {HTMLElement} block
      * @param {Range} range
      * @returns {Range}
@@ -978,8 +837,6 @@ export class DeletePlugin extends Plugin {
     }
 
     /**
-     * <p>ab[c</p><div>def]</div> ->  <p>ab[c</p><div>def</div>]
-     *
      * @param {HTMLElement} block
      * @param {Range} range
      * @returns {Range}
@@ -1004,17 +861,6 @@ export class DeletePlugin extends Plugin {
     }
 
     /**
-     * If range spans two blocks, try to fully include the right (end) one OR
-     * the left (start) one (but not both).
-     *
-     * E.g.:
-     * Fully includes the right block:
-     * <p>ab[c</p><div>def]</div> ->  <p>ab[c</p><div>def</div>]
-     * <p>[abc</p><div>def]</div> ->  <p>[abc</p><div>def</div>]
-     *
-     * Fully includes the left block:
-     * <h1>[abc</h1><p>d]ef</p> -> [<h1>abc</h1><p>d]ef</p>
-     *
      * @param {Range} range
      * @returns {Range}
      */
@@ -1026,7 +872,6 @@ export class DeletePlugin extends Plugin {
             return range;
         }
         range = this.includeBlockEnd(endBlock, range);
-        // Only include start block if end block could not be included.
         if (range.endContainer === endContainer) {
             range = this.includeBlockStart(startBlock, range);
         }
@@ -1034,15 +879,6 @@ export class DeletePlugin extends Plugin {
     }
 
     /**
-     * Fully select link if:
-     * - range spans content inside and outside the link AND
-     * - all of its content is selected.
-     *
-     * <a>[abc</a>d]ef -> [<a>abc</a>d]ef
-     * ab[c<a>def]</a> ->  ab[c<a>def</a>]
-     * But:
-     * <a>[abc]</a> -> <a>[abc]</a> (remains unchanged)
-     *
      * @param {Range} range
      * @returns {Range}
      */
@@ -1097,9 +933,6 @@ export class DeletePlugin extends Plugin {
         return range;
     }
 
-    // @todo @phoenix This is here because of the second test case in
-    // delete/forward/selection collapsed/basic/should ignore ZWS, and its
-    // importance is questionable.
     /**
      * @param {Range} range
      * @returns {Range}
@@ -1131,10 +964,6 @@ export class DeletePlugin extends Plugin {
     }
 
     /**
-     * Expand the range to fully include all contentEditable=False elements.
-     * This scenario happens when the range has one end inside a non-editable
-     * element and the other end outside of it.
-     *
      * @param {Range} range
      * @returns {Range}
      */
@@ -1164,13 +993,7 @@ export class DeletePlugin extends Plugin {
         return range;
     }
 
-    // --------------------------------------------------------------------------
-    // Find previous/next position
-    // --------------------------------------------------------------------------
-
     /**
-     * Returns the next/previous position for deletion.
-     *
      * @param {Node} node
      * @param {number} offset
      * @param {"forward"|"backward"} direction
@@ -1183,15 +1006,11 @@ export class DeletePlugin extends Plugin {
     }
 
     /**
-     *  Returns a function to find the adjacent position in the given direction.
-     *
      * @param {"forward"|"backward"} direction
      */
     makeFindPositionFn(direction) {
         const isDirectionForward = direction === "forward";
 
-        // Define helper functions based on the direction.
-        // Text node helpers.
         const findVisibleChar = (
             isDirectionForward ? this.findNextVisibleChar : this.findPreviousVisibleChar
         ).bind(this);
@@ -1200,7 +1019,6 @@ export class DeletePlugin extends Plugin {
         const indexBeforeChar = isDirectionForward ? charLeftPos : charRightPos;
         const indexAfterChar = isDirectionForward ? charRightPos : charLeftPos;
         const textEdgePos = isDirectionForward ? startPos : endPos;
-        // Leaf helpers.
         const adjacentLeaf = (
             isDirectionForward ? this.nextLeaf : this.previousLeaf
         ).bind(this);
@@ -1211,13 +1029,6 @@ export class DeletePlugin extends Plugin {
         const afterPos = isDirectionForward ? rightPos : leftPos;
 
         /**
-         * Returns the next/previous position for deletion.
-         *
-         * "Before" and "after" have different meanings depending on the
-         * direction: before and after mean, respectively, previous and next in
-         * DOM order when direction is "forward", and the other way around when
-         * direction is "backward".
-         *
          * @param {Node} node
          * @param {number} offset
          * @returns {[Node|null, Number|null]}
@@ -1230,7 +1041,6 @@ export class DeletePlugin extends Plugin {
                 }
             }
 
-            // Define context: search is restricted to the closest editable root.
             const isEditableRoot = (n) =>
                 n.isContentEditable && !n.parentNode.isContentEditable;
             const editableRoot = findUpTo(
@@ -1264,8 +1074,6 @@ export class DeletePlugin extends Plugin {
                         return [leaf, idx];
                     }
                 } else if (!leaf.isContentEditable && isBlock(leaf)) {
-                    // E.g. Desired range for deleteForward:
-                    // <p>abc[</p><div contenteditable="false">def</div>]<p>ghi</p>
                     return afterPos(leaf);
                 } else {
                     return blockSwitch ? beforePos(leaf) : afterPos(leaf);
@@ -1282,31 +1090,20 @@ export class DeletePlugin extends Plugin {
         const block = closestBlock(container);
         let last = container;
         let node = adjacentLeaf(container, this.editable);
-        // look for a BR or a block start
         while (node && node.nodeName !== "BR" && closestBlock(node) === block) {
             last = node;
             node = adjacentLeaf(node, this.editable);
         }
         if (last === container && offset === edgeIndex(container)) {
-            // Cursor is already next to the line break, go to following position.
             return this.findAdjacentPosition(container, offset, direction);
         }
         return direction === "forward" ? rightPos(last) : leftPos(last);
     }
 
-    // @todo @phoenix: there are not enough tests for visibility of characters
-    // (invisible whitespace, separate nodes, etc.)
     isVisibleChar(char, textNode, offset) {
-        // Protected nodes are always "visible" for the editor
         if (isProtected(textNode)) {
-            // TODO ABD: add test
             return true;
         }
-        // Return true for FEFFs to the right of a button, such that the user
-        // can backspace the cursor into the button without deleting its first
-        // character. Return true for FEFFs to the left of an *empty* button,
-        // such that the user can delete the empty button without deleting also
-        // the first visible character to its left.
         const isEmptyButton = (node) =>
             isButton(node) && /^\ufeff*$/.test(node.textContent);
         if (
@@ -1315,7 +1112,6 @@ export class DeletePlugin extends Plugin {
         ) {
             return true;
         }
-        // ZWS and ZWNBSP are invisible.
         if (["\u200B", "\uFEFF"].includes(char)) {
             return false;
         }
@@ -1323,11 +1119,6 @@ export class DeletePlugin extends Plugin {
             return true;
         }
 
-        // Assess visibility of whitespace.
-        // Whitespace is visible if it's immediately preceded by content, and
-        // followed by content before a BR or block start/end.
-
-        // If not preceded by content, it is invisible.
         if (offset) {
             return !isWhitespace(textNode.textContent[offset - char.length]);
         } else if (
@@ -1336,16 +1127,12 @@ export class DeletePlugin extends Plugin {
             return false;
         }
 
-        // Space is only visible if it's followed by content (with an optional
-        // sequence of invisible spaces in between), before a BR or block
-        // end/start.
         const charsToTheRight = textNode.textContent.slice(offset + char.length);
         for (char of charsToTheRight) {
             if (!isWhitespace(char)) {
                 return true;
             }
         }
-        // No content found in text node, look to the right of it
         if (getState(...rightPos(textNode), DIRECTIONS.RIGHT).cType & CTYPES.CONTENT) {
             return true;
         }
@@ -1354,8 +1141,6 @@ export class DeletePlugin extends Plugin {
     }
 
     shouldSkip(leaf, blockSwitch) {
-        // A system node is a node that should be ignored by the editor. In
-        // other words, if the editor had a VDOM, it would be absent from it.
         const systemNodeSelectors = this.getResource("system_node_selectors").join(",");
         if (systemNodeSelectors && closestElement(leaf, systemNodeSelectors)) {
             return true;
@@ -1363,7 +1148,6 @@ export class DeletePlugin extends Plugin {
         if (leaf.nodeType === Node.TEXT_NODE) {
             return false;
         }
-        // @todo Maybe skip anything that is not an element (e.g. comment nodes)
         if (blockSwitch) {
             return false;
         }
@@ -1384,8 +1168,6 @@ export class DeletePlugin extends Plugin {
     }
 
     findPreviousVisibleChar(textNode, index) {
-        // @todo @phoenix: write tests for chars with size > 1 (emoji, etc.)
-        // Use the string iterator to handle surrogate pairs.
         const chars = [...textNode.textContent.slice(0, index)];
         let char = chars.pop();
         while (char) {
@@ -1399,7 +1181,6 @@ export class DeletePlugin extends Plugin {
     }
 
     findNextVisibleChar(textNode, index) {
-        // Use the string iterator to handle surrogate pairs.
         for (const char of textNode.textContent.slice(index)) {
             if (this.isVisibleChar(char, textNode, index)) {
                 return [char, index];
@@ -1409,8 +1190,6 @@ export class DeletePlugin extends Plugin {
         return [null, null];
     }
 
-    // If leaf is part of a contenteditable=false tree, consider its root as the
-    // leaf instead.
     adjustedLeaf(leaf, refEditableRoot) {
         const isNonEditable = (node) => !isContentEditable(node);
         const nonEditableRoot =
@@ -1442,10 +1221,6 @@ export class DeletePlugin extends Plugin {
         return this.adjustedLeaf(leaf, editableRoot);
     }
 
-    // --------------------------------------------------------------------------
-    // Event handlers
-    // --------------------------------------------------------------------------
-
     onBeforeInputDelete(ev) {
         const handledInputTypes = {
             deleteContentBackward: ["backward", "character"],
@@ -1474,16 +1249,10 @@ export class DeletePlugin extends Plugin {
                 this.deleteSelection(selection);
                 this.dispatchTo("delete_handlers");
             }
-            // Default behavior: insert text and trigger input event
         }
     }
 
     /**
-     * Beforeinput event of type deleteContentBackward cannot be default
-     * prevented in Android Chrome. So we need to revert:
-     * - eventual mutations between beforeinput and input events
-     * - eventual selection change after input event
-     *
      * @param {InputEvent} beforeInputEvent
      */
     preventDefaultDeleteAndroidChrome(beforeInputEvent) {
@@ -1492,12 +1261,8 @@ export class DeletePlugin extends Plugin {
             if (ev.inputType !== beforeInputEvent.inputType) {
                 return;
             }
-            // Revert DOM changes that occurred between beforeinput and input.
             restoreDOM();
 
-            // Revert selection changes after input event, within the same tick.
-            // If further mutations occurred, consider selection change legit
-            // (e.g. dictionary input) and do not revert it.
             const { restore: restoreSelection } =
                 this.dependencies.selection.preserveSelection();
             const observerOptions = {
@@ -1516,8 +1281,6 @@ export class DeletePlugin extends Plugin {
         };
     }
 
-    // ======== AD-HOC STUFF ========
-
     deleteBackwardUnmergeable(range) {
         const { startContainer, startOffset, endContainer, endOffset } = range;
         return this.deleteCharUnmergeable(
@@ -1528,7 +1291,6 @@ export class DeletePlugin extends Plugin {
         );
     }
 
-    // @todo @phoenix: write tests for this
     deleteForwardUnmergeable(range) {
         const { startContainer, startOffset, endContainer, endOffset } = range;
         return this.deleteCharUnmergeable(
@@ -1539,7 +1301,6 @@ export class DeletePlugin extends Plugin {
         );
     }
 
-    // Trap cursor inside unmergeable element. Remove it if empty.
     deleteCharUnmergeable(sourceContainer, sourceOffset, destContainer, destOffset) {
         if (!destContainer) {
             return;
@@ -1577,10 +1338,6 @@ export class DeletePlugin extends Plugin {
         return true;
     }
 
-    // --------------------------------------------------------------------------
-    // utils
-    // --------------------------------------------------------------------------
-
     isEmptyInline(element) {
         if (isBlock(element)) {
             return false;
@@ -1613,7 +1370,6 @@ export class DeletePlugin extends Plugin {
         this.dependencies.selection.setSelection({ anchorNode, anchorOffset });
     }
 
-    // @todo: no need for this once selection in the editable root is corrected?
     normalizeEnterBlock(node, offset) {
         while (
             isBlock(node.childNodes[offset]) &&

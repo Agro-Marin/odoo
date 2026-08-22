@@ -31,7 +31,6 @@ export class EditorOverlay extends Component {
         isOverlayOpen: Function,
         getCustomRect: { type: Function, optional: true },
 
-        // Props from createOverlay
         positionOptions: { type: Object, optional: true },
         className: { type: String, optional: true },
         closeOnPointerdown: { type: Boolean, optional: true },
@@ -89,7 +88,6 @@ export class EditorOverlay extends Component {
             };
             const editableDocument = this.props.editable.ownerDocument;
             useExternalListener(editableDocument, "pointerdown", clickAway);
-            // Listen to pointerdown outside the iframe
             if (editableDocument !== document) {
                 useExternalListener(document, "pointerdown", clickAway);
             }
@@ -142,9 +140,6 @@ export class EditorOverlay extends Component {
             this.lastSelection.rect ||
             range.getBoundingClientRect();
         if (rect.x === 0 && rect.width === 0 && rect.height === 0) {
-            // Attention, ignoring DOM mutations is always dangerous (when we add or remove nodes)
-            // because if another mutation uses the target that is not observed, that mutation can never be applied
-            // again (when undo/redo and in collaboration).
             this.props.shared.ignoreDOMMutations(() => {
                 const clonedRange = range.cloneRange();
                 const shadowCaret = doc.createTextNode("|");
@@ -155,16 +150,11 @@ export class EditorOverlay extends Component {
                 clonedRange.detach();
             });
         }
-        // Html element with a patched getBoundingClientRect method. It
-        // represents the range as a (HTMLElement) target for the usePosition
-        // hook.
         this.rangeElement.getBoundingClientRect = () => rect;
         return this.rangeElement;
     }
 
     updateVisibility(overlayElement, solution, scrollContainer) {
-        // @todo: mobile tests rely on a visible (yet overflowing) toolbar
-        // Remove this once the mobile toolbar is fixed?
         if (this.env.isSmall) {
             return;
         }
@@ -202,19 +192,15 @@ export class EditorOverlay extends Component {
         const canFlip = this.props.positionOptions?.flip ?? true;
         if (overflowsTop) {
             if (overflowsBottom) {
-                // Overlay is bigger than the container. Hiding it would make
-                // it always invisible.
                 return true;
             }
             if (solution.direction === "top" && canFlip) {
-                // Scrolling down will make overlay eventually flip and no longer overflow
                 return true;
             }
             return false;
         }
         if (overflowsBottom) {
             if (solution.direction === "bottom" && canFlip) {
-                // Scrolling up will make overlay eventually flip and no longer overflow
                 return true;
             }
             return false;
@@ -224,12 +210,6 @@ export class EditorOverlay extends Component {
 }
 
 /**
- * The scroll container is an ancestor of {@link el} that is:
- * - scrollable and
- * - not also ancestor of a fixed element enclosing `el` in the same
- * document (as this makes `el` fixed and not affected by scrolls of
- * that ancestor)
- *
  * @param {HTMLElement} el
  * @returns {HTMLElement|null}
  */
@@ -249,8 +229,6 @@ export function getScrollContainer(el) {
             return el;
         }
         if (isFixed(el)) {
-            // Any scrollable ancestor in the same document does not affect it.
-            // Search in the enclosing document, if any.
             el = el.ownerDocument.defaultView.frameElement;
             continue;
         }

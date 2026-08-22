@@ -14,10 +14,10 @@ import { debounce } from "@web/core/utils/timing";
  * @typedef {Object} PowerButton
  * @property {string} commandId
  * @property {Object} [commandParams]
- * @property {string} [description] Can be inferred from the user command
- * @property {string} [icon] Can be inferred from the user command
- * @property {string} [text] Mandatory if `icon` is not provided
- * @property {(selection: EditorSelection) => boolean} [isAvailable] Can be inferred from the user command
+ * @property {string} [description]
+ * @property {string} [icon]
+ * @property {string} [text]
+ * @property {(selection: EditorSelection) => boolean} [isAvailable]
  */
 
 /**
@@ -26,8 +26,6 @@ import { debounce } from "@web/core/utils/timing";
 
 /**
  * @typedef {{ commandId: string }[]} power_buttons
- *
- * A power button is added by referencing an existing user command.
  */
 
 export class PowerButtonsPlugin extends Plugin {
@@ -53,12 +51,6 @@ export class PowerButtonsPlugin extends Plugin {
             "oe-power-buttons-overlay",
         );
         this.createPowerButtons();
-        // Same shape as HintPlugin's `debounceHints`: selection changes arrive
-        // in bursts (every caret move fires one), and each update measures the
-        // block, clones it to size the placeholder, and repositions the
-        // overlay — layout work worth collapsing. Opt out with
-        // `debouncePowerbuttons: false` when a caller needs the position
-        // settled synchronously.
         const shouldDebounce = this.config.debouncePowerbuttons !== false;
         if (shouldDebounce) {
             this.debouncedUpdatePowerButtons = debounce(
@@ -71,15 +63,12 @@ export class PowerButtonsPlugin extends Plugin {
     }
 
     triggerDebouncedUpdatePowerButtons() {
-        // Hide synchronously, reposition on the trailing edge: the buttons are
-        // anchored to the block the caret just left, so leaving them on screen
-        // for the debounce window would show them at a stale position.
         this.powerButtonsContainer.classList.add("d-none");
         this.debouncedUpdatePowerButtons();
     }
 
     createPowerButtons() {
-        const composePowerButton = (/**@type {PowerButton} */ item) => {
+        const composePowerButton = (/** @type {PowerButton} */ item) => {
             const command = this.dependencies.userCommand.getCommand(item.commandId);
             return {
                 ...pick(command, "description", "icon"),
@@ -115,10 +104,6 @@ export class PowerButtonsPlugin extends Plugin {
             }
             btn.className = className;
             btn.title = description;
-            // A <button> takes focus on mousedown, which blurs the editable and
-            // drops the selection the command is about to act on. Suppress the
-            // default focus transfer so the click runs with the editor still
-            // focused — same pairing the powerbox commands use (powerbox.xml).
             this.addDomListener(btn, "mousedown", (ev) => ev.preventDefault());
             this.addDomListener(btn, "click", () => this.applyCommand(run));
             return btn;
@@ -126,9 +111,7 @@ export class PowerButtonsPlugin extends Plugin {
 
         /** @type {PowerButton[]} */
         const powerButtonsDefinitions = this.getResource("power_buttons");
-        // Merge properties from power_button and user_command.
         const powerButtons = powerButtonsDefinitions.map(composePowerButton);
-        // Render HTML buttons.
         this.descriptionToElementMap = new Map(
             powerButtons.map((pb) => [pb, renderButton(pb)]),
         );
@@ -165,13 +148,12 @@ export class PowerButtonsPlugin extends Plugin {
             this.powerButtonsContainer.classList.remove("d-none");
             const direction = closestElement(block, "[dir]")?.getAttribute("dir");
             this.powerButtonsContainer.setAttribute("dir", direction);
-            // Hide/show buttons based on their availability.
             for (const [
                 { isAvailable },
                 buttonElement,
             ] of this.descriptionToElementMap.entries()) {
                 const shouldHide = Boolean(!isAvailable(editableSelection));
-                buttonElement.classList.toggle("d-none", shouldHide); // 2nd arg must be a boolean
+                buttonElement.classList.toggle("d-none", shouldHide);
             }
             this.setPowerButtonsPosition(block, blockRect, direction);
         }
@@ -198,7 +180,6 @@ export class PowerButtonsPlugin extends Plugin {
      */
     setPowerButtonsPosition(block, blockRect, direction) {
         const overlayStyles = this.powerButtonsOverlay.style;
-        // Resetting the position of the power buttons.
         overlayStyles.top = "0px";
         overlayStyles.left = "0px";
         const buttonsRect = this.powerButtonsContainer.getBoundingClientRect();
@@ -213,9 +194,6 @@ export class PowerButtonsPlugin extends Plugin {
         if (frameElement) {
             referenceRect = frameElement.getBoundingClientRect();
         }
-        // 30px gap between the end of the placeholder text and the buttons.
-        // The surrounding formula cancels the container's offset inside the
-        // overlay, so this constant is the on-screen gap itself.
         const placeholderWidth = this.getPlaceholderWidth(block) + 30;
         let newButtonContainerLeft;
         const editableRect = this.editable.getBoundingClientRect();

@@ -36,7 +36,6 @@ describe("collapsed selection", () => {
 
     test("should insert html after an empty paragraph", async () => {
         await testEditor({
-            // This scenario is only possible with the allowInlineAtRoot option.
             contentBefore: "<p><br></p>[]",
             stepFunction: insertHTML('<i class="fa-solid fa-pastafarianism"></i>'),
             contentAfterEdit:
@@ -183,9 +182,6 @@ describe("collapsed selection", () => {
     });
 
     test("never unwrap tables in breakable paragrap", async () => {
-        // A p can only contain "phrasing" content, so the table cannot go
-        // inside it: the p is split and the table inserted, unwrapped, between.
-        // https://developer.mozilla.org/en-US/docs/Web/HTML/Content_categories#phrasing_content
         const { editor } = await setupEditor(`<p>cont[]ent</p>`, {});
         insertHTML("<table><tbody><tr><td/></tr></tbody></table>")(editor);
         expect(getContent(editor.editable)).toBe(
@@ -194,9 +190,6 @@ describe("collapsed selection", () => {
     });
 
     test("should not unwrap table in unbreakable paragraph find a suitable spot to insert table element", async () => {
-        // A p can only contain "phrasing" content, and this one is unbreakable,
-        // so the table has to be inserted after it instead.
-        // https://developer.mozilla.org/en-US/docs/Web/HTML/Content_categories#phrasing_content
         const { editor } = await setupEditor(
             `<p class="oe_unbreakable">cont[]ent</p>`,
             {},
@@ -209,9 +202,6 @@ describe("collapsed selection", () => {
     });
 
     test("stops at boundary when inserting unfit content", async () => {
-        // A p can only contain "phrasing" content, yet the search for a spot
-        // stops at the <p contenteditable="true">, which is where the table
-        // ends up (whitebox: several parameters of the use case interact).
         const { editor } = await setupEditor(
             `<div><p class="oe_unbreakable" contenteditable="true"><b class="oe_unbreakable">cont[]ent</b></p></div>`,
             {},
@@ -308,10 +298,6 @@ describe("collapsed selection", () => {
         );
         editor.shared.history.addStep();
         cleanHints(editor);
-        // Insertion triggers selectionchange & addStep creates a selection
-        // placeholder. fixSelectionOnEditableRoot moves the selection into it,
-        // triggering another selectionchange that removes the placeholder.
-        // So we must wait for the o-we-hint.
         await waitFor(".o-we-hint");
         cleanHints(editor);
         expect(getContent(editor.editable, { sortAttrs: true })).toBe(
@@ -438,7 +424,6 @@ describe("not collapsed selection", () => {
         await testEditor({
             contentBefore: "<h1>[abc</h1><p>def]</p>",
             stepFunction: async (editor) => {
-                // Simulate an empty text node after the last paragraph.
                 editor.editable.lastChild.after(editor.document.createTextNode(""));
                 insertHTML("<p>ghi</p><p>jkl</p>")(editor);
             },
@@ -564,8 +549,6 @@ describe("not collapsed selection", () => {
                     </tbody></table>`,
             ),
             stepFunction: async (editor) => {
-                // Table selection happens on selectionchange event which is
-                // fired in the next tick.
                 await tick();
                 editor.shared.dom.insert(span("TEST"));
                 editor.shared.history.addStep();

@@ -70,10 +70,8 @@ test("should not update activeSelection when clicking inside a protected node", 
     documentSelection.removeAllRanges();
     const range = editor.document.createRange();
     range.selectNodeContents(span);
-    // Set document range inside the protected zone
     documentSelection.addRange(range);
     const editableSelection = editor.shared.selection.getEditableSelection();
-    // Ensure that the editable selection stayed unchanged
     setSelection(editableSelection);
     expect(getContent(el)).toBe(
         `<p><span data-oe-protected="true" contenteditable="false"></span>[]</p>`,
@@ -242,8 +240,6 @@ test("should not remove contenteditable attribute of a protected node", async ()
 });
 
 test("should not select a protected table even if it is contenteditable='true'", async () => {
-    // Individually protected cells are not yet supported for simplicity
-    // since there is no need for that currently.
     await testEditor({
         contentBefore: unformat(`
                 <div data-oe-protected="true">
@@ -645,7 +641,6 @@ test("protected plugin is robust against other plugins which can filter mutation
                 record.removedTrees.length === 1 &&
                 record.removedTrees[0].node === a
             ) {
-                // Artificially hide the removal of `a` node
                 return false;
             }
             return true;
@@ -659,8 +654,6 @@ test("protected plugin is robust against other plugins which can filter mutation
                 </div>
             </div>
         `),
-        // Put FilterPlugin as the first plugin, so that its filter is applied before
-        // protected_node_plugin.
         { config: { Plugins: [FilterPlugin, ...MAIN_PLUGINS] } },
     );
     const historyPlugin = plugins.get("history");

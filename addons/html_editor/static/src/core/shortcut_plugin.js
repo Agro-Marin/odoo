@@ -10,15 +10,14 @@ import { isValidTargetForDomListener, Plugin } from "../plugin.js";
  * @property {string} commandId
  * @property {Object} [commandParams]
  * @property {boolean} [global]
- *
  * @typedef {Shortcut[]} shortcuts
  */
 
 /**
  * @typedef {{
- *     pattern: RegExp;
- *     commandId: string;
- *     commandParams?: object;
+ * pattern: RegExp;
+ * commandId: string;
+ * commandParams?: object;
  * }[]} shorthands
  */
 
@@ -37,11 +36,6 @@ export class ShortCutPlugin extends Plugin {
             throw new Error("ShorcutPlugin needs hotkey service to properly work");
         }
 
-        // We override the command palette shortcut to open a palette with an
-        // onClose callback to focus the editor and keep the selection without
-        // scrolling. We also pass the editable as the area option for this
-        // hotkey override, so it only applies when calling the command palette
-        // from the editor.
         this.removeEditorCommandPalette = this.services.hotkey.add(
             "control+k",
             () => {
@@ -56,8 +50,6 @@ export class ShortCutPlugin extends Plugin {
             },
         );
         if (document !== this.document) {
-            // Detach the iframe hotkey listeners when the plugin is destroyed so
-            // re-created editors don't accumulate listeners on a reused window.
             this._cleanups.push(
                 hotkeyService.registerIframe({ contentWindow: this.window }),
             );
@@ -117,9 +109,6 @@ export class ShortCutPlugin extends Plugin {
         let spaceOffset = selection.anchorOffset;
         let leftLeaf = leftDOMPath.next().value;
         while (leftLeaf) {
-            // Calculate spaceOffset by adding lengths of previous text nodes
-            // to correctly find offset position for selection within inline
-            // elements. e.g. <p>ab<strong>cd []e</strong></p>
             spaceOffset += leftLeaf.length;
             leftLeaf = leftDOMPath.next().value;
         }

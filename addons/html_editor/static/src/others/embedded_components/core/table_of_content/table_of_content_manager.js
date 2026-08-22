@@ -18,12 +18,6 @@ export class TableOfContentManager {
     }
 
     /**
-     * Allows to fetch relevant headings in the page when building the Table of Content.
-     * Will filter out things we don't want:
-     * - Empty headers
-     * - Headers only containing the 'ZeroWidthSpace' element ('\u200B')
-     * - Headers descendants of an element with `data-embedded`
-     *
      * @param {Element} element
      */
     fetchValidHeadings(element) {
@@ -54,7 +48,6 @@ export class TableOfContentManager {
             }
         }
         scrollTo(target, { behavior: "smooth", offset: -offset }).then(() => {
-            // Scroll again in case we actually went downwards.
             scrollTo(target, { behavior: "smooth" });
         });
         target.classList.add("o_embedded_toc_header_highlight");

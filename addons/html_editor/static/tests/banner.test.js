@@ -150,7 +150,6 @@ test("Everything gets selected with ctrl+a, including a banner", async () => {
     const { el, editor } = await setupEditor("<p>test[]</p>");
     await insertText(editor, "/bannerinfo");
     await press("enter");
-    // Move the selection outside of the banner
     setSelection({ anchorNode: el.querySelectorAll("p")[2], anchorOffset: 0 });
     await insertText(editor, "Test1");
     await manuallyDispatchProgrammaticEvent(editor.editable, "beforeinput", {
@@ -225,7 +224,6 @@ test("toolbar should be closed when you open the emojipicker", async () => {
     await insertText(editor, "/bannerinfo");
     await press("enter");
 
-    // Move the selection to open the toolbar
     const textNode = el.querySelector(".test").childNodes[0];
     setSelection({
         anchorNode: textNode,
@@ -251,7 +249,6 @@ test("toolbar should be closed when you open the emojipicker (iframe)", async ()
     await insertText(editor, "/bannerinfo");
     await press("enter");
 
-    // Move the selection to open the toolbar
     const textNode = el.querySelector(".test").childNodes[0];
     setSelection({
         anchorNode: textNode,

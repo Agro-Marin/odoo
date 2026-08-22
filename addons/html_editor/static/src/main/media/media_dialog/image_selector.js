@@ -29,14 +29,11 @@ export class AutoResizeImage extends Attachment {
 
     async onImageLoaded() {
         if (!this.image.el) {
-            // Do not fail if already removed.
             return;
         }
         if (this.props.onLoaded) {
             await this.props.onLoaded(this.image.el);
             if (!this.image.el) {
-                // If replaced by colored version, aspect ratio will be
-                // computed on it instead.
                 return;
             }
         }
@@ -100,7 +97,6 @@ export class ImageSelector extends FileSelector {
     }
 
     get canLoadMore() {
-        // The user can load more library media only when the filter is set.
         if (this.state.searchService === "media-library") {
             return (
                 this.state.libraryResults &&
@@ -149,22 +145,9 @@ export class ImageSelector extends FileSelector {
         domain.push("!", ["name", "=like", "%.crop"]);
         domain.push("|", ["type", "=", "binary"], "!", ["url", "=like", "/%/static/%"]);
 
-        // Optimized images (meaning they are related to an `original_id`) can
-        // only be shown in debug mode as the toggler to make those images
-        // appear is hidden when not in debug mode.
-        // There is thus no point to fetch those optimized images outside debug
-        // mode. Worst, it leads to bugs: it might fetch only optimized images
-        // when clicking on "load more" which will look like it's bugged as no
-        // images will appear on screen (they all will be hidden).
         if (!this.env.debug) {
             const subDomain = [false];
 
-            // Particular exception: if the edited image is an optimized
-            // image, we need to fetch it too so it's displayed as the
-            // selected image when opening the media dialog.
-            // We might get a few more optimized image than necessary if the
-            // original image has multiple optimized images but it's not a
-            // big deal.
             const originalId = this.props.media && this.props.media.dataset.originalId;
             if (originalId) {
                 subDomain.push(originalId);
@@ -214,12 +197,6 @@ export class ImageSelector extends FileSelector {
             urlPathname.endsWith(format),
         );
         if (this.isImageField && imageExtension === ".webp") {
-            // Do not allow the user to replace an image field by a
-            // webp CORS protected image as we are not currently
-            // able to manage the report creation if such images are
-            // in there (as the equivalent jpeg can not be
-            // generated). It also causes a problem for resize
-            // operations as 'libwep' can not be used.
             this.notificationService.add(
                 _t(
                     "You can not replace a field by this image. If you want to use this image, first save it on your computer and then upload it here.",
@@ -244,10 +221,6 @@ export class ImageSelector extends FileSelector {
     async fetchAttachments(limit, offset) {
         const attachments = await super.fetchAttachments(limit, offset);
         if (this.isImageField) {
-            // The image is a field; mark the attachments if they are linked to
-            // a webp CORS protected image. Indeed, in this case, they should
-            // not be selectable on the media dialog (due to a problem of image
-            // resize and report creation).
             for (const attachment of attachments) {
                 if (
                     attachment.mimetype === "image/webp" &&
@@ -257,7 +230,6 @@ export class ImageSelector extends FileSelector {
                 }
             }
         }
-        // Color-substitution for dynamic SVG attachment
         const primaryColors = {};
         const htmlStyle = getHtmlStyle(document);
         for (let color = 1; color <= 5; color++) {
@@ -266,7 +238,6 @@ export class ImageSelector extends FileSelector {
         return attachments.map((attachment) => {
             if (attachment.image_src.startsWith("/")) {
                 const newURL = new URL(attachment.image_src, window.location.origin);
-                // Set the main colors of dynamic SVGs to o-color-1~5
                 if (
                     attachment.image_src.startsWith("/html_editor/shape/") ||
                     attachment.image_src.startsWith("/web_editor/shape/")
@@ -278,7 +249,6 @@ export class ImageSelector extends FileSelector {
                         }
                     });
                 } else {
-                    // Set height so that db images load faster
                     newURL.searchParams.set("height", 2 * this.MIN_ROW_HEIGHT);
                 }
                 attachment.thumbnail_src = newURL.pathname + newURL.search;
@@ -315,7 +285,6 @@ export class ImageSelector extends FileSelector {
             media.forEach((record) => (record.mediaType = "libraryMedia"));
             return { media, results: response.results };
         } catch {
-            // Either API endpoint doesn't exist or is misconfigured.
             console.error(`Couldn't reach API endpoint.`);
             this.state.isFetchingLibrary = false;
             return { media: [], results: null };
@@ -326,7 +295,6 @@ export class ImageSelector extends FileSelector {
         await super.loadMore(...args);
         if (
             !this.props.useMediaLibrary ||
-            // The user can load more library media only when the filter is set.
             this.state.searchService !== "media-library"
         ) {
             return;
@@ -334,7 +302,6 @@ export class ImageSelector extends FileSelector {
         return this.keepLastLibraryMedia
             .add(this.fetchLibraryMedia(this.state.libraryMedia.length))
             .then(({ media }) => {
-                // This is never reached if another search or loadMore occurred.
                 this.state.libraryMedia.push(...media);
             });
     }
@@ -352,7 +319,6 @@ export class ImageSelector extends FileSelector {
         return this.keepLastLibraryMedia
             .add(this.fetchLibraryMedia(0))
             .then(({ media, results }) => {
-                // This is never reached if a new search occurred.
                 this.state.libraryMedia = media;
                 this.state.libraryResults = results;
             });
@@ -379,8 +345,6 @@ export class ImageSelector extends FileSelector {
         if (!this.props.multiSelect) {
             await this.props.save();
         }
-        // The use of requestAnimationFrame is not ideal but we do it as a
-        // temporary fix as the media dialog will be refactored
         requestAnimationFrame(() => {
             this.isProcessingClick = false;
         });
@@ -393,11 +357,7 @@ export class ImageSelector extends FileSelector {
         }
     }
 
-    /**
-     * Utility method used by the MediaDialog component.
-     */
     static async createElements(selectedMedia, { orm }) {
-        // Create all media-library attachments.
         const toSave = Object.fromEntries(
             selectedMedia
                 .filter((media) => media.mediaType === "libraryMedia")
@@ -420,7 +380,6 @@ export class ImageSelector extends FileSelector {
             .filter((media) => media.mediaType === "attachment")
             .concat(savedMedia)
             .map((attachment) => {
-                // Color-customize dynamic SVGs with the theme colors
                 if (
                     attachment.image_src &&
                     (attachment.image_src.startsWith("/html_editor/shape/") ||
@@ -471,19 +430,11 @@ export class ImageSelector extends FileSelector {
     async onImageLoaded(imgEl, attachment) {
         this.debouncedScrollUpdate();
         if (attachment.mediaType === "libraryMedia" && !imgEl.src.startsWith("blob")) {
-            // This call applies the theme's color palette to the
-            // loaded illustration. Upon replacement of the image,
-            // `onImageLoad` is called again, but the replacement image
-            // has an URL that starts with 'blob'. The condition above
-            // uses this to avoid an infinite loop.
             await this.onLibraryImageLoaded(imgEl, attachment);
         }
     }
 
     /**
-     * This converts the colors of an svg coming from the media library to
-     * the palette's ones, and make them dynamic.
-     *
      * @param {HTMLElement} imgEl
      * @param {Object} media
      */

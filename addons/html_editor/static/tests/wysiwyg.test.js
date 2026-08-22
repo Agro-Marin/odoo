@@ -16,7 +16,6 @@ describe("Wysiwyg Component", () => {
         expect(".odoo-editor-editable").toHaveCount(1);
         await expectElementCount(".o-we-toolbar", 0);
 
-        // Set the selection to a range and check that the toolbar opens.
         expect(getContent(el)).toBe("");
         setContent(el, "hello [hoot]");
         await animationFrame();
@@ -52,8 +51,6 @@ describe("Wysiwyg Component", () => {
             },
         });
 
-        // Add some content before the iframe to make sure its top does not
-        // match the top window's top (i.e. create a vertical offset).
         const iframe = document.querySelector("iframe");
         for (let i = 0; i < 10; i++) {
             const p = document.createElement("p");
@@ -62,12 +59,10 @@ describe("Wysiwyg Component", () => {
         }
         const iframeOffset = iframe.getBoundingClientRect().top;
 
-        // Select a paragraph's content to display the toolbar.
         const p = el.childNodes[5];
         setSelection({ anchorNode: p, anchorOffset: 0, focusNode: p, focusOffset: 1 });
         const toolbar = await waitFor(".o-we-toolbar");
 
-        // Check that toolbar is on top of and close to the selected paragraph.
         const pTop = p.getBoundingClientRect().top + iframeOffset;
         const toolbarBottom = toolbar.getBoundingClientRect().bottom;
         expect(pTop - toolbarBottom).toBeWithin(0, CLOSE_ENOUGH);

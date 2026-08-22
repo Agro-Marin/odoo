@@ -35,9 +35,7 @@ import { childNodeIndex, DIRECTIONS, nodeSize } from "../utils/position.js";
 /**
  * @typedef {(({element: HTMLElement, secondPart: HTMLElement}) => void)[]} after_split_element_handlers
  * @typedef {(() => void)[]} before_split_block_handlers
- *
  * @typedef {((params: { targetNode: Node, targetOffset: number, blockToSplit: HTMLElement | null }) => void | true)[]} split_element_block_overrides
- *
  * @typedef {((node: Node) => boolean)[]} unsplittable_node_predicates
  */
 
@@ -65,30 +63,17 @@ export class SplitPlugin extends Plugin {
         beforeinput_handlers: this.onBeforeInput.bind(this),
 
         unsplittable_node_predicates: [
-            // An unremovable element is also unmergeable (as merging two
-            // elements results in removing one of them).
-            // An unmergeable element is unsplittable and vice-versa (as
-            // split and merge are reverse operations from one another).
-            // Therefore, unremovable nodes are also unsplittable.
             (node) =>
                 this.getResource("unremovable_node_predicates").some((predicate) =>
                     predicate(node),
                 ),
-            // "Unbreakable" is a legacy term that means unsplittable and
-            // unmergeable.
             (node) => node.classList?.contains("oe_unbreakable"),
             (node) => {
                 const isExplicitlyNotContentEditable = (node) =>
-                    // In the `contenteditable` attribute consideration,
-                    // disconnected nodes can be unsplittable only if they are
-                    // explicitly set under a contenteditable="false" element.
                     !isContentEditable(node) &&
                     (node.isConnected || closestElement(node, "[contenteditable]"));
                 return (
                     isExplicitlyNotContentEditable(node) ||
-                    // If node sets contenteditable='true' and is inside a non-editable
-                    // context, it has to be unsplittable since splitting it would modify
-                    // the non-editable parent content.
                     (node.parentElement &&
                         isContentEditableAncestor(node) &&
                         isExplicitlyNotContentEditable(node.parentElement))
@@ -103,16 +88,11 @@ export class SplitPlugin extends Plugin {
         },
     };
 
-    // --------------------------------------------------------------------------
-    // commands
-    // --------------------------------------------------------------------------
     splitBlock() {
         this.dispatchTo("before_split_block_handlers");
         let selection =
             this.dependencies.selection.getSelectionData().deepEditableSelection;
         if (!selection.isCollapsed) {
-            // @todo @phoenix collapseIfZWS is not tested
-            // this.shared.collapseIfZWS();
             this.dependencies.delete.deleteSelection();
             selection = this.dependencies.selection.getEditableSelection();
         } else if (!closestElement(selection.anchorNode).isContentEditable) {
@@ -153,16 +133,10 @@ export class SplitPlugin extends Plugin {
      * @returns {[HTMLElement|undefined, HTMLElement|undefined]}
      */
     splitElementBlock({ targetNode, targetOffset, blockToSplit }) {
-        // If the block is unsplittable or the targetNode is within an
-        // unsplittable element, insert a line break instead.
         if (
             this.isUnsplittable(blockToSplit) ||
             findUpTo(targetNode, blockToSplit, (el) => this.isUnsplittable(el))
         ) {
-            // @todo: t-if, t-else etc are not blocks, but they are
-            // unsplittable.  The check must be done from the targetNode up to
-            // the block for unsplittables. There are apparently no tests for
-            // this.
             this.dependencies.lineBreak.insertLineBreakElement({
                 targetNode,
                 targetOffset,
@@ -179,7 +153,6 @@ export class SplitPlugin extends Plugin {
         restore();
         const fillEmptyElement = (node) => {
             if (isProtecting(node) || isProtected(node)) {
-                // TODO ABD: add test
                 return;
             } else if (node.nodeType === Node.TEXT_NODE && !isVisible(node)) {
                 const parent = node.parentElement;
@@ -209,19 +182,15 @@ export class SplitPlugin extends Plugin {
     }
 
     /**
-     * Split the given element at the given offset. The element will be removed in
-     * the process so caution is advised in dealing with its reference. Returns a
-     * tuple containing the new elements on both sides of the split.
-     *
      * @param {HTMLElement} element
      * @param {number} offset
      * @returns {[HTMLElement, HTMLElement]}
      */
     splitElement(element, offset) {
         const cursor = this.dependencies.selection.preserveSelection();
-        /** @type {HTMLElement} **/
+        /** @type {HTMLElement} */
         const firstPart = element.cloneNode();
-        /** @type {HTMLElement} **/
+        /** @type {HTMLElement} */
         const secondPart = element.cloneNode();
         cursor.update(callbacksForCursorUpdate.before(element, firstPart));
         element.before(firstPart);
@@ -244,11 +213,6 @@ export class SplitPlugin extends Plugin {
     }
 
     /**
-     * Split the given element at the given offset, until the given limit ancestor.
-     * The element will be removed in the process so caution is advised in dealing
-     * with its reference. Returns a tuple containing the new elements on both sides
-     * of the split.
-     *
      * @param {HTMLElement} element
      * @param {number} offset
      * @param {HTMLElement} limitAncestor
@@ -271,11 +235,6 @@ export class SplitPlugin extends Plugin {
     }
 
     /**
-     * Split around the given elements, until a given ancestor (included). Elements
-     * will be removed in the process so caution is advised in dealing with their
-     * references. Returns the new split root element that is a clone of
-     * limitAncestor or the original limitAncestor if no split occured.
-     *
      * @param {Node[] | Node} elements
      * @param {HTMLElement} limitAncestor
      * @returns { Node }
@@ -311,7 +270,6 @@ export class SplitPlugin extends Plugin {
                 limitAncestor,
             );
         }
-        // Split ancestors up to limitAncestor.
         while (after && after.parentElement !== limitAncestor) {
             afterSplit = this.splitElement(
                 after.parentElement,

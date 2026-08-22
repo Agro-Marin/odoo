@@ -23,7 +23,6 @@ export class ToolbarMobile extends Component {
             const frameElement = innerWindow.frameElement;
             this.targetWindow = frameElement?.ownerDocument.defaultView ?? window;
         } catch {
-            // iframe origin or sandbox restriction
             this.targetWindow = window;
         }
         useExternalListener(
@@ -40,9 +39,6 @@ export class ToolbarMobile extends Component {
         onMounted(() => this.fixToolbarPosition());
     }
 
-    /**
-     * Fixes the position of the toolbar for the keyboard height.
-     */
     fixToolbarPosition() {
         const visualViewport = this.targetWindow.visualViewport;
         const keyboardHeight = Math.max(

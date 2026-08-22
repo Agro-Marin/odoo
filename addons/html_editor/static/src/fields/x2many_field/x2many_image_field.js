@@ -14,10 +14,6 @@ export class X2ManyImageField extends ImageField {
         this.dialog = useService("dialog");
     }
 
-    /**
-     * New method and a new edit button is introduced here to overwrite,
-     * standard behavior of opening file input box in order to update a record.
-     */
     onFileEdit(ev) {
         const isVideo = this.props.record.data.video_url;
         let mediaEl;
@@ -29,7 +25,7 @@ export class X2ManyImageField extends ImageField {
             visibleTabs: ["IMAGES", "VIDEOS"],
             media: mediaEl,
             activeTab: isVideo ? "VIDEOS" : "IMAGES",
-            save: (el) => {}, // Simple rebound to fake its execution
+            save: (el) => {},
             imageSave: this.onImageSave.bind(this),
             videoSave: this.onVideoSave.bind(this),
         });
@@ -43,8 +39,6 @@ export class X2ManyImageField extends ImageField {
             {},
         );
         if (!attachmentRecord[0].datas) {
-            // URL type attachments are mostly demo records which don't have any ir.attachment datas
-            // TODO: make it work with URL type attachments
             return this.notification.add(
                 `Cannot add URL type attachment "${attachmentRecord[0].name}". Please try to reupload this image.`,
                 {

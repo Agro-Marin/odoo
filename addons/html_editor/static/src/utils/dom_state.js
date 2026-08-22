@@ -14,29 +14,13 @@ import { DIRECTIONS, leftPos, rightPos } from "./position.js";
 
 const prepareUpdateLockedEditables = new Set();
 /**
- * Any editor command is applied to a selection (collapsed or not). After the
- * command, the content type on the selection boundaries, in both direction,
- * should be preserved (some whitespace should disappear as went from collapsed
- * to non collapsed, or converted to &nbsp; as went from non collapsed to
- * collapsed, there also <br> to remove/duplicate, etc).
- *
- * This function returns a callback which allows to do that after the command
- * has been done.
- *
- * Note: the method has been made generic enough to work with non-collapsed
- * selection but can be used for an unique cursor position.
- *
  * @param {HTMLElement} el
  * @param {number} offset
- * @param {...(HTMLElement|number)} args - argument 1 and 2 can be repeated for
- *     multiple preparations with only one restore callback returned. Note: in
- *     that case, the positions should be given in the document node order.
+ * @param {...(HTMLElement|number)} args
  * @param {Object} [options]
- * @param {boolean} [options.allowReenter = true] - if false, all calls to
- *     prepareUpdate before this one gets restored will be ignored.
+ * @param {boolean} [options.allowReenter = true]
  * @param {string} [options.label = <random 6 character string>]
- * @param {boolean} [options.debug = false] - if true, adds nicely formatted
- *     console logs to help with debugging.
+ * @param {boolean} [options.debug = false]
  * @returns {function}
  */
 export function prepareUpdate(...args) {
@@ -86,12 +70,9 @@ export function prepareUpdate(...args) {
     }
     const positions = [...args];
 
-    // Check the state in each direction starting from each position.
     const restoreData = [];
     let el, offset;
     while (positions.length) {
-        // Note: important to get the positions in reverse order to restore
-        // right side before left side.
         offset = positions.pop();
         el = positions.pop();
         const left = getState(el, offset, DIRECTIONS.LEFT);
@@ -110,8 +91,6 @@ export function prepareUpdate(...args) {
         restoreData.push(left, right);
     }
 
-    // Create the callback that will be able to restore the state in each
-    // direction wherever the node in the opposite direction has landed.
     return function restoreStates() {
         if (options.debug) {
             console.log(
@@ -144,17 +123,9 @@ const rightLeafOnlyNotBlockPath = createDOMPathGenerator(DIRECTIONS.RIGHT, {
 });
 
 /**
- * Retrieves the "state" from a given position looking at the given direction.
- * The "state" is the type of content. The function also returns the first
- * meaningful node looking in the opposite direction = the first node we trust
- * will not disappear if a command is played in the given direction.
- *
- * Note: only work for in-between nodes positions. If the position is inside a
- * text node, first split it @see splitTextNode.
- *
  * @param {HTMLElement} el
  * @param {number} offset
- * @param {boolean} direction @see DIRECTIONS.LEFT @see DIRECTIONS.RIGHT
+ * @param {boolean} direction
  * @param {CTYPES} [leftCType]
  * @returns {Object}
  */
@@ -175,26 +146,14 @@ export function getState(el, offset, direction, leftCType) {
         inverseDOMPath = leftDOMPath(el, offset);
     }
 
-    // TODO I think sometimes, the node we have to consider as the
-    // anchor point to restore the state is not the first one of the inverse
-    // path (like for example, empty text nodes that may disappear
-    // after the command so we would not want to get those ones).
     const boundaryNode = inverseDOMPath.next().value;
 
-    // We only traverse through deep inline nodes. If we cannot find a
-    // meaningful state between them, that means we hit a block.
     let cType = undefined;
 
-    // Traverse the DOM in the given direction to check what type of content
-    // there is.
     let lastSpace = null;
     for (const node of domPath) {
         if (node.nodeType === Node.TEXT_NODE) {
             const value = node.nodeValue;
-            // If we hit a text node, the state depends on the path direction:
-            // any space encountered backwards is a visible space if we hit
-            // visible content afterwards. If going forward, spaces are only
-            // visible if we have content backwards.
             if (direction === DIRECTIONS.LEFT) {
                 if (!isWhitespace(value)) {
                     if (lastSpace) {
@@ -241,7 +200,6 @@ export function getState(el, offset, direction, leftCType) {
             cType = CTYPES.BR;
             break;
         } else if (isVisible(node)) {
-            // E.g. an image
             cType = CTYPES.CONTENT;
             break;
         }
@@ -256,64 +214,43 @@ export function getState(el, offset, direction, leftCType) {
     return {
         node: boundaryNode,
         direction: direction,
-        cType: cType, // Short for contentType
+        cType: cType,
     };
 }
 const priorityRestoreStateRules = [
-    // Each entry is a list of two objects, with each key being optional (the
-    // more key-value pairs, the bigger the priority).
-    // {direction: ..., cType1: ..., cType2: ...}
-    // ->
-    // {spaceVisibility: (false|true), brVisibility: (false|true)}
     [
-        // Replace a space by &nbsp; when it was not collapsed before and now is
-        // collapsed (one-letter word removal for example).
         { cType1: CTYPES.CONTENT, cType2: CTYPES.SPACE | CTGROUPS.BLOCK },
         { spaceVisibility: true },
     ],
     [
-        // Replace a space by &nbsp; when it was content before and now it is
-        // a BR.
         { direction: DIRECTIONS.LEFT, cType1: CTGROUPS.INLINE, cType2: CTGROUPS.BR },
         { spaceVisibility: true },
     ],
     [
-        // Replace a space by &nbsp; when it was content before and now it is
-        // a BR (removal of last character before a BR for example).
         { direction: DIRECTIONS.RIGHT, cType1: CTGROUPS.CONTENT, cType2: CTGROUPS.BR },
         { spaceVisibility: true },
     ],
     [
-        // Replace a space by &nbsp; when it was visible thanks to a BR which
-        // is now gone.
         { direction: DIRECTIONS.RIGHT, cType1: CTGROUPS.BR, cType2: CTYPES.SPACE },
         { spaceVisibility: true },
     ],
     [
-        // Replace a space by &nbsp; when it was visible thanks to a BR which
-        // is now gone and duplicate a BR which was visible thanks to a second
-        // BR which is now gone.
         { direction: DIRECTIONS.RIGHT, cType1: CTGROUPS.BR, cType2: CTGROUPS.BLOCK },
         { spaceVisibility: true, brVisibility: true },
     ],
     [
-        // Remove all collapsed spaces when a space is removed.
         { cType1: CTYPES.SPACE },
         { spaceVisibility: false },
     ],
     [
-        // Remove spaces once the preceding BR is removed
         { direction: DIRECTIONS.LEFT, cType1: CTGROUPS.BR },
         { spaceVisibility: false },
     ],
     [
-        // Remove space before block once content is put after it (otherwise it
-        // would become visible).
         { cType1: CTGROUPS.BLOCK, cType2: CTGROUPS.INLINE | CTGROUPS.BR },
         { spaceVisibility: false },
     ],
     [
-        // Duplicate a BR once the content afterwards disappears
         {
             direction: DIRECTIONS.RIGHT,
             cType1: CTGROUPS.INLINE,
@@ -322,8 +259,6 @@ const priorityRestoreStateRules = [
         { brVisibility: true },
     ],
     [
-        // Remove a BR at the end of a block once inline content is put after
-        // it (otherwise it would act as a line break).
         {
             direction: DIRECTIONS.RIGHT,
             cType1: CTGROUPS.BLOCK,
@@ -332,9 +267,6 @@ const priorityRestoreStateRules = [
         { brVisibility: false },
     ],
     [
-        // Remove a BR once the BR that precedes it is now replaced by
-        // content (or if it was a BR at the start of a block which now is
-        // a trailing BR).
         {
             direction: DIRECTIONS.LEFT,
             cType1: CTGROUPS.BR | CTGROUPS.BLOCK,
@@ -358,7 +290,6 @@ const allRestoreStateRules = (function () {
             for (const cType2 of Object.values(CTYPES)) {
                 const rule = { direction: direction, cType1: cType1, cType2: cType2 };
 
-                // Search for the rules which match whatever their priority
                 const matchedRules = [];
                 for (const entry of priorityRestoreStateRules) {
                     let priority = 0;
@@ -382,8 +313,6 @@ const allRestoreStateRules = (function () {
                     }
                 }
 
-                // Create the final rule by merging found rules by order of
-                // priority
                 const finalRule = {};
                 for (let p = 0; p <= keys.length; p++) {
                     for (const entry of matchedRules) {
@@ -393,8 +322,6 @@ const allRestoreStateRules = (function () {
                     }
                 }
 
-                // Create an unique identifier for the set of values
-                // direction - state 1 - state2 to add the rule in the map
                 const hashCode = restoreStateRuleHashCode(direction, cType1, cType2);
                 map.set(hashCode, finalRule);
             }
@@ -404,30 +331,18 @@ const allRestoreStateRules = (function () {
     return map;
 })();
 /**
- * Restores the given state starting before the given node while looking in the
- * given direction.
- *
- * @param {Object} prevStateData @see getState
- * @param {boolean} debug=false - if true, adds nicely formatted
- *     console logs to help with debugging.
- * @returns {Object|undefined} the rule that was applied to restore the state,
- *     if any, for testing purposes.
+ * @param {Object} prevStateData
+ * @param {boolean} debug=false
+ * @returns {Object|undefined}
  */
 export function restoreState(prevStateData, debug = false) {
     const { node, direction, cType: cType1, oldEditableHTML } = prevStateData;
     if (!node || !node.parentNode) {
-        // FIXME sometimes we want to restore the state starting from a node
-        // which has been removed by another restoreState call... Not sure if
-        // it is a problem or not, to investigate.
         return;
     }
     const [el, offset] = direction === DIRECTIONS.LEFT ? leftPos(node) : rightPos(node);
     const { cType: cType2 } = getState(el, offset, direction);
 
-    /**
-     * Knowing the old state data and the new state data, we know if we have to
-     * do something or not, and what to do.
-     */
     const ruleHashCode = restoreStateRuleHashCode(direction, cType1, cType2);
     const rule = allRestoreStateRules.get(ruleHashCode);
     if (debug) {
@@ -477,11 +392,6 @@ export function restoreState(prevStateData, debug = false) {
 }
 
 /**
- * Returns whether or not the given node is a BR element which does not really
- * act as a line break, but as a placeholder for the cursor or to make some left
- * element (like a space) visible.
- * @todo @phoenix this depends on state, so hard to move it to dom_info
- *
  * @param {HTMLBRElement} brEl
  * @returns {boolean}
  */
@@ -493,12 +403,9 @@ export function isFakeLineBreak(brEl) {
 }
 
 /**
- * Enforces the whitespace and BR visibility in the given direction starting
- * from the given position.
- *
  * @param {HTMLElement} el
  * @param {number} offset
- * @param {number} direction @see DIRECTIONS.LEFT @see DIRECTIONS.RIGHT
+ * @param {number} direction
  * @param {Object} rule
  * @param {boolean} [rule.spaceVisibility]
  * @param {boolean} [rule.brVisibility]
@@ -534,12 +441,6 @@ export function enforceWhitespace(el, offset, direction, rule) {
             break;
         } else if (node.nodeType === Node.TEXT_NODE && !isInPre(node)) {
             if (whitespaceAtEdgeRegex.test(node.nodeValue)) {
-                // If we hit spaces going in the direction, either they are in a
-                // visible text node and we have to change the visibility of
-                // those spaces, or it is in an invisible text node. In that
-                // last case, we either remove the spaces if there are spaces in
-                // a visible text node going further in the direction or we
-                // change the visibility of those spaces.
                 if (!isWhitespace(node)) {
                     foundVisibleSpaceTextNode = node;
                     break;
@@ -559,8 +460,6 @@ export function enforceWhitespace(el, offset, direction, rule) {
     }
     if (!rule.spaceVisibility) {
         for (const node of invisibleSpaceTextNodes) {
-            // Empty and not remove to not mess with offset-based positions in
-            // commands implementation, also remove non-block empty parents.
             node.nodeValue = "";
             const ancestorPath = closestPath(node.parentNode);
             let toRemove = null;
@@ -580,9 +479,6 @@ export function enforceWhitespace(el, offset, direction, rule) {
     const spaceNode = foundVisibleSpaceTextNode || invisibleSpaceTextNodes[0];
     if (spaceNode) {
         let spaceVisibility = rule.spaceVisibility;
-        // In case we are asked to replace the space by a &nbsp;, disobey and
-        // do the opposite if that space is currently not visible
-        // TODO I'd like this to not be needed, it feels wrong...
         if (
             spaceVisibility &&
             !foundVisibleSpaceTextNode &&
@@ -599,9 +495,6 @@ export function enforceWhitespace(el, offset, direction, rule) {
 }
 
 /**
- * Call this function to start watching for mutations.
- * Call the returned function to stop watching and get the mutation records.
- *
  * @returns {() => MutationRecord[]}
  */
 export function observeMutations(target, observerOptions) {

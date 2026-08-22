@@ -26,21 +26,18 @@ import { isHtmlContentSupported } from "./selection_plugin.js";
 
 /**
  * @typedef { import("./selection_plugin").EditorSelection } EditorSelection
- *
  * @typedef {(() => boolean)[]} bypass_paste_image_files
  */
 
 const CLIPBOARD_BLACKLISTS = {
     unwrap: [
-        // These elements' children will be unwrapped.
         ".Apple-interchange-newline",
-        "DIV", // DIV is unwrapped unless eligible to be a baseContainer, see cleanForPaste
+        "DIV",
     ],
-    remove: ["META", "STYLE", "SCRIPT"], // These elements will be removed along with their children.
+    remove: ["META", "STYLE", "SCRIPT"],
 };
 export const CLIPBOARD_WHITELISTS = {
     nodes: [
-        // Style
         "P",
         "H1",
         "H2",
@@ -50,11 +47,9 @@ export const CLIPBOARD_WHITELISTS = {
         "H6",
         "BLOCKQUOTE",
         "PRE",
-        // List
         "UL",
         "OL",
         "LI",
-        // Inline style
         "I",
         "B",
         "U",
@@ -62,21 +57,18 @@ export const CLIPBOARD_WHITELISTS = {
         "EM",
         "FONT",
         "STRONG",
-        // Table
         "TABLE",
         "THEAD",
         "TH",
         "TBODY",
         "TR",
         "TD",
-        // Miscellaneous
         "IMG",
         "BR",
         "A",
         ".fa",
     ],
     classes: [
-        // Media
         /^float-/,
         "d-block",
         "mx-auto",
@@ -84,20 +76,16 @@ export const CLIPBOARD_WHITELISTS = {
         "img-thumbnail",
         "rounded",
         "rounded-circle",
-        // Odoo tables
         "o_table",
         "table",
         "table-bordered",
         /^padding-/,
         /^shadow/,
-        // Odoo colors
         /^text-o-/,
         /^bg-o-/,
-        // Odoo lists
         "o_checked",
         "o_checklist",
         "oe-nested",
-        // Miscellaneous
         /^btn/,
         /^fa/,
     ],
@@ -116,13 +104,11 @@ const ONLY_LINK_REGEX = /^(https?:\/\/)?([\w-]+\.)+[\w-]+(\/[\w-./?%&=]*)?$/i;
  * @typedef {((img: HTMLImageElement) => void)[]} added_image_handlers
  * @typedef {(() => void)[]} after_paste_handlers
  * @typedef {(() => void)[]} before_paste_handlers
- *
  * @typedef {((selection: EditorSelection, text: string) => boolean)[]} paste_text_overrides
- *
  * @typedef {((
- *     clonedContents: DocumentFragment,
- *     selection: EditorSelection
- *   ) => void | clonedContents)[]} clipboard_content_processors
+ * clonedContents: DocumentFragment,
+ * selection: EditorSelection
+ * ) => void | clonedContents)[]} clipboard_content_processors
  * @typedef {((textContent: string) => string)[]} clipboard_text_processors
  */
 
@@ -165,22 +151,17 @@ export class ClipboardPlugin extends Plugin {
         this.setSelectionTransferData(ev, "clipboardData");
     }
 
-    /**
-     * Prepare HTML and plain text from the current selection.
-     */
     setSelectionTransferData(ev, transferObjectProperty) {
         const selection = this.dependencies.selection.getEditableSelection();
         let clonedContents = selection.cloneContents();
         if (!clonedContents.hasChildNodes()) {
             return;
         }
-        // Prepare text content for clipboard.
         let textContent = selection.textContent();
         for (const processor of this.getResource("clipboard_text_processors")) {
             textContent = processor(textContent);
         }
 
-        // Prepare html content for clipboard.
         for (const processor of this.getResource("clipboard_content_processors")) {
             clonedContents = processor(clonedContents, selection) || clonedContents;
         }
@@ -195,9 +176,6 @@ export class ClipboardPlugin extends Plugin {
         });
     }
 
-    /**
-     * Handle safe pasting of html or plain text into the editor.
-     */
     onPaste(ev) {
         let selection = this.dependencies.selection.getEditableSelection();
         if (
@@ -211,7 +189,6 @@ export class ClipboardPlugin extends Plugin {
         this.dependencies.history.stageSelection();
 
         this.dispatchTo("before_paste_handlers", selection, ev);
-        // refresh selection after potential changes from `before_paste` handlers
         selection = this.dependencies.selection.getEditableSelection();
 
         if (!this.delegateTo("paste_overrides", selection, ev.clipboardData)) {
@@ -278,13 +255,7 @@ export class ClipboardPlugin extends Plugin {
         }
         if (files.length || clipboardHtml) {
             const clipboardElem = this.prepareClipboardData(clipboardHtml);
-            // @phoenix @todo: should it be handled in table plugin?
-            // When copy pasting a table from the outside, a picture of the
-            // table can be included in the clipboard as an image file. In that
-            // particular case the html table is given a higher priority than
-            // the clipboard picture.
             if (files.length && !clipboardElem.querySelector("table")) {
-                // @phoenix @todo: should it be handled in image plugin?
                 return this.addImagesFiles(files).then((html) => {
                     this.dependencies.dom.insert(html);
                     this.dependencies.history.addStep();
@@ -322,9 +293,7 @@ export class ClipboardPlugin extends Plugin {
         for (const textFragment of textFragments) {
             let modifiedTextFragment = textFragment;
 
-            // <pre> preserves whitespace by default, so no need for &nbsp.
             if (!preEl) {
-                // Replace consecutive spaces by alternating nbsp.
                 modifiedTextFragment = textFragment.replace(/( {2,})/g, (match) => {
                     let alternateValue = false;
                     return match.replace(/ /g, () => {
@@ -337,8 +306,6 @@ export class ClipboardPlugin extends Plugin {
             this.dependencies.dom.insert(modifiedTextFragment);
             if (textIndex < textFragments.length) {
                 selection = this.dependencies.selection.getEditableSelection();
-                // Break line by inserting new paragraph and
-                // remove current paragraph's bottom margin.
                 const block = closestBlock(selection.anchorNode);
                 if (
                     this.dependencies.split.isUnsplittable(block) ||
@@ -353,8 +320,6 @@ export class ClipboardPlugin extends Plugin {
                         blockBefore &&
                         !blockBefore.matches(getBaseContainerSelector("DIV"))
                     ) {
-                        // Do something only if blockBefore is not a DIV (which is the no-margin option)
-                        // replace blockBefore by a DIV.
                         const div =
                             this.dependencies.baseContainer.createBaseContainer("DIV");
                         const cursors = this.dependencies.selection.preserveSelection();
@@ -370,8 +335,6 @@ export class ClipboardPlugin extends Plugin {
     }
 
     /**
-     * Prepare clipboard data (text/html) for safe pasting into the editor.
-     *
      * @private
      * @param {string} clipboardData
      * @returns {DocumentFragment}
@@ -391,17 +354,12 @@ export class ClipboardPlugin extends Plugin {
             }
         }
 
-        // todo: should it be in its own plugin ?
         const progId = container.querySelector('meta[name="ProgId"]');
         if (progId && progId.content === "Excel.Sheet") {
-            // Microsoft Excel keeps table style in a <style> tag with custom
-            // classes. The following lines parse that style and apply it to the
-            // style attribute of <td> tags with matching classes.
             const xlStylesheet = container.querySelector("style");
             const xlNodes = container.querySelectorAll("[class*=xl],[class*=font]");
             for (const xlNode of xlNodes) {
                 for (const xlClass of xlNode.classList) {
-                    // Regex captures a CSS rule definition for that xlClass.
                     const xlStyle = xlStylesheet.textContent
                         .match(`.${xlClass}[^{]*{(?<xlStyle>[^}]*)}`)
                         .groups.xlStyle.replace("background:", "background-color:");
@@ -413,20 +371,10 @@ export class ClipboardPlugin extends Plugin {
         for (const child of childContent) {
             this.cleanForPaste(child);
         }
-        // Identify the closest baseContainer from the selection. This will
-        // determine which baseContainer will be used by default for the
-        // clipboard content if it has to be modified.
         const selection = this.dependencies.selection.getEditableSelection();
         const closestBaseContainer =
             selection.anchorNode &&
             closestElement(selection.anchorNode, baseContainerGlobalSelector);
-        // Force inline nodes at the root of the container into separate `baseContainers`
-        // elements. This is a tradeoff to ensure some features that rely on
-        // nodes having a parent (e.g. convert to list, title, etc.) can work
-        // properly on such nodes without having to actually handle that
-        // particular case in all of those functions. In fact, this case cannot
-        // happen on a new document created using this editor, but will happen
-        // instantly when editing a document that was created from Etherpad.
         wrapInlinesInBlocks(container, {
             baseContainerNodeName:
                 closestBaseContainer?.nodeName ||
@@ -435,7 +383,6 @@ export class ClipboardPlugin extends Plugin {
         const result = this.document.createDocumentFragment();
         result.replaceChildren(...childNodes(container));
 
-        // Split elements containing <br> into separate elements for each line.
         const brs = result.querySelectorAll("br");
         for (const br of brs) {
             const block = closestBlock(br);
@@ -446,15 +393,11 @@ export class ClipboardPlugin extends Plugin {
                     )) &&
                 block.nodeName !== "PRE"
             ) {
-                // A linebreak at the beginning of a block is an empty line.
                 const isEmptyLine = block.firstChild.nodeName === "BR";
-                // Split blocks around it until only the BR remains in the
-                // block.
                 const remainingBrContainer = this.dependencies.split.splitAroundUntil(
                     br,
                     block,
                 );
-                // Remove the container unless it represented an empty line.
                 if (!isEmptyLine) {
                     remainingBrContainer.remove();
                 }
@@ -463,17 +406,12 @@ export class ClipboardPlugin extends Plugin {
         return result;
     }
     /**
-     * Clean a node for safely pasting. Cleaning an element involves unwrapping
-     * its contents if it's an illegal (blacklisted or not whitelisted) element,
-     * or removing its illegal attributes and classes.
-     *
      * @param {Node} node
      */
     cleanForPaste(node) {
         if (
             !this.isWhitelisted(node) ||
             this.isBlacklisted(node) ||
-            // Google Docs have their html inside a B tag with custom id.
             (node.id && node.id.startsWith("docs-internal-guid"))
         ) {
             if (!node.matches || node.matches(CLIPBOARD_BLACKLISTS.remove.join(","))) {
@@ -507,7 +445,6 @@ export class ClipboardPlugin extends Plugin {
                         childrenNodes = unwrapContents(node);
                     }
                 } else {
-                    // Unwrap the illegal node's contents.
                     childrenNodes = unwrapContents(node);
                 }
                 for (const child of childrenNodes) {
@@ -518,17 +455,13 @@ export class ClipboardPlugin extends Plugin {
             if (node.nodeName === "THEAD") {
                 const tbody = node.nextElementSibling;
                 if (tbody) {
-                    // If a <tbody> already exists, move all rows from
-                    // <thead> into the start of <tbody>.
                     tbody.prepend(...node.children);
                     node.remove();
                     node = tbody;
                 } else {
-                    // Otherwise, replace the <thead> with <tbody>
                     node = this.dependencies.dom.setTagName(node, "TBODY");
                 }
             } else if (["TD", "TH"].includes(node.nodeName)) {
-                // Insert base container into empty TD.
                 if (isEmptyBlock(node)) {
                     const baseContainer =
                         this.dependencies.baseContainer.createBaseContainer();
@@ -540,13 +473,10 @@ export class ClipboardPlugin extends Plugin {
                     node.style["background-color"] = node.getAttribute("bgcolor");
                 }
             } else if (node.nodeName === "FONT") {
-                // FONT tags have some style information in custom attributes,
-                // this maps them to the style attribute.
                 if (node.hasAttribute("color") && !node.style["color"]) {
                     node.style["color"] = node.getAttribute("color");
                 }
                 if (node.hasAttribute("size") && !node.style["font-size"]) {
-                    // FONT size uses non-standard numeric values.
                     node.style["font-size"] = +node.getAttribute("size") + 10 + "pt";
                 }
             } else if (
@@ -554,8 +484,6 @@ export class ClipboardPlugin extends Plugin {
                 childNodes(node).length === 1 &&
                 node.firstChild.nodeName === "FONT"
             ) {
-                // S and U tags sometimes contain FONT tags. We prefer the
-                // strike to adopt the style of the text, so we invert them.
                 const fontNode = node.firstChild;
                 node.before(fontNode);
                 node.replaceChildren(...childNodes(fontNode));
@@ -575,12 +503,7 @@ export class ClipboardPlugin extends Plugin {
                     node = checklist;
                 }
             }
-            // Remove all illegal attributes and classes from the node, then
-            // clean its children.
             for (const attribute of [...node.attributes]) {
-                // For styled tags, remove the style attribute; SPAN and FONT
-                // (which only carry style) are then unwrapped.
-                // todo: should the whitelist be a resource?
                 if (
                     CLIPBOARD_WHITELISTS.styledTags.includes(node.nodeName) &&
                     attribute.name === "style"
@@ -606,9 +529,6 @@ export class ClipboardPlugin extends Plugin {
         }
     }
     /**
-     * Return true if the given attribute, class or node is whitelisted for
-     * pasting, false otherwise.
-     *
      * @private
      * @param {Attr | string | Node} item
      * @returns {boolean}
@@ -627,9 +547,6 @@ export class ClipboardPlugin extends Plugin {
         }
     }
     /**
-     * Return true if the given node is blacklisted for pasting, false
-     * otherwise.
-     *
      * @private
      * @param {Node} node
      * @returns {boolean}
@@ -650,8 +567,6 @@ export class ClipboardPlugin extends Plugin {
         this.setSelectionTransferData(ev, "dataTransfer");
     }
     /**
-     * Handle safe dropping of html into the editor.
-     *
      * @param {DragEvent} ev
      */
     async onDrop(ev) {
@@ -670,8 +585,6 @@ export class ClipboardPlugin extends Plugin {
                 : selection.anchorOffset;
         if (nodeToSplit.nodeType === Node.TEXT_NODE && !selection.isCollapsed) {
             const selectionToRestore = this.dependencies.selection.preserveSelection();
-            // Split the text node beforehand to ensure the insertion offset
-            // remains correct after deleting the selection.
             splitTextNode(nodeToSplit, offsetToSplit, DIRECTIONS.LEFT);
             selectionToRestore.restore();
         }
@@ -687,17 +600,11 @@ export class ClipboardPlugin extends Plugin {
         if (fileTransferItems.length || htmlTransferItem || odooEditorHtml) {
             const deleteAndSetSelection = (offsetNode, offset) => {
                 if (offsetNode.nodeType === Node.ELEMENT_NODE && offset > 1) {
-                    // Store number of children before deleting selection
-                    // Deleting the selection may remove one or more child nodes,
-                    // which shifts the indices of remaining children. To keep the
-                    // caret at the intended position, we subtract the number of
-                    // removed children from the original offset.
                     const initialLength = offsetNode.childNodes.length;
                     this.dependencies.delete.deleteSelection();
                     const removedCount = initialLength - offsetNode.childNodes.length;
                     offset -= removedCount;
                 } else {
-                    // For TEXT_NODEs, offset remains valid; just delete selection
                     this.dependencies.delete.deleteSelection();
                 }
 
@@ -736,10 +643,7 @@ export class ClipboardPlugin extends Plugin {
             });
         }
     }
-    // @phoenix @todo: move to image or image paste plugin?
     /**
-     * Add images inside the editable at the current selection.
-     *
      * @param {File[]} imageFiles
      */
     async addImagesFiles(imageFiles) {

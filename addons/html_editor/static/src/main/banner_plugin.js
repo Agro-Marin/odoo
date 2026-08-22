@@ -28,7 +28,6 @@ function checkCommandAvailablePredicates(selection) {
 
 export class BannerPlugin extends Plugin {
     static id = "banner";
-    // sanitize plugin is required to handle `contenteditable` attribute.
     static dependencies = [
         "baseContainer",
         "history",
@@ -124,7 +123,7 @@ export class BannerPlugin extends Plugin {
             },
         ],
         normalize_handlers: withSequence(
-            5, // before tabs are aligned
+            5,
             this.handle_monospace_tab_to_spaces.bind(this),
         ),
         power_buttons_visibility_predicates: ({ anchorNode }) =>
@@ -132,7 +131,6 @@ export class BannerPlugin extends Plugin {
         move_node_blacklist_selectors: ".o_editor_banner *",
         move_node_whitelist_selectors: ".o_editor_banner",
 
-        /** Overrides */
         delete_backward_overrides: this.handleDeleteBackward.bind(this),
         delete_backward_word_overrides: this.handleDeleteBackward.bind(this),
         shift_tab_overrides: this.handleShiftTab.bind(this),
@@ -200,7 +198,6 @@ export class BannerPlugin extends Plugin {
         });
     }
 
-    // Transform empty banner into base container on backspace.
     handleDeleteBackward(range) {
         const editorBannerContent = closestElement(
             range.endContainer,
@@ -240,7 +237,6 @@ export class BannerPlugin extends Plugin {
         for (const block of [...this.dependencies.selection.getTargetedBlocks()]) {
             const text = block.textContent;
             if (text.match(fourSpacesRe)) {
-                // Unindent first text node
                 const textNode = descendants(block).find(
                     (n) =>
                         n.nodeType === Node.TEXT_NODE &&

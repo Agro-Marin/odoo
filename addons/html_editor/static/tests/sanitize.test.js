@@ -111,32 +111,26 @@ test("fixInvalidHTML preserves escaped content in attributes and text", () => {
 });
 
 test("fixInvalidHTML attribute", () => {
-    // Properly quoted attributes should work
     expect(fixInvalidHTML(markup`<t onclick="alert('test')"/>`).toString()).toBe(
         `<t onclick="alert('test')"></t>`,
     );
 
-    // Unclosed quotes should NOT be converted (security protection)
     expect(fixInvalidHTML(markup`<t class="unclosed/>`).toString()).toBe(
         `<t class="unclosed/>`,
     );
 
-    // Mismatched quotes should NOT be converted (security protection)
     expect(fixInvalidHTML(markup`<t class="test'/>`).toString()).toBe(
         `<t class="test'/>`,
     );
 
-    // Valid data attributes with special characters should work
     expect(
         fixInvalidHTML(markup`<span data-config='{"key": "value"}'/>`).toString(),
     ).toBe(`<span data-config='{"key": "value"}'></span>`);
 
-    // Attributes with invalid characters in unquoted values should NOT match
     expect(fixInvalidHTML(markup`<t class=test>value/>`).toString()).toBe(
         `<t class=test>value/>`,
     );
 
-    // Attributes containing < or > characters in quoted values should work
     expect(fixInvalidHTML(markup`<t data-rule="value < 10"/>`).toString()).toBe(
         `<t data-rule="value < 10"></t>`,
     );

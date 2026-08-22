@@ -105,13 +105,11 @@ function getTextNodesIterator(el) {
 }
 
 export function setContent(el, content) {
-    // build a temp div element to first remove all [] characters in text nodes
     const div = document.createElement("div");
     div.innerHTML = content;
     for (const textNode of getTextNodesIterator(div)) {
         textNode.textContent = textNode.textContent.replace("[", "").replace("]", "");
     }
-    // remove extra empty text nodes
     const divInnerHTML = div.innerHTML;
     if (el.innerHTML !== divInnerHTML) {
         el.innerHTML = divInnerHTML;
@@ -166,20 +164,17 @@ export function getSelection(el, content) {
 }
 
 export function setRange(el, content) {
-    // sanity check
     const rawContent = content.replace("[", "").replace("]", "");
     if (el.innerHTML !== rawContent) {
         throw new Error("setRange requires the same html content");
     }
 
-    // create range
     const range = document.createRange();
     const elRef = document.createElement(el.tagName);
     elRef.innerHTML = content;
 
     visitAndSetRange(el, elRef, range);
 
-    // set selection range
     const selection = window.getSelection();
     selection.removeAllRanges();
     selection.addRange(range);
@@ -219,7 +214,6 @@ function visitAndSetRange(target, ref, configSelection) {
                 i++;
                 j++;
             } else {
-                // refchild is a textnode reduced to "[" or "]"
                 j++;
                 applyRange(target, refChild, i);
             }
@@ -230,7 +224,7 @@ function visitAndSetRange(target, ref, configSelection) {
 export async function firstClick(target) {
     manuallyDispatchProgrammaticEvent(target, "mousedown", { detail: 1 });
     setSelection({ anchorNode: target, anchorOffset: 0 });
-    await animationFrame(); // selectionChange
+    await animationFrame();
     manuallyDispatchProgrammaticEvent(target, "mouseup", { detail: 1 });
     manuallyDispatchProgrammaticEvent(target, "click", { detail: 1 });
     await animationFrame();
@@ -240,7 +234,7 @@ export async function secondClick(target) {
     manuallyDispatchProgrammaticEvent(target, "mousedown", { detail: 2 });
     const document = target.ownerDocument;
     document.getSelection().modify("extend", "forward", "word");
-    await animationFrame(); // selectionChange
+    await animationFrame();
     manuallyDispatchProgrammaticEvent(target, "mouseup", { detail: 2 });
     manuallyDispatchProgrammaticEvent(target, "click", { detail: 2 });
     await animationFrame();
@@ -250,7 +244,7 @@ export async function thirdClick(target) {
     manuallyDispatchProgrammaticEvent(target, "mousedown", { detail: 3 });
     const document = target.ownerDocument;
     document.getSelection().modify("extend", "forward", "paragraphboundary");
-    await animationFrame(); // selectionChange
+    await animationFrame();
     manuallyDispatchProgrammaticEvent(target, "mouseup", { detail: 3 });
     manuallyDispatchProgrammaticEvent(target, "click", { detail: 3 });
     await animationFrame();

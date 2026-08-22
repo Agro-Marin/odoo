@@ -40,7 +40,6 @@ export class QWebPlugin extends Plugin {
     static dependencies = ["overlay", "protectedNode", "selection"];
     /** @type {import("plugins").EditorResources} */
     resources = {
-        /** Handlers */
         selectionchange_handlers: withSequence(8, this.onSelectionChange.bind(this)),
         clean_for_save_handlers: ({ root }) => {
             this.clearDataAttributes(root);
@@ -74,7 +73,6 @@ export class QWebPlugin extends Plugin {
             ev.target &&
             closestElement(ev.target, PROTECTED_QWEB_SELECTOR)
         ) {
-            // Allow clicking on a protected QWEB node to open the custom toolbar.
             return true;
         }
         return super.isValidTargetForDomListener(ev);
@@ -161,7 +159,6 @@ export class QWebPlugin extends Plugin {
                 selection.anchorNode &&
                 closestElement(selection.anchorNode, PROTECTED_QWEB_SELECTOR);
             if (qwebNode && this.editable.contains(qwebNode)) {
-                // select the whole qweb node
                 const [anchorNode, anchorOffset] = leftPos(qwebNode);
                 const [focusNode, focusOffset] = rightPos(qwebNode);
                 this.dependencies.selection.setSelection({
@@ -202,8 +199,6 @@ export class QWebPlugin extends Plugin {
 
             let groupId;
             if (prevNode && !node.hasAttribute("t-if")) {
-                // Make the first t-if selectable, if prevNode is not a t-if,
-                // it's already data-oe-t-selectable.
                 prevNode.setAttribute("data-oe-t-selectable", "true");
                 groupId = parseInt(prevNode.getAttribute("data-oe-t-group"));
                 node.setAttribute("data-oe-t-selectable", "true");
@@ -217,8 +212,6 @@ export class QWebPlugin extends Plugin {
             const isOneElementActive = root.querySelector(
                 `[data-oe-t-group='${groupId}'][data-oe-t-group-active]`,
             );
-            // If there is no element in groupId activated, activate the first
-            // one.
             if (!isOneElementActive) {
                 const firstElementToActivate = selectElements(
                     root,
@@ -242,9 +235,6 @@ export class QWebPlugin extends Plugin {
         this.selectedNode = node;
         this.picker.close();
         this.selectNode(node);
-        // Force Chrome to clear the selection.
-        // Without this, Chrome's optimization may skip the 'selectionchange' event
-        // if the new node is structurally identical to the previous one
         const selection = this.document.getSelection();
         selection.removeAllRanges();
     }

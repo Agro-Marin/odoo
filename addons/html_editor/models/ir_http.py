@@ -9,7 +9,6 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _get_editor_context(cls):
-        """Return editor context keys enabled via query-string args."""
         return {
             key: True
             for key in CONTEXT_KEYS

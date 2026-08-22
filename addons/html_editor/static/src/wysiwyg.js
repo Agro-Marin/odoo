@@ -9,7 +9,7 @@ import { Toolbar } from "./main/toolbar/toolbar.js";
 
 /**
  * @typedef { import("./editor").EditorConfig } EditorConfig
- **/
+ */
 
 function copyCssRules(sourceDoc, targetDoc) {
     for (const sheet of sourceDoc.styleSheets) {
@@ -30,18 +30,11 @@ export class Wysiwyg extends Component {
     static props = {
         config: { type: Object, optional: true },
         class: { type: String, optional: true },
-        contentClass: { type: String, optional: true }, // on editable element
+        contentClass: { type: String, optional: true },
         style: { type: String, optional: true },
         iframe: { type: Boolean, optional: true },
         copyCss: { type: Boolean, optional: true },
-        // Fires when the editor instance is constructed, BEFORE `attachTo`;
-        // callers that intercept attachment rely on that ordering.
         onLoad: { type: Function, optional: true },
-        // Fires once `attachTo` has run. Consumers that keep the instance to
-        // read content off it later must use this one: before attachment the
-        // editor has a null `editable`, and during a keyed remount the
-        // replacement is constructed while the previous editor is still
-        // mounted and still holds the user's uncommitted edits.
         onAttached: { type: Function, optional: true },
         onBlur: { type: Function, optional: true },
         dynamicPlaceholder: { type: Boolean, optional: true },
@@ -68,11 +61,10 @@ export class Wysiwyg extends Component {
         });
 
         onMounted(() => {
-            /** @type { any } **/
+            /** @type { any } */
             const el = contentRef.el;
 
             if (el.tagName === "IFRAME") {
-                // grab the inner body instead
                 const attachEditor = () => {
                     if (!this.editor.isDestroyed) {
                         if (this.props.copyCss) {
@@ -91,8 +83,6 @@ export class Wysiwyg extends Component {
                 if (el.contentDocument.readyState === "complete") {
                     attachEditor();
                 } else {
-                    // in firefox, iframe is not immediately available. we need to wait
-                    // for it to be ready before mounting editor
                     el.addEventListener(
                         "load",
                         () => {

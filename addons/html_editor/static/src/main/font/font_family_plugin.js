@@ -66,7 +66,6 @@ export class FontFamilyPlugin extends Plugin {
                     (this.config.allowFontFamily ?? true),
             }),
         ],
-        /** Handlers */
         selectionchange_handlers: withSequence(
             READ,
             this.updateCurrentFontFamily.bind(this),

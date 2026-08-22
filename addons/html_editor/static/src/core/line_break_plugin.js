@@ -46,8 +46,6 @@ export class LineBreakPlugin extends Plugin {
         let selection =
             this.dependencies.selection.getSelectionData().deepEditableSelection;
         if (!selection.isCollapsed) {
-            // @todo @phoenix collapseIfZWS is not tested
-            // this.shared.collapseIfZWS();
             this.dependencies.delete.deleteSelection();
             selection = this.dependencies.selection.getEditableSelection();
         } else if (!closestElement(selection.anchorNode).isContentEditable) {
@@ -127,27 +125,7 @@ export class LineBreakPlugin extends Plugin {
 
         restore();
 
-        // @todo ask AGE about why this code was only needed for unbreakable.
-        // See `this._applyCommand('oEnter') === UNBREAKABLE_ROLLBACK_CODE` in
-        // web_editor. Because now we should have a strong handling of the link
-        // selection with the link isolation, if we want to insert a BR outside,
-        // we can move the cursor outside the link.
-        // So if there is no reason to keep this code, we should remove it.
-        //
-        // const anchor = brEls[0].parentElement;
-        // // @todo @phoenix should this case be handled by a LinkPlugin?
-        // // @todo @phoenix Don't we want this for all spans ?
-        // if (anchor.nodeName === "A" && brEls.includes(anchor.firstChild)) {
-        //     brEls.forEach((br) => anchor.before(br));
-        //     const pos = rightPos(brEls[brEls.length - 1]);
-        //     this.dependencies.selection.setSelection({ anchorNode: pos[0], anchorOffset: pos[1] });
-        // } else if (anchor.nodeName === "A" && brEls.includes(anchor.lastChild)) {
-        //     brEls.forEach((br) => anchor.after(br));
-        //     const pos = rightPos(brEls[0]);
-        //     this.dependencies.selection.setSelection({ anchorNode: pos[0], anchorOffset: pos[1] });
-        // }
         for (const el of brEls) {
-            // @todo @phoenix we don t want to setSelection multiple times
             if (el.parentNode) {
                 const pos = rightPos(el);
                 this.dependencies.selection.setSelection({

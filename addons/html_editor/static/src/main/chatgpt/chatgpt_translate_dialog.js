@@ -45,7 +45,6 @@ export class ChatGPTTranslateDialog extends ChatGPTDialog {
             }
             this.state.translationInProgress = false;
             if (!isError) {
-                // There was no error, add the response to the history.
                 this.state.conversationHistory.push(
                     {
                         role: "user",

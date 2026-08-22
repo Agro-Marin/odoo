@@ -330,7 +330,6 @@ test("Can transform an image", async () => {
     await animationFrame();
     const transfoContainers = document.querySelectorAll(".transfo-container");
     expect(transfoContainers).toHaveCount(1);
-    // The created transformation container is outside of the hoot fixture, clean it manually
     for (const transfoContainer of transfoContainers) {
         transfoContainer.remove();
     }
@@ -369,7 +368,6 @@ test("Image transformation dissapear when selection change", async () => {
     await waitForNone(".transfo-container");
     transfoContainers = document.querySelectorAll(".transfo-container");
     expect(transfoContainers).toHaveCount(0);
-    // Remove the transfoContainer element if not destroyed by the selection change
     for (const transfoContainer of transfoContainers) {
         transfoContainer.remove();
     }
@@ -456,7 +454,6 @@ test("Image transformation scalers position", async () => {
         for (let i = 0; i < 3; i++) {
             for (let j = 0; j < 3; j++) {
                 if (i === 1 && j === 1) {
-                    // no middle-center handler
                     continue;
                 }
                 const scaler = queryOne(
@@ -479,7 +476,6 @@ test("Image transformation scalers position", async () => {
     await expectElementCount(".o-we-toolbar", 1);
     expect(".transfo-container").toHaveCount(1);
     checkScalersPositions(queryOne("img"));
-    // Resizing by 25% removes the transformation container.
     await click(".o-we-toolbar [name='image_size'] .dropdown-toggle");
     await animationFrame();
     await click(".image_size_selector .dropdown-item:contains('25%')");

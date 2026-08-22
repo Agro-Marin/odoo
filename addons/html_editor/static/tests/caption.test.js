@@ -124,8 +124,6 @@ test("add a caption to an image and focus it", async () => {
             expect(editor.document.getSelection().anchorNode.nodeName).toBe(
                 "FIGCAPTION",
             );
-            // Remove the editor selection for the test because it's irrelevant
-            // since the focus is not in it.
             const selection = editor.document.getSelection();
             selection.removeAllRanges();
             cleanHints(editor);
@@ -155,8 +153,6 @@ test("add a caption to an image surrounded by text and focus it", async () => {
             const input = queryOne("figure > figcaption > input");
             expect(input.value).toBe("");
             expect(editor.document.activeElement).toBe(input);
-            // Remove the editor selection for the test because it's irrelevant
-            // since the focus is not in it.
             const selection = editor.document.getSelection();
             selection.removeAllRanges();
         },
@@ -194,7 +190,6 @@ test("saving an image with a caption replaces the input with plain text", async 
             </figure>
             <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         ),
-        // Unchanged.
         contentAfterEdit: unformat(
             `<p data-selection-placeholder=""><br></p>
             <figure contenteditable="false">
@@ -205,7 +200,6 @@ test("saving an image with a caption replaces the input with plain text", async 
             </figure>
             <p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>`,
         ),
-        // Cleaned up for screen readers.
         contentAfter: unformat(
             `<figure>
                 <img class="img-fluid test-image" src="${base64Img}">
@@ -229,7 +223,6 @@ test("loading an image with a caption embeds it", async () => {
     expect(image.getAttribute("data-caption")).toBe("Hello");
     const input = queryOne("figure > figcaption > input");
     expect(input.value).toBe("Hello");
-    // Do not focus the input when loading the page.
     expect(editor.document.activeElement).not.toBe(input);
 });
 
@@ -253,7 +246,6 @@ test("clicking the caption button on an image with a caption removes the caption
         contentAfterEdit: unformat(
             `<p>[<img class="img-fluid test-image" src="${base64Img}" data-caption="${caption}">]</p>`,
         ),
-        // Unchanged
         contentAfter: unformat(
             `<p>[<img class="img-fluid test-image" src="${base64Img}" data-caption="${caption}">]</p>`,
         ),
@@ -282,7 +274,7 @@ test("leaving the caption persists its value", async () => {
             await click(heading);
             expect(editor.document.activeElement).not.toBe(input);
             editor.shared.selection.setCursorStart(heading);
-            await animationFrame(); // Wait for the selection to change.
+            await animationFrame();
         },
         contentAfterEdit: unformat(
             `<p data-selection-placeholder=""><br></p>
@@ -322,7 +314,7 @@ test("can't use the powerbox in a caption", async () => {
             const heading = queryOne("h1");
             await click(heading);
             editor.shared.selection.setCursorStart(heading);
-            await animationFrame(); // Wait for the selection to change.
+            await animationFrame();
         },
         contentAfter: unformat(
             `<figure>
@@ -338,7 +330,6 @@ test("can't use the powerbox in a caption", async () => {
 
 test.tags("desktop", "focus required");
 test("can't use the toolbar in a caption", async () => {
-    // TODO: The toolbar should not _always_ be usable in mobile!
     await testEditor({
         config: configWithEmbeddedCaption,
         contentBefore: `<img class="img-fluid test-image o_editable_media" src="${base64Img}" data-caption="Hello"><h1>[]Heading</h1>`,
@@ -350,12 +341,10 @@ test("can't use the toolbar in a caption", async () => {
             await animationFrame();
             await expectElementCount(".o-we-toolbar", 0);
             input.select();
-            // Check that the contents of the input were indeed selected by
-            // inserting text.
             editor.document.execCommand("insertText", false, "a");
             expect(input.value).toBe("a");
-            await click("h1"); // Blur the input.
-            await animationFrame(); // Wait for the focus event to trigger a step.
+            await click("h1");
+            await animationFrame();
             editor.shared.selection.setCursorStart(queryOne("h1"));
         },
         contentAfter: unformat(
@@ -382,15 +371,12 @@ test("undo in a caption undoes the last caption action then returns to regular e
             await waitFor("figcaption > input");
             const input = queryOne("figure > figcaption > input");
             expect(editor.document.activeElement).toBe(input);
-            // Using native execCommand so the input's native history works.
             await editor.document.execCommand("insertText", false, "b");
             await editor.document.execCommand("insertText", false, "c");
             await editor.document.execCommand("insertText", false, "d");
-            await editor.document.execCommand("delete", false, null); // Backspace.
+            await editor.document.execCommand("delete", false, null);
             expect(input.value).toBe(`${caption}bc`);
 
-            // We simulate undo with Ctrl+Z because we want to see how it
-            // interacts with native browser behavior.
             const ctrlZ = async (target, shouldApplyNativeUndo) => {
                 const keydown = await manuallyDispatchProgrammaticEvent(
                     target,
@@ -406,22 +392,14 @@ test("undo in a caption undoes the last caption action then returns to regular e
                 let valueBeforeUndo;
                 if (target === input) {
                     valueBeforeUndo = input.value;
-                    // This is supposed to happen only after "beforeinput" but
-                    // beforeinput doesn't happen at all if there is nothing to
-                    // undo and this allows us to determine if that is the case.
                     editor.document.execCommand("undo", false, null);
                 }
                 if (shouldApplyNativeUndo) {
-                    // The native undo should have changed the value of the
-                    // input.
                     expect(input.value).not.toBe(valueBeforeUndo);
                 } else if (target === input) {
-                    // The native undo should not have changed the value of the input.
                     expect(input.value).toBe(valueBeforeUndo);
                 }
                 if (target !== input || input.value !== valueBeforeUndo) {
-                    // The input events don't get triggered if the input has
-                    // nothing to undo.
                     const beforeInput = await manuallyDispatchProgrammaticEvent(
                         target,
                         "beforeinput",
@@ -429,7 +407,6 @@ test("undo in a caption undoes the last caption action then returns to regular e
                             inputType: "historyUndo",
                         },
                     );
-                    // Here the editor should do its own undo.
                     if (beforeInput.defaultPrevented) {
                         return;
                     }
@@ -450,25 +427,21 @@ test("undo in a caption undoes the last caption action then returns to regular e
                 });
             };
 
-            // Native input undo undoes backspace in the input.
             expect(editor.document.activeElement).toBe(input);
             await ctrlZ(input, true);
             expect(input.value).toBe(`${caption}bcd`);
             expect(heading.textContent).toBe("aHeading");
 
-            // Native input undo undoes all the other key presses in the input.
             expect(editor.document.activeElement).toBe(input);
             await ctrlZ(input, true);
             expect(input.value).toBe(caption);
             expect(heading.textContent).toBe("aHeading");
 
-            // Editor undo removes the caption.
             expect(editor.document.activeElement).toBe(input);
             await ctrlZ(input, false);
             expect(input.isConnected).toBe(false);
             expect(heading.textContent).toBe("aHeading");
 
-            // Editor undo removes the key press in the heading.
             expect(editor.document.activeElement).not.toBe(input);
             const anchor = editor.document.getSelection().anchorNode;
             await ctrlZ(closestElement(anchor), false);
@@ -502,7 +475,6 @@ test("remove an image with a caption", async () => {
     });
 });
 
-// For the following two tests.
 const getDeleteImageTestData = () => {
     const captionId = 1;
     const caption = "Hello";
@@ -515,7 +487,6 @@ const getDeleteImageTestData = () => {
         prepareImage: async (editor) => {
             await toggleCaption();
             await waitFor("figcaption > input");
-            // Check that we indeed have a proper figure structure.
             expect(getContent(editor.editable).replace("[]", "")).toBe(
                 unformat(
                     `<p data-selection-placeholder=""><br></p>
@@ -533,7 +504,6 @@ const getDeleteImageTestData = () => {
             const input = queryOne("input");
             expect(editor.document.activeElement).toBe(input);
             expect(input.value).toBe(caption);
-            // Deselect and reselect the image.
             await click("h1");
             await click("img");
         },
@@ -603,7 +573,6 @@ test("replace an image with a caption", async () => {
             expect("img[src='/web/static/img/logo.png']").toHaveCount(0);
             expect("img[src='/web/static/img/logo2.png']").toHaveCount(1);
         },
-        // TODO: fix the weird final selection
         contentAfter: unformat(
             `<figure>
                 <img src="/web/static/img/logo2.png" alt="" data-attachment-id="1" class="img img-fluid o_we_custom_image">
@@ -754,8 +723,6 @@ test("add a caption to an image with a link", async () => {
             await waitFor("figcaption > input");
             const input = queryOne("figure > figcaption > input");
             expect(editor.document.activeElement).toBe(input);
-            // Remove the editor selection for the test because it's irrelevant
-            // since the focus is not in it.
             const selection = editor.document.getSelection();
             selection.removeAllRanges();
         },
@@ -806,9 +773,8 @@ test("add a link then a caption to an image surrounded by text", async () => {
             await addLinkToImage("odoo.com");
             await animationFrame();
             await toggleCaption("Hello");
-            // Blur the input to commit the caption.
             await click("p");
-            await animationFrame(); // Wait for the focus event to trigger a step.
+            await animationFrame();
             editor.shared.selection.setCursorStart(
                 editor.document.querySelectorAll("p")[1],
             );
@@ -925,7 +891,6 @@ test("previewing an image with a caption shows the caption as title", async () =
         `<img class="img-fluid test-image" src="${base64Img}">`,
     );
 
-    // Preview without a caption shows the file name.
     await click("img");
     await waitFor(".o-we-toolbar");
     await click(".o-we-toolbar button[name='image_preview']");
@@ -935,11 +900,9 @@ test("previewing an image with a caption shows the caption as title", async () =
     await click(".o-FileViewer-headerButton[title='Close (Esc)']");
     await animationFrame();
 
-    // Add a caption
     await toggleCaption("Hello");
     await waitForNone(".o-we-toolbar button[name='image_caption']");
 
-    // Preview with a caption shows the caption.
     await click("img");
     await waitFor(".o-we-toolbar button[name='image_preview']");
     await click(".o-we-toolbar button[name='image_preview']");
@@ -953,7 +916,6 @@ test("previewing an image without caption doesn't show the caption as title (eve
         `<img class="img-fluid test-image" src="${base64Img}">`,
     );
 
-    // Preview without a caption shows the file name.
     await click("img");
     await waitFor(".o-we-toolbar button[name='image_preview']");
     await click(".o-we-toolbar button[name='image_preview']");
@@ -963,17 +925,14 @@ test("previewing an image without caption doesn't show the caption as title (eve
     await click(".o-FileViewer-headerButton[title='Close (Esc)']");
     await animationFrame();
 
-    // Add a caption
     await toggleCaption("Hello");
     await waitForNone(".o-we-toolbar button[name='image_caption']");
 
-    // Remove the caption
     await toggleCaption();
     const image = queryOne("img");
     expect(image.getAttribute("data-caption")).toBe("Hello");
     expect("figure").toHaveCount(0);
 
-    // Preview without a caption still shows the file name.
     await click("img");
     await waitFor(".o-we-toolbar button[name='image_preview']");
     await click(".o-we-toolbar button[name='image_preview']");
@@ -1023,7 +982,6 @@ test("should drag and drop image with its caption(1)", async () => {
         "text/html",
         `<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"><img src="${base64Img}">`,
     );
-    // Simulate the application/vnd.odoo.odoo-editor data the browser would set.
     dropData.setData("application/vnd.odoo.odoo-editor", imageHTML);
     await manuallyDispatchProgrammaticEvent(targetNodeForDrop, "drop", {
         dataTransfer: dropData,
@@ -1079,7 +1037,6 @@ test("should drag and drop image with its caption(2)", async () => {
         "text/html",
         `<meta http-equiv="Content-Type" content="text/html;charset=UTF-8"><img src="${base64Img}">`,
     );
-    // Simulate the application/vnd.odoo.odoo-editor data the browser would set.
     dropData.setData("application/vnd.odoo.odoo-editor", imageHTML);
     await manuallyDispatchProgrammaticEvent(targetNodeForDrop, "drop", {
         dataTransfer: dropData,
@@ -1134,7 +1091,6 @@ test("should drag and drop image with caption along with selected text", async (
     const textHtml = dragdata.getData("text/html");
     const dropData = new DataTransfer();
     dropData.setData("text/html", textHtml);
-    // Simulate the application/vnd.odoo.odoo-editor data the browser would set.
     dropData.setData("application/vnd.odoo.odoo-editor", odooEditorData);
     await manuallyDispatchProgrammaticEvent(targetNodeForDrop, "drop", {
         dataTransfer: dropData,
@@ -1176,7 +1132,6 @@ test("should cut an image and its caption as a single embedded figure", async ()
     const figure = image.parentElement;
     const imageIndex = childNodeIndex(image);
 
-    // Select the image node for cutting
     setSelection({
         anchorNode: figure,
         anchorOffset: imageIndex,
@@ -1189,7 +1144,6 @@ test("should cut an image and its caption as a single embedded figure", async ()
     editor.editable.dispatchEvent(cutEvent);
     await animationFrame();
 
-    // Verify editor content after cut
     expect(getContent(editorRoot)).toBe(
         unformat(`
             <p>a</p>
@@ -1198,7 +1152,6 @@ test("should cut an image and its caption as a single embedded figure", async ()
         `),
     );
 
-    // Verify cut fragment stored inside clipboard data
     const cutPayload = clipboard.getData("application/vnd.odoo.odoo-editor");
     const fragment = parseHTML(editor.document, cutPayload);
 
@@ -1339,8 +1292,6 @@ test("adding an image caption inside a list item should not split a list item", 
             const input = queryOne("figure > figcaption > input");
             expect(input.value).toBe("");
             expect(editor.document.activeElement).toBe(input);
-            // Remove the editor selection for the test because it's irrelevant
-            // since the focus is not in it.
             const selection = editor.document.getSelection();
             selection.removeAllRanges();
         },

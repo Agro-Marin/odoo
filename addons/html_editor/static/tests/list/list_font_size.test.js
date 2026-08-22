@@ -20,8 +20,6 @@ import { execCommand } from "../_helpers/userCommands.js";
 before(loadTestFont);
 
 test("should apply font-size to completely selected list item (1)", async () => {
-    // 60px marker on an OL -> round(60) * 1 = 60px, above the 28px default
-    // (`:root` is pinned to 14px below, so the default is 2 * 14).
     pinMarkerWidth(60);
     await testEditor({
         styleContent: pinRootFontSize("14px"),
@@ -32,9 +30,6 @@ test("should apply font-size to completely selected list item (1)", async () => 
 });
 
 test("should apply font-size to completely selected list item (2)", async () => {
-    // Both the outer and the nested OL measure the same pinned marker, so both
-    // receive the same padding — the point of the test is that the nested list
-    // is adjusted too, not the specific width.
     pinMarkerWidth(69);
     await testEditor({
         styleContent: pinRootFontSize("14px"),
@@ -72,8 +67,6 @@ test("should apply font-size to completely selected multiple list items", async 
 });
 
 test("should apply font size to a fully selected list item with trailing empty line (1)", async () => {
-    // 19px marker on a UL -> round(19) * 2 = 38px, above the 28px default
-    // (`:root` is pinned to 14px below, so the default is 2 * 14).
     pinMarkerWidth(19);
     await testEditor({
         styleContent: pinRootFontSize("14px"),
@@ -118,8 +111,6 @@ test("should not apply font size to list item when selection excludes trailing e
 });
 
 test("list padding doubles the marker width for UL but not for OL", async () => {
-    // Same pinned marker, same font size: a UL doubles it, an OL does not —
-    // the one asymmetry in adjustListPadding's arithmetic.
     pinMarkerWidth(25);
     await testEditor({
         styleContent: pinRootFontSize("16px"),
@@ -133,13 +124,11 @@ test("list padding doubles the marker width for UL but not for OL", async () => 
         styleContent: pinRootFontSize("16px"),
         contentBefore: "<ol><li>[abc]</li></ol>",
         stepFunction: setFontSize("56px"),
-        // 25 * 1 = 25px, which does NOT exceed the 32px default -> no padding.
         contentAfter: '<ol><li style="font-size: 56px;">[abc]</li></ol>',
     });
 });
 
 test("list padding is left untouched when the marker fits the default padding", async () => {
-    // round(15) * 2 = 30px <= 32px default (2 * 16px root) -> no inline style.
     pinMarkerWidth(15);
     await testEditor({
         styleContent: pinRootFontSize("16px"),
@@ -150,7 +139,6 @@ test("list padding is left untouched when the marker fits the default padding", 
 });
 
 test("list padding rounds the measured marker width", async () => {
-    // Sub-pixel rasterizer output must not leak into the style attribute.
     pinMarkerWidth(19.4);
     await testEditor({
         styleContent: pinRootFontSize("16px"),
@@ -169,20 +157,16 @@ test("should apply font-size on fully selected list items with empty text nodes 
             '<ul><li>\ufeff<a href="#">\ufeffabc\ufeff</a>\ufeff</li><li>\ufeff<a href="#">\ufeffabc\ufeff</a>\ufeff</li></ul>',
         stepFunction: (editor) => {
             const listItems = editor.editable.querySelectorAll("li");
-            // Set selection here because injected \ufeff can be excluded
-            // from the DOM range.
             editor.shared.selection.setSelection({
                 anchorNode: listItems[0].firstChild,
                 anchorOffset: 0,
                 focusNode: listItems[1].lastChild,
                 focusOffset: nodeSize(listItems[1].lastChild),
             });
-            // Empty text node at start of first <li>
             listItems[0].insertBefore(
                 document.createTextNode(""),
                 listItems[0].firstChild,
             );
-            // Empty text node at end of second <li>
             listItems[1].appendChild(document.createTextNode(""));
             setFontSize("32px")(editor);
         },
@@ -246,9 +230,6 @@ test("should carry font-size of paragraph to list item", async () => {
 });
 
 test("should carry font-size of paragraph to list item (2)", async () => {
-    // The subject is which classes survive the merge, not the padding: stub the
-    // marker under the default so a heading-sized item cannot add one and
-    // change the expected markup.
     pinMarkerWidth(19);
     await testEditor({
         styleContent: pinRootFontSize("14px"),
@@ -316,8 +297,6 @@ test("should keep list item font-size on toggling list twice", async () => {
         stepFunction: (editor) => {
             toggleOrderedList(editor);
             toggleOrderedList(editor);
-            // Strip padding-inline-start from the OL — its exact value
-            // depends on font rendering and varies across environments.
             editor.editable
                 .querySelector("ol")
                 ?.style.removeProperty("padding-inline-start");
@@ -369,11 +348,6 @@ test("should change font-size of subpart of a list item (2)", async () => {
 
 test("should pad list based on font-size", async () => {
     const className = "h2-fs";
-    // 19px marker on an OL -> round(19) * 1 = 19px, below the 28px default
-    // (`:root` is pinned to 14px below, so the default is 2 * 14): a heading
-    // class this size must not add padding of its own. Stubbed rather than
-    // measured because the real marker width tracks `$o-type-scale-ratio`, so
-    // an unstubbed assertion silently re-tests the design scale.
     pinMarkerWidth(19);
     await testEditor({
         styleContent: pinRootFontSize("14px"),

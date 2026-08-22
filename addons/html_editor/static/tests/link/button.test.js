@@ -29,8 +29,6 @@ describe("button style", () => {
     });
     test("non-editable .btn-link should have cursor pointer", async () => {
         const { el } = await setupEditor(
-            // A simplified version of an embedded component with toolbar
-            // buttons, as it happens in certain flows in Knowledge.
             unformat(`
                 <div contenteditable="false" data-embedded="clipboard">
                     <span class="o_embedded_toolbar">
@@ -75,7 +73,6 @@ describe("button style", () => {
         await animationFrame();
         await contains(".o-we-linkpopover input.o_we_href_input_link").edit("/test");
 
-        // Ensure `.display-1-fs` overrides the `.btn`'s default font size.
         const link = el.querySelector("a.btn");
         const span = el.querySelector("span.display-1-fs");
         expect(getComputedStyle(link).fontSize).toBe(getComputedStyle(span).fontSize);
@@ -240,7 +237,7 @@ describe("Custom button style", () => {
             "rgb(0, 255, 0)",
         );
 
-        await hover(".custom-fill-picker"); // cursor out of the colorpicker
+        await hover(".custom-fill-picker");
         await animationFrame();
 
         expect(queryOne(".custom-fill-picker").style.backgroundColor).toBe(
@@ -336,7 +333,6 @@ describe("Custom button style", () => {
         await select("custom");
         await animationFrame();
 
-        // test outline
         await click('select[name="link_style_shape"]');
         await select("outline");
         await animationFrame();
@@ -344,7 +340,6 @@ describe("Custom button style", () => {
             '<p><a href="https://test.com/" class="btn btn-outline-custom" style="color: rgb(0, 0, 0); background-color: rgb(166, 227, 226); border-width: 1px; border-color: rgb(0, 143, 140); border-style: dashed; ">linkLabel</a></p>',
         );
 
-        // test fill + rounded
         await click('select[name="link_style_shape"]');
         await select("fill rounded-circle");
         await animationFrame();
@@ -367,7 +362,6 @@ describe("button edit", () => {
         );
         await waitForNone(".o-we-linkpopover");
         const button = el.querySelector("a");
-        // simulate double click selection
         setSelection({ anchorNode: button, anchorOffset: 0 });
         manuallyDispatchProgrammaticEvent(button, "mousedown", { detail: 2 });
         await animationFrame();
@@ -388,7 +382,6 @@ describe("button edit", () => {
             '<p>this is a <a href="http://test.test/">test b[]tn</a><a href="http://test2.test/">test btn2</a></p>',
         );
         const link = el.querySelector("a[href='http://test.test/']");
-        // simulate double click selection
         manuallyDispatchProgrammaticEvent(link, "mousedown", { detail: 2 });
         await animationFrame();
         expect(getContent(el)).toBe(
@@ -404,7 +397,6 @@ describe("button edit", () => {
             '<p>this is a <a href="http://test.test/">test btn</a><a href="http://test2.test/">t[]est btn2</a></p>',
         );
         const link = el.querySelector("a[href='http://test2.test/']");
-        // simulate double click selection
         manuallyDispatchProgrammaticEvent(link, "mousedown", { detail: 2 });
         await animationFrame();
         expect(getContent(el)).toBe(
@@ -420,7 +412,6 @@ describe("button edit", () => {
             '<p>this is a <a href="http://test.test/" class="btn btn-fill-primary">test b[]tn</a></p>',
         );
         const button = el.querySelector("a");
-        // simulate triple click selection
         manuallyDispatchProgrammaticEvent(button, "mousedown", { detail: 3 });
         await animationFrame();
         expect(getContent(el)).toBe(

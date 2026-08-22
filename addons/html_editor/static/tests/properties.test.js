@@ -42,7 +42,7 @@ class Partner extends models.Model {
         {
             id: 3,
             user_id: 1,
-            properties: {}, // Property not set
+            properties: {},
         },
     ];
 }
@@ -103,8 +103,6 @@ test("properties: html", async () => {
         "<b> foo test </b>",
     );
 
-    // Ensure the shown value isn't replaced by escaped HTML upon saving the form.
-    // Blur to show the save button.
     await contains(".o_field_property_label").click();
     await contains(".o_form_button_save").click();
     expect(`[name="properties"] .odoo-editor-editable .o-paragraph`).toHaveInnerHTML(

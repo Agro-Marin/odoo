@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import fields, models
 
 
@@ -7,7 +5,6 @@ class Html_EditorConverterTest(models.Model):
     _name = 'html_editor.converter.test'
     _description = 'Html Editor Converter Test'
 
-    # disable translation export for these test-only field labels and values
     _translate = False
 
     char = fields.Char()

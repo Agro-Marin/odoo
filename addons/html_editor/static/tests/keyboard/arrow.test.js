@@ -9,7 +9,6 @@ import { simulateArrowKeyPress } from "../_helpers/user_actions.js";
 
 const keyPress = (keys) => async (editor) => {
     await simulateArrowKeyPress(editor, keys);
-    // Allow onselectionchange handler to run.
     await tick();
     await tick();
 };
@@ -265,7 +264,7 @@ describe("Around ZWS", () => {
         await testEditor({
             contentBefore: '<p>ab<span class="a">[\u200B]</span>cd</p>',
             stepFunction: keyPress(["Shift", "ArrowLeft"]),
-            contentAfter: '<p>a]b[<span class="a">\u200B</span>cd</p>', // Normalized by the browser
+            contentAfter: '<p>a]b[<span class="a">\u200B</span>cd</p>',
         });
     });
 
@@ -273,7 +272,7 @@ describe("Around ZWS", () => {
         await testEditor({
             contentBefore: '<p>ab<span class="a">[\u200B</span>]cd</p>',
             stepFunction: keyPress(["Shift", "ArrowLeft"]),
-            contentAfter: '<p>a]b[<span class="a">\u200B</span>cd</p>', // Normalized by the browser
+            contentAfter: '<p>a]b[<span class="a">\u200B</span>cd</p>',
         });
     });
 
@@ -281,7 +280,7 @@ describe("Around ZWS", () => {
         await testEditor({
             contentBefore: '<p>ab[<span class="a">\u200B]</span>cd</p>',
             stepFunction: keyPress(["Shift", "ArrowLeft"]),
-            contentAfter: '<p>a]b[<span class="a">\u200B</span>cd</p>', // Normalized by the browser
+            contentAfter: '<p>a]b[<span class="a">\u200B</span>cd</p>',
         });
     });
 
@@ -289,7 +288,7 @@ describe("Around ZWS", () => {
         await testEditor({
             contentBefore: '<p>ab[<span class="a">\u200B</span>]cd</p>',
             stepFunction: keyPress(["Shift", "ArrowLeft"]),
-            contentAfter: '<p>a]b[<span class="a">\u200B</span>cd</p>', // Normalized by the browser
+            contentAfter: '<p>a]b[<span class="a">\u200B</span>cd</p>',
         });
     });
 
@@ -316,24 +315,24 @@ describe("Around links", () => {
             contentBefore: '<p>ab[]<a href="http://test.test/">cd</a>ef</p>',
             contentBeforeEdit:
                 "<p>ab[]" +
-                "\ufeff" + // before zwnbsp
+                "\ufeff" +
                 '<a href="http://test.test/">' +
-                "\ufeff" + // start zwnbsp
-                "cd" + // content
-                "\ufeff" + // end zwnbsp
+                "\ufeff" +
+                "cd" +
+                "\ufeff" +
                 "</a>" +
-                "\ufeff" + // after zwnbsp
+                "\ufeff" +
                 "ef</p>",
             stepFunction: keyPress("ArrowRight"),
             contentAfterEdit:
                 "<p>ab" +
-                "\ufeff" + // before zwnbsp
+                "\ufeff" +
                 '<a href="http://test.test/" class="o_link_in_selection">' +
-                "\ufeff" + // start zwnbsp
-                "[]cd" + // content
-                "\ufeff" + // end zwnbsp
+                "\ufeff" +
+                "[]cd" +
+                "\ufeff" +
                 "</a>" +
-                "\ufeff" + // after zwnbsp
+                "\ufeff" +
                 "ef</p>",
             contentAfter: '<p>ab<a href="http://test.test/">[]cd</a>ef</p>',
         });
@@ -344,24 +343,24 @@ describe("Around links", () => {
             contentBefore: '<p>ab<a href="http://test.test/">cd</a>[]ef</p>',
             contentBeforeEdit:
                 "<p>ab" +
-                "\ufeff" + // before zwnbsp
+                "\ufeff" +
                 '<a href="http://test.test/">' +
-                "\ufeff" + // start zwnbsp
-                "cd" + // content
-                "\ufeff" + // end zwnbsp
+                "\ufeff" +
+                "cd" +
+                "\ufeff" +
                 "</a>" +
-                "\ufeff" + // after zwnbsp
+                "\ufeff" +
                 "[]ef</p>",
             stepFunction: keyPress("ArrowLeft"),
             contentAfterEdit:
                 "<p>ab" +
-                "\ufeff" + // before zwnbsp
+                "\ufeff" +
                 '<a href="http://test.test/" class="o_link_in_selection">' +
-                "\ufeff" + // start zwnbsp
-                "cd[]" + // content
-                "\ufeff" + // end zwnbsp
+                "\ufeff" +
+                "cd[]" +
+                "\ufeff" +
                 "</a>" +
-                "\ufeff" + // after zwnbsp
+                "\ufeff" +
                 "ef</p>",
             contentAfter: '<p>ab<a href="http://test.test/">cd[]</a>ef</p>',
         });
@@ -372,24 +371,24 @@ describe("Around links", () => {
             contentBefore: '<p>ab<a href="http://test.test/">cd[]</a>ef</p>',
             contentBeforeEdit:
                 "<p>ab" +
-                "\ufeff" + // before zwnbsp
+                "\ufeff" +
                 '<a href="http://test.test/" class="o_link_in_selection">' +
-                "\ufeff" + // start zwnbsp
-                "cd[]" + // content
-                "\ufeff" + // end zwnbsp
+                "\ufeff" +
+                "cd[]" +
+                "\ufeff" +
                 "</a>" +
-                "\ufeff" + // after zwnbsp
+                "\ufeff" +
                 "ef</p>",
             stepFunction: keyPress("ArrowRight"),
             contentAfterEdit:
                 "<p>ab" +
-                "\ufeff" + // before zwnbsp
+                "\ufeff" +
                 '<a href="http://test.test/">' +
-                "\ufeff" + // start zwnbsp
-                "cd" + // content
-                "\ufeff" + // end zwnbsp
+                "\ufeff" +
+                "cd" +
+                "\ufeff" +
                 "</a>" +
-                "\ufeff" + // after zwnbsp
+                "\ufeff" +
                 "[]ef</p>",
             contentAfter: '<p>ab<a href="http://test.test/">cd</a>[]ef</p>',
         });
@@ -400,24 +399,24 @@ describe("Around links", () => {
             contentBefore: '<p>ab<a href="http://test.test/">[]cd</a>ef</p>',
             contentBeforeEdit:
                 "<p>ab" +
-                "\ufeff" + // before zwnbsp
+                "\ufeff" +
                 '<a href="http://test.test/" class="o_link_in_selection">' +
-                "\ufeff" + // start zwnbsp
-                "[]cd" + // content
-                "\ufeff" + // end zwnbsp
+                "\ufeff" +
+                "[]cd" +
+                "\ufeff" +
                 "</a>" +
-                "\ufeff" + // after zwnbsp
+                "\ufeff" +
                 "ef</p>",
             stepFunction: keyPress("ArrowLeft"),
             contentAfterEdit:
                 "<p>ab[]" +
-                "\ufeff" + // before zwnbsp
+                "\ufeff" +
                 '<a href="http://test.test/">' +
-                "\ufeff" + // start zwnbsp
-                "cd" + // content
-                "\ufeff" + // end zwnbsp
+                "\ufeff" +
+                "cd" +
+                "\ufeff" +
                 "</a>" +
-                "\ufeff" + // after zwnbsp
+                "\ufeff" +
                 "ef</p>",
             contentAfter: '<p>ab[]<a href="http://test.test/">cd</a>ef</p>',
         });
@@ -643,16 +642,12 @@ describe("Around invisible chars in RTL languages", () => {
     describe("ZWS", () => {
         const content =
             "<p>" + "الرجال" + '<span class="a">\u200B</span>' + "هؤلاء" + "</p>";
-        // Displayed as "هؤلاء<span class="a">\u200B</span>الرجال" in the editor:
-        //                third +               span +      first
         test("should move past the zws (ArrowLeft)", async () => {
             const { editor, el } = await setupEditor(content, {
                 config: { direction: "rtl" },
             });
-            const pFirstChild = el.firstChild.firstChild; // "الرجال"
-            const pThirdChild = el.firstChild.childNodes[2]; // "هؤلاء"
-            // Place cursor at the end of first child (next to the span)
-            // Displayed as هؤلاء<span class="a">\u200B</span>[]الرجال
+            const pFirstChild = el.firstChild.firstChild;
+            const pThirdChild = el.firstChild.childNodes[2];
             setSelection({ anchorNode: pFirstChild, anchorOffset: pFirstChild.length });
 
             await keyPress("ArrowLeft")(editor);
@@ -660,7 +655,6 @@ describe("Around invisible chars in RTL languages", () => {
             const selection = editor.document.getSelection();
             expect(selection.anchorNode).toBe(pThirdChild);
             expect(selection.anchorOffset).toBe(1);
-            // Displayed as ه[]ؤلاء<span class="a">\u200B</span>الرجال
             expect(getContent(el)).toBe(
                 '<p>الرجال<span class="a">\u200B</span>ه[]ؤلاء</p>',
             );
@@ -669,10 +663,8 @@ describe("Around invisible chars in RTL languages", () => {
             const { editor, el } = await setupEditor(content, {
                 config: { direction: "rtl" },
             });
-            const pFirstChild = el.firstChild.firstChild; // "الرجال"
-            const pThirdChild = el.firstChild.childNodes[2]; // "هؤلاء"
-            // Place cursor at the beginning of third child (next to the span)
-            // Displayed as هؤلاء[]<span class="a">\u200B</span>الرجال
+            const pFirstChild = el.firstChild.firstChild;
+            const pThirdChild = el.firstChild.childNodes[2];
             setSelection({ anchorNode: pThirdChild, anchorOffset: 0 });
 
             await keyPress("ArrowRight")(editor);
@@ -680,7 +672,6 @@ describe("Around invisible chars in RTL languages", () => {
             const selection = editor.document.getSelection();
             expect(selection.anchorNode).toBe(pFirstChild);
             expect(selection.anchorOffset).toBe(pFirstChild.length - 1);
-            // Displayed as هؤلاء<span class="a">\u200B</span>الرجا[]ل
             expect(getContent(el)).toBe(
                 '<p>الرجا[]ل<span class="a">\u200B</span>هؤلاء</p>',
             );
@@ -694,25 +685,19 @@ describe("Around invisible chars in RTL languages", () => {
             '<a href="http://test.test/">اءيتجنب</a>' +
             "هؤلاء" +
             "</p>";
-        // Displayed as "هؤلاء<a href="http://test.test/">اءيتجنب</a>الرجال" in the editor:
-        //                third +         link      + first
         test("should move into a link (ArrowLeft)", async () => {
             const { editor, el } = await setupEditor(content, {
                 config: { direction: "rtl" },
             });
-            const pFirstChild = el.firstChild.firstChild; // "الرجال"
-            // childNodes[1] and childNodes[3] are the ZWNBSP text nodes
+            const pFirstChild = el.firstChild.firstChild;
             const link = el.firstChild.childNodes[2];
-            // Place cursor at the end of first child (before the FEFF char)
-            // Displayed as هؤلاء\uFEFF<a href="http://test.test/">\uFEFFاءيتجنب\uFEFF</a>\uFEFF[]الرجال
             setSelection({ anchorNode: pFirstChild, anchorOffset: pFirstChild.length });
 
             await keyPress("ArrowLeft")(editor);
 
             const selection = editor.document.getSelection();
-            expect(selection.anchorNode).toBe(link.firstChild); // FEFF node
+            expect(selection.anchorNode).toBe(link.firstChild);
             expect(selection.anchorOffset).toBe(1);
-            // Displayed as هؤلاء\uFEFF<a href="http://test.test/">\uFEFFاءيتجنب[]\uFEFF</a>\uFEFFالرجال
             expect(getContent(el)).toBe(
                 '<p>الرجال\uFEFF<a href="http://test.test/" class="o_link_in_selection">\uFEFF[]اءيتجنب\uFEFF</a>\uFEFFهؤلاء</p>',
             );
@@ -721,12 +706,9 @@ describe("Around invisible chars in RTL languages", () => {
             const { editor, el } = await setupEditor(content, {
                 config: { direction: "rtl" },
             });
-            // childNodes[1] and childNodes[3] are the ZWNBSP text nodes
             const link = el.firstChild.childNodes[2];
-            const pFifthChild = el.firstChild.childNodes[4]; // "هؤلاء"
-            const link2ndChild = link.childNodes[1]; // اءيتجنب
-            // Place cursor at the beginning of fifth child (after the FEFF char)
-            // Displayed as هؤلاء[]\uFEFF<a href="http://test.test/">\uFEFFاءيتجنب\uFEFF</a>\uFEFFالرجال
+            const pFifthChild = el.firstChild.childNodes[4];
+            const link2ndChild = link.childNodes[1];
             setSelection({ anchorNode: pFifthChild, anchorOffset: 0 });
 
             await keyPress("ArrowRight")(editor);
@@ -734,7 +716,6 @@ describe("Around invisible chars in RTL languages", () => {
             const selection = editor.document.getSelection();
             expect(selection.anchorNode).toBe(link2ndChild);
             expect(selection.anchorOffset).toBe(link2ndChild.length);
-            // Displayed as هؤلاء\uFEFF<a href="http://test.test/">\uFEFF[]اءيتجنب\uFEFF</a>\uFEFFالرجال
             expect(getContent(el)).toBe(
                 '<p>الرجال\uFEFF<a href="http://test.test/" class="o_link_in_selection">\uFEFFاءيتجنب[]\uFEFF</a>\uFEFFهؤلاء</p>',
             );
@@ -743,11 +724,8 @@ describe("Around invisible chars in RTL languages", () => {
             const { editor, el } = await setupEditor(content, {
                 config: { direction: "rtl" },
             });
-            // childNodes[1] and childNodes[3] are the ZWNBSP text nodes
             const link = el.firstChild.childNodes[2];
-            const link2ndChild = link.childNodes[1]; // text content inside link: اءيتجنب
-            // Place cursor at the end of link's content (before the FEFF char)
-            // Displayed as هؤلاء\uFEFF<a href="http://test.test/">\uFEFF[]اءيتجنب\uFEFF</a>\uFEFFالرجال
+            const link2ndChild = link.childNodes[1];
             setSelection({
                 anchorNode: link2ndChild,
                 anchorOffset: link2ndChild.length,
@@ -756,9 +734,8 @@ describe("Around invisible chars in RTL languages", () => {
             await keyPress("ArrowLeft")(editor);
 
             const selection = editor.document.getSelection();
-            expect(selection.anchorNode).toBe(el.firstChild.childNodes[3]); // FEFF node outside link
+            expect(selection.anchorNode).toBe(el.firstChild.childNodes[3]);
             expect(selection.anchorOffset).toBe(1);
-            // Displayed as هؤلاء[]\uFEFF<a href="http://test.test/">\uFEFFاءيتجنب\uFEFF</a>\uFEFFالرجال
             expect(getContent(el)).toBe(
                 '<p>الرجال\uFEFF<a href="http://test.test/">\uFEFFاءيتجنب\uFEFF</a>\uFEFF[]هؤلاء</p>',
             );
@@ -767,12 +744,9 @@ describe("Around invisible chars in RTL languages", () => {
             const { editor, el } = await setupEditor(content, {
                 config: { direction: "rtl" },
             });
-            // childNodes[1] and childNodes[3] are the ZWNBSP text nodes
-            const pFirstChild = el.firstChild.firstChild; // "الرجال"
+            const pFirstChild = el.firstChild.firstChild;
             const link = el.firstChild.childNodes[2];
-            const link2ndChild = link.childNodes[1]; // text content inside link: اءيتجنب
-            // Place cursor at the beginning of link's content (after the FEFF char)
-            // Displayed as هؤلاء\uFEFF<a href="http://test.test/">\uFEFFاءيتجنب[]\uFEFF</a>\uFEFFالرجال
+            const link2ndChild = link.childNodes[1];
             setSelection({ anchorNode: link2ndChild, anchorOffset: 0 });
 
             await keyPress("ArrowRight")(editor);
@@ -780,7 +754,6 @@ describe("Around invisible chars in RTL languages", () => {
             const selection = editor.document.getSelection();
             expect(selection.anchorNode).toBe(pFirstChild);
             expect(selection.anchorOffset).toBe(pFirstChild.length);
-            // Displayed as هؤلاء\uFEFF<a href="http://test.test/">\uFEFFاءيتجنب\uFEFF</a>\uFEFF[]الرجال
             expect(getContent(el)).toBe(
                 '<p>الرجال[]\uFEFF<a href="http://test.test/">\uFEFFاءيتجنب\uFEFF</a>\uFEFFهؤلاء</p>',
             );

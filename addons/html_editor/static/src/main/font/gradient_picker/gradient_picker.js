@@ -44,10 +44,8 @@ export class GradientPicker extends Component {
             this.props.selectedGradient &&
             isColorGradient(this.props.selectedGradient)
         ) {
-            // initialization of the gradient with the selected value
             this.setGradientFromString(this.props.selectedGradient);
         } else {
-            // initialization of the gradient with default value
             this.onColorGradientChange();
         }
 
@@ -164,10 +162,8 @@ export class GradientPicker extends Component {
         );
         let nextColor = this.colors.find((color) => color.percentage > percentage);
         if (!previousColor && nextColor) {
-            // Click position is before the first color
             color = nextColor.hex;
         } else if (!nextColor && previousColor) {
-            //  Click position is after the last color
             color = previousColor.hex;
         } else if (nextColor && previousColor) {
             const previousRatio =
@@ -219,7 +215,6 @@ export class GradientPicker extends Component {
             .map((color) => `${color.hex} ${color.percentage}%`)
             .join(", ");
         let sliderThumbStyle = "";
-        // color the slider thumb with the color of the gradient
         for (let i = 0; i < this.colors.length; i++) {
             const selector = `.gradient-colors div:nth-child(${i + 1}) input[type="range"]`;
             const style = `background-color: ${this.colors[i].hex};`;
@@ -260,22 +255,15 @@ export class GradientPicker extends Component {
         const centerY = knobRect.top + knobRadius;
 
         const updateAngle = (ev) => {
-            // calculate the differences between the mouse position and the
-            // center of the knob
             const distanceX = ev.clientX - centerX;
             const distanceY = ev.clientY - centerY;
 
-            // calculate the angle between the center and the mouse position
             const angle = Math.atan2(distanceY, distanceX) * (180 / Math.PI);
             this.state.angle = Math.round((angle + 360) % 360);
         };
 
         updateAngle(ev);
 
-        // Only update the visual CSS gradient preview during drag and
-        // defer the onGradientChange callback to mouseup to avoid
-        // triggering heavy operations (e.g. SCSS generation) on every
-        // mousemove.
         this.updateCssGradients();
 
         const onKnobMouseMove = (ev) => {

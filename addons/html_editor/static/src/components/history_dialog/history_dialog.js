@@ -35,7 +35,7 @@ export class HistoryDialog extends Component {
         historyMetadata: Array,
         versionedFieldName: String,
         title: { String, optional: true },
-        noContentHelper: { String, optional: true }, //Markup
+        noContentHelper: { String, optional: true },
         embeddedComponents: { Array, optional: true },
     };
 
@@ -49,8 +49,8 @@ export class HistoryDialog extends Component {
 
     state = useState({
         revisionsData: [],
-        currentView: "content", // "content" or "comparison"
-        isComparisonSplit: false, // true for side-by-side, false for unified diff
+        currentView: "content",
+        isComparisonSplit: false,
         revisionContent: null,
         revisionComparison: null,
         revisionId: null,
@@ -65,15 +65,12 @@ export class HistoryDialog extends Component {
         this.resizeObserver = null;
 
         onWillStart(async () => {
-            // We include the current document version as the first revision,
-            // and we shift the rest of the metadata to be more logical for the user.
             let revisionId = -1;
             const revisionData = [];
             for (const metadata of this.props.historyMetadata) {
                 revisionData.push({ ...metadata, revision_id: revisionId });
                 revisionId = metadata["revision_id"];
             }
-            // add the initial revision data based on the record creation date and user
             const record = await this.orm.read(
                 this.props.recordModel,
                 [this.props.recordId],
@@ -117,7 +114,6 @@ export class HistoryDialog extends Component {
     }
 
     async init() {
-        // Load diff2html only in debug mode, as the side-by-side comparison is only available in debug mode.
         if (this.env.debug) {
             await loadBundle("html_editor.assets_history_diff");
         }
@@ -157,11 +153,6 @@ export class HistoryDialog extends Component {
             if (!this.env.debug || revisionId === -1) {
                 return "";
             }
-            // The server emits a well-formed unified diff (lineterm=""), so no
-            // client-side line-break cleanup is needed. The previous
-            // `.replace(/^\s*[\r\n]/gm, "")` compensated for doubled header
-            // terminators but also stripped blank *context* lines, which are a
-            // single space in unified-diff format.
             const unifiedDiffString = await this.orm.call(
                 this.props.recordModel,
                 "html_field_history_get_unified_diff_at_revision",
@@ -218,9 +209,6 @@ export class HistoryDialog extends Component {
         return htmlReplaceAll(baseHtml, filteringRegex, () => placeholderHtml);
     }
 
-    /**
-     * Getters
-     **/
     getRevisionDate(revision) {
         if (!revision || !revision["create_date"]) {
             return "--";

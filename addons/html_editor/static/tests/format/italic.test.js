@@ -187,7 +187,7 @@ test("should remove empty italic tag when changing selection", async () => {
     );
 
     await simulateArrowKeyPress(editor, "ArrowLeft");
-    await tick(); // await selectionchange
+    await tick();
     expect(getContent(el)).toBe(`<p>a[]bcd</p>`);
 });
 
@@ -244,8 +244,6 @@ test("should not add history step for italic on collapsed selection", async () =
 
     patchWithCleanup(console, { warn: () => {} });
 
-    // Collapsed formatting shortcuts (e.g. Ctrl+I) must not create a phantom
-    // history step: the empty inline tag is temporary, auto-cleaned if unused.
     await press(["ctrl", "i"]);
     expect(getContent(el)).toBe(
         `<p>abcd<em data-oe-zws-empty-inline="">\u200B[]</em></p>`,

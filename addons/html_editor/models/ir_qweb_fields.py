@@ -1,12 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
-"""
-Web_editor-context rendering needs to add some metadata to rendered and allow to edit fields,
-as well as render a few fields differently.
-
-Also, adds methods to convert values back to Odoo models.
-"""
-
 import base64
 import io
 import json
@@ -35,8 +26,6 @@ _logger = logging.getLogger(__name__)
 
 
 class IrQweb(models.AbstractModel):
-    """ IrQweb object for rendering editor stuff
-    """
     _inherit = 'ir.qweb'
 
     def _compile_node(self, el, compile_context, level):
@@ -45,8 +34,6 @@ class IrQweb(models.AbstractModel):
         template = compile_context['ref_name']
         sub_call_key = compile_context.get('snippet-sub-call-key')
 
-        # We only add the 'data-snippet' & 'data-name' attrib once when
-        # compiling the root node of the template.
         if not template or template not in {snippet_key, sub_call_key} or el.getparent() is not None:
             return super()._compile_node(el, compile_context, level)
 
@@ -56,21 +43,14 @@ class IrQweb(models.AbstractModel):
             if len(el_children) == 1:
                 snippet_base_node = el_children[0]
             elif not el_children:
-                # If there's not a valid base node we check if the base node is
-                # a t-call to another template. If so the called template's base
-                # node must take the current snippet key.
                 el_children = [child for child in list(el) if isinstance(child.tag, str)]
                 if len(el_children) == 1:
                     sub_call = el_children[0].get('t-call')
                     if sub_call:
                         el_children[0].set('t-options', f"{{'snippet-key': '{snippet_key}', 'snippet-sub-call-key': '{sub_call}'}}")
-        # If it already has a data-snippet it is a saved or an
-        # inherited snippet. Do not override it.
         if 'data-snippet' not in snippet_base_node.attrib:
             snippet_base_node.attrib['data-snippet'] = \
                 snippet_key.split('.', 1)[-1]
-        # If it already has a data-name it is a saved or an
-        # inherited snippet. Do not override it.
         snippet_name = compile_context.get('snippet-name')
         if snippet_name and 'data-name' not in snippet_base_node.attrib:
             snippet_base_node.attrib['data-name'] = snippet_name
@@ -79,7 +59,6 @@ class IrQweb(models.AbstractModel):
     def _get_preload_attribute_xmlids(self):
         return super()._get_preload_attribute_xmlids() + ['t-snippet', 't-snippet-call']
 
-    # compile directives
 
     def _compile_directive_snippet(self, el, compile_context, indent):
         key = el.attrib.pop('t-snippet')
@@ -93,9 +72,6 @@ class IrQweb(models.AbstractModel):
         name = el.attrib.pop('string', view.name)
         thumbnail = el.attrib.pop('t-thumbnail', "oe-thumbnail")
         image_preview = el.attrib.pop('t-image-preview', None)
-        # Forbid sanitize contains the specific reason:
-        # - "true": always forbid
-        # - "form": forbid if forms are sanitized
         forbid_sanitize = el.attrib.pop('t-forbid-sanitize', None)
         grid_column_span = el.attrib.pop('t-grid-column-span', None)
         snippet_group = el.attrib.pop('snippet-group', None)
@@ -153,12 +129,9 @@ class IrQweb(models.AbstractModel):
         el.set('t-att-placeholder', el.attrib.pop('t-placeholder'))
         return []
 
-    # order and ignore
 
     def _directives_eval_order(self):
         directives = super()._directives_eval_order()
-        # Insert before "att" as those may rely on static attributes like
-        # "string" and "att" clears all of those
         index = directives.index('att') - 1
         directives.insert(index, 'placeholder')
         directives.insert(index, 'snippet')
@@ -168,11 +141,6 @@ class IrQweb(models.AbstractModel):
 
     def _get_template_cache_keys(self):
         return super()._get_template_cache_keys() + ['snippet_lang']
-
-
-# ------------------------------------------------------
-# QWeb fields
-# ------------------------------------------------------
 
 
 class IrQwebField(models.AbstractModel):
@@ -268,13 +236,11 @@ class IrQwebFieldMany2one(models.AbstractModel):
 
         allow_reset = element.get('data-oe-many2one-allowreset')
         if allow_reset and not many2one_id:
-            # Reset the id of the many2one
             Model.browse(record_id).write({field_name: False})
             return
 
         record = many2one_id and M2O.browse(many2one_id)
         if record and record.exists():
-            # save the new id of the many2one
             Model.browse(record_id).write({field_name: many2one_id})
 
         return
@@ -294,7 +260,6 @@ class IrQwebFieldContact(models.AbstractModel):
 
     @api.model
     def get_record_to_html(self, contact_ids, options=None):
-        """ Helper to call the rendering of contact field. """
         return self.value_to_html(self.env['res.partner'].search([('id', '=', contact_ids[0])]), options=options)
 
 
@@ -357,7 +322,6 @@ class IrQwebFieldDatetime(models.AbstractModel):
                 value = fields.Datetime.from_string(value)
 
             if value:
-                # convert from UTC (server timezone) to user timezone
                 value = fields.Datetime.context_timestamp(self.with_context(tz=tz), timestamp=value)
                 value_format = babel.dates.format_datetime(value, format=babel_format, locale=locale)
                 value = fields.Datetime.to_string(value)
@@ -373,7 +337,6 @@ class IrQwebFieldDatetime(models.AbstractModel):
         if not value:
             return False
 
-        # parse from string to datetime
         lg = get_lang(self.env, self.env.user.lang)
         try:
             datetime_format = f'{lg.date_format} {lg.time_format}'
@@ -381,7 +344,6 @@ class IrQwebFieldDatetime(models.AbstractModel):
         except ValueError as err:
             raise ValidationError(_("The datetime %(value)s does not match the format %(format)s", value=value, format=datetime_format)) from err
 
-        # convert back from user's timezone to UTC
         tz_name = element.attrib.get('data-oe-original-tz') or self.env.context.get('tz') or self.env.user.tz
         if tz_name:
             try:
@@ -396,7 +358,6 @@ class IrQwebFieldDatetime(models.AbstractModel):
                     model, tz_name,
                     exc_info=True)
 
-        # format back to string
         return fields.Datetime.to_string(dt)
 
 
@@ -439,22 +400,13 @@ class IrQwebFieldHtml(models.AbstractModel):
             if field.sanitize:
                 if field.sanitize_overridable:
                     if record.env.user.has_group('base.group_sanitize_override'):
-                        # Don't mark the field as 'sanitize' if the sanitize
-                        # is defined as overridable and the user has the right
-                        # to do so
                         return attrs
                     else:
                         try:
                             field.convert_to_column_insert(record[field_name], record)
                         except UserError:
-                            # The field contains element(s) that would be
-                            # removed if sanitized. It means that someone who
-                            # was part of a group allowing to bypass the
-                            # sanitation saved that field previously. Mark the
-                            # field as not editable.
                             attrs['data-oe-sanitize-prevent-edition'] = 1
                             return attrs
-                # The field edition is not fully prevented and the sanitation cannot be bypassed
                 attrs['data-oe-sanitize'] = 'no_block' if field.sanitize_attributes else 1 if field.sanitize_form else 'allow_form'
 
         return attrs
@@ -470,12 +422,6 @@ class IrQwebFieldHtml(models.AbstractModel):
 
 
 class IrQwebFieldImage(models.AbstractModel):
-    """
-    Widget options:
-
-    ``class``
-        set as attribute on the generated <img> tag
-    """
     _name = 'ir.qweb.field.image'
     _description = 'Qweb Field Image'
     _inherit = ['ir.qweb.field.image']
@@ -494,12 +440,10 @@ class IrQwebFieldImage(models.AbstractModel):
             fragments = url_object.path.split('/')
             query = {k: v[0] for k, v in parse_qs(url_object.query).items()}
             url_id = fragments[3].split('-')[0]
-            # ir.attachment image urls: /web/image/<id>[-<checksum>][/...]
             if url_id.isdigit():
                 model = 'ir.attachment'
                 oid = url_id
                 field = 'datas'
-            # url of binary field on model: /web/image/<model>/<id>/<field>[/...]
             else:
                 model = query.get('model', fragments[3])
                 oid = query.get('id', fragments[4])
@@ -522,7 +466,6 @@ class IrQwebFieldImage(models.AbstractModel):
 
         try:
             with file_open(path, 'rb') as f:
-                # force complete image load to ensure it's valid image data
                 image = I.open(f)
                 image.load()
                 f.seek(0)
@@ -536,26 +479,14 @@ class IrQwebFieldImage(models.AbstractModel):
             _logger.debug("Cannot load binary data url %r", url)
             return None
         try:
-            # should probably remove remote URLs entirely:
-            # * in fields, downloading them without blowing up the server is a
-            #   challenge
-            # * in views, may trigger mixed content warnings if HTTPS CMS
-            #   linking to HTTP images
-            # implement drag & drop image upload to mitigate?
 
             req = requests.get(url, timeout=REMOTE_CONNECTION_TIMEOUT)
-            # PIL needs a seekable file-like image so wrap result in IO buffer
             image = I.open(io.BytesIO(req.content))
-            # force a complete load of the image data to validate it
             image.load()
-        # We're catching all exceptions because Pillow's exceptions are
-        # directly inheriting from Exception.
         except Exception:
             _logger.warning("Failed to load remote image %r", url, exc_info=True)
             return None
 
-        # don't use original data in case weird stuff was smuggled in, with
-        # luck PIL will remove some of it?
         out = io.BytesIO()
         image.save(out, image.format)
         return base64.b64encode(out.getvalue())
@@ -590,7 +521,6 @@ class IrQwebFieldDuration(models.AbstractModel):
     def from_html(self, model, field, element):
         value = element.text_content().strip()
 
-        # non-localized value
         return float(value)
 
 
@@ -598,8 +528,6 @@ class IrQwebFieldRelative(models.AbstractModel):
     _name = 'ir.qweb.field.relative'
     _description = 'Qweb Field Relative'
     _inherit = ['ir.qweb.field.relative']
-
-    # get formatting from ir.qweb.field.relative but edition/save from datetime
 
 
 class IrQwebFieldQweb(models.AbstractModel):
@@ -609,42 +537,9 @@ class IrQwebFieldQweb(models.AbstractModel):
 
 
 def html_to_text(element):
-    """ Converts HTML content with HTML-specified line breaks (br, p, div, ...)
-    in roughly equivalent textual content.
-
-    Used to replace and fixup the roundtripping of text and m2o: when using
-    libxml 2.8.0 (but not 2.9.1) and parsing IrQwebFieldHtml with lxml.html.fromstring
-    whitespace text nodes (text nodes composed *solely* of whitespace) are
-    stripped out with no recourse, and fundamentally relying on newlines
-    being in the text (e.g. inserted during user edition) is probably poor form
-    anyway.
-
-    -> this utility function collapses whitespace sequences and replaces
-       nodes by roughly corresponding linebreaks
-       * p are pre-and post-fixed by 2 newlines
-       * br are replaced by a single newline
-       * block-level elements not already mentioned are pre- and post-fixed by
-         a single newline
-
-    ought be somewhat similar (but much less high-tech) to aaronsw's html2text.
-    the latter produces full-blown markdown, our text -> html converter only
-    replaces newlines by <br> elements at this point so we're reverting that,
-    and a few more newline-ish elements in case the user tried to add
-    newlines/paragraphs into the text field
-
-    :param element: lxml.html content
-    :returns: corresponding pure-text output
-    """
-
-    # output is a list of str | int. Integers are padding requests (in minimum
-    # number of newlines). When multiple padding requests, fold them into the
-    # biggest one
     output = []
     _wrap(element, output)
 
-    # remove any leading or tailing whitespace, replace sequences of
-    # (whitespace)\n(whitespace) by a single newline, where (whitespace) is a
-    # non-newline whitespace in this case
     return re.sub(
         r'[ \t\r\f]*\n[ \t\r\f]*',
         '\n',
@@ -652,7 +547,6 @@ def html_to_text(element):
 
 
 _PADDED_BLOCK = {"p", "h1", "h2", "h3", "h4", "h5", "h6"}
-# https://developer.mozilla.org/en-US/docs/HTML/Block-level_elements minus p
 _MISC_BLOCK = {"address", "article", "aside", "audio", "blockquote", "canvas",
                "dd", "dl", "div", "figcaption", "figure", "footer", "form",
                "header", "hgroup", "hr", "ol", "output", "pre", "section", "tfoot",
@@ -660,17 +554,10 @@ _MISC_BLOCK = {"address", "article", "aside", "audio", "blockquote", "canvas",
 
 
 def _collapse_whitespace(text):
-    """ Collapses sequences of whitespace characters in ``text`` to a single
-    space
-    """
     return re.sub(r'\s+', ' ', text)
 
 
 def _realize_padding(it):
-    """ Fold and convert padding requests: integers in the output sequence are
-    requests for at least n newlines of padding. Runs thereof can be collapsed
-    into the largest requests and converted to newlines.
-    """
     padding = 0
     for item in it:
         if isinstance(item, int):
@@ -682,15 +569,9 @@ def _realize_padding(it):
             padding = 0
 
         yield item
-    # leftover padding irrelevant as the output will be stripped
 
 
 def _wrap(element, output, wrapper=''):
-    """ Recursively extracts text from ``element`` (via _element_to_text), and
-    wraps it all in ``wrapper``. Extracted text is added to ``output``
-
-    :type wrapper: str | int
-    """
     output.append(wrapper)
     if element.text:
         output.append(_collapse_whitespace(element.text))
@@ -707,7 +588,6 @@ def _element_to_text(e, output):
     elif e.tag in _MISC_BLOCK:
         _wrap(e, output, 1)
     else:
-        # inline
         _wrap(e, output)
 
     if e.tail:

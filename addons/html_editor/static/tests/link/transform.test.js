@@ -9,7 +9,6 @@ import { getContent, setSelection } from "../_helpers/selection.js";
 import { expectElementCount } from "../_helpers/ui_expectations.js";
 import { insertSpace, insertText, undo } from "../_helpers/user_actions.js";
 
-// Automatic link creation when pressing Space, Enter or Shift+Enter after a URL.
 test("should transform url after space (1)", async () => {
     await testEditor({
         contentBefore:
@@ -25,13 +24,10 @@ test("should transform url after space (2)", async () => {
     await testEditor({
         contentBefore: "<p>http://test.com[]</p>",
         stepFunction: async (editor) => {
-            // Setup: simulate multiple text nodes in a p: <p>"http://test" ".com"</p>
             editor.editable.firstChild.firstChild.splitText(11);
 
-            /** @todo fix warnings */
             patchWithCleanup(console, { warn: () => {} });
 
-            // Action: insert space
             await insertSpace(editor);
         },
         contentAfter: '<p><a href="http://test.com">http://test.com</a>&nbsp;[]</p>',
@@ -72,13 +68,10 @@ test("should transform url followed by punctuation characters after space (5)", 
     await testEditor({
         contentBefore: "<p>http://test.com[]</p>",
         stepFunction: async (editor) => {
-            // Setup: simulate multiple text nodes in a p: <p>"http://test" ".com"</p>
             editor.editable.firstChild.firstChild.splitText(11);
 
-            /** @todo fix warnings */
             patchWithCleanup(console, { warn: () => {} });
 
-            // Action: insert space
             await insertSpace(editor);
         },
         contentAfter: '<p><a href="http://test.com">http://test.com</a>&nbsp;[]</p>',
@@ -90,7 +83,6 @@ test("should transform url after enter", async () => {
         contentBefore:
             "<p>a http://test.com b http://test.com[] c http://test.com d</p>",
         stepFunction: async (editor) => {
-            // Simulate "Enter"
             await manuallyDispatchProgrammaticEvent(editor.editable, "beforeinput", {
                 inputType: "insertParagraph",
             });
@@ -105,7 +97,6 @@ test("should transform url after shift+enter", async () => {
         contentBefore:
             "<p>a http://test.com b http://test.com[] c http://test.com d</p>",
         stepFunction: async (editor) => {
-            // Simulate "Shift + Enter"
             await manuallyDispatchProgrammaticEvent(editor.editable, "beforeinput", {
                 inputType: "insertLineBreak",
             });
@@ -142,8 +133,6 @@ test("transform text url into link and undo it", async () => {
         '<p><a href="https://www.abc.jpg">www.abc.jpg</a>&nbsp;[]</p>',
     );
 
-    // LinkPlugin.onBeforeInput commits the link and the programmatic nbsp as two
-    // history steps, so the first undo takes back the space, the second the link.
     undo(editor);
     expect(cleanLinkArtifacts(getContent(el))).toBe(
         '<p><a href="https://www.abc.jpg">www.abc.jpg</a>[]</p>',

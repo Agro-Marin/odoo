@@ -17,7 +17,6 @@ describe("inline code", () => {
     });
 
     test("should convert text into inline code (start) (2)", async () => {
-        // BACKWARDS
         await testEditor({
             contentBefore: "<p>[]ab`cd</p>",
             stepFunction: async (editor) => await insertText(editor, "`"),
@@ -38,7 +37,6 @@ describe("inline code", () => {
     });
 
     test("should convert text into inline code (middle) (2)", async () => {
-        // BACKWARDS
         await testEditor({
             contentBefore: "<p>ab[]cd`ef</p>",
             stepFunction: async (editor) => await insertText(editor, "`"),
@@ -59,7 +57,6 @@ describe("inline code", () => {
     });
 
     test("should convert text into inline code (end) (2)", async () => {
-        // BACKWARDS
         await testEditor({
             contentBefore: "<p>ab[]cd`</p>",
             stepFunction: async (editor) => await insertText(editor, "`"),
@@ -73,7 +70,6 @@ describe("inline code", () => {
         await testEditor({
             contentBefore: "<p>a`b`cd[]e`f</p>",
             stepFunction: async (editor) => await insertText(editor, "`"),
-            // The closest PREVIOUS backtick takes priority
             contentAfterEdit:
                 '<p>a`b\ufeff<code class="o_inline_code">\ufeffcd\ufeff</code>\ufeff[]e`f</p>',
             contentAfter: '<p>a`b<code class="o_inline_code">cd</code>[]e`f</p>',
@@ -84,7 +80,6 @@ describe("inline code", () => {
         await testEditor({
             contentBefore: "<p>ab[]cd`e`f</p>",
             stepFunction: async (editor) => await insertText(editor, "`"),
-            // If there is no previous backtick, use the closest NEXT backtick.
             contentAfterEdit:
                 '<p>ab\ufeff<code class="o_inline_code">[]\ufeffcd\ufeff</code>\ufeffe`f</p>',
             contentAfter: '<p>ab<code class="o_inline_code">[]cd</code>e`f</p>',
@@ -118,7 +113,6 @@ describe("inline code", () => {
     });
 
     test("should convert text into inline code even when text nodes are split (1)", async () => {
-        // BEFORE
         await testEditor({
             contentBefore: "<p>b`c[]d</p>",
             stepFunction: async (editor) => {
@@ -126,7 +120,6 @@ describe("inline code", () => {
                     .getSelection()
                     .anchorNode.before(document.createTextNode("a"));
 
-                /** @todo fix warnings */
                 patchWithCleanup(console, { warn: () => {} });
 
                 await insertText(editor, "`");
@@ -138,7 +131,6 @@ describe("inline code", () => {
     });
 
     test("should convert text into inline code even when text nodes are split (2)", async () => {
-        // AFTER
         await testEditor({
             contentBefore: "<p>a`b[]c</p>",
             stepFunction: async (editor) => {
@@ -146,7 +138,6 @@ describe("inline code", () => {
                     .getSelection()
                     .anchorNode.after(document.createTextNode("d"));
 
-                /** @todo fix warnings */
                 patchWithCleanup(console, { warn: () => {} });
 
                 await insertText(editor, "`");
@@ -158,7 +149,6 @@ describe("inline code", () => {
     });
 
     test("should convert text into inline code even when text nodes are split (3)", async () => {
-        // BOTH
         await testEditor({
             contentBefore: "<p>b`c[]d</p>",
             stepFunction: async (editor) => {
@@ -169,7 +159,6 @@ describe("inline code", () => {
                     .getSelection()
                     .anchorNode.after(document.createTextNode("e"));
 
-                /** @todo fix warnings */
                 patchWithCleanup(console, { warn: () => {} });
 
                 await insertText(editor, "`");
@@ -181,7 +170,6 @@ describe("inline code", () => {
     });
 
     test("should convert text into inline code even when the other backtick is in a separate text node (1)", async () => {
-        // BACKTICK IS PREVIOUS SIBLING
         await testEditor({
             contentBefore: "<p>ab[]c</p>",
             stepFunction: async (editor) => {
@@ -189,7 +177,6 @@ describe("inline code", () => {
                     .getSelection()
                     .anchorNode.before(document.createTextNode("`"));
 
-                /** @todo fix warnings */
                 patchWithCleanup(console, { warn: () => {} });
 
                 await insertText(editor, "`");
@@ -201,7 +188,6 @@ describe("inline code", () => {
     });
 
     test("should convert text into inline code even when the other backtick is in a separate text node (2)", async () => {
-        // BACKTICK IS NEXT SIBLING
         await testEditor({
             contentBefore: "<p>ab[]c</p>",
             stepFunction: async (editor) => {
@@ -209,7 +195,6 @@ describe("inline code", () => {
                     .getSelection()
                     .anchorNode.after(document.createTextNode("`"));
 
-                /** @todo fix warnings */
                 patchWithCleanup(console, { warn: () => {} });
 
                 await insertText(editor, "`");
@@ -363,7 +348,6 @@ describe("inline code", () => {
     test("should not open the odoo global command bar when pressing ctrl+k inside a inline code element", async () => {
         await setupEditor(`<p><code class="o_inline_code">[test]</code></p>`);
 
-        // ctrl+k would normally open the odoo global command bar
         await press(["ctrl", "k"]);
         await animationFrame();
         expect('.o_command span[title="Create link"]').toHaveCount(0);

@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.tests import TransactionCase
 
 
@@ -22,13 +20,11 @@ class TestViews(TransactionCase):
         })
 
     def test_infinite_inherit_loop(self):
-        # Creates an infinite loop: A t-call B and A inherit from B
         View = self.env['ir.ui.view']
 
         self.second_view.write({
             'inherit_id': self.first_view.id,
         })
-        # Test for RecursionError: maximum recursion depth exceeded in this function
         View._views_get(self.first_view)
 
     def test_oe_structure_as_inherited_view(self):
@@ -44,10 +40,8 @@ class TestViews(TransactionCase):
             'inherit_id': self.second_view.id
         })
 
-        # check view mode
         self.assertEqual(base.mode, 'extension')
 
-        # update content of the oe_structure
         value = '''<div class="oe_structure" id="oe_structure_test_view_oe_structure" data-oe-id="%s"
                          data-oe-xpath="/div" data-oe-model="ir.ui.view" data-oe-field="arch">
                         <p>Hello World!</p>

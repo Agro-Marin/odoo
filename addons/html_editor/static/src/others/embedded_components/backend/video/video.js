@@ -87,7 +87,6 @@ export class EmbeddedVideoComponent extends ReadonlyEmbeddedVideoComponent {
     }
 
     /**
-     * Replace a video in the editor
      * @param {Object} media
      */
     replaceVideo(media) {

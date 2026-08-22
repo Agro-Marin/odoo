@@ -33,7 +33,6 @@ export class TableOfContentPlugin extends Plugin {
             },
         ],
 
-        /** Handlers */
         restore_savepoint_handlers: () =>
             this.delayedUpdateTableOfContents(this.editable),
         history_reset_handlers: () => this.delayedUpdateTableOfContents(this.editable),

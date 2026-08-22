@@ -25,14 +25,11 @@ import {
  */
 
 /**
- * From selection position, checks if it is left-to-right or right-to-left.
- *
  * @param {Node} anchorNode
  * @param {number} anchorOffset
  * @param {Node} focusNode
  * @param {number} focusOffset
- * @returns {number|boolean} the direction (a DIRECTIONS value) of the current
- *     range, or false if the selection is collapsed
+ * @returns {number|boolean}
  */
 export function getCursorDirection(anchorNode, anchorOffset, focusNode, focusOffset) {
     if (anchorNode === focusNode) {
@@ -88,7 +85,6 @@ const rightLeafOnlyInScopeNotBlockEditablePath = createDOMPathGenerator(
 
 export function normalizeSelfClosingElement(node, offset) {
     if (isSelfClosingElement(node)) {
-        // Cannot put cursor inside those elements, put it after instead.
         [node, offset] = rightPos(node);
     }
     return [node, offset];
@@ -107,34 +103,23 @@ export function normalizeNotEditableNode(node, offset, position = "right") {
 export function normalizeCursorPosition(node, offset, position = "right") {
     [node, offset] = normalizeSelfClosingElement(node, offset);
     [node, offset] = normalizeNotEditableNode(node, offset, position);
-    // todo @phoenix: we should maybe remove it
-    // // Be permissive about the received offset.
-    // offset = Math.min(Math.max(offset, 0), nodeSize(node));
     return [node, offset];
 }
 
 export function normalizeFakeBR(node, offset) {
     const prevNode = node.nodeType === Node.ELEMENT_NODE && node.childNodes[offset - 1];
     if (prevNode && prevNode.nodeName === "BR" && isFakeLineBreak(prevNode)) {
-        // If trying to put the cursor on the right of a fake line break, put
-        // it before instead.
         offset--;
     }
     return [node, offset];
 }
 
 /**
- * From a given position, returns the normalized version.
- *
- * E.g. <b>abc</b>[]def -> <b>abc[]</b>def
- *
  * @param {Node} node
  * @param {number} offset
  * @returns { [Node, number] }
  */
 export function normalizeDeepCursorPosition(node, offset) {
-    // Put the cursor in deepest inline node around the given position if
-    // possible.
     let el;
     let elOffset;
     if (node.nodeType === Node.ELEMENT_NODE) {
@@ -187,19 +172,15 @@ export function normalizeDeepCursorPosition(node, offset) {
 
 function updateCursorBeforeMove(destParent, destIndex, node, cursor) {
     if (cursor.node === destParent && cursor.offset >= destIndex) {
-        // Update cursor at destination
         cursor.offset += 1;
     } else if (cursor.node === node.parentNode) {
         const childIndex = childNodeIndex(node);
-        // Update cursor at origin
         if (cursor.offset === childIndex && cursor.offset === 0) {
-            // Keep cursor before the moved node if it's the first child before the move
             [cursor.node, cursor.offset] = [destParent, destIndex];
         } else if (
             cursor.offset === childIndex + 1 &&
             cursor.offset === nodeSize(cursor.node)
         ) {
-            // Keep cursor after the moved node if it's the last child before the move
             [cursor.node, cursor.offset] = [destParent, destIndex + 1];
         } else if (cursor.offset > childIndex) {
             cursor.offset -= 1;
@@ -271,10 +252,6 @@ export const callbacksForCursorUpdate = {
 };
 
 /**
- * Not implemented yet (see the ``test.todo`` suite in
- * ``tests/utils/selection.test.js``): exported as a no-op so the test
- * module's named import resolves under native ESM.
- *
  * @param {HTMLElement} element
  */
 export function ensureFocus(element) {}

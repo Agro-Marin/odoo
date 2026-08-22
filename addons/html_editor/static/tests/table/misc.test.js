@@ -114,9 +114,8 @@ test("can color cells", async () => {
     await click(".o_color_button[data-color='#6BADDE']");
     await animationFrame();
     await expectElementCount(".o-we-toolbar", 1);
-    expect(".o_font_color_selector").toHaveCount(0); // selector closed
+    expect(".o_font_color_selector").toHaveCount(0);
 
-    // Collapse selection to deselect cells
     setSelection({ anchorNode: queryFirst("td"), anchorOffset: 0 });
     await tick();
 
@@ -263,14 +262,9 @@ describe("selected cell color in toolbar", () => {
             clientX: offset,
             clientY: offset,
         });
-        // the selectionchange event is usually triggered by the browser after
-        // the click event, but since we are programmatically dispatching the
-        // click event, we also need to manually dispatch the selectionchange
-        // event to trigger the toolbar update
         manuallyDispatchProgrammaticEvent(document, "selectionchange");
         await animationFrame();
 
-        // set a timeout for the delayed toolbar update
         await waitFor(".o-we-toolbar", { timeout: 1500 });
         await expandToolbar();
         expect(".fa-paint-brush").toHaveCount(1);
@@ -311,7 +305,6 @@ describe("selected cell color in toolbar", () => {
         });
         await animationFrame();
 
-        // set a timeout for the delayed toolbar update
         await waitFor(".o-we-toolbar", { timeout: 1500 });
         await expandToolbar();
         expect(".fa-paint-brush").toHaveCount(1);

@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from unittest.mock import patch
 
 import odoo.tests
@@ -11,15 +9,6 @@ from odoo.addons.mail.tools import link_preview
 
 @odoo.tests.tagged('-at_install', 'post_install')
 class TestAttachmentAddUrlHardening(HttpCase):
-    """``/html_editor/attachment/add_url`` issues a server-side HEAD request to
-    a fully caller-supplied URL. The route is ``auth='user'``, so a PORTAL user
-    reaches it, and the request used to fire BEFORE the access check -- making
-    it an SSRF probe into the server's own network even for callers who were
-    then refused. The raw ``requests`` exceptions also escaped to the RPC
-    client, so "connection refused" and "connected" were distinguishable: a
-    working internal port scanner.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -55,8 +44,6 @@ class TestAttachmentAddUrlHardening(HttpCase):
             self.assertIn('error', response, url)
 
     def test_portal_user_cannot_distinguish_open_from_closed_ports(self):
-        """The whole point of the guard: every rejected target must produce the
-        SAME response, or the error message itself is the oracle."""
         self.authenticate('portal_probe', 'portal_probe')
         messages = set()
         for url in ('http://127.0.0.1:9991/x', 'http://127.0.0.1:9992/x'):
@@ -65,7 +52,6 @@ class TestAttachmentAddUrlHardening(HttpCase):
         self.assertEqual(len(messages), 1, "internal targets are distinguishable: %s" % messages)
 
     def test_public_url_still_reaches_the_head_request(self):
-        """The guard must not break the legitimate flow."""
         self.authenticate('admin', 'admin')
         with patch.object(link_preview, '_url_is_safe', return_value=True), \
              patch('requests.head') as mocked_head:
@@ -77,32 +63,17 @@ class TestAttachmentAddUrlHardening(HttpCase):
         self.assertEqual(response['result']['mimetype'], 'image/png')
 
     def test_upstream_request_failure_does_not_escape(self):
-        """A network error on an allowed host must not surface a raw
-        ``requests`` exception out of a jsonrpc endpoint."""
         self.authenticate('admin', 'admin')
         import requests
         with patch.object(link_preview, '_url_is_safe', return_value=True), \
              patch('requests.head', side_effect=requests.ConnectionError('boom')):
-            # distinct URL: `get_existing_attachment` would otherwise hand back
-            # the attachment created by the happy-path test above
             response = self._add_url('https://example.com/unreachable-media')
-        # The contract is that the failure is swallowed: the attachment is still
-        # created and no raw `requests` exception reaches the RPC client.
-        # (Not asserted on `mimetype`: ir.attachment guesses one from the name,
-        # so that field says nothing about whether the HEAD request succeeded.)
         self.assertNotIn('error', response)
         self.assertTrue(response['result']['id'])
 
 
 @odoo.tests.tagged('-at_install', 'post_install')
 class TestShapeIllustrationNoTraceback(HttpCase):
-    """``/html_editor/shape/illustration/<id>`` is a PUBLIC route. Every
-    attachment uploaded through the editor itself has ``url = False``, so
-    ``attachment.url.startswith(...)`` raised AttributeError and returned an
-    unauthenticated 500 -- while also making the url-lookup fallback below it
-    unreachable for exactly those attachments.
-    """
-
     def test_public_binary_attachment_without_url_is_not_a_500(self):
         attachment = self.env['ir.attachment'].create({
             'name': 'photo.png',
@@ -125,14 +96,10 @@ class TestShapeIllustrationNoTraceback(HttpCase):
 @odoo.tests.tagged('-at_install', 'post_install')
 class TestBusBroadcastFieldValidation(HttpCase):
     def test_unknown_field_is_rejected(self):
-        """An unknown field name used to skip the field-level access checks and
-        still broadcast on a channel derived from it."""
         self.authenticate('admin', 'admin')
         partner = self.env['res.partner'].create({'name': 'broadcast probe'})
         self.env.flush_all()
         def broadcast(field_name):
-            # jsonrpc serialises the raised BadRequest into an error payload
-            # with HTTP 200, so assert on the payload rather than the status.
             return self.url_open(
                 '/html_editor/bus_broadcast',
                 headers={'Content-Type': 'application/json'},
@@ -145,5 +112,4 @@ class TestBusBroadcastFieldValidation(HttpCase):
             ).json()
 
         self.assertIn('error', broadcast('no_such_field_here'))
-        # a real field on the same record must still be accepted
         self.assertNotIn('error', broadcast('comment'))

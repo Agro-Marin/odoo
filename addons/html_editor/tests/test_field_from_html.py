@@ -9,8 +9,6 @@ def _element(fragment):
 
 @tagged("post_install", "-at_install")
 class TestFieldFromHtml(TransactionCase):
-    """Inbound conversion: edited HTML parsed back into field values."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -24,41 +22,35 @@ class TestFieldFromHtml(TransactionCase):
         )
 
     def test_integer_drops_the_thousands_separator(self):
-        """A grouped integer comes back as a plain int."""
         self.assertEqual(
             self._convert("ir.qweb.field.integer", "integer", "<span>1,234</span>"),
             1234,
         )
 
     def test_integer_without_separator(self):
-        """A bare integer is parsed as is (boundary)."""
         self.assertEqual(
             self._convert("ir.qweb.field.integer", "integer", "<span>7</span>"),
             7,
         )
 
     def test_float_handles_group_and_decimal_marks(self):
-        """A grouped decimal keeps its fractional part."""
         self.assertEqual(
             self._convert("ir.qweb.field.float", "float", "<span>1,234.56</span>"),
             1234.56,
         )
 
     def test_base_converter_strips_surrounding_whitespace(self):
-        """The generic converter trims the edited text."""
         self.assertEqual(
             self._convert("ir.qweb.field", "char", "<span>  hola  </span>"),
             "hola",
         )
 
     def test_empty_content_becomes_false(self):
-        """An emptied inline field stores False, not an empty string."""
         self.assertFalse(
             self._convert("ir.qweb.field", "char", "<span>   </span>"),
         )
 
     def test_nested_markup_is_read_as_text(self):
-        """Markup the user left inside is reduced to its text content."""
         self.assertEqual(
             self._convert(
                 "ir.qweb.field",
@@ -69,14 +61,12 @@ class TestFieldFromHtml(TransactionCase):
         )
 
     def test_date_is_converted_to_the_stored_format(self):
-        """A localized date is stored back in ISO form."""
         self.assertEqual(
             self._convert("ir.qweb.field.date", "date", "<span>01/15/2026</span>"),
             "2026-01-15",
         )
 
     def test_selection_maps_the_label_back_to_its_key(self):
-        """A selection is stored by key even though the user sees the label."""
         self.assertEqual(
             self._convert(
                 "ir.qweb.field.selection",
@@ -89,8 +79,6 @@ class TestFieldFromHtml(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestFieldAttributes(TransactionCase):
-    """Editor attributes decorating an inline field."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -106,21 +94,17 @@ class TestFieldAttributes(TransactionCase):
         )
 
     def test_placeholder_option_reaches_the_attributes(self):
-        """A placeholder passed as an option decorates the field."""
         attrs = self._attributes(self.record, "char", placeholder="Type here")
         self.assertEqual(attrs["placeholder"], "Type here")
 
     def test_no_placeholder_without_the_option(self):
-        """Without a placeholder the attribute is not emitted."""
         attrs = self._attributes(self.record, "char")
         self.assertNotIn("placeholder", attrs)
 
     def test_base_language_content_is_marked_translated(self):
-        """Editing in the base language reports a translated state."""
         attrs = self._attributes(self.record, "char", translate=True)
         self.assertEqual(attrs["data-oe-translation-state"], "translated")
 
     def test_translation_state_is_not_emitted_for_other_types(self):
-        """Non-text fields carry no translation state at all."""
         attrs = self._attributes(self.record, "integer", translate=True)
         self.assertNotIn("data-oe-translation-state", attrs)

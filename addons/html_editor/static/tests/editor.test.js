@@ -114,8 +114,6 @@ test("Element is not editable if any plugin marks it non-editable", async () => 
 });
 
 test("clean_for_save_listeners is done last", async () => {
-    // Custom `c-div` tags are used so that the sibling elements would otherwise be
-    // merged together.
     class TestPlugin extends Plugin {
         static id = "test";
         resources = {

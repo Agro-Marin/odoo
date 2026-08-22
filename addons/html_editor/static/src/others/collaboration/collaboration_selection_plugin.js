@@ -16,7 +16,6 @@ export class CollaborationSelectionPlugin extends Plugin {
     static dependencies = ["history", "collaborationOdoo", "position", "localOverlay"];
     /** @type {import("plugins").EditorResources} */
     resources = {
-        /** Handlers */
         collaboration_notification_handlers:
             this.handleCollaborationNotification.bind(this),
         layout_geometry_change_handlers: this.refreshSelection.bind(this),
@@ -77,17 +76,12 @@ export class CollaborationSelectionPlugin extends Plugin {
         const protectionCheck = (node) =>
             isProtecting(node) || (isProtected(node) && !isUnprotecting(node));
         if (protectionCheck(anchorTarget) || protectionCheck(focusTarget)) {
-            // TODO @phoenix, TODO ABD: better handle collaborative selection
-            // on protected elements.
             return;
         }
         if (anchorNode.isConnected && focusNode.isConnected) {
             [anchorNode, anchorOffset] = getDeepestPosition(anchorNode, anchorOffset);
             [focusNode, focusOffset] = getDeepestPosition(focusNode, focusOffset);
         } else {
-            // todo: We should not be able to get here, this fixes multiples
-            // issues where we temporarily try to draw a an impossible
-            // selection. We should investigate the root cause of this issue.
             anchorNode = this.editable.children[0];
             focusNode = this.editable.children[0];
             anchorOffset = 0;
@@ -112,16 +106,12 @@ export class CollaborationSelectionPlugin extends Plugin {
 
             clientRects = Array.from(range.getClientRects());
         } catch {
-            // Changes in the dom might prevent the range to be instantiated
-            // (because of a removed node for example), in which case we ignore
-            // the range.
             clientRects = [];
         }
         if (!clientRects.length) {
             return;
         }
 
-        // Draw rects (in case the selection is not collapsed).
         const containerRect = this.selectionOverlay.getBoundingClientRect();
         const indicators = clientRects.map(({ x, y, width, height }) => {
             const rectElement = this.document.createElement("div");
@@ -139,13 +129,11 @@ export class CollaborationSelectionPlugin extends Plugin {
             return rectElement;
         });
 
-        // Draw carret.
         const caretElement = this.document.createElement("div");
         caretElement.style = `border-left: 2px solid ${selectionColor}; position: absolute;`;
         caretElement.setAttribute("data-selection-peer-id", peerId);
         caretElement.className = "oe-collaboration-caret";
 
-        // Draw carret top square.
         const caretTopSquare = this.document.createElement("div");
         caretTopSquare.className = "oe-collaboration-caret-top-square";
         caretTopSquare.style["background-color"] = selectionColor;

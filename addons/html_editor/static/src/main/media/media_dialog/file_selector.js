@@ -230,8 +230,6 @@ export class FileSelector extends Component {
 
         useEffect(
             () => {
-                // Updating the scroll button each time the attachments change.
-                // Hiding the "Load more" button to prevent it from flickering.
                 this.loadMoreButtonRef.el.classList.add("o_hide_loading");
                 this.state.canScrollAttachments = false;
                 this.debouncedScrollUpdate();
@@ -275,7 +273,7 @@ export class FileSelector extends Component {
 
     validateUrl(url) {
         const path = url.split("?")[0];
-        const isValidUrl = /^.+\..+$/.test(path); // TODO improve
+        const isValidUrl = /^.+\..+$/.test(path);
         const isValidFileFormat = true;
         return { isValidUrl, isValidFileFormat, path };
     }
@@ -303,15 +301,11 @@ export class FileSelector extends Component {
                     "original_id",
                 ],
                 order: "id desc",
-                // A full page of results (limit records) implies there may be more to load.
                 limit,
                 offset,
             });
             attachments.forEach((attachment) => (attachment.mediaType = "attachment"));
         } catch (e) {
-            // Reading attachments as a portal user is not permitted and will raise
-            // an access error so we catch the error silently and don't return any
-            // attachment so he can still use the wizard and upload an attachment
             if (e.exceptionName !== "odoo.exceptions.AccessError") {
                 throw e;
             }
@@ -335,7 +329,6 @@ export class FileSelector extends Component {
                 ),
             )
             .then((newAttachments) => {
-                // This is never reached if another search or loadMore occurred.
                 this.state.attachments.push(...newAttachments);
             });
     }
@@ -345,14 +338,11 @@ export class FileSelector extends Component {
     }
 
     async search(needle) {
-        // Prepare in case loadMore results are obtained instead.
         this.state.attachments = [];
-        // Fetch attachments relies on the state's needle.
         this.state.needle = needle;
         return this.keepLast
             .add(this.fetchAttachments(this.NUMBER_OF_ATTACHMENTS_TO_DISPLAY, 0))
             .then((attachments) => {
-                // This is never reached if a new search occurred.
                 this.state.attachments = attachments;
             });
     }
@@ -377,11 +367,8 @@ export class FileSelector extends Component {
             })
             .catch(async () => {
                 await new Promise((resolve) => {
-                    // If it works from an image, use URL.
                     const imageEl = document.createElement("img");
                     imageEl.onerror = () => {
-                        // This message is about the blob fetch failure.
-                        // It is only displayed if the fallback did not work.
                         this.notificationService.add(
                             _t("An error occurred while fetching the entered URL."),
                             {
@@ -443,10 +430,6 @@ export class FileSelector extends Component {
         );
     }
 
-    /**
-     * Updates the scroll button, depending on whether the "Load more" button is
-     * fully visible or not.
-     */
     updateScroll() {
         const loadMoreTop = this.loadMoreButtonRef.el.getBoundingClientRect().top;
         const modalEl = this.props.modalRef.el.querySelector("main.modal-body");
@@ -456,10 +439,8 @@ export class FileSelector extends Component {
     }
 
     /**
-     * Checks if the attachment is (partially) hidden.
-     *
-     * @param {Element} attachmentEl the attachment "container"
-     * @returns {Boolean} true if the attachment is hidden, false otherwise.
+     * @param {Element} attachmentEl
+     * @returns {Boolean}
      */
     isAttachmentHidden(attachmentEl) {
         const attachmentBottom = Math.round(
@@ -470,10 +451,6 @@ export class FileSelector extends Component {
         return attachmentBottom > modalBottom;
     }
 
-    /**
-     * Scrolls two attachments rows at a time. If there are not enough rows,
-     * scrolls to the "Load more" button.
-     */
     handleScrollAttachments() {
         let scrollToEl = this.loadMoreButtonRef.el;
         const attachmentEls = [

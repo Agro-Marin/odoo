@@ -20,14 +20,11 @@ import { parseHTML } from "@html_editor/utils/html";
 import { childNodeIndex, DIRECTIONS } from "@html_editor/utils/position";
 
 const tabHtml = '<span class="oe-tabs" contenteditable="false">\u0009</span>\u200B';
-const GRID_COLUMN_WIDTH = 40; //@todo Configurable?
+const GRID_COLUMN_WIDTH = 40;
 
 /**
- * Checks if the given tab element represents an indentation.
- * An indentation tab is one that is not preceded by visible text.
- *
- * @param {HTMLElement} tab - The tab element to check.
- * @returns {boolean} - True if the tab represents an indentation, false otherwise.
+ * @param {HTMLElement} tab
+ * @returns {boolean}
  */
 function isIndentationTab(tab) {
     return !getAdjacentPreviousSiblings(tab).some(
@@ -73,13 +70,11 @@ export class TabulationPlugin extends Plugin {
         ],
         contenteditable_to_remove_selector: "span.oe-tabs",
 
-        /** Handlers */
         normalize_handlers: this.normalize.bind(this),
 
-        /** Overrides */
         delete_forward_overrides: this.handleDeleteForward.bind(this),
 
-        unsplittable_node_predicates: isEditorTab, // avoid merge
+        unsplittable_node_predicates: isEditorTab,
     };
 
     handleTab() {
@@ -182,7 +177,7 @@ export class TabulationPlugin extends Plugin {
     }
 
     /**
-     * @param {HTMLSpanElement} tabSpan - span.oe-tabs element
+     * @param {HTMLSpanElement} tabSpan
      */
     adjustTabWidth(tabSpan) {
         let tabPreviousSibling = tabSpan.previousSibling;
@@ -195,25 +190,18 @@ export class TabulationPlugin extends Plugin {
         }
         const spanRect = tabSpan.getBoundingClientRect();
         const referenceRect = this.editable.firstElementChild?.getBoundingClientRect();
-        // @ todo @phoenix Re-evaluate if this check is necessary.
-        // Values from getBoundingClientRect() are all zeros during
-        // Editor startup or saving. We cannot recalculate the tabs
-        // width in thoses cases.
         if (!referenceRect?.width || !spanRect.width) {
             return;
         }
         const relativePosition = spanRect.left - referenceRect.left;
         const distToNextGridLine =
             GRID_COLUMN_WIDTH - (relativePosition % GRID_COLUMN_WIDTH);
-        // Round to the first decimal point.
         const width = distToNextGridLine.toFixed(1);
         tabSpan.style.width = `${width}px`;
     }
 
     /**
-     * Aligns the tabs under the specified tree to a grid.
-     *
-     * @param {HTMLElement} [root] - The tree root.
+     * @param {HTMLElement} [root]
      */
     alignTabs(root = this.editable) {
         const block = closestBlock(root);
@@ -225,10 +213,6 @@ export class TabulationPlugin extends Plugin {
         }
     }
 
-    // When deleting an editor tab, we need to ensure it's related
-    // ZWS will deleted as well.
-    // @todo @phoenix: for some reason, there might be more than one ZWS.
-    // Investigate why.
     expandRangeToIncludeZWS(tabElement) {
         let previous = tabElement;
         let node = tabElement.nextSibling;
@@ -244,7 +228,6 @@ export class TabulationPlugin extends Plugin {
         return [previous.parentElement, childNodeIndex(previous) + 1];
     }
 
-    // @todo consider registering this as adjustRange callback instead.
     handleDeleteForward(range) {
         let { endContainer, endOffset } = range;
         if (!(endContainer?.nodeType === Node.ELEMENT_NODE) || !endOffset) {

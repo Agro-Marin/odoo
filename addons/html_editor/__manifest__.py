@@ -61,7 +61,6 @@ This addon provides an extensible, maintainable editor.
             'html_editor/static/lib/diff2html/diff2html.min.js',
         ],
         'html_editor.assets_media_dialog': [
-            # Bundle to use the media dialog in the backend and the frontend
             ('include', 'web._assets_helpers'),
             'html_editor/static/src/components/switch/**/*',
             'html_editor/static/src/main/media/media_dialog/**/*',

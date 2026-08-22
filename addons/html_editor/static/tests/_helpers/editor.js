@@ -1,4 +1,3 @@
-// Side-effect import: registers the res.lang/get_installed mock route.
 import "./html_editor_mock_server.js";
 
 import { EmbeddedComponentPlugin } from "@html_editor/others/embedded_component_plugin";
@@ -24,7 +23,6 @@ const defaultTestConfig = {
     debounceHints: false,
 };
 
-// A generic base64 image for testing
 export const base64Img =
     "data:image/png;base64, iVBORw0KGgoAAAANSUhEUgAAAAUA\n        AAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO\n            9TXL0Y4OHwAAAABJRU5ErkJggg==";
 
@@ -52,15 +50,13 @@ class TestEditor extends Component {
         this.wysiwygProps.onLoad = function (editor) {
             const oldAttach = editor.attachTo;
             editor.attachTo = function (el) {
-                // @todo @phoenix move it to setupMultiEditor
                 if (iframe) {
-                    // el is here the body
                     const html = `<div>${content || ""}</div><style>${props.styleContent}</style>`;
                     el.innerHTML = html;
                     el = el.firstChild;
                 }
                 if (content) {
-                    el.setAttribute("contenteditable", true); // so we can focus it if needed
+                    el.setAttribute("contenteditable", true);
                     const configSelection = getSelection(el, content);
                     if (configSelection) {
                         el.focus();
@@ -125,8 +121,6 @@ export async function setupEditor(content, options = {}) {
     const styleContent = options.styleContent || "";
     const editorComponent = await mountWithCleanup(TestEditor, {
         props: {
-            // TODO: Move the markup call up the chain and call markup at source.
-            // markup: Not the correct place to call markup as content can be anything but would be okay for the tests.
             content: markup(content),
             wysiwygProps,
             styleContent,
@@ -136,21 +130,14 @@ export async function setupEditor(content, options = {}) {
         env: options.env,
     });
 
-    // awaiting for mountWithCleanup is not enough when mounted in an iframe,
-    // @see Wysiwyg.onMounted
     const editor = await attachedEditor;
     const plugins = new Map(
         editor.plugins.map((plugin) => [plugin.constructor.id, plugin]),
     );
     if (plugins.get("embeddedComponents")) {
-        // await an extra animation frame for embedded components mounting
-        // TODO @phoenix: would be more accurate to register mounting
-        // promises in embedded_component_plugin and await them, change this
-        // if there is an issue.
         await animationFrame();
     }
 
-    // @todo: return editor, tests can destructure const { editable } = ... if they want
     return {
         el: editor.editable,
         editor,
@@ -170,7 +157,6 @@ export async function setupEditor(content, options = {}) {
  */
 
 /**
- * TODO maybe we should add "styleContent" or use setupEditor directly
  * @param {TestEditorConfig & TestConfig} config
  */
 export async function testEditor(config) {
@@ -195,23 +181,15 @@ export async function testEditor(config) {
     const willBeDestroyed = new Deferred();
     config.onWillDestroy = () => willBeDestroyed.resolve();
     const { el, editor, editorComponent } = await setupEditor(contentBefore, config);
-    // The stageSelection should have been triggered by the click on
-    // the editable. As we set the selection programmatically, we dispatch the
-    // selection here for the commands that relies on it.
-    // If the selection of the editor would be programatically set upon start
-    // (like an autofocus feature), it would be the role of the autofocus
-    // feature to trigger the stageSelection.
     editor.shared.history.stageSelection();
 
     if (config.props?.iframe) {
         expect(".o-wysiwyg iframe").toHaveCount(1);
     }
 
-    // Wait for selectionchange handlers to react before any actual testing.
     await tick();
 
     if (contentBeforeEdit) {
-        // we should do something before (sanitize)
         await compareFunction(
             getContent(el, config.options),
             contentBeforeEdit,
@@ -233,17 +211,15 @@ export async function testEditor(config) {
         );
     }
     if (contentAfter) {
-        // Test the saved value, with added cursor markers for convenience of testing.
-        const content = editor.getContent(); // Saved value.
+        const content = editor.getContent();
         dispatchCleanForSave(editor, { root: el, preserveSelection: true });
-        const innerHTML = el.innerHTML; // Cleaned value without cursors.
+        const innerHTML = el.innerHTML;
         await compareFunction(
             getContent(el, config.options),
             contentAfter,
             "Editor content, after clean",
             editor,
         );
-        // Test that the saved value matches the cleaned value tested above.
         await compareFunction(
             content,
             innerHTML,
@@ -255,20 +231,17 @@ export async function testEditor(config) {
     await willBeDestroyed;
 }
 /**
- * @todo: remove this?
- *
  * @param {Object} props
- * @returns { Promise<{el: HTMLElement, wysiwyg: Wysiwyg}> } result
+ * @returns { Promise<{el: HTMLElement, wysiwyg: Wysiwyg}> }
  */
 export async function setupWysiwyg(props = {}) {
     const content = props.content;
     delete props.content;
     const wysiwyg = await mountWithCleanup(Wysiwyg, { props });
-    const el = /** @type {HTMLElement} **/ (
+    const el = /** @type {HTMLElement} */ (
         queryOne(`${props.iframe ? ":iframe " : ""}.odoo-editor-editable`)
     );
     if (content) {
-        // force selection to be put properly
         setContent(el, content);
     }
     return { wysiwyg, el };

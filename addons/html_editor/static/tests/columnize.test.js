@@ -379,7 +379,6 @@ describe("remove columns", () => {
             "4 columns",
         ]);
 
-        // add 2 columns
         await press("enter");
         expect(getContent(el)).toBe(
             `<p data-selection-placeholder=""><br></p><div class="container o_text_columns o-contenteditable-false" contenteditable="false"><div class="row"><div class="col-6 o-contenteditable-true" contenteditable="true"><p>ab[]cd</p></div><div class="col-6 o-contenteditable-true" contenteditable="true"><p o-we-hint-text="Empty column" class="o-we-hint"><br></p></div></div></div><p data-selection-placeholder=""><br></p>`
@@ -405,7 +404,6 @@ describe("complex", () => {
                 columnize(2)(editor);
                 columnize(0)(editor);
             },
-            // The paragraph created for each added column was kept.
             contentAfter: "<p>ab[]cd</p><p><br></p><p><br></p><p><br></p>",
         });
     });
@@ -419,7 +417,7 @@ describe("complex", () => {
             stepFunction: columnize(2),
             contentAfter:
                 '<div class="container o-contenteditable-false"><div class="row"><div class="col o-contenteditable-true">' +
-                '<div class="o_text_columns o-contenteditable-false"><div class="row">' + // no "container" class
+                '<div class="o_text_columns o-contenteditable-false"><div class="row">' +
                 '<div class="col-6 o-contenteditable-true">' +
                 "<p>ab[]cd</p>" +
                 "</div>" +
@@ -498,7 +496,7 @@ describe("selection", () => {
                 const lastP = children[children.length - 1];
                 lastP.innerHTML = "ab";
                 setSelection({ anchorNode: lastP.firstChild, anchorOffset: 0 });
-                await tick(); // wait for trailing placeholder to be persisted via selectionchange
+                await tick();
                 await press(["shift", "arrowUp"]);
             },
             contentAfter:
@@ -516,7 +514,6 @@ describe("selection", () => {
                 const children = editable.querySelectorAll("p");
                 const lastP = children[children.length - 1];
                 lastP.innerHTML = "ab";
-                // Persist the trailing placeholder
                 setSelection({ anchorNode: lastP.lastChild, anchorOffset: nodeSize(lastP) });
                 await tick();
                 const firstP = children[0];

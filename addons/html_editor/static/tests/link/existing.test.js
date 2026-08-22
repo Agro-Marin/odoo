@@ -53,7 +53,6 @@ test("should parse correctly a span inside a Link then add a char", async () => 
         stepFunction: async (editor) => {
             await insertText(editor, "c");
         },
-        // JW cAfter: '<p>a<span><a href="http://test.test/">b</a>c[]</span>d</p>',
         contentAfter:
             '<p>a<a href="http://test.test/"><span class="a">bc[]</span></a>d</p>',
     });
@@ -78,7 +77,6 @@ test("should parse correctly a span inside a Link then add a char 3", async () =
         stepFunction: async (editor) => {
             await insertText(editor, "d");
         },
-        // JW cAfter: '<p>a<a href="http://test.test/"><span class="a">b</span>c</a>d[]e</p>',
         contentAfter:
             '<p>a<a href="http://test.test/"><span class="a">b</span>cd[]</a>e</p>',
     });
@@ -90,7 +88,6 @@ test("should add a character after the link", async () => {
         stepFunction: async (editor) => {
             await insertText(editor, "c");
         },
-        // JW cAfter: '<p>a<a href="http://test.test/">b</a>c[]d</p>',
         contentAfter: '<p>a<a href="http://test.test/">bc[]</a>d</p>',
     });
 });
@@ -194,31 +191,11 @@ test("should not add a character in the link if start of paragraph", async () =>
     });
 });
 
-// test.todo('should select and replace all text and add the next char in bold', async () => {
-//     await testEditor({
-//         contentBefore: '<div><p>[]123</p><p><a href="#">abc</a></p></div>',
-//         stepFunction: async (editor) => {
-//             const p = editor.selection.anchor.parent.nextSibling();
-//             await editor.execCommand('setSelection', {
-//                 vSelection: {
-//                     anchorNode: p.firstLeaf(),
-//                     anchorPosition: RelativePosition.BEFORE,
-//                     focusNode: p.lastLeaf(),
-//                     focusPosition: RelativePosition.AFTER,
-//                     direction: Direction.FORWARD,
-//                 },
-//             });
-//             await editor.execCommand('insert', 'd');
-//         },
-//         contentAfter: '<div><p>123</p><p><a href="#">d[]</a></p></div>',
-//     });
-// });
 test("should not allow to extend a link if selection spans multiple links", async () => {
     const { el } = await setupEditor(
         '<p>xxx <a href="exist">lin[k1</a> yyy <a href="exist">li]nk2</a> zzz</p>',
     );
     await waitFor(".o-we-toolbar");
-    // link button should be disabled
     expect('.o-we-toolbar button[name="link"]').toHaveClass("disabled");
     expect('.o-we-toolbar button[name="link"]').toHaveAttribute("disabled");
     await click('.o-we-toolbar button[name="link"]');
@@ -231,7 +208,6 @@ test("should not allow to extend a link if selection spans multiple links (2)", 
         '<p>xxx <a href="exist">[link1</a> yyy <a href="exist">li]nk2</a> zzz</p>',
     );
     await waitFor(".o-we-toolbar");
-    // link button should be disabled
     expect('.o-we-toolbar button[name="link"]').toHaveClass("disabled");
     expect('.o-we-toolbar button[name="link"]').toHaveAttribute("disabled");
     await click('.o-we-toolbar button[name="link"]');
@@ -244,7 +220,6 @@ test("should not allow to extend a link if selection spans multiple links (3)", 
         '<p>xxx <a href="exist">[link1</a> yyy <a href="exist">link2]</a> zzz</p>',
     );
     await waitFor(".o-we-toolbar");
-    // link button should be disabled
     expect('.o-we-toolbar button[name="link"]').toHaveClass("disabled");
     expect('.o-we-toolbar button[name="link"]').toHaveAttribute("disabled");
     await click('.o-we-toolbar button[name="link"]');

@@ -4,29 +4,6 @@ import { removeClass } from "@html_editor/utils/dom";
 import { isProtected, isProtecting } from "@html_editor/utils/dom_info";
 import { closestElement, selectElements } from "@html_editor/utils/dom_traversal";
 
-/*
-    This plugin solves selection issues around links (allowing the cursor at the
-    inner and outer edges of links).
-
-    Every link receives 4 zero-width non-breaking spaces (unicode FEFF
-    characters, hereafter referred to as ZWNBSP):
-    - one before the link
-    - one as the link's first child
-    - one as the link's last child
-    - one after the link
-    like so: `//ZWNBSP//<a>//ZWNBSP//label//ZWNBSP//</a>//ZWNBSP`.
-
-    A visual indication ( `o_link_in_selection` class) is added to a link when
-    the selection is contained within it.
-
-    This is not applied in the following cases:
-
-    - in a navbar (since its links are managed via the snippets system, not
-    via pure edition) and, similarly, in .nav-link links
-    - in links that have content more complex than simple text
-    - on non-editable links or links that are not within the editable area
- */
-
 /**
  * @typedef { Object } LinkSelectionShared
  * @property { LinkSelectionPlugin['padLinkWithZwnbsp'] } padLinkWithZwnbsp
@@ -40,11 +17,9 @@ import { closestElement, selectElements } from "@html_editor/utils/dom_traversal
 export class LinkSelectionPlugin extends Plugin {
     static id = "linkSelection";
     static dependencies = ["selection", "feff"];
-    // TODO ABD: refactor to handle Knowledge comments inside this plugin without sharing padLinkWithZwnbsp.
     static shared = ["padLinkWithZwnbsp"];
     /** @type {import("plugins").EditorResources} */
     resources = {
-        /** Handlers */
         selectionchange_handlers: this.resetLinkInSelection.bind(this),
         clean_for_save_handlers: ({ root }) => this.clearLinkInSelectionClass(root),
         normalize_handlers: () => this.resetLinkInSelection(),
@@ -59,9 +34,6 @@ export class LinkSelectionPlugin extends Plugin {
     }
 
     /**
-     * Take a link and pad it with non-break zero-width spaces to ensure that it
-     * is always possible to place the cursor at its inner and outer edges.
-     *
      * @param {HTMLAnchorElement} link
      */
     padLinkWithZwnbsp(link) {
@@ -73,8 +45,6 @@ export class LinkSelectionPlugin extends Plugin {
     isLinkEligibleForZwnbsp(link) {
         const { anchorNode, focusNode } =
             this.dependencies.selection.getEditableSelection();
-        // we can't rely on `o_link_in_selection` class because it can be
-        // added to siblings while splitting link element.
         const isLinkSelected = link.contains(anchorNode) || link.contains(focusNode);
         const linkHasContentOrSelected =
             isLinkSelected || link.textContent.replaceAll("\ufeff", "");
@@ -101,9 +71,6 @@ export class LinkSelectionPlugin extends Plugin {
     }
 
     /**
-     * Apply the o_link_in_selection class if the selection is in a single link,
-     * remove it otherwise.
-     *
      * @param {SelectionData} [selectionData]
      */
     resetLinkInSelection(

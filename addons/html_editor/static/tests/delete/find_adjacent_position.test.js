@@ -42,7 +42,6 @@ describe("findAdjacentPosition method", () => {
             const previous = "<p>a[]bcd</p>";
             const next = "<p>ab[]cd</p>";
             const { editor, el } = await setupEditor(previous);
-            // Split text node between 'a' and 'b'
             const textNode = el.firstChild.firstChild;
             textNode.splitText(1);
             setSelection({ anchorNode: textNode, anchorOffset: 1 });
@@ -71,8 +70,6 @@ describe("findAdjacentPosition method", () => {
             const [node, offset] = findAdjacentPosition(editor, "forward");
             setSelection({ anchorNode: node, anchorOffset: offset });
             expect(getContent(el)).toBe("<p>d\u200be[]f</p>");
-            // @todo: non-reversible operation (e.g. backward results in
-            // <p>d\u200b[]ef</p>). Should it be?
         });
         test("should skip invisible character (2)", async () => {
             const { editor, el } = await setupEditor("<p>d\u200b[]ef</p>");
@@ -125,10 +122,6 @@ describe("findAdjacentPosition method", () => {
                 const [node, offset] = findAdjacentPosition(editor, "forward");
                 setSelection({ anchorNode: node, anchorOffset: offset });
                 expect(getContent(el)).toBe(
-                    // This position is not reachable with the keyboard, but
-                    // it's the desirable one to compose a range for deletion,
-                    // allowing to remove the div with deleteForward without
-                    // affecting the paragraph after it.
                     '<p>a</p><div contenteditable="false">b</div>[]<p>c</p>',
                 );
             });
@@ -139,10 +132,6 @@ describe("findAdjacentPosition method", () => {
                 const [node, offset] = findAdjacentPosition(editor, "backward");
                 setSelection({ anchorNode: node, anchorOffset: offset });
                 expect(getContent(el)).toBe(
-                    // This position is not reachable with the keyboard, but
-                    // it's the desirable one to compose a range for deletion,
-                    // allowing to remove the div with deleteBackward without
-                    // affecting the paragraph before it.
                     '<p>a</p>[]<div contenteditable="false">b</div><p>c</p>',
                 );
             });
@@ -210,9 +199,6 @@ describe("findAdjacentPosition method", () => {
             const [node, offset] = findAdjacentPosition(editor, "backward");
             setSelection({ anchorNode: node, anchorOffset: offset });
             expect(getContent(el)).toBe(
-                // This position is not reachable with the keyboard, but
-                // it's the desirable one to compose a range for deletion,
-                // allowing to remove the div with deleteBackward
                 unformat(`
                     <p data-selection-placeholder=""><br></p>
                     []<div contenteditable="false">
@@ -236,9 +222,6 @@ describe("findAdjacentPosition method", () => {
             const [node, offset] = findAdjacentPosition(editor, "forward");
             setSelection({ anchorNode: node, anchorOffset: offset });
             expect(getContent(el)).toBe(
-                // This position is not reachable with the keyboard, but
-                // it's the desirable one to compose a range for deletion,
-                // allowing to remove the div with deleteForward
                 unformat(`
                     <p>fgh</p>
                     <div contenteditable="false">

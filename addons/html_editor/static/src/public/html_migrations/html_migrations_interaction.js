@@ -18,11 +18,9 @@ export class HtmlMigrationsInteraction extends Interaction {
         }
         for (const el of [...upgradeElementToInteractionMap.keys()]) {
             if (el.contains(parentElement)) {
-                // Avoid handling an upgrade that is already being handled.
                 this.isComplete = true;
                 return;
             } else if (parentElement.contains(el)) {
-                // Avoid handling a upgrade with a contained scope.
                 const interaction = upgradeElementToInteractionMap.get(el);
                 interaction.isComplete = true;
                 interaction.container = undefined;
@@ -35,8 +33,6 @@ export class HtmlMigrationsInteraction extends Interaction {
 
     start() {
         if (this.isComplete || this.isUpgrading || !this.container.isConnected) {
-            // Ensure that an upgrade can only be attempted once, even if
-            // interactions are restarted.
             return;
         }
         this.isUpgrading = true;
@@ -57,9 +53,6 @@ export class HtmlMigrationsInteraction extends Interaction {
 
     destroy() {
         if (this.isComplete && this.container) {
-            // Ensure that the container reference is kept during the upgrade
-            // so that no other upgrade can start in the same Element while this
-            // one is still ongoing.
             upgradeElementToInteractionMap.delete(this.container);
         }
     }

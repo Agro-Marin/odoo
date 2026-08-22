@@ -26,7 +26,6 @@ test("getEditableSelection should work, even if getSelection returns null", asyn
     expect(selection.startOffset).toBe(1);
     expect(selection.endOffset).toBe(2);
 
-    // it happens sometimes in firefox that the selection is null
     patchWithCleanup(document, {
         getSelection: () => null,
     });
@@ -102,7 +101,7 @@ test("correct selection after triple click in multi-line block (2)", async () =>
     );
     await tripleClick(
         queryFirst("p:not([data-selection-placeholder])").nextSibling.firstChild,
-    ); // we triple click inside block2
+    );
     expect(getContent(el)).toBe("<p>block1</p><p>[block2<br>block2]</p><p>block3</p>");
 });
 
@@ -134,7 +133,6 @@ describe("documentSelectionIsInEditable", () => {
         let selectionData = editor.shared.selection.getSelectionData();
         expect(selectionData.documentSelectionIsInEditable).toBe(true);
         selection.setPosition(document.body);
-        // The value is updated directly.
         selectionData = editor.shared.selection.getSelectionData();
         expect(selectionData.documentSelectionIsInEditable).toBe(false);
     });
@@ -146,8 +144,6 @@ test("getSelectionData should validate the offsets of activeSelection", async ()
     expect(selection.startOffset).toBe(1);
     expect(selection.endOffset).toBe(2);
 
-    // Simulate getSelection() returning null while activeSelection holds an
-    // offset beyond the node length (an edge case observed in Chrome).
     patchWithCleanup(document, {
         getSelection: () => null,
     });
@@ -168,7 +164,6 @@ test("setEditableSelection should not crash if getSelection returns null", async
     expect(selection.startOffset).toBe(1);
     expect(selection.endOffset).toBe(2);
 
-    // it happens sometimes in firefox that the selection is null
     patchWithCleanup(document, {
         getSelection: () => null,
     });
@@ -178,7 +173,6 @@ test("setEditableSelection should not crash if getSelection returns null", async
         anchorOffset: 0,
     });
 
-    // Selection could not be set, so it remains unchanged.
     expect(selection.startOffset).toBe(1);
     expect(selection.endOffset).toBe(2);
 });
@@ -189,8 +183,6 @@ test("getSelectionData should use the range of the document selection to set off
     expect(selection.startOffset).toBe(0);
     expect(selection.endOffset).toBe(0);
 
-    // Simulate the broken behavior of Safari where getSelection returns a selection
-    // with offsets outside of the actual node length, and the range is correct.
     patchWithCleanup(document, {
         getSelection: () => ({
             ...selection,
@@ -218,8 +210,6 @@ test("active selection shouldn't change when document selection is inconsistent 
     expect(selection.startOffset).toBe(0);
     expect(selection.endOffset).toBe(0);
 
-    // Simulate a broken DOM selection whose anchor/focus nodes are inconsistent
-    // with its range.
     patchWithCleanup(document, {
         getSelection: () => ({
             ...selection,
@@ -249,14 +239,12 @@ test("modifySelection should not crash if getSelection returns null", async () =
     expect(selection.startOffset).toBe(1);
     expect(selection.endOffset).toBe(2);
 
-    // it happens sometimes in firefox that the selection is null
     patchWithCleanup(document, {
         getSelection: () => null,
     });
 
     selection = editor.shared.selection.modifySelection("extend", "backward", "word");
 
-    // Selection could not be modified.
     expect(selection.startOffset).toBe(1);
     expect(selection.endOffset).toBe(2);
 });
@@ -301,12 +289,10 @@ test("should focus the nearest editable ancestor when selection is inside a non-
     const p = queryOne('p[contenteditable="true"]');
     expect(p).toBeFocused();
 
-    // Moved focus outside of the editable
     p.blur();
     expect(document.body).toBeFocused();
 
     editor.shared.selection.focusEditable();
-    // Focus should be on the closest editable element of the selection
     expect(p).toBeFocused();
 });
 
@@ -359,16 +345,12 @@ test("restore a selection when you are not in the editable shouldn't move the fo
     await animationFrame();
     expect("input.test").toBeFocused();
 
-    // Something triggers a restore.
     const cursors = editor.shared.selection.preserveSelection();
     cursors.restore();
     expect("input.test").toBeFocused();
 });
 
 test("preserveSelection's restore should always set the selection, even if it's the same as the current one", async () => {
-    // Chrome may render the selection at a different position than the one
-    // returned by document.getSelection(); setting it again, even to the same
-    // value, works around it.
     const { editor } = await setupEditor("<p>ab[]cd</p>");
     patchWithCleanup(editor.document.getSelection(), {
         setBaseAndExtent: () => {
@@ -439,7 +421,6 @@ describe("getTargetedNodes", () => {
         describe("across inline elements", () => {
             test("should include a selected inline element (from its left outer edge)", async () => {
                 const { editor } = await setupEditor("<p>ab[<span>cd</span>ef]</p>");
-                // "ab" isn't included because no part of it is selected.
                 expect(nameNodes(editor.shared.selection.getTargetedNodes())).toEqual([
                     "SPAN",
                     "cd",
@@ -458,7 +439,6 @@ describe("getTargetedNodes", () => {
 
             test("should include a selected inline element (until its right outer edge)", async () => {
                 const { editor } = await setupEditor("<p>[ab<span>cd</span>]ef</p>");
-                // "ef" isn't included because no part of it is selected.
                 expect(nameNodes(editor.shared.selection.getTargetedNodes())).toEqual([
                     "ab",
                     "SPAN",
@@ -482,9 +462,9 @@ describe("getTargetedNodes", () => {
                 const { el: editable, editor } = await setupEditor(
                     "<p>ab[cd</p><p>ef]gh</p>",
                 );
-                const p1 = editable.firstChild; // The selection crossed `</p>` -> include it.
+                const p1 = editable.firstChild;
                 const abcd = p1.firstChild;
-                const p2 = editable.childNodes[1]; // The selection crossed `<p>` -> include it.
+                const p2 = editable.childNodes[1];
                 const efgh = p2.firstChild;
                 const result = editor.shared.selection.getTargetedNodes();
                 expect(result).toEqual([p1, abcd, p2, efgh]);
@@ -494,9 +474,9 @@ describe("getTargetedNodes", () => {
                 const { el: editable, editor } = await setupEditor(
                     "<p>ab[cd</p><p><br>]</p>",
                 );
-                const p1 = editable.firstChild; // The selection crossed `</p>` -> include it.
+                const p1 = editable.firstChild;
                 const abcd = p1.firstChild;
-                const p2 = editable.childNodes[1]; // The selection crossed `<p>` -> include it.
+                const p2 = editable.childNodes[1];
                 const br = p2.firstChild;
                 const result = editor.shared.selection.getTargetedNodes();
                 expect(result).toEqual([p1, abcd, p2, br]);
@@ -506,11 +486,11 @@ describe("getTargetedNodes", () => {
                 const { el: editable, editor } = await setupEditor(
                     "<p>[ab</p><p>cd</p><p>ef]gh</p>",
                 );
-                const p1 = editable.firstChild; // The selection crossed `</p>` -> include it.
+                const p1 = editable.firstChild;
                 const ab = p1.firstChild;
                 const p2 = p1.nextSibling;
                 const cd = p2.firstChild;
-                const p3 = p2.nextSibling; // The selection crossed `<p>` -> include it.
+                const p3 = p2.nextSibling;
                 const ef = p3.firstChild;
                 const result = editor.shared.selection.getTargetedNodes();
                 expect(result).toEqual([p1, ab, p2, cd, p3, ef]);
@@ -521,9 +501,9 @@ describe("getTargetedNodes", () => {
                     "<div><p>a[bc</p><div>d]ef</div></div>",
                 );
                 const outerDiv = editable.querySelector("div");
-                const p1 = outerDiv.firstChild; // The selection crossed `</p>` -> include it.
+                const p1 = outerDiv.firstChild;
                 const abc = p1.firstChild;
-                const innerDiv = p1.nextSibling; // The selection crossed `<div>` -> include it.
+                const innerDiv = p1.nextSibling;
                 const def = innerDiv.firstChild;
                 const result = editor.shared.selection
                     .getTargetedNodes()
@@ -552,16 +532,15 @@ describe("getTargetedNodes", () => {
                 const { el: editable, editor } = await setupEditor(
                     `<p><span class="a">ab[</span>cd</p><div><p><span class="b"><b>e</b><i>f]g</i>h</span></p></div>`,
                 );
-                const p1 = editable.firstChild; // The selection crossed `</p>` -> include it.
-                const span1 = p1.firstChild; // The selection crossed `</span>` -> include it.
-                // "ab" isn't included because no part of it is selected.
+                const p1 = editable.firstChild;
+                const span1 = p1.firstChild;
                 const cd = p1.lastChild;
                 const div = editable.querySelector("div");
                 const p2 = div.firstChild;
-                const span2 = p2.firstChild; // The selection crossed `<span class="b">` -> include it.
+                const span2 = p2.firstChild;
                 const b = span2.firstChild;
                 const e = b.firstChild;
-                const i = b.nextSibling; // The selection crossed `<i>` -> include it.
+                const i = b.nextSibling;
                 const fg = i.firstChild;
                 const result = editor.shared.selection
                     .getTargetedNodes()
@@ -610,7 +589,7 @@ describe("getTargetedNodes", () => {
                 const ab = p1.firstChild;
                 const br = ab.nextSibling;
                 const cd = br.nextSibling;
-                const p2 = editable.lastChild; // The selection crossed `<p>` -> include it.
+                const p2 = editable.lastChild;
                 const ef = p2.firstChild;
                 const result = editor.shared.selection.getTargetedNodes();
                 expect(result).toEqual([p1, ab, br, cd, p2, ef]);
@@ -620,7 +599,7 @@ describe("getTargetedNodes", () => {
                 const { el: editable, editor } = await setupEditor(
                     "<p>[ab<br>cd</p><p>ef</p>]",
                 );
-                const p1 = editable.firstChild; // The selection crossed `</p>` -> include it.
+                const p1 = editable.firstChild;
                 const ab = p1.firstChild;
                 const br = ab.nextSibling;
                 const cd = br.nextSibling;
@@ -635,9 +614,8 @@ describe("getTargetedNodes", () => {
             test("should include intersected blocks, including an empty one (selection across two blocks, from/to inner right edge)", async () => {
                 const { el: editable, editor } =
                     await setupEditor("<p>ab[</p><p>cd]</p>");
-                const p1 = editable.childNodes[0]; // The selection crossed `</p>` -> include it.
-                // "ab" isn't included because no part of it is selected.
-                const p2 = p1.nextSibling; // The selection crossed `<p>` -> include it.
+                const p1 = editable.childNodes[0];
+                const p2 = p1.nextSibling;
                 const cd = p2.firstChild;
                 const result = editor.shared.selection.getTargetedNodes();
                 expect(result).toEqual([p1, p2, cd]);
@@ -646,9 +624,8 @@ describe("getTargetedNodes", () => {
             test("<p>ab[</p><p>cd</p>]", async () => {
                 const { el: editable, editor } =
                     await setupEditor("<p>ab[</p><p>cd</p>]");
-                const p1 = editable.childNodes[0]; // The selection crossed `</p>` -> include it.
-                // "ab" isn't included because no part of it is selected.
-                const p2 = p1.nextSibling; // The selection crossed `<p>` -> include it.
+                const p1 = editable.childNodes[0];
+                const p2 = p1.nextSibling;
                 const cd = p2.firstChild;
                 const result = editor.shared.selection.getTargetedNodes();
                 expect(result).toEqual([p1, p2, cd]);
@@ -659,11 +636,8 @@ describe("getTargetedNodes", () => {
                 const { el: editable, editor } = await setupEditor(
                     "<p>abcd[</p><p>]<br></p>",
                 );
-                const p1 = editable.childNodes[0]; // The selection crossed `</p>` -> include it.
-                // "abcd" isn't included because no part of it is selected.
-                const p2 = p1.nextSibling; // The selection crossed `<p>` -> include it.
-                // The BR is not included because the selection ended at (p2,
-                // 0), not in the BR.
+                const p1 = editable.childNodes[0];
+                const p2 = p1.nextSibling;
                 const result = editor.shared.selection.getTargetedNodes();
                 expect(result).toEqual([p1, p2]);
             });
@@ -671,7 +645,6 @@ describe("getTargetedNodes", () => {
             test.tags("former triple-click");
             test("should include the targeted nodes until the beginning of a new block", async () => {
                 const { editor } = await setupEditor("<p>ab[cd</p><h1>]efgh</h1>");
-                // "efgh" isn't included because no part of it is selected.
                 expect(nameNodes(editor.shared.selection.getTargetedNodes())).toEqual([
                     "P",
                     "abcd",
@@ -685,8 +658,7 @@ describe("getTargetedNodes", () => {
                     await setupEditor("[<p>ab</p><p>]cd</p>");
                 const p1 = editable.firstChild;
                 const ab = p1.firstChild;
-                const p2 = p1.nextSibling; // The selection crossed `<p>` -> include it.
-                // "cd" isn't included because no part of it is selected.
+                const p2 = p1.nextSibling;
                 const result = editor.shared.selection.getTargetedNodes();
                 expect(result).toEqual([p1, ab, p2]);
             });
@@ -698,9 +670,7 @@ describe("getTargetedNodes", () => {
                 );
                 const p1 = editable.firstChild;
                 const ab = p1.firstChild;
-                const p2 = p1.nextSibling; // The selection crossed `<p>` -> include it.
-                // The BR is not included because the selection ended at (p2,
-                // 0), not in the BR.
+                const p2 = p1.nextSibling;
                 const result = editor.shared.selection.getTargetedNodes();
                 expect(result).toEqual([p1, ab, p2]);
             });
@@ -712,9 +682,7 @@ describe("getTargetedNodes", () => {
                 );
                 const p1 = editable.firstChild;
                 const ab = p1.firstChild;
-                const p2 = p1.nextSibling; // The selection crossed `<p>` -> include it.
-                // The BR is not included because the selection ended at (p2,
-                // 0), not in the BR.
+                const p2 = p1.nextSibling;
                 const result = editor.shared.selection.getTargetedNodes();
                 expect(result).toEqual([p1, ab, p2]);
             });
@@ -725,7 +693,7 @@ describe("getTargetedNodes", () => {
                 );
                 const p1 = editable.firstChild;
                 const ab = p1.firstChild;
-                const p2 = editable.lastChild; // The selection crossed `<p>` -> include it.
+                const p2 = editable.lastChild;
                 const firstBr = p2.firstChild;
                 const cd = firstBr.nextSibling;
                 const result = editor.shared.selection.getTargetedNodes();
@@ -736,7 +704,7 @@ describe("getTargetedNodes", () => {
                 const { el: editable, editor } = await setupEditor(
                     "<p>ab<br>[cd</p><p>ef</p>]",
                 );
-                const p1 = editable.firstChild; // The selection crossed `</p>` -> include it.
+                const p1 = editable.firstChild;
                 const ab = p1.firstChild;
                 const br = ab.nextSibling;
                 const cd = br.nextSibling;
@@ -763,11 +731,10 @@ describe("getTargetedNodes", () => {
                 );
                 const p1 = editable.firstChild;
                 const ab = p1.firstChild;
-                const p2 = editable.lastChild; // The selection crossed `<p>` -> include it.
+                const p2 = editable.lastChild;
                 const br1 = p2.firstChild;
                 const cd = br1.nextSibling;
                 const br2 = cd.nextSibling;
-                // "ef" isn't included because no part of it is selected.
                 const result = editor.shared.selection.getTargetedNodes();
                 expect(result).toEqual([p1, ab, p2, br1, cd, br2]);
             });
@@ -776,8 +743,7 @@ describe("getTargetedNodes", () => {
                 const { el: editable, editor } = await setupEditor(
                     "<p>ab[<br>cd</p><p>ef</p>]",
                 );
-                const p1 = editable.firstChild; // The selection crossed `</p>` -> include it.
-                // "ab" isn't included because no part of it is selected.
+                const p1 = editable.firstChild;
                 const br = p1.childNodes[1];
                 const cd = br.nextSibling;
                 const p2 = editable.lastChild;
@@ -792,7 +758,7 @@ describe("getTargetedNodes", () => {
                 );
                 const p1 = editable.firstChild;
                 const ab = p1.firstChild;
-                const p2 = editable.lastChild; // The selection crossed `<p>` -> include it.
+                const p2 = editable.lastChild;
                 const br1 = p2.firstChild;
                 const cd = br1.nextSibling;
                 const br2 = cd.nextSibling;
@@ -806,7 +772,7 @@ describe("getTargetedNodes", () => {
                 );
                 const p1 = editable.firstChild;
                 const ab = p1.firstChild;
-                const p2 = editable.firstChild.nextSibling; // The selection crossed `<p>` -> include it.
+                const p2 = editable.firstChild.nextSibling;
                 const cd = p2.firstChild;
                 const br1 = cd.nextSibling;
                 const result = editor.shared.selection.getTargetedNodes();
@@ -817,7 +783,7 @@ describe("getTargetedNodes", () => {
                 const { el: editable, editor } = await setupEditor(
                     "<p>ab<br>[<br>cd</p><p>ef</p>]",
                 );
-                const p1 = editable.firstChild; // The selection crossed `</p>` -> include it.
+                const p1 = editable.firstChild;
                 const ab = p1.firstChild;
                 const br1 = ab.nextSibling;
                 const br2 = br1.nextSibling;
@@ -838,7 +804,6 @@ describe("getTargetedNodes", () => {
             const parent = editor.document.querySelector(
                 "div#parent-element-to-select",
             );
-            // `<div id="parent-element-to-select">[<img>]</div>`:
             range.setStart(parent, 0);
             range.setEnd(parent, 1);
             sel.removeAllRanges();
@@ -853,11 +818,9 @@ describe("getTargetedNodes", () => {
                 const { el: editable, editor } = await setupEditor(
                     "<table><tbody><tr><td>abcd[e</td><td>f]g</td></tr></tbody></table>",
                 );
-                // The special table selection implies the two table cells are
-                // fully marked as selected.
-                const td1 = editable.querySelector("td"); // The selection crossed `</td>` -> include it.
+                const td1 = editable.querySelector("td");
                 const abcde = td1.firstChild;
-                const td2 = td1.nextSibling; // The selection crossed `<td>` -> include it.
+                const td2 = td1.nextSibling;
                 const fg = td2.firstChild;
                 const result = editor.shared.selection.getTargetedNodes();
                 expect(result).toEqual([td1, abcde, td2, fg]);
@@ -867,14 +830,12 @@ describe("getTargetedNodes", () => {
                 const { el: editable, editor } = await setupEditor(
                     "<table><tbody><tr><td>abcd<br>[<br>e</td><td>f]g</td></tr></tbody></table>",
                 );
-                // The special table selection implies the two table cells are
-                // fully marked as selected.
-                const td1 = editable.querySelector("td"); // The selection crossed `</td>` -> include it.
-                const abcd = td1.firstChild; // Special table selection -> full TD contents included.
-                const br1 = abcd.nextSibling; // Special table selection -> full TD contents included.
+                const td1 = editable.querySelector("td");
+                const abcd = td1.firstChild;
+                const br1 = abcd.nextSibling;
                 const br2 = br1.nextSibling;
                 const e = br2.nextSibling;
-                const td2 = td1.nextSibling; // The selection crossed `<td>` -> include it.
+                const td2 = td1.nextSibling;
                 const fg = td2.firstChild;
                 const result = editor.shared.selection.getTargetedNodes();
                 expect(result).toEqual([td1, abcd, br1, br2, e, td2, fg]);
@@ -1301,16 +1262,6 @@ describe("selection setters", () => {
                 2,
             ]);
 
-            // @todo @phoenix normalize false is never use
-            // const nonNormalizedResult = getProcessSelection(editor.shared.selection.setCursorStart(gh, false));
-            // expect(nonNormalizedResult).toEqual([gh, 0, gh, 0]);
-            // const sel = document.getSelection();
-            // expect([sel.anchorNode, sel.anchorOffset, sel.focusNode, sel.focusOffset]).toEqual([
-            //     gh,
-            //     0,
-            //     gh,
-            //     0,
-            // ]);
         });
     });
 
@@ -1401,7 +1352,6 @@ test("should not autoscroll if selection is partially visible in viewport", asyn
     const lastParagraph = editable.lastElementChild;
     const fifthLastParagraph = editable.children[45];
 
-    // Select the last five paragraphs backwards.
     setSelection({
         anchorNode: lastParagraph,
         anchorOffset: 1,
@@ -1410,18 +1360,15 @@ test("should not autoscroll if selection is partially visible in viewport", asyn
     });
     await animationFrame();
 
-    // Both ends of the selection are initially visible in the viewport.
     expect(isInViewPort(fifthLastParagraph)).toBe(true);
     expect(isInViewPort(lastParagraph)).toBe(true);
 
-    // Scroll above so that last paragraph becomes invisible in viewport.
     scrollableElement.scrollTop -= 70;
     await animationFrame();
     expect(isInViewPort(lastParagraph)).toBe(false);
     expect(isInViewPort(fifthLastParagraph)).toBe(true);
 
     const scrollTop = scrollableElement.scrollTop;
-    // Extend the selection to include one more paragraph above.
     setSelection({
         anchorNode: lastParagraph,
         anchorOffset: 1,
@@ -1430,7 +1377,6 @@ test("should not autoscroll if selection is partially visible in viewport", asyn
     });
     await animationFrame();
 
-    // Ensure that extending selection did not trigger any auto-scrolling.
     expect(scrollableElement.scrollTop).toBe(scrollTop);
     expect(isInViewPort(lastParagraph)).toBe(false);
 });

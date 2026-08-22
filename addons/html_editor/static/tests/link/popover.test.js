@@ -37,10 +37,8 @@ describe("should open a popover", () => {
     test("should open a popover when the selection is inside a link and close outside of a link", async () => {
         const { el } = await setupEditor("<p>this is a <a>link</a></p>");
         await expectElementCount(".o-we-linkpopover", 0);
-        // selection inside a link
         setContent(el, "<p>this is a <a>li[]nk</a></p>");
         await expectElementCount(".o-we-linkpopover", 1);
-        // selection outside a link
         setContent(el, "<p>this []is a <a>link</a></p>");
         await expectElementCount(".o-we-linkpopover", 0);
     });
@@ -49,7 +47,6 @@ describe("should open a popover", () => {
             '<p>this []is a <a href="http://test.test/">l<b>in</b>k</a></p>',
         );
         await expectElementCount(".o-we-linkpopover", 0);
-        // selection inside a link
         const aNode = queryOne("a");
         setSelection({
             anchorNode: aNode,
@@ -58,11 +55,9 @@ describe("should open a popover", () => {
             focusOffset: 3,
         });
         await expectElementCount(".o-we-linkpopover", 1);
-        // FEFF is taken into account in the index
         expect(cleanLinkArtifacts(getContent(el))).toBe(
             '<p>this is a <a href="http://test.test/">l<b>in</b>[]k</a></p>',
         );
-        // Another selection in the same link
         setSelection({
             anchorNode: aNode,
             anchorOffset: 0,
@@ -119,7 +114,6 @@ describe("should open a popover", () => {
         );
         await waitFor(".o-we-linkpopover");
         expect(".o-we-linkpopover").toHaveCount(1);
-        // Move the selection into the uneditable link
         const nodeEl = queryOne("a[contenteditable='false']");
         setSelection({ anchorNode: nodeEl, anchorOffset: 0 });
         await waitForNone(".o-we-linkpopover", { timeout: 1500 });
@@ -206,7 +200,6 @@ describe("popover should switch UI depending on editing state", () => {
         await waitFor(".o-we-linkpopover");
         await click(".o_we_edit_link");
         await waitFor(".o_we_href_input_link");
-        // This changes the selection to outside the editor.
         await click(".o_we_href_input_link");
         await tick();
         await press("a");
@@ -219,7 +212,6 @@ describe("popover should switch UI depending on editing state", () => {
     test("after clicking on apply button, the popover should be with the non editing mode, e.g. edit button", async () => {
         await setupEditor("<p>this is a <a>li[]nk</a></p>");
         await waitFor(".o-we-linkpopover");
-        // This changes the selection to outside the editor.
         await click(".o_we_href_input_link");
         await tick();
         await fill("test-href.com");
@@ -235,7 +227,6 @@ describe("popover should switch UI depending on editing state", () => {
         );
         await waitFor(".o-we-linkpopover", { timeout: 1500 });
         await insertText(editor, "ABCD");
-        // Discard should not remove changes done directly to the link text
         await click(".o_we_edit_link");
         await waitFor(".o_we_href_input_link");
         await click(".o_we_discard_link");
@@ -548,7 +539,6 @@ describe("Link creation", () => {
             await click(".o-we-command-name:first");
             await expectElementCount(".o-we-linkpopover", 1);
             expect(cleanLinkArtifacts(getContent(el))).toBe("<p>ab</p>");
-            // simulate click outside
             const pNode = queryOne("p");
             setSelection({
                 anchorNode: pNode,
@@ -643,7 +633,6 @@ describe("Link creation", () => {
             await contains(".o-we-linkpopover input.o_we_href_input_link").fill(
                 "http://test.test/",
             );
-            // press("Enter");
             splitBlock(editor);
             expect(cleanLinkArtifacts(getContent(el))).toBe(
                 `<p>ab<a href="http://test.test/">link</a></p><p o-we-hint-text='Type "/" for commands' class="o-we-hint">[]<br></p>`,
@@ -658,7 +647,6 @@ describe("Link creation", () => {
             await contains(".o-we-linkpopover input.o_we_href_input_link").fill(
                 "http://test.test/",
             );
-            // press("Enter");
             splitBlock(editor);
             await insertText(editor, "D");
             expect(cleanLinkArtifacts(getContent(el))).toBe(
@@ -674,7 +662,6 @@ describe("Link creation", () => {
             await contains(".o-we-linkpopover input.o_we_href_input_link").fill(
                 "http://test.test/",
             );
-            // press("Enter");
             insertLineBreak(editor);
             expect(cleanLinkArtifacts(getContent(el))).toBe(
                 '<p>a<a href="http://test.test/">link</a><br>[]b</p>',
@@ -689,7 +676,6 @@ describe("Link creation", () => {
             await contains(".o-we-linkpopover input.o_we_href_input_link").fill(
                 "http://test.test/",
             );
-            // press("Enter");
             insertLineBreak(editor);
             await insertText(editor, "D");
             expect(cleanLinkArtifacts(getContent(el))).toBe(
@@ -782,7 +768,6 @@ describe("Link creation", () => {
         test("should set the link on two existing characters", async () => {
             const { el } = await setupEditor("<p>H[el]lo</p>");
             await waitFor(".o-we-toolbar");
-            // link button should be enabled
             expect('.o-we-toolbar button[name="link"]').not.toHaveClass("disabled");
             expect('.o-we-toolbar button[name="link"]').not.toHaveAttribute("disabled");
             await click(".o-we-toolbar .fa-link");
@@ -796,7 +781,6 @@ describe("Link creation", () => {
         test("should not allow to create a link if selection span multiple block", async () => {
             const { el } = await setupEditor("<p>H[ello</p><p>wor]ld</p>");
             await waitFor(".o-we-toolbar");
-            // link button should be disabled
             expect('.o-we-toolbar button[name="link"]').toHaveClass("disabled");
             expect('.o-we-toolbar button[name="link"]').toHaveAttribute("disabled");
             await click('.o-we-toolbar button[name="link"]');
@@ -906,7 +890,6 @@ describe("Link creation", () => {
             const { el, editor } = await setupEditor("<p>[Hello]</p>");
             await waitFor(".o-we-toolbar");
             await click(".o-we-toolbar .fa-link");
-            // not validated link shouldn't affect the DOM yet
             expect(cleanLinkArtifacts(getContent(el))).toBe("<p>[Hello]</p>");
             await contains(".o-we-linkpopover input.o_we_href_input_link", {
                 timeout: 1500,
@@ -922,7 +905,6 @@ describe("Link creation", () => {
             const { el, editor } = await setupEditor("<p><b>[Hello]</b></p>");
             await waitFor(".o-we-toolbar");
             await click(".o-we-toolbar .fa-link");
-            // not validated link shouldn't affect the DOM yet
             expect(cleanLinkArtifacts(getContent(el))).toBe("<p><b>[Hello]</b></p>");
             await contains(".o-we-linkpopover input.o_we_href_input_link").edit(
                 "http://test.test/",
@@ -1136,9 +1118,9 @@ describe("Link formatting in the popover", () => {
         await click(".o_we_discard_link");
         expect(cleanLinkArtifacts(getContent(el))).toBe("<p>[link1]</p>");
         await animationFrame();
-        await waitForNone(".o-we-linkpopover"); // Popover should be closed.
+        await waitForNone(".o-we-linkpopover");
         await animationFrame();
-        await waitFor(".o-we-toolbar"); // Toolbar should reopen.
+        await waitFor(".o-we-toolbar");
     });
     test("when no label input, the link should have the content of the url", async () => {
         const { el, editor } = await setupEditor("<p>ab[]</p>");
@@ -1174,10 +1156,8 @@ describe("shortcut", () => {
     test.tags("desktop");
     test("create a link with shortcut", async () => {
         const { el } = await setupEditor(`<p>[]<br></p>`);
-        // open odoo command bar
         await press(["ctrl", "k"]);
         await waitFor('.o_command span[title="Create link"]');
-        // open link tool
         await click(".o_command_name:first");
         await waitFor(".o-we-linkpopover");
         await contains(".o-we-linkpopover input.o_we_href_input_link").edit("test.com");
@@ -1188,10 +1168,8 @@ describe("shortcut", () => {
     test.tags("desktop");
     test("should be able to create link with ctrl+k and ctrl+k", async () => {
         const { el } = await setupEditor(`<p>[]<br></p>`);
-        // Open odoo global command bar
         await press(["ctrl", "k"]);
         await waitFor('.o_command span[title="Create link"]');
-        // Choose the "create link" command to create a link in the editor
         await press(["ctrl", "k"]);
         await waitFor(".o-we-linkpopover");
         await contains(".o-we-linkpopover input.o_we_href_input_link").edit("test.com");
@@ -1225,11 +1203,8 @@ describe("shortcut", () => {
 
         await animationFrame();
         expect(".o_we_href_input_link").toBeFocused();
-        // Tab through all focusable elements
         await press("Tab");
         await animationFrame();
-        // The URL field is followed by the "upload a file" button, which is
-        // part of the focus trap cycle.
         expect("button:has(i.fa-upload)").toBeFocused();
         await press("Tab");
         await animationFrame();
@@ -1241,12 +1216,10 @@ describe("shortcut", () => {
         await animationFrame();
         expect(".o_we_discard_link").toBeFocused();
 
-        // One more Tab should wrap to first element
         await press("Tab");
         await animationFrame();
         expect(".o_we_label_link").toBeFocused();
 
-        // Shift+Tab should wrap to the last element
         await press(["Shift", "Tab"]);
         await animationFrame();
         expect(".o_we_discard_link").toBeFocused();
@@ -1655,10 +1628,8 @@ describe("readonly mode", () => {
             '<p><a class="o_link_readonly" href="http://test.test/">link[]</a></p>',
         );
         await waitFor(".o-we-linkpopover");
-        // Edit button should not be available.
         expect(".o-we-linkpopover .o_we_edit_link").toHaveCount(0);
     });
-    // TODO: confirm the expected behaviour for a non-editable image.
     test.todo("popover should not open for not editable image", async () => {
         await setupEditor(
             `<a href="#"><img src="${base64Img}" contenteditable="false"></a>`,
@@ -1675,9 +1646,7 @@ describe("link in contenteditable=false", () => {
             '<p contenteditable="false"><a contenteditable="true" href="http://test.test/">link[]</a></p>',
         );
         await waitFor(".o-we-linkpopover");
-        // Edit link button should be available
         expect(".o-we-linkpopover .o_we_edit_link").toHaveCount(1);
-        // Remove link button should not be available
         expect(".o-we-linkpopover .o_we_remove_link").toHaveCount(0);
     });
     test("toolbar should not display unlink button if link is in a contenteditable=false", async () => {
@@ -1685,9 +1654,7 @@ describe("link in contenteditable=false", () => {
             '<p contenteditable="false"><a contenteditable="true" href="http://test.test/">l[in]k</a></p>',
         );
         await waitFor(".o-we-toolbar");
-        // Link button should be available and active
         expect(".o-we-toolbar button.active .fa-link").toHaveCount(1);
-        // Unlink button should not be available
         expect(".o-we-toolbar .fa-unlink").toHaveCount(0);
     });
 });
@@ -1701,16 +1668,13 @@ describe("upload file via link popover", () => {
         });
         execCommand(editor, "openLinkTools");
         await waitFor(".o-we-linkpopover");
-        // Upload button should be present
         expect("button i[class='fa-solid fa-upload']").toHaveCount(1);
         await click(".o_we_href_input_link");
         await press("a");
         await animationFrame();
-        // Upload button should NOT be present
         expect("button i[class='fa-solid fa-upload']").toHaveCount(0);
         await press("Backspace");
         await animationFrame();
-        // Upload button should be present again
         expect("button i[class='fa-solid fa-upload']").toHaveCount(1);
     });
     const patchUpload = (editor) => {
@@ -1736,14 +1700,11 @@ describe("upload file via link popover", () => {
         await click("button i[class='fa-solid fa-upload']");
         await mockedUpload;
         await animationFrame();
-        // URL input gets filled with the attachment's URL
         const expectedUrl = "/web/content/1?unique=123&download=true";
         expect(".o_we_href_input_link").toHaveValue(expectedUrl);
-        // Label input gets filled with the file's name
         expect(".o_we_label_link").toHaveValue("file.txt");
         await click(".o_we_apply_link");
         await animationFrame();
-        // Created link has the correct href and label
         expect(cleanLinkArtifacts(getContent(el))).toBe(
             `<p><a href="${expectedUrl}" data-attachment-id="1">file.txt[]</a></p>`,
         );
@@ -1783,13 +1744,10 @@ describe("upload file via link popover", () => {
         const mockedUpload = patchUpload(editor);
         execCommand(editor, "openLinkTools");
         await waitFor(".o-we-linkpopover");
-        // Fill label input
         await contains(".o-we-linkpopover input.o_we_label_link").fill("label");
-        // Upload a file
         await click("button i[class='fa-solid fa-upload']");
         await mockedUpload;
         await animationFrame();
-        // Label remains unchanged
         expect(".o_we_label_link").toHaveValue("label");
     });
 
@@ -1846,7 +1804,6 @@ describe("hidden label field", () => {
             `<p><a href="http://test.com/"><img src="${base64Img}">te[]xt</a></p>`,
         );
         await expectElementCount(".o-we-linkpopover", 1);
-        // open edit mode and check if label input is hidden
         await click(".o_we_edit_link");
         await waitFor(".o_we_href_input_link", { timeout: 1500 });
         expect(".o_we_label_link").not.toBeVisible();
@@ -1894,7 +1851,6 @@ describe("link popover with empty URL", () => {
         );
         await contains(".o-we-linkpopover input.o_we_href_input_link").clear();
         await click(el);
-        // Simulate click outside
         const pNode = queryOne("p");
         setSelection({
             anchorNode: pNode,
@@ -1902,7 +1858,7 @@ describe("link popover with empty URL", () => {
             focusNode: pNode,
             focusOffset: 0,
         });
-        await tick(); // wait for selection change.
+        await tick();
         await waitForNone(".o-we-linkpopover", { timeout: 1500 });
         expect(getContent(el)).toBe(
             '<p>[]ab\ufeff<a href="#">\ufefflabel\ufeff</a>\ufeff</p>',
@@ -1917,7 +1873,7 @@ describe("link popover with empty URL", () => {
         await fill("http://test.com/");
         queryOne(".o_we_label_link").focus();
         expect(".o-we-linkpopover input.o_we_label_link").toHaveValue("abc");
-        await fill("d"); // Change label value
+        await fill("d");
         expect(".o-we-linkpopover input.o_we_label_link").toHaveValue("abcd");
         expect(cleanLinkArtifacts(getContent(el))).toBe(
             '<p><a href="http://test.com/">abcd</a></p>',
@@ -1925,7 +1881,6 @@ describe("link popover with empty URL", () => {
         await contains(".o-we-linkpopover input.o_we_href_input_link").clear();
 
         await click(el);
-        // Simulate click outside
         const pNode = queryOne("p");
         setSelection({
             anchorNode: pNode,
@@ -1933,7 +1888,7 @@ describe("link popover with empty URL", () => {
             focusNode: pNode,
             focusOffset: 0,
         });
-        await tick(); // wait for selection change.
+        await tick();
         await waitForNone(".o-we-linkpopover", { timeout: 1500 });
         expect(getContent(el)).toBe(
             '<p>[]\ufeff<a href="#">\ufeffabcd\ufeff</a>\ufeff</p>',
@@ -1947,7 +1902,6 @@ describe("link popover with empty URL", () => {
         await click(".o_we_edit_link");
         await contains(".o-we-linkpopover input.o_we_href_input_link").clear();
         await click(el);
-        // Simulate click outside
         const pNode = queryOne("p");
         setSelection({
             anchorNode: pNode,
@@ -1955,7 +1909,7 @@ describe("link popover with empty URL", () => {
             focusNode: pNode,
             focusOffset: 0,
         });
-        await tick(); // wait for selection change.
+        await tick();
         await waitForNone(".o-we-linkpopover", { timeout: 1500 });
         expect(cleanLinkArtifacts(getContent(el))).toBe(
             '<p>[]this is a <a href="#">link</a></p>',
@@ -1970,7 +1924,6 @@ describe("link popover with empty URL", () => {
         await waitFor(".o_we_href_input_link");
         await contains(".o-we-linkpopover input.o_we_href_input_link").clear();
         await click(el);
-        // Simulate click outside
         const pNode = queryOne("p");
         setSelection({
             anchorNode: pNode,
@@ -1978,7 +1931,7 @@ describe("link popover with empty URL", () => {
             focusNode: pNode,
             focusOffset: 0,
         });
-        await tick(); // wait for selection change.
+        await tick();
         await waitForNone(".o-we-linkpopover", { timeout: 1500 });
         expect(getContent(el)).toBe(
             `<p>[]<a href="http://test.test/"><img src="${base64Img}"></a></p>`,

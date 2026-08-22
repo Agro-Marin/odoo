@@ -27,22 +27,22 @@ export const DEFAULT_IMAGE_QUALITY = "92";
 
 /**
  * @typedef {(
- *   (img: HTMLImageElement, newDataset: object) => Promise<{
- *     getHeight: (canvas: HTMLCanvasElement) => number,
- *     perspective: string | null,
- *     newDataset: object,
- *     postProcessCroppedCanvas: (canvas: HTMLCanvasElement) => Promise<HTMLCanvasElement>,
- *     svg: SVGElement,
- *     svgAspectRatio: number,
- *     svgWidth: number,
- *   }>
+ * (img: HTMLImageElement, newDataset: object) => Promise<{
+ * getHeight: (canvas: HTMLCanvasElement) => number,
+ * perspective: string | null,
+ * newDataset: object,
+ * postProcessCroppedCanvas: (canvas: HTMLCanvasElement) => Promise<HTMLCanvasElement>,
+ * svg: SVGElement,
+ * svgAspectRatio: number,
+ * svgWidth: number,
+ * }>
  * )[]} process_image_warmup_handlers
  * @typedef {(
- *   (
- *     url: string,
- *     newDataset: object,
- *     processContext: { svg: SVGElement, svgAspectRatio: number, svgWidth: number }
- *   ) => Promise<[newUrl: string, handlerDataset: object]>
+ * (
+ * url: string,
+ * newDataset: object,
+ * processContext: { svg: SVGElement, svgAspectRatio: number, svgWidth: number }
+ * ) => Promise<[newUrl: string, handlerDataset: object]>
  * )[]} process_image_post_handlers
  * @typedef {((args: {imageEl: HTMLElement}) => void)[]} on_image_updated_handlers
  */
@@ -53,15 +53,10 @@ export class ImagePostProcessPlugin extends Plugin {
     static shared = ["processImage", "getProcessedImageSize"];
 
     /**
-     * Applies data-attributes modifications to an img tag and returns a dataURL
-     * containing the result. This function does not modify the original image.
-     *
-     * @param {HTMLImageElement} img the image to which modifications are applied
-     * @param {Object} newDataset an object containing the modifications to apply
-     * @param {Function} [onImageInfoLoaded] can be used to fill
-     * newDataset after having access to image info, return true to cancel call
-     * @returns {{ url: string, newDataset: object }} Object containing the image
-     * URL and the updated dataset.
+     * @param {HTMLImageElement} img
+     * @param {Object} newDataset
+     * @param {Function} [onImageInfoLoaded]
+     * @returns {{ url: string, newDataset: object }}
      */
     async _processImage({ img, newDataset = {}, onImageInfoLoaded }) {
         const processContext = {};
@@ -99,7 +94,6 @@ export class ImagePostProcessPlugin extends Plugin {
 
         const { postProcessCroppedCanvas, perspective, getHeight } = processContext;
 
-        // loadImage may have ended up loading a different src (see: LOAD_IMAGE_404)
         const originalImg = await loadImage(data.originalSrc);
         const originalSrc = originalImg.getAttribute("src");
 
@@ -116,7 +110,6 @@ export class ImagePostProcessPlugin extends Plugin {
             );
             return { url: postUrl, newDataset: postDataset };
         }
-        // Crop
         const container = document.createElement("div");
         container.appendChild(originalImg);
         const cropper = await activateCropper(originalImg, aspectRatio, data);
@@ -125,7 +118,6 @@ export class ImagePostProcessPlugin extends Plugin {
         const processedCanvas =
             (await postProcessCroppedCanvas?.(croppedCanvas)) || croppedCanvas;
 
-        // Width
         const canvas = document.createElement("canvas");
         canvas.width = resizeWidth || processedCanvas.width;
         canvas.height = getHeight
@@ -138,11 +130,7 @@ export class ImagePostProcessPlugin extends Plugin {
         ctx.msImageSmoothingEnabled = true;
         ctx.imageSmoothingEnabled = true;
 
-        // Perspective 3D
         if (perspective) {
-            // x, y coordinates of the corners of the image as a percentage
-            // (relative to the width or height of the image) needed to apply
-            // the 3D effect.
             const points = JSON.parse(perspective);
             const divisions = 10;
             const w = processedCanvas.width,
@@ -152,19 +140,19 @@ export class ImagePostProcessPlugin extends Plugin {
                 [
                     (canvas.width / 100) * points[0][0],
                     (canvas.height / 100) * points[0][1],
-                ], // Top-left [x, y]
+                ],
                 [
                     (canvas.width / 100) * points[1][0],
                     (canvas.height / 100) * points[1][1],
-                ], // Top-right [x, y]
+                ],
                 [
                     (canvas.width / 100) * points[2][0],
                     (canvas.height / 100) * points[2][1],
-                ], // bottom-right [x, y]
+                ],
                 [
                     (canvas.width / 100) * points[3][0],
                     (canvas.height / 100) * points[3][1],
-                ], // bottom-left [x, y]
+                ],
             ]);
 
             for (let i = 0; i < divisions; i++) {
@@ -235,7 +223,6 @@ export class ImagePostProcessPlugin extends Plugin {
             );
         }
 
-        // GL filter
         const canUseWebGL = glFilter && isWebGLEnabled() && window.WebGLImageFilter;
         if (canUseWebGL) {
             const glf = new window.WebGLImageFilter();
@@ -258,11 +245,9 @@ export class ImagePostProcessPlugin extends Plugin {
             );
         }
 
-        // Color filter
         ctx.fillStyle = filter || "#0000";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Quality
         newDataset.mimetype = formatMimetype || mimetypeBeforeConversion;
         const dataURL = canvas.toDataURL(newDataset.mimetype, quality / 100);
         const newSize = getDataURLBinarySize(dataURL);
@@ -341,8 +326,6 @@ export function getImageTransformationData(dataset) {
     if (!("quality" in data)) {
         data.quality = DEFAULT_IMAGE_QUALITY;
     }
-    // todo: this information could be inferred from x/y/width/height dataset
-    // properties.
     data.aspectRatio = data.aspectRatio ? getAspectRatio(data.aspectRatio) : 0;
     return data;
 }
@@ -380,7 +363,6 @@ export async function isImageSupportedForProcessing(imgEl, originalImgMimetype) 
     return !!(imgEl.dataset.originalSrc || (await loadImageInfo(imgEl)).originalSrc);
 }
 
-// webgl color filters
 const _applyAll = (result, filter, filters) => {
     filters.forEach((f) => {
         if (f[0] === "blend") {
@@ -467,7 +449,6 @@ const glFilters = {
         ]);
     },
 
-    // Needs hue blending mode for perfect reproduction. Close enough?
     maven: (filter, cv) => {
         applyAll(filter, [
             ["sepia", 0.25],

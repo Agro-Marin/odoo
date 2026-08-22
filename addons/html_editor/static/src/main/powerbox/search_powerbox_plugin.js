@@ -27,7 +27,6 @@ export class SearchPowerboxPlugin extends Plugin {
                 const selection = this.dependencies.selection.getEditableSelection();
                 this.historySavePointRestore =
                     this.dependencies.history.makeSavePoint();
-                // Anchor element for powerbox opened via power buttons.
                 this.powerButtonAnchorEl = closestElement(selection.anchorNode);
                 this.openSearchPowerbox();
             },
@@ -151,9 +150,6 @@ export class SearchPowerboxPlugin extends Plugin {
         });
         this.shouldUpdate = true;
     }
-    /**
-     * @deprecated
-     */
     openPowerbox() {
         const selection = this.dependencies.selection.getEditableSelection();
         this.offset = selection.startOffset - 1;

@@ -2,15 +2,12 @@
 import { Plugin } from "@html_editor/plugin";
 import { compareIds } from "@html_editor/utils/ids";
 
-// 60 seconds
 export const HISTORY_SNAPSHOT_INTERVAL = 1000 * 60;
-// 10 seconds
 const HISTORY_SNAPSHOT_BUFFER_TIME = 1000 * 10;
 
 /**
  * @typedef { Object } CollaborationPluginConfig
  * @property { string } peerId
- *
  * @typedef { import("../../core/history_plugin").HistoryStep } HistoryStep
  */
 
@@ -33,12 +30,10 @@ export class CollaborationPlugin extends Plugin {
     static dependencies = ["history", "selection", "sanitize"];
     /** @type {import("plugins").EditorResources} */
     resources = {
-        /** Handlers */
         history_cleaned_handlers: this.onHistoryClean.bind(this),
         history_reset_handlers: this.onHistoryReset.bind(this),
         step_added_handlers: ({ step }) => this.onStepAdded(step),
 
-        /** Overrides */
         set_attribute_overrides: this.setAttribute.bind(this),
 
         history_step_processors: this.processHistoryStep.bind(this),
@@ -97,9 +92,6 @@ export class CollaborationPlugin extends Plugin {
         }
     }
 
-    /**
-     * Get all the history ids for the current history branch.
-     */
     getBranchIds() {
         const steps = this.dependencies.history.getHistorySteps();
         return (this.initialBranchStepId || "")
@@ -108,7 +100,6 @@ export class CollaborationPlugin extends Plugin {
             .concat(steps.map((s) => s.id));
     }
     /**
-     * Safely set an attribute on a node.
      * @param {HTMLElement} node
      * @param {string} attributeName
      * @param {string} attributeValue
@@ -125,9 +116,7 @@ export class CollaborationPlugin extends Plugin {
     }
 
     /**
-     * Apply external steps coming from the collaboration.
-     *
-     * @param {HistoryStep[]} newSteps External steps to be applied
+     * @param {HistoryStep[]} newSteps
      */
     onExternalHistorySteps(newSteps) {
         let stepIndex = 0;
@@ -135,8 +124,6 @@ export class CollaborationPlugin extends Plugin {
 
         const steps = this.dependencies.history.getHistorySteps();
         for (const newStep of newSteps) {
-            // todo: add a test that no 2 history_missing_parent_step_handlers
-            // are called in same stack.
             const insertIndex = this.getInsertStepIndex(steps, newStep);
             if (typeof insertIndex === "undefined") {
                 continue;
@@ -152,9 +139,6 @@ export class CollaborationPlugin extends Plugin {
 
         this.dispatchTo("external_history_step_handlers");
 
-        // todo: ensure that if the selection was not in the editable before the
-        // reset, it remains where it was after applying the snapshot.
-
         if (stepIndex) {
             this.config.onChange?.();
         }
@@ -167,26 +151,15 @@ export class CollaborationPlugin extends Plugin {
     getInsertStepIndex(steps, newStep) {
         let index = steps.length - 1;
         while (index >= 0 && steps[index].id !== newStep.previousStepId) {
-            // Skip steps that are already in the list.
             if (steps[index].id === newStep.id) {
                 return;
             }
             index--;
         }
 
-        // When the previousStepId is not present in the steps it
-        // could be either:
-        // - the previousStepId is before a snapshot of the same history
-        // - the previousStepId has not been received because peers were
-        //   disconnected at that time
-        // - the previousStepId is in another history (in case two totally
-        //   differents `steps` (but it should not arise)).
         if (index < 0) {
             const historySteps = steps;
             let index = historySteps.length - 1;
-            // Get the last known step that we are sure the missing step
-            // peer has. It could either be a step that has the same
-            // peerId or the first step.
             while (index !== 0) {
                 if (historySteps[index].peerId === newStep.peerId) {
                     break;
@@ -242,9 +215,6 @@ export class CollaborationPlugin extends Plugin {
 
     getSnapshotSteps() {
         const historySteps = this.dependencies.history.getHistorySteps();
-        // If the current snapshot has no time, it means that no other snapshot
-        // has been made (either it is the one created upon initialization or
-        // reset by history's resetFromSteps).
         if (!this.snapshots[0].time) {
             return { steps: historySteps, historyIds: this.getBranchIds() };
         }
@@ -253,8 +223,6 @@ export class CollaborationPlugin extends Plugin {
         if (this.snapshots[0].time + HISTORY_SNAPSHOT_BUFFER_TIME < Date.now()) {
             snapshot = this.snapshots[0];
         } else {
-            // this.snapshots[1] was created at least 1 minute ago
-            // (HISTORY_SNAPSHOT_INTERVAL) or it is the first step.
             snapshot = this.snapshots[1];
         }
         let index = historySteps.length - 1;
@@ -276,12 +244,6 @@ export class CollaborationPlugin extends Plugin {
         this.snapshots = [{ step: steps[0] }];
         this.branchStepIds = branchStepIds;
 
-        // @todo @phoenix: test that the hint are proprely handeled
-        // this._handleCommandHint();
-        // @todo @phoenix: make the multiselection
-        // this.multiselectionRefresh();
-        // @todo @phoenix: check it is still relevant
-        // this.dispatchEvent(new Event("resetFromSteps"));
     }
 
     makeSnapshot() {

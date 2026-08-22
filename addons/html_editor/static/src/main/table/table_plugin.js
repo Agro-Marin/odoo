@@ -69,10 +69,6 @@ function isUnremovableTableComponent(node, root) {
  * @typedef {((el: HTMLElement) => void)[]} deselect_custom_selected_nodes_handlers
  */
 
-/**
- * This plugin only contains the table manipulation and selection features. All UI overlay
- * code is located in the table_ui plugin
- */
 export class TablePlugin extends Plugin {
     static id = "table";
     static dependencies = [
@@ -120,7 +116,6 @@ export class TablePlugin extends Plugin {
             ),
         ],
 
-        /** Handlers */
         selectionchange_handlers: withSequence(5, this.updateSelectionTable.bind(this)),
         clipboard_content_processors: this.processContentForClipboard.bind(this),
         clean_for_save_handlers: ({ root }) => this.deselectTable(root),
@@ -128,7 +123,6 @@ export class TablePlugin extends Plugin {
         before_split_block_handlers: this.resetTableSelection.bind(this),
         before_insert_processors: this.normalizeTableStructure.bind(this),
 
-        /** Overrides */
         tab_overrides: withSequence(20, this.handleTab.bind(this)),
         shift_tab_overrides: withSequence(20, this.handleShiftTab.bind(this)),
         delete_range_overrides: this.handleDeleteRange.bind(this),
@@ -201,7 +195,6 @@ export class TablePlugin extends Plugin {
         const selection = this.dependencies.selection.getEditableSelection();
         const inTable = closestElement(selection.anchorNode, "table");
         if (inTable) {
-            // Move cursor to next cell.
             const shouldAddNewRow = !this.shiftCursorToTableCell(1);
             if (shouldAddNewRow) {
                 this.addRow("after", findInSelection(selection, "tr"));
@@ -216,16 +209,12 @@ export class TablePlugin extends Plugin {
         const selection = this.dependencies.selection.getEditableSelection();
         const inTable = closestElement(selection.anchorNode, "table");
         if (inTable) {
-            // Move cursor to previous cell.
             this.shiftCursorToTableCell(-1);
             return true;
         }
     }
 
     /**
-     * Inherits table-level colors to all child tds to make it
-     * easier to add/remove style on tables.
-     *
      * @param {Element} root
      */
     distributeTableColorsToAllCells(root) {
@@ -279,7 +268,6 @@ export class TablePlugin extends Plugin {
         const referenceCellWidth = reference.style.width
             ? parseFloat(reference.style.width)
             : reference.clientWidth;
-        // Temporarily set widths so proportions are respected.
         const firstRow = table.querySelector("tr");
         const firstRowCells = [...firstRow.children].filter(
             (child) => child.nodeName === "TD" || child.nodeName === "TH",
@@ -289,8 +277,6 @@ export class TablePlugin extends Plugin {
             for (const cell of firstRowCells) {
                 const width = parseFloat(cell.style.width);
                 cell.style.width = width + "px";
-                // Spread the widths to preserve proportions.
-                // -1 for the width of the border of the new column.
                 const newWidth = Math.max(
                     Math.round(
                         (width * tableWidth) / (tableWidth + referenceCellWidth - 1),
@@ -307,8 +293,6 @@ export class TablePlugin extends Plugin {
             baseContainer.append(this.document.createElement("br"));
             newCell.append(baseContainer);
             cell[position](newCell);
-            // If the first row is a header, ensure the new column's
-            // first cell is also marked as a header (<th>).
             if (rowIndex === 0 && cell.classList.contains("o_table_header")) {
                 newCell.classList.add("o_table_header");
             }
@@ -319,13 +303,11 @@ export class TablePlugin extends Plugin {
         });
         if (tableWidth) {
             if (totalWidth !== tableWidth - 1) {
-                // -1 for the width of the border of the new column.
                 firstRowCells[firstRowCells.length - 1].style.width =
                     parseFloat(firstRowCells[firstRowCells.length - 1].style.width) +
                     (tableWidth - totalWidth - 1) +
                     "px";
             }
-            // Fix the table and row's width so it doesn't change.
             table.style.width = tableWidth + "px";
         }
     }
@@ -356,7 +338,6 @@ export class TablePlugin extends Plugin {
         if (referenceRowHeight) {
             newRow.style.height = referenceRowHeight + "px";
         }
-        // Preserve the width of the columns (applied only on the first row).
         if (getRowIndex(newRow) === 0) {
             let columnIndex = 0;
             for (const column of newRow.children) {
@@ -412,7 +393,6 @@ export class TablePlugin extends Plugin {
         table
             .querySelectorAll(`tr :is(td, th):nth-of-type(${index + 1})`)
             .forEach((td) => td.remove());
-        // not sure we should move the cursor?
         siblingCell
             ? this.dependencies.selection.setCursorEnd(lastLeaf(siblingCell))
             : this.deleteTable(table);
@@ -479,9 +459,6 @@ export class TablePlugin extends Plugin {
             }
         }
 
-        // If the moved row becomes the first row, copy the widths of its td
-        // elements from the previous first row, as td widths are only applied
-        // to the first row.
         if (!adjustedRow.previousElementSibling) {
             adjustedRow.childNodes.forEach((cell, index) => {
                 cell.style.width =
@@ -676,20 +653,8 @@ export class TablePlugin extends Plugin {
         this.dependencies.selection.setCursorStart(baseContainer);
     }
 
-    // @todo @phoenix: handle deleteBackward on table cells
-    // deleteBackwardBefore({ targetNode, targetOffset }) {
-    //     // If the cursor is at the beginning of a row, prevent deletion.
-    //     if (targetNode.nodeType === Node.ELEMENT_NODE && isRow(targetNode) && !targetOffset) {
-    //         return true;
-    //     }
-    // }
-
     /**
-     * Removes fully selected rows or columns, clears the content of selected
-     * cells otherwise.
-     *
-     * @param {NodeListOf<HTMLTableCellElement>} selectedTds - Non-empty
-     * NodeList of selected table cells.
+     * @param {NodeListOf<HTMLTableCellElement>} selectedTds
      */
     deleteTableCells(selectedTds) {
         const rows = [
@@ -736,13 +701,12 @@ export class TablePlugin extends Plugin {
     }
 
     /**
-     * @param {Object} range - Range-like object.
-     * @param {Array} fullySelectedTables - Non-empty array of table elements.
+     * @param {Object} range
+     * @param {Array} fullySelectedTables
      */
     deleteRangeWithFullySelectedTables(range, fullySelectedTables) {
         let { startContainer, startOffset, endContainer, endOffset } = range;
 
-        // Expand range to fully include tables.
         const firstTable = fullySelectedTables[0];
         if (firstTable.contains(startContainer)) {
             [startContainer, startOffset] = leftPos(firstTable);
@@ -755,8 +719,6 @@ export class TablePlugin extends Plugin {
 
         range = this.dependencies.delete.deleteRange(range);
 
-        // Normalize deep.
-        // @todo @phoenix: Use something from the selection plugin (normalize deep?)
         const [anchorNode, anchorOffset] = getDeepestPosition(
             range.startContainer,
             range.startOffset,
@@ -766,8 +728,6 @@ export class TablePlugin extends Plugin {
     }
 
     handleDeleteRange(range) {
-        // @todo @phoenix: this does not depend on the range. This should be
-        // optimized by keeping in memory the state of selected cells/tables.
         const fullySelectedTables = [
             ...this.editable.querySelectorAll(".o_selected_table"),
         ].filter((table) =>
@@ -785,7 +745,6 @@ export class TablePlugin extends Plugin {
         const selectedTds = this.editable.querySelectorAll(".o_selected_td");
         if (selectedTds.length) {
             this.deleteTableCells(selectedTds);
-            // this._toggleTableUi();
             return true;
         }
 
@@ -814,10 +773,8 @@ export class TablePlugin extends Plugin {
     }
 
     /**
-     * Moves the cursor by shiftIndex table cells.
-     *
-     * @param {Number} shiftIndex - The index to shift the cursor by.
-     * @returns {boolean} - True if the cursor was successfully moved, false otherwise.
+     * @param {Number} shiftIndex
+     * @returns {boolean}
      */
     shiftCursorToTableCell(shiftIndex) {
         const sel = this.dependencies.selection.getEditableSelection();
@@ -843,11 +800,6 @@ export class TablePlugin extends Plugin {
                 return false;
             }
             if (selection.rangeCount > 1 || selection.anchorNode?.tagName === "TR") {
-                // In Firefox, selecting multiple cells within a table using the mouse can create multiple ranges.
-                // This behavior can cause the original selection (where the selection started) to be lost.
-                // To solve the issue we merge the ranges of the selection together the first time we find
-                // selection.rangeCount > 1. Morover, when hitting a double click on a cell, it spans a row
-                // inside selection which needs to be simplified here.
                 let [anchorNode, anchorOffset] = getDeepestPosition(
                     selection.getRangeAt(0).startContainer,
                     selection.getRangeAt(0).startOffset,
@@ -874,9 +826,6 @@ export class TablePlugin extends Plugin {
                 closestElement(ev.target, isTableCell) !==
                     closestElement(selection.focusNode, isTableCell)
             ) {
-                // After the manual update firefox will not be able the table selection automatically
-                // so we need to update the selection manually too.
-                // When we hover on a new table cell we mark it as the new focusNode.
                 this.dependencies.selection.setSelection({
                     anchorNode: selection.anchorNode,
                     anchorOffset: selection.anchorOffset,
@@ -891,9 +840,6 @@ export class TablePlugin extends Plugin {
     }
 
     /**
-     * Sets selection in table to make cell selection
-     * rectangularly when pressing shift + arrow key.
-     *
      * @private
      * @param {KeyboardEvent} ev
      */
@@ -910,7 +856,6 @@ export class TablePlugin extends Plugin {
             closestElement(selection.focusNode, isTableCell),
         ];
         if (startTable !== endTable) {
-            // Deselect the table if it was fully selected.
             if (endTable) {
                 const deselectingBackward =
                     ["ArrowLeft", "ArrowUp"].includes(ev.key) &&
@@ -936,10 +881,8 @@ export class TablePlugin extends Plugin {
             }
             return;
         }
-        // Handle selection for the single cell.
         if (startTd === endTd && !startTd.classList.contains("o_selected_td")) {
             const { focusNode } = selection;
-            // Do not prevent default when there is a text in cell.
             if (
                 !(ev.ctrlKey && ["ArrowUp", "ArrowDown"].includes(ev.key)) &&
                 (focusNode.nodeType === Node.TEXT_NODE ||
@@ -971,14 +914,12 @@ export class TablePlugin extends Plugin {
                 this.selectTableCells(
                     this.dependencies.selection.getEditableSelection(),
                 );
-                // For an empty cell with a div inside, we need to use setSelection to trigger the selectionchange event.
                 this.dependencies.selection.setSelection(
                     this.dependencies.selection.getEditableSelection(),
                 );
             }
             return;
         }
-        // Select cells symmetrically.
         const endCellPosition = { x: getRowIndex(endTd), y: getColumnIndex(endTd) };
         const tds = [...startTable.rows].map((row) => [...row.cells]);
         let targetTd, targetNode;
@@ -1029,7 +970,6 @@ export class TablePlugin extends Plugin {
             this._isFirefoxDoubleMousedown ||
             this._isTripleClickInTable
         ) {
-            // It will be retriggered with selectionchange
             delete this._isFirefoxDoubleMousedown;
             delete this._isTripleClickInTable;
             return;
@@ -1048,8 +988,6 @@ export class TablePlugin extends Plugin {
             this.isShiftArrowKeyboardSelection;
         if (!(startTd && startTd === endTd) || this._isKeyDown) {
             delete this._isKeyDown;
-            // Prevent deselecting single cell unless selection changes
-            // through keyboard.
             this.deselectTable();
         }
         delete this.isShiftArrowKeyboardSelection;
@@ -1063,10 +1001,6 @@ export class TablePlugin extends Plugin {
         const targetedNodes = this.dependencies.selection.getTargetedNodes();
         if ((startTd !== endTd || selectSingleCell) && startTable === endTable) {
             if (!isProtected(startTable) && !isProtecting(startTable)) {
-                // The selection goes through at least two different cells ->
-                // select cells.
-                // Select single cell if selection goes from two cells to
-                // one using shift + arrow key.
                 this.selectTableCells(selection);
             }
         } else if (
@@ -1091,9 +1025,6 @@ export class TablePlugin extends Plugin {
                 targetedTds.has(td),
             );
             if (edgeSelectionTable && !isTableFullySelected) {
-                // Make sure all the cells are targeted in actual selection
-                // when selecting full table. If not, they will be selected
-                // forcefully and updateSelectionTable will be called again.
                 const targetTd =
                     edgeSelectionTableTds[
                         startsInTable ? 0 : edgeSelectionTableTds.length - 1
@@ -1131,7 +1062,6 @@ export class TablePlugin extends Plugin {
                     ),
             );
             for (const table of targetedTables) {
-                // Don't apply several nested levels of selection.
                 if (
                     !ancestors(table, this.editable).some((node) =>
                         targetedTables.has(node),
@@ -1163,29 +1093,20 @@ export class TablePlugin extends Plugin {
                     this.dependencies.selection.getEditableSelection(),
                 );
                 if (isBrowserFirefox()) {
-                    // In firefox, selection changes when hitting mouseclick
-                    // second time in an empty cell. It calls updateSelectionTable
-                    // which deselects the single cell. Hence, we need a label
-                    // to keep it selected.
                     this._isFirefoxDoubleMousedown = true;
                 }
                 if (ev.detail === 2) {
-                    // Specifically for double click on empty cell, to trigger
-                    // selectionchange event and update the toolbar button states.
                     this.dependencies.selection.setSelection(
                         this.dependencies.selection.getEditableSelection(),
                     );
                 }
                 if (ev.detail === 3) {
-                    // Doing a tripleclick on a text will change the selection.
-                    // In such case updateSelectionTable should not do anything.
                     this._isTripleClickInTable = true;
                 }
             } else {
                 this.editable.addEventListener("mousemove", this.onMousemove);
                 const currentSelection =
                     this.dependencies.selection.getEditableSelection();
-                // disable dragging on table
                 if (closestElement(ev.target, "td.o_selected_td")) {
                     this.dependencies.selection.setCursorStart(
                         currentSelection.anchorNode,
@@ -1203,9 +1124,6 @@ export class TablePlugin extends Plugin {
     }
 
     /**
-     * Checks if mouse is effectively inside the cell and not overlapping
-     * the cell borders to prevent cell selection while resizing table.
-     *
      * @param {MouseEvent} ev
      * @returns {Boolean}
      */
@@ -1257,8 +1175,6 @@ export class TablePlugin extends Plugin {
                         ev.clientX - this._mouseMovePositionWhenAllContentsSelected[0],
                     ) >= SENSITIVITY;
                 if (isMovingAwayFromSelection) {
-                    // A cell is fully selected and the mouse is moving away
-                    // from the selection, within said cell -> select the cell.
                     this.selectTableCells(selection);
                 }
             } else if (
@@ -1270,7 +1186,6 @@ export class TablePlugin extends Plugin {
                             : ev.clientX),
                 ) >= 20
             ) {
-                // Handle selecting an empty cell.
                 this.selectTableCells(selection);
             }
         }
@@ -1279,7 +1194,6 @@ export class TablePlugin extends Plugin {
     navigateCell(ev) {
         const selection =
             this.dependencies.selection.getSelectionData().deepEditableSelection;
-        // Using focusNode because we might be leaving a multi-cell selection.
         const focusNode = selection.focusNode;
         const currentCell = closestElement(focusNode, isTableCell);
         if (!currentCell) {
@@ -1288,7 +1202,6 @@ export class TablePlugin extends Plugin {
         const currentTable = closestElement(currentCell, "table");
         const areCellsSelected = currentCell.classList.contains("o_selected_td");
         const isArrowUp = ev.key === "ArrowUp";
-        // Should navigate within multi-line text node itself ?
         if (!areCellsSelected) {
             if (ev.ctrlKey) {
                 ev.preventDefault();
@@ -1339,7 +1252,6 @@ export class TablePlugin extends Plugin {
             ? currentTable.previousElementSibling
             : currentTable.nextElementSibling;
         if (!targetNode && siblingElement) {
-            // If no target cell is available, navigate to sibling element
             targetNode = siblingElement;
         }
         if (shouldNavigateCell(focusNode)) {
@@ -1396,7 +1308,6 @@ export class TablePlugin extends Plugin {
             Math.min(startColIndex, endColIndex),
             Math.max(startColIndex, endColIndex),
         ];
-        // Create an array of arrays of tds (each of which is a row).
         const grid = [...table.querySelectorAll("tr")]
             .filter((tr) => closestElement(tr, "table") === table)
             .map((tr) => [...tr.children].filter(isTableCell));
@@ -1413,9 +1324,7 @@ export class TablePlugin extends Plugin {
     }
 
     /**
-     * Remove any custom table selection from the editor.
-     *
-     * @returns {boolean} true if a table was deselected
+     * @returns {boolean}
      */
     deselectTable(root = this.editable) {
         let didDeselectTable = false;
@@ -1437,7 +1346,6 @@ export class TablePlugin extends Plugin {
             selectedTds.length &&
             (mode === "backgroundColor" || (mode === "color" && !color))
         ) {
-            // Disable the `box-shadow` while previewing the background color.
             selectedTds.forEach((td) =>
                 td.classList.toggle("o_selected_td_bg_color_preview", previewMode),
             );
@@ -1463,8 +1371,6 @@ export class TablePlugin extends Plugin {
         const firstStyle = getComputedStyle(selectedTds[0]);
         const backgroundColor = firstStyle.backgroundColor;
         const backgroundImage = firstStyle.backgroundImage;
-        // If the first selected cell doesn't have any background style, we
-        // consider that there's no common background style.
         if (backgroundImage === "none" && backgroundColor === "rgba(0, 0, 0, 0)") {
             return null;
         }
@@ -1509,15 +1415,8 @@ export class TablePlugin extends Plugin {
     }
 
     /**
-     * Normalize tables in *container* before they are inserted into the
-     * editable: fold any ``<thead>`` into ``<tbody>`` (tagging its cells with
-     * ``o_table_header`` so the styling survives) and guarantee a ``<tbody>``
-     * exists. The editor's table model assumes a single tbody, so pasted or
-     * programmatically inserted markup that carries a thead would otherwise
-     * produce a table the row/column operations cannot manipulate.
-     *
      * @param {HTMLElement|DocumentFragment} container
-     * @returns {HTMLElement|DocumentFragment} the same container
+     * @returns {HTMLElement|DocumentFragment}
      */
     normalizeTableStructure(container) {
         container.querySelectorAll("table").forEach((table) => {
@@ -1529,12 +1428,9 @@ export class TablePlugin extends Plugin {
                     th.classList.add("o_table_header");
                 }
                 if (tbody) {
-                    // If a <tbody> already exists, move all rows from
-                    // <thead> into the start of <tbody>.
                     tbody.prepend(...thead.rows);
                     thead.remove();
                 } else {
-                    // Otherwise, replace the <thead> with <tbody>
                     tbody = this.dependencies.dom.setTagName(thead, "TBODY");
                 }
             }
@@ -1574,12 +1470,8 @@ export class TablePlugin extends Plugin {
             clonedContents.firstChild.nodeName === "TR" ||
             isTableCell(clonedContents.firstChild)
         ) {
-            // We enter this case only if selection is within single table.
             const table = closestElement(selection.commonAncestorContainer, "table");
             const tableClone = table.cloneNode(true);
-            // A table is considered fully selected if it is nested inside a
-            // cell that is itself selected, or if all its own cells are
-            // selected.
             const isTableFullySelected =
                 (table.parentElement &&
                     !!closestElement(table.parentElement, ".o_selected_td")) ||
@@ -1591,7 +1483,6 @@ export class TablePlugin extends Plugin {
                     ":is(td, th):not(.o_selected_td)",
                 )) {
                     if (closestElement(td, "table") === tableClone) {
-                        // ignore nested
                         td.remove();
                     }
                 }
@@ -1600,24 +1491,19 @@ export class TablePlugin extends Plugin {
                 ).filter((row) => !row.querySelector("td, th"));
                 for (const tr of trsWithoutTd) {
                     if (closestElement(tr, "table") === tableClone) {
-                        // ignore nested
                         tr.remove();
                     }
                 }
             }
-            // If it is fully selected, clone the whole table rather than
-            // just its rows.
             clonedContents = tableClone;
         }
         const startTable = closestElement(selection.startContainer, "table");
         if (clonedContents.firstChild.nodeName === "TABLE" && startTable) {
-            // Make sure the full leading table is copied.
             clonedContents.firstChild.after(startTable.cloneNode(true));
             clonedContents.firstChild.remove();
         }
         const endTable = closestElement(selection.endContainer, "table");
         if (clonedContents.lastChild.nodeName === "TABLE" && endTable) {
-            // Make sure the full trailing table is copied.
             clonedContents.lastChild.before(endTable.cloneNode(true));
             clonedContents.lastChild.remove();
         }

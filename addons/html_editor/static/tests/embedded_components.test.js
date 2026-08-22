@@ -10,11 +10,6 @@ import {
     SavedCounter,
     savedCounter,
 } from "@html_editor/../tests/_helpers/embedded_component";
-// Must use the bare "@html_editor/..." specifier (not a relative "../src/..."
-// path): the import map keeps this the SAME class object the test helper
-// compares against in `config.Plugins.includes(...)` (see _helpers/editor.js,
-// `TestEditor.setup`); a relative import yields a distinct class and the check
-// fails.
 import { EmbeddedComponentPlugin } from "@html_editor/others/embedded_component_plugin";
 import {
     getEditableDescendants,
@@ -235,7 +230,6 @@ describe("Mount and Destroy embedded components", () => {
         expect.verifySteps(["willunmount"]);
         expect(getContent(el)).toBe(`<p>a[]</p>`);
 
-        // now, we undo and check that component still works
         undo(editor);
         expect(getContent(el)).toBe(
             `<p>a<span data-embedded="counter" data-oe-protected="true" contenteditable="false"></span>[]</p>`,
@@ -397,11 +391,9 @@ describe("Mount and Destroy embedded components", () => {
         embeddedComponentPlugin.forEachEmbeddedComponentHost(el, (host, embedding) => {
             orderedMountInfos.push([host, embedding]);
         });
-        // Force mounting disorder.
         for (const index of indexOrder) {
             embeddedComponentPlugin.mountComponent(...orderedMountInfos[index]);
         }
-        // Validate the step, but the mounting process already started.
         editor.shared.history.addStep();
         await animationFrame();
         expect.verifySteps(["mount 1", "mount 2", "mount 3"]);
@@ -455,14 +447,7 @@ describe("Mount and Destroy embedded components", () => {
             const host = orderedMountInfos[index][0];
             embeddedComponentPlugin.deepDestroyComponent({ host });
         }
-        // Hierarchy is, referring to the index prop: 2 > 1 > 3
-        // destroying order is, by index prop: 1, 2, 3
-        // destroying 1 removes 3 from the dom, therefore 3 is destroyed in
-        // the process of destroying 1, that is why it is done before 2.
         expect.verifySteps(["destroy 1", "destroy 3", "destroy 2"]);
-        // OWL:Root.destroy removes every node inside its host during destroy,
-        // so after the full operation, nothing should be left except the
-        // outermost host.
         expect(getContent(el)).toBe(
             unformat(`
                 <p data-selection-placeholder=""><br></p>
@@ -470,9 +455,6 @@ describe("Mount and Destroy embedded components", () => {
                 <p data-selection-placeholder=""><br></p>
             `),
         );
-        // Verify that there is no potential host outside of the editable,
-        // because removed hosts are put back in the DOM and destroyed next to
-        // the editable element, before being removed again.
         const fixture = getFixture();
         expect(
             [...fixture.querySelectorAll("[data-embedded]")].filter(
@@ -499,9 +481,6 @@ describe("Mount and Destroy embedded components", () => {
         host.remove();
         editor.shared.history.addStep();
         expect.verifySteps(["destroyed counter"]);
-        // Verify that there is no potential host outside of the editable,
-        // because removed hosts are put back in the DOM and destroyed next to
-        // the editable element, before being removed again.
         const fixture = getFixture();
         expect(
             [...fixture.querySelectorAll("[data-embedded]")].filter(
@@ -530,9 +509,6 @@ describe("Mount and Destroy embedded components", () => {
         parent.remove();
         editor.shared.history.addStep();
         expect.verifySteps(["destroyed counter"]);
-        // Verify that there is no potential host outside of the editable,
-        // because removed hosts are put back in the DOM and destroyed next to
-        // the editable element, before being removed again.
         const fixture = getFixture();
         expect(
             [...fixture.querySelectorAll("[data-embedded]")].filter(
@@ -605,10 +581,6 @@ describe("Selection after embedded component insertion", () => {
             parseHTML(editor.document, `<div data-embedded="counter"></div>`),
         );
         editor.shared.history.addStep();
-        // Insertion triggers selectionchange & addStep creates a selection
-        // placeholder. fixSelectionOnEditableRoot moves the selection into it,
-        // triggering another selectionchange that removes the placeholder, so
-        // we must wait for the o-we-hint.
         await waitFor(".o-we-hint");
         cleanHints(editor);
         expect(getContent(el)).toBe(
@@ -626,10 +598,6 @@ describe("Selection after embedded component insertion", () => {
             parseHTML(editor.document, `<div data-embedded="counter"></div>`),
         );
         editor.shared.history.addStep();
-        // Insertion triggers selectionchange & addStep creates a selection
-        // placeholder. fixSelectionOnEditableRoot moves the selection into it,
-        // triggering another selectionchange that removes the placeholder, so
-        // we must wait for the o-we-hint.
         await waitFor(".o-we-hint");
         cleanHints(editor);
         expect(getContent(el)).toBe(
@@ -892,8 +860,6 @@ describe("Mount processing", () => {
                 config: getConfig([]),
             },
         );
-        // "unknown" data-embedded should be considered once during the first
-        // mounting wave.
         expect.verifySteps(["unknown handled"]);
         expect(getContent(el)).toBe(
             `<p data-selection-placeholder=""><br></p><div data-embedded="unknown"><p>UNKNOWN</p></div><p data-selection-placeholder=""><br></p>`,
@@ -957,7 +923,6 @@ describe("Mount processing", () => {
         plugins.get("dom").insert(host);
         addStep(editor);
         await animationFrame();
-        // First mount
         expect(getContent(el)).toBe(
             `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]after</p>`,
         );
@@ -967,7 +932,6 @@ describe("Mount processing", () => {
         expect(getContent(el)).toBe(`<p>[]after</p>`);
         undo(editor);
         await animationFrame();
-        // Second mount, onComponentInserted was discarded
         expect(getContent(el)).toBe(
             `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]after</p>`,
         );
@@ -990,13 +954,11 @@ describe("Mount processing", () => {
         expect(getContent(el)).toBe(
             `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"></span>[]after</p>`,
         );
-        // Don't wait for the component to mount, and remove the host
         deleteBackward(editor);
         addStep(editor);
         expect(getContent(el)).toBe(`<p>[]after</p>`);
         undo(editor);
         await animationFrame();
-        // First mount, but onComponentInserted was discarded since the component was removed
         expect(getContent(el)).toBe(
             `<p><span data-embedded="counter" data-oe-protected="true" contenteditable="false"><span class="counter">Counter:0</span></span>[]after</p>`,
         );
@@ -1260,7 +1222,6 @@ describe("editable descendants", () => {
                 <p data-selection-placeholder=""><br></p>
             `),
         );
-        // No mutation should be added to the next step
         editor.shared.history.addStep();
         const historyPlugin = plugins.get("history");
         const historySteps = editor.shared.history.getHistorySteps();
@@ -1431,7 +1392,6 @@ describe("editable descendants", () => {
             `),
         );
         addStep(editor);
-        // Set the selection before the component is mounted
         plugins
             .get("selection")
             .setCursorStart(el.querySelector("[data-embedded-editable] p"));
@@ -1447,7 +1407,6 @@ describe("editable descendants", () => {
             `),
         );
         await animationFrame();
-        // Verify that the selection was preserved after insertion
         expect(getContent(el)).toBe(
             unformat(`
                 <p data-selection-placeholder=""><br></p>
@@ -1532,7 +1491,6 @@ describe("Embedded state", () => {
         expect(counter.embeddedState).toEqual({
             value: 1,
         });
-        // `data-embedded-state` should be removed from editor.getElContent result
         expect(getContent(editor.getElContent())).toBe(
             `<p><span data-embedded="counter" data-embedded-props='{"value":1}'></span></p>`,
         );
@@ -1559,7 +1517,6 @@ describe("Embedded state", () => {
             `<p><span data-embedded="counter" data-embedded-props="{}" data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{"value":1},"next":{}}'><span class="counter">Counter:0</span></span></p>`,
         );
         expect(counter.embeddedState).toEqual({});
-        // `data-embedded-state` should be removed from editor.getElContent result
         expect(getContent(editor.getElContent())).toBe(
             `<p><span data-embedded="counter" data-embedded-props="{}"></span></p>`,
         );
@@ -1777,11 +1734,6 @@ describe("Embedded state", () => {
         );
         savepoint1();
         await animationFrame();
-        // stateChangeId evolved from 3 to 6, since it reverted the last 3
-        // state changes.
-        // 2 -> 3, revert mutations created by savepoint2.
-        // 3 -> 2, revert mutations of the second click.
-        // 2 -> 1, revert mutations of the first click.
         expect(getContent(el)).toBe(
             `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":1}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":6,"previous":{"value":2},"next":{"value":1}}'><span class="counter">Counter:1</span></span></p>`,
         );
@@ -1800,7 +1752,6 @@ describe("Embedded state", () => {
         expect(getContent(el)).toBe(
             `<p>a[]<span data-embedded="counter" data-embedded-props='{"value":2}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{"value":1},"next":{"value":2}}'><span class="counter">Counter:2</span></span></p>`,
         );
-        // Launch click sequence without awaiting it
         click(queryFirst(".counter"));
         deleteForward(editor);
         expect(getContent(el)).toBe(`<p>a[]</p>`);
@@ -1826,7 +1777,6 @@ describe("Embedded state", () => {
         expect(getContent(el)).toBe(
             `<p>a[]<span data-embedded="counter" data-embedded-props='{"name":"customName","value":1}' data-oe-protected="true" contenteditable="false"><span class="counter">customName:4</span></span></p>`,
         );
-        // Only consider props supposed to be extracted from `data-embedded-props`
         const props = {
             name: counter.props.name,
             value: counter.props.value,
@@ -1836,8 +1786,8 @@ describe("Embedded state", () => {
             value: 1,
         });
         expect(counter.embeddedState).toEqual({
-            baseValue: 3, // defined in the embedding (namedCounter)
-            value: 1, // recovered from the props
+            baseValue: 3,
+            value: 1,
         });
         counter.embeddedState.baseValue = 5;
         counter.embeddedState.value = 2;
@@ -1848,10 +1798,9 @@ describe("Embedded state", () => {
         deleteForward(editor);
         undo(editor);
         await animationFrame();
-        // Check that the base value was correctly reset after the destruction
         expect(counter.embeddedState).toEqual({
-            baseValue: 3, // defined in the embedding (namedCounter)
-            value: 2, // recovered from the props
+            baseValue: 3,
+            value: 2,
         });
         expect(getContent(el)).toBe(
             `<p>a[]<span data-embedded="counter" data-embedded-props='{"name":"customName","value":2}' data-oe-protected="true" contenteditable="false" data-embedded-state='{"stateChangeId":1,"previous":{"baseValue":3,"value":1},"next":{"baseValue":5,"value":2}}'><span class="counter">customName:5</span></span></p>`,

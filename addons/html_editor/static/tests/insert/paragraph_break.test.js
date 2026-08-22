@@ -23,14 +23,6 @@ describe("Selection collapsed", () => {
                 stepFunction: splitBlock,
                 contentAfter: "<p><br></p><p>[]<br></p>",
             });
-            // TODO this cannot actually be tested currently as a
-            // backspace/delete in that case is not even detected
-            // (no input event to rollback)
-            // await testEditor({
-            //     contentBefore: '<p>[<br>]</p>',
-            //     stepFunction: splitBlock,
-            //     contentAfter: '<p><br></p><p>[]<br></p>',
-            // });
         });
 
         test("should duplicate an empty paragraph (2)", async () => {
@@ -53,7 +45,6 @@ describe("Selection collapsed", () => {
             await testEditor({
                 contentBefore: "<p>[] abc</p>",
                 stepFunction: splitBlock,
-                // JW cAfter: '<p><br></p><p>[]abc</p>',
                 contentAfter: "<p><br></p><p>[] abc</p>",
             });
         });
@@ -70,8 +61,6 @@ describe("Selection collapsed", () => {
             await testEditor({
                 contentBefore: "<p>ab []cd</p>",
                 stepFunction: splitBlock,
-                // The space is converted to a non-breaking
-                // space so it is visible.
                 contentAfter: "<p>ab&nbsp;</p><p>[]cd</p>",
             });
         });
@@ -80,8 +69,6 @@ describe("Selection collapsed", () => {
             await testEditor({
                 contentBefore: "<p>ab[] cd</p>",
                 stepFunction: splitBlock,
-                // The space is converted to a non-breaking
-                // space so it is visible.
                 contentAfter: "<p>ab</p><p>[]&nbsp;cd</p>",
             });
         });
@@ -143,14 +130,10 @@ describe("Selection collapsed", () => {
                 resources: { embedded_components: MAIN_EMBEDDINGS },
             };
             const testEnterInCodeBlock = (selectionStart) => async (editor) => {
-                // Set the given selection in the textarea.
                 const textarea = editor.editable.querySelector("textarea");
                 textarea.focus();
                 textarea.setSelectionRange(selectionStart, selectionStart, "forward");
-                // Trigger native paragraph break.
                 await editor.document.execCommand("insertParagraph", false, null);
-                // Wait for the input event to resolve so the content is
-                // highlighted and the focus is in the textarea.
                 await animationFrame();
             };
 
@@ -164,12 +147,12 @@ describe("Selection collapsed", () => {
                         '<p data-selection-placeholder=""><br></p>' +
                         highlightedPre({ value: "abcd" }) +
                         '<p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>',
-                    stepFunction: testEnterInCodeBlock(2), // "ab[]cd"
+                    stepFunction: testEnterInCodeBlock(2),
                     contentAfterEdit:
                         '<p data-selection-placeholder=""><br></p>' +
                         highlightedPre({
                             value: "ab\ncd",
-                            textareaRange: 3, // "ab\n[]cd"
+                            textareaRange: 3,
                         }) +
                         '<p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>',
                     contentAfter: `<pre data-embedded="readonlySyntaxHighlighting" data-language-id="plaintext">ab<br>cd</pre>[]`,
@@ -184,13 +167,13 @@ describe("Selection collapsed", () => {
                         '<p data-selection-placeholder=""><br></p>' +
                         highlightedPre({ value: "abc" }) +
                         '<p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>',
-                    stepFunction: testEnterInCodeBlock(3), // "abc[]"
+                    stepFunction: testEnterInCodeBlock(3),
                     contentAfterEdit:
                         '<p data-selection-placeholder=""><br></p>' +
                         highlightedPre({
                             value: "abc\n",
                             preHtml: "abc<br><br>",
-                            textareaRange: 4, // "abc\n[]"
+                            textareaRange: 4,
                         }) +
                         '<p data-selection-placeholder="" style="margin: -9px 0px 8px;"><br></p>',
                     contentAfter: `<pre data-embedded="readonlySyntaxHighlighting" data-language-id="plaintext">abc<br><br></pre>[]`,
@@ -291,17 +274,6 @@ describe("Selection collapsed", () => {
                     },
                     contentAfter: "<p><br></p><p><br></p><p>[]<br></p>",
                 });
-                // TODO this cannot actually be tested currently as a
-                // backspace/delete in that case is not even detected
-                // (no input event to rollback)
-                // await testEditor({
-                //     contentBefore: '<p>[<br>]</p>',
-                //     stepFunction: async (editor) => {
-                //         splitBlock(editor);
-                //         splitBlock(editor);
-                //     },
-                //     contentAfter: '<p><br></p><p><br></p><p>[]<br></p>',
-                // });
             });
 
             test("should duplicate an empty paragraph twice (2)", async () => {
@@ -372,7 +344,6 @@ describe("Selection collapsed", () => {
 
             test("should split a paragraph before a format node (2)", async () => {
                 await testEditor({
-                    // That selection is equivalent to []<b>
                     contentBefore: "<p>abc<b>[]def</b></p>",
                     stepFunction: splitBlock,
                     contentAfter: "<p>abc</p><p><b>[]def</b></p>",
@@ -383,8 +354,6 @@ describe("Selection collapsed", () => {
                 await testEditor({
                     contentBefore: "<p>abc <b>[]def</b></p>",
                     stepFunction: splitBlock,
-                    // The space is converted to a non-breaking
-                    // space so it is visible.
                     contentAfter: "<p>abc&nbsp;</p><p><b>[]def</b></p>",
                 });
             });
@@ -393,9 +362,6 @@ describe("Selection collapsed", () => {
                 await testEditor({
                     contentBefore: "<p>abc<b>[] def </b></p>",
                     stepFunction: splitBlock,
-                    // The space is converted to a non-breaking
-                    // space so it is visible.
-                    // JW cAfter: '<p>abc</p><p><b>[]&nbsp;def</b></p>',
                     contentAfter: "<p>abc</p><p><b>[]&nbsp;def </b></p>",
                 });
             });
@@ -411,7 +377,6 @@ describe("Selection collapsed", () => {
 
             test("should split a paragraph after a format node (2)", async () => {
                 await testEditor({
-                    // That selection is equivalent to </b>[]
                     contentBefore: "<p><b>abc[]</b>def</p>",
                     stepFunction: splitBlock,
                     contentAfterEdit: `<p><b>abc</b></p><p><b data-oe-zws-empty-inline="">[]\u200b</b>def</p>`,
@@ -423,8 +388,6 @@ describe("Selection collapsed", () => {
                 await testEditor({
                     contentBefore: "<p><b>abc[]</b> def</p>",
                     stepFunction: splitBlock,
-                    // The space is converted to a non-breaking
-                    // space so it is visible.
                     contentAfterEdit: `<p><b>abc</b></p><p><b data-oe-zws-empty-inline="">[]\u200b</b>&nbsp;def</p>`,
                     contentAfter: "<p><b>abc</b></p><p>[]&nbsp;def</p>",
                 });
@@ -434,9 +397,6 @@ describe("Selection collapsed", () => {
                 await testEditor({
                     contentBefore: "<p><b>abc []</b>def</p>",
                     stepFunction: splitBlock,
-                    // The space is converted to a non-breaking
-                    // space so it is visible (because it's before a
-                    // <br>).
                     contentAfterEdit: `<p><b>abc&nbsp;</b></p><p><b data-oe-zws-empty-inline="">[]\u200b</b>def</p>`,
                     contentAfter: "<p><b>abc&nbsp;</b></p><p>[]def</p>",
                 });
@@ -465,8 +425,6 @@ describe("Selection collapsed", () => {
                     contentBefore: "<p><b>[] abc</b></p>",
                     stepFunction: splitBlock,
                     contentAfterEdit: `<p><b data-oe-zws-empty-inline="">\u200b</b></p><p><b>[] abc</b></p>`,
-                    // The space should have been parsed away.
-                    // JW cAfter: '<p><br></p><p><b>[]abc</b></p>',
                     contentAfter: "<p><br></p><p><b>[] abc</b></p>",
                 });
             });
@@ -483,8 +441,6 @@ describe("Selection collapsed", () => {
                 await testEditor({
                     contentBefore: "<p><b>ab []cd</b></p>",
                     stepFunction: splitBlock,
-                    // The space is converted to a non-breaking
-                    // space so it is visible.
                     contentAfter: "<p><b>ab&nbsp;</b></p><p><b>[]cd</b></p>",
                 });
             });
@@ -493,8 +449,6 @@ describe("Selection collapsed", () => {
                 await testEditor({
                     contentBefore: "<p><b>ab[] cd</b></p>",
                     stepFunction: splitBlock,
-                    // The space is converted to a non-breaking
-                    // space so it is visible.
                     contentAfter: "<p><b>ab</b></p><p><b>[]&nbsp;cd</b></p>",
                 });
             });
@@ -510,7 +464,6 @@ describe("Selection collapsed", () => {
 
             test("should split a paragraph at the end of a format node (2)", async () => {
                 await testEditor({
-                    // That selection is equivalent to </b>[]
                     contentBefore: "<p><b>abc[]</b></p>",
                     stepFunction: splitBlock,
                     contentAfterEdit: `<p><b>abc</b></p><p o-we-hint-text='Type "/" for commands' class="o-we-hint"><b data-oe-zws-empty-inline="">[]\u200b</b></p>`,
@@ -522,15 +475,12 @@ describe("Selection collapsed", () => {
                 await testEditor({
                     contentBefore: "<p><b>abc[] </b></p>",
                     stepFunction: splitBlock,
-                    // The space should have been parsed away.
                     contentAfterEdit: `<p><b>abc</b></p><p o-we-hint-text='Type "/" for commands' class="o-we-hint"><b data-oe-zws-empty-inline="">[]\u200b</b></p>`,
                     contentAfter: "<p><b>abc</b></p><p>[]<br></p>",
                 });
             });
 
             async function splitBlockA(editor) {
-                // splitBlock in an <a> tag will open the linkPopover which will take the focus.
-                // So we need to wait for it to open and put the selection back into the editor.
                 splitBlock(editor);
                 const editableSelection =
                     editor.shared.selection.getSelectionData().editableSelection;
@@ -541,10 +491,6 @@ describe("Selection collapsed", () => {
                 await tick();
             }
 
-            // @todo: re-evaluate this possibly outdated comment:
-            // skipping these tests cause with the link isolation the cursor can be put
-            // inside/outside the link so the user can choose where to insert the line break
-            // see `anchor.nodeName === "A" && brEls.includes(anchor.firstChild)` in line_break_plugin.js
             test("should insert line breaks outside the edges of an anchor in unbreakable (1)", async () => {
                 await testEditor({
                     contentBefore: `<div class="oe_unbreakable">ab<a href="http://test.test/">[]cd</a></div>`,
@@ -745,7 +691,6 @@ describe("Selection collapsed", () => {
 
 describe("Selection not collapsed", () => {
     test("should delete the first half of a paragraph, then split it (1)", async () => {
-        // Forward selection
         await testEditor({
             contentBefore: "<p>[ab]cd</p>",
             stepFunction: splitBlock,
@@ -754,7 +699,6 @@ describe("Selection not collapsed", () => {
     });
 
     test("should delete the first half of a paragraph, then split it (2)", async () => {
-        // Backward selection
         await testEditor({
             contentBefore: "<p>]ab[cd</p>",
             stepFunction: splitBlock,
@@ -763,7 +707,6 @@ describe("Selection not collapsed", () => {
     });
 
     test("should delete part of a paragraph, then split it (1)", async () => {
-        // Forward selection
         await testEditor({
             contentBefore: "<p>a[bc]d</p>",
             stepFunction: splitBlock,
@@ -772,7 +715,6 @@ describe("Selection not collapsed", () => {
     });
 
     test("should delete part of a paragraph, then split it (2)", async () => {
-        // Backward selection
         await testEditor({
             contentBefore: "<p>a]bc[d</p>",
             stepFunction: splitBlock,
@@ -781,7 +723,6 @@ describe("Selection not collapsed", () => {
     });
 
     test("should delete the last half of a paragraph, then split it (1)", async () => {
-        // Forward selection
         await testEditor({
             contentBefore: "<p>ab[cd]</p>",
             stepFunction: splitBlock,
@@ -790,7 +731,6 @@ describe("Selection not collapsed", () => {
     });
 
     test("should delete the last half of a paragraph, then split it (2)", async () => {
-        // Backward selection
         await testEditor({
             contentBefore: "<p>ab]cd[</p>",
             stepFunction: splitBlock,
@@ -799,7 +739,6 @@ describe("Selection not collapsed", () => {
     });
 
     test("should delete all contents of a paragraph, then split it (1)", async () => {
-        // Forward selection
         await testEditor({
             contentBefore: "<p>[abcd]</p>",
             stepFunction: splitBlock,
@@ -808,7 +747,6 @@ describe("Selection not collapsed", () => {
     });
 
     test("should delete all contents of a paragraph, then split it (2)", async () => {
-        // Backward selection
         await testEditor({
             contentBefore: "<p>]abcd[</p>",
             stepFunction: splitBlock,
@@ -829,7 +767,6 @@ describe("Selection not collapsed", () => {
 
 describe("Table", () => {
     test("should remove all contents of an anchor td and split paragraph on forward selection", async () => {
-        // Forward selection
         await testEditor({
             contentBefore: `
                 <table>
@@ -865,7 +802,6 @@ describe("Table", () => {
         });
     });
     test("should remove all contents of an anchor td and split paragraph on backward selection", async () => {
-        // Backward selection
         await testEditor({
             contentBefore: `
                 <table>

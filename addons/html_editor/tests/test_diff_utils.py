@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import odoo.tests
 from odoo.tests.common import BaseCase
 
@@ -17,9 +15,6 @@ class TestPatchUtils(BaseCase):
         new_content = "<p>foo</p><p>bar</p><p>baz</p>"
 
         patch = generate_patch(new_content, initial_content)
-        # Even if we added content in the new_content, we expect a remove
-        # operation, because the patch would be used to restore the initial
-        # content from the new content.
         self.assertEqual(patch, "-@3,4")
 
         restored_initial_content = apply_patch(new_content, patch)
@@ -233,22 +228,6 @@ class TestPatchUtils(BaseCase):
         new_content = "<div class='B1'><div class='B2'><i>B</i></div></div>"
 
         comparison = generate_comparison(new_content, initial_content)
-        # This is a trade-off because of the limitation of the current
-        # comparison system :
-        # We can't easily generate comparison when only the tag parameters
-        # changes, because the diff system will not contain the closing tags
-        # in this case.
-        #
-        # This is why we choose to have the comparison below instead of :
-        # <div class='A1'><div class='A2'>
-        #     <b><removed>A</removed></b>
-        # </div></div>
-        # <div class='B1'><div class='B2'>
-        #     <i><added>B</added></i>
-        # </div></div>
-        #
-        # If we need to improve this in the future, we would probably have to
-        # change drastically the comparison system to add a way to parse HTML.
         self.assertEqual(
             comparison,
             "<div class='A1'><div class='A2'>"
@@ -262,7 +241,6 @@ class TestPatchUtils(BaseCase):
         new_content = "<div>X<p><b>B</b></p></div>"
 
         comparison = generate_comparison(new_content, initial_content)
-        # This is a trade-off, see explanation in test_replace_nested_divs.
         self.assertEqual(
             comparison,
             "<div><removed>X</removed>"
@@ -275,7 +253,6 @@ class TestPatchUtils(BaseCase):
         new_content = "<div>X<p>A</p></div>"
 
         comparison = generate_comparison(new_content, initial_content)
-        # This is a trade-off, see explanation in test_replace_nested_divs.
         self.assertEqual(
             comparison,
             "<div><removed>X</removed><p>A</p></div>",
@@ -286,7 +263,6 @@ class TestPatchUtils(BaseCase):
         new_content = "<div><p>A</p></div>"
 
         comparison = generate_comparison(new_content, initial_content)
-        # This is a trade-off, see explanation in test_replace_nested_divs.
         self.assertEqual(
             comparison,
             "<div><added>X</added><p>A</p></div>",
@@ -297,7 +273,6 @@ class TestPatchUtils(BaseCase):
         new_content = "<div class='B1'>A</div>"
 
         comparison = generate_comparison(new_content, initial_content)
-        # This is a trade-off, see explanation in test_replace_nested_divs.
         self.assertEqual(
             comparison,
             "<div class='A1'>A</div>",
@@ -310,7 +285,6 @@ class TestPatchUtils(BaseCase):
         new_content = "<div class='B1'>A</div><p>abc</p><div class='E1'>D</div>"
 
         comparison = generate_comparison(new_content, initial_content)
-        # This is a trade-off, see explanation in test_replace_nested_divs.
         self.assertEqual(
             comparison,
             "<div class='A1'>A</div><p>abc</p><div class='D1'>D</div>",
@@ -321,7 +295,6 @@ class TestPatchUtils(BaseCase):
         new_content = "<p>def</p><div class='B1'>A</div>"
 
         comparison = generate_comparison(new_content, initial_content)
-        # This is a trade-off, see explanation in test_replace_nested_divs.
         self.assertEqual(
             comparison,
             "<p><added>abc</added><removed>def</removed></p>"
@@ -333,7 +306,6 @@ class TestPatchUtils(BaseCase):
         new_content = "<div class='B1'>B</div>"
 
         comparison = generate_comparison(new_content, initial_content)
-        # This is a trade-off, see explanation in test_replace_nested_divs.
         self.assertEqual(
             comparison,
             "<div class='A1'><added>A</added><removed>B</removed></div>",
@@ -344,7 +316,6 @@ class TestPatchUtils(BaseCase):
         new_content = "<div class='B1'><p><i>B</i></p></div>"
 
         comparison = generate_comparison(new_content, initial_content)
-        # This is a trade-off, see explanation in test_replace_nested_divs.
         self.assertEqual(
             comparison,
             "<div class='A1'><p><i>"

@@ -182,10 +182,6 @@ export class ColumnPlugin extends Plugin {
             const columns = unwrapContents(row);
             for (const column of columns) {
                 unwrapContents(column);
-                // const columnContents = unwrapContents(column);
-                // for (const node of columnContents) {
-                //     resetOuids(node);
-                // }
             }
         }
     }
@@ -244,7 +240,6 @@ export class ColumnPlugin extends Plugin {
             );
         }
         if (diff > 0) {
-            // Add extra columns.
             let lastColumn = columns[columns.length - 1];
             for (let i = 0; i < diff; i++) {
                 const column = this.document.createElement("div");
@@ -257,14 +252,10 @@ export class ColumnPlugin extends Plugin {
                 lastColumn = column;
             }
         } else if (diff < 0) {
-            // Remove superfluous columns.
             const contents = [];
             for (let i = diff; i < 0; i++) {
                 const column = columns.pop();
                 const columnContents = unwrapContents(column);
-                // for (const node of columnContents) {
-                //     resetOuids(node);
-                // }
                 contents.unshift(...columnContents);
             }
             columns[columns.length - 1].append(...contents);

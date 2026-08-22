@@ -65,29 +65,20 @@ export class MoveNodePlugin extends Plugin {
         this.addDomListener(this.document, "mousemove", this.onDocumentMousemove, true);
         this.addDomListener(this.document, "touchmove", this.onDocumentMousemove, true);
 
-        // This container help to add zone into which the mouse can activate the move widget.
         this.widgetHookContainer = this.dependencies.localOverlay.makeLocalOverlay(
             "oe-widget-hooks-container",
         );
-        // This container contains the differents widgets.
         this.widgetContainer =
             this.dependencies.localOverlay.makeLocalOverlay("oe-widgets-container");
-        // This container contains the drag helper element.
         this.dragHelperContainer = this.dependencies.localOverlay.makeLocalOverlay(
             "oe-movenode-helper-container",
         );
-        // This container contains drop zones. They are the zones that handle where the drop should happen.
         this.dropzonesContainer = this.dependencies.localOverlay.makeLocalOverlay(
             "oe-dropzones-container",
         );
-        // This container contains drop hint. The final rectangle showed to the user.
         this.dropzoneHintContainer = this.dependencies.localOverlay.makeLocalOverlay(
             "oe-dropzone-hint-container",
         );
-
-        // Uncomment line for debugging tranparent zones
-        // this.widgetHookContainer.classList.add("debug");
-        // this.dropzonesContainer.classList.add("debug");
 
         this.scrollableElement = closestElement(this.editable.parentElement);
         while (
@@ -126,10 +117,6 @@ export class MoveNodePlugin extends Plugin {
                 this.visibleMovableElements.delete(element);
                 const hookElement = this.elementHookMap.get(element);
                 if (hookElement) {
-                    // If hookElement is undefined, it means that this callback
-                    // was called after a new element was inserted in the
-                    // editable, but before the next updateHooks. The hook will
-                    // be created when that happens.
                     hookElement.style.display = `none`;
                 }
             }
@@ -167,8 +154,6 @@ export class MoveNodePlugin extends Plugin {
             }
             hookElement.style.zIndex = index;
         }
-        // For all the elements that are not in the dom, remove their
-        // corresponding hook.
         for (const element of elementsToGarbageCollect) {
             this.visibleMovableElements.delete(element);
             this.elementHookMap.get(element).remove();
@@ -177,8 +162,6 @@ export class MoveNodePlugin extends Plugin {
         }
 
         const visibleElements = [...this.visibleMovableElements];
-        // Prevent layout thrashing by computing all the rects and styles in
-        // advance.
         const elementRects = visibleElements.map((element) =>
             element.getBoundingClientRect(),
         );
@@ -204,8 +187,6 @@ export class MoveNodePlugin extends Plugin {
                     elementRect.height + marginTop + marginBottom,
                 );
             } else if (element.tagName === "LI") {
-                // For <li>, move hookBox to the left to avoid blocking
-                // checkboxes — needed for proper list item interaction.
                 hookBox = new DOMRect(
                     elementRect.x -
                         containerRect.left -
@@ -280,7 +261,7 @@ export class MoveNodePlugin extends Plugin {
         const anchorBlockRect = this.currentMovableElement.getBoundingClientRect();
         const anchorX =
             this.currentMovableElement.tagName === "LI"
-                ? anchorBlockRect.x - WIDGET_MOVE_SIZE // Prevent overlap bullets.
+                ? anchorBlockRect.x - WIDGET_MOVE_SIZE
                 : anchorBlockRect.x;
         let anchorY = anchorBlockRect.y;
         if (this.currentMovableElement.tagName.match(/H[1-6]/)) {
@@ -332,8 +313,6 @@ export class MoveNodePlugin extends Plugin {
 
         if (this.scrollableElement) {
             this.smoothScrollOnDrag && this.smoothScrollOnDrag.destroy();
-            // TODO: This should be made more generic, one hook for the entire
-            // editable with each element handled.
             this.smoothScrollOnDrag = useNativeDraggable(simpleDraggableHook, {
                 ref: { el: this.widgetContainer },
                 elements: ".oe-sidewidget-move",
@@ -492,12 +471,10 @@ export class MoveNodePlugin extends Plugin {
                 focusElelement?.parentElement?.tagName,
             );
             if (movableElement.tagName === "LI" && !isFocusInsideList) {
-                // If LI is moved outside a list, wrap it in UL/OL (previous parent)
                 const wrapperList = previousParent.cloneNode(false);
                 wrapperList.appendChild(movableElement);
                 movableElement = wrapperList;
             } else if (movableElement.tagName !== "LI" && isFocusInsideList) {
-                // If non-LI element is moved into a list, wrap it in a LI
                 const wrapperLI = this.document.createElement("LI");
                 wrapperLI.appendChild(movableElement);
                 movableElement = wrapperLI;
@@ -518,8 +495,6 @@ export class MoveNodePlugin extends Plugin {
                     previousParent.append(baseContainer);
                 }
             }
-            // Preserve the selection if it was inside the moved element,
-            // otherwise place the caret at the start of the moved element.
             const isSelectionInsideMovedNode =
                 movableElement.contains(cursors.anchor.node) &&
                 movableElement.contains(cursors.focus.node);
@@ -540,8 +515,6 @@ export class MoveNodePlugin extends Plugin {
         this._updateAnchorWidgets(e.target);
     }
     onDocumentKeydown() {
-        // Hide the move widget upon keystroke for visual clarity and provide
-        // visibility to a collaborative avatar.
         this.removeMoveWidget();
     }
     onDocumentMousemove(e) {
@@ -589,7 +562,6 @@ const simpleDraggableHook = {
         ctx.current.element.style.left = `${ctx.pointer.x + 10}px`;
         ctx.current.element.style.top = `${ctx.pointer.y + 10}px`;
         ctx.current.element.style.position = "fixed";
-        // makeDraggableHook disables pointer events, we want them in this case
         document.body.classList.remove("pe-none");
         document.body.style.cursor = "grabbing";
         return ctx.current;

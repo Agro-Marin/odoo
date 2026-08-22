@@ -54,7 +54,6 @@ export class ColorUIPlugin extends Plugin {
         get_background_color_processors: this.getBackgroundColorProcessor.bind(this),
         apply_background_color_processors:
             this.applyBackgroundColorProcessor.bind(this),
-        /** Providers */
         selected_background_color_providers: withSequence(
             10,
             this.computeBackgroundColorForTextNode.bind(this),
@@ -95,32 +94,23 @@ export class ColorUIPlugin extends Plugin {
     }
 
     /**
-     * Apply a css or class color on the current selection (wrapped in <font>).
-     *
      * @param {Object} param
-     * @param {string} param.color hexadecimal or bg-name/text-name class
-     * @param {string} param.mode 'color' or 'backgroundColor'
+     * @param {string} param.color
+     * @param {string} param.mode
      */
     applyColorCommit({ color, mode }) {
         this.previewableApplyColor.commit(color, mode);
         this.updateSelectedColor();
     }
     /**
-     * Apply a css or class color on the current selection (wrapped in <font>)
-     * in preview mode so that it can be reset.
-     *
      * @param {Object} param
-     * @param {string} param.color hexadecimal or bg-name/text-name class
-     * @param {string} param.mode 'color' or 'backgroundColor'
+     * @param {string} param.color
+     * @param {string} param.mode
      */
     applyColorPreview({ color, mode }) {
-        // Preview the color before applying it.
         this.previewableApplyColor.preview(color, mode, true);
         this.updateSelectedColor();
     }
-    /**
-     * Reset the color applied in preview mode.
-     */
     applyColorResetPreview() {
         this.previewableApplyColor.revert();
         this.updateSelectedColor();
@@ -151,7 +141,6 @@ export class ColorUIPlugin extends Plugin {
     }
 
     updateSelectedColor() {
-        // Compute and update the background color.
         let backgroundColor;
         for (const provider of this.getResource(
             "selected_background_color_providers",
@@ -165,7 +154,6 @@ export class ColorUIPlugin extends Plugin {
 
         this.selectedColors.backgroundColor = backgroundColor || "#00000000";
 
-        // Compute and update the text color.
         const nodes = this.dependencies.selection.getTargetedNodes().filter(isTextNode);
         if (nodes.length === 0) {
             this.selectedColors.color = "";
@@ -187,13 +175,10 @@ export class ColorUIPlugin extends Plugin {
             backgroundColor.startsWith("rgba") &&
             (!activeTab || activeTab === "Solid")
         ) {
-            // Buttons in the solid tab of color selector have no
-            // opacity, hence to match selected color correctly,
-            // we need to remove applied 0.6 opacity.
             const values = backgroundColor.match(RGBA_REGEX) || [];
-            const alpha = parseFloat(values.pop()); // Extract alpha value
+            const alpha = parseFloat(values.pop());
             if (alpha === RGBA_OPACITY) {
-                backgroundColor = `rgb(${values.slice(0, 3).join(", ")})`; // Remove alpha
+                backgroundColor = `rgb(${values.slice(0, 3).join(", ")})`;
             }
         }
         return backgroundColor;
@@ -204,8 +189,6 @@ export class ColorUIPlugin extends Plugin {
             .querySelector(".o_font_color_selector button.active")
             ?.innerHTML.trim();
         if (activeTab === "Solid" && brackgroundColor.startsWith("#")) {
-            // Apply default transparency to selected solid tab colors in background
-            // mode to make text highlighting more usable between light and dark modes.
             brackgroundColor += HEX_OPACITY;
         }
         return brackgroundColor;

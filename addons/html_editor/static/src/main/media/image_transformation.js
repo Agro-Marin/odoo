@@ -66,11 +66,7 @@ export class ImageTransformation extends Component {
             useExternalListener(iframeWindow, "mousemove", this.mouseMove);
             useExternalListener(iframeWindow, "mouseup", this.mouseUp);
         }
-        // When a character key is pressed and the image gets deleted,
-        // close the image transform via selectionchange.
         useExternalListener(this.document, "selectionchange", () => this.destroy());
-        // Backspace/Delete don’t trigger selectionchange on image
-        // delete in Chrome, so we use keydown event.
         useExternalListener(this.document, "keydown", (ev) => {
             if (["Backspace", "Delete"].includes(ev.key)) {
                 this.destroy();
@@ -126,7 +122,6 @@ export class ImageTransformation extends Component {
                 settings.angle = ang;
             }
 
-            // reset position : don't move center
             this.positionTransfoContainer();
             const new_center = this.getOffset(this.transfoCenter.el);
             const x = center.left - new_center.left;
@@ -167,7 +162,6 @@ export class ImageTransformation extends Component {
                 newWidth = width + deltaX;
             }
 
-            // Ensure minimum dimensions
             if (newWidth < MIN_IMAGE_SIZE) {
                 newWidth = MIN_IMAGE_SIZE;
             }
@@ -196,10 +190,6 @@ export class ImageTransformation extends Component {
         settings.translatex = Math.round(settings.translatex);
         settings.translatey = Math.round(settings.translatey);
 
-        // When rotating, the offset used for the rotation center must be stable.
-        // getOffset normally includes CSS transforms, which would move the
-        // transfoCenter on each call and cause flickering.
-        // Temporarily remove the transform to compute the correct static position.
         const prevImageTransform = this.image.style.transform;
         this.image.style.transform = "";
         this.transfo.settings.pos = this.getOffset(this.image);

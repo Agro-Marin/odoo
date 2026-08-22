@@ -49,7 +49,6 @@ describe("Table of content", () => {
         });
         execCommand(editor, "insertTableOfContent");
         await waitFor(`.o_embedded_toc_content`);
-        // Set selection around TOC
         const toc = queryOne(`[data-embedded="tableOfContent"]`);
         setSelection({
             anchorNode: toc.parentNode,

@@ -50,7 +50,6 @@ export class ImageCropPlugin extends Plugin {
             props: {
                 media: targetedImg,
                 onSave: async (newDataset) => {
-                    // todo: should use the mutex if there is one?
                     const updateImageAttributes =
                         await this.dependencies.imagePostProcess.processImage({
                             img: targetedImg,

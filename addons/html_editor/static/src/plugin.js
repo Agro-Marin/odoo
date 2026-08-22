@@ -22,24 +22,24 @@ export class Plugin {
      * @param { EditorContext } context
      */
     constructor(context) {
-        /** @type { EditorContext['document'] } **/
+        /** @type { EditorContext['document'] } */
         this.document = context.document;
         this.window = context.document.defaultView;
-        /** @type { EditorContext['editable'] } **/
+        /** @type { EditorContext['editable'] } */
         this.editable = context.editable;
-        /** @type { EditorContext['config'] } **/
+        /** @type { EditorContext['config'] } */
         this.config = context.config;
-        /** @type { EditorContext['services'] } **/
+        /** @type { EditorContext['services'] } */
         this.services = context.services;
-        /** @type { EditorContext['dependencies'] } **/
+        /** @type { EditorContext['dependencies'] } */
         this.dependencies = context.dependencies;
-        /** @type { EditorContext['getResource'] } **/
+        /** @type { EditorContext['getResource'] } */
         this.getResource = context.getResource;
-        /** @type { EditorContext['dispatchTo'] } **/
+        /** @type { EditorContext['dispatchTo'] } */
         this.dispatchTo = context.dispatchTo;
-        /** @type { EditorContext['delegateTo'] } **/
+        /** @type { EditorContext['delegateTo'] } */
         this.delegateTo = context.delegateTo;
-        /** @type { EditorContext['checkPredicates'] } **/
+        /** @type { EditorContext['checkPredicates'] } */
         this.checkPredicates = context.checkPredicates;
 
         this._cleanups = [];
@@ -53,20 +53,11 @@ export class Plugin {
     }
 
     /**
-     * Add an event listener on a given target, that will only be executed if
-     * the target is valid (unless `isGlobal` is true), and ensure it is removed
-     * when we destroy the editor.
-     *
      * @param {Element} target
      * @param {string} eventName
      * @param {function(Event):void} fn
-     * @param {boolean | AddEventListenerOptions} [capture=false] `useCapture`
-     *   flag of `addEventListener`, or a full options object. Several call
-     *   sites pass `{ capture: true }`; that already worked because
-     *   `addEventListener` accepts either form, but the annotation claimed
-     *   boolean only. The same value is handed to `removeEventListener`, which
-     *   is what makes the cleanup match.
-     * @param {boolean} [isGlobal=false] if true, don't check target validity
+     * @param {boolean | AddEventListenerOptions} [capture=false]
+     * @param {boolean} [isGlobal=false]
      */
     addDomListener(target, eventName, fn, capture = false, isGlobal = false) {
         const handler = (ev) => {
@@ -81,32 +72,18 @@ export class Plugin {
     }
 
     /**
-     * Add an event listener on the editor's document, and ensure it is removed
-     * when we destroy the editor.
-     *
-     * @todo Use this function to avoid iframe problems.
-     *
      * @param {string} eventName
      * @param {function(Event):void} fn
-     * @param {boolean} [capture=false] `useCapture` flag of `addEventListener`
+     * @param {boolean} [capture=false]
      */
     addGlobalDomListener(eventName, fn, capture = false) {
         this.addDomListener(this.document, eventName, fn, capture, true);
     }
 
     /**
-     * Register listeners that live only for the duration of an interaction
-     * (typically a pointer drag) and return a disposer that removes them.
-     *
-     * Unlike {@link addDomListener}, the registration is undone once the
-     * interaction ends, so repeated drags do not accumulate cleanups. Unlike a
-     * raw `addEventListener`, the listeners are still removed if the editor is
-     * destroyed while the interaction is in progress — otherwise they outlive
-     * the editor and keep calling into a destroyed plugin.
-     *
      * @param {EventTarget} target
      * @param {Record<string, function(Event):void>} handlers
-     * @returns {() => void} disposer, idempotent
+     * @returns {() => void}
      */
     addTransientDomListeners(target, handlers) {
         const entries = Object.entries(handlers);
@@ -116,7 +93,7 @@ export class Plugin {
         const dispose = () => {
             const index = this._cleanups.indexOf(dispose);
             if (index === -1) {
-                return; // already disposed
+                return;
             }
             this._cleanups.splice(index, 1);
             for (const [eventName, fn] of entries) {
@@ -128,8 +105,6 @@ export class Plugin {
     }
 
     destroy() {
-        // Iterate a snapshot: a cleanup may deregister itself (and therefore
-        // splice `_cleanups`), which would make a live iteration skip entries.
         for (const cleanup of [...this._cleanups]) {
             cleanup();
         }

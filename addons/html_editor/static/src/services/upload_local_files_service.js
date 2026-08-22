@@ -8,8 +8,6 @@ export const uploadLocalFileService = {
         input.type = "file";
 
         /**
-         * Open the system file selector and return the selected files.
-         *
          * @param {Object} [options]
          * @param {boolean} [options.multiple]
          * @param {string} [options.accept]
@@ -18,21 +16,17 @@ export const uploadLocalFileService = {
         async function selectLocalFiles({ multiple, accept }) {
             input.multiple = multiple;
             input.accept = accept;
-            input.value = ""; // clear previously selected files
+            input.value = "";
 
-            // Open system's file selector
             input.click();
 
-            // Wait for user to select files or cancel.
             await new Promise((resolve) => {
                 const resolveAndClear = () => {
                     resolve();
                     input.removeEventListener("change", resolveAndClear);
                     input.removeEventListener("cancel", resolveAndClear);
                 };
-                // Detect file(s) selected
                 input.addEventListener("change", resolveAndClear);
-                // Detect file selector closed without selecting files (cancel)
                 input.addEventListener("cancel", resolveAndClear);
             });
             return input.files;
@@ -42,7 +36,7 @@ export const uploadLocalFileService = {
          * @param {FileList} files
          * @param {Object} recordInfo
          * @param {Function} setAbortCallback
-         * @returns {Promise<Object[]>} attachments
+         * @returns {Promise<Object[]>}
          */
         async function filesToAttachments(
             files,
@@ -62,15 +56,13 @@ export const uploadLocalFileService = {
         }
 
         /**
-         * Open the system file selector and upload the selected files.
-         *
          * @param {Object} recordInfo
          * @param {Object} [options]
-         * @param {string} [options.accept] Accepted file types
-         * @param {boolean} [options.multiple=false] Allow multiple files to be selected
-         * @param {boolean} [options.accessToken=false] Add access token to uploaded files
-         * @param {Function} [options.setAbortCallback=()=>{}] Set abort function to cancel ongoing upload
-         * @returns {Promise<Object[]>} attachments
+         * @param {string} [options.accept]
+         * @param {boolean} [options.multiple=false]
+         * @param {boolean} [options.accessToken=false]
+         * @param {Function} [options.setAbortCallback=()=>{}]
+         * @returns {Promise<Object[]>}
          */
         async function upload(
             { resId, resModel },
@@ -93,8 +85,6 @@ export const uploadLocalFileService = {
                 }
                 return attachments;
             } catch {
-                // The upload service displays a either a notification or an
-                // error message in the progress toast.
                 return [];
             }
         }

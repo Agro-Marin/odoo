@@ -30,9 +30,6 @@ export class ImageSavePlugin extends Plugin {
     };
 
     async savePendingImages(editableEl = this.editable) {
-        // When saving a webp, o_b64_image_to_save is turned into
-        // o_modified_image_to_save by saveB64Image to request the saving
-        // of the pre-converted webp resizes and all the equivalent jpgs.
         const getClosestSavable = (el) => {
             for (const provider of this.getResource("closest_savable_providers")) {
                 const value = provider(el);
@@ -77,9 +74,6 @@ export class ImageSavePlugin extends Plugin {
     }
 
     /**
-     * Saves a base64 encoded image as an attachment.
-     * Relies on saveModifiedImage being called after it for webp.
-     *
      * @private
      * @param {Element} el
      * @param {string} resModel
@@ -88,9 +82,6 @@ export class ImageSavePlugin extends Plugin {
     async saveB64Image(el, resModel, resId) {
         const imageData = el.getAttribute("src").split("base64,")[1];
         if (!imageData) {
-            // Checks if the image is in base64 format for RPC call. Relying
-            // only on the presence of the class "o_b64_image_to_save" is not
-            // robust enough.
             el.classList.remove("o_b64_image_to_save");
             return;
         }
@@ -128,8 +119,6 @@ export class ImageSavePlugin extends Plugin {
     }
 
     /**
-     * Saves a modified image as an attachment.
-     *
      * @private
      * @param {Element} el
      * @param {string} resModel
@@ -137,13 +126,9 @@ export class ImageSavePlugin extends Plugin {
      */
     async saveModifiedImage(el, resModel, resId) {
         const isBackground = !el.matches("img");
-        // Modifying an image always creates a copy of the original, even if
-        // it was modified previously, as the other modified image may be used
-        // elsewhere if the snippet was duplicated or was saved as a custom one.
         let altData = undefined;
         const isImageField = !!el.closest("[data-oe-type=image]");
         if (el.dataset.mimetype === "image/webp" && isImageField) {
-            // Generate alternate sizes and format for reports.
             altData = {};
             const image = document.createElement("img");
             image.src = getImageSrc(el);

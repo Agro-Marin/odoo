@@ -692,10 +692,6 @@ describe("with selection collapsed", () => {
         });
     });
     test("should adjust list padding on tab", async () => {
-        // `:root { font: ... }` did not pin the measurement: the web client sets
-        // `font-family` on the editable itself, and a declaration on the element
-        // beats one inherited from an ancestor — so this measured Inter, and
-        // moved the moment its optical size did. Stub the one measured input.
         pinMarkerWidth(62);
         await testEditor({
             styleContent: pinRootFontSize("14px"),
@@ -1379,7 +1375,6 @@ describe("Mixed: list + paragraph", () => {
 
         expect(getContent(el)).toBe(expectedContent);
 
-        // Check that it was done as a single history step.
         undo(editor);
         expect(getContent(el)).toBe(contentBefore);
     });

@@ -24,13 +24,6 @@ import { withSequence } from "../utils/resource.js";
  * @typedef {(() => string)[]} selectors_for_feff_providers
  */
 
-/**
- * This plugin manages the insertion and removal of the zero-width no-break
- * space character (U+FEFF). These characters enable the user to place the
- * cursor in positions that would otherwise not be easy or possible, such as
- * between two contenteditable=false elements, or at the end (but inside) of a
- * link.
- */
 export class FeffPlugin extends Plugin {
     static id = "feff";
     static dependencies = ["selection"];
@@ -41,7 +34,6 @@ export class FeffPlugin extends Plugin {
         normalize_handlers: withSequence(Infinity, this.updateFeffs.bind(this)),
         clean_for_save_handlers: this.cleanForSave.bind(this),
         intangible_char_for_keyboard_navigation_predicates: (ev, char, lastSkipped) =>
-            // Skip first FEFF, but not the second one (unless shift is pressed).
             char === "\uFEFF" && (ev.shiftKey || lastSkipped !== "\uFEFF"),
         clipboard_content_processors: this.processContentForClipboard.bind(this),
         clipboard_text_processors: (text) => text.replace(/\ufeff/g, ""),
@@ -70,8 +62,6 @@ export class FeffPlugin extends Plugin {
             hasFeff(node) && isEditable(node) && !exclude(node);
 
         for (const node of descendants(root).filter(composedFilter)) {
-            // Remove all FEFF within a `prepareUpdate` to make sure to make <br>
-            // nodes visible if needed.
             const restoreSpaces = prepareUpdate(...leftPos(node), ...rightPos(node));
             const parent = node.parentNode;
             cleanTextNode(node, "\ufeff", cursors);
@@ -103,8 +93,6 @@ export class FeffPlugin extends Plugin {
 
     surroundWithFeffs(node, cursors) {
         const addFeff = (position) => {
-            // skip cursor update for append, we want to keep it before
-            // the added FEFF
             const c = position === "append" ? null : cursors;
             return this.addFeff(node, position, c);
         };
@@ -127,9 +115,6 @@ export class FeffPlugin extends Plugin {
     }
 
     /**
-     * Adds a FEFF before and after each element that matches the selectors
-     * provided by the registered providers.
-     *
      * @param {Element} root
      * @param {Cursors} cursors
      * @returns {Node[]}
@@ -154,7 +139,6 @@ export class FeffPlugin extends Plugin {
                     isZwnbsp(el.nextSibling) ? el.nextSibling : addFeff("after"),
                 ];
             })
-            // Avoid sequential FEFFs
             .filter(
                 (feff, i, array) => !(i > 0 && areCloseSiblings(array[i - 1], feff)),
             );
@@ -163,11 +147,7 @@ export class FeffPlugin extends Plugin {
 
     updateFeffs(root) {
         const cursors = this.getCursors();
-        // Pad based on selectors
         const feffNodesBasedOnSelectors = this.padWithFeffs(root, cursors);
-        // Custom feff adding
-        // Each provider is responsible for adding (or keeping) FEFF nodes and
-        // returning a list of them.
         const customFeffNodes = this.getResource("feff_providers").flatMap((p) =>
             p(root, cursors),
         );
@@ -185,10 +165,6 @@ export class FeffPlugin extends Plugin {
         cursors.restore();
     }
 
-    /**
-     * Returns a patched version of cursors in which `restore` does nothing
-     * unless `update` has been called at least once.
-     */
     getCursors() {
         const cursors = this.dependencies.selection.preserveSelection();
         const originalUpdate = cursors.update.bind(cursors);
@@ -218,15 +194,11 @@ export class FeffPlugin extends Plugin {
 }
 
 /**
- * Whether two nodes are consecutive siblings, ignoring empty text nodes between
- * them.
- *
  * @param {Node} a
  * @param {Node} b
  */
 function areCloseSiblings(a, b) {
     let next = a.nextSibling;
-    // skip empty text nodes
     while (next && isTextNode(next) && !next.textContent) {
         next = next.nextSibling;
     }

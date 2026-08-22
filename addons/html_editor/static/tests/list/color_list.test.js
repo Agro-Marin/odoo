@@ -90,20 +90,16 @@ test("should apply color on fully selected list items with empty text nodes at l
             '<ul><li>\ufeff<a href="#">\ufeffabc\ufeff</a>\ufeff</li><li>\ufeff<a href="#">\ufeffabc\ufeff</a>\ufeff</li></ul>',
         stepFunction: (editor) => {
             const listItems = editor.editable.querySelectorAll("li");
-            // Set selection here because injected \ufeff can be excluded
-            // from the DOM range.
             editor.shared.selection.setSelection({
                 anchorNode: listItems[0].firstChild,
                 anchorOffset: 0,
                 focusNode: listItems[1].lastChild,
                 focusOffset: nodeSize(listItems[1].lastChild),
             });
-            // Empty text node at start of first <li>
             listItems[0].insertBefore(
                 document.createTextNode(""),
                 listItems[0].firstChild,
             );
-            // Empty text node at end of second <li>
             listItems[1].appendChild(document.createTextNode(""));
             setColor("rgb(255, 0, 0)", "color")(editor);
         },

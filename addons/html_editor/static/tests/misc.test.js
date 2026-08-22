@@ -112,7 +112,6 @@ test("no arrow key press or mouse click should keep selection near a contentedit
 test("no arrow key press or mouse click should keep selection near a contenteditable='false' (2)", async () => {
     await testEditor({
         contentBefore: '<hr contenteditable="false">[]',
-        // Wait for selectionchange listener:
         stepFunction: async () => await tick(),
         contentAfterEdit:
             '<p data-selection-placeholder="" style="margin: 8px 0px -9px;"><br></p>' +

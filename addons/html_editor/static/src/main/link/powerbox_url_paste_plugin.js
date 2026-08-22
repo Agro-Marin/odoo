@@ -3,7 +3,6 @@ import { Plugin } from "@html_editor/plugin";
 
 /**
  * @typedef {import("@html_editor/core/user_command_plugin").UserCommand} UserCommand
- *
  * @typedef {((url: string) => UserCommand)[]} paste_media_url_command_providers
  */
 
@@ -26,8 +25,6 @@ export class MediaUrlPastePlugin extends Plugin {
         if (commands.length) {
             commands.push(this.dependencies.link.getPathAsUrlCommand(text, url));
             const restoreSavepoint = this.dependencies.history.makeSavePoint();
-            // Open powerbox with commands to embed media or paste as link.
-            // Insert URL as text, revert it later if a command is triggered.
             this.dependencies.dom.insert(text);
             this.dependencies.history.addStep();
             this.dependencies.powerbox.openPowerbox({

@@ -148,7 +148,6 @@ describe("Adjust base container on delete", () => {
             stepFunction: async (editor) => {
                 deleteBackward(editor);
             },
-            // The P is added by the deletion, not by `cleanEmptyStructuralContainers`.
             contentAfterEdit: unformat(`
                 <p data-selection-placeholder=""><br></p>
                 <div contenteditable="false">

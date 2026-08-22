@@ -15,7 +15,6 @@ export class ReadonlySyntaxHighlightingComponent extends Component {
         languageId: { type: String },
         host: { type: Object },
     };
-    // The host is the `pre`. There's no need for a template but Owl requires it.
     static template = xml`<span/>`;
 
     setup() {

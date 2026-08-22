@@ -17,28 +17,10 @@ import { PeerToPeer, RequestError } from "./PeerToPeer.js";
  * @property {string} peerId
  */
 
-// Time to consider a user offline in ms. This fixes the problem of the
-// navigator closing rtc connection when the mac laptop screen is closed.
-// const CONSIDER_OFFLINE_TIME = 1000;
-// Check wether the computer could be offline. This fixes the problem of the
-// navigator closing rtc connection when the mac laptop screen is closed.
-// This case happens on Mac OS on every browser when the user close it's laptop
-// screen. At first, the os/navigator closes all rtc connection, and after some
-// times, the os/navigator internet goes offline without triggering an
-// offline/online event.
-// However, if the laptop screen is open and the connection is properly remove
-// (e.g. disconnect wifi), the event is properly triggered.
-// const CHECK_OFFLINE_TIME = 1000;
-// const PTP_PEER_DISCONNECTED_STATES = ["failed", "closed", "disconnected"];
-
-// Time in ms to wait when trying to aggregate snapshots from other peers and
-// potentially recover from a missing step before trying to apply those
-// snapshots or recover from the server.
 const PTP_MAX_RECOVERY_TIME = 500;
 
 const REQUEST_ERROR = Symbol("REQUEST_ERROR");
 
-// this is a local cache for ice server descriptions
 let ICE_SERVERS = null;
 
 /**
@@ -74,18 +56,8 @@ export class CollaborationOdooPlugin extends Plugin {
 
         this.ptpJoined = false;
 
-        // Each time a reset of the document is triggered, it is assigned a
-        // unique identifier. Since resetting the editor involves asynchronous
-        // requests, it is possible that subsequent resets are triggered before
-        // the previous one is complete. This property identifies the latest
-        // reset and can be compared against to cancel the processing of late
-        // responses from previous resets.
         this.lastCollaborationResetId = 0;
 
-        // The ID is the latest step ID that the server knows through
-        // `data-last-history-steps`. We cannot save to the server if we do not
-        // have that ID in our history ids as it means that our version is
-        // stale.
         this.serverLastStepId =
             this.config.content && this.getLastHistoryStepId(this.config.content);
 
@@ -99,7 +71,6 @@ export class CollaborationOdooPlugin extends Plugin {
             collaborativeTrigger === "focus" ||
             typeof collaborativeTrigger === "undefined"
         ) {
-            // Wait until editor is focused to join the peer to peer network.
             this.editable.addEventListener("focus", this.joinPeerToPeer);
         }
 
@@ -107,14 +78,11 @@ export class CollaborationOdooPlugin extends Plugin {
     }
     destroy() {
         this.collaborationStopBus && this.collaborationStopBus();
-        // If peer to peer is initializing, wait for properly closing it.
         if (this.peerToPeerLoading) {
             this.peerToPeerLoading.then(() => {
                 this.stopPeerToPeer();
             });
         }
-        // todo: to implement
-        // clearInterval(this.collaborationInterval);
         super.destroy();
     }
 
@@ -140,15 +108,12 @@ export class CollaborationOdooPlugin extends Plugin {
 
         if (
             !(modelName && fieldName && resId)
-            // todo: handle this feature
-            // || Wysiwyg.activeCollaborationChannelNames.has(channelName)
         ) {
             return;
         }
 
         this.collaborationChannelName = channelName;
         this.historyStepsBuffer = [];
-        // Wysiwyg.activeCollaborationChannelNames.add(channelName);
 
         const collaborationBusListener = (payload) => {
             if (
@@ -169,47 +134,13 @@ export class CollaborationOdooPlugin extends Plugin {
         busService.subscribe("editor_collaboration", collaborationBusListener);
         busService.addChannel(this.collaborationChannelName);
         this.collaborationStopBus = () => {
-            // Wysiwyg.activeCollaborationChannelNames.delete(this.collaborationChannelName);
             busService.unsubscribe("editor_collaboration", collaborationBusListener);
             busService.deleteChannel(this.collaborationChannelName);
         };
 
         this.startCollaborationTime = new Date().getTime();
 
-        // this.checkConnectionChange = () => {
-        //     if (!this.ptp) {
-        //         return;
-        //     }
-        //     if (!navigator.onLine) {
-        //         this.signalOffline();
-        //     } else {
-        //         this.signalOnline();
-        //     }
-        // };
 
-        // window.addEventListener("online", this.checkConnectionChange);
-        // window.addEventListener("offline", this.checkConnectionChange);
-
-        // this.collaborationInterval = setInterval(async () => {
-        //     if (this.offlineTimeout || this.preSavePromise || !this.ptp) {
-        //         return;
-        //     }
-
-        //     const peersInfos = Object.values(this.ptp.peersInfos);
-        //     const couldBeDisconnected =
-        //         Boolean(peersInfos.length) &&
-        //         peersInfos.every((x) =>
-        //             PTP_PEER_DISCONNECTED_STATES.includes(
-        //                 x.peerConnection && x.peerConnection.connectionState
-        //             )
-        //         );
-
-        //     if (couldBeDisconnected) {
-        //         this.offlineTimeout = setTimeout(() => {
-        //             this.signalOffline();
-        //         }, CONSIDER_OFFLINE_TIME);
-        //     }
-        // }, CHECK_OFFLINE_TIME);
 
         const loadPeerToPeer = async () => {
             if (!ICE_SERVERS) {
@@ -242,8 +173,6 @@ export class CollaborationOdooPlugin extends Plugin {
         const fieldName = collaborationChannel.collaborationFieldName;
         const resId = collaborationChannel.collaborationResId;
 
-        // Wether or not the history has been sent or received at least
-        // once.
         this.historySyncAtLeastOnce = false;
 
         return new PeerToPeer({
@@ -291,13 +220,9 @@ export class CollaborationOdooPlugin extends Plugin {
                     notification;
                 switch (notificationName) {
                     case "ptp_remove":
-                        // todo: to implement
-                        // this.odooEditor.multiselectionRemove(notificationPayload);
                         break;
                     case "ptp_disconnect":
                         this.ptp.removePeer(fromPeerId);
-                        // todo: to implement
-                        // this.odooEditor.multiselectionRemove(fromPeerId);
                         break;
                     case "rtc_data_channel_open": {
                         fromPeerId = notificationPayload.connectionPeerId;
@@ -336,8 +261,6 @@ export class CollaborationOdooPlugin extends Plugin {
                                 }
                             }
                         } else {
-                            // Make both send their last step to each other to
-                            // ensure they are in sync.
                             this.ptp.notifyAllPeers(
                                 "oe_history_step",
                                 this.dependencies.history.getHistorySteps().at(-1),
@@ -403,19 +326,12 @@ export class CollaborationOdooPlugin extends Plugin {
         }
         return metadatas;
     }
-    /**
-     * Update the server document last step id and recover from a stale document
-     * if this peer does not have that step in its history.
-     */
     onServerLastIdUpdate(last_step_id) {
         this.serverLastStepId = last_step_id;
-        // Check if the current document is stale.
         this.isDocumentStale = this.isLastDocumentStale();
         if (this.isDocumentStale && this.ptpJoined) {
             return this.recoverFromStaleDocument();
         } else if (this.isDocumentStale && this.joiningPtp) {
-            // In case there is a stale document while a previous recovery is
-            // ongoing.
             this.resetCollabRequests();
             this.joinPeerToPeer();
         }
@@ -447,32 +363,8 @@ export class CollaborationOdooPlugin extends Plugin {
             .includes(this.serverLastStepId);
     }
 
-    /**
-     * Try to recover from a stale document.
-     *
-     * The strategy is:
-     *
-     * 1.  Try to get a converging document from the other peers.
-     *
-     * 1.1 By recovery from missing steps: it is the best possible case of
-     *     retrieval.
-     *
-     * 1.2 By recovery from snapshot: it reset the whole editor (destroying
-     *     changes and selection made by the user).
-     *
-     * 2. Reset from the server:
-     *    If the recovery from the other peers fails, reset from the server.
-     *
-     *    As we know we have a stale document, we need to reset it at least from
-     *    the server. We shouldn't wait too long for peers to respond because
-     *    the longer we wait for an unresponding peer, the longer a user can
-     *    edit a stale document.
-     *
-     *    The peers timeout is set to PTP_MAX_RECOVERY_TIME.
-     */
     async recoverFromStaleDocument() {
         return new Promise((resolve) => {
-            // 1. Try to recover a converging document from other peers.
             const resetCollabCount = this.lastCollaborationResetId;
 
             const allPeers = this.getPtpPeers().map((peer) => peer.id);
@@ -528,9 +420,6 @@ export class CollaborationOdooPlugin extends Plugin {
                 });
             }
 
-            // Only process the snapshots after having received a response from all
-            // the peers or after PTP_MAX_RECOVERY_TIME in order to try to recover
-            // from missing steps.
             const processSnapshots = async () => {
                 this.isDocumentStale = this.isLastDocumentStale();
                 if (!this.isDocumentStale) {
@@ -542,14 +431,11 @@ export class CollaborationOdooPlugin extends Plugin {
                 for (const snapshot of snapshots) {
                     this.applySnapshot(snapshot);
                     this.isDocumentStale = this.isLastDocumentStale();
-                    // Prevent reseting from another snapshot if the document
-                    // converge.
                     if (!this.isDocumentStale) {
                         return success();
                     }
                 }
 
-                // 2. If the document is still stale, try to recover from the server.
                 if (this.isDocumentStale) {
                     this.showConflictDialog();
                     await this.resetFromServerAndResyncWithPeers();
@@ -558,8 +444,6 @@ export class CollaborationOdooPlugin extends Plugin {
                 success();
             };
 
-            // Wait PTP_MAX_RECOVERY_TIME to retrieve data from other peers to
-            // avoid reseting from the server if possible.
             const timeout = setTimeout(() => {
                 if (resetCollabCount !== this.lastCollaborationResetId) {
                     return;
@@ -570,9 +454,6 @@ export class CollaborationOdooPlugin extends Plugin {
         });
     }
 
-    /**
-     * Get peer to peer peers.
-     */
     getPtpPeers() {
         const peers = Object.entries(this.ptp.peersInfos).map(([peerId, peerInfo]) => ({
             id: peerId,
@@ -588,15 +469,8 @@ export class CollaborationOdooPlugin extends Plugin {
 
     resetCollabRequests() {
         this.lastCollaborationResetId++;
-        // By aborting the current requests from ptp, we ensure that the ongoing
-        // `this.requestPeer` will return REQUEST_ERROR. Most requests that
-        // calls `this.requestPeer` might want to check if the response is
-        // REQUEST_ERROR.
         this.ptp && this.ptp.abortCurrentRequests();
     }
-    /**
-     * Reset the document from the server and resync with the peers.
-     */
     async resetFromServerAndResyncWithPeers() {
         let collaborationResetId = this.lastCollaborationResetId;
         const record = await this.getCurrentRecord();
@@ -609,11 +483,7 @@ export class CollaborationOdooPlugin extends Plugin {
                 this.config.collaboration.collaborationChannel.collaborationFieldName
             ];
         const lastHistoryId = content && this.getLastHistoryStepId(content);
-        // If a change was made in the document while retrieving it, the
-        // lastHistoryId will be different if the odoo bus did not have time to
-        // notify the user.
         if (this.serverLastStepId !== lastHistoryId) {
-            // todo: instrument it to ensure it never happens
             throw new Error(
                 "Concurency detected while recovering from a stale document. The last history id of the server is different from the history id received by the html_field_write event.",
             );
@@ -621,7 +491,6 @@ export class CollaborationOdooPlugin extends Plugin {
 
         this.isDocumentStale = false;
         if (content) {
-            // content here is trusted
             this.editable.innerHTML = content;
         } else {
             this.editable.replaceChildren(
@@ -633,30 +502,18 @@ export class CollaborationOdooPlugin extends Plugin {
 
         this.dependencies.history.reset(content);
 
-        // After resetting from the server, try to resynchronise with a peer as
-        // if it was the first time connecting to a peer in order to retrieve a
-        // proper snapshot (e.g. This case could arise if we tried to recover
-        // from a peer but the timeout (PTP_MAX_RECOVERY_TIME) was reached
-        // before receiving a response).
         this.historySyncAtLeastOnce = false;
         this.resetCollabRequests();
         collaborationResetId = this.lastCollaborationResetId;
         this.startCollaborationTime = new Date().getTime();
         await Promise.all(
             this.getPtpPeers().map((peer) =>
-                // Reset from the fastest peer. The first peer to reset will set
-                // this.historySyncAtLeastOnce to true canceling the other peers
-                // resets.
                 this.resetFromPeer(peer.id, collaborationResetId),
             ),
         );
         return true;
     }
     onReset(content) {
-        // This ID correspond to the peer that initiated the document and set
-        // the initial oid for all nodes in the tree. It is not the same as
-        // document that had a step id at some point. If a step comes from a
-        // different history, we should not apply it.
         this.historyShareId = generateId();
 
         const lastStepId =
@@ -667,21 +524,11 @@ export class CollaborationOdooPlugin extends Plugin {
     }
 
     /**
-     * Process missing steps received from a peer.
-     *
      * @private
      * @param {Array<Object>|-1} missingSteps
-     * @return {Promise<boolean>} true if missing steps have been processed
+     * @return {Promise<boolean>}
      */
     async processMissingSteps(missingSteps) {
-        // If missing steps === -1, it means that either:
-        // - the step.peerId has a stale document
-        // - the step.peerId has a snapshot and does not includes the step in
-        //   its history
-        // - if another share history id
-        //   - because the step.peerId has reset from the server and
-        //     step.peerId is not synced with this peer
-        //   - because the step.peerId is in a network partition
         if (missingSteps === -1 || !missingSteps.length) {
             return false;
         }
@@ -690,8 +537,6 @@ export class CollaborationOdooPlugin extends Plugin {
     }
     applySnapshot(snapshot) {
         const { steps, historyIds, historyShareId } = snapshot;
-        // If there is no serverLastStepId, it means that we use a document
-        // that is not versionned yet.
         const isStaleDocument =
             this.serverLastStepId && !historyIds.includes(this.serverLastStepId);
         if (isStaleDocument) {
@@ -701,17 +546,11 @@ export class CollaborationOdooPlugin extends Plugin {
         this.historySyncAtLeastOnce = true;
         this.dependencies.collaboration.resetFromSteps(steps, historyIds);
 
-        // todo: ensure that if the selection was not in the editable before the
-        // reset, it remains where it was after applying the snapshot.
         return true;
     }
 
     /**
-     * Callback for when the timeout PTP_MAX_RECOVERY_TIME fires.
-     *
-     * Used to be hooked in tests.
-     *
-     * @param {Function} processSnapshots The snapshot processing function.
+     * @param {Function} processSnapshots
      */
     async onRecoveryPeerTimeout(processSnapshots) {
         processSnapshots();
@@ -750,8 +589,6 @@ export class CollaborationOdooPlugin extends Plugin {
         if (resetCollabCount !== this.lastCollaborationResetId) {
             return;
         }
-        // Ensure that the history hasn't been synced by another peer before
-        // this `get_history_from_snapshot` finished.
         if (this.historySyncAtLeastOnce) {
             return;
         }
@@ -779,7 +616,6 @@ export class CollaborationOdooPlugin extends Plugin {
             });
         }
         this.historySyncFinished = true;
-        // In case there are steps received in the meantime, process them.
         if (this.historyStepsBuffer.length) {
             this.dependencies.collaboration.onExternalHistorySteps(
                 this.historyStepsBuffer,
@@ -841,10 +677,8 @@ export class CollaborationOdooPlugin extends Plugin {
     }
 
     /**
-     * Generates the path to a node as an array of child indices, from the node up through its ancestors.
-     *
-     * @param {Node} node - The node to trace the path for.
-     * @returns {number[]} The path as an array of child indices.
+     * @param {Node} node
+     * @returns {number[]}
      */
     _getNodeIndexPath(node) {
         return [node, ...ancestors(node, this.editable)].map((ancestor) =>
@@ -852,10 +686,8 @@ export class CollaborationOdooPlugin extends Plugin {
         );
     }
     /**
-     * Finds a node in the DOM based on a path of child indices.
-     *
-     * @param {number[]} indexPath - The path as an array of child indices.
-     * @returns {Node|undefined} The node at the specified path, or undefined if not found.
+     * @param {number[]} indexPath
+     * @returns {Node|undefined}
      */
     _getNodeFromIndexPath(indexPath) {
         return indexPath.reduceRight(
@@ -865,9 +697,6 @@ export class CollaborationOdooPlugin extends Plugin {
     }
 }
 
-/**
- * Check wether peerA is before peerB.
- */
 function isPeerFirst(peerA, peerB) {
     if (peerA.startTime === peerB.startTime) {
         return compareIds(peerA.id, peerB.id) < 0;

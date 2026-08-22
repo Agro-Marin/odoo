@@ -18,11 +18,6 @@ export const COLOR_PALETTE_COMPATIBILITY_COLOR_NAMES = [
     "danger",
 ];
 
-/**
- * Colors of the default palette, used for substitution in shapes/illustrations.
- * key: number of the color in the palette (ie, o-color-<1-5>)
- * value: color hex code
- */
 export const DEFAULT_PALETTE = {
     1: "#3AADAA",
     2: "#7C6576",
@@ -32,17 +27,10 @@ export const DEFAULT_PALETTE = {
 };
 
 /**
- * These constants are colors that can be edited by the user when using
- * web_editor in a website context. We keep track of them so that color
- * palettes and their preview elements can always have the right colors
- * displayed even if website has redefined the colors during an editing
- * session.
- *
  * @type {string[]}
  */
 export const EDITOR_COLOR_CSS_VARIABLES = [...COLOR_PALETTE_COMPATIBILITY_COLOR_NAMES];
 
-// o-cc and o-colors
 for (let i = 1; i <= 5; i++) {
     EDITOR_COLOR_CSS_VARIABLES.push(`o-color-${i}`);
     EDITOR_COLOR_CSS_VARIABLES.push(`o-cc${i}-bg`);
@@ -57,14 +45,10 @@ for (let i = 1; i <= 5; i++) {
     EDITOR_COLOR_CSS_VARIABLES.push(`o-cc${i}-btn-secondary-border`);
 }
 
-// Grays
 for (let i = 100; i <= 900; i += 100) {
     EDITOR_COLOR_CSS_VARIABLES.push(`${i}`);
 }
 
-// Black, white and their opacity variants.
-// These variables are necessary to prevent the colorpicker from being affected
-// by the backend "Dark Mode".
 EDITOR_COLOR_CSS_VARIABLES.push(
     "black",
     "black-15",
@@ -93,11 +77,8 @@ export const BG_CLASSES_REGEX = /\bbg-[^\s]*\b/;
 export const COLOR_COMBINATION_CLASSES_REGEX = /\bo_cc[0-9]+\b/g;
 
 /**
- * Returns true if the given element has a visible color applied
- * by `TEXT_CLASSES_REGEX` or `BG_CLASSES_REGEX`
- *
  * @param {Element} element
- * @param {string} mode 'color' or 'backgroundColor'
+ * @param {string} mode
  * @returns {boolean}
  */
 export function hasTextColorClass(element, mode) {
@@ -113,20 +94,14 @@ export function hasTextColorClass(element, mode) {
 }
 
 /**
- * Returns true if the given element has a visible color (fore- or
- * -background depending on the given mode).
- *
  * @param {Element} element
- * @param {string} mode 'color' or 'backgroundColor'
+ * @param {string} mode
  * @returns {boolean}
  */
 export function hasColor(element, mode) {
     const style = element.style;
     const parent = element.parentNode;
-    // Ignore class applied on links as those are hard coded in the templates
-    // and should not be considered as user defined colors.
     if (element.classList.contains("btn") || element.tagName === "A") {
-        // Ignore style applied on buttons from color detection.
         return false;
     }
     if (isColorGradient(style["background-image"])) {
@@ -149,11 +124,8 @@ export function hasColor(element, mode) {
 }
 
 /**
- * Returns true if any given nodes has a visible color (fore- or
- * -background depending on the given mode).
- *
  * @param {array} nodes
- * @param {string} mode 'color' or 'backgroundColor'
+ * @param {string} mode
  * @returns {boolean}
  */
 export function hasAnyNodesColor(nodes, mode) {

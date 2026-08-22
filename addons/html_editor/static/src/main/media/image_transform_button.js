@@ -12,12 +12,6 @@ export function useImageTransform({
 }) {
     let pointerDownInsideTransform = false;
 
-    // We close the image transform when we click outside any element not
-    // related to it. When the pointerdown of the click is inside the image
-    // transform and pointerup is outside while resizing or rotating the
-    // image it will consider the click as being done outside image transform.
-    // So we need to keep track if the pointerdown is inside or outside to know
-    // if we want to close the image transform component or not.
     useExternalListener(document, "pointerdown", (ev) => {
         if (isNodeInsideTransform(ev.target)) {
             pointerDownInsideTransform = true;
@@ -37,8 +31,6 @@ export function useImageTransform({
         },
         { capture: true },
     );
-    // When we click on any character the image is deleted and we need to close
-    // the image transform. We handle this by selectionchange.
     useExternalListener(document, "selectionchange", (ev) => {
         closeImageTransformation();
     });

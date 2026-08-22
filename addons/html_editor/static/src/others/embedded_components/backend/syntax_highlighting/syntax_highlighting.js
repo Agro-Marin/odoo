@@ -59,10 +59,6 @@ export class EmbeddedSyntaxHighlightingComponent extends Component {
         ]);
     }
 
-    /**
-     * Load the Prism library. This function exists only so it can be overridden
-     * in tests.
-     */
     loadPrism() {
         return loadBundle(
             `html_editor.assets_prism${colorScheme.isDark ? "_dark" : ""}`,
@@ -70,15 +66,11 @@ export class EmbeddedSyntaxHighlightingComponent extends Component {
         );
     }
 
-    /**
-     * Highlight the content of the pre.
-     */
     highlight() {
         const focus = this.document.activeElement === this.textarea;
 
         highlightPre(this.pre, this.embeddedState.value, this.embeddedState.languageId);
 
-        // Ensure the values match.
         const preValue = getPreValue(this.pre);
         if (this.textarea.value !== preValue) {
             this.textarea.value = preValue;
@@ -97,9 +89,6 @@ export class EmbeddedSyntaxHighlightingComponent extends Component {
     }
 
     /**
-     * Handle keydown events in the textarea: tab indentation, backspace out of
-     * an empty block, and arrow navigation to the adjacent block.
-     *
      * @param {KeyboardEvent} ev
      */
     onKeydown(ev) {
@@ -114,15 +103,12 @@ export class EmbeddedSyntaxHighlightingComponent extends Component {
             let newValue;
             let spacesRemovedAtStart = 0;
             if (ev.shiftKey) {
-                // Remove tabs.
                 let end = this.textarea.value
                     .slice(selectionEnd, this.textarea.value.length)
                     .indexOf("\n");
                 end = end === -1 ? 0 : end;
                 end = selectionEnd + end;
-                // From 0 to the last \n before selection start.
                 newValue = this.textarea.value.slice(0, start);
-                // From the last \n before selection start to selection end.
                 const regex = new RegExp(`(\n|^)( |\u00A0){1,${tabSize}}`, "g");
                 const startSlice = this.textarea.value.slice(start, selectionStart);
                 const cleanStartSlice = startSlice.replace(regex, "$1");
@@ -134,10 +120,8 @@ export class EmbeddedSyntaxHighlightingComponent extends Component {
                 newValue += this.textarea.value
                     .slice(selectionEnd, end)
                     .replace(regex, "$1");
-                // From selection end to end.
                 newValue += this.textarea.value.slice(end, this.textarea.value.length);
             } else {
-                // Insert tabs.
                 if (
                     collapsed &&
                     /\S/.test(this.textarea.value.slice(start, selectionStart))
@@ -150,13 +134,10 @@ export class EmbeddedSyntaxHighlightingComponent extends Component {
                             this.textarea.value.length,
                         );
                 } else {
-                    // From 0 to the last \n before selection start.
                     newValue = start ? this.textarea.value.slice(0, start) : tab;
-                    // From the last \n before selection start to selection end.
                     newValue += this.textarea.value
                         .slice(start, selectionEnd)
                         .replaceAll("\n", `\n${tab}`);
-                    // From selection end to end.
                     newValue += this.textarea.value.slice(
                         selectionEnd,
                         this.textarea.value.length,
@@ -175,7 +156,6 @@ export class EmbeddedSyntaxHighlightingComponent extends Component {
             );
             this.embeddedState.value = this.textarea.value;
         } else if (ev.key === "Backspace") {
-            // Transform empty code block into base container on backspace.
             if (this.textarea.value === "") {
                 ev.preventDefault();
                 this.props.convertToParagraph({ target: this.pre });
@@ -204,17 +184,12 @@ export class EmbeddedSyntaxHighlightingComponent extends Component {
         }
     }
 
-    /**
-     * Ensure the pre and textarea's scrolls match so they remain aligned.
-     */
     onScroll() {
         this.pre.scrollTop = this.textarea.scrollTop;
         this.pre.scrollLeft = this.textarea.scrollLeft;
     }
 
     /**
-     * Change the language when selecting a new one via the code toolbar.
-     *
      * @param {string} languageId
      */
     onLanguageChange(languageId) {

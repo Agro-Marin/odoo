@@ -29,7 +29,6 @@ export class SyntaxHighlightingPlugin extends Plugin {
     ];
     /** @type {import("plugins").EditorResources} */
     resources = {
-        // Ensure focus can be preserved within the textarea:
         is_node_editable_predicates: (node) => {
             if (node?.classList?.contains("o_prism_source")) {
                 return true;
@@ -37,7 +36,6 @@ export class SyntaxHighlightingPlugin extends Plugin {
         },
         system_attributes: "data-syntax-highlighting-autofocus",
 
-        /** Handlers */
         mount_component_handlers: this.setupNewCodeBlock.bind(this),
         normalize_handlers: (root) => this.addCodeBlocks(root, true),
         post_undo_handlers: () => this.addCodeBlocks(this.editable, true),
@@ -45,7 +43,6 @@ export class SyntaxHighlightingPlugin extends Plugin {
         clean_for_save_handlers: withSequence(0, ({ root }) => this.cleanForSave(root)),
         before_set_tag_handlers: (el, newTagName, cursors) => {
             if (newTagName.toLowerCase() === "pre") {
-                // Remove invisible whitespace that would become visible in a `<pre>` element.
                 removeInvisibleWhitespace(el, cursors);
             }
         },
@@ -60,11 +57,9 @@ export class SyntaxHighlightingPlugin extends Plugin {
             }
         }),
 
-        /** Processors */
         clipboard_content_processors: (clonedContent) =>
             this.cleanForSave(clonedContent),
 
-        /** Predicates */
         link_compatible_selection_predicates: () => {
             if (this.document.activeElement.matches("textarea.o_prism_source")) {
                 return false;
@@ -109,8 +104,6 @@ export class SyntaxHighlightingPlugin extends Plugin {
         const reachedBlock = closestBlock(actualSelection.focusNode);
         preserveSelection.restore();
 
-        // If extending the selection reaches another block, the cursor
-        // is at the block boundary.
         if (currentBlock !== reachedBlock) {
             ev.preventDefault();
             const textarea = adjacentBlock.querySelector("textarea");
@@ -122,27 +115,19 @@ export class SyntaxHighlightingPlugin extends Plugin {
 
     cleanForSave(root) {
         for (const codeBlock of root.querySelectorAll("div.o_syntax_highlighting")) {
-            // Save only the `<pre>` element, with information to rebuild the
-            // embedded component, so the saved DOM is independent of this plugin.
             const pre = codeBlock.querySelector("pre");
-            pre.dataset.embedded = "readonlySyntaxHighlighting"; // Make it work in readonly.
+            pre.dataset.embedded = "readonlySyntaxHighlighting";
             const embeddedProps = getEmbeddedProps(codeBlock);
             const value = embeddedProps.value;
             pre.dataset.languageId = embeddedProps.languageId;
             codeBlock.before(pre);
             codeBlock.remove();
-            // Remove highlighting.
             pre.textContent = value;
             newlinesToLineBreaks(pre);
         }
     }
 
     /**
-     * Take all `<pre>` element in the given `root` that aren't in an embedded
-     * syntax highlighting block, and replace them with an embedded syntax
-     * highlighting block. If `preserveFocus` is true, set the currently
-     * targeted `<pre>` element to be focused.
-     *
      * @param {Element} [root = this.editable]
      * @param {boolean} [preserveFocus = false]
      */
@@ -173,9 +158,6 @@ export class SyntaxHighlightingPlugin extends Plugin {
                 );
             pre.before(codeBlock);
             if (isPreInSelection) {
-                // Removing the pre will make us lose the selection. The DOM
-                // would try to set it in the root, which would get corrected,
-                // preventing us from directly writing inside the textarea.
                 this.document.getSelection().removeAllRanges();
             }
             pre.remove();

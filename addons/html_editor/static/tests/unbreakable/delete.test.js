@@ -407,8 +407,6 @@ describe("forward", () => {
             });
         });
     });
-    // Few tests with the selection not collapsed: it goes through the same
-    // logic as backward (deleteRange).
     describe("selection not collapsed", () => {
         test("should not break unbreakables (delete forward) (1)", async () => {
             await testEditor({
@@ -451,7 +449,6 @@ describe("forward", () => {
 describe("list", () => {
     describe("selection collapsed", () => {
         test("should not outdent while nested within a list item if the list is unbreakable (1)", async () => {
-            // Only one LI.
             await testEditor({
                 contentBefore:
                     '<p>abc</p><ol class="oe_unbreakable"><li>[]def</li></ol>',
@@ -461,7 +458,6 @@ describe("list", () => {
             });
         });
         test("should not outdent while nested within a list item if the list is unbreakable (2)", async () => {
-            // First LI.
             await testEditor({
                 contentBefore:
                     '<ol class="oe_unbreakable"><li><div><div>[]abc</div></div></li><li>def</li></ol>',
@@ -471,7 +467,6 @@ describe("list", () => {
             });
         });
         test("should not outdent while nested within a list item if the list is unbreakable (3)", async () => {
-            // In the middle.
             await testEditor({
                 contentBefore:
                     '<ol class="oe_unbreakable"><li><div>abc</div></li><li><div><div>[]def</div></div></li><li>ghi</li></ol>',
@@ -481,7 +476,6 @@ describe("list", () => {
             });
         });
         test("should not outdent while nested within a list item if the list is unbreakable (4)", async () => {
-            // Last LI.
             await testEditor({
                 contentBefore:
                     '<ol class="oe_unbreakable"><li>abc</li><li><div><div>[]def</div></div></li></ol>',
@@ -491,7 +485,6 @@ describe("list", () => {
             });
         });
         test("should not outdent while nested within a list item if the list is unbreakable (5)", async () => {
-            // With a div before the list:
             await testEditor({
                 contentBefore:
                     '<div>abc</div><ol class="oe_unbreakable"><li>def</li><li><div><div>[]ghi</div></div></li><li>jkl</li></ol>',

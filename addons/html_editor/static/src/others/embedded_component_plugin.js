@@ -16,17 +16,12 @@ import { renderToElement } from "@web/core/utils/render";
  * @typedef {(() => void)[]} post_mount_component_handlers
  */
 
-/**
- * This plugin is responsible with providing the API to manipulate/insert
- * sub components in an editor.
- */
 export class EmbeddedComponentPlugin extends Plugin {
     static id = "embeddedComponents";
     static dependencies = ["history", "protectedNode", "selection"];
     static shared = ["renderBlueprintToElement"];
     /** @type {import("plugins").EditorResources} */
     resources = {
-        /** Handlers */
         normalize_handlers: withSequence(0, this.normalize.bind(this)),
         clean_for_save_handlers: ({ root }) => this.cleanForSave(root),
         attribute_change_handlers: this.onChangeAttribute.bind(this),
@@ -48,7 +43,6 @@ export class EmbeddedComponentPlugin extends Plugin {
 
     setup() {
         this.components = new Set();
-        // map from node to component info
         this.nodeMap = new WeakMap();
         this.app = this.config.embeddedComponentInfo.app;
         this.env = this.config.embeddedComponentInfo.env ?? {};
@@ -57,14 +51,10 @@ export class EmbeddedComponentPlugin extends Plugin {
         this.embeddedComponents = memoize((embeddedComponents = []) => {
             const result = {};
             for (const embedding of embeddedComponents) {
-                // TODO ABD: Any embedding with the same name as another will overwrite it.
-                // File currently relies on this system. Change it ?
                 result[embedding.name] = embedding;
             }
             return result;
         });
-        // First mount is done during history_reset_handlers which happens
-        // when start_edition_handlers are called.
     }
 
     isMutationRecordSavable(record) {
@@ -74,8 +64,6 @@ export class EmbeddedComponentPlugin extends Plugin {
             record.type === "attributes" &&
             record.attributeName === "data-embedded-props"
         ) {
-            // This attribute is determined independently for each user
-            // through `data-embedded-state` attribute mutations.
             return false;
         }
         return true;
@@ -83,7 +71,6 @@ export class EmbeddedComponentPlugin extends Plugin {
 
     /**
      * @typedef {import("@html_editor/core/history_plugin").Tree} Tree
-     *
      * @param {Node} elem
      * @param {Tree[]} serializableDescendants
      * @returns {Tree[]}
@@ -130,17 +117,10 @@ export class EmbeddedComponentPlugin extends Plugin {
     }
 
     /**
-     * Apply an embedded state change received from `data-embedded-state`
-     * attribute. In some cases (undo/redo/revertStepsUntil history operations),
-     * the attribute has to be set to a new value, computed by the
-     * stateChangeManager.
-     *
-     * @param {Object} attributeChange @see HistoryPlugin
+     * @param {Object} attributeChange
      * @param { Object } options
-     * @param { boolean } options.forNewStep whether the mutation is being used
-     *        to create a new step
-     * @returns {string} new attribute value to set on the node, which might be
-     *        unchanged
+     * @param { boolean } options.forNewStep
+     * @returns {string}
      */
     onChangeAttribute(attributeChange, { forNewStep = false } = {}) {
         const attributeValue = attributeChange.value;
@@ -153,8 +133,6 @@ export class EmbeddedComponentPlugin extends Plugin {
                 attributeChange.target,
             );
             if (stateChangeManager) {
-                // onStateChanged returns undefined if no change is needed for
-                // the attribute value
                 newAttributeValue = stateChangeManager.onStateChanged(attrState, {
                     reverse: attributeChange.reverse,
                     forNewStep,
@@ -193,7 +171,6 @@ export class EmbeddedComponentPlugin extends Plugin {
         }
         if (getEditableDescendants) {
             env.getEditableDescendants = getEditableDescendants;
-            // Enable the automatic selection restoration feature in @see useEditableDescendants
             Object.assign(env.editorShared, {
                 selection: { ...this.dependencies.selection },
             });
@@ -204,9 +181,6 @@ export class EmbeddedComponentPlugin extends Plugin {
             env,
         });
         root.mount(host);
-        // Patch mount fiber to hook into the exact call stack where root is
-        // mounted (but before). This will remove host children synchronously
-        // just before adding the root rendered html.
         const fiber = root.node.fiber;
         const fiberComplete = fiber.complete;
         fiber.complete = () => {
@@ -216,8 +190,6 @@ export class EmbeddedComponentPlugin extends Plugin {
         };
         const onComponentInserted = this.extractOnComponentInserted(host);
         if (onComponentInserted) {
-            // If a pending operation should be executed after the first mount
-            // of an inserted blueprint, add it as the last `onMounted` callback
             root.node.mounted.push(onComponentInserted);
         }
         const info = {
@@ -229,8 +201,6 @@ export class EmbeddedComponentPlugin extends Plugin {
     }
 
     destroyRemovedComponents(infos) {
-        // Avoid registering mutations if removed hosts are handled in
-        // the same microtask as when they were removed.
         this.dependencies.history.ignoreDOMMutations(() => {
             for (const info of infos) {
                 if (!this.editable.contains(info.host)) {
@@ -273,10 +243,6 @@ export class EmbeddedComponentPlugin extends Plugin {
         this.destroyRemovedComponents(removed);
     }
 
-    /**
-     * Should not be called directly as it will not handle recursivity and
-     * removed components @see deepDestroyComponent
-     */
     destroyComponent({ root, host }) {
         const { getEditableDescendants } = this.getEmbedding(host);
         const editableDescendants = getEditableDescendants?.(host) || {};
@@ -296,13 +262,10 @@ export class EmbeddedComponentPlugin extends Plugin {
     }
 
     /**
-     * @param {String} template blueprint for the embedded Component
-     * @param {Object} [context] rendering context
-     * @param {Function} [onComponentInserted] function to be executed when
-     *        it is first mounted after it was inserted in the DOM. It will not
-     *        be executed if the blueprint is removed from the DOM before the
-     *        first mount nor if the component is mounted again afterwards.
-     * @returns {HTMLElement} host
+     * @param {String} template
+     * @param {Object} [context]
+     * @param {Function} [onComponentInserted]
+     * @returns {HTMLElement}
      */
     renderBlueprintToElement(template, context = {}, onComponentInserted = undefined) {
         const host = renderToElement(template, context);
@@ -333,8 +296,6 @@ export class EmbeddedComponentPlugin extends Plugin {
 
     cleanForSave(clone) {
         this.forEachEmbeddedComponentHost(clone, (host, { getEditableDescendants }) => {
-            // In this case, host is a cloned element, there is no OWL root
-            // attached to it.
             const editableDescendants = getEditableDescendants?.(host) || {};
             host.replaceChildren();
             for (const editableDescendant of Object.values(editableDescendants)) {

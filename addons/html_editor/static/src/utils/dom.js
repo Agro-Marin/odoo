@@ -23,10 +23,6 @@ import { callbacksForCursorUpdate } from "./selection.js";
 /** @typedef {import("@html_editor/core/selection_plugin").Cursors} Cursors */
 
 /**
- * Take a node and unwrap all of its block contents recursively. Paragraph
- * related elements (except the first child) are preceded by a <br> in order to
- * preserve the line breaks.
- *
  * @param {Node} node
  */
 export function makeContentsInline(node) {
@@ -45,11 +41,7 @@ export function makeContentsInline(node) {
 }
 
 /**
- * Wrap inline children nodes in Blocks, optionally updating cursors for
- * later selection restore. A paragraph is used for phrasing node, and a div
- * is used otherwise.
- *
- * @param {HTMLElement} element - block element
+ * @param {HTMLElement} element
  * @param {Object} [options]
  * @param {string} [options.baseContainerNodeName="P"]
  * @param {Cursors} [options.cursors]
@@ -58,7 +50,6 @@ export function wrapInlinesInBlocks(
     element,
     { baseContainerNodeName = "P", cursors = { update: () => {} } } = {},
 ) {
-    // Helpers to manipulate preserving selection.
     const wrapInBlock = (node, cursors) => {
         const block = isPhrasingContent(node)
             ? createBaseContainer(baseContainerNodeName, node.ownerDocument)
@@ -116,8 +107,6 @@ export function wrapInlinesInBlocks(
             if (shouldBreakLine) {
                 wrapInBlock(node, cursors);
             } else {
-                // BR preceded by inline content: discard it and make sure
-                // next inline goes in a new Block
                 removeNode(node, cursors);
                 shouldBreakLine = true;
             }
@@ -140,11 +129,8 @@ export function unwrapContents(node) {
 }
 
 /**
- * Removes the specified class names from the given element.  If the element has
- * no more class names after removal, the "class" attribute is removed.
- *
- * @param {Element} element - The element from which to remove the class names.
- * @param {...string} classNames - The class names to be removed.
+ * @param {Element} element
+ * @param {...string} classNames
  */
 export function removeClass(element, ...classNames) {
     const classNamesSet = new Set(classNames);
@@ -165,13 +151,8 @@ export function removeStyle(element, ...styleProperties) {
 }
 
 /**
- * Add a BR in the given node if its closest ancestor block has nothing to make
- * it visible, and/or add a zero-width space in the given node if it's an empty
- * inline so the cursor can stay in it.
- *
  * @param {HTMLElement} el
- * @returns {Object} { br: the inserted <br> if any,
- *                     zws: the inserted zero-width space if any }
+ * @returns {Object}
  */
 export function fillEmpty(el) {
     const document = el.ownerDocument;
@@ -189,18 +170,13 @@ export function fillEmpty(el) {
         }
         return { zws };
     } else {
-        // If a ZWS was inserted, there is no need for a <br>.
         return fillShrunkPhrasingParent(el);
     }
 }
 
 /**
- * Add a BR in a shrunk phrasing parent to make it visible.
- * A shrunk block is assumed to be a phrasing parent, and the inserted
- * <br> must be wrapped in a paragraph by the caller if necessary.
- *
  * @param {HTMLElement} el
- * @returns {Object} { br: the inserted <br> if any }
+ * @returns {Object}
  */
 export function fillShrunkPhrasingParent(el) {
     const document = el.ownerDocument;
@@ -215,13 +191,9 @@ export function fillShrunkPhrasingParent(el) {
 }
 
 /**
- * Removes a trailing BR if it is unnecessary:
- * in a non-empty block, if the last childNode is a BR and its previous sibling
- * is not a BR, remove the BR.
- *
  * @param {HTMLElement} el
- * @param {Array} predicates exceptions where a trailing BR should not be removed
- * @returns {HTMLElement|undefined} the removed br, if any
+ * @param {Array} predicates
+ * @returns {HTMLElement|undefined}
  */
 export function cleanTrailingBR(el, predicates = []) {
     const candidate = el?.lastChild;
@@ -237,9 +209,6 @@ export function cleanTrailingBR(el, predicates = []) {
 }
 
 /**
- * Wrapper for classList.toggle that removes the class attribute if the
- * element has no class name after the toggle.
- *
  * @param {Element} element
  * @param {string} className
  * @param {boolean} [force]
@@ -262,19 +231,11 @@ export function cleanEmptyAncestors(node, cursors, exclude = () => false) {
 }
 
 /**
- * Remove all occurrences of a character from a text node and optionally update
- * cursors for later selection restore.
- *
- * @param {Node} node text node
- * @param {String} char character to remove (string of length 1)
+ * @param {Node} node
+ * @param {String} char
  * @param {Cursors} [cursors]
  */
 export function cleanTextNode(node, char, cursors) {
-    // In web_editor the text nodes used to be replaced by new ones with the
-    // updated text rather than just changing the text content of the node
-    // because it creates different mutations and it used to break the tour
-    // system. In html_editor the text content is changed instead because other
-    // plugins rely on the reference to the text node.
     const removedIndexes = [];
     node.textContent = node.textContent.replaceAll(char, (_, offset) => {
         removedIndexes.push(offset);
@@ -295,15 +256,10 @@ export function cleanTextNode(node, char, cursors) {
 }
 
 /**
- * Remove all empty text nodes among the direct children of the given root
- * element and update cursors for later selection restore.
- *
  * @param {HTMLElement} root
  * @param {Cursors} [cursors]
  */
 export function removeEmptyTextNodes(root, cursors) {
-    // Prevents the editor from keeping unnecessary empty text nodes that may
-    // create extra nodes during split operations.
     for (const node of childNodes(root).filter((n) => isEmptyTextNode(n))) {
         cursors?.update(callbacksForCursorUpdate.remove(node));
         node.remove();
@@ -311,20 +267,10 @@ export function removeEmptyTextNodes(root, cursors) {
 }
 
 /**
- * Splits a text node in two parts.
- * If the split occurs at the beginning or the end, the text node stays
- * untouched and unsplit. If a split actually occurs, the original text node
- * still exists and become the right part of the split.
- *
- * Note: if split after or before whitespace, that whitespace may become
- * invisible, it is up to the caller to replace it by nbsp if needed.
- *
  * @param {Text} textNode
  * @param {number} offset
- * @param {boolean} originalNodeSide Whether the original node ends up on left
- * or right after the split
- * @returns {number} The parentOffset if the cursor was between the two text
- *          node parts after the split.
+ * @param {boolean} originalNodeSide
+ * @returns {number}
  */
 export function splitTextNode(textNode, offset, originalNodeSide = DIRECTIONS.RIGHT) {
     const document = textNode.ownerDocument;
@@ -351,14 +297,6 @@ export function splitTextNode(textNode, offset, originalNodeSide = DIRECTIONS.RI
 }
 
 /**
- * Remove invisible whitespace from an element and adapt the given cursors
- * accordingly if any.
- *
- * Note (TODO): in the future, this function should use the mechanism used by
- * `enforceWhitespace` but doing so would require a little overhaul of it and of
- * `getState`/`restoreState` to isolate the part that identifies invisible
- * whitespace.
- *
  * @param {Element} el
  * @param {import("@html_editor/core/selection_plugin").Cursors} [cursors]
  */
@@ -384,16 +322,14 @@ export function removeInvisibleWhitespace(el, cursors) {
             previous &&
             (isInlineElement(child.previousSibling) || removedTrailingSpaceBefore)
         ) {
-            // `<span>a</span>\n   b` shows as `<span>a</span> b`
-            leadingWhitespace -= 1; // Keep one space.
+            leadingWhitespace -= 1;
         } else if (
             trailingWhitespace &&
             index !== textChildren.length - 1 &&
             isInlineElement(child.nextSibling) &&
             !countTrailingWhitespace(nextLeaf(child, el))
         ) {
-            // `a\n   <span>\n   b\n</span>` shows as `a <span>b</span>`
-            trailingWhitespace -= 1; // Keep one space.
+            trailingWhitespace -= 1;
         }
         removedTrailingSpaceBefore = !!trailingWhitespace;
         cursors?.shiftOffset(child, -leadingWhitespace);
@@ -412,10 +348,6 @@ export function removeInvisibleWhitespace(el, cursors) {
 }
 
 /**
- * This is used as a replacement for `node.normalize()` which in Safari
- * incorrectly moves the selection to the parent element instead of
- * restoring it to the correct offset in the merged text node.
- *
  * @param {HTMLElement} node
  * @param {Cursors} cursor
  */

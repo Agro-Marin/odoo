@@ -42,7 +42,7 @@ export class UserCommandPlugin extends Plugin {
     /**
      * @param {string} commandId
      * @returns {UserCommand}
-     * @throws {Error} if the command ID is unknown.
+     * @throws {Error}
      */
     getCommand(commandId) {
         const command = this.commands[commandId];

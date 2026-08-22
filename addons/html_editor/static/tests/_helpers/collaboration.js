@@ -8,16 +8,13 @@ import { after, expect } from "@odoo/hoot";
 import { setupEditor } from "./editor.js";
 
 /**
- *
  * @typedef { import("@html_editor/editor").Editor } Editor
- *
  * @typedef { Object } PeerInfo
  * @property { string } peerId
  * @property { import("@html_editor/core/history_plugin").HistoryStep[] } steps
  * @property { Editor } editor
  * @property { import("@html_editor/others/collaboration/collaboration_plugin").CollaborationPlugin } collaborationPlugin
  * @property { import("@html_editor/core/history_plugin").HistoryPlugin } historyPlugin
- *
  * @typedef { Object } MultiEditorSpec
  * @property { string[] } peerIds
  * @property { string } contentBefore
@@ -25,7 +22,6 @@ import { setupEditor } from "./editor.js";
  * @property { Plugin[] } Plugins
  * @property { (peerInfos: Record<string, PeerInfo>) => Promise<void> } afterCreate
  * @property { (peerInfos: Record<string, PeerInfo>) => Promise<void> } afterCursorInserted
- *
  * @typedef { Object } EditorSelection
  * @property { Node } anchorNode
  * @property { number } anchorOffset
@@ -47,8 +43,6 @@ function historyMissingParentSteps(peerInfos, peerInfo, { step, fromStepId }) {
 }
 
 /**
- * Setup an editor with multiple peers.
- *
  * @param { MultiEditorSpec } spec
  * @returns { Promise<Record<string, PeerInfo>> }
  */
@@ -102,7 +96,6 @@ export const setupMultiEditor = async (spec) => {
             base.editor.document.getSelection().removeAllRanges();
         }
         peerInfo.plugins = base.plugins;
-        // TODO @phoenix refactor tests, no need to assign every plugin individually
         const getPlugin = (id) =>
             base.editor.plugins.find((x) => x.constructor.id === id);
         peerInfo.collaborationPlugin = getPlugin("collaboration");
@@ -111,9 +104,6 @@ export const setupMultiEditor = async (spec) => {
 
     const peerInfosList = Object.values(peerInfos);
 
-    // Init the editors
-
-    // From now, any step from a peer must have a different ID.
     let concurrentNextId = 1;
     for (const { historyPlugin } of peerInfosList) {
         historyPlugin.generateId = () => "fake_concurrent_id_" + concurrentNextId++;
@@ -255,8 +245,6 @@ export function renderTextualSelection(peerInfos) {
 }
 
 /**
- * Inserts the given characters at the given offset of the given node.
- *
  * @param {string} chars
  * @param {Node} node
  * @param {number} offset
@@ -299,7 +287,6 @@ function parseMultipleTextualSelection(rootElement, peerId) {
     };
     for (const currentNode of [rootElement, ...inScopeTraversal(rootElement, 0)]) {
         if (currentNode.nodeType === Node.TEXT_NODE) {
-            // Look for special characters in the text content and remove them.
             let match;
             const regex = new RegExp(/(?:\[(\w+)\})|(?:\{(\w+)])/, "gd");
             while ((match = regex.exec(currentNode.textContent))) {

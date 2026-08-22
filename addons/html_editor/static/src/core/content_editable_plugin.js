@@ -9,19 +9,9 @@ import { withSequence } from "@html_editor/utils/resource";
 
 /**
  * @typedef {((el: HTMLElement) => boolean)[]} valid_contenteditable_predicates
- *
  * @typedef {((root: EditorContext["editable"]) => HTMLElement[])[]} content_editable_providers
  * @typedef {((root: EditorContext["editable"]) => HTMLElement[])[]} content_not_editable_providers
- *
  * @typedef {CSSSelector[]} contenteditable_to_remove_selector
- */
-
-/**
- * This plugin is responsible for setting the contenteditable attribute on some
- * elements.
- *
- * The content_editable_providers and content_not_editable_providers resources
- * allow other plugins to easily add editable or non editable elements.
  */
 
 export class ContentEditablePlugin extends Plugin {

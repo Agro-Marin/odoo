@@ -18,21 +18,18 @@ import { Powerbox } from "./powerbox.js";
  * @typedef {Object} PowerboxCategory
  * @property {string} id
  * @property {TranslatedString} name
- *
  * @typedef {Object} PowerboxItem
- * @property {string} categoryId Id of a powerbox category
- * @property {string} commandId Id of a user command to extend
- * @property {Object} [commandParams] Passed to the command's `run` function - optional
- * @property {TranslatedString} [title] Inheritable
- * @property {TranslatedString} [description] Inheritable
- * @property {string} [icon] fa-class - Inheritable
+ * @property {string} categoryId
+ * @property {string} commandId
+ * @property {Object} [commandParams]
+ * @property {TranslatedString} [title]
+ * @property {TranslatedString} [description]
+ * @property {string} [icon]
  * @property {TranslatedString[]} [keywords]
- * @property {(selection: EditorSelection) => boolean} [isAvailable] Optional and inheritable
+ * @property {(selection: EditorSelection) => boolean} [isAvailable]
  */
 
 /**
- * The resulting powerbox command after deriving properties from a user command
- * (type for internal use).
  * @typedef {Object} PowerboxCommand
  * @property {string} categoryId
  * @property {string} categoryName
@@ -55,13 +52,7 @@ import { Powerbox } from "./powerbox.js";
 /** @typedef {PowerboxCategory[]} powerbox_categories */
 /**
  * @typedef {import("plugins").CSSSelector[]} powerbox_blacklist_selectors
- *
- * @see UserCommand
  * @typedef {PowerboxItem[]} powerbox_items
- *
- * A powerbox item must derive from a user command (see UserCommand) specified
- * by commandId. Properties defined in a powerbox item override those from a
- * user command. Other properties are inferred from the UserCommand.
  */
 
 export class PowerboxPlugin extends Plugin {

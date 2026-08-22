@@ -224,8 +224,6 @@ test("html field in readonly with embedded components", async () => {
             expect.step("destroyed");
         },
     });
-    // patchWithCleanup Array => cleanup keeps the last array entry set to undefined,
-    // so it can not be used
     READONLY_MAIN_EMBEDDINGS.push({
         name: "counter",
         Component: Counter,
@@ -265,7 +263,6 @@ test("html field in readonly with embedded components", async () => {
     expect(`[name="txt"] .o_readonly`).toHaveInnerHTML(
         `<div><span data-embedded="counter" data-embedded-props='{"name":"name"}'><span class="counter">name:1</span></div>`,
     );
-    // trigger the onchange method for name, which will replace the txt value.
     await contains(`.o_field_widget[name=name] input`).edit("hello");
     await animationFrame();
     expect.verifySteps(["destroyed"]);
@@ -278,8 +275,6 @@ test("html field in readonly with embedded components", async () => {
 
 test("html field in readonly with embedded components and editable descendants", async () => {
     const Wrapper = EmbeddedWrapperMixin("editable");
-    // patchWithCleanup Array => cleanup keeps the last array entry set to undefined,
-    // so it can not be used
     READONLY_MAIN_EMBEDDINGS.push(
         {
             name: "wrapper",
@@ -469,7 +464,6 @@ test("edit and save a html field containing JSON as some attribute values should
     });
     onRpc("partner", "web_save", ({ args }) => {
         expect.step("web_save");
-        // server representation does not have HTML entities
         args[1].txt = `<div data-value='{"myString":"myString"}'><p>content</p></div><p>first</p>`;
     });
 
@@ -570,7 +564,6 @@ test("create new record and load it correctly", async () => {
             },
         ];
 
-        // Necessary for mobile
         _views = {
             kanban: `
                 <kanban>
@@ -629,9 +622,6 @@ test("edit a html field with `o-contenteditable-true` or `o-contenteditable-fals
     patchWithCleanup(Wysiwyg.prototype, {
         setup() {
             super.setup();
-            // This should not be called again after the edit (if it is, it
-            // means that the content was reset from the server value, and that
-            // an entirely new editor replaced the previous one).
             expect.step("setup_wysiwyg");
         },
     });
@@ -649,7 +639,6 @@ test("edit a html field with `o-contenteditable-true` or `o-contenteditable-fals
     ];
     onRpc("partner", "web_save", ({ args }) => {
         expect.step("web_save");
-        // server representation removes `contenteditable` attribute
         let txt = args[1].txt;
         txt = txt.replace(` contenteditable="true"`, "");
         txt = txt.replace(` contenteditable="false"`, "");
@@ -678,12 +667,6 @@ test("edit a html field with `o-contenteditable-true` or `o-contenteditable-fals
             '<div class="o-paragraph" data-selection-placeholder=""><br></div>',
     );
     await clickSave();
-    // One `update_value`, not two: this fork's `updateValue` clears `isDirty`
-    // up front (re-arming it via `isStale` when a concurrent edit landed during
-    // the await), so the blur commit and the save commit collapse into a single
-    // `record.update` instead of repeating the same value. What this test is
-    // actually about — the editable not being reset from the server value — is
-    // carried by `setup_wysiwyg` being absent from the steps below.
     expect.verifySteps(["update_value", "web_save"]);
 });
 
@@ -866,7 +849,6 @@ test("discard changes in html field in form", async () => {
     expect(".odoo-editor-editable p").toHaveText("first");
     expect(`.o_form_button_save`).not.toBeVisible();
 
-    // move the hoot focus in the editor
     await click(".odoo-editor-editable");
     setSelectionInHtmlField();
     await insertText(htmlEditor, "test");
@@ -894,7 +876,6 @@ test("undo after discard html field changes in form", async () => {
     expect(".odoo-editor-editable p").toHaveText("first");
     expect(`.o_form_button_save`).not.toBeVisible();
 
-    // move the hoot focus in the editor
     await click(".odoo-editor-editable");
     setSelectionInHtmlField();
     await insertText(htmlEditor, "test");
@@ -925,8 +906,6 @@ test("A new MediaDialog after switching record in a Form view should have the co
             this.title = "TEST";
             this.tabs = [];
             this.state = {};
-            // no call to super to avoid services dependencies
-            // this test only cares about the props given to the dialog
         },
     });
     await mountView({
@@ -982,7 +961,6 @@ test("Embed video by pasting video URL", async () => {
 
     const anchorNode = setSelectionInHtmlField();
 
-    // Paste a video URL.
     pasteText(htmlEditor, videoURL);
     await animationFrame();
     expect(anchorNode.outerHTML).toBe(`<p>${videoURL}</p>`);
@@ -992,12 +970,7 @@ test("Embed video by pasting video URL", async () => {
         "Paste as URL",
     ]);
 
-    // Press Enter to select first option in the powerbox ("Embed Youtube Video").
     await press("Enter");
-    // Insertion triggers selectionchange & addStep creates a selection
-    // placeholder. fixSelectionOnEditableRoot moves the selection into it,
-    // triggering another selectionchange that removes the placeholder.
-    // So we must wait for the o-we-hint.
     await waitFor(".o-we-hint");
     const videoIframe = queryOne("div[data-embedded='video']");
     expect(videoIframe.nextElementSibling).toHaveOuterHTML(
@@ -1030,7 +1003,6 @@ test("Embedded video shouldn't have the 'media_iframe_video' class", async () =>
 
     setSelectionInHtmlField();
 
-    // Open the video tab of the media dialog
     await insertText(htmlEditor, "/video");
     await waitFor(".o-we-powerbox");
     await press("Enter");
@@ -1139,10 +1111,8 @@ test("link preview in Link Popover", async () => {
 
     expect(".test_target a").toHaveText("This website");
 
-    // Open the popover option to edit the link
     setSelectionInHtmlField(".test_target a");
     await animationFrame();
-    // Click on the edit link icon
     await contains("a.o_we_edit_link").click();
     expect(".o-we-linkpopover input.o_we_label_link").toHaveValue("This website", {
         message: "The label input field should match the link's content",
@@ -1152,36 +1122,29 @@ test("link preview in Link Popover", async () => {
     expect(".o-we-linkpopover input.o_we_label_link").toHaveValue("Bad new label", {
         message: "The label input field should match the link's content",
     });
-    // Click on Discard button to undo changes.
     await contains(".o-we-linkpopover .o_we_discard_link").click();
     await waitFor("a.o_we_edit_link");
     expect(".test_target a").toHaveText("This website");
 
-    // Click on the edit link icon
     await contains("a.o_we_edit_link").click();
     expect(".o-we-linkpopover input.o_we_label_link").toHaveValue("This website", {
         message: "The label input field should match the link's content",
     });
 
-    // Edit the link's label
     await contains(".o-we-linkpopover input.o_we_label_link").edit("New label");
 
-    // Click "Save".
     await contains(".o-we-linkpopover .o_we_apply_link").click();
     expect(".test_target a").toHaveText("New label", {
         message: "The link's label should be updated",
     });
 
-    // Click on the edit link icon
     await contains("a.o_we_edit_link").click();
     expect(".o-we-linkpopover input.o_we_label_link").toHaveValue("New label", {
         message: "The label input field should match the link's content",
     });
 
-    // Edit the link's label
     await contains(".o-we-linkpopover input.o_we_label_link").edit("Final label");
 
-    // Move selection outside for auto-save.
     setSelectionInHtmlField(".test_target");
     await expectElementCount(".o-we-linkpopover", 0);
     expect(".test_target a").toHaveText("Final label", {
@@ -1266,7 +1229,6 @@ test("should display overlay on video hover and handle video replacement and rem
         }
     });
 
-    // Insert video
     await insertText(htmlEditor, "/video");
     await waitFor(".o-we-powerbox");
     expect(queryAllTexts(".o-we-command-name")[0]).toBe("Media");
@@ -1285,18 +1247,15 @@ test("should display overlay on video hover and handle video replacement and rem
     const embeddedVideoEl = await waitFor("div[data-embedded='video'] iframe");
     const iframeSrcBefore = embeddedVideoEl.dataset.src;
 
-    // Hover on VideoBlock shows overlay
     await hover(queryOne("div[data-embedded='video']"));
     await expectElementCount(".video-overlay", 1);
 
-    // Click on overlay and choose Replace
     await click(".video-overlay button");
     await waitFor(".o-dropdown-item");
     expect(queryAllTexts(".o-dropdown-item")[0]).toBe("Replace");
     await click(".o-dropdown-item .fa-right-left");
     await waitFor("textarea[id='o_video_text']");
 
-    // Replace video
     const replaceInput = queryOne("textarea[id='o_video_text']");
     replaceInput.value = "https://www.youtube.com/embed/gbE3azm_Io0?rel=0&autoplay=0";
     manuallyDispatchProgrammaticEvent(replaceInput, "input", {
@@ -1314,7 +1273,6 @@ test("should display overlay on video hover and handle video replacement and rem
     const iframeSrcAfter = embeddedVideoEl.dataset.src;
     expect(iframeSrcBefore).not.toBe(iframeSrcAfter);
 
-    // Hover VideoBlock again, and choose Remove
     await hover(queryOne("div[data-embedded='video']"));
     await expectElementCount(".video-overlay", 1);
     await click(".video-overlay button");
@@ -1344,7 +1302,6 @@ test("add Vimeo video link in 'Videos' tab of MediaDialog", async () => {
         embed_url: vimeoVideoLink,
     }));
 
-    // Insert Vimeo video link
     await insertText(htmlEditor, "/video");
     await waitFor(".o-we-powerbox");
     expect(queryAllTexts(".o-we-command-name")[0]).toBe("Media");
@@ -1666,7 +1623,6 @@ test("enable/disable codeview with editor toolbar", async () => {
     expect("[name='txt'] .odoo-editor-editable").toHaveInnerHTML("<p> first </p>");
     expect("[name='txt'] textarea").toHaveCount(0);
 
-    // Switch to code view
     const node = queryOne(".odoo-editor-editable p");
     setSelection({
         anchorNode: node,
@@ -1679,7 +1635,6 @@ test("enable/disable codeview with editor toolbar", async () => {
     expect("[name='txt'] .odoo-editor-editable").toHaveClass("d-none");
     expect("[name='txt'] textarea").toHaveValue("<p>first</p>");
 
-    // Switch to editor
     await contains(".o_codeview_btn").click();
     expect("[name='txt'] .odoo-editor-editable").toHaveInnerHTML("<p> first </p>");
     expect("[name='txt'] textarea").toHaveCount(0);
@@ -1706,7 +1661,6 @@ test("edit and enable/disable codeview with editor toolbar", async () => {
     await insertText(htmlEditor, "Hello ");
     expect("[name='txt'] .odoo-editor-editable").toHaveInnerHTML("<p>Hello first </p>");
 
-    // Switch to code view
     const node = queryOne(".odoo-editor-editable p");
     setSelection({
         anchorNode: node,
@@ -1721,7 +1675,6 @@ test("edit and enable/disable codeview with editor toolbar", async () => {
     await contains("[name='txt'] textarea").edit("<p>Yop</p>");
     expect("[name='txt'] textarea").toHaveValue("<p>Yop</p>");
 
-    // Switch to editor
     await contains(".o_codeview_btn").click();
     expect("[name='txt'] .odoo-editor-editable").toHaveInnerHTML("<p> Yop </p>");
 
@@ -1988,7 +1941,6 @@ describe("sandbox", () => {
                 </form>`,
         });
 
-        // check original displayed content
         let iframe = queryOne(
             '.o_field_html[name="txt"] iframe[sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"]',
         );
@@ -2007,7 +1959,6 @@ describe("sandbox", () => {
         ).toBe("rgb(255, 0, 0)");
         expect("#codeview-btn-group > button").toHaveCount(1);
 
-        // switch to XML editor and edit
         await contains("#codeview-btn-group > button").click();
         expect('.o_field_html[name="txt"] textarea').toHaveCount(1);
 
@@ -2016,7 +1967,6 @@ describe("sandbox", () => {
         );
         expect(`.o_form_button_save`).toBeVisible();
 
-        // check displayed content after edit
         await contains("#codeview-btn-group > button").click();
         iframe = queryOne(
             '.o_field_html[name="txt"] iframe[sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"]',
@@ -2071,7 +2021,6 @@ describe("sandbox", () => {
                 </form>`,
         });
 
-        // switch to XML editor and edit
         await contains("#codeview-btn-group > button").click();
         expect('.o_field_html[name="txt"] textarea').toHaveValue(
             htmlDocumentTextTemplate("Hello", "red"),
@@ -2384,18 +2333,14 @@ describe("save image", () => {
                     model === "partner"
                 ) {
                     if (writeCount === 0) {
-                        // Save normal value without image.
                         expect(args[1].txt).toBe(`<p class="test_target">a</p>`);
                     } else if (writeCount === 1) {
-                        // Save image with unfinished modification changes.
                         expect(args[1].txt).toBe(imageContainerHTML);
                     } else if (writeCount === 2) {
-                        // Save the modified image.
                         expect(args[1].txt).toBe(
                             getImageContainerHTML(newImageSrc, false),
                         );
                     } else {
-                        // Fail the test if too many write are called.
                         throw new Error(
                             "Write should only be called 3 times during this test",
                         );
@@ -2408,7 +2353,6 @@ describe("save image", () => {
         });
 
         let formController;
-        // Patch to get the controller instance.
         patchWithCleanup(FormController.prototype, {
             setup() {
                 super.setup(...arguments);
@@ -2417,7 +2361,6 @@ describe("save image", () => {
         });
 
         const imageRecord = IrAttachment._records[0];
-        // Method to get the html of a cropped image.
         const getImageContainerHTML = (src, isModified) =>
             `
             <p>
@@ -2441,17 +2384,13 @@ describe("save image", () => {
         `
                 .replace(/(?:\s|(?:\r\n))+/g, " ")
                 .replace(/\s?(<|>)\s?/g, "$1");
-        // Promise to resolve when we want the response of the modify_image RPC.
         const modifyImagePromise = new Deferred();
         let writeCount = 0;
         let modifyImageCount = 0;
-        // Valid base64 encoded image in its transitory modified state.
         const imageContainerHTML = getImageContainerHTML(
             "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII",
             true,
         );
-        // New src URL to assign to the image when the modification is
-        // "registered".
         const newImageSrc = "/web/image/1234/cropped_transparent.png";
         onRpc("web_save", () => {
             throw new Error("web_save should only be called through sendBeacon");
@@ -2465,7 +2404,6 @@ describe("save image", () => {
                 modifyImageCount++;
                 return newImageSrc;
             } else {
-                // Fail the test if too many modify_image are called.
                 throw new Error(
                     "The image should only have been modified once during this test",
                 );
@@ -2481,7 +2419,6 @@ describe("save image", () => {
             </form>`,
         });
 
-        // Simulate an urgent save without any image in the content.
         sendBeaconDef = new Deferred();
         setSelectionInHtmlField(".test_target");
         await insertText(htmlEditor, "a");
@@ -2489,8 +2426,6 @@ describe("save image", () => {
         await formController.beforeUnload();
         await sendBeaconDef;
 
-        // Replace the empty paragraph with a paragraph containing an unsaved
-        // modified image
         const imageContainerElement = parseHTML(
             htmlEditor.document,
             imageContainerHTML,
@@ -2499,18 +2434,14 @@ describe("save image", () => {
         htmlEditor.editable.replaceChild(imageContainerElement, paragraph);
         htmlEditor.shared.history.addStep();
 
-        // Simulate an urgent save before the end of the RPC roundtrip for the
-        // image.
         sendBeaconDef = new Deferred();
         await formController.beforeUnload();
         await sendBeaconDef;
 
-        // Resolve the image modification (simulate end of RPC roundtrip).
         modifyImagePromise.resolve();
         await modifyImagePromise;
         await animationFrame();
 
-        // Simulate the last urgent save, with the modified image.
         sendBeaconDef = new Deferred();
         await formController.beforeUnload();
         await sendBeaconDef;
@@ -2545,7 +2476,6 @@ describe("save image", () => {
         });
         setSelectionInHtmlField(".test_target");
 
-        // Paste image.
         pasteFile(
             htmlEditor,
             createBase64ImageFile(
@@ -2557,7 +2487,6 @@ describe("save image", () => {
         expect(img.src.startsWith("data:image/png;base64,")).toBe(true);
         expect(img).toHaveClass("o_b64_image_to_save");
 
-        // Save changes.
         await contains(".o_form_button_save").click();
         expect(img.getAttribute("src")).toBe("/test_image_url.png?access_token=1234");
         expect(img).not.toHaveClass("o_b64_image_to_save");
@@ -2604,7 +2533,6 @@ describe("save image", () => {
         });
         setSelectionInHtmlField(".test_target");
 
-        // Paste image.
         pasteFile(
             htmlEditor,
             createBase64ImageFile(
@@ -2616,7 +2544,6 @@ describe("save image", () => {
         expect(img.src.startsWith("data:image/png;base64,")).toBe(true);
         expect(img).toHaveClass("o_b64_image_to_save");
 
-        // Save changes.
         await contains(".o_form_button_save").click();
         expect(img.src.startsWith("data:image/png;base64,")).toBe(true);
         expect(img).toHaveClass("o_b64_image_to_save");
@@ -2678,7 +2605,6 @@ describe("save image", () => {
         });
         setSelectionInHtmlField(".test_target");
 
-        // Paste image.
         pasteFile(
             htmlEditor,
             createBase64ImageFile(
@@ -2690,7 +2616,6 @@ describe("save image", () => {
         expect(img.src.startsWith("data:image/png;base64,")).toBe(true);
         expect(img).toHaveClass("o_b64_image_to_save");
 
-        // Save changes.
         await contains(".o_pager_next").click();
         expect(img.src.startsWith("data:image/png;base64,")).toBe(true);
         expect(img).toHaveClass("o_b64_image_to_save");
@@ -2741,7 +2666,6 @@ describe("save image", () => {
         });
         setSelectionInHtmlField(".test_target");
 
-        // Paste image.
         pasteFile(
             htmlEditor,
             createBase64ImageFile(
@@ -2753,7 +2677,6 @@ describe("save image", () => {
         expect(img.src.startsWith("data:image/png;base64,")).toBe(true);
         expect(img).toHaveClass("o_b64_image_to_save");
 
-        // Save changes.
         await contains(".o_form_button_save").click();
         expect(img.getAttribute("src")).toBe("/test_image_url.png?access_token=12345");
         expect(img).not.toHaveClass("o_b64_image_to_save");
@@ -2772,7 +2695,6 @@ describe("save image", () => {
             const { params } = await request.json();
             const { res_id, res_model } = params;
             expect.step(`add_data-start: ${res_model} ${res_id}`);
-            // add a delay to emulate saving a big image.
             await delay(50);
             expect.step(`add_data-end: ${res_model} ${res_id}`);
             return {
@@ -2798,7 +2720,6 @@ describe("save image", () => {
         });
         setSelectionInHtmlField(".test_target");
 
-        // Paste image.
         pasteFile(
             htmlEditor,
             createBase64ImageFile(
@@ -2810,12 +2731,10 @@ describe("save image", () => {
         expect(b64img.src.startsWith("data:image/png;base64,")).toBe(true);
         expect(b64img).toHaveClass("o_b64_image_to_save");
 
-        // Switch tab, this should trigger the image save.
         await contains(
             ".o_notebook_headers .nav-link:not(.active)[name='empty']",
         ).click();
         await waitFor(".o_notebook_headers .nav-link.active[name='empty']");
-        // Reswitch tab, and check the image was saved properly.
         await contains(
             ".o_notebook_headers .nav-link:not(.active)[name='html']",
         ).click();
@@ -2841,7 +2760,7 @@ describe("translatable", () => {
             type: "form",
             resModel: "partner",
             resId: 1,
-            arch: /* xml */ `
+            arch: `
                 <form string="Partner">
                     <sheet>
                         <group>
@@ -2853,11 +2772,9 @@ describe("translatable", () => {
 
         expect(".o_field_html .btn.o_field_translate").not.toBeVisible();
 
-        // Focus on the editable to make the translate button visible
         await contains(".odoo-editor-editable").click();
         expect(".o_field_html .btn.o_field_translate").toBeVisible();
 
-        // Click away to remove focus
         await contains(".o_form_label").click();
         expect(".o_field_html .btn.o_field_translate").not.toBeVisible();
     });

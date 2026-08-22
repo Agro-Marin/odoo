@@ -31,8 +31,6 @@ test("should insert a line break (2 <br>) at the end of a list item", async () =
     await testEditor({
         contentBefore: "<ul><li>abc[]</li></ul>",
         stepFunction: insertLineBreak,
-        // The second <br> is needed to make the first
-        // one visible.
         contentAfter: "<ul><li>abc<br>[]<br></li></ul>",
     });
 });

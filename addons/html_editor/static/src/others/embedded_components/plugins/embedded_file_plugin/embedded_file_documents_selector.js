@@ -2,10 +2,6 @@
 import { DocumentSelector } from "@html_editor/main/media/media_dialog/document_selector";
 import { renderToElement } from "@web/core/utils/render";
 
-/**
- * Override the @see DocumentSelector to render the uploaded file as embedded
- * component with editable file name and previewable file.
- */
 export class EmbeddedFileDocumentsSelector extends DocumentSelector {
     static mediaSpecificClasses = [];
 

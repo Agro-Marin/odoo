@@ -254,8 +254,6 @@ describe("history addExternalStep", () => {
         mergePeersSteps(peerInfos);
         cleanHints(peerInfos.c1.editor);
         cleanHints(peerInfos.c2.editor);
-        // TODO @phoenix c1 editable should be `<p>iab[]</p>`, but its selection
-        // was not adjusted properly when receiving the external step
         expect(getContent(peerInfos.c1.editor.editable)).toBe(`<p>ia[]b</p>`);
         expect(getContent(peerInfos.c2.editor.editable)).toBe(`<p>ia[]b</p>`);
     });
@@ -291,7 +289,6 @@ test("should reset from snapshot", async () => {
         afterCreate: (peerInfos) => {
             insert(peerInfos.c1.editor, "b");
             peerInfos.c1.collaborationPlugin.makeSnapshot();
-            // Ensure the snapshot is considered to be older than 30 seconds.
             peerInfos.c1.collaborationPlugin.snapshots[0].time = 1;
             const { steps } = peerInfos.c1.collaborationPlugin.getSnapshotSteps();
             peerInfos.c2.collaborationPlugin.resetFromSteps(steps);
@@ -323,7 +320,6 @@ describe("steps whith no parent in history", () => {
                 peerInfos.c3.collaborationPlugin.onExternalHistorySteps([
                     peerInfos.c2.historyPlugin.steps[2],
                 ]);
-                // receive step 1 after step 2
                 peerInfos.c3.collaborationPlugin.onExternalHistorySteps([
                     peerInfos.c1.historyPlugin.steps[1],
                 ]);
@@ -342,16 +338,11 @@ describe("steps whith no parent in history", () => {
                     peerInfos.c1.historyPlugin.steps[1],
                 ]);
 
-                // Peer 3 connect first to peer 1 that made a snapshot.
-
                 peerInfos.c1.collaborationPlugin.makeSnapshot();
-                // Fake the time of the snapshot so it is considered to be
-                // older than 30 seconds.
                 peerInfos.c1.collaborationPlugin.snapshots[0].time = 1;
                 const { steps } = peerInfos.c1.collaborationPlugin.getSnapshotSteps();
                 peerInfos.c3.collaborationPlugin.resetFromSteps(steps);
 
-                // In the meantime peer 2 send the step to peer 1
                 insert(peerInfos.c2.editor, "d");
                 insert(peerInfos.c2.editor, "e");
                 peerInfos.c1.collaborationPlugin.onExternalHistorySteps([
@@ -361,7 +352,6 @@ describe("steps whith no parent in history", () => {
                     peerInfos.c2.historyPlugin.steps[3],
                 ]);
 
-                // Now peer 2 is connected to peer 3 and peer 2 make a new step.
                 insert(peerInfos.c2.editor, "f");
                 peerInfos.c1.collaborationPlugin.onExternalHistorySteps([
                     peerInfos.c2.historyPlugin.steps[4],
@@ -377,7 +367,7 @@ describe("steps whith no parent in history", () => {
 describe("sanitize", () => {
     beforeEach(() => patchWithCleanup(console, { log: expect.step }));
 
-    const LOG_XSS = /* js */ `window.top.console.log("xss")`;
+    const LOG_XSS = `window.top.console.log("xss")`;
 
     test("should sanitize when adding a node", async () => {
         patchWithCleanup(console, {
@@ -444,9 +434,6 @@ describe("sanitize", () => {
     });
 
     test("should sanitize when undo is adding a script node", async () => {
-        // Prevent console.warn from making the test fail due to inexistent node
-        // to remove. The script node is non existent in the collaborator's DOM
-        // (c2) because of sanitization of serialized nodes.
         patchWithCleanup(console, { warn: () => {} });
         await testMultiEditor({
             peerIds: ["c1", "c2"],
@@ -461,7 +448,6 @@ describe("sanitize", () => {
                 peerInfos.c2.collaborationPlugin.onExternalHistorySteps([
                     peerInfos.c1.historyPlugin.steps[1],
                 ]);
-                // Change the peer in order to be undone from peer 2
                 peerInfos.c1.historyPlugin.steps[2].peerId = "c2";
                 peerInfos.c2.collaborationPlugin.onExternalHistorySteps([
                     peerInfos.c1.historyPlugin.steps[2],
@@ -486,7 +472,6 @@ describe("sanitize", () => {
                 peerInfos.c2.collaborationPlugin.onExternalHistorySteps([
                     peerInfos.c1.historyPlugin.steps[1],
                 ]);
-                // Change the peer in order to be undone from peer 2
                 peerInfos.c1.historyPlugin.steps[2].peerId = "c2";
                 peerInfos.c2.collaborationPlugin.onExternalHistorySteps([
                     peerInfos.c1.historyPlugin.steps[2],
@@ -513,7 +498,6 @@ describe("sanitize", () => {
                 peerInfos.c2.collaborationPlugin.onExternalHistorySteps([
                     peerInfos.c1.historyPlugin.steps[1],
                 ]);
-                // Change the peer in order to be undone from peer 2
                 peerInfos.c1.historyPlugin.steps[2].peerId = "c2";
                 peerInfos.c2.collaborationPlugin.onExternalHistorySteps([
                     peerInfos.c1.historyPlugin.steps[2],
@@ -569,11 +553,6 @@ describe("sanitize", () => {
                 );
                 addStep(editor1);
                 mergePeersSteps(peerInfos);
-                // peer 1:
-                // did not receive the secret code doing secret stuff from peer 2 because
-                // it was protected
-                // still has its own onclick attribute doing bad stuff, because he wrote it
-                // himself
                 expect(peerInfos.c1.editor.editable).toHaveInnerHTML(
                     unformat(`
                         <p>sanitycheckc1</p>
@@ -583,11 +562,6 @@ describe("sanitize", () => {
                         <p>sanitycheckc2</p>
                     `),
                 );
-                // peer 2:
-                // did not receive the onclick attribute doing bad stuff from peer 1 (was
-                // sanitized)
-                // received the `data-info="43"` from peer 1, and doing so did not sanitize
-                // the custom script doing secret stuff
                 expect(peerInfos.c2.editor.editable).toHaveInnerHTML(
                     unformat(`
                         <p>sanitycheckc1</p>
@@ -895,11 +869,9 @@ describe("Collaboration with embedded components", () => {
         );
         await click(e2.editable.querySelector(".counter"));
         await animationFrame();
-        // e1 counter was not clicked, no change
         expect(getContent(e1.editable, { sortAttrs: true })).toBe(
             `<p>a<span contenteditable="false" data-embedded="counter" data-oe-protected="true"><span class="counter">Counter:0</span></span>[]</p>`,
         );
-        // e2 counter was incremented
         expect(getContent(e2.editable, { sortAttrs: true })).toBe(
             `<p>a[]<span contenteditable="false" data-embedded="counter" data-oe-protected="true"><span class="counter">Counter:1</span></span></p>`,
         );
@@ -1017,7 +989,6 @@ describe("Collaboration with embedded components", () => {
         deep2.append(e2.document.createTextNode("2"));
         e2.shared.history.addStep();
         mergePeersSteps(peerInfos);
-        // Before mount:
         let editable = unformat(`
             <p data-selection-placeholder=""><br></p>
             <div contenteditable="false" data-embedded="wrapper" data-oe-protected="true">
@@ -1030,7 +1001,6 @@ describe("Collaboration with embedded components", () => {
         expect(getContent(e1.editable, { sortAttrs: true })).toBe(editable);
         expect(getContent(e2.editable, { sortAttrs: true })).toBe(editable);
         await animationFrame();
-        // After mount:
         editable = unformat(`
             <p data-selection-placeholder=""><br></p>
             <div contenteditable="false" data-embedded="wrapper" data-oe-protected="true">
@@ -1104,18 +1074,14 @@ describe("Collaboration with embedded components", () => {
             ),
         );
         e1.shared.history.addStep();
-        // ensure wrappers[0] is for c1
         await animationFrame();
         mergePeersSteps(peerInfos);
-        // ensure wrappers[1] is for c2
         await animationFrame();
         const deep1 = e1.editable.querySelector("[data-embedded-editable='deep'] > p");
         const deep2 = e2.editable.querySelector("[data-embedded-editable='deep'] > p");
-        // change state for c1
         wrappers[0].state.switch = true;
         deep1.append(e1.document.createTextNode("1"));
         e1.shared.history.addStep();
-        // wait for patch for c1
         await animationFrame();
         mergePeersSteps(peerInfos);
         deep2.append(e2.document.createTextNode("2"));
@@ -1356,13 +1322,6 @@ describe("Collaboration with embedded components", () => {
         });
 
         test("Undo and Redo can overwrite a collaborator changes to the embedded state", async () => {
-            // Undo and Redo can be confusing with states. The idea is that a step is "owned" by
-            // a collaborator, and the current peer can not undo it. Instead, the history allows the
-            // peer to undo his own last step. In summary:
-            // - undo for peer goes from the current state (which can be set by the collaborator)
-            // to the state before his own last step.
-            // - redo for peer goes from the current state (which can be set by the collaborator)
-            // to the state before his own last undo.
             const peerInfos = await setupMultiEditor({
                 peerIds: ["c1", "c2"],
                 contentBefore: `<p>a[c1}{c1][c2}{c2]<span data-embedded="counter" data-embedded-props='{"value":1}'></span></p>`,
@@ -1393,8 +1352,6 @@ describe("Collaboration with embedded components", () => {
             expect(getContent(e2.editable, { sortAttrs: true })).toBe(
                 `<p>a[]<span contenteditable="false" data-embedded="counter" data-embedded-props='{"value":3}' data-embedded-state='{"stateChangeId":2,"previous":{"value":2},"next":{"value":3}}' data-oe-protected="true"><span class="counter">Counter:3</span></span></p>`,
             );
-            // e2 last step was to go from 1 to 2. e2 can not undo step from e1
-            // therefore undo does 3 -> 1
             undo(e2);
             await animationFrame();
             mergePeersSteps(peerInfos);
@@ -1405,8 +1362,6 @@ describe("Collaboration with embedded components", () => {
             expect(getContent(e2.editable, { sortAttrs: true })).toBe(
                 `<p>a[]<span contenteditable="false" data-embedded="counter" data-embedded-props='{"value":1}' data-embedded-state='{"stateChangeId":3,"previous":{"value":3},"next":{"value":1}}' data-oe-protected="true"><span class="counter">Counter:1</span></span></p>`,
             );
-            // e1 last step was to go from 2 to 3. e1 can not undo step from e2
-            // therefore undo does 1 -> 2
             undo(e1);
             await animationFrame();
             mergePeersSteps(peerInfos);
@@ -1417,8 +1372,6 @@ describe("Collaboration with embedded components", () => {
             expect(getContent(e2.editable, { sortAttrs: true })).toBe(
                 `<p>a[]<span contenteditable="false" data-embedded="counter" data-embedded-props='{"value":2}' data-embedded-state='{"stateChangeId":4,"previous":{"value":1},"next":{"value":2}}' data-oe-protected="true"><span class="counter">Counter:2</span></span></p>`,
             );
-            // e2 last undo was to go from 3 -> 1. e2 can not redo step from e1
-            // therefore redo does 2 -> 3
             redo(e2);
             await animationFrame();
             mergePeersSteps(peerInfos);
@@ -1429,7 +1382,6 @@ describe("Collaboration with embedded components", () => {
             expect(getContent(e2.editable, { sortAttrs: true })).toBe(
                 `<p>a[]<span contenteditable="false" data-embedded="counter" data-embedded-props='{"value":3}' data-embedded-state='{"stateChangeId":5,"previous":{"value":2},"next":{"value":3}}' data-oe-protected="true"><span class="counter">Counter:3</span></span></p>`,
             );
-            // e1 last undo was to go from 1 -> 2. redo does 3 -> 1.
             redo(e1);
             await animationFrame();
             mergePeersSteps(peerInfos);
@@ -1504,15 +1456,6 @@ describe("Collaboration with embedded components", () => {
             await animationFrame();
             mergePeersSteps(peerInfos);
             await animationFrame();
-            // 3, which was added after makeSavePoint, was removed from obj
-            // for every collaborator after the savepoint restoration.
-            // stateChangeId evolves from 4 to 9 because steps 2,3,4 were
-            // reverted, and only steps 2 and 4 were applied again, 3 was
-            // not re-applied since it was done by c1. The last applied state
-            // change is the transition from {2} to {2, 4}, but the step
-            // generated by the savePoint contains all state changes from
-            // {2, 3, 4} to {2, 4}, and that is why it is applied correctly
-            // for both users.
             expect(getContent(e1.editable, { sortAttrs: true })).toBe(
                 `<p>a[]</p><div contenteditable="false" data-embedded="obj" data-embedded-props='{"obj":{"2":2,"4":4}}' data-embedded-state='{"stateChangeId":9,"previous":{"obj":{"2":2}},"next":{"obj":{"2":2,"4":4}}}' data-oe-protected="true"><div class="obj">2_2,4_4</div></div><p data-selection-placeholder=""><br></p>`,
             );
@@ -1552,9 +1495,6 @@ describe("Collaboration with embedded components", () => {
             expect(getContent(e1.editable, { sortAttrs: true })).toBe(`<p>abc[]</p>`);
             mergePeersSteps(peerInfos);
             await animationFrame();
-            // TODO @phoenix: selection should be at the end of the span for e2,
-            // but it was not correctly updated after external steps. To update
-            // when the selection is properly handled in collaboration.
             expect(getContent(e2.editable, { sortAttrs: true })).toBe(
                 `<p>abc[]<span contenteditable="false" data-embedded="counter" data-embedded-props='{"value":3}' data-embedded-state='{"stateChangeId":1,"previous":{"value":1},"next":{"value":3}}' data-oe-protected="true"><span class="counter">Counter:3</span></span></p>`,
             );
@@ -1631,8 +1571,6 @@ describe("Collaboration with embedded components", () => {
             undo(e2);
             mergePeersSteps(peerInfos);
             await animationFrame();
-            // When steps were merged, both users updated their state with
-            // both changes, even if the component was outside of the dom.
             expect(getContent(e1.editable, { sortAttrs: true })).toBe(
                 `<p>a[]</p><div contenteditable="false" data-embedded="obj" data-embedded-props='{"obj":{"1":1,"2":2,"3":3}}' data-embedded-state='{"stateChangeId":2,"previous":{"obj":{"1":1}},"next":{"obj":{"1":1,"3":3}}}' data-oe-protected="true"><div class="obj">1_1,2_2,3_3</div></div><p data-selection-placeholder=""><br></p>`,
             );
@@ -1663,14 +1601,12 @@ describe("Collaboration with embedded components", () => {
             counter1.embeddedState.value = 3;
             mergePeersSteps(peerInfos);
             await animationFrame();
-            // c1 change was not yet shared with c2 since it was pending
             expect(getContent(e2.editable, { sortAttrs: true })).toBe(
                 `<p>a[]<span contenteditable="false" data-embedded="counter" data-embedded-props='{"value":2}' data-embedded-state='{"stateChangeId":1,"previous":{"value":1},"next":{"value":2}}' data-oe-protected="true"><span class="counter">Counter:2</span></span></p>`,
             );
             expect(getContent(e1.editable, { sortAttrs: true })).toBe(
                 `<p>a[]<span contenteditable="false" data-embedded="counter" data-embedded-props='{"value":3}' data-embedded-state='{"stateChangeId":2,"previous":{"value":2},"next":{"value":3}}' data-oe-protected="true"><span class="counter">Counter:3</span></span></p>`,
             );
-            // share the missing step with c2
             mergePeersSteps(peerInfos);
             await animationFrame();
             expect(getContent(e2.editable, { sortAttrs: true })).toBe(
@@ -1816,9 +1752,6 @@ describe("Collaboration with embedded components", () => {
             await animationFrame();
             mergePeersSteps(peerInfos);
             await animationFrame();
-            // for the offsetCounter, baseValue is updated with the difference
-            // between previous and next. So if both users made a change going
-            // from 1 to 3, the resulting value should be 5.
             expect(getContent(e2.editable, { sortAttrs: true })).toBe(
                 `<p>a[]<span contenteditable="false" data-embedded="counter" data-embedded-props='{"baseValue":5}' data-embedded-state='{"stateChangeId":2,"previous":{"baseValue":1},"next":{"baseValue":3}}' data-oe-protected="true"><span class="counter">Counter:5</span></span></p>`,
             );
@@ -1902,7 +1835,6 @@ describe("Collaboration with embedded components", () => {
             await animationFrame();
             mergePeersSteps(peerInfos);
             await animationFrame();
-            // evaluate that data-embedded-props was preserved for e2
             expect(getContent(e1.editable, { sortAttrs: true })).toBe(
                 `<p>a[]</p><div contenteditable="false" data-embedded="obj" data-embedded-props='{"obj":{"1":"<style"}}' data-oe-protected="true"><div class="obj">1_<style</div></div><p data-selection-placeholder=""><br></p>`,
             );
@@ -1919,7 +1851,6 @@ describe("Collaboration with embedded components", () => {
             await animationFrame();
             mergePeersSteps(peerInfos);
             await animationFrame();
-            // evaluate that data-embedded-state was preserved for e2
             expect(getContent(e1.editable, { sortAttrs: true })).toBe(
                 `<p>a[]</p><div contenteditable="false" data-embedded="obj" data-embedded-props='{"obj":{"1":"-->"}}' data-embedded-state='{"stateChangeId":1,"previous":{"obj":{"1":"<style"}},"next":{"obj":{"1":"-->"}}}' data-oe-protected="true"><div class="obj">1_--></div></div><p data-selection-placeholder=""><br></p>`,
             );

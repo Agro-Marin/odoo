@@ -15,38 +15,22 @@ import { throttleForAnimation } from "@web/core/utils/timing";
 /**
  * @typedef DragAndDropParams
  * @extends {DraggableParams}
- *
- * MANDATORY
- * @property {(() => Array)} dropzones a function that returns the available dropzones
- * @property {(() => HTMLElement)} helper a function that returns a helper element
- * that will follow the cursor when dragging
- * @property {(() => HTMLElement)} scrollingElement a function that returns the
- * element on which a scroll should be triggered
- *
- * HANDLERS (Optional)
+ * @property {(() => Array)} dropzones
+ * @property {(() => HTMLElement)} helper
+ * @property {(() => HTMLElement)} scrollingElement
  * @property {(params: DragAndDropStartParams) => any} [onDragStart]
- * called when a dragging sequence is initiated
  * @property {(params: DropzoneHandlerParams) => any} [dropzoneOver]
- * called when an element is over a dropzone
  * @property {(params: DropzoneHandlerParams) => any} [dropzoneOut]
- * called when an element is leaving a dropzone
  * @property {(params: DragAndDropHandlerParams) => any} [onDrag]
- * called when an element is being dragged
  * @property {(params: DragAndDropHandlerParams) => any} [onDragEnd]
- * called when the dragging sequence is over
  */
 /**
  * @typedef NativeDraggableState
  * @property {(params: DraggableParams) => any} update
- * method to update the params of the draggable
  * @property {import("@web/core/utils/dnd/draggable").DraggableState} state
- * state of the draggable component
  * @property {() => any} destroy
- * method to destroy and unbind the draggable component
  */
 /**
- * Utility function to create a native draggable component
- *
  * @param {DraggableBuilderParams} hookParams
  * @param {DraggableParams} initialParams
  * @returns {NativeDraggableState}
@@ -67,12 +51,7 @@ export function useNativeDraggable(hookParams, initialParams) {
             cleanupFunctions.push(cleanupFn);
         },
     };
-    // Compatibility for tests
     const el = initialParams.ref.el;
-    // TODO this is probably to be removed in master: the received params
-    // contain the selector that should be checked and it will be transferred
-    // to the makeDraggableHook function. There should not be any need to add
-    // the default selector class here.
     el.classList.add("o_draggable");
     cleanupFunctions.push(() => el.classList.remove("o_draggable"));
 
@@ -97,7 +76,6 @@ export function useNativeDraggable(hookParams, initialParams) {
 function updateElementPosition(el, { x, y }, styleFn, offset = { x: 0, y: 0 }) {
     return styleFn(el, { top: `${y - offset.y}px`, left: `${x - offset.x}px` });
 }
-/** @type DraggableBuilderParams */
 const dragAndDropHookParams = {
     name: "useDragAndDrop",
     acceptedParams: {
@@ -108,7 +86,6 @@ const dragAndDropHookParams = {
     },
     edgeScrolling: { enabled: true },
     onComputeParams({ ctx, params }) {
-        // The helper is mandatory and will follow the cursor instead
         ctx.followCursor = false;
         ctx.getScrollingElement = params.scrollingElement;
         ctx.getHelper = params.helper;
@@ -119,18 +96,12 @@ const dragAndDropHookParams = {
         ctx.current.helperOffset = { x: 0, y: 0 };
     },
     onDragStart: ({ ctx, addStyle, addCleanup }) => {
-        // Use the helper as the tracking element to properly update scroll values.
         ctx.current.helper = ctx.getHelper({ ...ctx.current, ...ctx.pointer });
         ctx.current.helper.style.position = "fixed";
-        // We want the pointer events on the helper so that the cursor
-        // is properly displayed.
         ctx.current.element.classList.remove("o_dragged");
         ctx.current.helper.style.cursor = ctx.cursor;
         ctx.current.helper.style.pointerEvents = "auto";
 
-        // If the helper is inside the iframe, we want pointer events on the
-        // frame element so that they reach the window and properly apply
-        // the cursor.
         const frameElement = ctx.current.helper.ownerDocument.defaultView.frameElement;
         if (frameElement) {
             addStyle(frameElement, { pointerEvents: "auto" });
@@ -156,8 +127,6 @@ const dragAndDropHookParams = {
             addStyle,
             ctx.current.helperOffset,
         );
-        // Unfortunately, DOMRect is not an Object, so spreading operator from
-        // `touching` does not work, so convert DOMRect to plain object.
         let helperRect = ctx.current.helper.getBoundingClientRect();
         helperRect = {
             x: helperRect.x,
@@ -169,7 +138,6 @@ const dragAndDropHookParams = {
             touching(ctx.getDropZones(), helperRect),
             helperRect,
         );
-        // Update the drop zone if it's in grid mode
         if (
             ctx.current.dropzone?.el &&
             ctx.current.dropzone.el.classList.contains("oe_grid_zone")
@@ -183,7 +151,6 @@ const dragAndDropHookParams = {
                     touching([ctx.current.helper], ctx.current.dropzone.rect).length >
                         0))
         ) {
-            // If no new dropzone but old one is still valid, return early.
             return pick(ctx.current, "element", "dropzone", "helper");
         }
 
@@ -196,8 +163,6 @@ const dragAndDropHookParams = {
         }
 
         if (dropzoneEl) {
-            // Save rect information prior to calling the over function
-            // to keep a consistent dropzone even if content was added.
             const rect = DOMRect.fromRect(dropzoneEl.getBoundingClientRect());
             ctx.current.dropzone = {
                 el: dropzoneEl,
@@ -220,10 +185,7 @@ const dragAndDropHookParams = {
     },
 };
 /**
- * Function to start a drag and drop handler
- *
- * @param {DragAndDropParams} initialParams params given to the drag and drop
- * component
+ * @param {DragAndDropParams} initialParams
  * @returns {NativeDraggableState}
  */
 export function useDragAndDrop(initialParams) {

@@ -1,7 +1,5 @@
 /** @odoo-module native */
 /**
- * Remove the Excalidraw EmbeddedComponent and replace it with a link
- *
  * @param {HTMLElement} container
  * @param {Object} env
  */

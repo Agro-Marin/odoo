@@ -8,13 +8,6 @@ let charWidths = undefined;
 let indentWidths = undefined;
 let widthsPromise = undefined;
 
-// Measures block indentations and per-character widths once, to predict the tab
-// widths the editor renders. Must run AFTER web fonts have loaded: the blocks
-// are created first (so the browser requests their fonts -- headings use a
-// distinct web font), then we await ``document.fonts.ready`` before measuring.
-// Measuring during font load yields fallback-font metrics that diverge from the
-// editor's real rendering, visibly so for large heading fonts, which would
-// break the sub-pixel tab-width assertions.
 function setWidths() {
     if (!widthsPromise) {
         widthsPromise = measureWidths();
@@ -38,8 +31,6 @@ async function measureWidths() {
     const tags = ["p", "h1", "blockquote", "li"];
     const chars = ["a", "b", "c", "d", "e", "f"];
 
-    // Create every block up front so the browser starts loading their fonts
-    // before we wait for them.
     const elements = {};
     for (const tag of tags) {
         let element;
@@ -56,20 +47,16 @@ async function measureWidths() {
         elements[tag] = element;
     }
 
-    // Wait for the requested fonts to finish loading before measuring.
     await document.fonts.ready;
 
     const referenceLeft = referenceBlock.getBoundingClientRect().left;
     for (const tag of tags) {
         const element = elements[tag];
 
-        // Calculate the base indentation (result of margin, padding and border)
-        // for the given block.
         element.textContent = "|";
         range.selectNodeContents(element);
         indentWidths[tag] = range.getBoundingClientRect().left - referenceLeft;
 
-        // Calculate the width of each char in the given block.
         charWidths[tag] = {};
         for (const char of chars) {
             element.textContent = char;
@@ -100,9 +87,8 @@ export function oeTab(size, contenteditable = true) {
 }
 
 /**
- * Extracts the style.width values from the given content and replaces them with a placeholder.
  * @param {string} content
- * @returns {Object} - { text: string, widths: number[] }
+ * @returns {Object}
  */
 function extractWidth(content) {
     const regex = /width: ([\d.]+)px;/g;
@@ -115,9 +101,6 @@ function extractWidth(content) {
 }
 
 /**
- * Compares the two contents with hoot expect.
- * Style.width values are allowed to differ by a margin of tolerance.
- *
  * @param {string} contentEl
  * @param {string} contentSpec
  * @param {"contentAfterEdit"|"contentAfter"} mode

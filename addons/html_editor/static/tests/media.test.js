@@ -31,7 +31,7 @@ test("Can replace an image", async () => {
     );
     expect("img[src='/web/static/img/logo.png']").toHaveCount(1);
     await click("img");
-    await tick(); // selectionchange
+    await tick();
     await waitFor(".o-we-toolbar");
     expect("button[name='replace_image']").toHaveCount(1);
     await click("button[name='replace_image']");
@@ -59,7 +59,7 @@ test("Replace an image with link by a document should remove the link", async ()
     );
     expect("img[src='/web/static/img/logo.png']").toHaveCount(1);
     await click("img");
-    await tick(); // selectionchange
+    await tick();
     await waitFor(".o-we-toolbar");
     expect("button[name='replace_image']").toHaveCount(1);
     await click("button[name='replace_image']");
@@ -84,7 +84,7 @@ test("Replace an image by icon should remove invalid classes", async () => {
     expect("img[src='/web/static/img/logo.png']").toHaveCount(1);
     expect("img[src='/web/static/img/logo.png']").toHaveClass("img-fluid w-100");
     await click("img");
-    await tick(); // selectionchange
+    await tick();
     await waitFor(".o-we-toolbar");
     expect("button[name='replace_image']").toHaveCount(1);
     await click("button[name='replace_image']");
@@ -133,7 +133,7 @@ test("should not preserve image styles when replacing an image with an icon", as
     );
     expect("img[src='/web/static/img/logo.png']").toHaveCount(1);
     await click("img");
-    await tick(); // selectionchange
+    await tick();
     await waitFor(".o-we-toolbar");
     expect("button[name='replace_image']").toHaveCount(1);
     await click("button[name='replace_image']");
@@ -154,7 +154,7 @@ test("should not preserve image shape classes when replacing an image with an ic
     );
     expect("img[src='/web/static/img/logo.png']").toHaveCount(1);
     await click("img");
-    await tick(); // selectionchange
+    await tick();
     await expectElementCount(".o-we-toolbar button[name='replace_image']", 1);
     await click("button[name='replace_image']");
     await animationFrame();
@@ -216,7 +216,6 @@ describe("Powerbox search keywords", () => {
             await insertText(editor, word);
             await animationFrame();
             expect(".active .o-we-command-name").toHaveText("Media");
-            // delete the keyword to try the next one
             for (let i = 0; i < word.length; i++) {
                 await press("backspace");
             }
@@ -234,7 +233,6 @@ describe("(non-)editable media", () => {
             await click("img");
             await animationFrame();
             await expectElementCount(".o-we-toolbar", 1);
-            // Now pressing the delete button should remove the image.
             await click(".o-we-toolbar button[name='image_delete']");
             cleanHints(editor);
             expect(getContent(editor.editable)).toBe(
@@ -259,7 +257,6 @@ describe("(non-)editable media", () => {
             await click("img");
             await animationFrame();
             await expectElementCount(".o-we-toolbar", 1);
-            // Now pressing the delete button should remove the image.
             await click(".o-we-toolbar button[name='image_delete']");
             expect(getContent(editor.editable)).toBe(
                 `<p data-selection-placeholder=""><br></p><div contenteditable="false">[]<br></div><p data-selection-placeholder=""><br></p>`,
@@ -270,7 +267,6 @@ describe("(non-)editable media", () => {
         test("delete should remove an image in an editable context (1)", async () => {
             const contentBefore = `<div contenteditable="true"><img src="${base64Img}"></div>`;
             const contentAfter = `<div contenteditable="true">[]<br></div>`;
-            // Forward
             await testEditor({
                 contentBefore,
                 stepFunction: async (editor) => {
@@ -283,7 +279,6 @@ describe("(non-)editable media", () => {
         test("delete should remove an image in an editable context (2)", async () => {
             const contentBefore = `<div contenteditable="true"><img src="${base64Img}"></div>`;
             const contentAfter = `<div contenteditable="true">[]<br></div>`;
-            // Backward
             await testEditor({
                 contentBefore,
                 stepFunction: async (editor) => {
@@ -295,7 +290,6 @@ describe("(non-)editable media", () => {
         });
         test("delete should not remove an image in an non-editable context (1)", async () => {
             const contentBefore = `<div contenteditable="false"><img src="${base64Img}"></div>`;
-            // Forward
             await testEditor({
                 contentBefore,
                 stepFunction: async (editor) => {
@@ -307,7 +301,6 @@ describe("(non-)editable media", () => {
         });
         test("delete should not remove an image in an non-editable context (2)", async () => {
             const contentBefore = `<div contenteditable="false"><img src="${base64Img}"></div>`;
-            // Backward
             await testEditor({
                 contentBefore,
                 stepFunction: async (editor) => {
@@ -320,7 +313,6 @@ describe("(non-)editable media", () => {
         test("delete should remove an editable image in a non-editable context (1)", async () => {
             const contentBefore = `<div contenteditable="false"><img src="${base64Img}" class="${EDITABLE_MEDIA_CLASS}"></div>`;
             const contentAfter = `<div contenteditable="false">[]<br></div>`;
-            // Forward
             await testEditor({
                 contentBefore,
                 stepFunction: async (editor) => {
@@ -333,7 +325,6 @@ describe("(non-)editable media", () => {
         test("delete should remove an editable image in a non-editable context (2)", async () => {
             const contentBefore = `<div contenteditable="false"><img src="${base64Img}" class="${EDITABLE_MEDIA_CLASS}"></div>`;
             const contentAfter = `<div contenteditable="false">[]<br></div>`;
-            // Backward
             await testEditor({
                 contentBefore,
                 stepFunction: async (editor) => {
@@ -368,8 +359,6 @@ test("Image cropper disappear on backspace", async () => {
     const base64Image =
         "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII=";
 
-    // Wait for `show` to complete before destroying the cropper: it sets
-    // `isCropperActive` at the end, which `closeCropper` requires to close.
     const cropperReadyPromise = new Promise((resolve) => {
         patchWithCleanup(ImageCrop.prototype, {
             async show(...args) {
@@ -378,7 +367,6 @@ test("Image cropper disappear on backspace", async () => {
             },
         });
     });
-    // Mock backend image RPCs
     onRpc("/html_editor/get_image_info", async () => {
         await delay(50);
         return {
@@ -399,7 +387,6 @@ test("Image cropper disappear on backspace", async () => {
 test("shape remain present in cropper preview", async () => {
     const base64Image =
         "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5CYII=";
-    // Mock backend image RPCs
     onRpc("/html_editor/get_image_info", async () => ({
         original: { image_src: base64Image },
     }));

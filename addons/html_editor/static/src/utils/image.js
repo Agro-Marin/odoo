@@ -17,13 +17,6 @@ const headResponseCache = new Cache(
     JSON.stringify,
 );
 
-// Separate cache for the CORS verdict, deliberately holding a *resolved*
-// boolean rather than reusing `headResponseCache` directly. For that cache a
-// rejection means "the request failed, retry next time" and the entry is
-// evicted (see `Cache.read`) — but here a rejected HEAD *is* the answer
-// ("yes, CORS-protected"), so every caller re-issued the same failing request:
-// selecting one protected image fired the HEAD once per consumer of
-// `isImageCorsProtected`. This one never rejects, so the verdict sticks.
 const corsProtectedCache = new Cache(
     async (src) =>
         headResponseCache
@@ -34,10 +27,8 @@ const corsProtectedCache = new Cache(
 );
 
 /**
- * Extracts url and gradient parts from the background-image CSS property.
- *
- * @param {string} css 'background-image' property value
- * @returns {Object} contains the separated 'url' and 'gradient' parts
+ * @param {string} css
+ * @returns {Object}
  */
 export function backgroundImageCssToParts(css = "") {
     const parts = {};
@@ -54,10 +45,8 @@ export function backgroundImageCssToParts(css = "") {
 }
 
 /**
- * Combines url and gradient parts into a background-image CSS property value
- *
- * @param {Object} parts the separated 'url' and 'gradient' parts
- * @returns {string} CSS 'background-image' property value
+ * @param {Object} parts
+ * @returns {string}
  */
 export function backgroundImagePartsToCss(parts) {
     return [parts.url, parts.gradient].filter(Boolean).join(", ") || "";
@@ -65,7 +54,7 @@ export function backgroundImagePartsToCss(parts) {
 
 /**
  * @param {HTMLImageElement} image
- * @returns {string|null} The mimetype of the image.
+ * @returns {string|null}
  */
 export function getMimetype(image, data = image.dataset) {
     const src = getImageSrc(image);
@@ -82,11 +71,10 @@ export function getMimetype(image, data = image.dataset) {
     );
 }
 
-// TODO: in master, remove getFetchedMimetype and modify getMimetype
 /**
  * @param {HTMLImageElement} image
  * @param {Object} data
- * @returns {string|null} The mimetype of the image.
+ * @returns {string|null}
  */
 export async function getFetchedMimetype(image, data = image.dataset) {
     const mimetypeOnData = data.mimetype || data.mimetypeBeforeConversion;
@@ -108,7 +96,6 @@ export async function getFetchedMimetype(image, data = image.dataset) {
         }
         return contentType;
     } catch {
-        // Typically a CORS image
         return null;
     }
 }
@@ -124,14 +111,6 @@ export async function isImageCorsProtected(img) {
     }
     let isCorsProtected = false;
     if (!src.startsWith("/") || /\/web\/image\/\d+-redirect\//.test(src)) {
-        // The `fetch()` used later in the code might fail if the image is
-        // CORS protected. We check upfront if it's the case.
-        // Two possible cases:
-        // 1. the `src` is an absolute URL from another domain.
-        //    For instance, abc.odoo.com vs abc.com which are actually the
-        //    same database behind.
-        // 2. A "attachment-url" which is just a redirect to the real image
-        //    which could be hosted on another website.
         isCorsProtected = await corsProtectedCache.read(src);
     }
     return isCorsProtected;
@@ -148,20 +127,13 @@ export async function isSrcCorsProtected(src) {
 }
 
 /**
- * Returns the src of the image, or the src of the background-image if the
- * element is not an image.
- *
- * @param {HTMLElement} el The element to get the src or background-image from.
- * @returns {string|null} The src of the image.
+ * @param {HTMLElement} el
+ * @returns {string|null}
  */
 export function getImageSrc(el) {
     if (el.tagName === "IMG") {
         return el.getAttribute("src");
     }
-    // TODO: Parallax handling is incorrectly coupled with background image source.
-    // The plugin transfer the `src` on a `span`, but parallax can be achieved via other means.
-    // example: CSS variables without this DOM manipulation.
-    // Decouple.
     if (el.querySelector(".s_parallax_bg")) {
         el = el.querySelector(".s_parallax_bg");
     }
@@ -170,10 +142,8 @@ export function getImageSrc(el) {
 }
 
 /**
- * Parse an element's background-image's url.
- *
- * @param {string} url a css value in the form 'url("...")'
- * @returns {string} the src of the image or an empty string if not parsable
+ * @param {string} url
+ * @returns {string}
  */
 export function getBgImageURLFromURL(url) {
     const match = url.match(/^url\((['"])(.*?)\1\)$/);
@@ -181,7 +151,6 @@ export function getBgImageURLFromURL(url) {
         return "";
     }
     const matchedURL = match[2];
-    // Make URL relative if possible
     const fullURL = new URL(matchedURL, window.location.origin);
     if (fullURL.origin === window.location.origin) {
         return fullURL.href.slice(fullURL.origin.length);

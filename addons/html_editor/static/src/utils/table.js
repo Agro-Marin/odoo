@@ -2,8 +2,6 @@
 import { closestElement } from "./dom_traversal.js";
 
 /**
- * Get the index of the given table row/cell.
- *
  * @private
  * @param {HTMLTableRowElement|HTMLTableCellElement} trOrTd
  * @returns {number}
@@ -14,8 +12,6 @@ export function getRowIndex(trOrTd) {
 }
 
 /**
- * Get the index of the given table cell.
- *
  * @private
  * @param {HTMLTableCellElement} td
  * @returns {number}
@@ -25,9 +21,6 @@ export function getColumnIndex(td) {
 }
 
 /**
- * Get all the cells of given table
- * (excluding nested table cells).
- *
  * @param {HTMLTableElement} table
  * @returns {Array<HTMLTableCellElement>}
  */

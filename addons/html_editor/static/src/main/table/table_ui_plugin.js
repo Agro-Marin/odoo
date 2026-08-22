@@ -9,10 +9,6 @@ import { _t } from "@web/core/translation";
 import { TableMenu } from "./table_menu.js";
 import { TablePicker } from "./table_picker.js";
 
-/**
- * This plugin only contains the table ui feature (table picker, menus, ...).
- * All actual table manipulation code is located in the table plugin.
- */
 export class TableUIPlugin extends Plugin {
     static id = "tableUi";
     static dependencies = ["history", "overlay", "selection", "table"];
@@ -45,8 +41,6 @@ export class TableUIPlugin extends Plugin {
                     const popperRect = picker.getBoundingClientRect();
                     const { left } = position;
                     if (this.config.direction === "rtl") {
-                        // position from the right instead of the left as it is needed
-                        // to ensure the expand animation is properly done
                         picker.style.right = `${window.innerWidth - left - popperRect.width}px`;
                         picker.style.removeProperty("left");
                     }
@@ -156,10 +150,6 @@ export class TableUIPlugin extends Plugin {
             (...args) => {
                 fn(...args);
                 this.dependencies.history.addStep();
-                // Every one of these runs from the table-menu dropdown, which
-                // leaves focus on its toggle button — so the user would keep
-                // typing outside the editor. Hand focus back, like the toolbar
-                // does after a command (Toolbar.onButtonClick).
                 this.dependencies.selection.focusEditable();
             };
         const tableMethods = {

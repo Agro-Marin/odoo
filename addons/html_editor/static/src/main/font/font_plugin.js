@@ -100,7 +100,6 @@ export class FontPlugin extends Plugin {
             withSequence(30, {
                 name: _t("Normal"),
                 tagName: "div",
-                // for the FontSelector component
                 selector: getBaseContainerSelector("DIV"),
             }),
             withSequence(40, { name: _t("Paragraph"), tagName: "p" }),
@@ -217,10 +216,6 @@ export class FontPlugin extends Plugin {
                             },
                         );
                         this.updateFontSizeSelectorParams();
-                        // Picking a size leaves focus on the dropdown toggle,
-                        // so the user would keep typing outside the editor.
-                        // Plain toolbar buttons already hand focus back (see
-                        // Toolbar.onButtonClick); dropdown selections must too.
                         this.dependencies.selection.focusEditable();
                     },
                     onBlur: () => this.dependencies.selection.focusEditable(),
@@ -306,7 +301,6 @@ export class FontPlugin extends Plugin {
             { selector: "BLOCKQUOTE", text: _t("Quote") },
         ],
 
-        /** Handlers */
         selectionchange_handlers: [
             withSequence(READ, this.updateFontSelectorParams.bind(this)),
             withSequence(READ, this.updateFontSizeSelectorParams.bind(this)),
@@ -321,7 +315,6 @@ export class FontPlugin extends Plugin {
         ],
         normalize_handlers: this.normalize.bind(this),
 
-        /** Overrides */
         split_element_block_overrides: [
             this.handleSplitBlockHeading.bind(this),
             this.handleSplitBlockPRE.bind(this),
@@ -333,7 +326,6 @@ export class FontPlugin extends Plugin {
         ),
         delete_backward_word_overrides: this.handleDeleteBackward.bind(this),
 
-        /** Predicates */
         are_shorthands_available: (node) => {
             if (closestElement(node, "pre")) {
                 return false;
@@ -345,7 +337,6 @@ export class FontPlugin extends Plugin {
             }
         },
 
-        /** Processors */
         clipboard_content_processors: this.processContentForClipboard.bind(this),
         before_insert_processors: this.handleInsertWithinPre.bind(this),
 
@@ -382,9 +373,6 @@ export class FontPlugin extends Plugin {
     get fontName() {
         const sel =
             this.dependencies.selection.getSelectionData().deepEditableSelection;
-        // if (!sel) {
-        //     return "Normal";
-        // }
         const anchorNode = sel.anchorNode;
         const block = closestBlock(anchorNode);
         const tagName = block.tagName.toLowerCase();
@@ -442,11 +430,6 @@ export class FontPlugin extends Plugin {
         return this.blockFormatIsAvailableMemoized(selection);
     }
 
-    // @todo @phoenix: Move this to a specific Pre/CodeBlock plugin?
-    /**
-     * Specific behavior for pre: insert newline (\n) in text or insert p at
-     * end.
-     */
     handleSplitBlockPRE({ targetNode, targetOffset }) {
         const closestPre = closestElement(targetNode, "pre");
         const closestBlockNode = closestBlock(targetNode);
@@ -459,7 +442,6 @@ export class FontPlugin extends Plugin {
             return;
         }
 
-        // Nodes to the right of the split position.
         const nodesAfterTarget = [
             ...rightLeafOnlyNotBlockPath(targetNode, targetOffset),
         ];
@@ -468,7 +450,6 @@ export class FontPlugin extends Plugin {
             (nodesAfterTarget.length === 1 && nodesAfterTarget[0].nodeName === "BR") ||
             isEmptyBlock(closestBlockNode)
         ) {
-            // Remove the last empty block node within pre tag
             const [beforeElement, afterElement] =
                 this.dependencies.split.splitElementBlock({
                     targetNode,
@@ -500,19 +481,12 @@ export class FontPlugin extends Plugin {
         return true;
     }
 
-    /**
-     * Specific behavior for blockquote: insert p at end and remove the last
-     * empty node.
-     */
     handleSplitBlockquote({ targetNode, targetOffset, blockToSplit }) {
         const closestQuote = closestElement(targetNode, "blockquote");
         const closestBlockNode = closestBlock(targetNode);
         const blockQuotedir = closestQuote && closestQuote.getAttribute("dir");
 
         if (!closestQuote || closestBlockNode.nodeName !== "BLOCKQUOTE") {
-            // If the closestBlockNode is the last element child of its parent
-            // and the parent is a blockquote
-            // we should move the current block ouside of the blockquote.
             if (
                 closestBlockNode.parentElement === closestQuote &&
                 closestBlockNode.parentElement.lastElementChild === closestBlockNode &&
@@ -537,7 +511,6 @@ export class FontPlugin extends Plugin {
             selection.anchorNode?.childNodes[selection.anchorOffset - 1];
         const nextElementSibling =
             selection.anchorNode?.childNodes[selection.anchorOffset];
-        // Double enter at the end of blockquote => we should break out of the blockquote element.
         if (
             previousElementSibling?.tagName === "BR" &&
             nextElementSibling?.tagName === "BR"
@@ -562,21 +535,12 @@ export class FontPlugin extends Plugin {
         return true;
     }
 
-    // @todo @phoenix: Move this to a specific Heading plugin?
-    /**
-     * Specific behavior for headings: do not split in two if cursor at the end but
-     * instead create a paragraph.
-     * Cursor end of line: <h1>title[]</h1> + ENTER <=> <h1>title</h1><p>[]<br/></p>
-     * Cursor in the line: <h1>tit[]le</h1> + ENTER <=> <h1>tit</h1><h1>[]le</h1>
-     */
     handleSplitBlockHeading(params) {
         const closestHeading = closestElement(params.targetNode, (element) =>
             headingTags.includes(element.tagName),
         );
         if (closestHeading) {
             const [, newElement] = this.dependencies.split.splitElementBlock(params);
-            // @todo @phoenix: if this condition can be anticipated before the split,
-            // handle the splitBlock only in such case.
             if (
                 newElement &&
                 headingTags.includes(newElement.tagName) &&
@@ -596,24 +560,16 @@ export class FontPlugin extends Plugin {
         }
     }
 
-    /**
-     * Transform an empty heading or pre at the beginning of the
-     * editable into a base container. An empty blockquote is transformed
-     * into a base container, regardless of its position in the editable.
-     */
     handleDeleteBackward({ startContainer, startOffset, endContainer, endOffset }) {
-        // Detect whether the range is collapsed (a caret, not a selection).
         const rangeIsCollapsed =
             startContainer === endContainer && startOffset === endOffset;
         const closestHandledElement = closestElement(endContainer, handledElemSelector);
         if (!rangeIsCollapsed && closestHandledElement?.tagName !== "BLOCKQUOTE") {
             return;
         }
-        // Check if cursor is inside an empty heading, blockquote or pre.
         if (!closestHandledElement || !isEmptyBlock(closestHandledElement)) {
             return;
         }
-        // Check if unremovable.
         if (
             this.getResource("unremovable_node_predicates").some((p) =>
                 p(closestHandledElement),
@@ -640,20 +596,15 @@ export class FontPlugin extends Plugin {
     processContentForClipboard(clonedContents, selection) {
         const commonAncestorElement = closestElement(selection.commonAncestorContainer);
         if (commonAncestorElement && !isBlock(clonedContents.firstChild)) {
-            // Get the list of ancestor elements starting from the provided
-            // commonAncestorElement up to the block-level element.
             const blockEl = closestBlock(commonAncestorElement);
             const ancestorsList = [
                 commonAncestorElement,
                 ...ancestors(commonAncestorElement, blockEl),
             ];
-            // Wrap rangeContent with clones of their ancestors to keep the styles.
             for (const ancestor of ancestorsList) {
                 if (isContentEditableAncestor(ancestor)) {
                     break;
                 }
-                // Keep the formatting by keeping inline ancestors and paragraph
-                // related ones like headings etc.
                 if (!isBlock(ancestor) || isParagraphRelatedElement(ancestor)) {
                     const clone = ancestor.cloneNode();
                     clone.append(...childNodes(clonedContents));

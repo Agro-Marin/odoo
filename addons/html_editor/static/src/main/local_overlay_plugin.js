@@ -6,10 +6,6 @@ import { Plugin } from "../plugin.js";
  * @property { LocalOverlayPlugin['makeLocalOverlay'] } makeLocalOverlay
  */
 
-/**
- * This plugins provides a way to create a "local" overlays so that their
- * visibility is relative to the overflow of their ancestors.
- */
 export class LocalOverlayPlugin extends Plugin {
     static id = "localOverlay";
     static shared = ["makeLocalOverlay"];
@@ -20,12 +16,7 @@ export class LocalOverlayPlugin extends Plugin {
     }
 
     /**
-     * Make a local container to organise floating elements inside it's own
-     * box and z-index isolation.
-     *
-     * @param {string} containerId An id to add to the container in order to make
-     *              the container more visible in the devtool and potentially
-     *              add css rules for the container and it's children.
+     * @param {string} containerId
      */
     makeLocalOverlay(containerId) {
         const container = this.document.createElement("div");

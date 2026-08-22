@@ -12,47 +12,26 @@ import {
 } from "@odoo/owl";
 
 /**
- * @typedef {HTMLElement} HostElement host element for an embedded component
- * @typedef {Object} State state obtained from `useState` usage
+ * @typedef {HTMLElement} HostElement
+ * @typedef {Object} State
  * @typedef {Record<string, HTMLElement>} EditableDescendants
- * @typedef {(state, previous, next) => void} PropertyUpdate function applying
- *          a state change which can be computed from `previous` and `next`
- *          to `state`.
+ * @typedef {(state, previous, next) => void} PropertyUpdate
  * @typedef {Record<string, PropertyUpdate>} PropertyUpdater
- *
  * @typedef {Object} StateChangeManagerConfig
- * @property {PropertyUpdater} [propertyUpdater] object mapping a key of the
- *        state to a function which will compute how values from a stateChange
- *        are applied to the current state. Defined in the embedding definition
- *        of a component.
+ * @property {PropertyUpdater} [propertyUpdater]
  * @property {function(HostElement):State} [getEmbeddedState]
- *        custom function to get the first embedded state (the one used during
- *        setup), in case not all embedded props should be part of the state, or
- *        if more properties should be added to it.
  * @property {function(HostElement, State):Object} [stateToEmbeddedProps]
- *        custom function to compute the props, i.e. in case the entire state
- *        should not be converted to props.
- *
- * @typedef {Object} Embedding object provided to the instance which mounts
- *          Embedded components (EmbeddedComponentPlugin, HtmlViewer, ...)
+ * @typedef {Object} Embedding
  * @property {String} name
  * @property {Component} Component
- * @property {function(HostElement):Object} getProps props for the given
- *           Component class instance.
+ * @property {function(HostElement):Object} getProps
  * @property {function(HostElement):EditableDescendants} [getEditableDescendants]
- *           @see useEditableDescendants
  * @property {function(StateChangeManagerConfig):StateChangeManager} [getStateChangeManager]
- *           @see useEmbeddedState
  */
 
 /**
- * Get all element children with `data-embedded-editable` attribute which are
- * descendants of the host's own embedded component and not part of another
- * embedded component descendant (an embedded component can contain others).
- * If multiple elements have the same `data-embedded-editable`, only the last
- * one is considered.
  * @param {HostElement} host
- * @returns {EditableDescendants} editableDescendants
+ * @returns {EditableDescendants}
  */
 export function getEditableDescendants(host) {
     const editableDescendants = {};
@@ -65,20 +44,8 @@ export function getEditableDescendants(host) {
 }
 
 /**
- * Handle the rendering of editableDescendants:
- * It is a node owned by the editor, which will be inserted under a ref of
- * the same name as the attribute `data-embedded-editable` of that node, in the
- * component's template. This allows to use editor features inside an embedded
- * component. EditableDescendants are shared in collaboration and are saved
- * between edition sessions.
- *
- * Warning: there must be a ref in the template for every editableDescendants,
- * available at all times no matter the component state to guarantee that the
- * editor can save their values at any given time, synchronously.
- *
  * @param {HostElement} host
- * @returns {EditableDescendants} (HTMLElement) by the value of their
- *          `data-embedded-editable` attribute.
+ * @returns {EditableDescendants}
  */
 export function useEditableDescendants(host) {
     const component = useComponent();
@@ -117,7 +84,6 @@ export function useEditableDescendants(host) {
     });
     onPatched(() => {
         for (const [name, render] of Object.entries(renders)) {
-            // Handle partial patch
             if (!host.contains(editableDescendants[name])) {
                 render();
             }
@@ -128,26 +94,13 @@ export function useEditableDescendants(host) {
 }
 
 /**
- * Create a ProxyHandler to manage a serializable "buffer" (Proxy target) for
- * changes. The buffer must be a @see reactive which should update state
- * with its callback (commit).
- * @see useEmbeddedState
- * The Proxy target and state must be serializable through JSON.stringify.
- *
  * @param {Object} state
  * @param {Object} stateChangeManager
- * @param {Object} stateChangeManager.previousEmbeddedState null, or a deep copy
- *        of the target used as a reference point for comparison
- *        (before <-> after) so that multiple synchronous changes can be handled
- *        at once.
+ * @param {Object} stateChangeManager.previousEmbeddedState
  * @returns {ProxyHandler}
  */
 function embeddedStateProxyHandler(state, stateChangeManager) {
     return {
-        // Write operations are always done on the target ("buffer").
-        // During the first write operation before a commit, keep a deep copy of
-        // the target through serialization, which will be used as a reference
-        // point for a comparison (before <-> after).
         set(target, key, value, receiver) {
             if (
                 value !== Reflect.get(target, key, receiver) &&
@@ -167,8 +120,6 @@ function embeddedStateProxyHandler(state, stateChangeManager) {
             }
             return Reflect.deleteProperty(target, key);
         },
-        // Read operations should also be done on state to register the
-        // rendering callback.
         get(target, key, receiver) {
             Reflect.get(state, key, state);
             return Reflect.get(target, key, receiver);
@@ -194,10 +145,8 @@ function observeAllKeys(reactive) {
 }
 
 /**
- * Extract props serialized in `data-embedded-props` attribute.
- *
  * @param {HostElement} host
- * @returns {Object} props
+ * @returns {Object}
  */
 export function getEmbeddedProps(host) {
     return host.dataset.embeddedProps ? JSON.parse(host.dataset.embeddedProps) : {};
@@ -213,10 +162,6 @@ function sortedCopy(obj) {
 }
 
 /**
- * Compute the difference between next and previous, and apply that difference
- * to container[key]. Comparison is done through JSON.stringify, so all values
- * must be serializable.
- *
  * @param {Object} container
  * @param {string} key
  * @param {Object} previous
@@ -244,8 +189,6 @@ export function applyObjectPropertyDifference(container, key, previous, next) {
 }
 
 /**
- * Overwrite container[key] with value.
- *
  * @param {Object} container
  * @param {string} key
  * @param {Object} value
@@ -262,8 +205,7 @@ export class StateChangeManager {
     /**
      * @param {StateChangeManagerConfig} config
      * @param {HostElement} config.host
-     * @param {Function} config.commitStateChanges notify the host that we can
-     *                                             commit changes
+     * @param {Function} config.commitStateChanges
      */
     constructor(config) {
         this.config = config;
@@ -275,24 +217,12 @@ export class StateChangeManager {
             previous: defaultState,
             next: defaultState,
         };
-        // Used in case `data-embedded-state` is removed (i.e. when reverting
-        // the first mutation setting that attribute)
         this.defaultStateChange = defaultStateChange;
-        // Used to keep track of the last applied stateChange, to avoid
-        // applying it multiple times (i.e. revertMutations + stageRecords
-        // during undo)
         this.previousStateChange = defaultStateChange;
-        // Used to discard batch changes when a component is destroyed,
-        // pending state changes should not be applied
         this.batchId = 0;
         this.setupUnmounted();
     }
 
-    /**
-     * Called at setup and when an embedded component is destroyed. This resets
-     * state values related to the mounted component. State changes will be
-     * handled differently when unmounted.
-     */
     setupUnmounted() {
         this.previousEmbeddedState = null;
         this.state = null;
@@ -303,12 +233,8 @@ export class StateChangeManager {
     }
 
     /**
-     * Construct the proxy object to use inside an embedded component. It can
-     * be read on to register for rendering updates in the component template,
-     * and written on to trigger a re-rendering, sharing changes in
-     * collaboration and registering them for the history.
      * @param {Object} state
-     * @returns {Proxy} embeddedStateProxy
+     * @returns {Proxy}
      */
     constructEmbeddedState(state) {
         this.state = state;
@@ -320,16 +246,13 @@ export class StateChangeManager {
             this.embeddedState,
             embeddedStateProxyHandler(state, this),
         );
-        // First subscription to changes.
         observeAllKeys(this.embeddedStateProxy);
         this.isLiveComponent = true;
         return this.embeddedStateProxy;
     }
 
     /**
-     * Depending on whether the component is destroyed or started mounting,
-     * return its effective state.
-     * @returns {Object} state
+     * @returns {Object}
      */
     getState() {
         let state = this.state;
@@ -340,20 +263,11 @@ export class StateChangeManager {
     }
 
     /**
-     * Called when `data-embedded-state` attribute is being changed. This
-     * will update the state, the embedded state, the embedded props and
-     * recompute a new expression when necessary.
-     * @param {string} attrState JSON representation of a stateChange
+     * @param {string} attrState
      * @param { Object } options
-     * @param {boolean} options.reverse whether to read the stateChange from
-     *        next to previous
-     * @param {boolean} options.forNewStep whether the attribute change is being
-     *        used to create a new step.
-     * @returns {string} new JSON representation of a stateChange, in case
-     *          it needs to be represented under another form to be shared
-     *          in collaboration (a local peer doing revertMutations implies
-     *          that collaborators will do applyMutations, so the stateChange
-     *          must be expressed with another form for them).
+     * @param {boolean} options.reverse
+     * @param {boolean} options.forNewStep
+     * @returns {string}
      */
     onStateChanged(attrState, { reverse = false, forNewStep = false } = {}) {
         const stateChange = attrState ? JSON.parse(attrState) : this.defaultStateChange;
@@ -369,19 +283,11 @@ export class StateChangeManager {
                 this.stateToEmbeddedProps(this.config.host, sortedState),
             );
             if (this.isLiveComponent && !this.previousEmbeddedState) {
-                // Update the embeddedState only if there is no pending change.
-                // If there is a pending change, it will be updated when the
-                // pending change is applied in `changeState`.
                 this.assignDeepProxyCopy(toRaw(this.embeddedState), sortedState);
             }
             if (!forNewStep) {
                 this.previousStateChange = stateChange;
             } else {
-                // If mutations are being applied to create a new step, the
-                // state change must be expressed under another form for
-                // collaborators, since the collaborator will always
-                // "applyMutations" and never "revertMutations" when receiving
-                // external steps.
                 const next = JSON.stringify(sortedState);
                 if (previous !== next) {
                     this.previousStateChange = {
@@ -396,10 +302,7 @@ export class StateChangeManager {
     }
 
     /**
-     * Allow to write on the embeddedState multiple times synchronously
-     * and batch all changes at once afterwards. A batch is discarded as soon
-     * as the component is destroyed.
-     * @returns {Function} batched changeState
+     * @returns {Function}
      */
     batchedChangeState() {
         let scheduled = false;
@@ -416,16 +319,8 @@ export class StateChangeManager {
         };
     }
 
-    /**
-     * Apply a stateChange that was done on the embeddedState to the state,
-     * to trigger a re-rendering, and write the stateChange in
-     * `data-embedded-state` for the history and collaboration. Also
-     * recompute `data-embedded-props` for the next mounting operation.
-     */
     changeState() {
         if (!this.previousEmbeddedState) {
-            // If there is no previousEmbeddedState, it means that no
-            // effective change was performed, so there is nothing to commit.
             return;
         }
         const previousEmbeddedState = this.previousEmbeddedState;
@@ -471,12 +366,9 @@ export class StateChangeManager {
     }
 
     /**
-     * Replace every key of target with deep proxy copies of source.
-     * This will make it so that any change at any level will pass by the
-     * embeddedStateProxyHandler traps.
      * @param {Object} target
      * @param {Object} source
-     * @returns {Object} copy with proxies as keys
+     * @returns {Object}
      */
     assignDeepProxyCopy(target, source) {
         for (const key of Object.keys(target)) {
@@ -489,10 +381,8 @@ export class StateChangeManager {
     }
 
     /**
-     * Create a deep proxy copy of value ensuring that any change at any level
-     * will pass by the embeddedStateProxyHandler traps.
      * @param {Object} value
-     * @returns {Proxy} deep proxy copy of value
+     * @returns {Proxy}
      */
     deepProxyCopy(value) {
         if (value instanceof Object) {
@@ -510,17 +400,9 @@ export class StateChangeManager {
     }
 
     /**
-     * Apply a transaction to the active state. `previous` is the state
-     * before the transaction, and `next` is the state after the
-     * transaction was done. Keep in mind that the current state may have
-     * been changed after the transaction was done, but before it was
-     * applied. By default, will always accept nextState as
-     * the final state. `propertyUpdater` should be provided in the config
-     * to handle some keys differently, i.e. object composition.
-     * @see applyObjectPropertyDifference
-     * @param {Object} state current state
-     * @param {Object} previous state before the transaction
-     * @param {Object} next state after the transaction
+     * @param {Object} state
+     * @param {Object} previous
+     * @param {Object} next
      */
     commitStateChange(state, previous, next) {
         const currentKeys = new Set([
@@ -538,10 +420,7 @@ export class StateChangeManager {
     }
 
     /**
-     * Extract values to be used as the first embedded state (used for setup)
-     * from the host.
-     * Extract all values from `data-embedded-props` by default.
-     * @returns {Object} state
+     * @returns {Object}
      */
     getEmbeddedState() {
         const host = this.config.host;
@@ -549,18 +428,12 @@ export class StateChangeManager {
     }
 
     /**
-     * Convert a state to an object containing the props to be
-     * saved in `data-embedded-props`, which will be used for the next mount
-     * operation, and saved in the database. The returned object should be
-     * serializable using JSON.
-     * Return the entire state by default.
      * @param {HostElement} host
      * @param {Object} state
-     * @returns {Object} props
+     * @returns {Object}
      */
     stateToEmbeddedProps(host, state) {
         const props = this.config.stateToEmbeddedProps?.(host, state) || state;
-        // Clean undefined values to save space
         for (const key of Object.keys(props)) {
             if (props[key] === undefined) {
                 delete props[key];
@@ -571,38 +444,8 @@ export class StateChangeManager {
 }
 
 /**
- * Manage updates to `data-embedded-props` (To change props given to an
- * embedded component when it will be mounted in the future), through history
- * and collaborative operations.
- * This is done through a special `embeddedState` which can be used externally
- * as a normal state.
- * That state can be modified through 2 channels:
- * - By the component itself, as with any normal state.
- * - By the embedded_component_plugin, during history or collaborative
- *   operations (undo/redo/resetStepsUntil/addExternalStep). The attribute
- *   `data-embedded-state` will be used to contain a serialized representation
- *   of a state change.
- *
- * While the embedded state evolves, the `data-embedded-props` attribute is
- * always maintained to its relative value.
- *
- * `data-embedded-state` and `data-embedded-props` attributes are maintained
- * even if the related component is in a destroyed state, in order to prepare
- * the next mount operation if the host is re-inserted in the DOM through an
- * history operation.
- * If the component is currently mounted/being mounted, state changes are
- * applied to the attribute and the embeddedState object.
- *
- * By default, a property change in the state is handled by replacing the
- * previous value with the new one (overwrite). To change this behavior,
- * provide a config extension in `getStateChangeManager` in the embedding
- * definition, with a @see propertyUpdater mapping each state key to a change
- * handler function.
- *
  * @param {HostElement} host
- * @returns {Proxy} embeddedState state which can be used for rendering, and
- *                  which is tied to the saved embedded props. Can only contain
- *                  JSON serializable values.
+ * @returns {Proxy}
  */
 export function useEmbeddedState(host) {
     const component = useComponent();

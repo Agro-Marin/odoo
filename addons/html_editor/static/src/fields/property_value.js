@@ -15,9 +15,6 @@ import { PropertyValue } from "@web/fields/specialized/properties";
 patch(PropertyValue.prototype, {
     setup() {
         this.htmlUpgradeManager = new HtmlUpgradeManager();
-        // Owned dirty-signal emitter (own owner symbol, cleared on destroy):
-        // a raw boolean trigger would share the legacy owner with every other
-        // unconverted field and clobber their dirty state.
         this.setFieldDirty = useFieldDirtySignal();
         this.lastHtmlValue = this.propertyValue?.toString();
         onWillStart(async () => {
@@ -57,8 +54,6 @@ patch(PropertyValue.prototype, {
 
     onWysiwygChange() {
         if (!this.editor.editable.contains(document.activeElement)) {
-            // The DOM of the Wysiwyg have been changed, while the user is not editing
-            // (eg the chatgpt widget), mark the field as dirty
             this.setFieldDirty(true);
             this.onEditorBlur();
         }

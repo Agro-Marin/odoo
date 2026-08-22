@@ -3,9 +3,6 @@ import { VideoPlugin } from "@html_editor/main/media/video_plugin";
 
 import { EmbeddedVideoSelector } from "./video_selector_dialog/embedded_video_selector.js";
 
-/**
- * This plugin is meant to replace the Video plugin.
- */
 export class EmbeddedVideoPlugin extends VideoPlugin {
     static id = "embeddedVideo";
     static dependencies = [
@@ -16,7 +13,6 @@ export class EmbeddedVideoPlugin extends VideoPlugin {
         "media",
     ];
 
-    // Extends the base class resources
     /** @type {import("plugins").EditorResources} */
     resources = {
         ...this.resources,
@@ -46,7 +42,6 @@ export class EmbeddedVideoPlugin extends VideoPlugin {
     }
 
     /**
-     * Open media dialog allowing the user to insert a video
      * @param {function} save
      * @param {HTMLIFrameElement} iframe
      */

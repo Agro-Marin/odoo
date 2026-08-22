@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import copy
 import logging
 import uuid
@@ -26,16 +24,6 @@ class IrUiView(models.Model):
     _inherit = 'ir.ui.view'
 
     def _get_cleaned_non_editing_attributes(self, attributes):
-        """
-        Returns a new mapping of attributes -> value without the parts that are
-        not meant to be saved (branding, editing classes, ...). Note that
-        classes are meant to be cleaned on the client side before saving as
-        mostly linked to the related options (so we are not supposed to know
-        which to remove here).
-
-        :param attributes: a mapping of attributes -> value
-        :return: a new mapping of attributes -> value
-        """
         attributes = {k: v for k, v in attributes if k not in EDITING_ATTRIBUTES}
         if 'class' in attributes:
             classes = attributes['class'].split()
@@ -44,9 +32,6 @@ class IrUiView(models.Model):
             del attributes['contenteditable']
         return attributes
 
-    # ------------------------------------------------------
-    # Save from html
-    # ------------------------------------------------------
 
     @api.model
     def extract_embedded_fields(self, arch):
@@ -71,7 +56,6 @@ class IrUiView(models.Model):
         try:
             value = converter.from_html(Model, Model._fields[field], el)
             if value is not None:
-                # TODO: batch writes?
                 record = Model.browse(int(el.get('data-oe-id')))
                 if not self.env.context.get('lang') and self.get_default_lang_code():
                     record.with_context(lang=self.get_default_lang_code()).write({field: value})
@@ -92,7 +76,6 @@ class IrUiView(models.Model):
         self.ensure_one()
 
         if el.get('id') in self.key:
-            # Do not inherit if the oe_structure already has its own inheriting view
             return False
 
         arch = etree.Element('data')
@@ -121,9 +104,6 @@ class IrUiView(models.Model):
 
     @api.model
     def _copy_custom_snippet_translations(self, record, html_field):
-        """ Given a ``record`` and its HTML ``field``, detect any
-        usage of a custom snippet and copy its translations.
-        """
         lang_value = record[html_field]
         if not lang_value:
             return
@@ -141,17 +121,6 @@ class IrUiView(models.Model):
 
     @api.model
     def _copy_field_terms_translations(self, records_from, name_field_from, record_to, name_field_to):
-        """ Copy model terms translations from ``records_from.name_field_from``
-        to ``record_to.name_field_to`` for all activated languages if the term
-        in ``record_to.name_field_to`` is untranslated (the term matches the
-        one in the current language).
-
-        For instance, copy the translations of a
-        ``product.template.html_description`` field to a ``ir.ui.view.arch_db``
-        field.
-
-        The method takes care of read and write access of both records/fields.
-        """
         record_to.check_access('write')
         field_from = records_from._fields[name_field_from]
         field_to = record_to._fields[name_field_to]
@@ -164,14 +133,12 @@ class IrUiView(models.Model):
         if not field_to.store:
             raise ValueError(f"Field {field_to!r} is not stored")
 
-        # This will also implicitly check for `read` access rights
         if not record_to[name_field_to] or not any(records_from.mapped(name_field_from)):
             return
 
         lang_env = self.env.lang or 'en_US'
         langs = {lang for lang, _ in self.env['res.lang'].get_installed()}
 
-        # 1. Get translations
         records_from.flush_model([name_field_from])
         records_from = records_from.with_context(check_translations=True)
         record_to = record_to.with_context(check_translations=True)
@@ -187,21 +154,13 @@ class IrUiView(models.Model):
             ))
         for term, extra_translation_values in extra_translation_dictionary.items():
             existing_translation_values = existing_translation_dictionary.setdefault(term, {})
-            # Update only default translation values that aren't customized by the user.
             for lang, extra_translation in extra_translation_values.items():
                 if existing_translation_values.get(lang, term) == term:
                     existing_translation_values[lang] = extra_translation
         translation_dictionary = existing_translation_dictionary
 
-        # The `en_US` jsonb value should always be set, even if english is not
-        # installed. If we don't do this, the custom snippet `arch_db` will only
-        # have a `fr_BE` key but no `en_US` key.
         langs.add('en_US')
 
-        # 2. Set translations
-        # Start from the stored jsonb rather than from an empty dict: it carries
-        # the `_lang` keys that hold *delayed* translations, and rebuilding the
-        # value from `langs` alone silently drops them.
         stored_translation = field_to._get_stored_translations(record_to) or {}
         for lang in langs:
             lang_ = f'_{lang}' if f'_{lang}' in stored_translation else lang
@@ -212,20 +171,9 @@ class IrUiView(models.Model):
             if not self.env.context.get('delay_translations') and lang_.startswith('_'):
                 stored_translation[lang] = stored_translation.pop(lang_)
 
-        # `field._update_cache`, NOT `env.cache.update_raw`: a translated field
-        # keeps one cache slot *per language* (`_get_cache_impl` wraps the cache
-        # in a `LangProxyDict` for a callable-`translate` field), so `update_raw`
-        # stored this whole {lang: arch} mapping in the CURRENT language's slot
-        # and flushed it there -- writing `{"_en_US": {"en_US": ..., "fr_FR": ...}}`
-        # into the jsonb column. The record then read a dict back where a string
-        # was expected and every copied translation was lost. `prefetch_langs`
-        # is what makes `_update_cache` treat the value as the full per-language
-        # mapping; this mirrors `TranslationMixin._update_field_translations` and
-        # the warning already written down in `orm/models/mixins/copy.py`.
         field_to._update_cache(
             record_to.with_context(prefetch_langs=True), stored_translation, dirty=True
         )
-        # Call `write` to trigger compute etc (`modified()`)
         record_to = record_to.with_context(check_translations=False)
         record_to[name_field_to] = record_to[name_field_to]
 
@@ -235,8 +183,6 @@ class IrUiView(models.Model):
 
     @api.model
     def _are_archs_equal(self, arch1, arch2):
-        # Note that comparing the strings would not be ok as attributes order
-        # must not be relevant
         if arch1.tag != arch2.tag:
             return False
         if arch1.text != arch2.text:
@@ -254,30 +200,23 @@ class IrUiView(models.Model):
         return ['style', 'class', 'target', 'href']
 
     def replace_arch_section(self, section_xpath, replacement, replace_tail=False):
-        # the root of the arch section shouldn't actually be replaced as it's
-        # not really editable itself, only the content truly is editable.
         self.ensure_one()
         arch = etree.fromstring(self.arch.encode('utf-8'))
-        # => get the replacement root
         if not section_xpath:
             root = arch
         else:
-            # ensure there's only one match
             [root] = arch.xpath(section_xpath)
 
         root.text = replacement.text
 
-        # We need to replace some attrib for styles changes on the root element
         for attribute in self._get_allowed_root_attrs():
             if attribute in replacement.attrib:
                 root.attrib[attribute] = replacement.attrib[attribute]
             elif attribute in root.attrib:
                 del root.attrib[attribute]
 
-        # Note: after a standard edition, the tail *must not* be replaced
         if replace_tail:
             root.tail = replacement.tail
-        # replace all children
         del root[:]
         for child in replacement:
             root.append(copy.deepcopy(child))
@@ -286,7 +225,6 @@ class IrUiView(models.Model):
 
     @api.model
     def to_field_ref(self, el):
-        # filter out meta-information inserted in the document
         attributes = {k: v for k, v in el.attrib.items()
                            if not k.startswith('data-oe-')}
         attributes['t-field'] = el.get('data-oe-expression')
@@ -306,42 +244,28 @@ class IrUiView(models.Model):
         self.sudo().mapped('model_data_id').write({'noupdate': True})
 
     def save(self, value, xpath=None):
-        """ Update a view section. The view section may embed fields to write
-
-        Note that `self` record might not exist when saving an embed field
-
-        :param str xpath: valid xpath to the tag to replace
-        """
         self.ensure_one()
 
         arch_section = html.fromstring(
             value, parser=html.HTMLParser(encoding='utf-8'))
 
         if xpath is None:
-            # value is an embedded field on its own, not a view section
             self.save_embedded_field(arch_section)
             return
 
         for el in self.extract_embedded_fields(arch_section):
             self.save_embedded_field(el)
 
-            # transform embedded field back to t-field
             el.getparent().replace(el, self.to_field_ref(el))
 
         for el in self.extract_oe_structures(arch_section):
             if self.save_oe_structure(el):
-                # empty oe_structure in parent view
                 empty = self.to_empty_oe_structure(el)
                 if el == arch_section:
                     arch_section = empty
                 else:
                     el.getparent().replace(el, empty)
 
-        # Workaround: ensure `col-md` is present on footer copyright divs.
-        # The base templates now include `col-md` via XPath (see
-        # website.footer_copyright_company_name), but COW'd copies from
-        # pre-fix databases may still have only `col-sm`. This patches the
-        # ancestor view at save time so layout doesn't break.
         if self.key in {
             'website.footer_copyright_company_name',
             'website.template_footer_mega',
@@ -372,19 +296,9 @@ class IrUiView(models.Model):
             return view.inherit_children_ids.filtered(lambda extension: extension.mode != 'primary' or extension.id in original_hierarchy)
         return view.inherit_children_ids
 
-    # Returns all views (called and inherited) related to a view
-    # Used by translation mechanism, SEO and optional templates
 
     @api.model
     def _views_get(self, view_id, get_children=True, bundles=False, root=True, visited=None):
-        """ For a given view ``view_id``, should return:
-                * the view itself (starting from its top most parent)
-                * all views inheriting from it, enabled or not
-                  - but not the optional children of a non-enabled child
-                * all views called from it (via t-call)
-
-            :returns: recordset of ir.ui.view
-        """
         try:
             if isinstance(view_id, models.BaseModel):
                 view = view_id
@@ -420,9 +334,7 @@ class IrUiView(models.Model):
 
         extensions = self._view_get_inherited_children(view)
 
-        # Keep children in a deterministic order regardless of their applicability
         for extension in extensions.sorted(key=lambda v: v.id):
-            # only return optional grandchildren if this child is enabled
             if extension.id not in visited:
                 for ext_view in self._views_get(extension, get_children=extension.active, root=False, visited=visited + views_to_return.ids):
                     if ext_view not in views_to_return:
@@ -431,10 +343,6 @@ class IrUiView(models.Model):
 
     @api.model
     def get_related_views(self, key, bundles=False):
-        """ Get inherit view's informations of the template ``key``.
-            returns templates info (which can be active or not)
-            ``bundles=True`` returns also the asset bundles
-        """
         user_groups = set(self.env.user.group_ids)
         new_context = {
             **self.env.context,
@@ -445,9 +353,6 @@ class IrUiView(models.Model):
         views = View._views_get(key, bundles=bundles)
         return views.filtered(lambda v: not v.group_ids or len(user_groups.intersection(v.group_ids)))
 
-    # --------------------------------------------------------------------------
-    # Snippet saving
-    # --------------------------------------------------------------------------
 
     @api.model
     def _get_snippet_addition_view_key(self, template_key, key):
@@ -467,30 +372,15 @@ class IrUiView(models.Model):
 
     @api.model
     def save_snippet(self, name, arch, template_key, snippet_key, thumbnail_url):
-        """
-        Saves a new snippet arch so that it appears with the given name when
-        using the given snippets template.
-
-        :param name: the name of the snippet to save
-        :param arch: the html structure of the snippet to save
-        :param template_key: the key of the view regrouping all snippets in
-            which the snippet to save is meant to appear
-        :param snippet_key: the key (without module part) to identify
-            the snippet from which the snippet to save originates
-        :param thumbnail_url: the url of the thumbnail to use when displaying
-            the snippet to save
-        """
         app_name = template_key.split('.')[0]
         snippet_key = f'{snippet_key}_{uuid.uuid4().hex}'
         full_snippet_key = f'{app_name}.{snippet_key}'
 
-        # find available name
         current_website = self.env['website'].browse(self.env.context.get('website_id'))
         website_domain = Domain(current_website.website_domain())
         used_names = self.search(Domain('name', '=like', f'{name}%') & website_domain).mapped('name')
         name = self._find_available_name(name, used_names)
 
-        # html to xml to add '/' at the end of self closing tags like br, ...
         arch_tree = html.fromstring(arch)
         attributes = self._get_cleaned_non_editing_attributes(arch_tree.attrib.items())
         for attr in arch_tree.attrib:
@@ -510,11 +400,6 @@ class IrUiView(models.Model):
         model = self.env.context.get('model')
         field = self.env.context.get('field')
         if field == 'arch':
-            # Special case for `arch` which is a kind of related (through a
-            # compute) to `arch_db` but which is hosting XML/HTML content while
-            # being a char field.. Which is then messing around with the
-            # `get_translation_dictionary` call, returning XML instead of
-            # strings
             field = 'arch_db'
         res_id = self.env.context.get('resId')
         if model and field and res_id:

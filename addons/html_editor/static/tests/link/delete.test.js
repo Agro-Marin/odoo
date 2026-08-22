@@ -60,29 +60,22 @@ describe("delete images in a link", () => {
 });
 
 describe("empty list items, starting and ending with links", () => {
-    // The \ufeff characters in and around links can leave a link not
-    // technically fully selected while it must be treated as if it were.
-    // Four variations of the same situation, same expected result.
     const tests = [
-        // (1) <a>[...</a>...<a>...]</a>
         '<ul><li>ab</li><li><a href="#">[cd</a></li><li>ef</li><li><a href="#a">gh]</a></li><li>ij</li></ul>',
         '<ul><li>ab</li><li><a href="#">[\ufeffcd</a></li><li>ef</li><li><a href="#a">gh\ufeff]</a></li><li>ij</li></ul>',
         '<ul><li>ab</li><li><a href="#">\ufeff[cd</a></li><li>ef</li><li><a href="#a">gh\ufeff]</a></li><li>ij</li></ul>',
         '<ul><li>ab</li><li><a href="#">[\ufeffcd</a></li><li>ef</li><li><a href="#a">gh]\ufeff</a></li><li>ij</li></ul>',
         '<ul><li>ab</li><li><a href="#">\ufeff[cd</a></li><li>ef</li><li><a href="#a">gh]\ufeff</a></li><li>ij</li></ul>',
-        // (2) [<a>...</a>...<a>...]</a>
         '<ul><li>ab</li><li>[<a href="#">cd</a></li><li>ef</li><li><a href="#a">gh]</a></li><li>ij</li></ul>',
         '<ul><li>ab</li><li>[\ufeff<a href="#">cd</a></li><li>ef</li><li><a href="#a">gh\ufeff]</a></li><li>ij</li></ul>',
         '<ul><li>ab</li><li>\ufeff[<a href="#">cd</a></li><li>ef</li><li><a href="#a">gh\ufeff]</a></li><li>ij</li></ul>',
         '<ul><li>ab</li><li>[\ufeff<a href="#">cd</a></li><li>ef</li><li><a href="#a">gh]\ufeff</a></li><li>ij</li></ul>',
         '<ul><li>ab</li><li>\ufeff[<a href="#">cd</a></li><li>ef</li><li><a href="#a">gh]\ufeff</a></li><li>ij</li></ul>',
-        // (3) <a>[...</a>...<a>...</a>]
         '<ul><li>ab</li><li><a href="#">[cd</a></li><li>ef</li><li><a href="#a">gh</a>]</li><li>ij</li></ul>',
         '<ul><li>ab</li><li><a href="#">[\ufeffcd</a></li><li>ef</li><li><a href="#a">gh</a>\ufeff]</li><li>ij</li></ul>',
         '<ul><li>ab</li><li><a href="#">\ufeff[cd</a></li><li>ef</li><li><a href="#a">gh</a>\ufeff]</li><li>ij</li></ul>',
         '<ul><li>ab</li><li><a href="#">[\ufeffcd</a></li><li>ef</li><li><a href="#a">gh</a>]\ufeff</li><li>ij</li></ul>',
         '<ul><li>ab</li><li><a href="#">\ufeff[cd</a></li><li>ef</li><li><a href="#a">gh</a>]\ufeff</li><li>ij</li></ul>',
-        // (4) [<a>...</a>...<a>...</a>]
         '<ul><li>ab</li><li>[<a href="#">cd</a></li><li>ef</li><li><a href="#a">gh</a>]</li><li>ij</li></ul>',
         '<ul><li>ab</li><li>[\ufeff<a href="#">cd</a></li><li>ef</li><li><a href="#a">gh</a>\ufeff]</li><li>ij</li></ul>',
         '<ul><li>ab</li><li>\ufeff[<a href="#">cd</a></li><li>ef</li><li><a href="#a">gh</a>\ufeff]</li><li>ij</li></ul>',

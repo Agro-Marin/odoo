@@ -80,10 +80,6 @@ export class SelectionPlaceholderPlugin extends Plugin {
         );
     }
 
-    /**
-     * Update all placeholders and blinker classes so they are present
-     * everywhere we need them, and absent wherever they are not useful.
-     */
     updatePlaceholders() {
         const checkPredicate = (resourceId, node) => {
             const results = this.getResource(resourceId)
@@ -101,7 +97,6 @@ export class SelectionPlaceholderPlugin extends Plugin {
         );
 
         const marginUpdates = [];
-        // 1. Update current placeholders.
         for (const placeholder of this.editable.querySelectorAll(
             PLACEHOLDER_SELECTOR,
         )) {
@@ -109,16 +104,13 @@ export class SelectionPlaceholderPlugin extends Plugin {
                 getNonWhitespaceSibling(side, placeholder),
             );
             if (!isEmpty(placeholder) || !siblings.filter(Boolean).length) {
-                // Persist non-empty placeholders and any suddenly lonely placeholder.
                 this.persistPlaceholder(placeholder);
             } else if (
                 !placeholderParents.includes(placeholder.parentElement) ||
                 !siblings.every((sibling) => !sibling || isSelectionBlocker(sibling))
             ) {
-                // Remove illegitimate placeholders.
                 placeholder.remove();
             } else {
-                // Update the margins.
                 const update = this.prepareMarginUpdate(placeholder, ...siblings);
                 if (update) {
                     marginUpdates.push(update);
@@ -126,29 +118,21 @@ export class SelectionPlaceholderPlugin extends Plugin {
             }
         }
 
-        // Get the blocks to check.
         const blockers = [
             ...new Set(placeholderParents.flatMap((element) => [...element.children])),
         ].filter((element) => isSelectionBlocker(element));
 
-        // 2. Add placeholders before and after every blocker where necessary.
         const pendingMarginUpdates = [];
         for (const blocker of blockers) {
             for (const side of ["before", "after"]) {
-                // Get the first non-whitespace sibling.
                 const sibling = getNonWhitespaceSibling(side, blocker);
-                // Insert a placeholder if there is no such sibling or if it's a
-                // selection blocker.
                 if (!sibling || isSelectionBlocker(sibling)) {
-                    // Create the placeholder.
                     const placeholder =
                         this.dependencies.baseContainer.createBaseContainer();
                     fillEmpty(placeholder);
                     placeholder.setAttribute(PLACEHOLDER_ATTRIBUTE, "");
-                    // Position the placeholder.
                     const siblings =
                         side === "before" ? [sibling, blocker] : [blocker, sibling];
-                    // Insert the placeholder.
                     blocker[side](placeholder);
                     pendingMarginUpdates.push({
                         placeholder,
@@ -158,7 +142,6 @@ export class SelectionPlaceholderPlugin extends Plugin {
             }
         }
 
-        // READ phase
         for (const { placeholder, siblings } of pendingMarginUpdates) {
             const update = this.prepareMarginUpdate(placeholder, ...siblings);
             if (update) {
@@ -166,18 +149,14 @@ export class SelectionPlaceholderPlugin extends Plugin {
             }
         }
 
-        // WRITE phase
         for (const update of marginUpdates) {
             update();
         }
 
-        // 3. Reset blinker classes.
         this.resetBlinkerClasses();
     }
 
     /**
-     * Position a placeholder between its siblings.
-     *
      * @param {Element} placeholder
      * @param {Element} previous
      * @param {Element} next
@@ -202,8 +181,6 @@ export class SelectionPlaceholderPlugin extends Plugin {
     }
 
     /**
-     * Turn a selection placeholder into a real block.
-     *
      * @param {Element} placeholder
      */
     persistPlaceholder(placeholder) {
@@ -213,8 +190,6 @@ export class SelectionPlaceholderPlugin extends Plugin {
     }
 
     /**
-     * Remove the horizontal caret class from a placeholder element.
-     *
      * @param {Element} blinker
      */
     cleanBlinker(blinker) {
@@ -226,9 +201,6 @@ export class SelectionPlaceholderPlugin extends Plugin {
     }
 
     /**
-     * Remove any irrelevant blinker class (horizontal caret) and make sure
-     * there is one on the placeholder in collapsed selection, if any.
-     *
      * @param {import("@html_editor/core/selection_plugin").EditorSelection} selection
      */
     resetBlinkerClasses(
@@ -254,9 +226,6 @@ export class SelectionPlaceholderPlugin extends Plugin {
     }
 
     /**
-     * Update the placeholders' states in function of the selection, by
-     * potentially persisting one, and by reseting the blinker classes.
-     *
      * @param {import("@html_editor/core/selection_plugin").SelectionData} selectionData
      */
     onSelectionChange(selectionData) {
@@ -269,7 +238,6 @@ export class SelectionPlaceholderPlugin extends Plugin {
                 anchor?.hasAttribute(PLACEHOLDER_ATTRIBUTE) &&
                 !getNonWhitespaceSibling("next", anchor)
             ) {
-                // If it's at the bottom of the document, just persist immediately.
                 this.persistPlaceholder(anchor);
                 if (this.dependencies.history.getIsCurrentStepModified()) {
                     this.dependencies.history.addStep();
@@ -295,8 +263,6 @@ const getNonWhitespaceSibling = (side, node) => {
     );
 };
 /**
- * Get an element's top or bottom margin as a number.
- *
  * @param {Element} element
  * @param {"top"|"bottom"} side
  * @returns {Number}

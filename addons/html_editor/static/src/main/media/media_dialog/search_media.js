@@ -16,7 +16,6 @@ export class SearchMedia extends Component {
 
         useEffect(
             (input) => {
-                // Do not trigger a search on the initial render.
                 if (this.hasRendered) {
                     this.debouncedSearch(input);
                 } else {

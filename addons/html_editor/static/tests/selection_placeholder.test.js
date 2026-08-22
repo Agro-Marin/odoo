@@ -20,17 +20,11 @@ const pressArrowKey = async (editor, key) => {
         selection.isCollapsed &&
         closestElement(selection.anchorNode, isTableCell)
     ) {
-        // Inside a cell the table plugin moves the caret itself (ArrowUp and
-        // ArrowDown), so press the key instead of simulating the move.
-        // TODO: detect this without relying on implementation if possible.
         await press(key);
     } else {
         await simulateArrowKeyPress(editor, key);
-        // Wait an extra tick in case of selection in root correction, so the
-        // extra selectionchange event is triggered.
         await tick();
     }
-    // Wait for selectionchange event.
     await tick();
 };
 
@@ -242,7 +236,6 @@ test("moving the caret into a selection placeholder shows a horizontal caret", a
             expect(getContent(editor.editable)).toBe(focusedResult, {
                 message: "The placeholder was selected.",
             });
-            // Blur the editable.
             editor.editable.blur();
             await animationFrame();
             expect(getContent(editor.editable)).toBe(
@@ -258,14 +251,12 @@ test("moving the caret into a selection placeholder shows a horizontal caret", a
                         "The placeholder stopped blinking when taking the focus out.",
                 },
             );
-            // Focus the editable.
             editor.editable.focus();
             await animationFrame();
             expect(getContent(editor.editable)).toBe(focusedResult, {
                 message:
                     "The placeholder started blinking again when taking the focus back in.",
             });
-            // Focus the textarea, blurring the editable.
             editor.editable.querySelector("textarea").focus();
             await animationFrame();
             expect(getContent(editor.editable)).toBe(
@@ -281,7 +272,6 @@ test("moving the caret into a selection placeholder shows a horizontal caret", a
                         "The placeholder stopped blinking when taking the focus into the textarea.",
                 },
             );
-            // Refocus the editable: it should start blinking again.
             editor.editable.focus();
             await animationFrame();
         },
@@ -350,7 +340,7 @@ test("moving the caret into a trailing selection placeholder in the root persist
         ),
         stepFunction: async (editor) => {
             await pressArrowKey(editor, "ArrowDown");
-            await animationFrame(); // wait for selectionchange
+            await animationFrame();
         },
         contentAfterEdit: unformat(
             `<p>a</p>
@@ -386,7 +376,7 @@ test("moving the caret into a trailing selection placeholder not in the root doe
         ),
         stepFunction: async (editor) => {
             await pressArrowKey(editor, "ArrowDown");
-            await animationFrame(); // wait for selectionchange
+            await animationFrame();
         },
         contentAfterEdit: unformat(
             `<p>a</p>
@@ -595,7 +585,6 @@ test("selection placeholders are vertically positioned in the middle between it 
             editor.document.head.append(style);
         },
     });
-    // Comment this to make it easier to debug visually.
     style.remove();
 });
 
@@ -637,6 +626,5 @@ test("selection placeholder margins remain correct when an element gets added", 
             <p data-selection-placeholder="" style="margin: -51px 0px 50px;"><br></p>`,
         ),
     });
-    // Comment this to make it easier to debug visually.
     style.remove();
 });

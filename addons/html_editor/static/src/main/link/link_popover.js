@@ -63,10 +63,6 @@ export class LinkPopover extends Component {
         { type: "primary", label: _t("Button Primary"), btnPreview: "primary" },
         { type: "secondary", label: _t("Button Secondary"), btnPreview: "secondary" },
         { type: "custom", label: _t("Custom"), btnPreview: "custom" },
-        // Note: by compatibility the dialog should be able to remove old
-        // colors that were suggested like the BS status colors or the
-        // alpha -> epsilon classes. This is currently done by removing
-        // all btn-* classes anyway.
     ];
     buttonSizesData = [
         { size: "sm", label: _t("Small") },
@@ -104,7 +100,6 @@ export class LinkPopover extends Component {
         const currentRelValues = linkElement.rel.split(" ");
         this.state = useState({
             editing: this.props.LinkPopoverState.editing,
-            // `.getAttribute("href")` instead of `.href` to keep relative url
             url: linkElement.getAttribute("href") || this.deduceUrl(textContent),
             label: labelEqualsUrl ? "" : textContent,
             previewIcon: {
@@ -218,9 +213,6 @@ export class LinkPopover extends Component {
                     },
                     {
                         env: this.__owl__.childEnv,
-                        // `useOverlayServiceOffset` adds 1000 to each sequence value to solve
-                        // overlay visibility in `iframe`, here we increment default sequence (50)
-                        // by 1 and we add 1000 to have color picker always on top of all overlays.
                         sequence: 1051,
                     },
                 );
@@ -272,7 +264,6 @@ export class LinkPopover extends Component {
         };
         useExternalListener(this.props.document, "pointerdown", onPointerDown);
         if (this.props.document !== document) {
-            // Listen to pointerdown outside the iframe
             useExternalListener(document, "pointerdown", onPointerDown);
         }
     }
@@ -292,7 +283,6 @@ export class LinkPopover extends Component {
     }
 
     onChange() {
-        // Apply changes to update the link preview.
         this.props.onChange(
             this.state.url,
             this.state.label,
@@ -334,8 +324,6 @@ export class LinkPopover extends Component {
             this.isAbsoluteURLInCurrentDomain()
         ) {
             const urlObj = new URL(this.state.url, window.location.origin);
-            // Not necessarily equal to window.location.origin
-            // (see isAbsoluteURLInCurrentDomain)
             this.state.url = this.state.url.replace(urlObj.origin, "");
         }
     }
@@ -353,7 +341,6 @@ export class LinkPopover extends Component {
             textContent + "/" === this.props.linkElement.getAttribute("href");
         this.state.label = labelEqualsUrl ? "" : textContent;
     }
-    // TODO: remove in master
     async onClickCopy(ev) {
         ev.preventDefault();
         await browser.navigator.clipboard.writeText(this.props.linkElement.href || "");
@@ -465,7 +452,6 @@ export class LinkPopover extends Component {
     deduceUrl(text) {
         text = text.trim();
         if (/^(https?:|mailto:|tel:)/.test(text)) {
-            // Text begins with a known protocol, accept it as valid URL.
             return text;
         } else {
             return deduceURLfromText(text, this.props.linkElement) || "";
@@ -482,7 +468,6 @@ export class LinkPopover extends Component {
             });
             return { regex: new RegExp(regexParts.join("")), nbParts: parts.length };
         };
-        // If multiple shapes match, prefer the one with more specificity.
         let shapeMatched = "";
         let matchScore = 0;
         for (const { shape } of this.buttonShapeData) {
@@ -499,9 +484,6 @@ export class LinkPopover extends Component {
         }
         return shapeMatched;
     }
-    /**
-     * link preview in the popover
-     */
     resetPreview() {
         this.state.previewIcon = { type: "fa", value: "fa-globe" };
         this.state.urlTitle = this.state.url || _t("No URL specified");
@@ -516,7 +498,6 @@ export class LinkPopover extends Component {
             return;
         }
         if (this.isLogoutUrl()) {
-            // The session ends if we fetch this url, so the preview is hardcoded
             this.resetPreview();
             this.state.urlTitle = _t("Logout");
             this.state.previewIcon.value = "fa-solid fa-right-from-bracket";
@@ -532,10 +513,8 @@ export class LinkPopover extends Component {
             return;
         }
         try {
-            url = new URL(this.state.url, document.URL); // relative to absolute
+            url = new URL(this.state.url, document.URL);
         } catch {
-            // Invalid URL, might happen with editor unsuported protocol. eg type
-            // `geo:37.786971,-122.399677`, become `http://geo:37.786971,-122.399677`
             this.notificationService.add(
                 _t("This URL is invalid. Preview couldn't be updated."),
                 {
@@ -559,10 +538,6 @@ export class LinkPopover extends Component {
             window.location.hostname !== url.hostname &&
             !new RegExp(`^https?://${session.db}\\.odoo\\.com(/.*)?$`).test(url.origin)
         ) {
-            // Preview pages from current website only. External website will
-            // most of the time raise a CORS error. To avoid that error, we
-            // would need to fetch the page through the server (s2s), involving
-            // enduser fetching problematic pages such as illicit content.
             this.state.previewIcon = {
                 type: "imgSrc",
                 value: `https://www.google.com/s2/favicons?sz=16&domain=${encodeURIComponent(url)}`,
@@ -589,9 +564,6 @@ export class LinkPopover extends Component {
                 this.state.urlTitle = this.state.label;
             }
         } else {
-            // Set state based on cached link meta data
-            // for record missing errors, we push a warning that the url is likely invalid
-            // for other errors, we log them to not block the ui
             const internalMetadata = await this.props
                 .getInternalMetaData(url.href)
                 .catch((error) => {
@@ -675,7 +647,6 @@ export class LinkPopover extends Component {
             classes.push(`bg-${fillColor}`);
         }
 
-        // Ensure single space between classes
         return classes.filter(Boolean).join(" ");
     }
 
@@ -718,7 +689,6 @@ export class LinkPopover extends Component {
         );
         delete this.cancelUpload;
         if (!attachment) {
-            // No file selected or upload failed
             return;
         }
         this.props.onUpload?.(attachment);
@@ -739,16 +709,10 @@ export class LinkPopover extends Component {
         return !!this.state.url.match(/\/web\/content\/\d+/);
     }
     /**
-     * Checks if the given URL is using the domain where the content being
-     * edited is reachable, i.e. if this URL should be stripped of its domain
-     * part and converted to a relative URL if put as a link in the content.
-     *
      * @private
      * @returns {boolean}
      */
     isAbsoluteURLInCurrentDomain() {
-        // First check if it is a relative URL: if it is, we don't want to check
-        // further as we will always leave those untouched.
         let hasProtocol;
         try {
             hasProtocol = !!new URL(this.state.url).protocol;
@@ -760,12 +724,6 @@ export class LinkPopover extends Component {
         }
 
         const urlObj = new URL(this.state.url, window.location.origin);
-        // Chosen heuristic to detect someone trying to enter a link using
-        // its Odoo instance domain. We just suppose it should be a relative
-        // URL (if unexpected behavior, the user can just not enter its Odoo
-        // instance domain but its real domain, or opt-out from the domain
-        // stripping). Mentioning an .odoo.com domain, especially its own
-        // one, is always a bad practice anyway.
         return (
             urlObj.origin === window.location.origin ||
             new RegExp(`^https?://${session.db}\\.odoo\\.com(/.*)?$`).test(

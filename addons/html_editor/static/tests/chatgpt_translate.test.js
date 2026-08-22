@@ -22,9 +22,6 @@ const translateDropdownFromToolbar = async () => {
 };
 
 test("ChatGPT dialog opens in translate mode when clicked on translate button in toolbar", async () => {
-    // ``loadLanguages.installedLanguages`` is a module-level cache shared
-    // between tests: reset it and install a single language so
-    // ``LanguageSelector`` renders a button instead of a dropdown.
     loadLanguages.installedLanguages = false;
     onRpc("res.lang", "get_installed", () => [
         ["fr_BE", "French (BE) / Français (BE)"],
@@ -34,16 +31,12 @@ test("ChatGPT dialog opens in translate mode when clicked on translate button in
     });
 
     await expandToolbar();
-    // Expect the toolbar to not have translate dropdown.
     expect(".o-we-toolbar [name='translate'].o-dropdown").toHaveCount(0);
 
-    // Expect the toolbar to have translate button.
     expect(".o-we-toolbar .btn[name='translate']").toHaveCount(1);
 
-    // Select Translate button in the toolbar.
     await translateButtonFromToolbar();
 
-    // Expect the ChatGPT Translate Dialog to be open.
     const translateDialogHeaderSelector = `.o_dialog .modal-header:contains("${TRANSLATE_DIALOG_TITLE}")`;
     await waitFor(translateDialogHeaderSelector);
 });
@@ -58,16 +51,13 @@ test("ChatGPT dialog opens in translate mode when clicked on translate dropdown 
         config: { Plugins: [...MAIN_PLUGINS, ChatGPTTranslatePlugin] },
     });
 
-    // Expect the toolbar to have translate dropdown.
     await expandToolbar();
     expect(".o-we-toolbar [name='translate'].o-dropdown").toHaveCount(1);
 
-    // Select Translate button in the toolbar.
     await translateButtonFromToolbar();
     await waitFor(".dropdown-menu");
     await translateDropdownFromToolbar();
 
-    // Expect the ChatGPT Translate Dialog to be open.
     const translateDialogHeaderSelector = `.o_dialog .modal-header:contains("${TRANSLATE_DIALOG_TITLE}")`;
     await waitFor(translateDialogHeaderSelector);
 });
@@ -117,24 +107,20 @@ test("insert the response from ChatGPT translate dialog", async () => {
     });
     onRpc("/html_editor/generate_text", () => `Bonjour`);
 
-    // Select Translate button in the toolbar.
     await expandToolbar();
     await translateButtonFromToolbar();
     await waitFor(".dropdown-menu");
     await translateDropdownFromToolbar();
 
-    // Insert the response.
     await waitFor(".o-chatgpt-translated");
     expect("footer button.btn[disabled]").toHaveCount(0);
     await contains("footer button.btn").click();
 
     await animationFrame();
 
-    // Expect the response to have replaced the selected text.
     expect(getContent(el)).toBe(`<p>Bonjour[]</p>`);
     loadLanguages.installedLanguages = false;
 
-    // Expect to undo and redo the inserted text.
     execCommand(editor, "historyUndo");
     expect(getContent(el)).toBe(`<p>[Hello]</p>`);
     execCommand(editor, "historyRedo");
@@ -156,20 +142,16 @@ test("Translate dropdown should have the default language at top", async () => {
     });
     await expandToolbar();
 
-    // Select Translate button in the toolbar.
     await translateButtonFromToolbar();
     await waitFor(".dropdown-menu");
 
     const expectedLanguage = languages.find(([code]) => code === user.lang);
 
-    // Expect the default language to be at the top.
     expect(".dropdown-menu .dropdown-item:first-child").toHaveText(expectedLanguage[1]);
     loadLanguages.installedLanguages = false;
 });
 
 test("press escape to close translate dialog", async () => {
-    // Single installed language, so the toolbar renders a button instead of a
-    // dropdown and clicking it opens the dialog directly.
     loadLanguages.installedLanguages = false;
     onRpc("res.lang", "get_installed", () => [
         ["fr_BE", "French (BE) / Français (BE)"],
@@ -179,10 +161,8 @@ test("press escape to close translate dialog", async () => {
     });
 
     await expandToolbar();
-    // Select Translate button in the toolbar.
     await translateButtonFromToolbar();
 
-    // Expect the ChatGPT Translate Dialog to be open.
     const translateDialogHeaderSelector = `.o_dialog .modal-header:contains("${TRANSLATE_DIALOG_TITLE}")`;
     await waitFor(translateDialogHeaderSelector);
 

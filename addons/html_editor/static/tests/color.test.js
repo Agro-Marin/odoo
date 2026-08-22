@@ -570,7 +570,6 @@ test("should remove background gradient and apply new background color if gradie
     });
 });
 test("should merge adjacent font with the same text color when mutations common root is <font>", async () => {
-    // Checked without cleanForSave: it would mask the bug.
     const { el, editor } = await setupEditor(
         '<p><font style="color: rgb(255, 0, 0);">first </font><font style="color: rgb(0, 255, 0);">[second]</font></p>',
     );
@@ -1053,7 +1052,6 @@ test("Should properly apply color when selection on feff", async () => {
             </div>
         `),
     );
-    // Ensure the link inherited the font color.
     const a = el.querySelector("a");
     expect(getComputedStyle(a).color).toBe("rgb(255, 0, 0)");
 });

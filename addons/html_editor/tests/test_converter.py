@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import textwrap
 
 from lxml import etree, html
@@ -183,9 +181,6 @@ class TestConvertBack(common.TransactionCase):
             You never know until you go"""))
 
     def test_m2o(self):
-        """ the M2O field conversion (from html) is markedly different from
-        others as it directly writes into the m2o and returns nothing at all.
-        """
         field = 'many2one'
 
         subrec1 = self.env['html_editor.converter.test.sub'].create({'name': "Foo"})
@@ -201,7 +196,6 @@ class TestConvertBack(common.TransactionCase):
         rendered = self.env['ir.qweb']._render(t, {'record': record})
         element = html.fromstring(rendered, parser=html.HTMLParser(encoding='utf-8'))
 
-        # emulate edition
         element.set('data-oe-many2one-id', str(subrec2.id))
         element.text = "New content"
 

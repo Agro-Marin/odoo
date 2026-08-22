@@ -50,7 +50,6 @@ export class SeparatorPlugin extends Plugin {
             },
         ],
 
-        /** Handlers */
         selectionchange_handlers: this.handleSelectionInHr.bind(this),
         deselect_custom_selected_nodes_handlers: this.deselectHR.bind(this),
         clean_for_save_handlers: ({ root }) => {
@@ -71,10 +70,6 @@ export class SeparatorPlugin extends Plugin {
         if (element && element !== this.editable) {
             const sep = this.document.createElement("hr");
             const firstLeafNode = firstLeaf(block);
-            /**
-             * Insert the separator before the element when it’s empty
-             * or when the caret is at the very start of the block.
-             */
             if (
                 isEmptyBlock(element) ||
                 (selection.anchorNode === firstLeafNode && selection.anchorOffset === 0)

@@ -61,15 +61,11 @@ export const uploadService = {
                 await onUploaded(attachment);
             },
             /**
-             * This takes an array of files (from an input HTMLElement), and
-             * uploads them while managing the UploadProgressToast.
-             *
              * @param {Array<File>} files
              * @param {Object} options
              * @param {Function} onUploaded
              */
             uploadFiles: async (files, { resModel, resId, isImage }, onUploaded) => {
-                // Upload the smallest file first to block the user the least possible.
                 const sortedFiles = Array.from(files).sort((a, b) => a.size - b.size);
                 for (const file of sortedFiles) {
                     let fileSize = file.size;
@@ -84,20 +80,14 @@ export const uploadService = {
 
                     const id = ++fileId;
                     file.progressToastId = id;
-                    // This reactive object, built based on the files array,
-                    // is given as a prop to the UploadProgressToast.
                     addFile({
                         id,
                         name: file.name,
                         size: fileSize,
-                        // fetch-based rpc() exposes no upload progress, so this
-                        // stays at 0 until the request resolves (spinner shown).
                         progress: 0,
                     });
                 }
 
-                // Upload one file at a time: no need to parallel as upload is
-                // limited by bandwidth.
                 for (const sortedFile of sortedFiles) {
                     const file = progressToast.files[sortedFile.progressToastId];
                     let dataURL;
@@ -112,9 +102,6 @@ export const uploadService = {
                         continue;
                     }
                     try {
-                        // rpc() is fetch-based and exposes no upload progress,
-                        // so granular progress is unavailable and the toast
-                        // shows the indeterminate spinner instead.
                         const attachment = await rpc(
                             "/html_editor/attachment/add_data",
                             {
@@ -132,7 +119,6 @@ export const uploadService = {
                             file.errorMessage = attachment.error;
                         } else {
                             if (attachment.mimetype === "image/webp") {
-                                // Generate alternate format for reports.
                                 const image = document.createElement("img");
                                 image.src = `data:image/webp;base64,${dataURL.split(",")[1]}`;
                                 await new Promise((resolve) =>
@@ -159,7 +145,6 @@ export const uploadService = {
                             file.uploaded = true;
                             await onUploaded(attachment);
                         }
-                        // If there's an error, display the error message for longer
                         const message_autoclose_delay = file.hasError
                             ? AUTOCLOSE_DELAY_LONG
                             : AUTOCLOSE_DELAY;

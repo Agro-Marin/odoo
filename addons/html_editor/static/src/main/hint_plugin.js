@@ -16,8 +16,8 @@ import { closestBlock } from "../utils/blocks.js";
 
 /**
  * @typedef {((
- *   selectionData: SelectionData,
- *   editable: EditorContext["editable"]
+ * selectionData: SelectionData,
+ * editable: EditorContext["editable"]
  * ) => HTMLElement[] | NodeList)[]} hint_targets_providers
  * @typedef {{ selector: CSSSelector; text: TranslatedString; }[]} hints
  */
@@ -27,7 +27,6 @@ export class HintPlugin extends Plugin {
     static dependencies = ["history", "selection"];
     /** @type {import("plugins").EditorResources} */
     resources = {
-        /** Handlers */
         selectionchange_handlers: this.triggerDebouncedUpdateHints.bind(this),
         external_history_step_handlers: () => {
             this.clearHints();
@@ -84,17 +83,6 @@ export class HintPlugin extends Plugin {
         this.debouncedUpdateHints();
     }
 
-    /**
-     * Recompute every hint in the editable.
-     *
-     * Deliberately takes no `root`: it is registered on `content_updated_handlers`
-     * and `normalize_handlers`, which both pass the mutations' common ancestor,
-     * but hints must also be cleared from the block the selection just LEFT,
-     * which is frequently outside that ancestor. Scoping the work to the root
-     * would leave stale hints behind. (It previously carried a `@param root`
-     * annotation over a zero-argument signature, implying a scoping that was
-     * never implemented.)
-     */
     updateHints() {
         const selectionData = this.dependencies.selection.getSelectionData();
         const editableSelection = selectionData.editableSelection;

@@ -34,7 +34,7 @@ export class ToggleBlockPlugin extends Plugin {
         "baseContainer",
         "delete",
         "dom",
-        "embeddedComponents", // toggle is an embedded component.
+        "embeddedComponents",
         "history",
         "selection",
         "split",
@@ -161,9 +161,6 @@ export class ToggleBlockPlugin extends Plugin {
     }
 
     /**
-     * Returns the next or previous toggle block sibling of a node,
-     * removing any selection placeholder in between.
-     *
      * @param {Node} node
      * @param {"next"|"previous"} direction
      * @returns {Node|null}
@@ -178,13 +175,6 @@ export class ToggleBlockPlugin extends Plugin {
         return sibling?.matches(toggleSelector) ? sibling : null;
     }
 
-    /**
-     * Handle all behaviors linked to the use of deleteBackward in the editor:
-     * 1. selection at start of title: explode the toggle and keep title and content as siblings
-     * 2. selection at end of content in a paragraph: unwraps from the toggle content
-     * 3. selection at start of content in a paragraph: merge the paragraph with the title
-     * 4. selection at start of paragraph after a toggle: merge the paragraph at content end
-     */
     handleDeleteBackward(range) {
         for (const handler of [
             this.handleDeleteBackwardTitleStart,
@@ -285,16 +275,6 @@ export class ToggleBlockPlugin extends Plugin {
         return true;
     }
 
-    /**
-     * Handle all behaviors linked to the use of deleteForward in the editor:
-     * 1. selection at end of title:
-     *   - (optional) explode a potential toggle at the start of content
-     *   - merge first paragraph from content with the title
-     * 2. selection at end of content in a paragraph:
-     *   - (optional) explode a potential sibling toggle
-     *   - merge a sibling paragraph at content end
-     * 3. selection at end of paragraph before a toggle: explode the toggle
-     */
     handleDeleteForward(range) {
         for (const handler of [
             this.handleDeleteForwardTitleEnd,
@@ -422,21 +402,12 @@ export class ToggleBlockPlugin extends Plugin {
         return true;
     }
 
-    /**
-     * Generate new toggleBlockIds for every inserted toggle, to avoid duplicating
-     * copies.
-     */
     handleInsert(insertContainer) {
         const insertedToggles = insertContainer.querySelectorAll(toggleSelector);
         this.generateUniqueIds(insertedToggles);
         return insertContainer;
     }
 
-    /**
-     * Shift + Tab in a toggle title will extract it from a potential parent
-     * toggle, and every child of that parent toggle content that is a nextSibling
-     * of the current toggle will be appended to the current toggle content.
-     */
     handleShiftTab() {
         const toggle = this.getToggleFromTitleSelection();
         if (toggle) {
@@ -470,12 +441,7 @@ export class ToggleBlockPlugin extends Plugin {
     }
 
     /**
-     * Handle Enter (block split) when the cursor is in a toggle title:
-     *      1. The toggle title is currently empty (remove toggle)
-     *      2. Cursor is at the start of the toggle title (create new toggle before)
-     *      3. Cursor elsewhere in the toggle title (create new toggle after)
-     * @param {Object} param @see SplitPlugin.splitElementBlock
-     * @returns true if indeed handled by the method
+     * @param {Object} param
      */
     handleSplitElementBlock({ targetNode, targetOffset, blockToSplit }) {
         const { toggle, title, content } = this.getClosestToggleTitleInfo(targetNode);
@@ -536,11 +502,6 @@ export class ToggleBlockPlugin extends Plugin {
         }
     }
 
-    /**
-     * Handles the tab behavior. This means that when we are inside a toggle title and we have a toggle
-     * as previous sibling of the embedded component, the current toggle is indented inside the content of
-     * the previous one.
-     */
     handleTab() {
         const toggle = this.getToggleFromTitleSelection();
         if (toggle) {

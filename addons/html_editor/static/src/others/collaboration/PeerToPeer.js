@@ -37,7 +37,6 @@ const baseNotificationMethods = {
     },
     ptp_request_result: function (notification) {
         const { requestId, result } = notification.notificationPayload;
-        // If not in _pendingRequestResolver, it means it has timeout.
         if (this._pendingRequestResolver[requestId]) {
             clearTimeout(this._pendingRequestResolver[requestId].rejectTimeout);
             this._pendingRequestResolver[requestId].resolve(result);
@@ -104,20 +103,10 @@ const baseNotificationMethods = {
             return;
         }
 
-        // Skip if we already have an offer.
         if (pc.signalingState === "have-remote-offer") {
             return;
         }
 
-        // If there is a racing condition with the signaling offer (two
-        // being sent at the same time), one peer must abort by rolling back
-        // to a stable signaling state while the other continues the process.
-        // The polite peer is the one that will roll back.
-        // Must be a plain codepoint comparison: both peers have to derive
-        // opposite answers from the same pair of ids. `localeCompare` is
-        // locale-sensitive and its magnitude is unspecified, so two peers in
-        // different locales could both compute `false` here, both abort the
-        // offer, and deadlock the signaling handshake.
         const isPolite =
             compareIds("" + notification.fromPeerId, "" + this._currentPeerId) > 0;
         if (debugShowLog) {
@@ -131,9 +120,6 @@ const baseNotificationMethods = {
         const isOfferRacing =
             description.type === "offer" &&
             (peerInfos.makingOffer || pc.signalingState !== "stable");
-        // If there is a racing condition with the signaling offer and the
-        // peer is impolite, we must not process this offer and wait for
-        // the answer for the signaling process to continue.
         if (isOfferRacing && !isPolite) {
             if (debugShowLog) {
                 console.log(
@@ -195,7 +181,6 @@ export class PeerToPeer {
             );
         }
 
-        // peerId -> PeerInfos
         this.peersInfos = {};
         this._lastRequestId = -1;
         this._pendingRequestResolver = {};
@@ -471,7 +456,6 @@ export class PeerToPeer {
                         );
                     }
                     const offer = await pc.createOffer();
-                    // Avoid race condition.
                     if (pc.signalingState !== "stable") {
                         return;
                     }
@@ -516,7 +500,6 @@ export class PeerToPeer {
                     break;
             }
         };
-        // This event does not work in FF. Let's try with oniceconnectionstatechange if it is sufficient.
         pc.onconnectionstatechange = async () => {
             if (debugShowLog) {
                 console.log("CONNECTION STATE UPDATE:" + pc.connectionState);
@@ -587,7 +570,6 @@ export class PeerToPeer {
         try {
             await peerInfos.peerConnection.addIceCandidate(rtcIceCandidate);
         } catch (error) {
-            // Ignored.
             console.groupCollapsed("=== ERROR: ADD ICE CANDIDATE ===");
             console.trace(error);
             console.groupEnd();
@@ -656,13 +638,10 @@ export class PeerToPeer {
         );
     }
     /**
-     * Attempts a connection recovery by recreating the RTCPeerConnection,
-     * which starts a new negotiation: negotiationneeded -> offer -> answer -> ...
-     *
      * @private
      * @param {string} peerId
      * @param {Object} [param1]
-     * @param {number} [param1.delay=0] in ms
+     * @param {number} [param1.delay=0]
      * @param {string} [param1.reason]
      */
     _recoverConnection(peerId, { delay = 0, reason = "" } = {}) {
@@ -676,7 +655,6 @@ export class PeerToPeer {
         }
         const backoffFactor = this.peersInfos[peerId].backoffFactor;
         const backoffDelay = delay * Math.pow(2, backoffFactor);
-        // Stop trying to recover the connection after 10 attempts.
         if (backoffFactor > 10) {
             if (debugShowLog) {
                 console.log(
@@ -696,7 +674,6 @@ export class PeerToPeer {
             if (["connected", "closed"].includes(pc.connectionState)) {
                 return;
             }
-            // hard reset: recreating a RTCPeerConnection
             if (debugShowLog) {
                 console.log(
                     `%c RTC RECOVERY: calling back peer ${peerId} to salvage the connection ${pc.iceConnectionState} after ${backoffDelay}ms, reason: ${reason}`,
@@ -708,8 +685,6 @@ export class PeerToPeer {
             newPeerInfos.backoffFactor = backoffFactor + 1;
         }, backoffDelay);
     }
-    // todo: do we try to salvage the connection after killing the zombie ?
-    // Maybe the salvage should be done when the connection is dropped.
     _killPotentialZombie(peerId) {
         if (this._stopped) {
             this.removePeer(peerId);
@@ -720,7 +695,6 @@ export class PeerToPeer {
             return;
         }
 
-        // If there is no connection after 10 seconds, terminate.
         peerInfos.zombieTimeout = setTimeout(() => {
             if (
                 peerInfos &&

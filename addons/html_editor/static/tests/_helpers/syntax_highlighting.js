@@ -13,11 +13,8 @@ import { unformat } from "./format.js";
  * @typedef {Object} HighlightedContent
  * @property {string} value
  * @property {string} [language]
- * @property {number | [number, number]} [textareaRange = null] if defined, the
- *                                       focus will be set in the textarea and
- *                                       its selection will be tested
- * @property {boolean} [wrapped = true] if true, the value will be wrapped
- *                                      inside a syntax highlighting block
+ * @property {number | [number, number]} [textareaRange = null]
+ * @property {boolean} [wrapped = true]
  */
 /**
  * @typedef {Object} FocusedTextarea
@@ -27,12 +24,6 @@ import { unformat } from "./format.js";
  */
 
 /**
- * Simulate Prism's `highlight` function by wrapping the given `html` string
- * inside a `<span>` element matching with the given `languageId` as `id`
- * attribute.
- * If `ejectBr` is true, take any trailing `<br>` in `html` and insert it after
- * the `<span>` element instead.
- *
  * @param {string} html
  * @param {string} [languageId = DEFAULT_LANGUAGE_ID]
  * @param {boolean} [ejectBr = false]
@@ -43,13 +34,6 @@ const highlight = (html, languageId = DEFAULT_LANGUAGE_ID, ejectBr = false) =>
         ejectBr ? html.match(/(?:<br>)+$/)?.[0] || "" : ""
     }`;
 
-/**
- * Patch the function that loads the Prism library so it doesn't crash when
- * testing and so that its `highlight` function simply wraps the HTML using
- * `highlight`.
- *
- * @see highlight
- */
 export const patchPrism = () => {
     patchWithCleanup(EmbeddedSyntaxHighlightingComponent.prototype, {
         async loadPrism() {
@@ -63,10 +47,6 @@ export const patchPrism = () => {
 };
 
 /**
- * Test that the document selection is targeting the given `<textarea>` element,
- * that the focus is in it, that its value is the given value, and that its range
- * is the given range.
- *
  * @param {Editor} editor
  * @param {FocusedTextarea} focusedTextarea
  * @param {string} [message]
@@ -115,11 +95,6 @@ const TOOLBAR = (language) =>
     );
 
 /**
- * Normalize the given editor `content` to facilitate testing, then compare it
- * to the `expected` string (typically produced by `highlightedPre`). If
- * `expected` embeds textarea range markers, parse them and test the range and
- * focus in the corresponding `<textarea>` element first.
- *
  * @param {string} content
  * @param {string} expected
  * @param {string} phase
@@ -127,20 +102,14 @@ const TOOLBAR = (language) =>
  */
 export const compareHighlightedContent = async (content, expected, phase, editor) => {
     let cleanedContent = content
-        // Ignore embedded state change ID and previous
         .replaceAll(/"stateChangeId":\d+/g, "")
         .replaceAll(/"previous":\{[^}]+\}/g, "")
-        // Make "next" the actual state
         .replaceAll(/"next":\{([^}]+)\}/g, "$1")
-        // Rename data-embedded-state and data-embedded-props to data-saved so
-        // as not to make a difference between during and after edit.
         .replaceAll("data-embedded-state", "data-saved")
-        // Ignore dataset order
         .replaceAll(
             /"languageId":"([^"]*)","value":"(([^"]|\n)*)"/g,
             `"value":"$2","languageId":"$1"`,
         )
-        // Clean up
         .replaceAll(/([{,]),+/g, "$1")
         .replaceAll(/,+([},])/g, "$1")
         .replaceAll(",,", ",");
@@ -150,7 +119,6 @@ export const compareHighlightedContent = async (content, expected, phase, editor
         .map((currentSection) => {
             if (currentSection.includes("data-embedded-props")) {
                 if (currentSection.includes("data-saved")) {
-                    // Ignore embedded props if there's an embedded state.
                     currentSection = currentSection.replaceAll(
                         /data-embedded-props='\{[^']+\}'( )?/g,
                         "",
@@ -170,8 +138,6 @@ export const compareHighlightedContent = async (content, expected, phase, editor
         phase,
     )} is strictly equal to "${toExplicitString(expected)}"`;
     await animationFrame();
-    // See if `highlightedPre` included textarea range data. If so, parse it,
-    // test it, and remove it.
     const strings = expected.split("<textarea");
     strings.shift();
     const textareaIndex = strings.findIndex((str) => str.startsWith("~~~"));
@@ -186,7 +152,6 @@ export const compareHighlightedContent = async (content, expected, phase, editor
         testTextareaRange(editor, { el, range: parsedRange, value }, message);
         expected = expected.replace(/<textarea~~~[^~]+~~~/g, "<textarea");
     }
-    // Now test the content.
     expect(cleanedContent).toBe(expected, { message });
 };
 
@@ -208,7 +173,6 @@ export const highlightedPre = ({
             <textarea //TEXTAREA// class="o_prism_source" contenteditable="true"  placeholder="Code"></textarea>
         </div>`,
     )
-        // Do not trim spaces within the PRE and in the textarea data:
         .replace("//PRE//", highlight(preHtml || "<br>", language, true))
         .replace(
             " //TEXTAREA// ",

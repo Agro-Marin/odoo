@@ -12,9 +12,6 @@ import {
 } from "./dom_info.js";
 import { closestElement, closestPath, findNode, findUpTo } from "./dom_traversal.js";
 
-/**
- * Array of all the classes used by the editor to change the font size.
- */
 export const FONT_SIZE_CLASSES = [
     "display-1-fs",
     "display-2-fs",
@@ -178,9 +175,6 @@ export const formatsSpecs = {
         removeStyle: (node) => {
             removeStyle(node, "font-size");
             removeClass(node, ...FONT_SIZE_CLASSES);
-            // Typography classes should be preserved on block elements since
-            // they act as semantic equivalents of <h1>, <h2>, etc., not just
-            // removable styles.
             if (!isBlock(node)) {
                 removeClass(node, ...TEXT_STYLE_CLASSES, ...DEFAULT_FONT_SIZE_CLASSES);
             }
@@ -220,41 +214,21 @@ function removeStyle(node, styleName, item) {
  * @returns {string}
  */
 export function getCSSVariableValue(key, htmlStyle) {
-    // Get trimmed value from the HTML element
     let value = htmlStyle.getPropertyValue(`--${key}`).trim();
-    // If it is a color value, it needs to be normalized
     value = normalizeCSSColor(value);
-    // Normally scss-string values are "printed" single-quoted. That way no
-    // magic conversation is needed when customizing a variable: either save it
-    // quoted for strings or non quoted for colors, numbers, etc. However,
-    // Chrome has the annoying behavior of changing the single-quotes to
-    // double-quotes when reading them through getPropertyValue...
     return value.replace(/"/g, "'");
 }
 
-/**
- * Key-value mapping of converters from a unit A to a unit B.
- * - The key is a string in the format '$1-$2' where $1 is the CSS symbol of
- *   unit A and $2 is the CSS symbol of unit B.
- * - The value is a function that receives the computed html style and returns
- *   the multiplier to apply to a value expressed in unit A to obtain its value
- *   in unit B.
- */
 const CSS_UNITS_CONVERSION = {
     "s-ms": () => 1000,
     "ms-s": () => 0.001,
     "rem-px": (htmlStyle) => parseFloat(htmlStyle["font-size"]),
     "px-rem": (htmlStyle) => 1 / parseFloat(htmlStyle["font-size"]),
-    "%-px": () => -1, // Not implemented but should simply be ignored for now
-    "px-%": () => -1, // Not implemented but should simply be ignored for now
+    "%-px": () => -1,
+    "px-%": () => -1,
 };
 
 /**
- * Converts the given numeric value expressed in the given css unit into
- * the corresponding numeric value expressed in the other given css unit.
- *
- * e.g. fct(400, 'ms', 's') -> 0.4
- *
  * @param {number} value
  * @param {string} unitFrom
  * @param {string} unitTo
@@ -277,13 +251,9 @@ export function getHtmlStyle(document) {
 }
 
 /**
- * Finds the font size to display for the current selection. We cannot rely
- * on the computed font-size only as font-sizes are responsive and we always
- * want to display the desktop (integer when possible) one.
- *
- * @param {Selection} sel The current selection.
- * @param {Document} document The document of the current selection.
- * @returns {Float} The font size to display.
+ * @param {Selection} sel
+ * @param {Document} document
+ * @returns {Float}
  */
 export function getFontSizeDisplayValue(sel, document) {
     const tagNameRelatedToFontSize = ["h1", "h2", "h3", "h4", "h5", "h6"];
@@ -304,23 +274,14 @@ export function getFontSizeDisplayValue(sel, document) {
     if (closestFontSizedEl) {
         const useFontSizeInput = closestFontSizedEl.style.fontSize;
         if (useFontSizeInput) {
-            // Use the computed value to always convert to px. However, this
-            // currently does not check that the inline font-size is the one
-            // actually having an effect (there could be an !important CSS rule
-            // forcing something else).
-            // TODO align with the behavior of the rest of the editor snippet
-            // options.
             return parseFloat(getComputedStyle(closestStartContainerEl).fontSize);
         }
-        // It's a class font size or a hN tag. We don't return the computed
-        // font size because it can be different from the one displayed in
-        // the toolbar because it's responsive.
         const fontSizeClass = FONT_SIZE_CLASSES.find((className) =>
             closestFontSizedEl.classList.contains(className),
         );
         let fsName;
         if (fontSizeClass) {
-            fsName = fontSizeClass.substring(0, fontSizeClass.length - 3); // Without -fs
+            fsName = fontSizeClass.substring(0, fontSizeClass.length - 3);
         } else {
             fsName =
                 TEXT_STYLE_CLASSES.find((className) =>

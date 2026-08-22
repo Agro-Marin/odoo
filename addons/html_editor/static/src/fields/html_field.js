@@ -37,12 +37,8 @@ import { TranslationButton } from "@web/fields/translation_button";
 const HTML_FIELD_METADATA_ATTRIBUTES = ["data-last-history-steps"];
 
 /**
- * Check whether the given value contains nodes that would break
- * on insertion inside an existing body.
- *
  * @param {string} value
- * @returns {boolean} true if 'value' contains a node
- * that can only exist once per document.
+ * @returns {boolean}
  */
 function computeContainsComplexHTML(value) {
     const domParser = new DOMParser();
@@ -85,11 +81,6 @@ export class HtmlField extends Component {
 
         const { model } = this.props.record;
         useBus(model.bus, ModelEvent.WILL_SAVE_URGENTLY, ({ detail }) =>
-            // Push onto detail.proms so UrgentSaveCoordinator.run() awaits this
-            // commit before the save reads _changes. Without it, the async commit
-            // races the tab-close save, which then sees no changes and skips the
-            // sendBeacon -- silently dropping the edit (and hanging tests that
-            // await the beacon). Mirrors the NEED_LOCAL_CHANGES handler below.
             detail.proms.push(this.commitChanges({ urgent: true })),
         );
         useBus(model.bus, ModelEvent.NEED_LOCAL_CHANGES, ({ detail }) =>
@@ -99,14 +90,7 @@ export class HtmlField extends Component {
         this.ormService = useService("orm");
 
         this.isDirty = false;
-        // Owned dirty-signal emitter: this field's dirty state is tracked
-        // under its own owner symbol (and cleared on destroy), so it cannot
-        // clobber another field's announcement on the shared model bus.
         this.setFieldDirty = useFieldDirtySignal();
-        // Monotonic counter bumped by every `onChange`. `_commitChanges` reads
-        // it before awaiting the (async) content capture so it can tell whether
-        // the user kept editing while the capture was in flight -- in which
-        // case the captured content is stale and the field must stay dirty.
         this.changeSeq = 0;
         this.state = useState({
             key: 0,
@@ -117,7 +101,6 @@ export class HtmlField extends Component {
         });
 
         useRecordObserver((record) => {
-            // Reset Wysiwyg when we discard or onchange value
             const newValue = fixInvalidHTML(record.data[this.props.name]);
             if (!this.isDirty) {
                 const value = normalizeHTML(
@@ -133,16 +116,6 @@ export class HtmlField extends Component {
             }
         });
         useRecordObserver((record) => {
-            // Dynamic Placeholder reference model. The record is read BEFORE
-            // any editor check, and that order is the whole point: this
-            // callback is a reactive effect, so it re-runs only on the fields
-            // it actually read, and its first run happens in `onWillStart` --
-            // before `onEditorLoad` assigns `this.editor`. Testing the editor
-            // first meant the first run returned having read nothing,
-            // subscribed to nothing, and never fired again, so a model chosen
-            // *after* the editor mounted (every new `mail.template`) never
-            // reached the picker and `/field` answered with the "select a
-            // model first" notification instead of the popover.
             if (!this.props.dynamicPlaceholder) {
                 return;
             }
@@ -154,13 +127,6 @@ export class HtmlField extends Component {
     }
 
     /**
-     * Which model the placeholders in this field resolve against.
-     *
-     * `render_model` is the server's own answer, computed per model by
-     * `mixin.mail.render._compute_render_model`; a view that names a field
-     * explicitly still wins, because `sms.composer` is not a render mixin and
-     * has no `render_model` to read.
-     *
      * @param {Object} record
      * @returns {string | undefined}
      */
@@ -199,7 +165,6 @@ export class HtmlField extends Component {
     }
 
     get sandboxedPreview() {
-        // @todo @phoenix maybe remove containsComplexHTML and alway use sandboxedPreview options
         return this.props.sandboxedPreview || this.state.containsComplexHTML;
     }
 
@@ -217,9 +182,7 @@ export class HtmlField extends Component {
     /**
      * @param {string} value
      * @param {Object} [options]
-     * @param {boolean} [options.isStale=false] when true, `value` was captured
-     *        before a concurrent edit landed, so the field stays dirty and the
-     *        newer content is committed by the next commit.
+     * @param {boolean} [options.isStale=false]
      */
     async updateValue(value, { isStale = false } = {}) {
         this.lastValue = normalizeHTML(value, this.clearElementToCompare.bind(this));
@@ -234,7 +197,6 @@ export class HtmlField extends Component {
         const content = this.editor.getElContent();
         const oldSrcToNewSrcMap =
             await this.editor.shared.imageSave?.savePendingImages(content);
-        // Update the actual editable if still in the DOM.
         if (this.editor.editable && oldSrcToNewSrcMap) {
             this.editor.editable
                 .querySelectorAll(".o_b64_image_to_save, .o_modified_image_to_save")
@@ -263,24 +225,11 @@ export class HtmlField extends Component {
             return;
         }
         if (urgent) {
-            // Always persist the current editor content on an urgent (page-unload)
-            // save -- do NOT gate on isDirty. A background image save (kicked off
-            // below) updates the DOM to the finalized src without flipping
-            // isDirty, and that finalized content still needs to be beaconed by
-            // the next urgent save. record.update no-ops when nothing actually
-            // changed, so committing while clean is harmless.
             await this.updateValue(this.editor.getContent());
-            // Finish pending image uploads in the background: sendBeacon can't
-            // await the upload round-trip during unload. A subsequent save
-            // beacons the finalized src once the round-trip completes.
             this.getEditorContent();
             return;
         }
         if (this.isDirty) {
-            // `getEditorContent` awaits pending image uploads; the user can keep
-            // typing during that round-trip. Capture the change counter first so
-            // a concurrent edit does not get marked clean (and silently dropped)
-            // by the `updateValue` below, which only carries the stale snapshot.
             const seqAtCapture = this.changeSeq;
             const el = await this.getEditorContent();
             const content = el.innerHTML;
@@ -301,10 +250,6 @@ export class HtmlField extends Component {
 
     onEditorLoad(editor) {
         this.editor = editor;
-        // The editor is built from `getConfig()`, which read the record at
-        // mount time; `state.key` remounts it later on. Either way the last
-        // model the observer saw is at least as fresh, so hand it over here
-        // rather than leaving the new editor on a stale config value.
         if (this.props.dynamicPlaceholder) {
             editor.shared.dynamicPlaceholder?.updateDphDefaultModel(this.dphResModel);
         }
@@ -354,7 +299,7 @@ export class HtmlField extends Component {
                 },
                 peerId: this.generateId(),
             },
-            dropImageAsAttachment: true, // @todo @phoenix always true ?
+            dropImageAsAttachment: true,
             dynamicPlaceholder: this.props.dynamicPlaceholder,
             dynamicPlaceholderResModel: this.dynamicPlaceholderResModel(
                 this.props.record,
@@ -383,7 +328,7 @@ export class HtmlField extends Component {
             !this.props.embeddedComponents &&
             (sanitize_tags || (sanitize_tags === undefined && sanitize))
         ) {
-            config.allowVideo = false; // Tag-sanitized fields remove videos.
+            config.allowVideo = false;
         }
         if (this.props.codeview) {
             config.resources = {
@@ -534,10 +479,6 @@ export const htmlField = {
             help: _t("Offer a raw-HTML editing toggle. Debug mode only."),
         },
     ],
-    // See `HtmlField.dynamicPlaceholderResModel`: the picker reads the model out
-    // of `record.data`, and `render_model` is the server's own answer, so no
-    // view needs to name it. Both are `optional` -- a model with neither simply
-    // drops them from the read.
     fieldDependencies({ options }) {
         return options?.dynamic_placeholder
             ? [
@@ -606,9 +547,6 @@ export const htmlField = {
                     : true,
             sandboxedPreview: Boolean(options.sandboxedPreview),
             cssReadonlyAssetId: options.cssReadonly,
-            // read the option first: `odoo.debug && options.codeview` short-circuits
-            // with debug off and never touches it, which the registry contract
-            // reads as an option declared but ignored.
             codeview: Boolean(options.codeview) && Boolean(odoo.debug),
         };
     },

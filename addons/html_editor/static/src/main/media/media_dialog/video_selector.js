@@ -147,7 +147,6 @@ export class VideoSelector extends Component {
             const start_from = this.convertTimestampToSeconds(ev.target.value);
             this.state.options = this.state.options.map((option) => {
                 if (option.id === optionId) {
-                    // to avoid showing "0" when seconds are 0, we set it to "00:00"
                     return {
                         ...option,
                         value: start_from === "0" ? "00:00" : start_from,
@@ -181,8 +180,6 @@ export class VideoSelector extends Component {
     async onChangeOption(optionId) {
         this.state.options = this.state.options.map((option) => {
             if (option.id === optionId) {
-                // used "0" here, to set the initial "startAt" value if option is toggled on,
-                // for other option it works as truthy value.
                 return { ...option, value: !option.value && "00:00" };
             }
             return option;
@@ -203,23 +200,17 @@ export class VideoSelector extends Component {
             this.state.options = [];
             this.state.platform = null;
             this.state.errorMessage = "";
-            /**
-             * When the url input is emptied, we need to call the `selectMedia`
-             * callback function to notify the other components that the media
-             * has changed.
-             */
             this.props.selectMedia({});
             return;
         }
 
-        // Detect if we have an embed code rather than an URL
         const embedMatch = this.state.urlInput.match(/(src|href)=["']?([^"']+)?/);
         if (
             embedMatch &&
             embedMatch[2].length > 0 &&
             embedMatch[2].indexOf("instagram")
         ) {
-            embedMatch[1] = embedMatch[2]; // Instagram embed code is different
+            embedMatch[1] = embedMatch[2];
         }
         const url = embedMatch ? embedMatch[1] : this.state.urlInput;
 
@@ -282,9 +273,6 @@ export class VideoSelector extends Component {
         }
     }
 
-    /**
-     * Keep rpc call in distinct method make it patchable by test.
-     */
     async _getVideoURLData(url, options) {
         return await rpc("/html_editor/video_url/data", {
             video_url: url,
@@ -292,9 +280,6 @@ export class VideoSelector extends Component {
         });
     }
 
-    /**
-     * Utility method, called by the MediaDialog component.
-     */
     static createElements(selectedMedia) {
         return selectedMedia.map((video) => {
             const div = document.createElement("div");
@@ -309,9 +294,6 @@ export class VideoSelector extends Component {
         });
     }
 
-    /**
-     * Based on the config vimeo ids, prepare the vimeo previews.
-     */
     async prepareVimeoPreviews() {
         await Promise.all(
             this.props.vimeoPreviewIds.map(async (videoId) => {
@@ -333,9 +315,6 @@ export class VideoSelector extends Component {
         );
     }
 
-    /**
-     * Utility method to make options and urlInput state consistent with state of component.
-     */
     async syncOptionsWithUrl() {
         await this.updateVideo();
         if (!URL.canParse(this.state.urlInput)) {
@@ -371,14 +350,11 @@ export class VideoSelector extends Component {
     }
 
     /**
-     * Utility method,to convert timestamp to seconds.
-     *
-     * @param {string} timestamp - The start time in HH:MM:SS format or seconds.
-     * @returns {string} - The start time in seconds.
+     * @param {string} timestamp
+     * @returns {string}
      */
     convertTimestampToSeconds(timestamp) {
         timestamp = timestamp.trim();
-        // Regular expression for HH:MM:SS format
         const timeRegex = /^(?:(\d+):)?([0-5]?\d):([0-5]?\d)$/;
         if (timeRegex.test(timestamp)) {
             return timestamp.split(":").reduce((acc, time) => acc * 60 + +time, 0) + "";
@@ -389,10 +365,8 @@ export class VideoSelector extends Component {
         return timestamp;
     }
     /**
-     * Utility method,to convert seconds to timestamp.
-     *
-     * @param {string} value - The start time in seconds.
-     * @returns {string} - The start time in HH:MM:SS or MM:SS format.
+     * @param {string} value
+     * @returns {string}
      */
     convertSecondsToTimestamp(value) {
         if (!value) {
@@ -418,10 +392,8 @@ export class VideoSelector extends Component {
         return `${minutes}:${pad(seconds)}`;
     }
     /**
-     * Utility method,to convert 'XmYs', Xm, Ys to seconds for vimeo platform.
-     *
-     * @param {string} value - The start time in 'XmYs' type format.
-     * @returns {string} - The start time in seconds.
+     * @param {string} value
+     * @returns {string}
      */
     parseTimeToSeconds(value) {
         const match = value?.match(/^(?:(\d+)m(\d+)s|(\d+)m|(\d+)s|(\d+))$/);

@@ -20,17 +20,11 @@ export class SanitizePlugin extends Plugin {
     };
 
     setup() {
-        // DOMPurify's default export doubles as a factory: calling it with
-        // another window returns an instance bound to that document (the
-        // editable may live in an iframe).
         this.DOMPurify = DOMPurify(this.window);
     }
     /**
-     * Sanitizes in place an html element. Current implementation uses the
-     * DOMPurify library.
-     *
      * @param {HTMLElement} elem
-     * @returns {HTMLElement} the element itself
+     * @returns {HTMLElement}
      */
     sanitize(elem) {
         for (const cb of this.getResource("before_sanitize_processors")) {
@@ -62,16 +56,6 @@ export class SanitizePlugin extends Plugin {
         }
     }
 
-    /**
-     * Ensure that attributes sanitized by the server are properly removed before
-     * the save, to avoid mismatches and a reset of the editable content.
-     * Only attributes under the responsibility (associated with an editor
-     * attribute or class) of the sanitize plugin are removed.
-     *
-     * /!\ CAUTION: using server-sanitized attributes without editor-specific
-     * classes/attributes in a custom plugin should be managed by that same
-     * custom plugin.
-     */
     cleanForSave({ root }) {
         for (const el of selectElements(
             root,

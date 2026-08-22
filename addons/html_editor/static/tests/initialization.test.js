@@ -4,10 +4,6 @@ import { describe, test } from "@odoo/hoot";
 import { testEditor } from "./_helpers/editor.js";
 import { unformat } from "./_helpers/format.js";
 
-/**
- * content of the "init" sub suite in editor.test.js
- */
-
 describe("No orphan inline elements compatibility mode", () => {
     test("should wrap inline node inside a div baseContainer", async () => {
         await testEditor({

@@ -36,7 +36,6 @@ export class InlineCodePlugin extends Plugin {
         selectionchange_handlers: this.handleSelectionChange.bind(this),
         normalize_handlers: this.normalize.bind(this),
 
-        /** Providers */
         feff_providers: (root, cursors) =>
             [...selectElements(root, ".o_inline_code")].flatMap((code) =>
                 this.dependencies.feff.surroundWithFeffs(code, cursors),
@@ -57,7 +56,6 @@ export class InlineCodePlugin extends Plugin {
             }
         }),
 
-        /** Overrides */
         paste_overrides: (selection, clipboardData) => {
             const caretNode =
                 selection.direction === DIRECTIONS.RIGHT
@@ -71,7 +69,6 @@ export class InlineCodePlugin extends Plugin {
             }
         },
 
-        /** Predicates */
         is_formattable_node_predicates: (node) => {
             if (closestElement(node, "code.o_inline_code")) {
                 return false;
@@ -133,13 +130,11 @@ export class InlineCodePlugin extends Plugin {
             let { anchorNode, anchorOffset, focusNode, focusOffset, direction } =
                 this.dependencies.split.splitSelection();
             const blockEl = closestBlock(anchorNode);
-            // Adjust if anchor/focus directly equals block element
             const deepChild = (node, offset) =>
                 node === blockEl ? node.childNodes[offset] : node;
             anchorNode = deepChild(anchorNode, anchorOffset);
             focusNode = deepChild(focusNode, focusOffset);
             if (direction === DIRECTIONS.LEFT) {
-                // Swap anchorNode and focusNode
                 [anchorNode, focusNode] = [focusNode, anchorNode];
             }
             const furthestAnchorElement = findFurthest(
@@ -172,8 +167,6 @@ export class InlineCodePlugin extends Plugin {
                 }
                 const next = start.nextSibling;
                 if (start.nodeName === "IMG") {
-                    // Only create <code> if we still have nodes to process
-                    // after this one.
                     if (start !== end && next) {
                         codeElement = this.document.createElement("code");
                         codeElement.classList.add("o_inline_code");
@@ -199,12 +192,9 @@ export class InlineCodePlugin extends Plugin {
             return;
         }
 
-        // We just inserted a backtick, check if there was another
-        // one in the text.
         let textNode = selection.startContainer;
         const wholeText = textNode.wholeText;
         const textHasTwoTicks = /`[^`]+`/.test(wholeText);
-        // We don't apply the code tag if there is no content between the two `
         if (textHasTwoTicks && wholeText.replace(/`/g, "").length) {
             let offset = selection.startOffset;
             let sibling = textNode.previousSibling;
@@ -238,18 +228,14 @@ export class InlineCodePlugin extends Plugin {
             let startOffset, endOffset;
             const isClosingForward = textBeforeInsertedBacktick.includes("`");
             if (isClosingForward) {
-                // There is a backtick before the new backtick.
                 startOffset = textBeforeInsertedBacktick.lastIndexOf("`");
                 endOffset = insertedBacktickIndex;
             } else {
-                // There is a backtick after the new backtick.
                 const textAfterInsertedBacktick =
                     textNode.textContent.substring(offset);
                 startOffset = insertedBacktickIndex;
                 endOffset = offset + textAfterInsertedBacktick.indexOf("`");
             }
-            // Split around the backticks if needed so text starts
-            // and ends with a backtick.
             if (endOffset && endOffset < textNode.textContent.length) {
                 splitTextNode(textNode, endOffset + 1, DIRECTIONS.LEFT);
             }
@@ -265,10 +251,8 @@ export class InlineCodePlugin extends Plugin {
                 textNode,
                 splitLimit,
             );
-            // Insert code element with plain text.
             const codeElement = this.document.createElement("code");
             codeElement.classList.add("o_inline_code");
-            // Remove ticks from the text content.
             codeElement.textContent = splitNode.textContent.substring(
                 1,
                 splitNode.textContent.length - 1,
@@ -281,7 +265,6 @@ export class InlineCodePlugin extends Plugin {
                     anchorOffset: 1,
                 });
             } else if (isClosingForward) {
-                // Move selection out of code element.
                 this.dependencies.history.addStep();
                 this.dependencies.selection.setSelection({
                     anchorNode: codeElement.nextSibling,

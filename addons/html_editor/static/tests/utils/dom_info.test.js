@@ -230,7 +230,6 @@ describe("isVisible", () => {
 
         test("should identify a visible space in the middle of a paragraph", () => {
             const [p] = insertTestHtml("<p></p>");
-            // insert 'a b' as three separate text node inside p
             const textNodes = "a b".split("").map((char) => {
                 const textNode = document.createTextNode(char);
                 p.appendChild(textNode);
@@ -242,7 +241,6 @@ describe("isVisible", () => {
 
         test("should identify a visible string space in the middle of a paragraph", () => {
             const [p] = insertTestHtml("<p></p>");
-            // inserts 'a', '   ' and 'b' as 3 separate text nodes inside p
             const textNodes = ["a", "   ", "b"].map((char) => {
                 const textNode = document.createTextNode(char);
                 p.appendChild(textNode);
@@ -254,7 +252,6 @@ describe("isVisible", () => {
 
         test("should identify the first space in a series of spaces as in the middle of a paragraph as visible", () => {
             const [p] = insertTestHtml("<p></p>");
-            // inserts 'a   b' as 5 separate text nodes inside p
             const textNodes = "a   b".split("").map((char) => {
                 const textNode = document.createTextNode(char);
                 p.appendChild(textNode);
@@ -266,7 +263,6 @@ describe("isVisible", () => {
 
         test("should identify the second space in a series of spaces in the middle of a paragraph as invisible", () => {
             const [p] = insertTestHtml("<p></p>");
-            // inserts 'a   b' as 5 separate text nodes inside p
             const textNodes = "a   b".split("").map((char) => {
                 const textNode = document.createTextNode(char);
                 p.appendChild(textNode);
@@ -278,7 +274,6 @@ describe("isVisible", () => {
 
         test("should identify empty text node as invisible", () => {
             const [p] = insertTestHtml("<p></p>");
-            // inserts an empty text node inside p
             const textNode = document.createTextNode("");
             p.appendChild(textNode);
             const result = isVisible(textNode);

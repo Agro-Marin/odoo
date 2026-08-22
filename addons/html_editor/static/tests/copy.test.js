@@ -11,7 +11,6 @@ describe("range collapsed", () => {
         await setupEditor("<p>[]</p>");
         const clipboardData = new DataTransfer();
         await press(["ctrl", "c"], { dataTransfer: clipboardData });
-        // Check that nothing was set as clipboard content
         expect(clipboardData.types.length).toBe(0);
     });
 
@@ -20,7 +19,6 @@ describe("range collapsed", () => {
         const clipboardData = new DataTransfer();
         clipboardData.setData("text/plain", "should stay");
         await press(["ctrl", "c"], { dataTransfer: clipboardData });
-        // Check that clipboard data was not overwritten
         expect(clipboardData.getData("text/plain")).toBe("should stay");
     });
 });
@@ -52,8 +50,6 @@ describe("range not collapsed", () => {
     test("should copy a selection as text/plain, text/html and application/vnd.odoo.odoo-editor in table", async () => {
         const { el } = await setupEditor(
             `]<table><tbody><tr><td><ul><li>a[</li><li>b</li><li>c</li></ul></td><td><br></td></tr></tbody></table>`,
-            // Exclude the selection placeholder plugin so we have a DOM that
-            // really starts with a table.
             {
                 config: {
                     Plugins: MAIN_PLUGINS.filter(

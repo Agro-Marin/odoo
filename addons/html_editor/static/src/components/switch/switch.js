@@ -39,8 +39,6 @@ export class Switch extends Component {
      * @param {KeyboardEvent} ev
      */
     onKeyup(ev) {
-        // "Enter" is not a default on checkboxes, but as the switch doesn't
-        // look like a checkbox anymore, we support it.
         if (ev.key === "Enter") {
             ev.currentTarget.checked = !ev.currentTarget.checked;
         }

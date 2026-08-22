@@ -82,13 +82,13 @@ describe("descendants", () => {
             "<div><div><div><p>abc</p><div><p>def</p></div></div></div></div>",
         );
         expect(descendants(div)).toEqual([
-            div.firstChild, // <div><div>...
-            div.firstChild.firstChild, // <div><div><div>...
-            div.firstChild.firstChild.firstChild, // <p>abc</p>
-            div.firstChild.firstChild.firstChild.firstChild, // "abc"
-            div.firstChild.firstChild.childNodes[1], // <div><p>def</p></div>
-            div.firstChild.firstChild.childNodes[1].firstChild, // <p>def</p>
-            div.firstChild.firstChild.childNodes[1].firstChild.firstChild, // "def"
+            div.firstChild,
+            div.firstChild.firstChild,
+            div.firstChild.firstChild.firstChild,
+            div.firstChild.firstChild.firstChild.firstChild,
+            div.firstChild.firstChild.childNodes[1],
+            div.firstChild.firstChild.childNodes[1].firstChild,
+            div.firstChild.firstChild.childNodes[1].firstChild.firstChild,
         ]);
     });
 });

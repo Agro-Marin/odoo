@@ -9,10 +9,6 @@ import { EditorOverlay } from "./overlay.js";
  * @property { OverlayPlugin['createOverlay'] } createOverlay
  */
 
-/**
- * Provides the following feature:
- * - adding a component in overlay above the editor, with proper positioning
- */
 export class OverlayPlugin extends Plugin {
     static id = "overlay";
     static dependencies = ["history", "selection"];
@@ -34,8 +30,6 @@ export class OverlayPlugin extends Plugin {
     }
 
     /**
-     * Creates an overlay component and adds it to the list of overlays.
-     *
      * @param {Function} Component
      * @param {Object} [props={}]
      * @param {Object} [options]
@@ -71,9 +65,8 @@ export class Overlay {
 
     /**
      * @param {Object} options
-     * @param {HTMLElement | null} [options.target] for the overlay.
-     *  If null or undefined, the current selection will be used instead
-     * @param {any} [options.props] overlay component props
+     * @param {HTMLElement | null} [options.target]
+     * @param {any} [options.props]
      */
     open({ target, props }) {
         if (this.isOpen) {
