@@ -20,6 +20,17 @@ export class ProductCatalogKanbanRenderer extends KanbanRenderer {
         return {};
     }
 
+    /**
+     * Options handed to the "create product" dialog.
+     *
+     * Split from :meth:`createProduct` so a catalog that wants different
+     * post-save behaviour overrides this rather than restating the whole action
+     * descriptor, which is identical for every caller.
+     */
+    get createProductOptions() {
+        return { onClose: () => this.props.list.model.load() };
+    }
+
     async createProduct() {
         await this.action.doAction(
             {
@@ -30,9 +41,7 @@ export class ProductCatalogKanbanRenderer extends KanbanRenderer {
                 view_mode: "form",
                 context: this.createProductContext,
             },
-            {
-                onClose: () => this.props.list.model.load(),
-            },
+            this.createProductOptions,
         );
     }
 }

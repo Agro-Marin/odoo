@@ -18,11 +18,6 @@ class TestMrpCommon(TestStockCommon):
         picking_type_id=False,
         consumption=False,
     ):
-        """This function generate a manufacturing order with one final
-        product and two consumed product. Arguments allows to choose
-        the tracking/qty for each different products. It returns the
-        MO, used bom and the tree products.
-        """
         product_to_build, product_to_use_1, product_to_use_2 = cls.env[
             "product.product"
         ].create(
@@ -81,7 +76,6 @@ class TestMrpCommon(TestStockCommon):
 
         cls.group_mrp_routings = cls.quick_ref("mrp.group_mrp_routings")
 
-        # Kept for reduced diff in existing tests, should be dropped someday
         cls.product_7_template = cls.product_template_sofa
 
         cls.product_7_attr1_v1 = cls.product_7_template.attribute_line_ids[
@@ -112,22 +106,21 @@ class TestMrpCommon(TestStockCommon):
         ) = cls.env["product.product"].create(
             [
                 {
-                    "name": "Stick",  # product_4
+                    "name": "Stick",
                     "uom_id": cls.uom_dozen.id,
                 },
                 {
-                    "name": "Stone Tools",  # product_5
+                    "name": "Stone Tools",
                 },
                 {
-                    "name": "Door",  # product_6
+                    "name": "Door",
                 },
                 {
-                    "name": "House",  # product_8
+                    "name": "House",
                 },
             ]
         )
 
-        # Update demo products
         (
             cls.product_2
             | cls.product_3
@@ -143,7 +136,6 @@ class TestMrpCommon(TestStockCommon):
             }
         )
 
-        # User Data: mrp user and mrp manager
         cls.user_mrp_user = mail_new_test_user(
             cls.env,
             name="Hilda Ferachwal",
@@ -160,10 +152,6 @@ class TestMrpCommon(TestStockCommon):
             notification_type="inbox",
             groups="mrp.group_mrp_manager, stock.group_stock_user, mrp.group_mrp_byproducts, uom.group_uom",
         )
-        # Both groups below are required to make fields `product_uom_id` and
-        # `workorder_ids` to be visible in the view of `mrp.production`. The
-        # field `product_uom_id` must be set by many tests, and subviews of
-        # `workorder_ids` must be present in many tests to create records.
         cls.env.user.group_ids += cls.group_uom + cls.group_mrp_routings
         cls.picking_type_manu = cls.warehouse_1.manu_type_id
         cls.picking_type_manu.sequence = 5
@@ -376,7 +364,6 @@ class TestMrpCommon(TestStockCommon):
         )
 
     def full_availability(self):
-        """set full availability for all calendars"""
         calendar = self.env["resource.calendar"].search([])
         calendar.write({"attendance_ids": [(5, 0, 0)]})
         calendar.write(

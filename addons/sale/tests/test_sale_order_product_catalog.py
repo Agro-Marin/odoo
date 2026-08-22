@@ -1,10 +1,5 @@
 from odoo.tests import HttpCase, tagged
 
-# Must match CATALOG_TOUR_CUSTOMER in sale/static/tests/tours/sale_catalog.js.
-# The tours type this name to narrow the customer dropdown to one known record
-# instead of clicking whichever entry happens to come first, so both tests have
-# to create it. Without it they only passed on a database that happened to
-# carry demo partners — and this fork defaults to --without-demo.
 CATALOG_TOUR_CUSTOMER = "Catalog Tour Customer"
 
 
@@ -18,8 +13,6 @@ class TestSaleOrderProductCatalog(HttpCase):
         )
 
     def test_sale_order_product_catalog_branch_company_tour(self):
-        """Test adding products to a SO through the catalog view when in a branch company."""
-
         self.env["product.template"].create(
             {
                 "name": "Restricted Product",

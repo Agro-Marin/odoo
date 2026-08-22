@@ -8,7 +8,6 @@ class TestStockReportTour(HttpCase):
         return "/odoo/action-stock.product_template_action_product"
 
     def test_stock_route_diagram_report(self):
-        """Open the route diagram report."""
         self.env.ref("stock.route_warehouse0_mto").active = True
         self.env["product.template"].search([("type", "!=", "service")]).write(
             {"active": False}
@@ -26,10 +25,6 @@ class TestStockReportTour(HttpCase):
         )
 
     def test_context_from_warehouse_filter(self):
-        """
-        Check that the warehouse context key added from the product search warehouse filter
-        is correctly parsed when used.
-        """
         self.env["product.product"].create(
             {
                 "name": "Lovely Product",
@@ -60,9 +55,6 @@ class TestStockReportTour(HttpCase):
         )
 
     def test_forecast_replenishment(self):
-        """
-        Test repenish from the forecast page.
-        """
         warehouse = self.env["stock.warehouse"].search(
             [("company_id", "=", self.env.company.id)], limit=1
         )

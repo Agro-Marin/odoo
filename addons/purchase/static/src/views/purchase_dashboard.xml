@@ -1,146 +1,78 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates>
+
+    <t t-name="purchase.PurchaseDashboardCard">
+        <div class="g-col-12 p-0" t-att-title="props.title" t-on-click="() => props.onSelected()">
+            <a href="#" t-attf-class="btn purchase-dashboard-card p-1 p-lg-2 text-truncate text-wrap
+                                      o_purchase_dashboard_card_{{ props.position }} {{ colorClass }}">
+                <div t-attf-class="{{ props.label ? 'fs-2' : '' }}">
+                    <span t-out="props.values.all"/>
+                    <span class="ps-4" t-if="props.values.priority">
+                        <span class="o_priority_star fa-solid fa-star"/>
+                        <span t-out="props.values.priority"/>
+                    </span>
+                </div>
+                <t t-out="props.label"/>
+            </a>
+        </div>
+    </t>
+
+    <t t-name="purchase.PurchaseDashboardDaysCard">
+        <div class="g-col-6 p-0" t-att-title="title">
+            <div t-attf-class="purchase-dashboard-card o_no_hover p-1 p-lg-2 text-truncate text-wrap
+                               o_purchase_dashboard_card_{{ position }}
+                               {{ overBudget ? 'btn btn-warning' : 'bg-100 text-center' }}">
+                <div t-attf-class="{{ showLabel ? 'fs-2' : '' }}" t-out="value"/>
+                <t t-if="showLabel">Days to Order</t>
+            </div>
+        </div>
+    </t>
+
+    <!--
+        One row of count cards. Rendered twice - once for the company-wide
+        figures and once for the current user's - from the same spec, so the two
+        cannot drift apart.
+    -->
+    <t t-name="purchase.PurchaseDashboardRow">
+        <div class="g-col-12 g-col-lg-11 grid gap-1" t-attf-style="--columns: 61">
+            <t t-foreach="cards" t-as="card" t-key="card.spacer ? 'spacer' + card_index : card.key">
+                <div t-if="card.spacer" class="g-col-1"/>
+                <PurchaseDashboardCard t-else=""
+                    label="showLabels ? card.label : ''"
+                    title="titlePrefix + ' ' + card.title"
+                    emphasis="card.emphasis"
+                    values="purchaseData[scope][card.key]"
+                    position="position"
+                    onSelected="() => this.setSearchContext(scope === 'my' ? [...card.filters, 'my_purchases'] : card.filters)"/>
+            </t>
+        </div>
+    </t>
+
     <t t-name="purchase.PurchaseDashboard">
-        <div class="o_purchase_dashboard container-fluid py-4 border-bottom bg-view">
+        <div class="o_purchase_dashboard container-fluid py-4 border-bottom bg-view" t-if="purchaseData">
             <div class="row justify-content-between gap-2 gap-lg-0">
                 <div class="col-12 col-lg-8 flex-grow-1 flex-lg-grow-0 flex-shrink-0">
                     <div class="grid gap-1 gap-lg-4">
                         <div class="g-col-12 g-col-lg-1 d-flex align-items-center pt-2 pb-lg-2 justify-content-lg-end text-break">
                             <t t-if="multiuser">All</t>
                         </div>
-                        <div class="g-col-12 g-col-lg-11 grid gap-1" style="--columns: 61">
-                            <div class="g-col-12 p-0" t-on-click="() => this.setSearchContext('draft_rfqs')" title="All Draft RFQs">
-                                <a href="#" class="btn purchase-dashboard-card p-1 p-lg-2 text-truncate text-wrap"
-                                   t-attf-class="o_purchase_dashboard_card_{{ multiuser ? 'top' : 'sole' }}
-                                       {{ purchaseData['global']['draft']['all'] == 0
-                                          ? 'bg-secondary-subtle text-secondary-emphasis'
-                                          : 'bg-info-subtle text-info-emphasis' }}">
-                                    <div class="fs-2">
-                                        <span t-out="purchaseData['global']['draft']['all']"/>
-                                        <span class="ps-4" t-if="purchaseData['global']['draft']['priority']">
-                                            <span class="o_priority_star fa-solid fa-star"/> <span t-out="purchaseData['global']['draft']['priority']"/>
-                                        </span>
-                                    </div>New
-                                </a>
-                            </div>
-                            <div class="g-col-12 p-0" t-on-click="() => this.setSearchContext('waiting_rfqs')" title="All Sent RFQs">
-                                <a href="#" class="btn purchase-dashboard-card p-1 p-lg-2 bg-secondary-subtle text-secondary-emphasis text-truncate text-wrap"
-                                   t-attf-class="o_purchase_dashboard_card_{{ multiuser ? 'top' : 'sole' }}">
-                                    <div class="fs-2">
-                                        <span t-out="purchaseData['global']['sent']['all']"/>
-                                        <span class="ps-4" t-if="purchaseData['global']['sent']['priority']">
-                                            <span class="o_priority_star fa-solid fa-star"/> <span t-out="purchaseData['global']['sent']['priority']"/>
-                                        </span>
-                                    </div>RFQ Sent
-                                </a>
-                            </div>
-                            <div class="g-col-12 p-0" t-on-click="() => this.setSearchContext('late')" title="All Late RFQs">
-                                <a href="#" class="btn purchase-dashboard-card p-1 p-lg-2 text-truncate text-wrap"
-                                   t-attf-class="o_purchase_dashboard_card_{{ multiuser ? 'top' : 'sole' }}
-                                       {{ purchaseData['global']['late']['all'] == 0
-                                          ? 'bg-secondary-subtle text-secondary-emphasis'
-                                          : 'bg-warning-subtle text-warning-emphasis' }}">
-                                    <div class="fs-2">
-                                        <span t-out="purchaseData['global']['late']['all']"/>
-                                        <span class="ps-4" t-if="purchaseData['global']['late']['priority']">
-                                            <span class="o_priority_star fa-solid fa-star"/> <span t-out="purchaseData['global']['late']['priority']"/>
-                                        </span>
-                                    </div>Late RFQ
-                                </a>
-                            </div>
-                            <div class="g-col-1"/>
-                            <div class="g-col-12 p-0" t-on-click="() => this.setSearchContext('not_acknowledged')" title="All Not Acknowledged POs">
-                                <a href="#" class="btn purchase-dashboard-card p-1 p-lg-2 text-truncate text-wrap"
-                                   t-attf-class="o_purchase_dashboard_card_{{ multiuser ? 'top' : 'sole' }}
-                                       {{ purchaseData['global']['not_acknowledged']['all'] == 0
-                                          ? 'bg-secondary-subtle text-secondary-emphasis'
-                                          : 'bg-info-subtle text-info-emphasis' }}">
-                                    <div class="fs-2">
-                                        <span t-out="purchaseData['global']['not_acknowledged']['all']"/>
-                                        <span class="ps-4" t-if="purchaseData['global']['not_acknowledged']['priority']">
-                                            <span class="o_priority_star fa-solid fa-star"/> <span t-out="purchaseData['global']['not_acknowledged']['priority']"/>
-                                        </span>
-                                    </div>Not Acknowledged
-                                </a>
-                            </div>
-                            <div class="g-col-12 p-0" t-on-click="() => this.setSearchContext('late_receipt')" title="All Late Receipt POs">
-                                <a href="#" class="btn purchase-dashboard-card p-1 p-lg-2 text-truncate text-wrap"
-                                   t-attf-class="o_purchase_dashboard_card_{{ multiuser ? 'top' : 'sole' }}
-                                       {{ purchaseData['global']['late_receipt']['all'] == 0
-                                          ? 'bg-secondary-subtle text-secondary-emphasis'
-                                          : 'bg-danger-subtle text-danger-emphasis' }}">
-
-                                    <div class="fs-2">
-                                        <span t-out="purchaseData['global']['late_receipt']['all']"/>
-                                        <span class="ps-4" t-if="purchaseData['global']['late_receipt']['priority']">
-                                            <span class="o_priority_star fa-solid fa-star"/> <span t-out="purchaseData['global']['late_receipt']['priority']"/>
-                                        </span>
-                                    </div>Late Receipt
-                                </a>
-                            </div>
-                        </div>
+                        <t t-call="purchase.PurchaseDashboardRow">
+                            <t t-set="scope" t-value="'global'"/>
+                            <t t-set="showLabels" t-value="true"/>
+                            <t t-set="titlePrefix" t-value="'All'"/>
+                            <t t-set="position" t-value="multiuser ? 'top' : 'sole'"/>
+                        </t>
                     </div>
                     <div t-if="multiuser" class="grid gap-1 gap-lg-4">
                         <div class="g-col-12 g-col-lg-1 d-flex align-items-center pt-2 pb-lg-2 justify-content-lg-end text-break">
                             My
                         </div>
-                        <div class="g-col-12 g-col-lg-11 grid gap-1 pt-0 pt-lg-1" style="--columns: 61">
-                            <div class="g-col-12 p-0" t-on-click="() => this.setSearchContext('draft_rfqs,my_purchases')" title="My Draft RFQs">
-                                <a href="#" class="o_purchase_dashboard_card_bottom btn purchase-dashboard-card p-1 p-lg-2 text-truncate text-wrap"
-                                    t-attf-class="{{ purchaseData['my']['draft']['all'] == 0 ? 'bg-secondary-subtle text-secondary-emphasis' : 'bg-info-subtle text-info-emphasis' }}">
-                                    <div>
-                                        <span t-out="purchaseData['my']['draft']['all']"/>
-                                        <span class="ps-4" t-if="purchaseData['my']['draft']['priority']">
-                                            <span class="o_priority_star fa-solid fa-star"/> <span t-out="purchaseData['my']['draft']['priority']"/>
-                                        </span>
-                                    </div>
-                                </a>
-                            </div>
-                            <div class="g-col-12 p-0" t-on-click="() => this.setSearchContext('waiting_rfqs,my_purchases')" title="My Waiting RFQs">
-                                <a href="#" class="o_purchase_dashboard_card_bottom btn purchase-dashboard-card p-1 p-lg-2 bg-secondary-subtle text-secondary-emphasis text-truncate text-wrap">
-                                    <div>
-                                        <span t-out="purchaseData['my']['sent']['all']"/>
-                                        <span class="ps-4" t-if="purchaseData['my']['sent']['priority']">
-                                            <span class="o_priority_star fa-solid fa-star"/> <span t-out="purchaseData['my']['sent']['priority']"/>
-                                        </span>
-                                    </div>
-                                </a>
-                            </div>
-                            <div class="g-col-12 p-0" t-on-click="() => this.setSearchContext('late,my_purchases')" title="My Late RFQs">
-                                <a href="#" class="o_purchase_dashboard_card_bottom btn purchase-dashboard-card p-1 p-lg-2 text-truncate text-wrap"
-                                    t-attf-class="{{ purchaseData['my']['late']['all'] == 0 ? 'bg-secondary-subtle text-secondary-emphasis' : 'bg-warning-subtle text-warning-emphasis' }}">
-                                    <div>
-                                        <span t-out="purchaseData['my']['late']['all']"/>
-                                        <span class="ps-4" t-if="purchaseData['my']['late']['priority']">
-                                            <span class="o_priority_star fa-solid fa-star"/> <span t-out="purchaseData['my']['late']['priority']"/>
-                                        </span>
-                                    </div>
-                                </a>
-                            </div>
-                            <div class="g-col-1"/>
-                            <div class="g-col-12 p-0" t-on-click="() => this.setSearchContext('not_acknowledged,my_purchases')" title="My Not Acknowledged POs">
-                                <a href="#" class="o_purchase_dashboard_card_bottom btn purchase-dashboard-card p-1 p-lg-2 text-truncate text-wrap"
-                                    t-attf-class="{{ purchaseData['my']['not_acknowledged']['all'] == 0 ? 'bg-secondary-subtle text-secondary-emphasis' : 'bg-info-subtle text-info-emphasis' }}">
-                                    <div>
-                                        <span t-out="purchaseData['my']['not_acknowledged']['all']"/>
-                                        <span class="ps-4" t-if="purchaseData['my']['not_acknowledged']['priority']">
-                                            <span class="o_priority_star fa-solid fa-star"/> <span t-out="purchaseData['my']['not_acknowledged']['priority']"/>
-                                        </span>
-                                    </div>
-                                </a>
-                            </div>
-                            <div class="g-col-12 p-0" t-on-click="() => this.setSearchContext('late_receipt,my_purchases')" title="My Late Receipt POs">
-                                <a href="#" class="o_purchase_dashboard_card_bottom btn purchase-dashboard-card p-1 p-lg-2 text-truncate text-wrap"
-                                    t-attf-class="{{ purchaseData['my']['late_receipt']['all'] == 0 ? 'bg-secondary-subtle text-secondary-emphasis' : 'bg-danger-subtle text-danger-emphasis' }}">
-                                    <div>
-                                        <span t-out="purchaseData['my']['late_receipt']['all']"/>
-                                        <span class="ps-4" t-if="purchaseData['my']['late_receipt']['priority']">
-                                            <span class="o_priority_star fa-solid fa-star"/> <span t-out="purchaseData['my']['late_receipt']['priority']"/>
-                                        </span>
-                                    </div>
-                                </a>
-                            </div>
-                        </div>
+                        <t t-call="purchase.PurchaseDashboardRow">
+                            <t t-set="scope" t-value="'my'"/>
+                            <t t-set="showLabels" t-value="false"/>
+                            <t t-set="titlePrefix" t-value="'My'"/>
+                            <t t-set="position" t-value="'bottom'"/>
+                        </t>
                     </div>
                 </div>
                 <div class="col-12 col-lg-3 flex-shrink-0">
@@ -150,16 +82,13 @@
                         </div>
                         <div class="g-col-12 g-col-lg-12 grid gap-1">
                             <div class="d-none d-lg-block g-col-6 p-0" id="left_grid_top"/>
-                            <div class="g-col-6 p-0" title="All Days to Order">
-                                <div class="purchase-dashboard-card o_no_hover p-1 p-lg-2 text-truncate text-wrap"
-                                     t-attf-class="o_purchase_dashboard_card_{{ multiuser ? 'top' : 'sole' }}
-                                         {{ purchaseData['days_to_purchase'] and
-                                            purchaseData['global']['days_to_order'] > purchaseData['days_to_purchase']
-                                            ? 'btn btn-warning'
-                                            : 'bg-100 text-center' }}">
-                                    <div class="fs-2" t-out="purchaseData['global']['days_to_order']"/>Days to Order
-                                </div>
-                            </div>
+                            <t t-call="purchase.PurchaseDashboardDaysCard">
+                                <t t-set="title" t-value="'All Days to Order'"/>
+                                <t t-set="value" t-value="purchaseData['global']['days_to_order']"/>
+                                <t t-set="overBudget" t-value="purchaseData['days_to_purchase'] and purchaseData['global']['days_to_order'] > purchaseData['days_to_purchase']"/>
+                                <t t-set="position" t-value="multiuser ? 'top' : 'sole'"/>
+                                <t t-set="showLabel" t-value="true"/>
+                            </t>
                         </div>
                     </div>
                     <div t-if="multiuser" class="grid gap-1 gap-lg-4 pt-0 pt-lg-1">
@@ -168,19 +97,20 @@
                         </div>
                         <div class="g-col-12 g-col-lg-12 grid gap-1">
                             <div class="d-none d-lg-block g-col-6 p-0" id="left_grid_bottom"/>
-                            <div class="g-col-6 p-0" title="My Days to Order">
-                                <div class="o_purchase_dashboard_card_bottom purchase-dashboard-card o_no_hover p-1 p-lg-2 text-truncate text-wrap"
-                                    t-attf-class="{{
-                                        purchaseData['days_to_purchase'] and
-                                        purchaseData['global']['days_to_order'] > purchaseData['days_to_purchase']
-                                        ? 'btn btn-warning' : 'bg-100 text-center' }}">
-                                    <div t-out="purchaseData['my']['days_to_order']"/>
-                                </div>
-                            </div>
+                            <!-- `my`, not `global`: the value shown and the colour
+                                 that judges it must come from the same dataset. -->
+                            <t t-call="purchase.PurchaseDashboardDaysCard">
+                                <t t-set="title" t-value="'My Days to Order'"/>
+                                <t t-set="value" t-value="purchaseData['my']['days_to_order']"/>
+                                <t t-set="overBudget" t-value="purchaseData['days_to_purchase'] and purchaseData['my']['days_to_order'] > purchaseData['days_to_purchase']"/>
+                                <t t-set="position" t-value="'bottom'"/>
+                                <t t-set="showLabel" t-value="false"/>
+                            </t>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </t>
+
 </templates>

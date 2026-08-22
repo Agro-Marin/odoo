@@ -12,7 +12,7 @@ class DecimalPrecision(models.Model):
         `rounding` is a compute with no `@api.depends` -- it reads a
         `decimal.precision` row, not a field of `uom.uom`, so nothing in the
         ORM invalidates it. Base already clears the `stable` ormcache behind
-        `precision_get`; this clears the field cache in front of it, so the two
+        `get_precision`; this clears the field cache in front of it, so the two
         cannot disagree for the rest of the transaction.
 
         `write` is the only hook needed. `unlink` calls `env.invalidate_all()`

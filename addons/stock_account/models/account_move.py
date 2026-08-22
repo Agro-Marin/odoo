@@ -111,7 +111,7 @@ class AccountMove(models.Model):
         """
         lines_vals_list = []
 
-        price_unit_prec = self.env["decimal.precision"].precision_get("Product Price")
+        price_unit_prec = self.env["decimal.precision"].get_precision("Product Price")
         for move in self:
             # Make the loop multi-company safe when accessing models like product.product
             move = move.with_company(move.company_id)

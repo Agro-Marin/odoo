@@ -43,14 +43,14 @@ class ProjectRetrospective(models.Model):
         "retrospective_id",
         string="Action Items",
     )
-    action_count = fields.Integer(
+    action_count = fields.Count(
+        "action_ids",
         "Actions",
-        compute="_compute_action_counts",
         export_string_translation=False,
     )
     open_action_count = fields.Integer(
         "Open Actions",
-        compute="_compute_action_counts",
+        compute="_compute_open_action_count",
         export_string_translation=False,
     )
     previous_id = fields.Many2one(
@@ -65,11 +65,15 @@ class ProjectRetrospective(models.Model):
         tracking=True,
     )
 
-    @api.depends("action_ids", "action_ids.state")
-    def _compute_action_counts(self) -> None:
-        """Count total and open actions per retrospective."""
+    @api.depends("action_ids.state")
+    def _compute_open_action_count(self) -> None:
+        """Count the OPEN actions per retrospective.
+
+        The total is `fields.Count("action_ids")` and no longer computed here:
+        `len(retro.action_ids)` is exactly what that field declares, and
+        splitting narrows this compute's dependency to the `state` it reads.
+        """
         for retro in self:
-            retro.action_count = len(retro.action_ids)
             retro.open_action_count = len(
                 retro.action_ids.filtered(lambda a: a.state in ("open", "in_progress"))
             )

@@ -94,3 +94,34 @@ test(`Pricelist Client Action`, async () => {
     );
     expect(`.o_notification .o_notification_bar`).toHaveClass("bg-warning");
 });
+
+test(`Pricelist Report quantity removal`, async () => {
+    onRpc("report.product.report_pricelist", "get_html", async () => "");
+
+    await mountWebClient();
+    await getService("action").doAction({
+        id: 1,
+        name: "Generate Pricelist Report",
+        tag: "generate_pricelist_report",
+        type: "ir.actions.client",
+        context: { active_ids: [42], active_model: "product.product" },
+    });
+
+    expect(queryAllTexts(`.o_badges_list .badge`)).toEqual(["1", "5", "10"]);
+
+    // The badge passes its own quantity to the handler, rather than the handler
+    // reading it back out of the DOM node it was clicked on.
+    await contains(`.o_badges_list .badge:eq(1) .oi-close`).click();
+    expect(queryAllTexts(`.o_badges_list .badge`)).toEqual(["1", "10"]);
+
+    await contains(`.o_badges_list .badge:eq(1) .oi-close`).click();
+    expect(queryAllTexts(`.o_badges_list .badge`)).toEqual(["1"]);
+
+    // The report always needs one quantity to render.
+    await contains(`.o_badges_list .badge:eq(0) .oi-close`).click();
+    expect(queryAllTexts(`.o_badges_list .badge`)).toEqual(["1"]);
+    expect(`.o_notification_content`).toHaveText(
+        "You must leave at least one quantity.",
+    );
+    expect(`.o_notification .o_notification_bar`).toHaveClass("bg-warning");
+});

@@ -38,7 +38,7 @@
                 <field name="purchase_line_ids" groups="purchase.group_purchase_user"
                     column_invisible="True" />
             </xpath>
-            <xpath expr="//field[@name='journal_line_ids' or @name='line_ids']/list/field[@name='company_id']"
+            <xpath expr="//field[@name='line_ids']/list/field[@name='company_id']"
                 position="after">
                 <field name="purchase_line_ids" groups="purchase.group_purchase_user"
                     column_invisible="True" />

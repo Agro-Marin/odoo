@@ -11,7 +11,6 @@ class TestPurchaseInvoice(AccountTestInvoicingCommon):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Create a users
         group_purchase_user = cls.env.ref("purchase.group_purchase_user")
         group_employee = cls.env.ref("base.group_user")
         group_partner_manager = cls.env.ref("base.group_partner_manager")
@@ -53,7 +52,6 @@ class TestPurchaseInvoice(AccountTestInvoicingCommon):
                 "account_type": "expense",
             }
         )
-        # Create category
         cls.product_category = cls.env["product.category"].create(
             {
                 "name": "Product Category with Expense account",
@@ -70,7 +68,6 @@ class TestPurchaseInvoice(AccountTestInvoicingCommon):
         )
 
     def test_create_purchase_order(self):
-        """Check a purchase user can create a vendor bill from a purchase order but not post it"""
         purchase_order_form = Form(
             self.env["purchase.order"].with_user(self.purchase_user)
         )
@@ -91,7 +88,6 @@ class TestPurchaseInvoice(AccountTestInvoicingCommon):
             invoice.action_post()
 
     def test_read_purchase_order(self):
-        """Check that a purchase user can read all purchase order and 'in' invoices"""
         self.purchase_user.write(
             {
                 "group_ids": [
@@ -125,7 +121,6 @@ class TestPurchaseInvoice(AccountTestInvoicingCommon):
         purchase_order_user2.create_invoice()
         vendor_bill_user2 = purchase_order_user2.invoice_ids
 
-        # open purchase_order_user2 and vendor_bill_user2 with `self.purchase_user`
         purchase_order_user1 = Form(purchase_order_user2.with_user(self.purchase_user))
         purchase_order_user1 = purchase_order_user1.save()
         vendor_bill_user1 = Form(vendor_bill_user2.with_user(self.purchase_user))
@@ -151,7 +146,6 @@ class TestPurchaseInvoice(AccountTestInvoicingCommon):
         )
 
     def test_prepare_purchase_order_line_from_branch_company(self):
-        """Check that a purchase order line can be created from a nested branch company."""
         self.env.company.child_ids = [
             Command.create(
                 {

@@ -45,6 +45,7 @@ class UomUom(models.Model):
                             ("product_uom_id", "in", changed.ids),
                             ("state", "not in", ("cancel", "done")),
                         ],
+                        limit=1,
                     )
                 ):
                     raise UserError(error_msg)
@@ -56,6 +57,7 @@ class UomUom(models.Model):
                             ("product_uom_id", "in", changed.ids),
                             ("state", "not in", ("cancel", "done")),
                         ],
+                        limit=1,
                     )
                 ):
                     raise UserError(error_msg)
@@ -67,15 +69,13 @@ class UomUom(models.Model):
                             ("product_id.product_tmpl_id.uom_id", "in", changed.ids),
                             ("quantity", "!=", 0),
                         ],
+                        limit=1,
                     )
                 ):
                     raise UserError(error_msg)
         return super().write(vals)
 
     def _adjust_uom_quantities(self, qty, quant_uom):
-        """Convert the procurement quantity to the quant's UoM, unless the
-        'stock.propagate_uom' system parameter forces keeping the procurement's own UoM.
-        """
         procurement_uom = self
         computed_qty = qty
         get_param = self.env["ir.config_parameter"].sudo().get_param

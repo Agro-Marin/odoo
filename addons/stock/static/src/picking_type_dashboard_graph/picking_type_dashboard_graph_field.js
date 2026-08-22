@@ -1,9 +1,31 @@
 /** @odoo-module native */
+import { readJsonField } from "@stock/utils/json_field";
 import { getColor, getCustomColor } from "@web/core/colors/colors";
 import { Chart } from "@web/core/lib/chartjs";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { JournalDashboardGraphField } from "@web/fields/specialized/journal_dashboard_graph/journal_dashboard_graph_field";
+
+/**
+ * The search filter each bar stands for, by position, for payloads that predate
+ * `values[].category`. Positional and therefore fragile, which is why the
+ * per-value `category` is preferred wherever the server sends one.
+ */
+const BAR_CATEGORIES = ["before", "yesterday", "today", "day_1", "day_2", "after"];
+
+/**
+ * Heights for the placeholder bars an all-sample dashboard draws.
+ *
+ * This was `Math.random()`, which put a generator in a render path: the same
+ * card drew a different shape on every reload, and nothing about it could be
+ * asserted. Hashing the record and the bar index gives the same visual variety
+ * and the same picture twice.
+ */
+export function shapeSampleBars(values, seed = 0) {
+    values.forEach((value, index) => {
+        value.value = ((Math.imul(seed + index + 1, 2654435761) >>> 0) % 9) + 1;
+    });
+}
 
 export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
     setup() {
@@ -14,6 +36,9 @@ export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
     renderChart() {
         if (this.chart) {
             this.chart.destroy();
+            // Chart.js tolerates a second destroy, but leaving a destroyed
+            // instance reachable makes `if (this.chart)` mean nothing.
+            this.chart = null;
         }
         this.data = this.getGraphData();
         if (!this.data.length) {
@@ -29,123 +54,97 @@ export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
     }
 
     getGraphData() {
-        const raw = this.props.record.data[this.props.name] || "[]";
+        const raw = this.props.record.data[this.props.name];
         if (this._graphRaw !== raw) {
             this._graphRaw = raw;
-            let data;
-            try {
-                data = JSON.parse(raw);
-            } catch {
-                data = [];
-            }
-            if (!Array.isArray(data)) {
-                data = [];
-            }
+            const parsed = readJsonField(this, []);
+            const data = Array.isArray(parsed) ? parsed : [];
             if (
                 data[0]?.values?.length &&
                 data[0].values.every((value) => value.type === "sample") &&
                 this.env.stockDashboardAllSample?.()
             ) {
-                for (const value of data[0].values) {
-                    value.value = Math.floor(Math.random() * 9 + 1);
-                }
+                shapeSampleBars(data[0].values, this.props.record.resId);
             }
             this._graphData = data;
         }
         return this._graphData;
     }
 
-    getBarChartConfig() {
+    /** Values, labels and per-bar colours, in one pass over the series. */
+    _barSeries() {
+        const byType = {
+            past: getColor(8),
+            present: getColor(16),
+            future: getColor(12),
+        };
         const data = [];
         const labels = [];
         const backgroundColor = [];
+        for (const point of this.data[0].values) {
+            data.push(point.value);
+            labels.push(point.label);
+            backgroundColor.push(
+                byType[point.type] ?? getCustomColor("#ebebeb", "#3C3E4B"),
+            );
+        }
+        return { data, labels, backgroundColor };
+    }
 
-        const colorPast = getColor(8);
-        const colorPresent = getColor(16);
-        const colorFuture = getColor(12);
-        this.data[0].values.forEach((pt) => {
-            data.push(pt.value);
-            labels.push(pt.label);
-            if (pt.type === "past") {
-                backgroundColor.push(colorPast);
-            } else if (pt.type === "present") {
-                backgroundColor.push(colorPresent);
-            } else if (pt.type === "future") {
-                backgroundColor.push(colorFuture);
-            } else {
-                backgroundColor.push(
-                    getCustomColor("#ebebeb", "#3C3E4B"),
-                );
-            }
+    /** The search filter a clicked bar stands for. */
+    _categoryOfBar(columnIndex) {
+        return (
+            this.data[0].values?.[columnIndex]?.category ?? BAR_CATEGORIES[columnIndex]
+        );
+    }
+
+    _onBarClick(elements) {
+        const pickingTypeId = this.data[0].picking_type_id;
+        if (!pickingTypeId || !elements.length) {
+            return;
+        }
+        const dateCategory = this._categoryOfBar(elements[0].index);
+        if (!dateCategory) {
+            return;
+        }
+        this.actionService.doAction("stock.click_dashboard_graph", {
+            additionalContext: {
+                picking_type_id: pickingTypeId,
+                search_default_picking_type_id: [pickingTypeId],
+                [`search_default_${dateCategory}`]: true,
+            },
         });
+    }
+
+    get _isAllSample() {
+        return Boolean(this.data[0]?.values?.every((value) => value.type === "sample"));
+    }
+
+    getBarChartConfig() {
+        const { data, labels, backgroundColor } = this._barSeries();
         return {
             type: "bar",
             data: {
                 labels,
                 datasets: [
-                    {
-                        backgroundColor,
-                        data,
-                        fill: "start",
-                        label: this.data[0].key,
-                    },
+                    { backgroundColor, data, fill: "start", label: this.data[0].key },
                 ],
             },
             options: {
-                onClick: (e, elements) => {
-                    const pickingTypeId = this.data[0].picking_type_id;
-                    if (!pickingTypeId || !elements.length) {
-                        return;
-                    }
-                    const columnIndex = elements[0].index;
-                    const dateCategories = {
-                        0: "before",
-                        1: "yesterday",
-                        2: "today",
-                        3: "day_1",
-                        4: "day_2",
-                        5: "after",
-                    };
-                    const dateCategory =
-                        this.data[0].values?.[columnIndex]?.category ??
-                        dateCategories[columnIndex];
-                    if (!dateCategory) {
-                        return;
-                    }
-                    const additionalContext = {
-                        picking_type_id: pickingTypeId,
-                        search_default_picking_type_id: [pickingTypeId],
-                    };
-                    additionalContext["search_default_".concat(dateCategory)] = true;
-                    this.actionService.doAction("stock.click_dashboard_graph", {
-                        additionalContext: additionalContext,
-                    });
-                },
+                onClick: (ev, elements) => this._onBarClick(elements),
                 plugins: {
                     legend: { display: false },
                     tooltip: {
-                        enabled: !this.data[0]?.values?.every(
-                            (value) => value.type === "sample",
-                        ),
+                        // Placeholder bars carry no real figure to show.
+                        enabled: !this._isAllSample,
                         intersect: false,
                         position: "nearest",
                         caretSize: 0,
                     },
                 },
-                scales: {
-                    y: {
-                        display: false,
-                    },
-                    x: {
-                        display: false,
-                    },
-                },
+                scales: { y: { display: false }, x: { display: false } },
                 maintainAspectRatio: false,
-                elements: {
-                    line: {
-                        tension: 0.000001,
-                    },
-                },
+                elements: { line: { tension: 0.000001 } },
             },
         };
     }

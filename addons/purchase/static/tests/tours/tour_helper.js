@@ -20,7 +20,7 @@ export const purchaseForm = {
                 return fieldEl ? fieldEl.innerText.replace(/\s/g, " ") : false;
             };
             for (const key in values) {
-                if (!Object.keys(fieldAndLabelDict).includes(key)) {
+                if (!(key in fieldAndLabelDict)) {
                     throw new Error(
                         `'checkPurchaseOrderLineValues' is called with unsupported key: ${key}`,
                     );
@@ -157,5 +157,26 @@ export const productCatalog = {
         const content = "Go back to the Order";
         const trigger = "button.o-kanban-button-back";
         return [{ content, trigger, run: "click" }];
+    },
+
+    /**
+     * Leaves the catalog through the breadcrumb rather than the button.
+     *
+     * Not the same exit: the button is the catalog's own handler, the
+     * breadcrumb goes straight through the action service. A pending quantity
+     * write has to survive both.
+     */
+    goBackToOrderViaBreadcrumb() {
+        return [
+            {
+                content: "Leave the catalog through the breadcrumb",
+                // The immediate parent crumb -- the order form -- is the one
+                // marked `o_back_button`; the class is on the <li> on desktop
+                // and on a <button> when the screen is small. Any other crumb
+                // would land on the list instead of the order.
+                trigger: ".o_breadcrumb .o_back_button",
+                run: "click",
+            },
+        ];
     },
 };

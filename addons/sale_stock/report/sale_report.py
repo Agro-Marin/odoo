@@ -10,12 +10,12 @@ class SaleReport(models.Model):
         readonly=True,
     )
 
-    def _get_select_fields(self):
-        fields = super()._get_select_fields()
+    def _get_fields_select(self):
+        fields = super()._get_fields_select()
         fields["warehouse_id"] = "o.warehouse_id"
         return fields
 
-    def _get_group_by_fields(self):
-        fields = super()._get_group_by_fields()
+    def _get_fields_group_by(self):
+        fields = super()._get_fields_group_by()
         fields.append("o.warehouse_id")
         return fields

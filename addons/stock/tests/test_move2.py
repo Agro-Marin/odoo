@@ -167,9 +167,6 @@ class TestPickShip(TestStockCommon):
         self.assertEqual(quants[0].reserved_quantity, 2)
 
     def test_mto_moves(self):
-        """
-        10 in stock, do pick->ship and check ship is assigned when pick is done, then backorder of ship
-        """
         picking_pick, picking_client = self.create_pick_ship()
 
         self.env["stock.quant"]._update_available_quantity(
@@ -198,7 +195,6 @@ class TestPickShip(TestStockCommon):
         )
 
     def test_mto_to_mts(self):
-        """10 in stock, create pick and ship, change destination of pick, ship should become MTS"""
         picking_pick, picking_ship = self.create_pick_ship()
         self.env["stock.quant"].create(
             {
@@ -221,9 +217,6 @@ class TestPickShip(TestStockCommon):
         self.assertEqual(picking_ship.move_ids.procure_method, "make_to_stock")
 
     def test_mto_to_mts_2(self):
-        """
-        10 in stock, create pick and ship, cancel pick, ship should become MTS
-        """
         picking_pick, picking_ship = self.create_pick_ship()
         self.env["stock.quant"].create(
             {
@@ -243,9 +236,6 @@ class TestPickShip(TestStockCommon):
         self.assertEqual(picking_ship.move_ids.procure_method, "make_to_stock")
 
     def test_mto_to_mts_3(self):
-        """
-        10 in stock, create pick and ship, change source of ship, ship should become MTS
-        """
         picking_pick, picking_ship = self.create_pick_ship()
         self.env["stock.quant"].create(
             {
@@ -268,9 +258,6 @@ class TestPickShip(TestStockCommon):
         self.assertEqual(picking_ship.move_ids.procure_method, "make_to_stock")
 
     def test_mto_moves_transfer(self):
-        """
-        10 in stock, 5 in pack.  Make sure it does not assign the 5 pieces in pack
-        """
         picking_pick, picking_client = self.create_pick_ship()
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 10.0
@@ -381,11 +368,6 @@ class TestPickShip(TestStockCommon):
         self.assertEqual(picking_client.state, "confirmed")
 
     def test_mto_moves_extra_qty(self):
-        """Ensure that a move in MTO will support an extra quantity. The extra
-        move should be created in MTS even if the initial move is in MTO so that
-        it won't trigger the rules. The extra move will then be merge back to the
-        initial move.
-        """
         picking_pick, picking_client = self.create_pick_ship()
         self.productA.route_ids = [Command.link(self.route_mto.id)]
         self.env["stock.quant"]._update_available_quantity(
@@ -438,13 +420,6 @@ class TestPickShip(TestStockCommon):
         self.assertAlmostEqual(return_pick.move_ids.quantity, 10.0)
 
     def test_mto_resupply_cancel_ship(self):
-        """This test simulates a pick pack ship with a resupply route
-        set. Pick and pack are validated, ship is cancelled. This test
-        ensure that new picking are not created from the cancelled
-        ship after the scheduler task. The supply route is only set in
-        order to make the scheduler run without mistakes (no next
-        activity).
-        """
         picking_pick, picking_pack, picking_ship = self.create_pick_pack_ship()
         warehouse_1 = self.warehouse_1
         warehouse_1.delivery_steps = "pick_pack_ship"
@@ -498,11 +473,6 @@ class TestPickShip(TestStockCommon):
         )
 
     def test_no_backorder_1(self):
-        """Check the behavior of doing less than asked in the picking pick and chosing not to
-        create a backorder. In this behavior, the second picking should obviously only be able to
-        reserve what was brought, but its initial demand should stay the same and the system will
-        ask the user will have to consider again if he wants to create a backorder or not.
-        """
         picking_pick, picking_client = self.create_pick_ship()
 
         self.env["stock.quant"]._update_available_quantity(
@@ -525,9 +495,6 @@ class TestPickShip(TestStockCommon):
         self.assertEqual(picking_client.state, "assigned")
 
     def test_edit_done_chained_move(self):
-        """Let's say two moves are chained: the first is done and the second is assigned.
-        Editing the move line of the first move should impact the reservation of the second one.
-        """
         picking_pick, picking_client = self.create_pick_ship()
 
         self.env["stock.quant"]._update_available_quantity(
@@ -586,9 +553,6 @@ class TestPickShip(TestStockCommon):
         picking_client.action_assign()
 
     def test_edit_done_chained_move_with_lot(self):
-        """Let's say two moves are chained: the first is done and the second is assigned.
-        Editing the lot on the move line of the first move should impact the reservation of the second one.
-        """
         self.productA.tracking = "lot"
         lot1 = self.env["stock.lot"].create(
             {
@@ -675,9 +639,6 @@ class TestPickShip(TestStockCommon):
         picking_client.action_assign()
 
     def test_chained_move_with_uom(self):
-        """Create pick ship with a different uom than the once used for quant.
-        Check that reserved quantity and flow work correctly.
-        """
         picking_client = self.env["stock.picking"].create(
             {
                 "location_id": self.pack_location.id,
@@ -754,11 +715,6 @@ class TestPickShip(TestStockCommon):
         self.assertEqual(picking_client.move_ids.quantity, 5.0)
 
     def test_pick_ship_return(self):
-        """Create pick and ship. Bring it to the customer and then return
-        it to stock. This test check the state and the quantity after each move in
-        order to ensure that it is correct. No return picking type is provided to invert the
-        delivery pickings.
-        """
         picking_pick, picking_ship = self.create_pick_ship()
         picking_ship.picking_type_id.return_picking_type_id = False
         self.productA.tracking = "lot"
@@ -873,11 +829,6 @@ class TestPickShip(TestStockCommon):
         self.assertEqual(stock_quantity, 10, "The product is not back in stock")
 
     def test_pick_pack_ship_return(self):
-        """This test do a pick pack ship delivery to customer and then
-        return it to stock following the receipt picking_type_id.
-        Once everything is done, this test will check
-        if all the link orgini/destination between moves are correct.
-        """
         picking_pick, picking_pack, picking_ship = self.create_pick_pack_ship()
         self.productA.tracking = "serial"
         lot = self.env["stock.lot"].create(
@@ -964,9 +915,6 @@ class TestPickShip(TestStockCommon):
         self.assertEqual(len(return_ship_picking.move_ids.move_dest_ids), 0)
 
     def test_merge_move_mto_mts(self):
-        """Create 2 moves of the same product in the same picking with
-        one in 'MTO' and the other one in 'MTS'. The moves shouldn't be merged
-        """
         _picking_pick, picking_client = self.create_pick_ship()
 
         self.MoveObj.create(
@@ -985,12 +933,6 @@ class TestPickShip(TestStockCommon):
         self.assertEqual(len(picking_client.move_ids), 2, "Moves should not be merged")
 
     def test_mto_cancel_move_line(self):
-        """Create a pick ship situation. Then process the pick picking
-        with a backorder. Then try to unlink the move line created on
-        the ship and check if the picking and move state are updated.
-        Then validate the backorder and unlink the ship move lines in
-        order to check again if the picking and state are updated.
-        """
         picking_pick, picking_client = self.create_pick_ship()
 
         self.env["stock.quant"]._update_available_quantity(
@@ -1072,7 +1014,6 @@ class TestPickShip(TestStockCommon):
         self.assertEqual(picking_client.state, "waiting")
 
     def test_return_only_one_product(self):
-        """test returning only one product in a picking then return the leftovers"""
         picking_client = self.env["stock.picking"].create(
             {
                 "location_id": self.stock_location.id,
@@ -1137,9 +1078,6 @@ class TestPickShip(TestStockCommon):
         )
 
     def test_return_location(self):
-        """In a pick ship scenario, send two items to the customer, then return one in the ship
-        location and one in a return location that is located in another warehouse.
-        """
         return_warehouse = self.env["stock.warehouse"].create(
             {"name": "return warehouse", "code": "rw"}
         )
@@ -1223,9 +1161,6 @@ class TestPickShip(TestStockCommon):
         )
 
     def test_return_lot(self):
-        """With two distinct deliveries for the same product tracked by lot, ensure that the
-        return of the second picking suggest the lot from the picking returned.
-        """
         self.productA.tracking = "lot"
         lot1 = self.env["stock.lot"].create(
             {
@@ -1307,14 +1242,6 @@ class TestPickShip(TestStockCommon):
 
 class TestSinglePicking(TestStockCommon):
     def test_source_location_change_batch_preserves_valid_moves(self):
-        """A batched `location_id` write must reset only the moves that actually
-        lose a move line to the new source location.
-
-        Regression: `_on_source_location_change` used to reset the whole batch
-        (clearing `move_orig_ids` and forcing `make_to_stock`) as soon as *any*
-        move in it had a stray line, wiping the chain of siblings whose own
-        lines were still valid under the new location.
-        """
         storable = self.env["product.product"].create(
             [
                 {"name": "SLC stray", "is_storable": True, "type": "consu"},
@@ -1359,7 +1286,6 @@ class TestSinglePicking(TestStockCommon):
         self.assertEqual(move_valid.procure_method, "make_to_stock")
 
     def test_backorder_1(self):
-        """Check the good behavior of creating a backorder for an available stock move."""
         delivery_order = self.env["stock.picking"].create(
             {
                 "location_id": self.pack_location.id,
@@ -1418,7 +1344,6 @@ class TestSinglePicking(TestStockCommon):
         )
 
     def test_backorder_2(self):
-        """Check the good behavior of creating a backorder for a partially available stock move."""
         delivery_order = self.env["stock.picking"].create(
             {
                 "location_id": self.pack_location.id,
@@ -1469,9 +1394,6 @@ class TestSinglePicking(TestStockCommon):
         self.assertEqual(backorder.state, "confirmed")
 
     def test_backorder_3(self):
-        """Check the good behavior of creating a backorder for an available move on a picking with
-        two available moves.
-        """
         delivery_order = self.env["stock.picking"].create(
             {
                 "location_id": self.pack_location.id,
@@ -1522,9 +1444,6 @@ class TestSinglePicking(TestStockCommon):
         self.assertEqual(backorder.state, "confirmed")
 
     def test_backorder_4(self):
-        """Check the good behavior if no backorder are created
-        for a picking with a missing product.
-        """
         delivery_order = self.env["stock.picking"].create(
             {
                 "location_id": self.pack_location.id,
@@ -1582,7 +1501,6 @@ class TestSinglePicking(TestStockCommon):
         self.assertEqual(delivery_order.move_ids[1].state, "cancel")
 
     def test_assign_deadline(self):
-        """Check if similar items with shorter deadline are prioritized."""
         delivery_order = self.PickingObj.create(
             {
                 "location_id": self.pack_location.id,
@@ -1697,10 +1615,6 @@ class TestSinglePicking(TestStockCommon):
         )
 
     def test_extra_move_1(self):
-        """Check the good behavior of creating an extra move in a delivery order. This usecase
-        simulates the delivery of 2 item while the initial stock move had to move 1 and there's
-        only 1 in stock.
-        """
         delivery_order = self.env["stock.picking"].create(
             {
                 "location_id": self.pack_location.id,
@@ -1767,10 +1681,6 @@ class TestSinglePicking(TestStockCommon):
         self.assertEqual(move1.state, "done")
 
     def test_extra_move_2(self):
-        """Check the good behavior of creating an extra move in a delivery order. This usecase
-        simulates the delivery of 3 item while the initial stock move had to move 1 and there's
-        only 1 in stock.
-        """
         delivery_order = self.env["stock.picking"].create(
             {
                 "location_id": self.pack_location.id,
@@ -1837,9 +1747,6 @@ class TestSinglePicking(TestStockCommon):
         self.assertEqual(move1.state, "done")
 
     def test_extra_move_3(self):
-        """Check the good behavior of creating an extra move in a receipt. This usecase simulates
-        the receipt of 2 item while the initial stock move had to move 1.
-        """
         receipt = self.env["stock.picking"].create(
             {
                 "location_id": self.supplier_location.id,
@@ -1878,10 +1785,6 @@ class TestSinglePicking(TestStockCommon):
         self.assertEqual(move1.state, "done")
 
     def test_extra_move_4(self):
-        """Create a picking with similar moves (created after
-        confirmation). Action done should propagate all the extra
-        quantity and only merge extra moves in their original moves.
-        """
         delivery = self.env["stock.picking"].create(
             {
                 "location_id": self.stock_location.id,
@@ -1938,11 +1841,6 @@ class TestSinglePicking(TestStockCommon):
             )
 
     def test_recheck_availability_1(self):
-        """Check the good behavior of check availability. I create a DO for 2 unit with
-        only one in stock. After the first check availability, I should have 1 reserved
-        product with one move line. After adding a second unit in stock and recheck availability.
-        The DO should have 2 reserved unit, be in available state and have only one move line.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 1.0
         )
@@ -1988,11 +1886,6 @@ class TestSinglePicking(TestStockCommon):
         self.assertEqual(len(move1.move_line_ids), 1)
 
     def test_recheck_availability_2(self):
-        """Same check than test_recheck_availability_1 but with lot this time.
-        If the new product has the same lot that already reserved one, the move lines
-        reserved quantity should be updated.
-        Otherwise a new move lines with the new lot should be added.
-        """
         self.productA.tracking = "lot"
         lot1 = self.env["stock.lot"].create(
             {
@@ -2048,7 +1941,6 @@ class TestSinglePicking(TestStockCommon):
         self.assertEqual(move1.move_line_ids.quantity, 2)
 
     def test_recheck_availability_3(self):
-        """Same check than test_recheck_availability_2 but with different lots."""
         self.productA.tracking = "lot"
         lot1 = self.env["stock.lot"].create(
             {
@@ -2111,9 +2003,6 @@ class TestSinglePicking(TestStockCommon):
         self.assertEqual(move_lines[1].lot_id.id, lot2.id)
 
     def test_recheck_availability_4(self):
-        """Same check than test_recheck_availability_2 but with serial number this time.
-        Serial number reservation should always create a new move line.
-        """
         self.productA.tracking = "serial"
         serial1 = self.env["stock.lot"].create(
             {
@@ -2176,9 +2065,6 @@ class TestSinglePicking(TestStockCommon):
         self.assertEqual(move_lines[1].lot_id.id, serial2.id)
 
     def test_use_create_lot_use_existing_lot_1(self):
-        """Check the behavior of a picking when `use_create_lot` and `use_existing_lot` are
-        set to False and there's a move for a tracked product.
-        """
         self.picking_type_out.write(
             {
                 "use_create_lots": False,
@@ -2213,9 +2099,6 @@ class TestSinglePicking(TestStockCommon):
         delivery_order._action_done()
 
     def test_use_create_lot_use_existing_lot_2(self):
-        """Check the behavior of a picking when `use_create_lot` and `use_existing_lot` are
-        set to True and there's a move for a tracked product.
-        """
         self.picking_type_out.write(
             {
                 "use_create_lots": True,
@@ -2256,9 +2139,6 @@ class TestSinglePicking(TestStockCommon):
         delivery_order._action_done()
 
     def test_use_create_lot_use_existing_lot_3(self):
-        """Check the behavior of a picking when `use_create_lot` is set to True and
-        `use_existing_lot` is set to False and there's a move for a tracked product.
-        """
         self.picking_type_out.write(
             {
                 "use_create_lots": True,
@@ -2299,9 +2179,6 @@ class TestSinglePicking(TestStockCommon):
         delivery_order._action_done()
 
     def test_use_create_lot_use_existing_lot_4(self):
-        """Check the behavior of a picking when `use_create_lot` is set to False and
-        `use_existing_lot` is set to True and there's a move for a tracked product.
-        """
         self.picking_type_out.write(
             {
                 "use_create_lots": False,
@@ -2358,8 +2235,6 @@ class TestSinglePicking(TestStockCommon):
         delivery_order._action_done()
 
     def test_use_create_lot_use_existing_lot_5(self):
-        """Check if a quant without lot exist, it will be decrease even if a
-        quant with the right lot exists but is empty"""
         self.picking_type_in.write(
             {
                 "use_create_lots": False,
@@ -2562,10 +2437,6 @@ class TestSinglePicking(TestStockCommon):
         )
 
     def test_merge_moves_3(self):
-        """Create 2 moves without initial_demand and already a
-        quantity done. Check that we still have only 2 moves after
-        validation.
-        """
         receipt = self.env["stock.picking"].create(
             {
                 "location_id": self.supplier_location.id,
@@ -2602,10 +2473,6 @@ class TestSinglePicking(TestStockCommon):
         self.assertEqual(len(receipt.move_ids), 2, "Moves were not merged")
 
     def test_merge_moves_never_attributes(self):
-        """Create 2 moves without initial_demand and already a
-        quantity done. Check that we still have only 2 moves after
-        validation.
-        """
         product_attribute = self.env["product.attribute"].create(
             {
                 "name": "PA",
@@ -2699,12 +2566,6 @@ class TestSinglePicking(TestStockCommon):
         )
 
     def test_merge_chained_moves(self):
-        """ Imagine multiple step reception. Two different receipt picking for the same product should only generate
-        1 picking from input to QC and another from QC to stock. The link at the end should follow this scheme.
-        Move receipt 1 \
-                        Move Input-> QC - Move QC -> Stock
-        Move receipt 2 /
-        """
         warehouse = self.env["stock.warehouse"].create(
             {
                 "name": "TEST WAREHOUSE",
@@ -2776,10 +2637,6 @@ class TestSinglePicking(TestStockCommon):
         )
 
     def test_prevent_merge_moves_without_stock_reference(self):
-        """Imagine multiple step reception. When two receipts are created manually that
-        do not have a stock reference, they should not merge in the next steps even if
-        they share the same partner. Each receipt must generate its own Input→QC and QC→Stock moves.
-        """
         warehouse = self.env["stock.warehouse"].create(
             {
                 "name": "TEST WAREHOUSE",
@@ -2825,10 +2682,6 @@ class TestSinglePicking(TestStockCommon):
         )
 
     def test_empty_moves_validation_1(self):
-        """Use button validate on a picking that contains only moves
-        without initial demand and without quantity done should be
-        impossible and raise a usererror.
-        """
         delivery_order = self.env["stock.picking"].create(
             {
                 "location_id": self.stock_location.id,
@@ -2863,11 +2716,6 @@ class TestSinglePicking(TestStockCommon):
             delivery_order.button_validate()
 
     def test_empty_moves_validation_2(self):
-        """Use button validate on a picking that contains only moves
-        without initial demand but at least one with a quantity done
-        should process the move with quantity done and cancel the
-        other.
-        """
         delivery_order = self.env["stock.picking"].create(
             {
                 "location_id": self.stock_location.id,
@@ -2924,9 +2772,6 @@ class TestSinglePicking(TestStockCommon):
         self.assertEqual(len(picking.move_ids), 0)
 
     def test_additional_move_1(self):
-        """On a planned trasfer, add a stock move when the picking is already ready. Check that
-        the check availability button appears and work.
-        """
         receipt = self.env["stock.picking"].create(
             {
                 "location_id": self.supplier_location.id,
@@ -3013,9 +2858,6 @@ class TestSinglePicking(TestStockCommon):
         )
 
     def test_additional_move_2(self):
-        """On an immediate trasfer, add a stock move when the picking is already ready. Check that
-        the check availability button doest not appear.
-        """
         delivery_order = self.env["stock.picking"].create(
             {
                 "location_id": self.stock_location.id,
@@ -3085,9 +2927,6 @@ class TestSinglePicking(TestStockCommon):
         self.assertEqual(stock_quant.quantity, 1)
 
     def test_putaway_for_picking_sml(self):
-        """Checks picking's move lines will take in account the putaway rules
-        to define the `location_dest_id`.
-        """
         partner = self.env["res.partner"].create({"name": "Partner"})
         shelf_location = self.env["stock.location"].create(
             {
@@ -3123,7 +2962,6 @@ class TestSinglePicking(TestStockCommon):
         self.assertEqual(receipt.move_line_ids.location_dest_id.id, shelf_location.id)
 
     def test_cancel_plan_transfer(self):
-        """Test canceling plan transfer"""
         picking = self.env["stock.picking"].create(
             {
                 "location_id": self.pack_location.id,
@@ -3154,8 +2992,6 @@ class TestSinglePicking(TestStockCommon):
         )
 
     def test_immediate_transfer(self):
-        """Test picking should be in ready state if immediate transfer and SML is created via view +
-        Test picking cancelation with immediate transfer and done quantity"""
         picking = self.env["stock.picking"].create(
             {
                 "location_id": self.pack_location.id,
@@ -3218,10 +3054,6 @@ class TestSinglePicking(TestStockCommon):
         )
 
     def test_picking_reservation_at_confirm(self):
-        """
-        Check that picking with reservation method at_confirm
-        are reserved by the scheduler
-        """
         product = self.productA
         self.picking_type_out.reservation_method = "at_confirm"
         picking = self.env["stock.picking"].create(
@@ -3260,9 +3092,6 @@ class TestSinglePicking(TestStockCommon):
         )
 
     def test_create_picked_move_line(self):
-        """
-        Check that a move line created and auto assigned to a picked move will also be picked
-        """
         product = self.productA
         self.picking_type_out.reservation_method = "at_confirm"
         picking = self.env["stock.picking"].create(
@@ -3299,10 +3128,6 @@ class TestSinglePicking(TestStockCommon):
         self.assertTrue(sml.picked)
 
     def test_unreservation_on_qty_decrease(self):
-        """
-        Check that the move_lines are unreserved backwards on qty
-        decrease to respect lifo/fifo/... removal strategies
-        """
         tracked_product = self.env["product.product"].create(
             {
                 "name": "Lovely Product",
@@ -3411,10 +3236,6 @@ class TestSinglePicking(TestStockCommon):
         )
 
     def test_unreservation_on_qty_decrease_2(self):
-        """
-        Check that the move_lines are unreserved correctly when decreasing quantity via
-        internal method `_set_quantity_done_prepare_vals`
-        """
         packages = self.env["stock.package"].create(
             [
                 {"name": "pack1"},
@@ -3453,10 +3274,6 @@ class TestSinglePicking(TestStockCommon):
         )
 
     def test_unreservation_on_qty_decrease_3(self):
-        """
-        Check that the move_lines are unreserved correctly when decreasing quantity via
-        internal method `_set_quantity_done_prepare_vals`
-        """
         packages = self.env["stock.package"].create(
             [
                 {"name": "pack1"},
@@ -3494,10 +3311,6 @@ class TestSinglePicking(TestStockCommon):
         )
 
     def test_onchange_picking_locations(self):
-        """
-        Check that changing the location/destination of a picking propagets the info
-        to the related moves.
-        """
         new_location, new_destination = self.env["stock.location"].create(
             [
                 {
@@ -3529,9 +3342,6 @@ class TestSinglePicking(TestStockCommon):
         )
 
     def test_validate_picking_twice(self):
-        """
-        Check that validating an already validated picking bypasses the call.
-        """
         picking = self.env["stock.picking"].create(
             {
                 "location_id": self.supplier_location.id,
@@ -3566,8 +3376,6 @@ class TestStockUOM(TestStockCommon):
         dp.digits = 7
 
     def test_pickings_transfer_with_different_uom_and_back_orders(self):
-        """Picking transfer with diffrent unit of meassure."""
-
         T_LBS = self.env["uom.uom"].create(
             {
                 "name": "T-LBS",
@@ -3644,15 +3452,6 @@ class TestStockUOM(TestStockCommon):
         )
 
     def test_move_product_with_different_uom(self):
-        """Product defined in g with 0.01 rounding
-        Decimal Accuracy (DA) 3 digits.
-        Quantity on hand: 149.88g
-        Picking of 1kg
-        kg has 0.0001 rounding
-        Due to conversions, we may end up reserving 150g
-        (more than the quantity in stock), we check that
-        we reserve less than the quantity in stock
-        """
         precision = self.env.ref("uom.decimal_product_uom")
         precision.digits = 3
 
@@ -3725,9 +3524,6 @@ class TestRoutes(TestStockCommon):
         )
 
     def test_replenish_pick_ship_1(self):
-        """Creates 2 warehouses and make a replenish using one warehouse
-        to ressuply the other one, Then check if the quantity and the product are matching
-        """
         self.product_uom_qty = 42
 
         warehouse_1 = self.warehouse_1
@@ -3783,9 +3579,6 @@ class TestRoutes(TestStockCommon):
         )
 
     def test_pick_ship_from_subloc(self):
-        """Checks that if a picking is sent to a sublocation of its original destination during the pick->ship route,
-        it will still trigger the push rule from the sublocation as well to continue the route.
-        """
         warehouse = self.env["stock.warehouse"].search(
             [("company_id", "=", self.env.company.id)], limit=1
         )
@@ -3818,17 +3611,6 @@ class TestRoutes(TestStockCommon):
         self.assertEqual(pick_move.move_dest_ids.location_id, subloc)
 
     def test_2_steps_delivery_reaches_customer_subloc(self):
-        """
-        Ensure Customer subloc destination of a 2-steps delivery is reached.
-
-        Test Case:
-        ==========
-        1. Create child location from Partners/Customer
-        2. Create delivery with the created subloc as final destination
-        3. confirm the delivery
-        4. check the ship move is created with the destination as the subloc
-        """
-
         self._enable_pick_ship()
 
         subloc = self.env["stock.location"].create(
@@ -3860,7 +3642,6 @@ class TestRoutes(TestStockCommon):
         self.assertEqual(pick_move.move_dest_ids.location_dest_id, subloc)
 
     def test_push_rule_on_move_1(self):
-        """Create a route with a push rule, force it on a move, check that it is applied."""
         self._enable_pick_ship()
 
         push_location = self.env["stock.location"].create(
@@ -3906,10 +3687,6 @@ class TestRoutes(TestStockCommon):
         self.assertEqual(pushed_move.location_dest_id.id, push_location.id)
 
     def test_location_dest_update(self):
-        """Check the location dest of a stock move changed by a push rule
-        with auto field set to transparent is done correctly. The stock_move
-        is create with the move line directly to pass into action_confirm() via
-        action_done()."""
         new_loc = self.env["stock.location"].create(
             {
                 "name": "New_location",
@@ -3978,14 +3755,6 @@ class TestRoutes(TestStockCommon):
         self.assertEqual(positive_quant.location_id, new_loc)
 
     def test_mtso_mto_adjust_01(self):
-        """Run '_adjust_procure_method' for products A & B:
-        - Product A has 5.0 available
-        - Product B has 3.0 available
-        Stock moves (SM) are created for 4.0 units
-        After '_adjust_procure_method':
-        - SM for A is 'make_to_stock'
-        - SM for B is 'make_to_stock'
-        """
         warehouse = self.env["stock.warehouse"].search(
             [("company_id", "=", self.env.user.id)], limit=1
         )
@@ -4053,10 +3822,6 @@ class TestRoutes(TestStockCommon):
         )
 
     def test_location_final_id_in_push(self):
-        """
-        Check that the location_final_id is propagated as location_dest_id
-        at the end of a push chain.
-        """
         warehouse = self.warehouse_1
         warehouse.delivery_steps = "pick_ship"
         final_location = self.env["stock.location"].create(
@@ -4141,10 +3906,6 @@ class TestAutoAssign(TestStockCommon):
         return picking_pick, picking_client
 
     def test_auto_assign_0(self):
-        """Create a outgoing MTS move without enough products in stock, then
-        validate a incoming move to check if the outgoing move is automatically
-        assigned.
-        """
         self.picking_type_out.reservation_method = "at_confirm"
 
         customer_picking = self.env["stock.picking"].create(
@@ -4208,10 +3969,6 @@ class TestAutoAssign(TestStockCommon):
         )
 
     def test_auto_assign_1(self):
-        """Create a outgoing MTO move without enough products, then validate a
-        move to make it available to check if the outgoing move is not
-        automatically assigned.
-        """
         _picking_pick, picking_client = self.create_pick_ship()
         self.picking_type_out.reservation_method = "at_confirm"
 
@@ -4256,16 +4013,6 @@ class TestAutoAssign(TestStockCommon):
         )
 
     def test_auto_assign_reservation_method(self):
-        """Test different stock.picking.type reservation methods by:
-        1. Create multiple delivery picking types with different reservation methods
-        2. Create/confirm outgoing pickings for each of these picking types for a product not in stock
-        3. Create/do an incoming picking that fulfills all of the outgoing pickings
-        4. Check that only the correct outgoing pickings are auto_assigned
-        5. Additionally check that auto-assignment at confirmation correctly works when products are in stock
-        Note, default reservation method is expected to be covered by other tests.
-        Also check date_reservations are as expected
-        """
-
         self.assertEqual(
             self.env["stock.quant"]._get_available_quantity(
                 self.productA, self.stock_location
@@ -4489,10 +4236,6 @@ class TestAutoAssign(TestStockCommon):
         self.assertEqual(move.quantity, 3.0 / 12.0)
 
     def test_do_not_merge_deliveries_with_different_partner(self):
-        """
-        Check that the delivery orders generated by a manual pick of a 2 steps delivery
-        warehouse are only merged if they are associated to the same partner.
-        """
         warehouse = self.env["stock.warehouse"].create(
             {
                 "name": "Warehouse test",
@@ -4599,10 +4342,6 @@ class TestAutoAssign(TestStockCommon):
         self.assertEqual(delivery_order_2.move_ids.product_uom_qty, 1.0)
 
     def test_description_picking_consistent_with_product_description(self):
-        """
-        Ensure the description_picking of a move matches the product template's
-        description in a multi-step reception process.
-        """
         self.warehouse_1.reception_steps = "two_steps"
 
         self.productA.product_tmpl_id.description_picking = "transfer"

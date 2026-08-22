@@ -54,7 +54,7 @@ class SaleOrderLine(models.Model):
         increased_values = {}
         decreased_values = {}
         if 'product_uom_qty' in vals:
-            precision = self.env['decimal.precision'].precision_get('Product Unit')
+            precision = self.env['decimal.precision'].get_precision('Product Unit')
             increased_lines = self.sudo().filtered(lambda r: r.product_id.with_company(r._purchase_service_get_company()).service_to_purchase and r.purchase_line_count and float_compare(r.product_uom_qty, vals['product_uom_qty'], precision_digits=precision) == -1)
             decreased_lines = self.sudo().filtered(lambda r: r.product_id.with_company(r._purchase_service_get_company()).service_to_purchase and r.purchase_line_count and float_compare(r.product_uom_qty, vals['product_uom_qty'], precision_digits=precision) == 1)
             increased_values = {line.id: line.product_uom_qty for line in increased_lines}

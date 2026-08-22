@@ -23,8 +23,8 @@ class ProjectTemplateCreateWizard(models.TransientModel):
                 if wizard.template_id else [Command.clear()]
             )
 
-    def _get_template_whitelist_fields(self):
-        res = super()._get_template_whitelist_fields()
+    def _get_fields_template_whitelist(self):
+        res = super()._get_fields_template_whitelist()
         if self.allow_billable:
             res.append("partner_id")
         return res

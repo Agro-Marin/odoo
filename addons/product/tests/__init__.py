@@ -14,6 +14,7 @@ from . import test_product_attribute_value_config
 from . import test_combination_engine
 from . import test_product_audit_fixes
 from . import test_product_combo
+from . import test_product_merge
 from . import test_product_pricelist
 from . import test_product_product_improvements
 from . import test_seller

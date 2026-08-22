@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import Command
 from odoo.tests import Form
 
@@ -8,10 +6,6 @@ from odoo.addons.stock.tests.test_report import TestReportsCommon
 
 class TestMrpStockReports(TestReportsCommon):
     def test_report_forecast_1_mo_count(self):
-        """Creates and configures a product who could be produce and could be a component.
-        Plans some producing and consumming MO and check the report values.
-        """
-        # Create a variant attribute.
         product_chocolate = self.env["product.product"].create(
             {"name": "Chocolate", "type": "consu", "standard_price": 10}
         )
@@ -34,7 +28,6 @@ class TestMrpStockReports(TestReportsCommon):
             }
         )
 
-        # Creates two BOM: one creating a regular slime, one using regular slimes.
         bom_chococake = self.env["mrp.bom"].create(
             {
                 "product_id": product_chococake.id,
@@ -71,7 +64,6 @@ class TestMrpStockReports(TestReportsCommon):
             }
         )
 
-        # Creates two MO: one for each BOM.
         mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = product_chococake
         mo_form.bom_id = bom_chococake
@@ -94,7 +86,6 @@ class TestMrpStockReports(TestReportsCommon):
         self.assertEqual(draft_production_qty["in"], 10)
         self.assertEqual(draft_production_qty["out"], 4)
 
-        # Confirms the MO and checks the report lines.
         mo_1.action_confirm()
         mo_2.action_confirm()
         report_values, docs, lines = self.get_report_forecast(
@@ -122,7 +113,7 @@ class TestMrpStockReports(TestReportsCommon):
         mo_1.move_byproduct_ids.quantity = 18
         mo_1.button_mark_done()
 
-        self.env.flush_all()  # flush to correctly build report
+        self.env.flush_all()
         report_values = self.env["report.mrp.report_mo_overview"]._get_report_data(
             mo_1.id
         )
@@ -130,23 +121,15 @@ class TestMrpStockReports(TestReportsCommon):
             report_values["byproducts"]["details"][0]["name"], byproduct.name
         )
         self.assertEqual(report_values["byproducts"]["details"][0]["quantity"], 18)
-        # (Component price $10) * (4 unit to produce one finished) * (the mo qty = 10 units) = $400
         self.assertEqual(report_values["components"][0]["summary"]["mo_cost"], 400)
-        # cost_share of byproduct = 1.8 -> 1.8 / 100 -> 0.018 * 400 = 7.2
         self.assertAlmostEqual(report_values["byproducts"]["summary"]["mo_cost"], 7.2)
         byproduct_report_values = report_values["cost_breakdown"][1]
         self.assertEqual(byproduct_report_values["name"], byproduct.name)
-        # 7.2 / 18 units = 0.4
         self.assertAlmostEqual(byproduct_report_values["unit_avg_total_cost"], 0.4)
 
     def test_report_forecast_2_production_backorder(self):
-        """Creates a manufacturing order and produces half the quantity.
-        Then creates a backorder and checks the report.
-        """
-        # Configures the warehouse.
         warehouse = self.env.ref("stock.warehouse0")
         warehouse.manufacture_steps = "pbm_sam"
-        # Configures a product.
         product_apple_pie = self.env["product.product"].create(
             {
                 "name": "Apple Pie",
@@ -171,7 +154,6 @@ class TestMrpStockReports(TestReportsCommon):
                 ],
             }
         )
-        # Creates a MO and validates the pick components.
         mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = product_apple_pie
         mo_form.bom_id = bom
@@ -180,7 +162,7 @@ class TestMrpStockReports(TestReportsCommon):
         mo_1.action_confirm()
         pick = mo_1.move_raw_ids.move_orig_ids.picking_id
         pick.picking_type_id.show_operations = (
-            True  # Could be false without demo data, as the lot group is disabled
+            True
         )
         pick_form = Form(pick)
         with Form(pick.move_ids, view="stock.view_stock_move_form_operations") as form:
@@ -188,7 +170,6 @@ class TestMrpStockReports(TestReportsCommon):
                 move_line.quantity = 20
         pick = pick_form.save()
         pick.button_validate()
-        # Produces 3 products then creates a backorder for the remaining product.
         mo_form = Form(mo_1)
         mo_form.qty_producing = 3
         mo_1 = mo_form.save()
@@ -200,7 +181,6 @@ class TestMrpStockReports(TestReportsCommon):
         backorder.action_backorder()
 
         mo_2 = mo_1.production_group_id.production_ids - mo_1
-        # Checks the forecast report.
         _report_values, _docs, lines = self.get_report_forecast(
             product_template_ids=product_apple_pie.product_tmpl_id.ids
         )
@@ -209,19 +189,16 @@ class TestMrpStockReports(TestReportsCommon):
         self.assertEqual(lines[1]["quantity"], 1)
         self.assertEqual(lines[1]["document_out"], False)
 
-        # Produces the last unit.
         mo_form = Form(mo_2)
         mo_form.qty_producing = 1
         mo_2 = mo_form.save()
         mo_2.button_mark_done()
-        # Checks the forecast report.
         _report_values, _docs, lines = self.get_report_forecast(
             product_template_ids=product_apple_pie.product_tmpl_id.ids
         )
         self.assertEqual(len(lines), 1, "Free Stock line")
 
     def test_report_forecast_3_report_line_corresponding_to_mo_highlighted(self):
-        """When accessing the report from a MO, checks if the correct MO is highlighted in the report"""
         product_banana = self.env["product.product"].create(
             {
                 "name": "Banana",
@@ -235,7 +212,6 @@ class TestMrpStockReports(TestReportsCommon):
             }
         )
 
-        # We create 2 identical MO
         mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = product_banana
         mo_form.product_qty = 10
@@ -246,7 +222,6 @@ class TestMrpStockReports(TestReportsCommon):
         mo_2 = mo_1.copy()
         (mo_1 | mo_2).action_confirm()
 
-        # Check for both MO if the highlight (is_matched) corresponds to the correct MO
         for mo in [mo_1, mo_2]:
             context = mo.action_product_forecast_report()["context"]
             _, _, lines = self.get_report_forecast(
@@ -337,15 +312,6 @@ class TestMrpStockReports(TestReportsCommon):
             self.assertTrue(html_report, "report generated successfully")
 
     def test_subkit_in_delivery_slip(self):
-        """
-        Suppose this structure:
-        Super Kit --|- Compo 01 x1
-                    |- Sub Kit x1 --|- Compo 02 x1
-                    |               |- Compo 03 x1
-
-        This test ensures that, when delivering one Super Kit, one Sub Kit, one Compo 01 and one Compo 02,
-        and when putting in pack the third component of the Super Kit, the delivery report is correct.
-        """
         compo01, compo02, compo03, subkit, superkit = self.env[
             "product.product"
         ].create(
@@ -437,7 +403,6 @@ class TestMrpStockReports(TestReportsCommon):
         )
 
     def test_mo_overview(self):
-        """Test that the overview does not traceback when the final produced qty is 0"""
         product_chocolate = self.env["product.product"].create(
             {
                 "name": "Chocolate",
@@ -491,7 +456,6 @@ class TestMrpStockReports(TestReportsCommon):
         )
 
         mo.action_confirm()
-        # check that the mo and bom cost are correctly calculated after mo confirmation
         overview_values = self.env["report.mrp.report_mo_overview"].get_report_values(
             mo.id
         )
@@ -513,9 +477,6 @@ class TestMrpStockReports(TestReportsCommon):
         )
 
     def test_overview_with_component_also_as_byproduct(self):
-        """Check that opening he overview of an MO for which the BoM contains an element as both component and byproduct
-        does not cause an infinite recursion.
-        """
         bom = self.env["mrp.bom"].create(
             {
                 "product_tmpl_id": self.product.product_tmpl_id.id,
@@ -550,11 +511,6 @@ class TestMrpStockReports(TestReportsCommon):
         )
 
     def test_multi_step_component_forecast_availability(self):
-        """
-        Test that the component availability is correcly forecasted
-        in multi step manufacturing
-        """
-        # Configures the warehouse.
         warehouse = self.env.ref("stock.warehouse0")
         warehouse.manufacture_steps = "pbm_sam"
         final_product, component = self.product, self.product1
@@ -570,7 +526,6 @@ class TestMrpStockReports(TestReportsCommon):
                 ],
             }
         )
-        # Creates a MO without any component in stock
         mo_form = Form(self.env["mrp.production"])
         mo_form.bom_id = bom
         mo_form.product_qty = 2
@@ -581,21 +536,11 @@ class TestMrpStockReports(TestReportsCommon):
         self.env["stock.quant"]._update_available_quantity(
             component, warehouse.lot_stock_id, 100
         )
-        # change the qty_producing to force a recompute of the availability
         with Form(mo) as mo_form:
             mo_form.qty_producing = 2.0
         self.assertEqual(mo.components_availability, "Available")
 
     def test_mo_overview_same_component(self):
-        """
-        Test that for an mo for a product which has 2+ component lines for the same product,
-        if there is some quantity of the component reserved, we properly match replenishments with
-        components lines
-        """
-        # BOM structure:
-        # 'finished', manufactured:
-        #    - 1 'part'
-        #    - 1 'part'
         part, finished = self.env["product.product"].create(
             [
                 {
@@ -620,10 +565,8 @@ class TestMrpStockReports(TestReportsCommon):
                 }
             ]
         )
-        # Put 2 parts in stock
         self.env["stock.quant"]._update_available_quantity(part, self.stock_location, 2)
 
-        # Receive 20 parts
         self.env["stock.picking"].create(
             {
                 "picking_type_id": self.picking_type_in.id,
@@ -645,7 +588,6 @@ class TestMrpStockReports(TestReportsCommon):
             }
         ).action_confirm()
 
-        # Create an MO for 5 finished product
         mo = self.env["mrp.production"].create(
             {
                 "name": "MO",
@@ -655,7 +597,6 @@ class TestMrpStockReports(TestReportsCommon):
         )
         mo.action_confirm()
 
-        # Test overview report values
         overview_values = self.env["report.mrp.report_mo_overview"].get_report_values(
             mo.id
         )
@@ -667,14 +608,6 @@ class TestMrpStockReports(TestReportsCommon):
         self.assertEqual(repl1[0]["summary"]["quantity"], 5)
 
     def test_report_price_variants(self):
-        """
-        This tests the MO's report price when a variant is involved. It makes sure
-        that the BoM price takes only the current variant and not all of them. It also
-        tests that the lines that were removed from the MO but are still in the bom are
-        used in the BoM cost computing. Lastly, it makes sure that Kits are also accounted
-        for and used in the BoM cost as they should.
-        """
-        # Create a color variant, which will be used to create a Product
         attribute_color = self.env["product.attribute"].create({"name": "Color"})
         value_black, value_white = self.env["product.attribute.value"].create(
             [
@@ -688,10 +621,6 @@ class TestMrpStockReports(TestReportsCommon):
                 },
             ]
         )
-        # Create 3 product templates, one for the variants, to check to not all variants are used
-        # to compute the cost of the MO, another one to make sure the 'missing components' are still
-        # taken into account (they are the product that were removed from the MO but are still present
-        # in the BoM), and the last one to make sure that kits are still taken in as well.
         product_variants, missing_product, kit_product = self.env[
             "product.template"
         ].create(
@@ -830,15 +759,12 @@ class TestMrpStockReports(TestReportsCommon):
             mo_report["data"]["extras"]["unit_mo_cost"],
             "The BoM unit cost should be equal to the sum of the products of said BoM",
         )
-        # Check that the missing components (the components that were removed from the MO but are still in the BoM)
-        # are taken into account when computing the BoM cost
         mo.move_raw_ids.filtered(
             lambda m: (
                 m.product_id == missing_product.product_variant_id
                 and m.bom_line_id.bom_id.type != "phantom"
             )
         ).unlink()
-        # When a product has two possible variants, and then is deleted, it should be taken in the missing components
         mo.move_raw_ids.filtered(
             lambda m: (
                 m.product_id == black_white_product
@@ -855,7 +781,6 @@ class TestMrpStockReports(TestReportsCommon):
         )
 
     def test_mo_overview_operation_cost(self):
-        """Test that operations correctly compute their cost depending on their cost_mode."""
         expedition_33 = self.product
         lumiere = self.env["mrp.workcenter"].create(
             {
@@ -918,7 +843,6 @@ class TestMrpStockReports(TestReportsCommon):
             overview_values["data"]["operations"]["details"][1]["real_cost"], 33.0
         )
 
-        # Costs should stay the same for a done MO and/or if the cost_mode of the operation is changed
         mo.button_mark_done()
         bom_baguette.operation_ids.filtered(
             lambda o: o.cost_mode == "estimated"
@@ -940,12 +864,6 @@ class TestMrpStockReports(TestReportsCommon):
         )
 
     def test_mo_overview_with_different_uom(self):
-        """Ensure that the MO overview correctly computes costs
-        when the product UoM differs from the BoM UoM.
-
-        In this case, the product is defined in Unit while the BoM
-        is defined in Dozen.
-        """
         self.env["mrp.bom"].create(
             {
                 "product_id": self.product.id,
@@ -963,13 +881,11 @@ class TestMrpStockReports(TestReportsCommon):
             }
         )
         self.product1.standard_price = 10
-        # create MO for 1 dozen of the product
         mo = self.env["mrp.production"].create(
             {"name": "MO", "bom_id": self.product.bom_ids.id}
         )
 
         mo.action_confirm()
-        # check that the mo and bom cost are correctly calculated after mo confirmation
         overview_values = self.env["report.mrp.report_mo_overview"].get_report_values(
             mo.id
         )
@@ -980,7 +896,6 @@ class TestMrpStockReports(TestReportsCommon):
             overview_values["data"]["components"][0]["summary"]["mo_cost"], 120
         )
 
-        # Test without BoM
         mo_no_bom = self.env["mrp.production"].create(
             {
                 "name": "MO without BoM",

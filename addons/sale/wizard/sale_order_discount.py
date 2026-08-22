@@ -26,7 +26,6 @@ class SaleOrderDiscount(models.TransientModel):
         default="sol_discount",
     )
 
-    # CONSTRAINT METHODS #
 
     @api.constrains("discount_type", "discount_percentage", "discount_amount")
     def _check_discount_amount(self):
@@ -38,8 +37,6 @@ class SaleOrderDiscount(models.TransientModel):
                 raise ValidationError(_("Discount percentage must be at most 100%%."))
             if wizard.discount_type == "amount":
                 currency = wizard.currency_id or wizard.sale_order_id.currency_id
-                # A 0.0 fixed discount is a legitimate no-op; only negatives
-                # (which would act as a surcharge) are rejected.
                 if wizard.discount_amount < 0.0:
                     raise ValidationError(
                         _("The discount amount cannot be negative."),
@@ -74,7 +71,7 @@ class SaleOrderDiscount(models.TransientModel):
     def _prepare_global_discount_so_lines(self, base_lines):
         self.ensure_one()
         AccountTax = self.env["account.tax"]
-        discount_dp = self.env["decimal.precision"].precision_get("Discount")
+        discount_dp = self.env["decimal.precision"].get_precision("Discount")
         has_multiple_tax_combinations = (
             len(
                 {
@@ -87,7 +84,6 @@ class SaleOrderDiscount(models.TransientModel):
         )
         so_line_values_list = []
         for base_line in base_lines:
-            # The name of the so line.
             if has_multiple_tax_combinations:
                 if self.discount_type == "so_discount":
                     so_line_description = self.env._(
@@ -129,7 +125,6 @@ class SaleOrderDiscount(models.TransientModel):
         return so_line_values_list
 
     def _get_discount_product(self):
-        """Return product.product used for discount line"""
         self.ensure_one()
         company = self.company_id
         discount_product = company.sale_discount_product_id
@@ -164,7 +159,7 @@ class SaleOrderDiscount(models.TransientModel):
         if self.discount_type == "so_discount":
             amount_type = "percent"
             amount = self.discount_percentage * 100.0
-        else:  # self.discount_type == 'amount':
+        else:
             amount_type = "fixed"
             amount = self.discount_amount
 

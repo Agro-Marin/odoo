@@ -1,14 +1,6 @@
 /** @odoo-module native */
 
-import {
-    Component,
-    onMounted,
-    onPatched,
-    onWillUnmount,
-    useEffect,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { Component, onPatched, useExternalListener, useRef, useState } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { _t } from "@web/core/translation";
 import { useInputField } from "@web/fields/input_field_hook";
@@ -40,16 +32,11 @@ export const ProductNameAndDescriptionListRendererMixin = () => ({
             (col) => col.name === this.descriptionColumn,
         );
 
+        // Whether product and label share one cell is a property of the column
+        // layout, not of any record: it is passed to the field through
+        // `getFieldProps` rather than stamped onto every record on every render.
+        this.columnIsProductAndLabel = Boolean(productCol && labelCol);
         if (productCol) {
-            if (labelCol) {
-                this.props.list.records.forEach(
-                    (record) => (record.columnIsProductAndLabel = true),
-                );
-            } else {
-                this.props.list.records.forEach(
-                    (record) => (record.columnIsProductAndLabel = false),
-                );
-            }
             activeColumns = activeColumns.filter(
                 (col) => col.name !== this.descriptionColumn,
             );
@@ -60,11 +47,22 @@ export const ProductNameAndDescriptionListRendererMixin = () => ({
 
         return activeColumns;
     },
+
+    getFieldProps(record, column) {
+        const props = super.getFieldProps(record, column);
+        if (this.productColumns.includes(column.name)) {
+            props.columnIsProductAndLabel = Boolean(this.columnIsProductAndLabel);
+        }
+        return props;
+    },
 });
 
 export class ProductNameAndDescriptionField extends Component {
     static components = { Many2One };
-    static props = { ...Many2OneField.props };
+    static props = {
+        ...Many2OneField.props,
+        columnIsProductAndLabel: { type: Boolean, optional: true },
+    };
     static template = Many2One.template;
 
     static descriptionColumn = "";
@@ -73,9 +71,6 @@ export class ProductNameAndDescriptionField extends Component {
         this.isPrintMode = useState({ value: false });
         this.labelVisibility = useState({ value: false });
         this.switchToLabel = false;
-        this.columnIsProductAndLabel = useState({
-            value: this.props.record.columnIsProductAndLabel,
-        });
         this.labelNode = useRef("labelNodeRef");
         useProductAndLabelAutoresize(this.labelNode, {
             targetParentName: this.props.name,
@@ -93,14 +88,6 @@ export class ProductNameAndDescriptionField extends Component {
             parse: (v) => this.parseLabel(v),
         });
 
-        useEffect(
-            () => {
-                this.columnIsProductAndLabel.value =
-                    this.props.record.columnIsProductAndLabel;
-            },
-            () => [this.props.record.columnIsProductAndLabel],
-        );
-
         onPatched(() => {
             if (this.labelNode.el && this.switchToLabel) {
                 this.switchToLabel = false;
@@ -108,38 +95,36 @@ export class ProductNameAndDescriptionField extends Component {
             }
         });
 
-        this.onBeforePrint = () => {
+        // The following listeners are used to make a div visible only in the print view. This div
+        // is necessary in the print view in order not to have scroll bars but can't be displayed in
+        // the normal view because it adds an empty line. This is done by switching an attribute to
+        // true only during the print view life cycle and including the said div in a t-if depending
+        // on that attribute.
+        useExternalListener(window, "beforeprint", () => {
             this.isPrintMode.value = true;
-        };
-
-        this.onAfterPrint = () => {
+        });
+        useExternalListener(window, "afterprint", () => {
             this.isPrintMode.value = false;
-        };
-
-        // The following hooks are used to make a div visible only in the print view. This div is necessary in the
-        // print view in order not to have scroll bars but can't be displayed in the normal view because it adds
-        // an empty line. This is done by switching an attribute to true only during the print view life cycle and
-        // including the said div in a t-if depending on that attribute.
-        onMounted(() => {
-            window.addEventListener("beforeprint", this.onBeforePrint);
-            window.addEventListener("afterprint", this.onAfterPrint);
         });
+    }
 
-        onWillUnmount(() => {
-            window.removeEventListener("beforeprint", this.onBeforePrint);
-            window.removeEventListener("afterprint", this.onAfterPrint);
-        });
+    get columnIsProductAndLabel() {
+        return Boolean(this.props.columnIsProductAndLabel);
     }
 
     get productName() {
-        return this.props.record.data[this.props.name].display_name || "";
+        return this.props.record.data[this.props.name]?.display_name || "";
     }
 
     get label() {
-        let label = this.props.record.data[this.descriptionColumn];
-        if (label.includes(this.productName)) {
-            label = label.replace(this.productName, "");
-        }
+        const stored = this.props.record.data[this.descriptionColumn] || "";
+        // The description is *written* as `productName` followed by the user's
+        // own text (see `parseLabel`), so only a leading occurrence is the
+        // product name. An unanchored strip also eats the name where the user
+        // typed it, turning "Spare leg for a Desk" into "Spare leg for a".
+        const label = stored.startsWith(this.productName)
+            ? stored.slice(this.productName.length)
+            : stored;
         return label.trim();
     }
 
@@ -161,14 +146,19 @@ export class ProductNameAndDescriptionField extends Component {
         };
     }
 
+    /**
+     * Whether the product may be opened from a read-only cell.
+     *
+     * The rule below is the one the order models this widget serves happen to
+     * share; a consumer whose workflow differs overrides this. `parent` is
+     * absent whenever the record is not inside an x2many, which must not throw.
+     */
     get isProductClickable() {
-        return this.props.record.evalContext.parent.state !== "draft";
+        return this.props.record.evalContext.parent?.state !== "draft";
     }
 
     get showLabelVisibilityToggler() {
-        return (
-            !this.props.readonly && this.columnIsProductAndLabel.value && !this.label
-        );
+        return !this.props.readonly && this.columnIsProductAndLabel && !this.label;
     }
 
     switchLabelVisibility() {

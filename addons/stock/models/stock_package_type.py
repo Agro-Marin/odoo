@@ -46,12 +46,12 @@ class StockPackageType(models.Model):
     barcode = fields.Char(string="Barcode", copy=False)
     weight_uom_name = fields.Char(
         string="Weight unit of measure label",
-        default=lambda self: self._default_weight_uom(),
+        default=lambda self: self._default_weight_uom_name(),
         compute="_compute_weight_uom_name",
     )
     length_uom_name = fields.Char(
         string="Length unit of measure label",
-        default=lambda self: self._default_length_uom(),
+        default=lambda self: self._default_length_uom_name(),
         compute="_compute_length_uom_name",
     )
     company_id = fields.Many2one(
@@ -171,12 +171,12 @@ class StockPackageType(models.Model):
             for package_type, vals in zip(self, vals_list, strict=True)
         ]
 
-    def _default_length_uom(self):
+    def _default_length_uom_name(self):
         return self.env[
             "product.template"
         ]._get_length_uom_name_from_ir_config_parameter()
 
-    def _default_weight_uom(self):
+    def _default_weight_uom_name(self):
         return self.env[
             "product.template"
         ]._get_weight_uom_name_from_ir_config_parameter()

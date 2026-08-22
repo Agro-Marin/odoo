@@ -20,8 +20,8 @@ class SaleOrder(models.Model):
             res['origin'] = self.env._('[Project] %(task_name)s', task_name=task.name)
         return res
 
-    tasks_ids = fields.Many2many('project.task', compute='_compute_tasks_ids', search='_search_tasks_ids', groups="project.group_project_user", string='Tasks associated with this sale', export_string_translation=False)
-    tasks_count = fields.Integer(string='Tasks', compute='_compute_tasks_ids', groups="project.group_project_user", export_string_translation=False)
+    tasks_ids = fields.Many2many('project.task', compute='_compute_tasks', search='_search_tasks_ids', groups="project.group_project_user", string='Tasks associated with this sale', export_string_translation=False)
+    tasks_count = fields.Integer(string='Tasks', compute='_compute_tasks', groups="project.group_project_user", export_string_translation=False)
 
     visible_project = fields.Boolean('Display project', compute='_compute_visible_project', readonly=True, export_string_translation=False)
     project_ids = fields.Many2many('project.project', compute="_compute_project_ids", string='Projects', copy=False, groups="project.group_project_user,project.group_project_milestone", export_string_translation=False)
@@ -30,7 +30,7 @@ class SaleOrder(models.Model):
     is_product_milestone = fields.Boolean(compute='_compute_is_product_milestone', export_string_translation=False)
     show_create_project_button = fields.Boolean(compute='_compute_show_project_and_task_button', groups='project.group_project_user', export_string_translation=False)
     show_project_button = fields.Boolean(compute='_compute_show_project_and_task_button', groups='project.group_project_user', export_string_translation=False)
-    closed_task_count = fields.Integer(compute='_compute_tasks_ids', groups="project.group_project_user", export_string_translation=False)
+    closed_task_count = fields.Integer(compute='_compute_tasks', groups="project.group_project_user", export_string_translation=False)
     completed_task_percentage = fields.Float(compute="_compute_completed_task_percentage", groups="project.group_project_user", export_string_translation=False)
     project_id = fields.Many2one('project.project', domain=[('allow_billable', '=', True), ('is_template', '=', False)], copy=False, index='btree_not_null',
                                  help="A task will be created for the project upon sales order confirmation. The analytic distribution of this project will also serve as a reference for newly created sales order items.")
@@ -77,7 +77,7 @@ class SaleOrder(models.Model):
         return [('id', 'in', query.subselect('sale_order_id'))]
 
     @api.depends('line_ids.product_id.project_id')
-    def _compute_tasks_ids(self):
+    def _compute_tasks(self):
         tasks_per_so = self.env['project.task']._read_group(
             domain=self._tasks_ids_domain(),
             groupby=['sale_order_id', 'state'],
@@ -210,7 +210,7 @@ class SaleOrder(models.Model):
         if len(project_ids) == 1:
             action = self.env['ir.actions.actions'].with_context(
                 active_id=self.project_ids.id,
-            )._for_xml_id('project.act_project_project_2_project_task_all')
+            )._get_action_dict_by_xml_id('project.act_project_project_2_project_task_all')
             action['context'] = {
                 'active_id': project_ids.id,
                 'default_partner_id': partner.id,
@@ -221,7 +221,7 @@ class SaleOrder(models.Model):
             }
             return action
         else:
-            action = self.env['ir.actions.actions']._for_xml_id('project.open_view_project_all')
+            action = self.env['ir.actions.actions']._get_action_dict_by_xml_id('project.open_view_project_all')
             action['domain'] = [
                 '|',
                 ('sale_order_id', '=', self.id),

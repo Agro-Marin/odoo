@@ -21,9 +21,7 @@ class PurchaseRequisition(models.Model):
     )
     active = fields.Boolean("Active", default=True)
     reference = fields.Char(string="Reference")
-    order_count = fields.Integer(
-        compute="_compute_orders_number", string="Number of Orders"
-    )
+    order_count = fields.Count("purchase_ids", string="Number of Orders")
     vendor_id = fields.Many2one("res.partner", string="Vendor", check_company=True)
     requisition_type = fields.Selection(
         [
@@ -115,11 +113,6 @@ class PurchaseRequisition(models.Model):
                 requisition.currency_id = (
                     requisition.vendor_id.property_purchase_currency_id.id
                 )
-
-    @api.depends("purchase_ids")
-    def _compute_orders_number(self):
-        for requisition in self:
-            requisition.order_count = len(requisition.purchase_ids)
 
     @api.constrains("date_start", "date_end")
     def _check_dates(self):

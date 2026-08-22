@@ -8,13 +8,6 @@ from odoo.addons.stock.tests.common import TestStockCommon
 
 @tagged("post_install", "-at_install")
 class TestQuantDormancy(TestStockCommon):
-    """``date_last_movement`` / ``days_since_last_movement`` on ``stock.quant``.
-
-    Dormancy is "nothing has moved", which is not "nothing has happened": an
-    inventory count writes move lines too, and counting those as movement would
-    report a diligently counted warehouse as holding no dormant stock at all.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -34,7 +27,6 @@ class TestQuantDormancy(TestStockCommon):
         )
 
     def _dormant_quant(self, product, days, quantity=10.0):
-        """Stock `quantity` of `product` and backdate its arrival by `days`."""
         self.env["stock.quant"]._update_available_quantity(
             product, self.stock_location, quantity
         )
@@ -52,7 +44,6 @@ class TestQuantDormancy(TestStockCommon):
         self.assertEqual(quant.days_since_last_movement, 100)
 
     def test_inventory_count_is_not_a_movement(self):
-        """Counting 100-day-old stock today leaves it 100 days dormant."""
         quant = self._dormant_quant(self.dormant_product, 100)
         counted = quant.with_context(inventory_mode=True)
         counted.inventory_quantity = 12.0
@@ -82,8 +73,6 @@ class TestQuantDormancy(TestStockCommon):
             fields.Datetime.now(), days=10
         )
 
-        # The compute cannot depend on move lines (see its docstring), so the
-        # read below must not be served from a pre-move cache entry.
         quant.invalidate_recordset()
         self.assertEqual(quant.quantity, 6.0)
         self.assertTrue(quant.date_last_movement)
@@ -115,7 +104,6 @@ class TestQuantDormancy(TestStockCommon):
                     self.assertEqual(found, expected)
 
     def test_search_ignores_inventory_counts(self):
-        """The SQL must exclude counts exactly as the compute does."""
         quant = self._dormant_quant(self.dormant_product, 100)
         counted = quant.with_context(inventory_mode=True)
         counted.inventory_quantity = 12.0
@@ -127,7 +115,6 @@ class TestQuantDormancy(TestStockCommon):
         self.assertEqual(found, quant)
 
     def test_search_unsupported_operator(self):
-        """Equality has no useful day-window meaning; it must not silently match."""
         self._dormant_quant(self.dormant_product, 100)
         with self.assertRaises(NotImplementedError):
             self.env["stock.quant"].search([("days_since_last_movement", "=", 100)])

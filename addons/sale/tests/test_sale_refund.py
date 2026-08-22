@@ -10,7 +10,6 @@ class TestSaleRefund(TestSaleCommon):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Create the SO with four order lines
         cls.sale_order = cls.env["sale.order"].create(
             {
                 "partner_id": cls.partner_a.id,
@@ -58,10 +57,8 @@ class TestSaleRefund(TestSaleCommon):
             cls.sol_prod_deliver,
         ) = cls.sale_order.line_ids
 
-        # Confirm the SO
         cls.sale_order.action_confirm()
 
-        # Create an invoice with invoiceable lines only
         payment = (
             cls.env["sale.advance.payment.inv"]
             .with_context(
@@ -79,10 +76,8 @@ class TestSaleRefund(TestSaleCommon):
         cls.invoice = cls.sale_order.invoice_ids[0]
 
     def test_refund_create(self):
-        # Validate invoice
         self.invoice.action_post()
 
-        # Check quantity to invoice on SO lines
         for line in self.sale_order.line_ids:
             if line.product_id.invoice_policy == "transferred":
                 self.assertEqual(
@@ -148,7 +143,6 @@ class TestSaleRefund(TestSaleCommon):
                     "The lines 'ordered' qty are invoiced, so it should be linked to 1 invoice lines",
                 )
 
-        # Make a credit note
         credit_note_wizard = (
             self.env["account.move.reversal"]
             .with_context(
@@ -168,9 +162,8 @@ class TestSaleRefund(TestSaleCommon):
         credit_note_wizard.refund_moves()
         invoice_refund = self.sale_order.invoice_ids.sorted(
             key=lambda inv: inv.id, reverse=False
-        )[-1]  # the first invoice, its refund, and the new invoice
+        )[-1]
 
-        # Check invoice's type and number
         self.assertEqual(
             invoice_refund.move_type,
             "out_refund",
@@ -203,8 +196,6 @@ class TestSaleRefund(TestSaleCommon):
             "The SO should be linked to only one customer invoices",
         )
 
-        # At this time, the invoice 1 is validated and its refund is in draft.
-        # Only posted invoices count for qty_invoiced/amount calculations.
         for line in self.sale_order.line_ids:
             if line.product_id.invoice_policy == "transferred":
                 self.assertEqual(
@@ -231,7 +222,6 @@ class TestSaleRefund(TestSaleCommon):
                     line.invoice_line_ids,
                     "The line based on delivered are not invoiced, so they should not be linked to invoice line",
                 )
-            # Draft refund doesn't affect qty_invoiced - only posted invoices count
             elif line == self.sol_prod_order:
                 self.assertEqual(
                     line.qty_to_invoice,
@@ -285,7 +275,6 @@ class TestSaleRefund(TestSaleCommon):
                     "The line 'ordered service' is invoiced, so it should be linked to 2 invoice lines (invoice and refund)",
                 )
 
-        # Validate the refund
         invoice_refund.action_post()
 
         for line in self.sale_order.line_ids:
@@ -368,18 +357,14 @@ class TestSaleRefund(TestSaleCommon):
                 )
 
     def test_refund_modify(self):
-        """Test invoice with a refund in 'modify' mode, and check customer invoices credit note is created from respective invoice"""
-        # Decrease quantity of an invoice lines
         with Form(self.invoice) as invoice_form:
             with invoice_form.invoice_line_ids.edit(0) as line_form:
                 line_form.quantity = 3
             with invoice_form.invoice_line_ids.edit(1) as line_form:
                 line_form.quantity = 2
 
-        # Validate invoice
         self.invoice.action_post()
 
-        # Check quantity to invoice on SO lines
         for line in self.sale_order.line_ids:
             if line.product_id.invoice_policy == "transferred":
                 self.assertEqual(
@@ -445,7 +430,6 @@ class TestSaleRefund(TestSaleCommon):
                     "The lines 'ordered' qty are invoiced, so it should be linked to 1 invoice lines",
                 )
 
-        # Make a credit note
         credit_note_wizard = (
             self.env["account.move.reversal"]
             .with_context(
@@ -466,7 +450,6 @@ class TestSaleRefund(TestSaleCommon):
             credit_note_wizard.modify_moves()["res_id"]
         )
 
-        # Check invoice's type and number
         self.assertEqual(
             invoice_refund.move_type,
             "out_invoice",
@@ -499,8 +482,6 @@ class TestSaleRefund(TestSaleCommon):
             "The SO should be linked to two customer invoices",
         )
 
-        # At this time, the invoice 1 and its refund are confirmed, so they cancel each other out.
-        # The third invoice (2nd customer inv) is in draft state and doesn't count.
         for line in self.sale_order.line_ids:
             if line.product_id.invoice_policy == "transferred":
                 self.assertEqual(
@@ -527,7 +508,6 @@ class TestSaleRefund(TestSaleCommon):
                     line.invoice_line_ids,
                     "The line based on delivered are not invoiced, so they should not be linked to invoice line",
                 )
-            # Invoice 1 (qty 3/2) + Refund (qty -3/-2) = 0, draft invoice doesn't count
             elif line == self.sol_prod_order:
                 self.assertEqual(
                     line.qty_to_invoice,
@@ -581,7 +561,6 @@ class TestSaleRefund(TestSaleCommon):
                     "The line 'ordered service' is invoiced, so it should be linked to 3 invoice lines (invoice and refund)",
                 )
 
-        # Change unit of ordered product on refund lines
         move_form = Form(invoice_refund)
         with move_form.invoice_line_ids.edit(0) as line_form:
             line_form.price_unit = 100
@@ -589,7 +568,6 @@ class TestSaleRefund(TestSaleCommon):
             line_form.price_unit = 50
         invoice_refund = move_form.save()
 
-        # Validate the refund
         invoice_refund.action_post()
 
         for line in self.sale_order.line_ids:
@@ -708,7 +686,6 @@ class TestSaleRefund(TestSaleCommon):
             )
         )
         downpayment.create_invoices()
-        # order_line[1] is the down payment section
         sol_downpayment = sale_order_refund.line_ids[2]
         dp_invoice = sale_order_refund.invoice_ids[0]
         dp_invoice.action_post()
@@ -851,17 +828,8 @@ class TestSaleRefund(TestSaleCommon):
         )
 
     def test_orphan_refund_inclusion(self):
-        """Test that refunds created from invoices are included even if unlinked from SO lines.
-
-        This tests the scenario where a refund is created via the Credit Note button
-        on an invoice, and then the sale_line_ids are manually removed from the refund
-        invoice lines (orphan refund). The SO should still include this refund in its
-        invoice_ids through the reversed_entry_id relationship.
-        """
-        # Validate the invoice
         self.invoice.action_post()
 
-        # Create a credit note using the reversal wizard
         credit_note_wizard = (
             self.env["account.move.reversal"]
             .with_context(
@@ -880,13 +848,11 @@ class TestSaleRefund(TestSaleCommon):
         )
         credit_note_wizard.refund_moves()
 
-        # Get the refund that was just created
         refund = self.sale_order.invoice_ids.filtered(
             lambda m: m.move_type == "out_refund"
         )
         self.assertEqual(len(refund), 1, "Should have exactly one refund")
 
-        # Verify the refund is linked to the SO before breaking the link
         initial_invoice_count = self.sale_order.invoice_count
         self.assertEqual(
             initial_invoice_count, 2, "SO should have 2 invoices (invoice + refund)"
@@ -895,14 +861,10 @@ class TestSaleRefund(TestSaleCommon):
             refund, self.sale_order.invoice_ids, "Refund should be in SO invoice_ids"
         )
 
-        # Simulate breaking the link by removing sale_line_ids from refund lines
-        # This creates an "orphan" refund that's not directly linked to SO lines
         refund.invoice_line_ids.write({"sale_line_ids": [Command.clear()]})
 
-        # Force recomputation of invoice_ids
         self.sale_order.invalidate_recordset(["invoice_ids", "invoice_count"])
 
-        # Verify the orphan refund is still included via reversed_entry_id
         self.assertEqual(
             self.sale_order.invoice_count,
             2,

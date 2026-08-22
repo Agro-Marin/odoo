@@ -39,7 +39,7 @@ class ProductTemplate(models.Model):
     )
     task_template_id = fields.Many2one('project.task', 'Task Template',
         domain="[('is_template', '=', True), ('project_id', '=', project_id)]",
-        company_dependent=True, copy=True, compute='_compute_task_template', store=True, readonly=False
+        company_dependent=True, copy=True, compute='_compute_task_template_id', store=True, readonly=False
     )
     service_policy = fields.Selection('_selection_service_policy', string="Service Invoicing Policy", compute_sudo=True, compute='_compute_service_policy', inverse='_inverse_service_policy', tracking=True)
     service_type = fields.Selection(selection_add=[
@@ -54,7 +54,7 @@ class ProductTemplate(models.Model):
                 product.service_policy = 'ordered_prepaid'
 
     @api.depends('project_id')
-    def _compute_task_template(self):
+    def _compute_task_template_id(self):
         for product in self:
             if product.task_template_id and product.task_template_id.project_id != product.project_id:
                 product.task_template_id = False

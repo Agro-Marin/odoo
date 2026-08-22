@@ -248,7 +248,7 @@ class MixinOrderLineInvoice(models.AbstractModel):
         - done: fully invoiced (qty_invoiced == the invoiceable quantity).
         - over done: over-invoiced on an 'ordered' line (qty_invoiced > product_qty).
         """
-        precision = self.env["decimal.precision"].precision_get("Product Unit")
+        precision = self.env["decimal.precision"].get_precision("Product Unit")
         policy_field = self._get_invoice_policy_field()
         for line in self.filtered(lambda l: not l.display_type):
             policy = line.product_id[policy_field]

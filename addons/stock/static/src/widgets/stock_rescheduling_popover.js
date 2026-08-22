@@ -36,15 +36,8 @@ export class StockReschedulingPopover extends PopoverWidgetField {
     static components = {
         Popover: StockReschedulingPopoverComponent,
     };
-
-    get color() {
-        return this.jsonValue.color || "text-danger";
-    }
-
-    get icon() {
-        const rawIcon = this.jsonValue.icon || "fa-triangle-exclamation";
-        return rawIcon.includes(" ") ? rawIcon : `fa-solid ${rawIcon}`;
-    }
+    static defaultColor = "text-danger";
+    static defaultIcon = "fa-triangle-exclamation";
 
     showPopup(ev) {
         if (!this.jsonValue.late_elements) {

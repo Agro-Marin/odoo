@@ -1,30 +1,7 @@
-r"""Pre-migration for the ``stock.move.product_uom`` -> ``product_uom_id`` rename.
-
-The stored ``Many2one`` field ``product_uom`` (unit of measure of the move) was
-renamed to ``product_uom_id`` to match the fork-wide ``*_id`` convention already
-used by ``stock.move.line.product_uom_id`` and the sale/purchase lines. This
-script renames the real column *before* the ORM loads the new model definition
-(otherwise the ORM would create an empty ``product_uom_id`` column and drop the
-populated ``product_uom`` one, losing every move's unit of measure).
-
-It also rewrites the whole-word ``product_uom`` token to ``product_uom_id`` in
-stored view arch (studio / manually customized views not restored from disk) and
-in user-created ``ir.filters`` / ``ir.exports.line`` records, so revalidation of
-those against the new model passes. ``\y`` (Postgres word boundary) keeps the
-lookalikes ``product_uom_id`` / ``product_uom_qty`` / ``quantity_product_uom``
-untouched. ``arch_db`` is jsonb (a per-language dict); the field name is never
-translated and never a JSON key, so the value-level regexp is safe.
-"""
-
 from odoo.db.schema import column_exists
 
 
 def migrate(cr, version):
-    """Rename the column and refresh stored references to the old field name.
-
-    :param cr: database cursor
-    :param version: installed module version; falsy on a fresh install
-    """
     if not version:
         return
 

@@ -1,6 +1,3 @@
-"""Regression tests for the orderpoint scheduler transaction choreography and
-related warehouse/rule fixes."""
-
 from unittest.mock import patch
 
 from odoo import SUPERUSER_ID
@@ -12,22 +9,6 @@ from odoo.addons.stock.models.stock_orderpoint import StockWarehouseOrderpoint
 
 
 class TestOrderpointSchedulerContract(TransactionCase):
-    """Lock the scheduler's compute -> commit -> procure contract.
-
-    `_procure_orderpoint_confirm(use_new_cursor=True)` processes its batches in
-    dedicated cursors whose snapshots cannot see the cron transaction's pending
-    writes, so `_run_scheduler_tasks` must flush/commit the freshly recomputed
-    stored quantities *before* procuring — otherwise every run procures with
-    the quantities committed by the previous run (delayed and duplicated
-    replenishments).
-
-    A `TransactionCase` cannot observe real cross-transaction visibility (test
-    cursors share one transaction), so these tests lock the contract at its
-    strongest observable point instead: at procurement time, the recomputed
-    values must already be flushed to the database (raw SQL sees them), and a
-    commit must have happened between the recomputes and the procurement.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -166,12 +147,6 @@ class TestOrderpointSchedulerContract(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestOrderpointActivity(TransactionCase):
     def test_orderpoint_activity_portal_context_leak(self):
-        """A procurement exception triggered while running as a lesser user
-        (e.g. a portal user under `sudo()`) must not leak that user into the
-        warning activity's `create_uid`. Ported from upstream 19.0
-        (`test_stock_order_point.py`), with the failing procurement forced via
-        a rule-less location so it does not depend on installed modules.
-        """
         company_b = self.env["res.company"].search(
             [("id", "!=", self.env.company.id)], limit=1
         )

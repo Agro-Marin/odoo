@@ -29,11 +29,22 @@ class ProjectPhaseDeleteWizard(models.TransientModel):
     )
 
     def _compute_projects_count(self) -> None:
+        # One GROUP BY over every wizard's phase_ids rather than a
+        # COUNT(*) per wizard, which `test_lint E8507` counts as a query
+        # inside a loop. `phase_id` is a Many2one, so each record falls in
+        # exactly one group and summing a wizard's groups cannot double-count.
+        counts = dict(
+            self.env["project.project"]
+            .with_context(active_test=False)
+            ._read_group(
+                [("phase_id", "in", self.phase_ids.ids)],
+                ["phase_id"],
+                ["__count"],
+            )
+        )
         for wizard in self:
-            wizard.projects_count = (
-                self.with_context(active_test=False)
-                .env["project.project"]
-                .search_count([("phase_id", "in", wizard.phase_ids.ids)])
+            wizard.projects_count = sum(
+                counts.get(record, 0) for record in wizard.phase_ids
             )
 
     @api.depends("phase_ids")
@@ -65,11 +76,11 @@ class ProjectPhaseDeleteWizard(models.TransientModel):
 
     def _get_action(self) -> dict[str, Any]:
         action = (
-            self.env["ir.actions.actions"]._for_xml_id(
+            self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
                 "project.project_phase_configure"
             )
             if self.env.context.get("stage_view")
-            else self.env["ir.actions.actions"]._for_xml_id(
+            else self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
                 "project.open_view_project_all_group_phase"
             )
         )

@@ -17,7 +17,7 @@ class AccountAnalyticPlan(models.Model):
         amount that we can assign to a line that will correctly close out both all plans. This is described in
         more detail in the commit message, under "concurrent closing line edge case".
         """
-        decimal_precision = self.env["decimal.precision"].precision_get(
+        decimal_precision = self.env["decimal.precision"].get_precision(
             "Percentage Analytic"
         )
         distributed_percentage, distributed_amount = distribution_on_each_plan.get(

@@ -82,7 +82,6 @@ class MixinProductCatalog(models.AbstractModel):
         :rtype: dict
         :return: A dict with the following structure:
             {
-                'productId': int
                 'quantity': float (optional)
                 'productType': string
                 'price': float
@@ -110,7 +109,6 @@ class MixinProductCatalog(models.AbstractModel):
         :rtype: dict
         :return: A dict with the following structure:
             {
-                'productId': int
                 'quantity': float (optional)
                 'productType': string
                 'price': float
@@ -148,21 +146,18 @@ class MixinProductCatalog(models.AbstractModel):
         return order_line_info
 
     def _get_action_add_from_catalog_extra_context(self):
-        # `order_id` alongside `product_catalog_order_id`: the two name the same
-        # record, and the client reads both -- `kanban_record.js` takes
-        # `product_catalog_order_id`, while `kanban_model.js` (which fetches the
-        # line info for the whole page) and `kanban_controller.js` (the "Back to
-        # Order" button) take `order_id`. Nothing here used to provide the
-        # latter: every caller had to remember `context="{'order_id': parent.id}"`
-        # on its own button, and a caller that followed this mixin's docstring
-        # instead got its RPCs rejected outright ("missing 1 required positional
-        # argument: 'order_id'"). Existing callers are unaffected: the button is
-        # rendered inside the order's own form, so the `parent.id` they pass is
-        # this very record.
+        # `order_id` is the one key naming this record, and every part of the
+        # catalog client reads it. It used to be shadowed by a second key,
+        # `product_catalog_order_id`, holding the same id: `kanban_record.js`
+        # read one while `kanban_model.js` (which fetches the line info for the
+        # whole page) and `kanban_controller.js` (the "Back to Order" button)
+        # read the other, so both had to be emitted and either could be the one
+        # a caller forgot. Callers are unaffected either way: the button is
+        # rendered inside the order's own form, so the `parent.id` some of them
+        # still pass as `order_id` is this very record.
         return {
             "display_uom": self.env.user.has_group("uom.group_uom"),
             "order_id": self.id,
-            "product_catalog_order_id": self.id,
             "product_catalog_order_model": self._name,
         }
 

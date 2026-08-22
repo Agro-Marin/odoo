@@ -1,6 +1,10 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { formatFloat, formatFloatTime, formatMonetary } from "@web/core/formatters";
+import {
+    formatFieldFloat,
+    formatFloatTime,
+    formatMonetary,
+} from "@web/core/formatters";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 
@@ -66,7 +70,9 @@ export class MoOverviewLine extends Component {
         this.ormService = useService("orm");
         this.getColorClass = getColorClass;
         this.formatFloat = (val) =>
-            formatFloat(val, { digits: [false, this.data.uom_precision || undefined] });
+            formatFieldFloat(val, {
+                digits: [false, this.data.uom_precision || undefined],
+            });
         this.formatFloatTime = formatFloatTime;
         this.formatMonetary = (val) =>
             formatMonetary(val, { currencyId: this.data.currency_id });

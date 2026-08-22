@@ -41,7 +41,6 @@ class ResCompany(models.Model):
         ],
         help="Default product used for discounts",
     )
-    # sale onboarding
     sale_onboarding_payment_method = fields.Selection(
         selection=[
             ("digital_signature", "Sign online"),

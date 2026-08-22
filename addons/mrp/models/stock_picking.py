@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from ast import literal_eval
 from collections import defaultdict
 
@@ -114,11 +112,6 @@ class StockPickingType(models.Model):
         remaining.count_mo_in_progress = remaining.count_mo_to_close = False
         if not mrp_picking_types:
             return
-        # Four of the five counters partition the same rows by `state`, so one
-        # grouped query answers them all; only "late" needs its own, because it
-        # cuts on a date rather than on the grouping key. This ran five
-        # near-identical `_read_group`s over the same table on every render of
-        # the operation-type dashboard.
         counts_by_state = defaultdict(lambda: defaultdict(int))
         for picking_type, state, count in self.env["mrp.production"]._read_group(
             [
@@ -160,7 +153,7 @@ class StockPickingType(models.Model):
             record.count_mo_late = late.get(record, 0)
 
     def get_mrp_stock_picking_action_picking_type(self):
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mrp.mrp_production_action_picking_deshboard"
         )
         if self:
@@ -194,7 +187,7 @@ class StockPicking(models.Model):
     has_kits = fields.Boolean(compute="_compute_has_kits")
     production_count = fields.Integer(
         "Count of MO generated",
-        compute="_compute_mrp_production_ids",
+        compute="_compute_production_count",
         groups="mrp.group_mrp_user",
     )
 
@@ -204,15 +197,6 @@ class StockPicking(models.Model):
         string="Manufacturing Orders",
         groups="mrp.group_mrp_user",
     )
-    # `production_group_id` used to sit here as
-    # `related="move_ids.production_group_id"`. Its only consumer was the
-    # picking-assignation domain in `stock.move`, where searching a related
-    # through a one2many means "any move in this group" -- the right question.
-    # Read as a value, though, the same field means "whichever move sorts
-    # first", so a transfer spanning two production groups reported one of them
-    # by move ordering. The domain now names `move_ids.production_group_id`
-    # itself and the field is gone, leaving one meaning instead of two. It was
-    # never stored, so there is no column to migrate.
 
     @api.depends("move_ids")
     def _compute_has_kits(self):
@@ -225,9 +209,8 @@ class StockPicking(models.Model):
             picking.production_ids = picking.move_ids.production_group_id.production_ids
 
     @api.depends("production_ids")
-    def _compute_mrp_production_ids(self):
+    def _compute_production_count(self):
         for picking in self:
-            # hide subcontracting MO from resupply picking
             mo = picking.production_ids.filtered(lambda mo: mo.picking_type_id.active)
             picking.production_count = len(mo)
 
@@ -260,7 +243,6 @@ class StockPicking(models.Model):
         )
 
         def _keys_in_groupby(move):
-            """Group by the move's manufacturing order and the product's responsible."""
             return (move.raw_material_production_id, move.product_id.responsible_id)
 
         production_documents = self._log_activity_get_documents(

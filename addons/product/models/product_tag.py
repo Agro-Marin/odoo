@@ -8,12 +8,12 @@ class ProductTag(models.Model):
     _description = "Product Tag"
     _order = "sequence, id"
 
-    def _get_default_template_id(self):
+    def _default_product_template_ids(self):
         return self.env["product.template"].browse(
             self.env.context.get("product_template_id")
         )
 
-    def _get_default_variant_id(self):
+    def _default_product_product_ids(self):
         return self.env["product.product"].browse(
             self.env.context.get("product_variant_id")
         )
@@ -25,14 +25,14 @@ class ProductTag(models.Model):
         comodel_name="product.template",
         relation="product_tag_product_template_rel",
         string="Product Templates",
-        default=_get_default_template_id,
+        default=_default_product_template_ids,
     )
     product_product_ids = fields.Many2many(
         comodel_name="product.product",
         relation="product_tag_product_product_rel",
         string="Product Variants",
         domain="[('attribute_line_ids', '!=', False), ('product_tmpl_id', 'not in', product_template_ids)]",
-        default=_get_default_variant_id,
+        default=_default_product_product_ids,
     )
     product_ids = fields.Many2many(
         comodel_name="product.product",

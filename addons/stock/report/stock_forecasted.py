@@ -10,16 +10,6 @@ from odoo.tools import OrderedSet, format_date
 
 @dataclass
 class ReplenishmentContext:
-    """Shared ledger and configuration threaded through the replenishment
-    reconciliation of a single forecast report run.
-
-    ``currents`` maps ``(product_id, location_id)`` to the on-hand stock still
-    available to allocate; the reconciliation helpers decrement it as demand is
-    matched. ``in_id_to_in_data``/``ins_per_product``/``dest_ids_to_in_ids``
-    track the incoming moves still available to fulfil outgoing demand and are
-    mutated as ins get consumed.
-    """
-
     wh_stock_location: object
     wh_stock_sub_location_ids: set
     read: bool
@@ -40,11 +30,10 @@ class StockForecasted_Product_Product(models.AbstractModel):
             "doc_ids": docids,
             "doc_model": "product.product",
             "docs": self._get_report_data(product_ids=docids),
-            "precision": self.env["decimal.precision"].precision_get("Product Unit"),
+            "precision": self.env["decimal.precision"].get_precision("Product Unit"),
         }
 
     def _product_domain(self, product_template_ids, product_ids):
-        """Return a domain to filter stock moves by the given products."""
         if product_template_ids:
             return [
                 ("product_tmpl_id", "in", product_template_ids),
@@ -91,7 +80,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
         return in_domain, out_domain
 
     def _get_products(self, product_template_ids, product_ids):
-        """Return a list of product.product records based on the provided product_template_ids or product_ids."""
         if product_template_ids:
             return (
                 self.env["product.template"]
@@ -142,7 +130,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
             res["product"][product.id]["qty"]["out"] += qty_out.get(product.id, 0.0)
 
     def _get_product_leadtime(self, res, product_template_ids, product_ids):
-        """Populate res with each product's lead time."""
         products = self._get_products(product_template_ids, product_ids)
         location = self._get_warehouse().lot_stock_id
         for product in products:
@@ -313,7 +300,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
             line.update(
                 {
                     "move_in": (
-                        move_in.read(fields=self._get_report_moves_fields())[0]
+                        move_in.read(fields=self._get_fields_report_moves())[0]
                         if read
                         else move_in
                     ),
@@ -332,7 +319,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
             line.update(
                 {
                     "move_out": (
-                        move_out.read(fields=self._get_report_moves_fields())[0]
+                        move_out.read(fields=self._get_fields_report_moves())[0]
                         if read
                         else move_out
                     ),
@@ -356,22 +343,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
         return line
 
     def _prepare_source_document(self, document, read):
-        """Describe a move's source document for the report.
-
-        The document is resolved through ``sudo()`` on purpose: a warehouse
-        user planning around a stock move has to know which document consumes
-        it, and the move they can already read establishes that it exists.  So
-        the reference is shown regardless of access on the document itself.
-
-        What access does decide is ``can_open``: the client links to the
-        document only when the user could actually open it, and renders plain
-        text otherwise.  Gating the *name* instead would hide the reference
-        while still shipping ``_name``/``id`` — no confidentiality gained, and
-        the report left showing an unlabelled row.
-
-        :param document: source document recordset, resolved as sudo
-        :param read: whether the caller wants UI-formatted values
-        """
         return {
             "_name": document._name,
             "id": document.id,
@@ -379,7 +350,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
             "can_open": read and document.with_env(self.env).has_access("read"),
         }
 
-    def _get_report_moves_fields(self):
+    def _get_fields_report_moves(self):
         return ["id", "date"]
 
     def _get_quant_domain(self, location_ids, products):
@@ -390,13 +361,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
         ]
 
     def _compute_out_reserved(self, out, linked_moves, used_reserved_moves, ctx):
-        """Count how much of ``out``'s demand is already reserved by its linked
-        (pick/pack) moves, decrementing ``ctx.currents`` accordingly.
-
-        ``used_reserved_moves`` is shared across the outs of a single product so
-        a reserved quantity on a pick/pack move shared by several outs is not
-        counted twice.
-        """
         reserved_out = 0
         reserved_move = self.env["stock.move"]
         for move in linked_moves:
@@ -426,8 +390,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
         }
 
     def _compute_out_taken_from_stock(self, out, reserved_data, ctx):
-        """Count how much of ``out``'s remaining demand (after reservations) can
-        be served from stock currently on hand, decrementing ``ctx.currents``."""
         reserved_out = reserved_data["reserved"]
         demand_out = out.product_qty - reserved_out
         linked_moves = reserved_data["linked_moves"]
@@ -478,11 +440,6 @@ class StockForecasted_Product_Product(models.AbstractModel):
         return {"taken_from_stock": taken_from_stock_out}
 
     def _reconcile_out_with_ins(self, lines, out, ins, demand, uom, ctx):
-        """Match ``out``'s remaining ``demand`` against the available incoming
-        moves ``ins``, appending a report line per match and consuming the ins.
-
-        Returns the demand still unfulfilled after consuming the given ins.
-        """
         ins_to_remove = []
         for in_id in ins:
             in_data = ctx.in_id_to_in_data[in_id]
@@ -759,5 +716,5 @@ class StockForecasted_Product_Template(models.AbstractModel):
             "doc_ids": docids,
             "doc_model": "product.template",
             "docs": self._get_report_data(product_template_ids=docids),
-            "precision": self.env["decimal.precision"].precision_get("Product Unit"),
+            "precision": self.env["decimal.precision"].get_precision("Product Unit"),
         }

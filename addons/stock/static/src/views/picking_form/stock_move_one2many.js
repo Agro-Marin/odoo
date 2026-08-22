@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { onWillStart } from "@odoo/owl";
 import { ProductNameAndDescriptionListRendererMixin } from "@product/product_name_and_description/product_name_and_description";
+import { isTerminalState } from "@stock/utils/stock_state";
 import { useMovePackageDialog } from "@stock/views/select_packages_dialog";
 import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
@@ -33,7 +34,7 @@ export class MovesListRenderer extends ListRenderer {
     get canAddPackage() {
         return (
             this.hasPackageActive &&
-            !["done", "cancel"].includes(this.props.list.context.picking_state) &&
+            !isTerminalState(this.props.list.context.picking_state) &&
             this.props.list.context.picking_type_code !== "incoming"
         );
     }

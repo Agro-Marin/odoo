@@ -5,7 +5,7 @@ overruns (meta-analyses). Cone of Uncertainty: upfront plans have 4x error
 range. Baselines make accumulated slip visible.
 """
 
-from odoo import api, fields, models
+from odoo import fields, models
 from odoo.exceptions import UserError
 
 
@@ -49,9 +49,9 @@ class ProjectBaseline(models.Model):
         "baseline_id",
         string="Baseline Lines",
     )
-    line_count = fields.Integer(
+    line_count = fields.Count(
+        "line_ids",
         "Tasks Snapshot",
-        compute="_compute_line_count",
         export_string_translation=False,
     )
 
@@ -59,11 +59,6 @@ class ProjectBaseline(models.Model):
         "(project_id) WHERE (is_current IS TRUE)",
         "Only one baseline per project can be marked as current.",
     )
-
-    @api.depends("line_ids")
-    def _compute_line_count(self) -> None:
-        for baseline in self:
-            baseline.line_count = len(baseline.line_ids)
 
     def action_set_current(self) -> None:
         """Mark this baseline as the current one, unsetting any previous."""

@@ -475,7 +475,7 @@ class MixinOrderLineAmount(models.AbstractModel):
 
         Purchase overrides to include currency decimal places.
         """
-        return self.env["decimal.precision"].precision_get("Product Price")
+        return self.env["decimal.precision"].get_precision("Product Price")
 
     def is_manual_price(self):
         """Check if the current price is a manual override (not auto-priced).

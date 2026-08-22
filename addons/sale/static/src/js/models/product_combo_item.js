@@ -45,6 +45,8 @@ export class ProductComboItem {
      * @return {ProductComboItem} A deep copy of this combo item.
      */
     deepCopy() {
-        return new ProductComboItem(JSON.parse(JSON.stringify(this)));
+        // `structuredClone` over a JSON round trip: it does not silently drop members
+        // whose value is `undefined`, which is exactly what an unset `custom_value` is.
+        return new ProductComboItem(structuredClone({ ...this }));
     }
 }

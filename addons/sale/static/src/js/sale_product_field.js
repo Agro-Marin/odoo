@@ -31,10 +31,10 @@ async function applyProduct(record, product) {
         if (selectedCustomPTAV) {
             customAttributesCommands.push(
                 x2ManyCommands.create(undefined, {
-                    custom_product_template_attribute_value_id: [
-                        selectedCustomPTAV.id,
-                        "we don't care",
-                    ],
+                    custom_product_template_attribute_value_id: {
+                        id: selectedCustomPTAV.id,
+                        display_name: selectedCustomPTAV.name,
+                    },
                     custom_value: ptal.customValue,
                 }),
             );
@@ -232,38 +232,44 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
                 context: this.context,
             },
         );
+        // Every branch below is awaited. `_selectProduct` runs this inside
+        // `trackCompoundUpdate`, whose whole purpose is to keep the model from settling
+        // mid-cascade; a branch that is merely started escapes that window, and the
+        // model reports the line settled while it still holds nothing but `product_id`.
+        // That is most visible on the all-preselected combo path, where
+        // `_openComboConfigurator` skips the dialog and writes `product_qty`,
+        // `selected_combo_items` and `virtual_id` itself before resequencing the list.
         if (result && result.product_id) {
             // `result.product_id` is a scalar id; compare against the m2o's `.id`.
             if (this.props.record.data.product_id?.id !== result.product_id) {
+                const productValue = {
+                    product_id: {
+                        id: result.product_id,
+                        display_name: result.product_name,
+                    },
+                };
                 if (result.is_combo) {
-                    await this.props.record.update({
-                        product_id: {
-                            id: result.product_id,
-                            display_name: result.product_name,
-                        },
-                    });
-                    this._openComboConfigurator(false, result.has_optional_products);
+                    await this.props.record.update(productValue);
+                    await this._openComboConfigurator(
+                        false,
+                        result.has_optional_products,
+                    );
                 } else if (result.has_optional_products) {
-                    this._openProductConfigurator();
+                    await this._openProductConfigurator();
                 } else {
-                    await this.props.record.update({
-                        product_id: {
-                            id: result.product_id,
-                            display_name: result.product_name,
-                        },
-                    });
-                    this._onProductUpdate();
+                    await this.props.record.update(productValue);
+                    await this._onProductUpdate();
                 }
             }
-        } else if (!result.mode || result.mode === "configurator") {
-            this._openProductConfigurator();
+        } else if (!result?.mode || result.mode === "configurator") {
+            await this._openProductConfigurator();
         } else {
             // only triggered when sale_product_matrix is installed.
-            this._openGridConfigurator();
+            await this._openGridConfigurator();
         }
     }
 
-    _openGridConfigurator(edit = false) {} // sale_product_matrix
+    async _openGridConfigurator(edit = false) {} // sale_product_matrix
 
     async _onProductUpdate() {} // event_booth_sale, event_sale, sale_renting
 
@@ -309,13 +315,13 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
                     ? [applyProduct(this.props.record, mainProduct)]
                     : [];
 
+                // Loop-invariant: every insertion below lands *after* this line, so its
+                // own index never moves.
+                const comboLineIndex = saleOrderRecord.data.line_ids.records.indexOf(
+                    this.props.record,
+                );
                 for (const [i, product] of optionalProducts.entries()) {
-                    const index =
-                        saleOrderRecord.data.line_ids.records.indexOf(
-                            this.props.record,
-                        ) +
-                        selectedComboItems.length +
-                        i;
+                    const index = comboLineIndex + selectedComboItems.length + i;
                     const line =
                         await saleOrderRecord.data.line_ids.addNewRecordAtIndex(index, {
                             mode: "readonly",
@@ -325,7 +331,9 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
                 }
 
                 await Promise.all(proms);
-                this._onProductUpdate();
+                // Before leaving edit mode, not alongside it: `_onProductUpdate` is where
+                // event_sale / sale_renting finish filling the line.
+                await this._onProductUpdate();
                 saleOrderRecord.data.line_ids.leaveEditMode();
             },
             discard: () => {
@@ -520,10 +528,12 @@ export const saleOrderLineProductField = {
             readonlyField: dynamicInfo.readonly,
         };
     },
+    // What *this* component reads. `service_tracking` used to be declared here and is
+    // read only by event_sale and event_booth_sale, which now each declare it: a
+    // duplicate is harmless because `addFieldDependencies` merges by field name.
     fieldDependencies: [
         { name: "is_configurable_product", type: "boolean" },
         { name: "product_type", type: "selection" },
-        { name: "service_tracking", type: "selection" },
         { name: "product_template_attribute_value_ids", type: "many2many" },
         { name: "product_name_translated", type: "char" },
     ],

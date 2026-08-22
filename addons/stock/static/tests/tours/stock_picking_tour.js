@@ -147,9 +147,7 @@ registry.category("web_tour.tours").add("test_generate_serial_2", {
         },
         {
             trigger: ".modal div[name=next_serial_count] input",
-            run() {
-                this.anchor.value = "7.5";
-            },
+            run: "edit 7.5",
         },
         {
             trigger: ".modal div[name=total_received] input",

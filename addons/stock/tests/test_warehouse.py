@@ -89,10 +89,6 @@ class TestWarehouse(TestStockCommon):
         )
 
     def test_initial_quant_location(self):
-        """
-        When updating product quantity, new quant should have its location set
-        to the stock location of the top warehouse.
-        """
         warehouse = self.env["stock.warehouse"].create(
             {
                 "name": "Mixed locations",
@@ -185,7 +181,6 @@ class TestWarehouse(TestStockCommon):
         self.assertEqual(product.qty_available, 8.0)
 
     def test_inventory_adjustment_and_negative_quants_1(self):
-        """Make sure negative quants from returns get wiped out with an inventory adjustment"""
         productA = self.env["product.product"].create(
             {"name": "Product A", "is_storable": True}
         )
@@ -247,7 +242,6 @@ class TestWarehouse(TestStockCommon):
         self.assertEqual(sum(quant.mapped("quantity")), 0)
 
     def test_inventory_adjustment_and_negative_quants_2(self):
-        """Make sure negative quants get wiped out with an inventory adjustment"""
         productA = self.env["product.product"].create(
             {"name": "Product A", "is_storable": True}
         )
@@ -309,11 +303,6 @@ class TestWarehouse(TestStockCommon):
         self.assertEqual(len(quant), 1)
 
     def test_resupply_route(self):
-        """Simulate a resupply chain between warehouses.
-        Stock -> transit -> Dist. -> transit -> Shop -> Customer
-        Create the move from Shop to Customer and ensure that all the pull
-        rules are triggered in order to complete the move chain to Stock.
-        """
         warehouse_stock = self.env["stock.warehouse"].create(
             {
                 "name": "Stock.",
@@ -437,14 +426,6 @@ class TestWarehouse(TestStockCommon):
         )
 
     def test_mutiple_resupply_warehouse(self):
-        """Simulate the following situation:
-        - 2 shops with stock are resupply by 2 distinct warehouses
-        - Shop Namur is resupply by the warehouse stock Namur
-        - Shop Wavre is resupply by the warehouse stock Wavre
-        - Simulate 2 moves for the same product but in different shop.
-        This test ensure that the move are supplied by the correct distribution
-        warehouse.
-        """
         customer_location = self.customer_location
 
         warehouse_distribution_wavre = self.env["stock.warehouse"].create(
@@ -618,7 +599,6 @@ class TestWarehouse(TestStockCommon):
         )
 
     def test_add_resupply_warehouse_one_by_one(self):
-        """Checks that selecting a warehouse as a resupply warehouse one after another correctly sets the routes as well."""
         warehouse_A, warehouse_B, warehouse_C = self.env["stock.warehouse"].create(
             [
                 {
@@ -642,7 +622,6 @@ class TestWarehouse(TestStockCommon):
         )
 
     def test_toggle_resupply_warehouse(self):
-        """Checks that selecting then unselecting a warehouse as resupply correctly archives/unarchives the related route."""
         warehouse_A = self.env["stock.warehouse"].create(
             {
                 "name": "Warehouse A",
@@ -666,14 +645,6 @@ class TestWarehouse(TestStockCommon):
         self.assertTrue(resupply_route.active, "Route should now be active")
 
     def test_muti_step_resupply_warehouse(self):
-        """Simulate the following situation:
-        - First warehouse has a 3-steps delivery
-        - Second warehouse has a 3-steps reception
-        - Second warehouse is resupplied by the first warehouse
-        - A product has some stock in the first warehouse
-        - A reordering rule is set on the product to fill the second warehouse
-        Ensure that the product can move all the way from the first to the second warehouse.
-        """
         warehouse_A = self.env["stock.warehouse"].create(
             {
                 "name": "Warehouse A",
@@ -776,9 +747,6 @@ class TestWarehouse(TestStockCommon):
         )
 
     def test_change_delivery_step_resupply_warehouse(self):
-        """Verifies that when changing the delivery steps of a warehouse, it correctly adds/removes the extra rule
-        that is required to resupply the Output location.
-        """
         warehouse_A = self.env["stock.warehouse"].create(
             {
                 "name": "Warehouse X",
@@ -863,10 +831,6 @@ class TestWarehouse(TestStockCommon):
         self.assertEqual(companies_after, companies_before)
 
     def test_toggle_active_warehouse_1(self):
-        """Basic test that create a warehouse with classic configuration.
-        Archive it and check that locations, picking types, routes, rules are
-        correclty active or archive.
-        """
         wh = Form(self.env["stock.warehouse"])
         wh.name = "The attic of Willy"
         wh.code = "WIL"
@@ -916,13 +880,6 @@ class TestWarehouse(TestStockCommon):
         self.assertFalse(warehouse.pack_type_id.active)
 
     def test_toggle_active_blocked_by_foreign_picking_type(self):
-        """Archiving a warehouse must be refused when a picking type belonging
-        to *another* warehouse references one of this warehouse's locations as
-        its default source OR destination — otherwise that picking type would be
-        left pointing at an archived location. Regression: the guard used to
-        require BOTH endpoints inside the warehouse, silently letting a
-        src-only / dest-only reference dangle.
-        """
         Warehouse = self.env["stock.warehouse"]
         wh_a = Warehouse.create({"name": "Archive Me", "code": "ARM"})
         wh_b = Warehouse.create({"name": "Other WH", "code": "OTH"})
@@ -1028,11 +985,6 @@ class TestWarehouse(TestStockCommon):
         self.assertEqual(warehouse.int_type_id.sequence_id.prefix, "CH/INT/")
 
     def test_create_warehouse_without_company_defaults(self):
-        """A warehouse created without an explicit company_id (relying on the
-        field default) must still get a generated code and a named view
-        location, instead of crashing with a NOT NULL violation on
-        stock.location.name.
-        """
         Warehouse = self.env["stock.warehouse"]
         wh = Warehouse.create({"name": "No Company WH"})
         self.assertTrue(wh.code, "a short name should be auto-generated")
@@ -1044,11 +996,6 @@ class TestWarehouse(TestStockCommon):
         self.assertTrue(wh2.name)
 
     def test_multiwarehouse_group_implied_on_warehouse_creation(self):
-        """Creating a warehouse for a company that then has more than one active
-        warehouse must (re)imply the multi-warehouse group — and pull in the
-        multi-locations group — on ``base.group_user``. This global side effect
-        of warehouse CRUD was previously uncovered.
-        """
         group_user = self.env.ref("base.group_user")
         group_multi_wh = self.env.ref("stock.group_stock_multi_warehouses")
         group_multi_loc = self.env.ref("stock.group_stock_multi_locations")
@@ -1074,9 +1021,6 @@ class TestWarehouse(TestStockCommon):
         )
 
     def test_location_warehouse(self):
-        """Check that the closest warehouse is selected
-        in a warehouse within warehouse situation
-        """
         wh = self.env["stock.warehouse"].create(
             {
                 "name": "Main Test Warehouse",
@@ -1132,10 +1076,6 @@ class TestWarehouse(TestStockCommon):
         self.assertEqual(customer_move.move_dest_ids.warehouse_id, warehouse_B)
 
     def test_multi_step_routes_multi_company(self):
-        """
-        Check the pickings of the multi-step routes are correctly generated
-        in multi-company set up.
-        """
         companies = self.env["res.company"].create(
             [
                 {"name": "COMP1"},
@@ -1213,12 +1153,6 @@ class TestWarehouse(TestStockCommon):
         self.assertTrue(sequence.prefix.endswith(end_of_prefix))
 
     def test_modified_global_route(self):
-        """Ensure that _find_or_create_global_route, if called multiple time, only creates the route once
-
-        If a global route was renamed, and has a company setup,
-          then the system would create multiple duplicates with the new name when creating a new warehouse;
-          one duplicate for each call _find_or_create_global_route.
-        """
         company_2 = self.env["res.company"].create({"name": "Company 2"})
 
         mto_route = self.warehouse_1.mto_pull_id.route_id
@@ -1240,14 +1174,6 @@ class TestWarehouse(TestStockCommon):
         self.assertEqual(new_mto_route.company_id.id, company_2.id)
 
     def test_search_qty_to_order_of_0(self):
-        """
-        Test that searching for orderpoints on `qty_to_order` with value = 0 for different operators
-        works correctly.
-
-        The test first creates two orderpoints with `qty_to_order_manual = 0`,
-        then updates `qty_to_order` to a non-zero value to ensure the search
-        properly filters records based on the field value.
-        """
         self.env["stock.warehouse.orderpoint"].search([]).write({"active": False})
         orderpoints = self.env["stock.warehouse.orderpoint"].create(
             [
@@ -1291,19 +1217,6 @@ class TestWarehouse(TestStockCommon):
             self.assertEqual(res, expected, "Error with operator %s" % op)
 
     def test_create_second_warehouse_as_stock_manager(self):
-        """`stock.group_stock_manager` holds full CRUD on stock.warehouse and the
-        Warehouses menu is gated on that group, so a plain stock manager must be
-        able to create their company's second warehouse.
-
-        `_check_multiwarehouse_group` used to imply the multi-warehouse group and
-        run the Storage Locations setting as the acting user, so this raised
-        AccessError — on res.config.settings when Storage Locations was still
-        off, on res.groups when it was already on. Both branches are exercised:
-        the first is the shipped state of a fresh database, the second is any
-        tenant that turned Storage Locations on by hand. The setup below
-        reproduces them explicitly because this class's own fixtures have already
-        tripped the group.
-        """
         Warehouse = self.env["stock.warehouse"]
         group_user = self.env.ref("base.group_user")
         multi_wh = self.env.ref("stock.group_stock_multi_warehouses")
@@ -1343,9 +1256,6 @@ class TestWarehouse(TestStockCommon):
                 (warehouse | base).write({"active": False})
 
     def test_multiwarehouse_group_dropped_when_last_archived(self):
-        """One active warehouse un-implies the multi-warehouse group; zero must
-        too. An empty read_group used to skip the reconciliation entirely.
-        """
         Warehouse = self.env["stock.warehouse"]
         group_user = self.env.ref("base.group_user")
         multi_wh = self.env.ref("stock.group_stock_multi_warehouses")
@@ -1361,10 +1271,6 @@ class TestWarehouse(TestStockCommon):
         )
 
     def test_write_active_true_on_active_warehouse_with_open_moves(self):
-        """`write({"active": True})` on an already-active warehouse is a no-op and
-        must not run the archive guards. It used to raise "You still have ongoing
-        operations" for any warehouse holding an open move.
-        """
         warehouse = self.env["stock.warehouse"].create({"name": "Busy", "code": "BSY"})
         self.env["stock.move"].create(
             {
@@ -1382,10 +1288,6 @@ class TestWarehouse(TestStockCommon):
             warehouse.action_archive()
 
     def test_unarchive_with_foreign_picking_type(self):
-        """A picking type outside the warehouse pointing at one of its locations
-        blocks archiving, but must never block *un*archiving — otherwise the
-        warehouse can never be brought back.
-        """
         warehouse = self.env["stock.warehouse"].create(
             {"name": "Comes Back", "code": "CMB"}
         )
@@ -1405,11 +1307,6 @@ class TestWarehouse(TestStockCommon):
         self.assertTrue(warehouse.lot_stock_id.active)
 
     def test_rule_names_follow_code_change(self):
-        """Rule names are built from the warehouse *code* and feed move.origin,
-        so a recode has to reach them. Refreshing the routes does not:
-        `_find_existing_rule_or_create` matches on routing identity and leaves
-        the matched rule, name included, untouched.
-        """
         warehouse = self.env["stock.warehouse"].create(
             {"name": "Recode", "code": "RC1", "reception_steps": "two_steps"}
         )
@@ -1431,10 +1328,6 @@ class TestWarehouse(TestStockCommon):
         self.assertEqual(warehouse.view_location_id.name, "RC2")
 
     def test_recode_renames_view_location_when_stock_is_nested(self):
-        """The recode renames the warehouse's *view location*. It used to rename
-        `lot_stock_id.location_id`, a different record as soon as Stock sits
-        below an intermediate zone.
-        """
         warehouse = self.env["stock.warehouse"].create(
             {"name": "Nested", "code": "NS1"}
         )
@@ -1453,9 +1346,6 @@ class TestWarehouse(TestStockCommon):
         )
 
     def test_resupply_route_name_follows_rename(self):
-        """Resupply routes name both endpoints and belong to neither warehouse's
-        `route_ids`, so renaming either side has to rebuild them.
-        """
         Warehouse = self.env["stock.warehouse"]
         supplier = Warehouse.create({"name": "Alpha", "code": "ALP"})
         supplied = Warehouse.create({"name": "Beta", "code": "BET"})
@@ -1469,18 +1359,11 @@ class TestWarehouse(TestStockCommon):
         self.assertEqual(route.name, "Beta Renamed: Supply Product from Alpha Renamed")
 
     def test_warehouse_cannot_resupply_itself(self):
-        """A self-resupply route is not inert: it resolves into a delivery to
-        transit plus a receipt back, moving real quantities for no net effect.
-        """
         warehouse = self.env["stock.warehouse"].create({"name": "Solo", "code": "SLO"})
         with self.assertRaises(ValidationError):
             warehouse.resupply_wh_ids = [Command.set([warehouse.id])]
 
     def test_copy_warehouse_does_not_share_locations(self):
-        """`copy_data` carried the source's locations through, and only
-        `create()` unconditionally overwriting them kept copies apart. The
-        location fields are `copy=False` now, so the isolation is declared.
-        """
         source = self.env["stock.warehouse"].create({"name": "Original", "code": "ORG"})
         duplicate = source.copy()
         for field in (
@@ -1497,9 +1380,6 @@ class TestWarehouse(TestStockCommon):
             )
 
     def test_create_honours_explicit_locations(self):
-        """An explicit location in `create()` vals is used, instead of being
-        silently replaced by a freshly created one.
-        """
         Location = self.env["stock.location"]
         view = Location.create({"name": "BYO view", "usage": "view"})
         stock = Location.create(
@@ -1519,10 +1399,6 @@ class TestWarehouse(TestStockCommon):
         self.assertEqual(warehouse.wh_input_stock_loc_id.location_id, view)
 
     def test_partner_locations_raise_when_either_is_missing(self):
-        """`_get_partner_locations` promises "customer or supplier"; it used to
-        raise only when *both* were gone and otherwise handed callers an empty
-        recordset to build rules from.
-        """
         Warehouse = self.env["stock.warehouse"]
         customer_loc, supplier_loc = Warehouse._get_partner_locations()
         self.assertTrue(customer_loc)
@@ -1539,12 +1415,6 @@ class TestWarehouse(TestStockCommon):
             Warehouse._get_partner_locations()
 
     def test_missing_location_rebuilt_for_current_steps(self):
-        """A sub-location recreated by `_create_missing_locations` follows the
-        warehouse's *own* steps. Resolving them from `default_get` gave a
-        three-steps warehouse an archived Quality Control location, and nothing
-        downstream repairs it: `_update_location_reception` only runs when
-        `reception_steps` is in the write's vals.
-        """
         warehouse = self.env["stock.warehouse"].create(
             {"name": "Rebuild", "code": "RBD", "reception_steps": "three_steps"}
         )
@@ -1564,16 +1434,6 @@ class TestWarehouse(TestStockCommon):
         )
 
     def test_picking_type_sequences_are_unique_per_warehouse(self):
-        """Every picking type a warehouse owns gets its own `sequence`, whatever
-        modules are installed.
-
-        `sequence` orders the Operations overview. It used to be allocated by a
-        `(values, next_max_sequence)` cursor each override had to thread through
-        `_get_picking_type_create_values`; three of the seven overrides in the
-        tree returned the cursor they were *given* instead of the one `super()`
-        handed back, so their types collided with base ones and nothing noticed.
-        Allocation now follows the position in `_get_picking_type_codes`.
-        """
         warehouse = self.env["stock.warehouse"].create({"name": "Seqs", "code": "SQU"})
         picking_types = (
             self.env["stock.picking.type"]
@@ -1602,10 +1462,6 @@ class TestWarehouse(TestStockCommon):
         )
 
     def test_picking_type_declarations_agree(self):
-        """The four picking-type mappings are one declaration. A module that
-        extends only some of them was silently ignored (create-only) or blew up
-        with a bare KeyError deep in the create loop (update-only).
-        """
         warehouse = self.warehouse_1
         codes = warehouse._get_picking_type_codes()
         self.assertEqual(set(warehouse._get_picking_type_create_values()), set(codes))
@@ -1627,15 +1483,6 @@ class TestWarehouse(TestStockCommon):
         self.env.registry.clear_cache()
 
     def test_incoming_picking_type_survives_a_missing_supplier_xmlid(self):
-        """`default_location_src_id` resolves through
-        `stock.warehouse._get_partner_location`, which falls back to any
-        supplier-usage location when the xml-id is gone.
-
-        It used to be a bare `env.ref`, so a database that had lost the record
-        died with `ValueError: External ID not found in the system` three frames
-        below anything naming a location — in the middle of picking-type
-        creation, which is where warehouse creation trips it.
-        """
         supplier_loc = self.env.ref("stock.stock_location_suppliers")
         self._drop_partner_location_xmlid("stock_location_suppliers")
 
@@ -1651,7 +1498,6 @@ class TestWarehouse(TestStockCommon):
         self.assertEqual(picking_type.default_location_src_id, supplier_loc)
 
     def test_outgoing_picking_type_survives_a_missing_customer_xmlid(self):
-        """Same for the outgoing type's destination."""
         customer_loc = self.env.ref("stock.stock_location_customers")
         self._drop_partner_location_xmlid("stock_location_customers")
 
@@ -1667,10 +1513,6 @@ class TestWarehouse(TestStockCommon):
         self.assertEqual(picking_type.default_location_dest_id, customer_loc)
 
     def test_missing_supplier_location_is_reported_as_itself(self):
-        """With no supplier location at all, creating an incoming type must fail
-        with a UserError naming what is missing — not with the ValueError a bare
-        `env.ref` raised from wherever the caller happened to stand.
-        """
         self._drop_partner_location_xmlid("stock_location_suppliers")
         self.env["stock.location"].with_context(active_test=False).search(
             [("usage", "=", "supplier")]
@@ -1688,9 +1530,6 @@ class TestWarehouse(TestStockCommon):
             )
 
     def test_partner_location_names_the_missing_side(self):
-        """`_get_partner_location` is the one resolver; its error says which of
-        the two is gone, where the pair's message could only say "or".
-        """
         Warehouse = self.env["stock.warehouse"]
         self.assertTrue(Warehouse._get_partner_location("customer"))
         self.assertTrue(Warehouse._get_partner_location("supplier"))

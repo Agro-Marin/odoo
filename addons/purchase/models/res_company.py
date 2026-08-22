@@ -4,9 +4,6 @@ from odoo import fields, models
 class ResCompany(models.Model):
     _inherit = "res.company"
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
 
     po_quotation_validity_days = fields.Integer(
         string="Default RFQ Validity (Days)",
@@ -23,9 +20,6 @@ class ResCompany(models.Model):
         help="Purchase Order Modification used when you want to purchase order editable after confirm",
     )
 
-    # ------------------------------------------------------------
-    # CONSTRAINTS
-    # ------------------------------------------------------------
 
     _check_po_quotation_validity_days = models.Constraint(
         "CHECK(po_quotation_validity_days >= 0)",

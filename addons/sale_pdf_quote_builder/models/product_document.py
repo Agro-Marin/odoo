@@ -43,7 +43,7 @@ class ProductDocument(models.Model):
             if doc.datas and not doc.mimetype.endswith('pdf'):
                 raise ValidationError(_("Only PDF documents can be attached inside a quote."))
             if doc.datas:
-                utils._ensure_document_not_encrypted(doc.ir_attachment_id._read_prefix())
+                utils._ensure_document_not_encrypted(doc.ir_attachment_id._get_content_prefix())
 
     # === COMPUTE METHODS === #
 

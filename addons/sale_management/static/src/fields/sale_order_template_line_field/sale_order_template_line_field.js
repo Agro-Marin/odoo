@@ -8,6 +8,7 @@ import {
 import { makeContext } from "@web/core/context";
 import { x2ManyCommands } from "@web/core/network";
 import { registry } from "@web/core/registry";
+import { listId } from "@web/model/relational_model";
 
 export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRenderer {
     static recordRowTemplate = "sale_management.ListRenderer.RecordRow";
@@ -105,7 +106,7 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
         const setOptional = !record.data.is_optional;
 
         const commands = [
-            x2ManyCommands.update(record.resId || record._virtualId, {
+            x2ManyCommands.update(listId(record), {
                 is_optional: setOptional,
             }),
         ];
@@ -120,12 +121,7 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
             }
 
             if (Object.keys(changes).length) {
-                commands.push(
-                    x2ManyCommands.update(
-                        sectionRecord.resId || sectionRecord._virtualId,
-                        changes,
-                    ),
-                );
+                commands.push(x2ManyCommands.update(listId(sectionRecord), changes));
             }
         }
 
@@ -257,13 +253,13 @@ export class SaleOrderTemplateLineListRenderer extends SectionAndNoteListRendere
 
             if (wasOptional && !isOptional && !record.data.product_uom_qty) {
                 commands.push(
-                    x2ManyCommands.update(record.resId || record._virtualId, {
+                    x2ManyCommands.update(listId(record), {
                         product_uom_qty: 1,
                     }),
                 );
             } else if (!wasOptional && isOptional) {
                 commands.push(
-                    x2ManyCommands.update(record.resId || record._virtualId, {
+                    x2ManyCommands.update(listId(record), {
                         product_uom_qty: 0,
                     }),
                 );

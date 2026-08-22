@@ -53,7 +53,7 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
             'name': 'Task Test',
             'project_id': project.id,
         })
-        task._compute_sale_line()
+        task._compute_sale_line_id()
 
         # 4) Timesheet in the task to satisfy the condition for the SOL to display an upsell warning
         timesheet = self.env['account.analytic.line'].create({
@@ -203,7 +203,7 @@ class TestUpsellWarning(TestCommonSaleTimesheet):
             'name': 'Task Test',
             'project_id': project.id,
         })
-        task._compute_sale_line()
+        task._compute_sale_line_id()
 
         # 4) Timesheet in the task to satisfy the condition for the SOL to display an upsell warning
         self.env['account.analytic.line'].create({

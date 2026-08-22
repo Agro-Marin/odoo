@@ -10,7 +10,7 @@ This module contains all the common features of Sales Management and eCommerce.
         "base_order",
         "base_sql_report",
         "sales_team",
-        "account_payment",  # -> account, payment, portal
+        "account_payment",
         "utm",
     ],
     "data": [
@@ -26,14 +26,13 @@ This module contains all the common features of Sales Management and eCommerce.
         "data/mail_message_subtype_data.xml",
         "data/mail_template_data.xml",
         "data/sale_tour.xml",
-        "data/ir_config_parameter.xml",  # Needs mail_template_data
+        "data/ir_config_parameter.xml",
         "wizard/account_accrued_orders_wizard_views.xml",
         "wizard/mass_cancel_orders_views.xml",
         "wizard/payment_link_wizard_views.xml",
         "wizard/res_config_settings_views.xml",
         "wizard/sale_make_invoice_advance_views.xml",
         "wizard/sale_order_discount_views.xml",
-        # Define sale order views before their references
         "views/sale_order_views.xml",
         "views/account_move_views.xml",
         "views/crm_team_views.xml",
@@ -48,7 +47,7 @@ This module contains all the common features of Sales Management and eCommerce.
         "views/sale_order_line_views.xml",
         "views/sale_portal_templates.xml",
         "views/utm_campaign_views.xml",
-        "views/sale_menus.xml",  # Last because referencing actions defined in previous files
+        "views/sale_menus.xml",
     ],
     "assets": {
         "web.assets_backend": [
@@ -86,8 +85,6 @@ This module contains all the common features of Sales Management and eCommerce.
         "web.assets_unit_tests": [
             "sale/static/tests/mock_server/**/*",
             "sale/static/tests/sale_test_helpers.js",
-            # Interactions are frontend assets; include them so the public
-            # interaction tests (portal_prepayment) can start them under Hoot.
             "sale/static/src/interactions/**/*",
             "sale/static/tests/**/*.test.js",
         ],

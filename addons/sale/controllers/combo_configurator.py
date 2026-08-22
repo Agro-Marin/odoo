@@ -22,29 +22,6 @@ class SaleComboConfiguratorController(Controller):
         selected_combo_items=None,
         **kwargs,
     ):
-        """Return data about the specified combo product.
-
-        :param int product_tmpl_id: The product for which to get data, as a `product.template` id.
-        :param int quantity: The quantity of the product.
-        :param str date: The date to use to compute prices.
-        :param int|None currency_id: The currency to use to compute prices, as a `res.currency` id.
-        :param int|None company_id: The company to use, as a `res.company` id.
-        :param int|None pricelist_id: The pricelist to use to compute prices, as a
-            `product.pricelist` id.
-        :param list(dict) selected_combo_items: The selected combo items, in the following format:
-            {
-                'id': int,
-                'no_variant_ptav_ids': list(int),
-                'custom_ptavs': list({
-                    'id': int,
-                    'value': str,
-                }),
-            }
-        :param dict kwargs: Locally unused data passed to `_get_configurator_display_price` and
-            `_get_additional_configurator_data`.
-        :rtype: dict
-        :return: A dict containing data about the combo product.
-        """
         if company_id:
             request.update_context(allowed_company_ids=[company_id])
         product_template = request.env["product.template"].browse(product_tmpl_id)
@@ -105,21 +82,6 @@ class SaleComboConfiguratorController(Controller):
         pricelist_id=None,
         **kwargs,
     ):
-        """Return the price of the specified combo product.
-
-        :param int product_tmpl_id: The product for which to get the price, as a `product.template`
-            id.
-        :param int quantity: The quantity of the product.
-        :param str date: The date to use to compute the price.
-        :param int|None currency_id: The currency to use to compute the price, as a `res.currency`
-            id.
-        :param int|None company_id: The company to use, as a `res.company` id.
-        :param int|None pricelist_id: The pricelist to use to compute the price, as a
-            `product.pricelist` id.
-        :param dict kwargs: Locally unused data passed to `_get_configurator_display_price`.
-        :rtype: float
-        :return: The price of the combo product.
-        """
         if company_id:
             request.update_context(allowed_company_ids=[company_id])
         product_template = request.env["product.template"].browse(product_tmpl_id)
@@ -141,19 +103,6 @@ class SaleComboConfiguratorController(Controller):
         pricelist,
         **kwargs,
     ):
-        """Return the price of the specified combo product.
-
-        :param product.combo combo: The combo for which to get the data.
-        :param product.combo.item combo_item: The combo for which to get the data.
-        :param datetime date: The date to use to compute prices.
-        :param product.pricelist pricelist: The pricelist to use to compute prices.
-        :param dict kwargs: Locally unused data passed to `_get_additional_configurator_data`.
-        :rtype: dict
-        :return: A dict containing data about the combo item.
-        """
-        # A combo item is configurable if its product variant has:
-        # - Configurable `no_variant` PTALs,
-        # - Or custom PTAVs.
         is_configurable = any(
             ptal.attribute_id.create_variant == "no_variant" and ptal._is_configurable()
             for ptal in combo_item.product_id.attribute_line_ids
@@ -161,8 +110,6 @@ class SaleComboConfiguratorController(Controller):
             ptav.is_custom
             for ptav in combo_item.product_id.product_template_attribute_value_ids
         )
-        # A combo item can be preselected if its combo choice has only one combo item, and that
-        # combo item isn't configurable.
         is_preselected = len(combo.combo_item_ids) == 1 and not is_configurable
 
         return {
@@ -193,21 +140,6 @@ class SaleComboConfiguratorController(Controller):
         }
 
     def _get_ptals_data(self, product, selected_combo_item, date=None, currency=None):
-        """Return data about the PTALs of the specified product.
-
-        :param product.product product: The product for which to get the PTALs.
-        :param dict selected_combo_item: The selected combo item, in the following format:
-            {
-                'id': int,
-                'no_variant_ptav_ids': list(int),
-                'custom_ptavs': list({
-                    'id': int,
-                    'value': str,
-                }),
-            }
-        :rtype: list(dict)
-        :return: A list of dicts containing data about the specified product's PTALs.
-        """
         variant_ptavs = product.product_template_attribute_value_ids
         no_variant_ptavs = request.env["product.template.attribute.value"].browse(
             selected_combo_item.get("no_variant_ptav_ids")
@@ -244,15 +176,6 @@ class SaleComboConfiguratorController(Controller):
     def _get_selected_ptavs_data(
         self, selected_ptavs, custom_value_by_ptav_id, date=None, currency=None
     ):
-        """Return data about the selected PTAVs of the specified product.
-
-        :param list(product.template.attribute.value) selected_ptavs: The selected PTAVs.
-        :param dict custom_value_by_ptav_id: A mapping from PTAV ids to custom values.
-        :param datetime|None date: The date to use to convert prices.
-        :param res.currency|None currency: The currency to express prices in.
-        :rtype: list(dict)
-        :return: A list of dicts containing data about the specified PTAL's selected PTAVs.
-        """
         return [
             {
                 "id": ptav.id,

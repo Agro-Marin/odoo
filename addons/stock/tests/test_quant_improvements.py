@@ -16,14 +16,6 @@ from odoo.addons.stock.tests.common import TestStockCommon
 
 @tagged("post_install", "-at_install")
 class TestLeastPackagesSearch(TransactionCase):
-    """Pure, DB-free unit tests for the extracted least_packages A* solver.
-
-    `_least_packages_search(qty_by_package, qty)` returns the winning node's
-    `taken_packages` tuple. `qty_by_package` is a list of `(key, available_qty)`
-    where `key` is a package id or None for a virtual single unit; singles are
-    kept last, exactly as `_run_least_packages_removal_strategy_astar` builds it.
-    """
-
     def _num_packages(self, taken):
         return len(taken)
 
@@ -49,15 +41,6 @@ class TestLeastPackagesSearch(TransactionCase):
         self.assertEqual(taken, ((10, 2),))
 
     def test_priority_queue_never_compares_items_on_tie(self):
-        """Equal-priority frontier entries must be ordered by their insertion index,
-        never by comparing the item nodes themselves. A node's `taken_packages`
-        mixes `None` (single) and `int` (package) keys, and `None < int` raises
-        TypeError on Python 3. Previously this was avoided only as an emergent
-        consequence of the amount-dedup; the insertion-index tie-breaker makes it a
-        structural guarantee. Push items that explode if ever compared to prove the
-        heap never touches them on a tie.
-        """
-
         class Explodes:
             def __lt__(self, other):
                 raise AssertionError("frontier items must never be compared")
@@ -79,14 +62,6 @@ class TestLeastPackagesSearch(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestDistributeReservation(TransactionCase):
-    """Pure, DB-free unit tests for the extracted reservation allocator.
-
-    `_distribute_reservation(candidates, quantity, digits)`
-    returns a list of `(handle, amount)` pairs. Candidates are
-    `_ReservationCandidate(handle, on_hand, reserved, key)` in removal-strategy
-    order; `handle`/`key` are opaque, so plain strings stand in for quants here.
-    """
-
     DIGITS = 2
 
     def _cand(self, handle, on_hand, reserved, key=None):
@@ -117,16 +92,6 @@ class TestDistributeReservation(TransactionCase):
         self.assertEqual(res, [("a", 3), ("b", 5)])
 
     def test_reserve_not_truncated_by_unrelated_negative_quant(self):
-        """A quant over-reserved into negative available must not shrink what the
-        *other* keys can reserve.
-
-        `_get_reserve_quantity` caps `quantity` to `_sum_available_quantity`, which
-        drops such a quant's key group rather than netting it against the rest: here
-        a(4) + b(8) = 12 is genuinely reservable even though c is 8 short. The
-        allocator used to also receive a `sum(positive on_hand) - sum(reserved)`
-        budget -- 13 - 9 = 4 -- and broke the loop the moment it hit zero, so `a`
-        was reserved and `b` was silently skipped.
-        """
         cands = [
             self._cand("a", 4, 0, key="ka"),
             self._cand("b", 8, 0, key="kb"),
@@ -137,9 +102,6 @@ class TestDistributeReservation(TransactionCase):
         self.assertEqual(sum(qty for _handle, qty in res), 12)
 
     def test_negative_available_absorbed_within_group(self):
-        """A quant over-reserved into negative available must be absorbed by the
-        positive slack of another quant sharing its key, before that slack is used
-        to reserve fresh quantity."""
         cands = [self._cand("a", 2, 5, key="g"), self._cand("b", 10, 0, key="g")]
         res = _distribute_reservation(cands, 4, self.DIGITS)
         self.assertEqual(res, [("b", 4)])
@@ -150,17 +112,11 @@ class TestDistributeReservation(TransactionCase):
         self.assertEqual(res, [("b", 4)])
 
     def test_non_positive_quantity_allocates_nothing(self):
-        """`_distribute_reservation` reserves only. Releases go through
-        `_update_reserved_quantity`, so a non-positive target is not a release
-        request here -- it is nothing to do."""
         cands = [self._cand("a", 10, 0), self._cand("b", 10, 4)]
         for quantity in (0, -4, -0.0001):
             self.assertEqual(_distribute_reservation(cands, quantity, self.DIGITS), [])
 
     def test_negative_reserved_candidate_never_yields_a_negative_delta(self):
-        """A candidate holding a negative `reserved` (a state
-        `_update_available_quantity` deliberately persists) contributes slack like
-        any other; every emitted amount stays positive."""
         cands = [self._cand("neg", 0, -5, key="g"), self._cand("pos", 10, 6, key="g")]
         res = _distribute_reservation(cands, 6, self.DIGITS)
         self.assertTrue(res)
@@ -170,10 +126,6 @@ class TestDistributeReservation(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestStockQuantImprovements(TestStockCommon):
-    """Regression tests for the stock.quant refactors (batched create, inventory-key
-    coalescing, sn_duplicated scoping, _unlink_zero_quants scoping, is_outdated helper,
-    and the _gather cache path None-safety)."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -218,7 +170,6 @@ class TestStockQuantImprovements(TestStockCommon):
         self.assertEqual(set(quants.mapped("quantity")), {3.0})
 
     def test_create_preserves_order_mixed(self):
-        """A batch mixing plain rows keeps the returned recordset in vals order."""
         vals_list = [
             {"product_id": p.id, "location_id": self.loc.id, "quantity": float(i + 1)}
             for i, p in enumerate(self.products)
@@ -330,11 +281,6 @@ class TestStockQuantImprovements(TestStockCommon):
         )
 
     def test_last_count_date_tracks_inventory_move(self):
-        """`_compute_last_count_date` surfaces the newest *done inventory* move-line
-        date onto the matching quant. This compute had no coverage; the test also
-        pins the 2x2 (location, package) cross product that builds the lookup keys —
-        an applied count's move-line reaches the quant via its destination location.
-        """
         product = self.env["product.product"].create(
             {"name": "qimp-lastcount", "is_storable": True}
         )
@@ -376,10 +322,6 @@ class TestStockQuantImprovements(TestStockCommon):
         self.assertEqual(res.product_id, product)
 
     def test_gather_cache_miss_falls_back_to_search(self):
-        """A strict _gather for a product/location the cache never scanned must fall
-        back to a DB search instead of trusting the absent key as 'no stock'. Without
-        the fallback an incomplete cache silently causes under-reservation (this is
-        what lets `_action_assign` build the cache for only the moves that read it)."""
         covered, uncovered = self.products[0], self.products[1]
         self.Quant._update_available_quantity(covered, self.loc, 5.0)
         self.Quant._update_available_quantity(uncovered, self.loc, 7.0)
@@ -409,9 +351,6 @@ class TestStockQuantImprovements(TestStockCommon):
         self.assertEqual(res2.quantity, 3.0)
 
     def test_least_packages_multi_single_single_query(self):
-        """A least_packages gather whose exact cover needs several singles from a
-        single unpackaged quant must not crash and must resolve the singles with
-        one query (the old code re-ran the search once per single)."""
         strat = self.env["product.removal"].search(
             [("method", "=", "least_packages")], limit=1
         )
@@ -459,12 +398,6 @@ class TestStockQuantImprovements(TestStockCommon):
         )
 
     def test_least_packages_no_packages_is_noop(self):
-        """With only unpackaged stock (no real packages) the strategy is a guaranteed
-        no-op: it must return the domain *without* running the A* solver — i.e. without
-        first expanding every unpackaged unit into an individual (None, 1) entry. This
-        locks the early-return placement; regressing it reintroduces O(units) work (and
-        an unguarded allocation) for a call that changes nothing.
-        """
         from odoo.addons.stock.models import stock_quant as _sq
 
         strat = self.env["product.removal"].search(
@@ -504,11 +437,6 @@ class TestStockQuantImprovements(TestStockCommon):
         self.assertEqual(res, Domain(base_domain).optimize(self.Quant))
 
     def test_gather_cache_path_matches_search_order(self):
-        """A strict _gather must return quants in the same order whether or not a
-        quants_cache is in context; otherwise the first quant locked/consumed downstream
-        depends on the presence of a cache. The cache is keyed but unordered, so the
-        fifo/lifo in_date ordering has to be replicated on the cache branch.
-        """
         product = self.env["product.product"].create(
             {"name": "qimp-order", "is_storable": True}
         )
@@ -544,11 +472,6 @@ class TestStockQuantImprovements(TestStockCommon):
         )
 
     def test_write_mixed_recordset_does_not_silently_drop(self):
-        """A forbidden-field write in inventory mode is a silent no-op only when *every*
-        quant sits in an inventory-adjustment location. If a real (internal) quant shares
-        the recordset, the operation is restricted and must be reported, not swallowed —
-        the old `any(... == "inventory")` gate silently dropped the change for everyone.
-        """
         self.env.user.group_ids = [(4, self.env.ref("stock.group_stock_user").id)]
         inv_loc = self.env["stock.location"].search(
             [("usage", "=", "inventory")], limit=1
@@ -580,17 +503,6 @@ class TestStockQuantImprovements(TestStockCommon):
         )
 
     def test_gather_signature_is_override_safe(self):
-        """`_gather` and `_get_available_quantity` are extension points overridden in
-        sibling repos (agromarin `marin`, `stock_blocked_location`) with fixed
-        signatures. The reservation path's per-call optimisation hints must therefore be
-        threaded via the private `_gather_removal_strategy` context key (and, for a
-        pre-gathered recordset, `_sum_available_quantity`) -- NOT as extra
-        keyword/positional params on these methods.
-
-        A `removal_strategy=`/`gathered_quants=` kwarg here once crashed those overrides
-        with `TypeError` on every reservation. This test locks the signatures down so
-        that regression cannot be reintroduced silently.
-        """
         import inspect
 
         import odoo.addons.stock.models.stock_quant as _sq
@@ -631,8 +543,6 @@ class TestStockQuantImprovements(TestStockCommon):
         return calls["n"]
 
     def test_reserve_reuses_gather_for_fifo(self):
-        """fifo reservation must gather once: the availability computation reuses the
-        already-gathered recordset instead of issuing a second identical search."""
         product = self.env["product.product"].create(
             {"name": "qimp-reuse", "is_storable": True}
         )
@@ -647,8 +557,6 @@ class TestStockQuantImprovements(TestStockCommon):
         self.assertEqual(n, 1, "fifo reservation must gather once, not twice")
 
     def test_reserve_regathers_for_least_packages(self):
-        """least_packages narrows the gather by qty, so availability must be measured
-        over a fresh full gather — locking in that the reuse stays conditional."""
         strat = self.env["product.removal"].search(
             [("method", "=", "least_packages")], limit=1
         )
@@ -691,9 +599,6 @@ class TestStockQuantImprovements(TestStockCommon):
         return calls["n"]
 
     def test_reserve_resolves_strategy_once_fifo(self):
-        """The removal strategy must be resolved exactly once per reservation: the
-        gather and the availability computation both receive the pre-resolved value
-        instead of each re-walking the category + location parent chain."""
         product = self.env["product.product"].create(
             {"name": "qimp-strat-fifo", "is_storable": True}
         )
@@ -708,8 +613,6 @@ class TestStockQuantImprovements(TestStockCommon):
         self.assertEqual(n, 1, "fifo reservation must resolve the strategy once")
 
     def test_reserve_resolves_strategy_once_least_packages(self):
-        """least_packages re-gathers for availability, but that re-gather must still
-        reuse the already-resolved strategy — one resolution total, not three."""
         strat = self.env["product.removal"].search(
             [("method", "=", "least_packages")], limit=1
         )
@@ -735,9 +638,6 @@ class TestStockQuantImprovements(TestStockCommon):
         )
 
     def test_removal_strategy_nearest_ancestor_via_parent_path(self):
-        """_get_removal_strategy resolves the location chain through parent_path: the
-        nearest ancestor carrying a strategy wins over a farther one, and the
-        location's own strategy wins over every ancestor."""
         lifo = self.env["product.removal"].search([("method", "=", "lifo")], limit=1)
         closest = self.env["product.removal"].search(
             [("method", "=", "closest")], limit=1
@@ -765,8 +665,6 @@ class TestStockQuantImprovements(TestStockCommon):
         self.assertEqual(self.Quant._get_removal_strategy(product, deep), "closest")
 
     def test_action_apply_all_without_active_domain(self):
-        """No active_domain in context must fall back to self, not KeyError (and not a
-        catch-all empty-domain search that would sweep every quant)."""
         product = self.products[0]
         quant = self.Quant.create(
             {"product_id": product.id, "location_id": self.loc.id, "quantity": 1.0}
@@ -787,13 +685,6 @@ class TestStockQuantImprovements(TestStockCommon):
         )
 
     def test_release_lock_miss_persists_negative_reserved(self):
-        """A release whose matching quant cannot be locked (concurrently held,
-        SKIP LOCKED returns nothing) lands on the create branch. It must persist
-        the raw negative reserved_quantity so the *aggregate* reserved of the
-        group nets to the released total immediately -- clamping to 0 would drop
-        the release and leave a phantom reservation until _clean_reservations.
-        _merge_quants then folds the rows, its GREATEST(0, SUM(...)) absorbing
-        any spurious double-release."""
         product = self.env["product.product"].create(
             {"name": "qimp-release", "is_storable": True}
         )
@@ -834,11 +725,6 @@ class TestStockQuantImprovements(TestStockCommon):
         self.assertEqual(merged.quantity, 10.0)
 
     def test_quant_tasks_recordset_survives_merge_dupes(self):
-        """_merge_quants (raw SQL) deletes duplicate rows that may be members of
-        the recordset _quant_tasks was called on; the follow-up scoped steps must
-        read their scope off the survivors instead of raising MissingError --
-        the dupe case is exactly the one the merge exists to repair (e.g.
-        stock.package.unpack's clean-up call)."""
         product = self.env["product.product"].create(
             {"name": "qimp-dupes", "is_storable": True}
         )
@@ -865,9 +751,6 @@ class TestStockQuantImprovements(TestStockCommon):
         self.assertEqual(remaining.quantity, 12.0)
 
     def test_clean_reservations_scoped_to_recordset(self):
-        """A recordset-scoped _quant_tasks must realign reservations only for the
-        touched product/location pairs (like its _merge_quants and
-        _unlink_zero_quants siblings); the model-level call stays global."""
         product = self.env["product.product"].create(
             {"name": "qimp-clean", "is_storable": True}
         )
@@ -900,9 +783,6 @@ class TestStockQuantImprovements(TestStockCommon):
         )
 
     def test_gather_cache_bypassed_for_extended_domain(self):
-        """When a `_get_gather_domain` override injects extra conditions, the
-        quants_cache fast path (which replicates only the base semantics) must be
-        bypassed so the conditions actually apply."""
         product = self.env["product.product"].create(
             {"name": "qimp-extdom", "is_storable": True}
         )
@@ -942,10 +822,6 @@ class TestStockQuantImprovements(TestStockCommon):
         )
 
     def test_gather_cache_bypassed_for_unknown_strategy_order(self):
-        """A removal strategy whose SQL ordering has no registered Python sort key
-        (`_get_removal_strategy_sort_key` returns None -- the default for
-        module-added strategies) must bypass the cache so both paths return the
-        SQL order rather than the cache's arbitrary one."""
         product = self.env["product.product"].create(
             {"name": "qimp-custstrat", "is_storable": True}
         )
@@ -1008,16 +884,6 @@ class TestStockQuantImprovements(TestStockCommon):
         )
 
     def test_reserve_full_availability_despite_negative_quant(self):
-        """One pass must reserve everything `_get_available_quantity` reports.
-
-        A stock count that lowers on-hand below what is already reserved leaves a
-        quant with negative available (here lot C: 1 on hand, 9 reserved). That
-        shortfall belongs to C's own lot -- it must not reduce what lots A and B can
-        reserve. This pass used to stop after lot A, reserving 4 of 12 and leaving the
-        move `partially_available`, because the allocator was handed a budget netting
-        C's shortfall against A and B (see
-        `test_reserve_not_truncated_by_unrelated_negative_quant`).
-        """
         product = self.env["product.product"].create(
             {"name": "qimp-negquant", "is_storable": True, "tracking": "lot"}
         )
@@ -1060,11 +926,6 @@ class TestStockQuantImprovements(TestStockCommon):
         )
 
     def test_action_assign_does_not_refresh_orderpoints_per_move(self):
-        """Every in-loop `stock.move.line.create` used to trigger `_recompute_state`
-        -> `move.write({'state': ...})` -> `_update_orderpoints`, i.e. one
-        `stock.warehouse.orderpoint` search per move. `_action_assign` already
-        accumulates the states and writes them once at the end, so that work is pure
-        duplication; the loop now runs under `preserve_state`."""
         products = self.env["product.product"].create(
             [{"name": f"qimp-assign-{i}", "is_storable": True} for i in range(5)]
         )
@@ -1119,10 +980,6 @@ class TestStockQuantImprovements(TestStockCommon):
         self.assertEqual(sum(picking.move_ids.mapped("quantity")), 25.0)
 
     def test_quants_cache_is_prefetched(self):
-        """`_read_group(..., ['id:recordset'])` yields ids with no values loaded, and
-        the reservation path reads `in_date`/`quantity` one gathered group at a time
-        -- so each group fetched its own row. The builder now warms them all at once;
-        reading those fields afterwards must cost no further queries."""
         products = self.env["product.product"].create(
             [{"name": f"qimp-warm-{i}", "is_storable": True} for i in range(5)]
         )
@@ -1158,17 +1015,6 @@ class TestStockQuantImprovements(TestStockCommon):
         )
 
     def test_least_packages_skips_loose_quants_with_no_available_unit(self):
-        """The A* sizes its loose-unit slots from the group's *available* sum, so
-        redeeming them must count available units too. Taking the first N records
-        instead let a fully reserved loose quant -- which sorts oldest, hence first --
-        eat a slot without supplying stock, pushing the quants that do hold stock out
-        of the candidate set. Availability then reported the full amount while the
-        reservation delivered nothing.
-
-        Lots keep the loose quants distinct: same-characteristics quants are
-        duplicates that `_merge_quants` folds, so only a lot/owner-differentiated set
-        makes this a steady state rather than a transient one.
-        """
         location = self._least_packages_location("lp-available-units")
         product = self.env["product.product"].create(
             {"name": "lp-avail", "is_storable": True, "tracking": "lot"}
@@ -1220,8 +1066,6 @@ class TestStockQuantImprovements(TestStockCommon):
         self.assertEqual(picking.move_ids.quantity, 2.0)
 
     def test_least_packages_still_prefers_a_whole_package(self):
-        """The availability-aware slot redemption must not weaken the strategy: an
-        exact package match still wins over loose stock."""
         location = self._least_packages_location("lp-whole-package")
         product = self.env["product.product"].create(
             {"name": "lp-whole", "is_storable": True}
@@ -1285,9 +1129,6 @@ class TestStockQuantImprovements(TestStockCommon):
         return picking
 
     def test_gs1_barcode_quantity_rounds_instead_of_truncating(self):
-        """`quantity / rounding` is a float division that lands just under the
-        integer for ordinary values; truncating it encoded one decimal step too
-        little (0.29 kg went out as 0.28)."""
         kg = self.env.ref("uom.product_uom_kgm")
         product = self.env["product.product"].create(
             {
@@ -1324,9 +1165,6 @@ class TestStockQuantImprovements(TestStockCommon):
 
 @tagged("post_install", "-at_install")
 class TestStockMoveLineImprovements(TestStockCommon):
-    """Regression tests for the stock.move.line hardening (move-less-line-safe
-    reservation bypass, package-history destination-chain snapshot)."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -1334,10 +1172,6 @@ class TestStockMoveLineImprovements(TestStockCommon):
         cls.loc = cls.stock_location
 
     def test_move_less_line_write_and_unlink_reservation(self):
-        """`_reserve_new_move_lines` explicitly supports lines without a move, but
-        the write/unlink paths called `move_id._should_bypass_reservation()`
-        unguarded, so editing such a line raised `Expected singleton` and
-        unlinking it leaked its reservation. Both must be symmetric with create."""
         product = self.env["product.product"].create(
             {"name": "qimp-moveless", "is_storable": True}
         )
@@ -1374,11 +1208,6 @@ class TestStockMoveLineImprovements(TestStockCommon):
         )
 
     def test_package_history_freezes_destination_chain(self):
-        """`_prepare_package_history_vals` runs before `_apply_dest_to_package`
-        re-parents packages and clears `package_dest_id`. `package_name` must
-        snapshot the pending *destination* chain (`dest_complete_name`) -- the
-        origin `complete_name` is what the delivery-slip helper
-        `_get_complete_dest_name_except_outermost` would misread."""
         product = self.env["product.product"].create(
             {"name": "qimp-pkg-hist", "is_storable": True}
         )
@@ -1421,7 +1250,6 @@ class TestStockMoveLineImprovements(TestStockCommon):
         self.assertEqual(outer_history._get_complete_dest_name_except_outermost(), "")
 
     def _spy_update_available_quantity(self):
-        """Record every `_update_available_quantity` call with its characteristics."""
         calls = []
         Quant = type(self.env["stock.quant"])
         original = Quant._update_available_quantity
@@ -1453,10 +1281,6 @@ class TestStockMoveLineImprovements(TestStockCommon):
         return calls, patch.object(Quant, "_update_available_quantity", spy)
 
     def test_action_done_updates_the_source_quant_once(self):
-        """Validating a line drops on-hand *and* releases what it reserved -- both on
-        the same quant row. Issuing them as two `_update_available_quantity` calls
-        gathered, locked and re-read that row twice; they must be one call carrying
-        both deltas."""
         product = self.env["product.product"].create(
             {"name": "qimp-donemerge", "is_storable": True}
         )
@@ -1502,9 +1326,6 @@ class TestStockMoveLineImprovements(TestStockCommon):
         self.assertEqual(quant.reserved_quantity, 0.0, "no reservation may be stranded")
 
     def test_action_done_sends_no_reserved_delta_where_reservation_is_bypassed(self):
-        """A location that bypasses reservation holds none to release, so the merged
-        update must carry the stock delta alone -- the guard the separate
-        `action="reserved"` call used to apply."""
         product = self.env["product.product"].create(
             {"name": "qimp-donebypass", "is_storable": True}
         )

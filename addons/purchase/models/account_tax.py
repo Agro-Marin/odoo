@@ -4,13 +4,8 @@ from odoo import models
 class AccountTax(models.Model):
     _inherit = "account.tax"
 
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
     def _hook_compute_is_used(self, taxes_to_compute):
-        # OVERRIDE in order to fetch taxes used in purchase
-
         used_taxes = super()._hook_compute_is_used(taxes_to_compute)
         taxes_to_compute -= used_taxes
 

@@ -24,13 +24,6 @@ class ResPartner(models.Model):
     picking_warn_msg = fields.Text(string="Message for Stock Picking")
 
     def _set_stock_property_locations(self, location):
-        """Point this partner's customer and supplier stock locations at ``location``.
-
-        Both properties are ``company_dependent``: call through
-        ``with_company(company)`` to target one company's value (batched across
-        partners), and once per company to fan a single partner out over several.
-        ``location`` may be an empty recordset to clear both properties.
-        """
         self.write(
             {
                 "property_stock_customer": location.id,
@@ -39,7 +32,7 @@ class ResPartner(models.Model):
         )
 
     def action_view_stock_serial(self):
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "stock.action_stock_lot_form",
         )
         action["domain"] = [("partner_ids", "child_of", self.ids)]

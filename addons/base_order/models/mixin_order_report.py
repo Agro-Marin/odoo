@@ -33,7 +33,7 @@ class MixinOrderReport(models.AbstractModel):
     nothing.
 
     These are SQL views, so declaring a field here is only half of it — every
-    consumer's ``_get_select_fields`` must also produce the column, which is
+    consumer's ``_get_fields_select`` must also produce the column, which is
     what ``test_order_report`` checks by reading the hoisted fields back out of
     the built view rather than off the Python class.
     """

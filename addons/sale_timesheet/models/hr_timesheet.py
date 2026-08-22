@@ -34,7 +34,7 @@ class AccountAnalyticLine(models.Model):
 
     timesheet_invoice_type = fields.Selection(TIMESHEET_INVOICE_TYPES, string="Billable Type",
             compute='_compute_timesheet_invoice_type', compute_sudo=True, store=True, readonly=True)
-    commercial_partner_id = fields.Many2one('res.partner', compute="_compute_commercial_partner")
+    commercial_partner_id = fields.Many2one('res.partner', compute="_compute_commercial_partner_id")
     timesheet_invoice_id = fields.Many2one('account.move', string="Invoice", readonly=True, copy=False, help="Invoice created from the timesheet", index='btree_not_null')
     so_line = fields.Many2one(compute="_compute_so_line", store=True, readonly=False,
         domain=_domain_so_line, falsy_value_label="Non-billable",
@@ -46,7 +46,7 @@ class AccountAnalyticLine(models.Model):
     sale_order_state = fields.Selection(related='order_id.state')
 
     @api.depends('project_id.partner_id.commercial_partner_id', 'task_id.partner_id.commercial_partner_id')
-    def _compute_commercial_partner(self):
+    def _compute_commercial_partner_id(self):
         for timesheet in self:
             timesheet.commercial_partner_id = timesheet.task_id.sudo().partner_id.commercial_partner_id or timesheet.project_id.sudo().partner_id.commercial_partner_id
 

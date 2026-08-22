@@ -27,7 +27,7 @@ class TestSoLineDeterminedInTimesheet(TestCommonSaleTimesheet):
         })
 
         # 2) Compute the SOL for the task and check if we have the one containing the prepaid service product
-        # task._compute_sale_line()
+        # task._compute_sale_line_id()
         self.assertEqual(task.sale_line_id, self.so.line_ids[-1], "The SOL in the task should be the one containing the prepaid service product.")
         self.assertTrue(all(sol.qty_transferred == 0 for sol in self.so.line_ids), "The quantity delivered should be equal to 0 because we have no timesheet for each SOL containing in the SO.")
 

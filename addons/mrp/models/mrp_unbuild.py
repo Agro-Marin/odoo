@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from collections import defaultdict
 
 from odoo import _, api, fields, models
@@ -146,7 +144,6 @@ class MrpUnbuild(models.Model):
 
     @api.depends("company_id")
     def _compute_location_id(self):
-        # One warehouse search per company rather than per order.
         warehouse_by_company = {}
         for company in self.company_id:
             warehouse_by_company[company.id] = self.env["stock.warehouse"].search(
@@ -227,7 +224,6 @@ class MrpUnbuild(models.Model):
     def action_unbuild(self):
         self.ensure_one()
         self._check_company()
-        # remove the default_* keys that were only needed in the unbuild wizard
         self = self.with_env(self.env(context=clean_context(self.env.context)))
         if self.product_id.tracking != "none" and not self.lot_id.id:
             raise UserError(_("You should provide a lot number for the final product."))
@@ -236,16 +232,11 @@ class MrpUnbuild(models.Model):
             raise UserError(_("You cannot unbuild a undone manufacturing order."))
 
         if self.mo_id and self.mo_id.product_uom_id.is_zero(self.mo_id.qty_produced):
-            # The consume/produce factor divides by the MO's produced quantity.
             raise UserError(
                 _("You cannot unbuild a manufacturing order that produced nothing.")
             )
 
         if not self.mo_id and not self.bom_id:
-            # Without either, there is nothing to take the order apart into: the
-            # produce moves come from the BoM's lines and the consume moves from
-            # the order's. The factor both are scaled by divides by the BoM's
-            # quantity, so this reached the user as a bare ZeroDivisionError.
             raise UserError(
                 _(
                     "%(product)s has no bill of materials, so there is nothing to"
@@ -261,7 +252,6 @@ class MrpUnbuild(models.Model):
         produce_moves._action_confirm()
         produce_moves.quantity = 0
 
-        # Collect component lots already restored by previous unbuilds on the same MO
         previously_unbuilt_lots = (
             (self.mo_id.unbuild_ids - self)
             .produce_line_ids.filtered(
@@ -308,8 +298,6 @@ class MrpUnbuild(models.Model):
                 )
                 self.env["stock.move.line"].create(finished_move_line_vals)
 
-        # TODO: will fail if the user does more than one unbuild with lot on the same MO.
-        # Need to check what the other unbuilds already took.
         qty_already_used = defaultdict(float)
         for move in produce_moves | consume_moves:
             if (
@@ -321,13 +309,6 @@ class MrpUnbuild(models.Model):
                 < 1
             ):
                 continue
-            # An explicit branch, not `(cond and a) or b`: that spelling silently
-            # falls through to `move_finished_ids` whenever `move_raw_ids` is
-            # empty, i.e. it picks the wrong side of the unbuild for a produce
-            # move. It happens to be unreachable today -- `produce_moves` is
-            # derived from `move_raw_ids`, so a non-empty one implies a
-            # non-empty other -- which is exactly the kind of accident a
-            # refactor turns into a bug.
             if move in produce_moves:
                 original_move = self.mo_id.move_raw_ids
             else:
@@ -348,7 +329,6 @@ class MrpUnbuild(models.Model):
                     )
                 )
             for move_line in moves_lines:
-                # Iterate over all move_lines until we unbuilded the correct quantity.
                 taken_quantity = min(
                     needed_quantity, move_line.quantity - qty_already_used[move_line]
                 )
@@ -398,13 +378,6 @@ class MrpUnbuild(models.Model):
         return self.write({"state": "done"})
 
     def _get_unbuild_factor(self):
-        """How much of what the order produced this unbuild takes apart.
-
-        Against a manufacturing order that is a fraction of what it produced;
-        against a bare bill of materials, a multiple of the BoM quantity. Both
-        `_generate_consume_moves` and `_generate_produce_moves` scale by it, and
-        each carried its own copy of both branches.
-        """
         self.ensure_one()
         if self.mo_id:
             return self.product_qty / self.mo_id.product_uom_id._compute_quantity(
@@ -527,7 +500,7 @@ class MrpUnbuild(models.Model):
 
     def action_validate(self):
         self.ensure_one()
-        precision = self.env["decimal.precision"].precision_get("Product Unit")
+        precision = self.env["decimal.precision"].get_precision("Product Unit")
         available_qty = self.env["stock.quant"]._get_available_quantity(
             self.product_id, self.location_id, self.lot_id, strict=True
         )

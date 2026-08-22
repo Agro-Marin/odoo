@@ -67,9 +67,6 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_copy_quant(self):
-        """
-        You should not be allowed to duplicate quants.
-        """
         quant = self.env["stock.quant"].create(
             [
                 {
@@ -83,7 +80,6 @@ class TestStockQuant(TestStockCommon):
             quant.copy()
 
     def test_get_available_quantity_1(self):
-        """Quantity availability with only one quant in a location."""
         self.env["stock.quant"].create(
             {
                 "product_id": self.productA.id,
@@ -99,7 +95,6 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_get_available_quantity_2(self):
-        """Quantity availability with multiple quants in a location."""
         for _i in range(3):
             self.env["stock.quant"].create(
                 {
@@ -116,7 +111,6 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_get_available_quantity_3(self):
-        """Quantity availability with multiple quants (including negatives ones) in a location."""
         for _i in range(3):
             self.env["stock.quant"].create(
                 {
@@ -140,7 +134,6 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_get_available_quantity_4(self):
-        """Quantity availability with no quants in a location."""
         self.assertEqual(
             self.env["stock.quant"]._get_available_quantity(
                 self.productA, self.stock_location
@@ -149,7 +142,6 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_get_available_quantity_5(self):
-        """Quantity availability with multiple partially reserved quants in a location."""
         self.env["stock.quant"].create(
             {
                 "product_id": self.productA.id,
@@ -174,7 +166,6 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_get_available_quantity_6(self):
-        """Quantity availability with multiple partially reserved quants in a location."""
         self.env["stock.quant"].create(
             {
                 "product_id": self.productA.id,
@@ -205,7 +196,6 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_get_available_quantity_7(self):
-        """Quantity availability with only one tracked quant in a location."""
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "lot1",
@@ -235,7 +225,6 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_get_available_quantity_8(self):
-        """Quantity availability with a consumable product."""
         self.assertEqual(
             self.env["stock.quant"]._get_available_quantity(
                 self.product_consu, self.stock_location
@@ -251,7 +240,6 @@ class TestStockQuant(TestStockCommon):
             )
 
     def test_get_available_quantity_9(self):
-        """Quantity availability by a demo user with access rights/rules."""
         self.env["stock.quant"].create(
             {
                 "product_id": self.productA.id,
@@ -268,7 +256,6 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_increase_available_quantity_1(self):
-        """Increase the available quantity when no quants are already in a location."""
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 1.0
         )
@@ -280,7 +267,6 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_increase_available_quantity_2(self):
-        """Increase the available quantity when multiple quants are already in a location."""
         for _i in range(2):
             self.env["stock.quant"].create(
                 {
@@ -309,21 +295,6 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_increase_available_quantity_3(self):
-        """A concurrent, already-committed change to a quant must not be lost when
-        `_update_available_quantity` increments it.
-
-        `try_lock_for_update` locks the row but does NOT refetch column values, so
-        the increment has to be computed against a value re-read under the lock, not
-        against the (possibly stale) value the earlier `_gather` cached. A concurrent
-        transaction that committed between our gather and our lock would otherwise be
-        silently overwritten (lost update).
-
-        We can't open a second connection here -- a TransactionCase never commits, so
-        another cursor cannot see the seeded quant. Instead we mutate the row via raw
-        SQL on the *same* cursor, which changes the DB while leaving the ORM cache
-        stale: an exact stand-in for the "row changed under us" condition the lock is
-        meant to guard.
-        """
         Quant = self.env["stock.quant"]
         Quant._update_available_quantity(self.productA, self.stock_location, 10.0)
         quant = self.gather_relevant(self.productA, self.stock_location, strict=True)
@@ -338,16 +309,12 @@ class TestStockQuant(TestStockCommon):
         self.assertEqual(quant.quantity, 18.0)
 
     def test_increase_available_quantity_4(self):
-        """Increase the available quantity when no quants are already in a location with a user without access right."""
         self.env = self.env(user=self.demo_user)
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 1.0
         )
 
     def test_increase_available_quantity_5(self):
-        """Increase the available quantity when no quants are already in stock.
-        Increase a sublocation and check that quants are in this location. Also test inverse.
-        """
         product2 = self.env["product.product"].create(
             {
                 "name": "Product B",
@@ -390,7 +357,6 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_increase_available_quantity_6(self):
-        """Increasing the available quantity in a view location should be forbidden."""
         location1 = self.env["stock.location"].create(
             {
                 "name": "viewloc1",
@@ -404,9 +370,6 @@ class TestStockQuant(TestStockCommon):
             )
 
     def test_increase_available_quantity_7(self):
-        """Setting a location's usage as "view" should be forbidden if it already
-        contains quant.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 1.0
         )
@@ -415,7 +378,6 @@ class TestStockQuant(TestStockCommon):
             self.stock_location.usage = "view"
 
     def test_decrease_available_quantity_1(self):
-        """Decrease the available quantity when no quants are already in a location."""
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, -1.0
         )
@@ -433,7 +395,6 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_decrease_available_quantity_2(self):
-        """Decrease the available quantity when multiple quants are already in a location."""
         for _i in range(2):
             self.env["stock.quant"].create(
                 {
@@ -465,15 +426,6 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_decrease_available_quantity_3(self):
-        """Same lost-update guard as `test_increase_available_quantity_3`, but for a
-        `reserved_quantity` decrement (unreservation).
-
-        A release must be applied on top of the value actually in the database, so a
-        concurrent reserve that committed in the gather->lock window is preserved
-        rather than clobbered. Raw SQL on the same cursor stands in for that
-        concurrent committed writer (see the increase variant for why a second
-        connection can't be used in a TransactionCase).
-        """
         Quant = self.env["stock.quant"]
         Quant._update_available_quantity(self.productA, self.stock_location, 10.0)
         quant = self.gather_relevant(self.productA, self.stock_location, strict=True)
@@ -490,9 +442,6 @@ class TestStockQuant(TestStockCommon):
         self.assertEqual(quant.reserved_quantity, 5.0)
 
     def test_decrease_available_quantity_4(self):
-        """Decrease the available quantity that delete the quant. The active user should have
-        read,write and unlink rights
-        """
         self.env["stock.quant"].create(
             {
                 "product_id": self.productA.id,
@@ -509,9 +458,6 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_increase_reserved_quantity_1(self):
-        """Increase the reserved quantity of quantity x when there's a single quant in a given
-        location which has an available quantity of x.
-        """
         self.env["stock.quant"].create(
             {
                 "product_id": self.productA.id,
@@ -542,9 +488,6 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_increase_reserved_quantity_2(self):
-        """Increase the reserved quantity of quantity x when there's two quants in a given
-        location which have an available quantity of x together.
-        """
         for _i in range(2):
             self.env["stock.quant"].create(
                 {
@@ -576,9 +519,6 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_increase_reserved_quantity_3(self):
-        """Increase the reserved quantity of quantity x when there's multiple quants in a given
-        location which have an available quantity of x together.
-        """
         self.env["stock.quant"].create(
             {
                 "product_id": self.productA.id,
@@ -634,9 +574,6 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_increase_reserved_quantity_4(self):
-        """Increase the reserved quantity of quantity x when there's multiple quants in a given
-        location which have an available quantity of x together.
-        """
         self.env["stock.quant"].create(
             {
                 "product_id": self.productA.id,
@@ -674,7 +611,6 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_increase_reserved_quantity_5(self):
-        """Decrease the available quantity when no quant are in a location."""
         reserved_quants = self.env["stock.quant"]._update_reserved_quantity(
             self.productA, self.stock_location, 1.0
         )
@@ -718,7 +654,6 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_change_tracking_1(self):
-        """change a product from consumable to storable and check that a reserved quant is created"""
         quants = self.gather_relevant(self.product_consu, self.stock_location)
         self.assertEqual(sum(quants.mapped("reserved_quantity")), 0.0)
         stock_location = self.stock_location
@@ -869,9 +804,6 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_access_rights_1(self):
-        """Directly update the quant with a user with or without stock access rights should not raise
-        an AccessError only deletion will.
-        """
         quant = self.env["stock.quant"].create(
             {
                 "product_id": self.productA.id,
@@ -908,7 +840,6 @@ class TestStockQuant(TestStockCommon):
             quant.with_user(self.user_stock_user).unlink()
 
     def test_quant_in_date_1(self):
-        """Check that no incoming date is set when updating the quantity of an untracked quant."""
         quantity, in_date = self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 1.0
         )
@@ -930,9 +861,6 @@ class TestStockQuant(TestStockCommon):
         self.assertNotEqual(in_date, None)
 
     def test_quant_in_date_2(self):
-        """Check that an incoming date is correctly set when updating the quantity of a tracked
-        quant.
-        """
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "lot1",
@@ -946,9 +874,6 @@ class TestStockQuant(TestStockCommon):
         self.assertNotEqual(in_date, None)
 
     def test_quant_in_date_3(self):
-        """Check that the FIFO strategies correctly applies when you have multiple lot received
-        at different times for a tracked product.
-        """
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "lot1",
@@ -984,9 +909,6 @@ class TestStockQuant(TestStockCommon):
         self.assertEqual(quants[0][0].lot_id.id, lot2.id)
 
     def test_in_date_4(self):
-        """Check that the LIFO strategies correctly applies when you have multiple lot received
-        at different times for a tracked product.
-        """
         lifo_strategy = self.env["product.removal"].search([("method", "=", "lifo")])
         self.stock_location.removal_strategy_id = lifo_strategy
         lot1 = self.env["stock.lot"].create(
@@ -1031,9 +953,6 @@ class TestStockQuant(TestStockCommon):
         self.assertEqual(quants[0][0].lot_id.id, lot1.id)
 
     def test_quant_in_date_5(self):
-        """Receive the same lot at different times, once they're in the same location, the quants
-        are merged and only the earliest incoming date is kept.
-        """
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "lot1",
@@ -1076,11 +995,6 @@ class TestStockQuant(TestStockCommon):
         self.assertEqual(quant.in_date, in_date2)
 
     def test_quant_rounding(self):
-        """In the case where the product group has the Reserve Only Full Packagings selected,
-        then another check occurs calling _check_qty. This method rounds the available quantity
-        which will cause issues if the package uom is the same as the product uom. Test to see the
-        quantity is correct if the uoms are the same.
-        """
         QUANTITY = 22.43
         product = self.env["product.product"].create(
             {
@@ -1107,9 +1021,6 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_closest_removal_strategy_tracked(self):
-        """Check that the Closest location strategy correctly applies when you have multiple lot received
-        at different locations for a tracked product.
-        """
         grp_multi_loc = self.env.ref("stock.group_stock_multi_locations")
         self.env.user.write({"group_ids": [Command.link(grp_multi_loc.id)]})
 
@@ -1148,8 +1059,6 @@ class TestStockQuant(TestStockCommon):
         self.assertEqual(picking.move_ids.lot_ids.id, lot2.id)
 
     def test_closest_removal_strategy_untracked(self):
-        """Check that the Closest location strategy correctly applies when you have multiple products received
-        at different locations for untracked products."""
         closest_strategy = self.env["product.removal"].search(
             [("method", "=", "closest")]
         )
@@ -1178,10 +1087,6 @@ class TestStockQuant(TestStockCommon):
         self.assertEqual(quants[1][0].location_id, self.shelf_2)
 
     def test_in_date_6(self):
-        """
-        One P in stock, P is delivered. Later on, a stock adjustement adds one P. This test checks
-        the date value of the related quant
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 1.0
         )
@@ -1228,9 +1133,6 @@ class TestStockQuant(TestStockCommon):
             self.assertEqual(quant.in_date, tomorrow)
 
     def test_quant_creation(self):
-        """
-        This test ensures that, after an internal transfer, the values of the created quand are correct
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 10.0
         )
@@ -1254,11 +1156,6 @@ class TestStockQuant(TestStockCommon):
         self.assertFalse(quant.inventory_quantity_set)
 
     def test_unpack_and_quants_merging(self):
-        """
-        When unpacking a package, if there are already some quantities of the
-        packed product in the stock, the quant of the on hand quantity and the
-        one of the package should be merged
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 1.0
         )
@@ -1310,7 +1207,6 @@ class TestStockQuant(TestStockCommon):
         self.assertEqual(quant.quantity, 11)
 
     def test_quant_display_name(self):
-        """Check the display name of a quant."""
         self.env.user.group_ids += self.env.ref("stock.group_production_lot")
         sn1 = self.env["stock.lot"].create(
             {
@@ -1344,11 +1240,6 @@ class TestStockQuant(TestStockCommon):
                 self.assertEqual(q.display_name, "%s" % (q.location_id.display_name))
 
     def test_serial_constraint_with_package_and_return(self):
-        """
-        Receive product with serial S
-        Return it in a package
-        Confirm a new receipt with S
-        """
         receipt01 = self.env["stock.picking"].create(
             {
                 "picking_type_id": self.picking_type_in.id,
@@ -1436,9 +1327,6 @@ class TestStockQuant(TestStockCommon):
         self.assertEqual(quant.lot_id.name, "Michel")
 
     def test_update_quant_with_forbidden_field(self):
-        """
-        Test that updating a quant with a forbidden field raise an error.
-        """
         product = self.env["product.product"].create(
             {
                 "name": "Product",
@@ -1487,10 +1375,6 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_update_quant_with_forbidden_field_02(self):
-        """
-        Test that updating the package from the quant raise an error
-        but if the package is unpacked, the quant can be updated.
-        """
         package = self.env["stock.package"].create(
             {
                 "name": "Package",
@@ -1508,8 +1392,6 @@ class TestStockQuant(TestStockCommon):
         self.assertFalse(self.productA.stock_quant_ids.package_id)
 
     def test_relocate(self):
-        """Test the relocation wizard."""
-
         def _get_relocate_wizard(quant_ids):
             return Form.from_action(self.env, quant_ids.action_stock_quant_relocate())
 
@@ -1670,10 +1552,6 @@ class TestStockQuant(TestStockCommon):
             _get_relocate_wizard(quants_bab_AB)
 
     def test_inventory_adjustment_package(self):
-        """With the changes implemented in _get_inventory_move_values(), we want to make sure that it correctly
-        writes the package and destination package for inventory adjustments in _apply_inventory().
-        """
-
         dummy_product = self.env["product.product"].create(
             {"name": "dummy product", "is_storable": True}
         )
@@ -1732,9 +1610,6 @@ class TestStockQuant(TestStockCommon):
         self.assertEqual(dummy_quant.quantity, 0)
 
     def test_quant_gs1_barcode(self):
-        """Checks quant's methods to generate barcode works as expected and don't
-        generate barcodes longer than the given limit and use the given separator.
-        """
         self.env["ir.config_parameter"].set_param("stock.agg_barcode_max_length", 400)
         self.env["ir.config_parameter"].set_param("stock.barcode_separator", ";")
         product_ean13 = self.env["product.product"].create(
@@ -1872,9 +1747,6 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_quant_aggregate_barcode(self):
-        """Checks quant's methods to generate barcode works for tracked products
-        regardless the product's barcode is a valid EAN or not.
-        """
         self.env["ir.config_parameter"].set_param("stock.agg_barcode_max_length", 400)
         self.env["ir.config_parameter"].set_param("stock.barcode_separator", ";")
         product = self.env["product.product"].create(
@@ -1979,9 +1851,6 @@ class TestStockQuant(TestStockCommon):
         )
 
     def test_unpack_and_quants_history(self):
-        """
-        Test that after unpacking the quant history is preserved
-        """
         product = self.env["product.product"].create(
             {
                 "name": "Product",
@@ -2052,9 +1921,6 @@ class TestStockQuant(TestStockCommon):
         self.assertTrue(history)
 
     def test_diff_unset_after_create(self):
-        """
-        Test that validating moves does not set new quant's inventory_diff_quantity
-        """
         picking = self.env["stock.picking"].create(
             {
                 "picking_type_id": self.picking_type_in.id,
@@ -2110,9 +1976,6 @@ class TestStockQuant(TestStockCommon):
         self.assertFalse(move.quantity)
 
     def test_lot_of_product_different_from_quant(self):
-        """
-        Test that a lot cannot be used in a quant if the product is different.
-        """
         product_lot_2 = self.env["product.product"].create(
             {
                 "name": "Product",
@@ -2138,10 +2001,6 @@ class TestStockQuant(TestStockCommon):
             )
 
     def test_set_on_hand_quantity_tracked_product(self):
-        """
-        Checks that you can update the on hand quantity of a tracked product
-        on a quant without a set lot.
-        """
         quant_without_lot = self.env["stock.quant"].create(
             {
                 "product_id": self.product_lot.id,
@@ -2228,10 +2087,6 @@ class TestStockQuantRemovalStrategy(TestStockCommon):
         move._action_done()
 
     def test_least_package_removal_strategy_priority_to_package(self):
-        """
-        Tests the least package removal strategy in a use case where only one package needs to be selected.
-        It should only return the quantity of a single size 1000 package.
-        """
         packages_data = [
             (False, 2000),
             (5, 10),
@@ -2258,10 +2113,6 @@ class TestStockQuantRemovalStrategy(TestStockCommon):
         )
 
     def test_least_package_removal_strategy_simple_usecase(self):
-        """
-        Tests the least package removal strategy in a simple "typical" use case.
-        It should return a minimal exact matching for the requested quantity.
-        """
         packages_data = [
             (5, 10),
             (50, 10),
@@ -2289,11 +2140,6 @@ class TestStockQuantRemovalStrategy(TestStockCommon):
         )
 
     def test_least_package_removal_strategy_not_possible(self):
-        """
-        Tests the least package removal strategy in the case where an exact matching
-        of packages is not possible for the requested amount.
-        It should return the best leaf from the A* search.
-        """
         packages_data = [
             (False, 2),
             (5, 2),
@@ -2320,11 +2166,6 @@ class TestStockQuantRemovalStrategy(TestStockCommon):
         self.assertEqual(move.move_line_ids[1].package_id.quant_ids.quantity, 5)
 
     def test_least_package_removal_strategy_not_enough(self):
-        """
-        Tests the least package removal strategy in the case where not enough quantity
-        is available to fill the requested amount.
-        It should just return all the quantities in the domain.
-        """
         packages_data = [
             (False, 2),
             (5, 2),
@@ -2352,10 +2193,6 @@ class TestStockQuantRemovalStrategy(TestStockCommon):
         )
 
     def test_clean_quant_after_package_move(self):
-        """
-        A product is at WH/Stock in a package PK. We deliver PK. The user should
-        not find any quant at WH/Stock with PK anymore.
-        """
         package = self.env["stock.package"].create({})
         self.env["stock.quant"]._update_available_quantity(
             self.product, self.stock_location, 1.0, package_id=package
@@ -2392,11 +2229,6 @@ class TestStockQuantRemovalStrategy(TestStockCommon):
         )
 
     def test_quant_cache_for_packages(self):
-        """
-        Create and assign a delivery for different packages.
-        Create an internal transfer to move on of the package in a sublocation.
-        Check that the delivery is still reserved in the proper locations.
-        """
         products = self.env["product.product"].create(
             [
                 {"name": "Good product", "is_storable": True},

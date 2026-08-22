@@ -5,19 +5,6 @@ from odoo.tests import BaseCase
 
 
 class MigrationScriptMixin:
-    """Shared harness for the ``stock/migrations/*/pre-migrate.py`` scripts.
-
-    Each script is loaded directly via :func:`~odoo.modules.module.load_script`
-    (the same loader Odoo itself uses) with a mocked cursor — no registry/DB
-    needed, since the script's own SQL is what's under test, not its execution
-    against real data.
-
-    Concrete classes set :attr:`script_version` (the migrations subdirectory)
-    and must patch the ``odoo.db.schema`` helpers the script imports
-    (``column_exists`` / ``table_columns``) before calling ``migrate`` with a
-    truthy version, so the mocked cursor never reaches those helpers' SQL.
-    """
-
     allow_inherited_tests_method = True
 
     script_version = None
@@ -32,13 +19,6 @@ class MigrationScriptMixin:
         )
 
     def patch_column_exists(self, existing_columns):
-        """Patch ``column_exists`` as imported into the migration module.
-
-        :param dict existing_columns: ``{(table, column): bool}`` — any lookup
-            not in the mapping is a test bug and raises
-        :return: context manager patching the migration module's reference
-        """
-
         def fake_column_exists(cr, table, column):
             try:
                 return existing_columns[(table, column)]
@@ -50,12 +30,6 @@ class MigrationScriptMixin:
         return patch.object(self.script, "column_exists", fake_column_exists)
 
     def statements(self, cr, keyword):
-        """Return the SQL strings passed to ``cr.execute`` containing ``keyword``.
-
-        :param cr: the mocked cursor
-        :param str keyword: substring to filter the executed statements on
-        :rtype: list[str]
-        """
         return [
             call.args[0]
             for call in cr.execute.call_args_list
@@ -63,21 +37,16 @@ class MigrationScriptMixin:
         ]
 
     def test_fresh_install_is_noop(self):
-        """A falsy ``version`` (fresh install) must not touch the cursor."""
         cr = MagicMock()
         self.script.migrate(cr, None)
         cr.execute.assert_not_called()
 
 
 class TestStock12PreMigrate(MigrationScriptMixin, BaseCase):
-    """Unit tests for ``stock/migrations/1.2/pre-migrate.py``."""
-
     script_version = "1.2"
     expected_updates = 13
 
     def _patch_horizon_days(self, udt_name):
-        """Patch ``table_columns`` so ``res_company.horizon_days`` reports the
-        given Postgres type (``int4`` = already converted)."""
         return patch.object(
             self.script,
             "table_columns",
@@ -85,9 +54,6 @@ class TestStock12PreMigrate(MigrationScriptMixin, BaseCase):
         )
 
     def test_migrate_is_idempotent(self):
-        """A re-run against an already-converted column must skip the
-        ``ALTER COLUMN`` table rewrite; the text sweeps are naturally
-        idempotent (no matches, no-op)."""
         cr = MagicMock()
         with self._patch_horizon_days("int4"):
             self.script.migrate(cr, "1.1")
@@ -95,7 +61,6 @@ class TestStock12PreMigrate(MigrationScriptMixin, BaseCase):
         self.assertEqual(len(self.statements(cr, "UPDATE")), self.expected_updates)
 
     def test_migrate_converts_float_horizon_days(self):
-        """A pre-rename float column must be converted exactly once."""
         cr = MagicMock()
         with self._patch_horizon_days("float8"):
             self.script.migrate(cr, "1.1")
@@ -105,8 +70,6 @@ class TestStock12PreMigrate(MigrationScriptMixin, BaseCase):
 
 
 class TestStock13PreMigrate(MigrationScriptMixin, BaseCase):
-    """Unit tests for ``stock/migrations/1.3/pre-migrate.py``."""
-
     script_version = "1.3"
     expected_updates = 3
 
@@ -133,8 +96,6 @@ class TestStock13PreMigrate(MigrationScriptMixin, BaseCase):
 
 
 class TestStock14PreMigrate(MigrationScriptMixin, BaseCase):
-    """Unit tests for ``stock/migrations/1.4/pre-migrate.py``."""
-
     script_version = "1.4"
     expected_updates = 4
 
@@ -145,9 +106,6 @@ class TestStock14PreMigrate(MigrationScriptMixin, BaseCase):
         }
 
     def test_migrate_is_idempotent(self):
-        """A second run (old column already renamed) must not error and must
-        skip the ``ALTER TABLE`` — only the guarded rename is conditional, the
-        four ``UPDATE`` sweeps are naturally idempotent (no matches, no-op)."""
         cr = MagicMock()
         with self.patch_column_exists(self._columns(renamed=True)):
             self.script.migrate(cr, "1.3")
@@ -164,8 +122,6 @@ class TestStock14PreMigrate(MigrationScriptMixin, BaseCase):
 
 
 class TestStock15PreMigrate(MigrationScriptMixin, BaseCase):
-    """Unit tests for ``stock/migrations/1.5/pre-migrate.py``."""
-
     script_version = "1.5"
     expected_updates = 16
 
@@ -199,11 +155,6 @@ class TestStock15PreMigrate(MigrationScriptMixin, BaseCase):
             )
 
     def test_ambiguous_tokens_are_model_scoped(self):
-        """``scheduled_date``/``delivery_count`` are live fields on unrelated
-        models (mail, event, sale.order, ...): every statement rewriting them
-        must carry a model filter, and none may touch ``ir_act_server`` —
-        rewriting arbitrary server-action code on those tokens would corrupt
-        actions that legitimately reference the other models' fields."""
         cr = MagicMock()
         with self.patch_column_exists(self._columns(renamed=True)):
             self.script.migrate(cr, "1.4")
@@ -224,7 +175,6 @@ class TestStock15PreMigrate(MigrationScriptMixin, BaseCase):
                 )
 
     def test_global_tokens_swept_in_server_actions(self):
-        """The unambiguous renames must reach ``ir_act_server.code``."""
         cr = MagicMock()
         with self.patch_column_exists(self._columns(renamed=True)):
             self.script.migrate(cr, "1.4")

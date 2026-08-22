@@ -105,12 +105,6 @@ class TestSaleSections(SaleCommon):
         )
 
     def test_sale_order_line_parent_id(self):
-        """Verify correct assignment of `parent_id`:
-
-        - Lines with no preceding section/subsection → no parent.
-        - Section's children (lines + subsections) → parent is the section.
-        - Subsection's children → parent is the subsection.
-        """
         self.assertFalse(self.sections_sale_order.line_ids[0].parent_id)
         self.assertEqual(
             self.sections_sale_order.line_ids[2].parent_id,
@@ -126,12 +120,6 @@ class TestSaleSections(SaleCommon):
         )
 
     def test_sale_order_report_line_visibility_and_grouping(self):
-        """Check report utils for sections.
-
-        - `_get_order_lines_to_report` must exclude children of collapsed sections/subsections,
-        but keep regular lines and headers in order.
-        - `_get_grouped_section_summary` must correctly aggregate totals by tax.
-        """
         lines_to_report = self.sections_sale_order._get_order_lines_to_report()
         self.assertEqual(len(lines_to_report), 5)
         self.assertEqual(
@@ -147,12 +135,6 @@ class TestSaleSections(SaleCommon):
         self.assertEqual(subsection_summary_lines[1]["price_subtotal"], 100.00)
 
     def test_sale_order_sections_totals(self):
-        """Ensure section totals are computed correctly.
-
-        A `line_section` should aggregate the subtotals of all following product
-        order lines that belong to it, including those under nested subsections.
-        Aggregation must stop when another section or subsection is encountered.
-        """
         self.assertEqual(
             self.sections_sale_order.line_ids[1]._get_section_totals("price_subtotal"),
             sum(self.sections_sale_order.line_ids[1:].mapped("price_subtotal")),

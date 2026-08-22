@@ -63,12 +63,12 @@ class MixinOrder(models.AbstractModel):
 
     @property
     def _rec_names_search(self):
-        base_fields = self._get_rec_search_base_fields()
+        base_fields = self._get_fields_rec_search_base()
         if self.env.context.get(self._get_display_name_context_key()):
             return [*base_fields, "partner_id.name"]
         return base_fields
 
-    def _get_rec_search_base_fields(self):
+    def _get_fields_rec_search_base(self):
         """Base fields searched by name. Purchase adds ``partner_ref``."""
         return ["name"]
 
@@ -394,7 +394,7 @@ class MixinOrder(models.AbstractModel):
         return super().create(vals_list)
 
     def write(self, vals):
-        self._validate_write_vals(vals)
+        self._check_write_guards(vals)
         return super().write(vals)
 
     def copy_data(self, default=None):
@@ -1051,20 +1051,20 @@ class MixinOrder(models.AbstractModel):
     # WRITE VALIDATIONS
     # ------------------------------------------------------------------
 
-    def _validate_write_vals(self, vals):
+    def _check_write_guards(self, vals):
         """Run all registered write validators before persisting ``vals``."""
-        for method_name in self._get_validate_write_vals_methods():
+        for method_name in self._get_check_write_guards():
             getattr(self, method_name)(vals)
 
-    def _get_validate_write_vals_methods(self):
+    def _get_check_write_guards(self):
         """Validator method names for write. Override to extend."""
         return [
-            "_validate_write_locked_order",
-            "_validate_write_state_frozen_fields",
-            "_validate_write_state_transition",
+            "_check_write_locked_order",
+            "_check_write_state_frozen_fields",
+            "_check_write_state_transition",
         ]
 
-    def _get_state_frozen_fields(self):
+    def _get_fields_state_frozen(self):
         """Map of ``{state: {field names frozen in that state}}``.
 
         Empty by default; subclasses override (e.g. ``sale.order`` freezes
@@ -1072,11 +1072,11 @@ class MixinOrder(models.AbstractModel):
         """
         return {}
 
-    def _validate_write_locked_order(self, vals):
+    def _check_write_locked_order(self, vals):
         """Freeze all user-editable business fields on locked orders.
 
         Whitelist model: only ``_LOCKED_WRITABLE_FIELDS`` may change while
-        locked. Scoped over ``_get_user_editable_fields`` so framework writes
+        locked. Scoped over ``_get_fields_user_editable`` so framework writes
         (chatter, activities, stored-compute) are never blocked. Bypassable
         via the ``bypass_locked_check`` context key.
         """
@@ -1086,7 +1086,7 @@ class MixinOrder(models.AbstractModel):
         if not locked:
             return
         candidate = (
-            set(vals) & locked._get_user_editable_fields()
+            set(vals) & locked._get_fields_user_editable()
         ) - self._LOCKED_WRITABLE_FIELDS
         if not candidate:
             return
@@ -1115,7 +1115,7 @@ class MixinOrder(models.AbstractModel):
                     ),
                 )
 
-    def _get_user_editable_fields(self):
+    def _get_fields_user_editable(self):
         """User-settable business fields.
 
         Excludes computed/display (readonly), related, and magic columns, so
@@ -1130,14 +1130,14 @@ class MixinOrder(models.AbstractModel):
             and name not in MAGIC_COLUMNS
         }
 
-    def _validate_write_state_frozen_fields(self, vals):
+    def _check_write_state_frozen_fields(self, vals):
         """Reject writes to fields frozen in the current *or* target state.
 
         Checking the target state as well closes the bypass where a single
         write sets both ``state`` and a field frozen in that new state
         (e.g. ``{"state": "done", "pricelist_id": X}`` on a draft order).
         """
-        frozen_map = self._get_state_frozen_fields()
+        frozen_map = self._get_fields_state_frozen()
         changed = set(vals)
         target_state = vals.get("state")
         for order in self:
@@ -1157,7 +1157,7 @@ class MixinOrder(models.AbstractModel):
                     ),
                 )
 
-    def _validate_write_state_transition(self, vals):
+    def _check_write_state_transition(self, vals):
         """Reject illegal ``state`` transitions on raw writes."""
         if "state" not in vals:
             return

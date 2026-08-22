@@ -5,8 +5,6 @@ from odoo.tests import TransactionCase, new_test_user, tagged
 
 @tagged("post_install", "-at_install")
 class TestPartnerSaleGuards(TransactionCase):
-    """Partner order roll-up and the edit guards a confirmed order imposes."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -41,8 +39,6 @@ class TestPartnerSaleGuards(TransactionCase):
         )
 
     def _order(self, partner, confirm=False):
-        # the order must belong to the salesman: the personal sales-team rule
-        # hides other people's orders, which would read as zero.
         order = self.env["sale.order"].create(
             {
                 "partner_id": partner.id,
@@ -62,7 +58,6 @@ class TestPartnerSaleGuards(TransactionCase):
         return order
 
     def test_child_orders_roll_up_to_the_parent(self):
-        """An order placed by a branch also counts for its holding."""
         self._order(self.child)
         parent = self.parent.with_user(self.salesman)
         child = self.child.with_user(self.salesman)
@@ -71,7 +66,6 @@ class TestPartnerSaleGuards(TransactionCase):
         self.assertEqual(parent.sale_order_count, 1)
 
     def test_parent_own_orders_add_to_the_children_ones(self):
-        """The holding totals its own orders plus those of its branches."""
         self._order(self.parent)
         self._order(self.child)
         parent = self.parent.with_user(self.salesman)
@@ -79,7 +73,6 @@ class TestPartnerSaleGuards(TransactionCase):
         self.assertEqual(parent.sale_order_count, 2)
 
     def test_count_is_acl_protected(self):
-        """The count field itself is denied to users outside the group."""
         self._order(self.child)
         partner = self.parent.with_user(self.outsider)
         partner.invalidate_recordset(["sale_order_count"])
@@ -87,17 +80,14 @@ class TestPartnerSaleGuards(TransactionCase):
             self.assertIsNotNone(partner.sale_order_count)
 
     def test_country_editable_while_no_order_is_confirmed(self):
-        """A draft order does not lock the partner's country."""
         self._order(self.parent)
         self.assertTrue(self.parent._can_edit_country())
 
     def test_country_locked_by_a_confirmed_order(self):
-        """Once an order is confirmed the country can no longer change."""
         self._order(self.parent, confirm=True)
         self.assertFalse(self.parent._can_edit_country())
 
     def test_country_locked_through_the_invoice_partner(self):
-        """The lock also applies when the partner only invoices the order."""
         buyer = self.env["res.partner"].create({"name": "Ordering party"})
         order = self._order(buyer)
         order.partner_invoice_id = self.parent
@@ -105,7 +95,6 @@ class TestPartnerSaleGuards(TransactionCase):
         self.assertFalse(self.parent._can_edit_country())
 
     def test_vat_locked_by_a_confirmed_order_of_a_branch(self):
-        """A branch order locks the VAT of its whole commercial entity."""
         self.assertTrue(self.parent.can_edit_vat())
         self._order(self.child, confirm=True)
         self.assertFalse(self.parent.can_edit_vat())

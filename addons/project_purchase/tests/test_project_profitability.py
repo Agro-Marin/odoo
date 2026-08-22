@@ -40,7 +40,7 @@ class TestProjectPurchaseProfitability(TestProjectProfitabilityCommon, TestPurch
         # a custom analytic contribution (number between 1 -> 100 included)
         analytic_distribution = 42
         analytic_contribution = analytic_distribution / 100.
-        price_precision = self.env['decimal.precision'].precision_get('Product Price')
+        price_precision = self.env['decimal.precision'].get_precision('Product Price')
         # create a bill_1 with the AAL
         bill_1 = self.env['account.move'].create({
             "name": "Bill_1 name",

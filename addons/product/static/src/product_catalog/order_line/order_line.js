@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { formatFloat, formatMonetary } from "@web/core/formatters";
+import { formatFieldFloat, formatMonetary } from "@web/core/formatters";
 
 export class ProductCatalogOrderLine extends Component {
     static template = "product.ProductCatalogOrderLine";
@@ -49,7 +49,7 @@ export class ProductCatalogOrderLine extends Component {
     get quantity() {
         const digits = [false, this.env.precision];
         const options = { digits, decimalPoint: ".", thousandsSep: "" };
-        return parseFloat(formatFloat(this.props.quantity, options));
+        return parseFloat(formatFieldFloat(this.props.quantity, options));
     }
 
     get showPrice() {

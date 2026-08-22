@@ -21,7 +21,8 @@ export class StockOrderpointSearchPanel extends SearchPanel {
                 "get_horizon_days",
                 [[]],
             );
-        } catch {
+        } catch (error) {
+            console.warn("[stock] could not read the replenishment horizon:", error);
             res = 0;
         }
         this.globalHorizonDays.value = Math.max(parseInt(res, 10) || 0, 0);

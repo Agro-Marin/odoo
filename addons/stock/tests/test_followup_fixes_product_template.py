@@ -1,11 +1,3 @@
-"""Regression pins for the product.template stock follow-up audit (2026-08-13).
-
-Every test here fails on the commit before this one. They are separate from
-``test_audit_fixes_product_template`` because three of them pin defects that the
-*previous* audit's implementation introduced, and keeping the two batches apart keeps
-that attribution readable.
-"""
-
 from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
 
@@ -58,14 +50,8 @@ class TestProductTemplateFollowupFixes(TransactionCase):
             ]
         )._apply_inventory()
 
-    # ------------------------------------------------------------------ create
 
     def test_create_with_zero_quantity_does_not_crash(self):
-        """The inverse used to run before the variants existed and die on a zip().
-
-        `qty_available` is withheld from `super()` on the presence of the key, not on
-        the truth of its value, so this reaches `_set_qty_available` as a no-op.
-        """
         tmpl = self.Tmpl.create(
             {
                 "name": "F01",
@@ -81,7 +67,6 @@ class TestProductTemplateFollowupFixes(TransactionCase):
         )
 
     def test_create_all_zero_batch_does_not_crash(self):
-        """The bug was batch-shaped: one non-zero row masked it for the whole batch."""
         tmpls = self.Tmpl.create(
             [
                 {
@@ -97,7 +82,6 @@ class TestProductTemplateFollowupFixes(TransactionCase):
         self.assertEqual(tmpls.mapped("qty_available"), [0.0, 0.0, 0.0])
 
     def test_import_with_a_zero_quantity_column(self):
-        """`load()` is how a user meets this: a spreadsheet with an On Hand column."""
         res = self.Tmpl.load(
             ["name", "type", "is_storable", "qty_available"],
             [["F03", "consu", "1", "0"]],
@@ -106,7 +90,6 @@ class TestProductTemplateFollowupFixes(TransactionCase):
         self.assertTrue(res["ids"])
 
     def test_create_with_a_quantity_still_applies_it(self):
-        """The withholding must not swallow a real quantity."""
         tmpl = self.Tmpl.create(
             {
                 "name": "F04",
@@ -118,10 +101,8 @@ class TestProductTemplateFollowupFixes(TransactionCase):
         self.env.invalidate_all()
         self.assertEqual(tmpl.qty_available, 6.0)
 
-    # ------------------------------------------------------- validation order
 
     def test_ineligible_product_is_told_why_not_the_sign(self):
-        """Sign-first told a service product to make its quantity non-negative."""
         service = self.Tmpl.create({"name": "F05", "type": "service"})
         with self.assertRaises(UserError) as caught:
             service.write({"qty_available": -5})
@@ -145,10 +126,8 @@ class TestProductTemplateFollowupFixes(TransactionCase):
             tmpl.write({"qty_available": -1})
         self.assertIn("negative", str(caught.exception))
 
-    # -------------------------------------------------------------- searching
 
     def test_search_ignores_archived_variants_like_the_field_does(self):
-        """The field sums active variants; the candidate set carried archived ones."""
         tmpl = self._two_variants("F08")
         active_variant, archived_variant = tmpl.product_variant_ids
         self._set_on_hand(active_variant, 7)
@@ -162,7 +141,6 @@ class TestProductTemplateFollowupFixes(TransactionCase):
         self.assertNotIn(tmpl, self.Tmpl.search([("qty_available", ">", 9)]))
 
     def test_search_still_matches_the_template_total(self):
-        """The previous batch's fix must survive the archived-variant scoping."""
         tmpl = self._two_variants("F09")
         plus, minus = tmpl.product_variant_ids
         self._set_on_hand(plus, 5)
@@ -175,14 +153,6 @@ class TestProductTemplateFollowupFixes(TransactionCase):
         self.assertNotIn(tmpl, self.Tmpl.search([("qty_available", "<", 0)]))
 
     def test_unsupported_operator_matches_the_template_total(self):
-        """The fallback used to revert to `any variant matches`.
-
-        Driven through `_search_variant_quantity` directly: `Domain` rejects these
-        operators on a Float before the search hook is reached, so the branch has no
-        route in from `search()` -- which is exactly why it could hold the abolished
-        semantics unnoticed. What is pinned is that it resolves against templates, not
-        against variants.
-        """
         tmpl = self._two_variants("F10")
         plus, minus = tmpl.product_variant_ids
         self._set_on_hand(plus, 5)
@@ -201,7 +171,6 @@ class TestProductTemplateFollowupFixes(TransactionCase):
             "a template totalling 0 must not match through one of its variants",
         )
 
-    # ------------------------------------------------------------- next_serial
 
     def test_next_serial_is_the_name_the_lot_will_get(self):
         tmpl = self.Tmpl.create(
@@ -215,8 +184,6 @@ class TestProductTemplateFollowupFixes(TransactionCase):
         tmpl.serial_prefix_format = "F11-%(year)s-"
         self.env.invalidate_all()
 
-        # Read before the lot exists: `preview_next` reports the number the sequence
-        # will hand out next, and creating the lot consumes it.
         previewed = tmpl.next_serial
         lot = self.env["stock.lot"].create({"product_id": tmpl.product_variant_id.id})
         self.assertEqual(previewed, lot.name)
@@ -238,7 +205,6 @@ class TestProductTemplateFollowupFixes(TransactionCase):
         self.assertTrue(tmpl.next_serial.startswith("BBB-"))
 
     def test_missing_standard_sequence_does_not_raise(self):
-        """Deleting the sequence is not refused, and used to break every save."""
         tmpl = self.Tmpl.create(
             {
                 "name": "F13",
@@ -258,10 +224,8 @@ class TestProductTemplateFollowupFixes(TransactionCase):
         self.assertEqual(tmpl.lot_sequence_id.prefix, "F13-")
         self.assertEqual(tmpl.lot_sequence_id.padding, 7)
 
-    # ------------------------------------------------------------- company move
 
     def test_company_change_sees_archived_variants(self):
-        """An archived variant keeps its quants; the guard was scoped to active ones."""
         other_company = self.env["res.company"].create({"name": "F14 co"})
         tmpl = self._two_variants("F14")
         __, archived_variant = tmpl.product_variant_ids
@@ -272,14 +236,8 @@ class TestProductTemplateFollowupFixes(TransactionCase):
         with self.assertRaises(UserError):
             tmpl.write({"company_id": other_company.id})
 
-    # ---------------------------------------------------------- overridability
 
     def test_show_qty_update_button_goes_through_the_overridable_method(self):
-        """Inlining the rule dropped mrp's kit override; nothing caught it.
-
-        Asserted against an override installed on the fly so the pin holds whether or
-        not `mrp` is in the addons path.
-        """
         tmpl = self.Tmpl.create({"name": "F15", "type": "consu", "is_storable": True})
         self.assertFalse(tmpl.show_qty_update_button)
 
@@ -295,10 +253,8 @@ class TestProductTemplateFollowupFixes(TransactionCase):
         finally:
             cls._should_open_product_quants = original
 
-    # --------------------------------------------------------------- scoping
 
     def test_quantity_scope_context_keys_are_in_the_cache_key(self):
-        """`strict` narrows to the exact location; it must not reuse the wide answer."""
         sub = self.env["stock.location"].create(
             {"name": "F16 sub", "location_id": self.loc.id, "usage": "internal"}
         )
@@ -323,7 +279,6 @@ class TestProductTemplateFollowupFixes(TransactionCase):
         )
 
     def test_counts_survive_a_new_record_with_an_origin(self):
-        """`self.ids` resolves a NewId to its origin; the lookup keyed by `.id` did not."""
         tmpl = self.Tmpl.create({"name": "F17", "type": "consu", "is_storable": True})
         self.env["stock.warehouse.orderpoint"].create(
             {
@@ -340,7 +295,6 @@ class TestProductTemplateFollowupFixes(TransactionCase):
         self.assertEqual(draft.count_reordering_rules, 1)
         self.assertEqual(draft.reordering_qty_max, 9.0)
 
-    # ------------------------------------------------------------------- copy
 
     def _capacity(self, product, quantity):
         return self.env["stock.storage.category.capacity"].create(
@@ -360,11 +314,6 @@ class TestProductTemplateFollowupFixes(TransactionCase):
         return self._category
 
     def test_copy_carries_an_archived_variants_capacity(self):
-        """Archiving a variant does not remove its attribute value from the template.
-
-        The copy therefore gets a live variant for that combination, and it was the
-        only one arriving without a capacity.
-        """
         tmpl = self._two_variants("F20")
         kept, archived = tmpl.product_variant_ids
         self._capacity(kept, 10)
@@ -382,7 +331,6 @@ class TestProductTemplateFollowupFixes(TransactionCase):
         self.assertEqual(by_value, {"S": 10.0, "M": 20.0})
 
     def test_copy_drops_a_capacity_with_no_counterpart(self):
-        """`default` can narrow the copy's attribute lines; those capacities go."""
         tmpl = self._two_variants("F21")
         first, second = tmpl.product_variant_ids
         self._capacity(first, 10)
@@ -413,7 +361,6 @@ class TestProductTemplateFollowupFixes(TransactionCase):
         )
 
     def test_copy_batch_keeps_each_templates_capacities_apart(self):
-        """One `copy_data` call for the set must not shuffle vals between templates."""
         first, second = self._two_variants("F22a"), self._two_variants("F22b")
         for template, quantities in ((first, (1, 2)), (second, (3, 4))):
             for variant, quantity in zip(
@@ -435,17 +382,8 @@ class TestProductTemplateFollowupFixes(TransactionCase):
             [[1.0, 2.0], [3.0, 4.0]],
         )
 
-    # ---------------------------------------------------- no-op adjustment
 
     def test_zero_adjustment_leaves_the_location_alone(self):
-        """Re-saving a product already at 0 is not an inventory count.
-
-        The zero-difference quant itself still gets written -- that is how every
-        inventory-mode adjustment starts, and a quant at 0 is vacuumed like any other.
-        What must not happen is the whole-location bookkeeping: `_apply_inventory`
-        already suppresses the *move* for this case, and the date stamp has to agree
-        with it.
-        """
         tmpl = self.Tmpl.create({"name": "F18", "type": "consu", "is_storable": True})
         self.loc.last_inventory_date = False
         self.env.flush_all()

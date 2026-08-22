@@ -7,7 +7,7 @@ export class PurchaseSuggestCatalogKanbanModel extends ProductCatalogKanbanModel
     /**
      * @override  to reorder records with suggested_qty > 0 to the top, keeping original order.
      */
-    async _loadData(params) {
+    async _loadData(params, ...rest) {
         const sortBySuggested = (list) => {
             const suggestProducts = list.filter((record) => record.suggested_qty > 0);
             const notSuggestedProducts = list.filter(
@@ -18,7 +18,7 @@ export class PurchaseSuggestCatalogKanbanModel extends ProductCatalogKanbanModel
         const suggest = getSuggestToggleState(
             this.config.context.product_catalog_order_state,
         );
-        const result = await super._loadData(params);
+        const result = await super._loadData(params, ...rest);
         if (!suggest.isOn || !result.records.some((r) => r.suggested_qty > 0)) {
             return result;
         }

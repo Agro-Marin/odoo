@@ -334,13 +334,13 @@ class PurchaseEdiXmlUbl_Bis3(models.AbstractModel):
     # Purchase Order EDI Import
     # -------------------------------------------------------------------------
 
-    def _retrieve_order_vals(self, order, tree):
+    def _prepare_order_vals(self, order, tree):
         """ Fill order details by extracting details from xml tree.
         param order: Order to fill details from xml tree.
         param tree: Xml tree to extract details.
         :return: list of logs to add warning and information about data from xml.
         """
-        order_vals, logs = super()._retrieve_order_vals(order, tree)
+        order_vals, logs = super()._prepare_order_vals(order, tree)
         partner, partner_logs = self._import_partner(
             order.company_id,
             **self._import_retrieve_partner_vals(tree, 'SellerSupplier'),

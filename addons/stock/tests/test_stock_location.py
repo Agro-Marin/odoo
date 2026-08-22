@@ -1,12 +1,3 @@
-"""Invariants of ``stock.location`` itself: the putaway entry point's arity and
-candidate scoping, the one definition of "empty", tree maintenance of
-``warehouse_id``, and the constraints that bound the field values.
-
-Putaway *rule selection* is covered in `test_move.py`; what is covered here is the
-contract of `_get_putaway_strategy` as a method — who may call it with what, and
-which locations it is allowed to answer with.
-"""
-
 from psycopg.errors import CheckViolation, UniqueViolation
 
 from odoo.exceptions import UserError, ValidationError
@@ -18,9 +9,6 @@ from odoo.addons.stock.tests.common import TestStockCommon
 
 @tagged("post_install", "-at_install")
 class TestStockLocationPutawayContract(TestStockCommon):
-    """`_get_putaway_strategy` speaks for one location and answers from its own
-    subtree. Both used to be assumptions rather than rules."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -30,13 +18,6 @@ class TestStockLocationPutawayContract(TestStockCommon):
         cls.package_type = cls.env["stock.package.type"].create({"name": "Box"})
 
     def test_get_putaway_strategy_refuses_multiple_locations(self):
-        """It returns *a* destination, so it cannot be asked about two at once.
-
-        Asked with no candidates, the method never reads `self.usage` and so used
-        to fall through and hand the caller a two-record "destination" — which the
-        caller then wrote onto a move line. The arity has to be rejected up front,
-        not incidentally by whichever singleton read happens to run.
-        """
         destinations = self.stock_location | self.warehouse_2.lot_stock_id
         with self.assertRaises(ValueError):
             destinations.with_context(
@@ -44,9 +25,6 @@ class TestStockLocationPutawayContract(TestStockCommon):
             )._get_putaway_strategy(self.productA, 1)
 
     def test_locations_context_is_narrowed_to_the_destination(self):
-        """The `locations` context is a cache shared by a whole move group, so it
-        can name candidates belonging to another destination. Those must not be
-        selectable here."""
         candidates = (
             self.warehouse_2.lot_stock_id.child_internal_location_ids
             | self.stock_location.child_internal_location_ids
@@ -62,8 +40,6 @@ class TestStockLocationPutawayContract(TestStockCommon):
         )
 
     def test_empty_locations_context_is_not_a_missing_one(self):
-        """An explicitly empty candidate set means "nothing available here", not
-        "no cache supplied" — it must not silently fall back to the subtree."""
         view_location = self.warehouse_1.view_location_id
         chosen = view_location.with_context(
             locations=self.env["stock.location"]
@@ -71,13 +47,6 @@ class TestStockLocationPutawayContract(TestStockCommon):
         self.assertEqual(chosen, view_location)
 
     def test_putaway_keeps_each_line_inside_its_own_destination(self):
-        """One picking, two moves to two destinations, one destination package.
-
-        The package branch used to resolve a single putaway answer for the whole
-        group from a mapped (multi-record) destination — which either raised
-        `Expected singleton` or, when it did not, placed every line in one
-        location regardless of which move it belonged to.
-        """
         dest_1 = self.stock_location
         dest_2 = self.warehouse_1.wh_input_stock_loc_id
         picking = self.env["stock.picking"].create(
@@ -129,9 +98,6 @@ class TestStockLocationPutawayContract(TestStockCommon):
 
 @tagged("post_install", "-at_install")
 class TestStockLocationEmptiness(TestStockCommon):
-    """`is_empty`, its search and the archive guard read one definition, so a
-    location the list shows as empty is exactly one that archives."""
-
     def _make_quant(self, location, quantity=0.0, reserved_quantity=0.0):
         return self.env["stock.quant"].create(
             {
@@ -156,8 +122,6 @@ class TestStockLocationEmptiness(TestStockCommon):
             location.action_archive()
 
     def test_negative_stock_is_not_empty(self):
-        """A shortage is a discrepancy to resolve, not an absence. Summing used to
-        report it as empty while the archive guard refused the archive."""
         self._make_quant(self.shelf_1, quantity=-5)
         self.assertOccupied(self.shelf_1, "the location holds a negative quant")
 
@@ -166,7 +130,6 @@ class TestStockLocationEmptiness(TestStockCommon):
         self.assertOccupied(self.shelf_1, "the location holds a reservation")
 
     def test_opposite_quantities_do_not_cancel_out(self):
-        """Two products, +5 and -5. A sum over the location nets them to zero."""
         self._make_quant(self.shelf_1, quantity=5)
         self.env["stock.quant"].create(
             {
@@ -185,8 +148,6 @@ class TestStockLocationEmptiness(TestStockCommon):
         self.assertFalse(self.shelf_1.active)
 
     def test_is_empty_search_partitions_the_set(self):
-        """The ORM derives `is_empty = False` by negating the search domain; the
-        two halves must not overlap or leave a gap."""
         self._make_quant(self.shelf_1, quantity=5)
         Location = self.env["stock.location"]
         empty = Location.search([("is_empty", "=", True)])
@@ -198,9 +159,6 @@ class TestStockLocationEmptiness(TestStockCommon):
 
 @tagged("post_install", "-at_install")
 class TestStockLocationTree(TestStockCommon):
-    """`warehouse_id` follows `parent_path`, which `@api.depends` cannot track, so
-    every operation that reshapes the tree has to maintain it explicitly."""
-
     def _assert_warehouse(self, locations, warehouse):
         locations.invalidate_recordset(["warehouse_id"])
         for location in locations:
@@ -230,8 +188,6 @@ class TestStockLocationTree(TestStockCommon):
         self._assert_warehouse(self.StockLocationObj.union(*branch), warehouse_2)
 
     def test_repointing_a_warehouse_view_repoints_the_whole_subtree(self):
-        """Only the view location carries the `warehouse_view_ids` dependency; its
-        descendants follow `parent_path` and used to keep the old warehouse."""
         zone, shelf, bin_ = self._make_branch(self.warehouse_1.view_location_id)
         warehouse_2 = self.env["stock.warehouse"].create(
             {"name": "Adopting WH", "code": "ADW"},
@@ -244,9 +200,6 @@ class TestStockLocationTree(TestStockCommon):
         self.assertTrue(old_view.exists())
 
     def test_creating_a_warehouse_on_an_existing_subtree_stamps_it_whole(self):
-        """`stock.warehouse.create` honours a caller-supplied `view_location_id`,
-        so that view can already carry a tree of any depth. Stamping the view and
-        its *direct* children left every grandchild without a warehouse."""
         view = self.StockLocationObj.create({"name": "Supplied View", "usage": "view"})
         zone = self.StockLocationObj.create(
             {"name": "Zone", "location_id": view.id, "usage": "view"},
@@ -273,8 +226,6 @@ class TestStockLocationTree(TestStockCommon):
         self._assert_warehouse(parent | parent.child_ids, self.warehouse_1)
 
     def test_unlink_guard_stands_down_during_module_uninstall(self):
-        """The guard is a business rule; an uninstall cannot satisfy it, and the
-        ORM skips `@api.ondelete(at_uninstall=False)` handlers for that reason."""
         parent = self.StockLocationObj.create(
             {"name": "Doomed", "location_id": self.stock_location.id, "usage": "view"},
         )
@@ -291,9 +242,6 @@ class TestStockLocationTree(TestStockCommon):
 
 @tagged("post_install", "-at_install")
 class TestStockLocationConstraintScope(TestStockCommon):
-    """A constraint states an invariant over the data, and only over the records
-    the write actually changes. These two used to get both halves wrong."""
-
     def test_a_location_holding_stock_cannot_become_a_view(self):
         with_stock = self.StockLocationObj.create(
             {"name": "Occupied", "location_id": self.stock_location.id},
@@ -315,8 +263,6 @@ class TestStockLocationConstraintScope(TestStockCommon):
 @tagged("post_install", "-at_install")
 class TestStockLocationFieldBounds(TestStockCommon):
     def test_display_name_is_the_stored_complete_name(self):
-        """`display_name` used to reassemble the parent path that `complete_name`
-        already stores; the two must not be able to disagree."""
         zone = self.StockLocationObj.create(
             {"name": "Named", "location_id": self.stock_location.id, "usage": "view"},
         )
@@ -334,11 +280,6 @@ class TestStockLocationFieldBounds(TestStockCommon):
         )
 
     def test_cyclic_inventory_frequency_is_refused_at_write_time(self):
-        """An unbounded frequency overflowed `_compute_next_inventory_date`, so a
-        stored row turned every later read — and every upgrade recomputing the
-        field — into an error. It has to be refused before it reaches the cache,
-        because the stored compute runs during the flush that precedes the UPDATE
-        and would hit the value before PostgreSQL could reject it."""
         with self.assertRaises(ValidationError):
             self.shelf_1.cyclic_inventory_frequency = 10**9
         with self.assertRaises(ValidationError):
@@ -356,8 +297,6 @@ class TestStockLocationFieldBounds(TestStockCommon):
 
     @mute_logger("odoo.db.cursor")
     def test_cyclic_inventory_frequency_is_bounded_in_sql(self):
-        """The constraint is the backstop for what does not come through the ORM:
-        a raw UPDATE, a restore, a badly-written migration."""
         with self.assertRaises(CheckViolation), self.env.cr.savepoint():
             self.env.cr.execute(
                 "UPDATE stock_location SET cyclic_inventory_frequency = %s WHERE id = %s",
@@ -366,8 +305,6 @@ class TestStockLocationFieldBounds(TestStockCommon):
 
     @mute_logger("odoo.db.cursor")
     def test_barcode_is_unique_among_shared_locations(self):
-        """`company_id` is nullable by design, and under the default NULLS
-        DISTINCT the unique index never bound two company-less locations."""
         self.StockLocationObj.create(
             {"name": "Shared A", "barcode": "SHARED-BC", "company_id": False},
         )

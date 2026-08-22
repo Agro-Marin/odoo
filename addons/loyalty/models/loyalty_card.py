@@ -58,7 +58,7 @@ class LoyaltyCard(models.Model):
     @api.constrains('code')
     def _contrains_code(self):
         # Prevent a coupon from sharing its code with a program trigger
-        if self.env['loyalty.rule'].search_count([('mode', '=', 'with_code'), ('code', 'in', self.mapped('code'))]):
+        if self.env['loyalty.rule'].search_count([('mode', '=', 'with_code'), ('code', 'in', self.mapped('code'))], limit=1):
             raise ValidationError(_("A trigger with the same code as one of your coupon already exists."))
 
     @api.depends('points', 'point_name')

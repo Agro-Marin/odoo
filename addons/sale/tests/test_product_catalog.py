@@ -97,24 +97,21 @@ class TestProductCatalog(HttpCase, SaleCommon):
         action_data = self.empty_order.action_add_from_catalog()
         catalog_context = action_data["context"]
         self.assertEqual(
-            catalog_context["product_catalog_order_id"], self.empty_order.id
+            catalog_context["order_id"], self.empty_order.id
         )
         self.assertEqual(catalog_context["product_catalog_order_model"], self.res_model)
         self.assertEqual(
             catalog_context["product_catalog_currency_id"],
             self.empty_order.currency_id.id,
         )
-        # Equal to false, as `price_unit` doesn't have a precision set.
         self.assertFalse(catalog_context["product_catalog_digits"])
 
     def test_empty_order_data(self):
         self.check_catalog_data(self.products)
 
-    # TODO VFE in master, forbid updates when order is readonly
     def test_readonly_order_data(self):
         self.empty_order._action_cancel()
 
-        # Readonly order because in cancelled state
         self.check_catalog_data(
             self.service_product,
             {
@@ -153,7 +150,6 @@ class TestProductCatalog(HttpCase, SaleCommon):
         self._create_pricelist_discount_rules()
         self.env["res.config.settings"].create(
             {
-                # Discounts included in price
                 "group_product_pricelist": True,
                 "group_discount_per_so_line": True,
             }
@@ -179,7 +175,6 @@ class TestProductCatalog(HttpCase, SaleCommon):
     def test_update(self):
         self.assertFalse(self.empty_order.line_ids)
 
-        # Add product to order
         product = self.service_product
         update_data = self.request_update_order_line_info(product=product)
         sol = self.empty_order.line_ids
@@ -189,26 +184,17 @@ class TestProductCatalog(HttpCase, SaleCommon):
         self.assertEqual(update_data, product.lst_price)
 
     def test_update_with_pricelist_rules(self):
-        """Test price computation with pricelist rules via HTTP API.
-
-        Tests the /update_order_line_info endpoint behavior when:
-        - Pricelist has percentage discount rules
-        - Discount feature is disabled (discounted price goes into price_unit)
-        """
         product = self.service_product
-        # The service_product has list_price=50.0 from ProductCommon setup
         expected_price = 50.0
 
         self._create_pricelist_discount_rules()
         self.env["res.config.settings"].create(
             {
-                # Discounts NOT shown separately (goes into price_unit)
                 "group_product_pricelist": True,
                 "group_discount_per_so_line": False,
             }
         ).execute()
 
-        # Add first item --> no discount (min_qty=2 not reached)
         update_data = self.request_update_order_line_info(product=product)
         sol = self.empty_order.line_ids
         self.assertRecordValues(
@@ -224,7 +210,6 @@ class TestProductCatalog(HttpCase, SaleCommon):
         )
         self.assertEqual(update_data, expected_price)
 
-        # Add a second item --> should trigger the pricelist discount
         update_data = self.request_update_order_line_info(product=product, quantity=2.0)
         self.assertRecordValues(
             sol,
@@ -240,20 +225,12 @@ class TestProductCatalog(HttpCase, SaleCommon):
         self.assertEqual(update_data, expected_price / 2)
 
     def test_update_with_pricelist_rules_discounts_enabled(self):
-        """Test price computation when discount feature is enabled.
-
-        When group_discount_per_so_line is enabled, the discount should be
-        shown in the discount field, not applied to price_unit.
-        """
         product = self.service_product
         expected_price = 50.0
 
         self._create_pricelist_discount_rules()
-        # Enable discount feature BEFORE making HTTP requests
-        # (group changes must be committed to be visible to HTTP requests)
         self._enable_discounts()
 
-        # Add items to trigger pricelist discount (min_qty=2)
         update_data = self.request_update_order_line_info(product=product, quantity=3.0)
         sol = self.empty_order.line_ids
         self.assertRecordValues(
@@ -270,7 +247,6 @@ class TestProductCatalog(HttpCase, SaleCommon):
         self.assertEqual(update_data, expected_price / 2)
 
     def test_remove_product_from_catalog_without_sol(self):
-        """Test that removing a product from the catalog right after clicking Add button"""
         product = self.service_product
         update_data = self.request_update_order_line_info(product=product, quantity=0.0)
 

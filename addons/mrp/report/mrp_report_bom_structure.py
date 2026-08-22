@@ -32,13 +32,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
 
     @api.model
     def _compute_current_production_capacity(self, bom_data):
-        # Get the maximum amount producible product of the selected bom given each component's stock levels.
-        # Demand and availability are aggregated per component product in the
-        # product's reference UoM. A product that appears on several BoM lines —
-        # possibly expressed in different UoMs — must have its per-line demand
-        # summed in a single unit, and its free stock (a per-product value)
-        # taken once; keying the raw per-line quantities by product_id alone
-        # would otherwise add mismatched units and overwrite the availability.
         components_qty_to_produce = defaultdict(lambda: 0)
         components_qty_available = {}
         for comp in bom_data.get("components", []):
@@ -50,13 +43,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             components_qty_to_produce[product.id] += comp[
                 "uom"
             ]._compute_quantity_report(comp["base_bom_line_qty"], product.uom_id)
-            # The row's own figure, not `product.qty_free` again: `free_to_manufacture_qty`
-            # is what `_get_quantities_info` decided is available *for this BoM*, and
-            # `mrp_subcontracting` narrows it to the subcontractor's location. Reading the
-            # product a second time threw that away and answered with company-wide stock,
-            # so a subcontractor holding 20 of 80 components reported 80 producible while
-            # the component row beside it correctly said 20. Converted from the BoM line's
-            # unit exactly as the demand above it is.
             components_qty_available[product.id] = comp["uom"]._compute_quantity_report(
                 comp["free_to_manufacture_qty"], product.uom_id
             )
@@ -136,7 +122,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         if bom:
             bom_uom_name = bom.product_uom_id.name
 
-            # Get variants used for search
             if not bom.product_id:
                 for variant in bom.product_tmpl_id.product_variant_ids:
                     bom_product_variants[variant.id] = variant.display_name
@@ -166,12 +151,11 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             )
             and len(bom_product_variants) > 1,
             "is_uom_applied": self.env.user.has_group("uom.group_uom"),
-            "precision": self.env["decimal.precision"].precision_get("Product Unit"),
+            "precision": self.env["decimal.precision"].get_precision("Product Unit"),
         }
 
     @api.model
     def _get_missing_qty_status(self, missing_qty, route_name):
-        """ "<qty> To <route>" when something is short, empty when it is not."""
         missing_qty = max(missing_qty, 0)
         if not missing_qty:
             return ""
@@ -179,7 +163,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             "%(qty)s To %(route)s",
             qty=float_repr(
                 missing_qty,
-                self.env["decimal.precision"].precision_get("Product Unit"),
+                self.env["decimal.precision"].get_precision("Product Unit"),
             ),
             route=route_name or _("Order"),
         )
@@ -197,10 +181,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         ignore_stock,
         simulated_leaves_per_workcenter,
     ):
-        """One report row per applicable BoM line, sub-assemblies expanded.
-
-        Lines resolving to the same product and unit are merged into one row.
-        """
         no_bom_lines = self.env["mrp.bom.line"]
         line_quantities = {}
         for line in bom.bom_line_ids:
@@ -213,7 +193,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             if line.child_bom_id:
                 continue
             no_bom_lines |= line
-            # Update product_info for all the components before computing closest forecasted.
             self._update_product_info(
                 line.product_id,
                 bom.id,
@@ -286,19 +265,8 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         parent_product,
         ignore_stock=False,
     ):
-        """
-        Returns a dict mapping products to a dict of their corresponding BoM lines,
-        which are mapped to their closest date in the forecast report where consumed quantity >= forecasted quantity.
-
-        E.g. {'product_1_id': {'line_1_id': date_1, line_2_id: date_2}, 'product_2': {line_3_id: date_3}, ...}.
-
-        Note that
-            - if a product is unavailable + not forecasted for a specific bom line => its date will be `date.max`
-            - if a product's type is not `product` or is already in stock for a specific bom line => its date will be `date.min`.
-        """
         if ignore_stock:
             return {}
-        # Use defaultdict(OrderedDict) in case there are lines with the same component.
         closest_forecasted = defaultdict(OrderedDict)
         remaining_products = []
         product_quantities_info = defaultdict(OrderedDict)
@@ -321,7 +289,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 )
                 <= 0
             ):
-                # Use date.min as a sentinel value for _get_stock_availability
                 closest_forecasted[product.id][line.id] = date.min
             elif (
                 stock_loc != "in_stock"
@@ -351,7 +318,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 product_id = group[0].id
                 available_quantities[product_id].append([group[2], group[1]])
             for product_id in remaining_products:
-                # Find the first empty line_id for the given product_id.
                 line_id = next(
                     filter(
                         lambda k: not closest_forecasted[product_id][k],
@@ -359,7 +325,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                     ),
                     None,
                 )
-                # Find the first available quantity for the given product and update closest_forecasted
                 for min_date, product_qty in available_quantities[product_id]:
                     if product_qty >= product_quantities_info[product_id][line_id]:
                         closest_forecasted[product_id][line_id] = min_date
@@ -384,11 +349,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         ignore_stock=False,
         simulated_leaves_per_workcenter=False,
     ):
-        """Gets recursively the BoM and all its subassemblies and computes availibility estimations for each component and their disponibility in stock.
-        Accepts specific keys in context that will affect the data computed :
-        - 'minimized': Will cut all data not required to compute availability estimations.
-        - 'from_date': Gives a single value for 'today' across the functions, as well as using this date in products quantity computes.
-        """
         is_minimized = self.env.context.get("minimized", False)
         if not product:
             product = bom.product_id or bom.product_tmpl_id.product_variant_id
@@ -399,8 +359,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         if simulated_leaves_per_workcenter is False:
             simulated_leaves_per_workcenter = defaultdict(list)
         if not is_minimized and "mrp_bom_attachment_index" not in self.env.context:
-            # Resolve the BoM-attachment index once for the whole walk; every
-            # recursive call below goes through `self` and inherits it.
             self = self.with_context(
                 mrp_bom_attachment_index=self._get_bom_attachment_index()
             )
@@ -420,7 +378,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             if product:
                 has_attachments = self._has_bom_attachment(product)
             else:
-                # Use the product template instead of the variant
                 has_attachments = self._has_bom_attachment(template=bom.product_tmpl_id)
 
         key = product.id
@@ -441,7 +398,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         route_info = product_info[key].get(bom_key, {})
         quantities_info = {}
         if not ignore_stock:
-            # Useless to compute quantities_info if it's not going to be used later on
             quantities_info = self._get_quantities_info(
                 product, bom.product_uom_id, product_info, parent_bom, parent_product
             )
@@ -461,7 +417,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             or 0,
             "base_bom_line_qty": bom_line.product_qty
             if bom_line
-            else False,  # bom_line isn't defined only for the top-level product
+            else False,
             "name": product.display_name or bom.product_tmpl_id.display_name,
             "uom": bom.product_uom_id if bom else product.uom_id,
             "uom_name": bom.product_uom_id.name if bom else product.uom_id.name,
@@ -503,8 +459,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             simulated_leaves_per_workcenter,
         )
         for component in components:
-            # Merged rows already carry the sum of what they absorbed, so each
-            # product's cost is counted exactly once.
             bom_report_line["bom_cost"] += component["bom_cost"]
             if not component["is_storable"]:
                 continue
@@ -529,7 +483,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             components,
             report_line=bom_report_line,
         )
-        # in case of subcontracting, lead_time will be calculated with components availability delay
         bom_report_line["lead_time"] = route_info.get("lead_time", False)
         bom_report_line["manufacture_delay"] = route_info.get(
             "manufacture_delay", False
@@ -554,7 +507,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 bom,
                 float_round(
                     current_quantity,
-                    precision_digits=self.env["decimal.precision"].precision_get(
+                    precision_digits=self.env["decimal.precision"].get_precision(
                         "Product Unit"
                     ),
                     rounding_method="UP",
@@ -616,7 +569,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         )
 
         if level == 0:
-            # Gives a unique key for the first line that indicates if product is ready for production right now.
             bom_report_line["components_available"] = all(
                 c["stock_avail_state"] == "available" for c in components
             )
@@ -651,7 +603,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
 
         quantities_info = {}
         if not ignore_stock:
-            # Useless to compute quantities_info if it's not going to be used later on
             quantities_info = self._get_quantities_info(
                 bom_line.product_id,
                 bom_line.product_uom_id,
@@ -770,7 +721,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 parent_product,
             )
         elif product_info[key][bom_key].get("route_alert"):
-            # Need more quantity than a single line, might change with additional quantity
             product_info[key][bom_key] = self._get_resupply_route_info(
                 warehouse,
                 product,
@@ -1099,7 +1049,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             rule for rule in rules if rule.action == "manufacture" and bom
         ]
         if manufacture_rules:
-            # Need to get rules from Production location to get delays before production
             wh_manufacture_rules = product._get_rules_from_location(
                 product.property_stock_production, route_ids=warehouse.route_ids
             )
@@ -1129,14 +1078,12 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         bom_line=None,
         report_line=False,
     ):
-        # Get availabilities according to stock (today & forecasted).
         stock_state, stock_delay = ("unavailable", False)
         if not ignore_stock:
             stock_state, stock_delay = self._get_stock_availability(
                 product, quantity, product_info, quantities_info, bom_line=bom_line
             )
 
-        # Get availabilities from applied resupply rules
         components = components or []
         route_info = product_info[product.id].get(bom_key)
         resupply_state, resupply_delay = ("unavailable", False)
@@ -1199,7 +1146,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
 
         stock_loc = quantities_info["stock_loc"]
         product_info[product.id]["consumptions"][stock_loc] += quantity
-        # Check if product is already in stock with enough quantity
         if (
             product
             and product.uom_id.compare(
@@ -1210,7 +1156,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         ):
             return ("available", 0)
 
-        # No need to check forecast if the product isn't located in our stock
         if stock_loc == "in_stock":
             domain = [
                 ("state", "=", "forecast"),
@@ -1227,7 +1172,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                     ("warehouse_id", "=", self.env.context.get("warehouse_id"))
                 )
 
-            # Seek the closest date in the forecast report where consummed quantity >= forecasted quantity
             if not closest_forecasted:
                 [closest_forecasted] = self.env["report.stock.quantity"]._read_group(
                     domain, aggregates=["date:min"]
@@ -1253,7 +1197,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         for component in components:
             line_delay = component.get("availability_delay", False)
             if line_delay is False:
-                # This component isn't available right now and cannot be resupplied, so the manufactured product can't be resupplied either.
                 return False
             max_component_delay = max(max_component_delay, line_delay)
         return max_component_delay
@@ -1284,15 +1227,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
 
     @api.model
     def _get_bom_attachment_index(self):
-        """Ids of the products and templates carrying a BoM-attached document.
-
-        Resolved in one query and cached in the context for the rest of the
-        walk. The report asks this question once per node of the exploded BoM,
-        purely to decide whether to draw a paperclip, and used to spend one
-        `search_count` on each -- exactly one query per product in the tree.
-
-        :rtype: dict with 'product.product' and 'product.template' id sets
-        """
         index = self.env.context.get("mrp_bom_attachment_index")
         if index is not None:
             return index
@@ -1307,7 +1241,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         return index
 
     def _has_bom_attachment(self, product=None, template=None):
-        """Whether `product` (or `template`) carries a BoM-attached document."""
         index = self._get_bom_attachment_index()
         if product:
             return (
@@ -1355,9 +1288,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
     def _simulate_bom_planning(
         self, bom, product, start_date, quantity, simulated_leaves_per_workcenter=False
     ):
-        """Simulate planning of all the operations depending on the workcenters work schedule.
-        (see '_plan_workorders' & '_link_workorders_and_moves')
-        """
         bom.ensure_one()
         if not bom.operation_ids:
             return {}
@@ -1405,15 +1335,11 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         planning_per_operation=False,
         simulated_leaves_per_workcenter=False,
     ):
-        """Simulate planning of an operation depending on its workcenter/alternatives work schedule.
-        (see '_plan_workorder')
-        """
         operation.ensure_one()
         if planning_per_operation is False:
             planning_per_operation = {}
         if simulated_leaves_per_workcenter is False:
             simulated_leaves_per_workcenter = defaultdict(list)
-        # Plan operation after its predecessors
         date_start = max(start_date, datetime.now())
         for op in operation.blocked_by_operation_ids:
             if op._skip_operation_line(product):
@@ -1428,7 +1354,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                     simulated_leaves_per_workcenter,
                 )
             date_start = max(date_start, planning_per_operation[op]["date_end"])
-        # Consider workcenter and alternatives
         workcenters = (
             operation.workcenter_id | operation.workcenter_id.alternative_workcenter_ids
         )
@@ -1439,26 +1364,21 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 raise UserError(
                     _("There is no defined calendar on workcenter %s.", workcenter.name)
                 )
-            # Compute theoretical duration
             duration_expected = operation.with_context(
                 product=product, quantity=quantity, workcenter=workcenter
             ).time_total
-            # Try to plan on workcenter
             from_date, to_date = workcenter._get_first_available_slot(
                 date_start,
                 duration_expected,
                 extra_leaves_slots=simulated_leaves_per_workcenter[workcenter],
             )
-            # If the workcenter is unavailable, try planning on the next one
             if not from_date:
                 continue
-            # Check if this workcenter is better than the previous ones
             if to_date and (best_date_finished is None or to_date < best_date_finished):
                 best_date_start = from_date
                 best_date_finished = to_date
                 best_workcenter = workcenter
                 best_duration_expected = duration_expected
-        # If none of the workcenter are available, raise
         if best_date_finished is None:
             raise UserError(
                 _("Impossible to plan. Please check the workcenter availabilities.")

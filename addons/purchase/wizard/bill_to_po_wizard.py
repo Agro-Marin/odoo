@@ -37,9 +37,6 @@ class BillToPoWizard(models.TransientModel):
                     for val in line_vals
                 ]
             )
-            # Re-assign line_ids: this is not a no-op — it re-runs the O2M
-            # onchange/recompute so the new lines keep the bill's price
-            # instead of the seller/product-derived price.
             self.purchase_order_id.line_ids += new_po_lines
         else:
             self.purchase_order_id = self.env["purchase.order"].create(
@@ -50,7 +47,6 @@ class BillToPoWizard(models.TransientModel):
             )
             new_po_lines = self.purchase_order_id.line_ids
 
-        # Only confirm if the PO is still in draft state (not already confirmed)
         if self.purchase_order_id.state == "draft":
             self.purchase_order_id.action_confirm()
         for aml, pol in zip(lines_to_add, new_po_lines, strict=False):

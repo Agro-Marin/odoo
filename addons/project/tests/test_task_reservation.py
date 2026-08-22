@@ -10,7 +10,7 @@ from odoo.tests.common import TransactionCase
 class TestTaskReservation(TransactionCase):
     """Test reservation fields, sync, and cleanup on project.task.
 
-    Core module does not have planned_date_begin, so _get_reservation_date_fields
+    Core module does not have planned_date_begin, so _get_fields_reservation_date
     returns (None, None) and _sync_reservations is a no-op.  These tests verify
     the field declarations, the cleanup hook, and the manual reservation scenario.
     """
@@ -113,11 +113,11 @@ class TestTaskReservation(TransactionCase):
         )
 
     def test_get_reservation_date_fields_returns_tuple(self):
-        """_get_reservation_date_fields returns a 2-tuple."""
+        """_get_fields_reservation_date returns a 2-tuple."""
         task = self.env["project.task"].create(
             {"name": "Core task", "project_id": self.project.id}
         )
-        result = task._get_reservation_date_fields()
+        result = task._get_fields_reservation_date()
         self.assertIsInstance(result, tuple)
         self.assertEqual(len(result), 2)
 

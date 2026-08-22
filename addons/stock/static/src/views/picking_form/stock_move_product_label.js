@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { ProductNameAndDescriptionField } from "@product/product_name_and_description/product_name_and_description";
+import { isTerminalState } from "@stock/utils/stock_state";
 import { registry } from "@web/core/registry";
 import { many2OneField } from "@web/fields/relational/many2one";
 
@@ -18,14 +19,12 @@ export class MoveProductLabelField extends ProductNameAndDescriptionField {
     get isDescriptionReadonly() {
         return (
             this.props.readonly &&
-            ["done", "cancel"].includes(this.props.record.evalContext.parent?.state)
+            isTerminalState(this.props.record.evalContext.parent?.state)
         );
     }
     get showLabelVisibilityToggler() {
         return (
-            !this.isDescriptionReadonly &&
-            this.columnIsProductAndLabel.value &&
-            !this.label
+            !this.isDescriptionReadonly && this.columnIsProductAndLabel && !this.label
         );
     }
     parseLabel(value) {

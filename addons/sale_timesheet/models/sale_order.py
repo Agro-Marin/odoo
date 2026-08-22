@@ -101,7 +101,7 @@ class SaleOrder(models.Model):
                 - service_policy="ordered_prepaid",
         """
         self.ensure_one()
-        precision = self.env['decimal.precision'].precision_get('Product Unit')
+        precision = self.env['decimal.precision'].get_precision('Product Unit')
         return self.line_ids.filtered(lambda sol:
             sol.is_service
             and sol.invoice_state != "done"
@@ -119,7 +119,7 @@ class SaleOrder(models.Model):
         if not self.line_ids:
             return {'type': 'ir.actions.act_window_close'}
 
-        action = self.env["ir.actions.actions"]._for_xml_id("sale_timesheet.timesheet_action_from_sales_order")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("sale_timesheet.timesheet_action_from_sales_order")
         default_sale_line = next((sale_line for sale_line in self.line_ids if sale_line.is_service and sale_line.product_id.service_policy in ['ordered_prepaid', 'delivered_timesheet']), self.env['sale.order.line'])
         context = {
             'search_default_billable_timesheet': True,
@@ -151,7 +151,7 @@ class SaleOrder(models.Model):
         return action
 
     def _reset_has_displayed_warning_upsell_order_lines(self):
-        precision = self.env['decimal.precision'].precision_get('Product Unit')
+        precision = self.env['decimal.precision'].get_precision('Product Unit')
         for line in self.line_ids:
             if line.has_displayed_warning_upsell and line.product_uom_id and float_compare(line.qty_transferred, line.product_qty, precision_digits=precision) == 0:
                 line.has_displayed_warning_upsell = False

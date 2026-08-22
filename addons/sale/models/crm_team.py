@@ -26,9 +26,6 @@ class CrmTeam(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_used_for_sales(self):
-        """If more than 5 active SOs, we consider this team to be actively used.
-        5 is some random guess based on "user testing", aka more than testing
-        CRM feature and less than use it in real life use cases."""
         SO_COUNT_TRIGGER = 5
         for team in self:
             if team.sale_order_count >= SO_COUNT_TRIGGER:
@@ -42,8 +39,6 @@ class CrmTeam(models.Model):
 
     def _compute_invoiced(self):
         if self.ids:
-            # Raw SQL bypasses the ORM cache — flush pending account.move writes
-            # first so in-transaction invoice changes are reflected.
             self.env["account.move"].flush_model(
                 [
                     "team_id",
@@ -105,7 +100,7 @@ class CrmTeam(models.Model):
 
     def action_primary_channel_button(self):
         if self._in_sale_scope():
-            return self.env["ir.actions.actions"]._for_xml_id(
+            return self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
                 "sale.action_sale_report_so_salesteam"
             )
         return super().action_primary_channel_button()

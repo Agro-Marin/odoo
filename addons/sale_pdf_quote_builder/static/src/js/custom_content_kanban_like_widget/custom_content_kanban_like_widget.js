@@ -131,20 +131,16 @@ export class CustomContentKanbanLikeWidget extends Component {
         const sol = this.props.record.data.line_ids.records.find(
             (sol) => sol.resId === lineId,
         );
-        sol._noUpdateParent = true; // Ensure that no rpc will be made to save the changes
-        if (isSelected) {
-            // save is needed to ensure that no onChange call will be made
-            await sol.update(
-                { product_document_ids: [x2ManyCommands.link(docId)] },
-                { save: true },
-            );
-        } else {
-            // save is needed to ensure that no onChange call will be made
-            await sol.update(
-                { product_document_ids: [x2ManyCommands.unlink(docId)] },
-                { save: true },
-            );
-        }
+        // `save` keeps the onchange from firing; `withoutParentUpdate` keeps the
+        // parent from saving. The latter used to be `sol._noUpdateParent = true`,
+        // a sticky private that nothing here ever cleared.
+        const command = isSelected
+            ? x2ManyCommands.link(docId)
+            : x2ManyCommands.unlink(docId);
+        await sol.update(
+            { product_document_ids: [command] },
+            { save: true, withoutParentUpdate: true },
+        );
         await this.props.record.data.line_ids._onUpdate({ withoutOnchange: true });
         this.updateJson();
     }

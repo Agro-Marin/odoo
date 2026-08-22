@@ -7,8 +7,6 @@ from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 @tagged("-at_install", "post_install")
 class TestPurchaseAdvanced(AccountTestInvoicingCommon):
-    """Advanced tests for purchase order functionality covering gaps in test coverage."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -21,13 +19,8 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
             }
         )
 
-    # -------------------------------------------------------------------------
-    # MERGE TESTS
-    # -------------------------------------------------------------------------
 
     def test_merge_purchase_orders_with_sections(self):
-        """Test merging POs that contain section and note lines."""
-        # Create first PO with a section
         po1 = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -49,7 +42,6 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
             }
         )
 
-        # Create second PO with different section
         po2 = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -71,17 +63,14 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
             }
         )
 
-        # Merge the POs
         (po1 | po2).action_merge()
 
-        # Find the merged PO (the one still in draft)
         merged_po = (po1 | po2).filtered(lambda p: p.state == "draft")
         cancelled_po = (po1 | po2).filtered(lambda p: p.state == "cancel")
 
         self.assertEqual(len(merged_po), 1, "Should have one merged PO")
         self.assertEqual(len(cancelled_po), 1, "Should have one cancelled PO")
 
-        # Check that sections are preserved
         section_lines = merged_po.line_ids.filtered(
             lambda l: l.display_type == "line_section"
         )
@@ -91,7 +80,6 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
         self.assertEqual(len(product_lines), 2, "Both product lines should exist")
 
     def test_merge_purchase_orders_consolidate_same_product(self):
-        """Test that merging POs consolidates lines for the same product."""
         po1 = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -129,12 +117,10 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
             lambda l: l.product_id == self.product_a
         )
 
-        # Lines with same product, UoM, and price should be consolidated
         self.assertEqual(len(product_lines), 1, "Same product lines should be merged")
         self.assertEqual(product_lines.product_qty, 15, "Quantities should be summed")
 
     def test_merge_purchase_orders_different_partners_fails(self):
-        """Test that merging POs with different partners raises an error."""
         po1 = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -169,7 +155,6 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
             (po1 | po2).action_merge()
 
     def test_merge_purchase_orders_with_notes(self):
-        """Test merging POs with note lines."""
         po1 = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -216,19 +201,10 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
         self.assertEqual(len(note_lines), 1, "Note line should be preserved")
         self.assertEqual(note_lines.name, "Important note for PO1")
 
-    # -------------------------------------------------------------------------
-    # DUPLICATE DETECTION TESTS
-    # -------------------------------------------------------------------------
 
     def test_duplicate_order_detection(self):
-        """Test that duplicate PO detection works correctly.
-
-        Duplicate detection requires partner_ref to be set and matches on:
-        - Same partner AND (origin matches other PO's name OR partner_ref matches)
-        """
         vendor_ref = "VENDOR-REF-001"
 
-        # Create first PO with partner_ref and confirm it
         po1 = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -246,13 +222,12 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
         )
         po1.action_confirm()
 
-        # Create a similar PO with same partner_ref (draft state for duplicate detection)
         po2 = self.env[
             "purchase.order"
         ].create(
             {
                 "partner_id": self.partner_a.id,
-                "partner_ref": vendor_ref,  # Same vendor reference triggers duplicate detection
+                "partner_ref": vendor_ref,
                 "line_ids": [
                     Command.create(
                         {
@@ -265,8 +240,6 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
             }
         )
 
-        # Check if duplicates are detected
-        # The duplicated_order_ids should include po1 since it has the same partner_ref
         self.assertIn(
             po1,
             po2.duplicated_order_ids,
@@ -274,7 +247,6 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
         )
 
     def test_no_duplicate_detection_different_products(self):
-        """Test that POs with different products are not marked as duplicates."""
         po1 = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -312,12 +284,8 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
             "PO with different products should not be a duplicate",
         )
 
-    # -------------------------------------------------------------------------
-    # ACKNOWLEDGMENT TESTS
-    # -------------------------------------------------------------------------
 
     def test_purchase_order_acknowledge(self):
-        """Test the acknowledge workflow for RFQs."""
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -339,12 +307,8 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
 
         self.assertTrue(po.acknowledged, "PO should be acknowledged after action")
 
-    # -------------------------------------------------------------------------
-    # DISPLAY TYPE CONSTRAINT TESTS
-    # -------------------------------------------------------------------------
 
     def test_section_line_has_null_product_fields(self):
-        """Test that section lines have null product-related fields."""
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -366,7 +330,6 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
         self.assertEqual(section_line.price_unit, 0, "Section should have zero price")
 
     def test_note_line_has_null_product_fields(self):
-        """Test that note lines have null product-related fields."""
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -387,7 +350,6 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
         self.assertEqual(note_line.product_qty, 0, "Note should have zero qty")
 
     def test_subsection_line_works(self):
-        """Test that subsection display type works correctly."""
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -419,12 +381,8 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
         self.assertEqual(len(subsection), 1)
         self.assertEqual(subsection.name, "Subsection")
 
-    # -------------------------------------------------------------------------
-    # LOCK/UNLOCK TESTS
-    # -------------------------------------------------------------------------
 
     def test_lock_prevents_modification(self):
-        """Test that locking a PO prevents certain modifications."""
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -444,12 +402,10 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
 
         self.assertTrue(po.locked, "PO should be locked")
 
-        # Locked PO should not be cancellable
         with self.assertRaises(UserError):
             po.action_cancel()
 
     def test_unlock_allows_modification(self):
-        """Test that unlocking a PO allows modifications again."""
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -470,12 +426,8 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
 
         self.assertFalse(po.locked, "PO should be unlocked")
 
-    # -------------------------------------------------------------------------
-    # CURRENCY TESTS
-    # -------------------------------------------------------------------------
 
     def test_currency_from_partner_property(self):
-        """Test that currency is correctly set from partner's purchase currency."""
         eur = self.env.ref("base.EUR")
         self.partner_a.property_purchase_currency_id = eur
 
@@ -498,17 +450,8 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
             po.currency_id, eur, "PO currency should match partner's purchase currency"
         )
 
-    # -------------------------------------------------------------------------
-    # INVOICE STATE TESTS
-    # -------------------------------------------------------------------------
 
     def test_invoice_state_no_invoice(self):
-        """Test invoice state when no invoice exists.
-
-        Uses a service product with bill_policy='ordered' so that
-        invoice_state is 'to do' immediately after confirmation.
-        Products with bill_policy='transferred' show 'no' until received.
-        """
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -532,10 +475,6 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
         )
 
     def test_invoice_state_partial(self):
-        """Test invoice state with partial invoicing.
-
-        Uses a service product with bill_policy='ordered' to test partial invoicing.
-        """
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -552,7 +491,6 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
         )
         po.action_confirm()
 
-        # Create partial invoice linked to the PO line
         invoice = self.env["account.move"].create(
             {
                 "move_type": "in_invoice",
@@ -562,7 +500,7 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
                     Command.create(
                         {
                             "product_id": self.product_service.id,
-                            "quantity": 5,  # Only half of the ordered quantity
+                            "quantity": 5,
                             "price_unit": 100,
                             "purchase_line_ids": [Command.set(po.line_ids.ids)],
                         }
@@ -578,12 +516,8 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
             "Invoice state should be 'partial' when partially invoiced",
         )
 
-    # -------------------------------------------------------------------------
-    # AMOUNT COMPUTATION TESTS
-    # -------------------------------------------------------------------------
 
     def test_amount_computation_with_taxes(self):
-        """Test that amounts are correctly computed with taxes."""
         tax_15 = self.env["account.tax"].create(
             {
                 "name": "Tax 15%",
@@ -615,7 +549,6 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
         self.assertEqual(po.amount_total, 1150, "Total should be 1150")
 
     def test_amount_computation_with_discount(self):
-        """Test that amounts are correctly computed with discounts."""
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -625,7 +558,7 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
                             "product_id": self.product_a.id,
                             "product_qty": 10,
                             "price_unit": 100,
-                            "discount": 10,  # 10% discount
+                            "discount": 10,
                         }
                     ),
                 ],
@@ -639,10 +572,7 @@ class TestPurchaseAdvanced(AccountTestInvoicingCommon):
 
 @tagged("-at_install", "post_install")
 class TestPurchaseOrderLineConstraints(AccountTestInvoicingCommon):
-    """Tests for purchase order line constraints and validations."""
-
     def test_cannot_delete_invoiced_line(self):
-        """Test that invoiced lines cannot be deleted."""
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -659,7 +589,6 @@ class TestPurchaseOrderLineConstraints(AccountTestInvoicingCommon):
         )
         po.action_confirm()
 
-        # Create and post invoice
         invoice = self.env["account.move"].create(
             {
                 "move_type": "in_invoice",
@@ -679,12 +608,10 @@ class TestPurchaseOrderLineConstraints(AccountTestInvoicingCommon):
         )
         invoice.action_post()
 
-        # Try to delete the line
         with self.assertRaises(UserError):
             po.line_ids.unlink()
 
     def test_line_sequence_preserved(self):
-        """Test that line sequence is preserved correctly."""
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,

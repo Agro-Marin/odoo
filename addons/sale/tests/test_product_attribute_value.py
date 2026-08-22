@@ -71,11 +71,9 @@ class TestProductAttributeValue(HttpCase, SaleCommon):
         cls.line_ids = cls.empty_order.line_ids
 
     def test_attribute_values_deletion_or_archiving(self):
-        """Check that product attributes can be deleted if product or linked ptav are archived."""
         if self.env["ir.module.module"]._get("sale_management").state != "installed":
             self.skipTest("Sale App is not installed, Sale menu is not accessible.")
 
-        # Make sure variants are enabled (needed for menu access)
         group_variant = self.env.ref("product.group_product_variant")
         self.group_user.implied_ids = [Command.link(group_variant.id)]
 

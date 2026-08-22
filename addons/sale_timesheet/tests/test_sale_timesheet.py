@@ -46,14 +46,14 @@ class TestSaleTimesheet(TestCommonSaleTimesheet):
         })
         timesheet_manager_no_project_user = new_test_user(self.env, login='no_project_user', groups='hr_timesheet.group_timesheet_manager')
 
-        timesheet.with_user(timesheet_manager_no_project_user)._compute_commercial_partner()
+        timesheet.with_user(timesheet_manager_no_project_user)._compute_commercial_partner_id()
         self.assertEqual(
             timesheet.commercial_partner_id,
             commercial_partner,
             "The commercial partner should match the partner linked to the project."
         )
         project.task_ids[0].partner_id = sub_partner.id
-        timesheet.with_user(timesheet_manager_no_project_user)._compute_commercial_partner()
+        timesheet.with_user(timesheet_manager_no_project_user)._compute_commercial_partner_id()
         self.assertEqual(
             timesheet.commercial_partner_id,
             commercial_partner,

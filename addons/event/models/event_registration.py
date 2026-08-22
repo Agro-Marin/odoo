@@ -20,7 +20,7 @@ class EventRegistration(models.Model):
     _mail_defaults_to_email = True
 
     @api.model
-    def _get_random_barcode(self):
+    def _default_barcode(self):
         """Generate a string representation of a pseudo-random 8-byte number for barcode
         generation.
 
@@ -42,7 +42,7 @@ class EventRegistration(models.Model):
     event_ticket_id = fields.Many2one(
         'event.event.ticket', string='Ticket Type', ondelete='restrict', tracking=True, index='btree_not_null')
     active = fields.Boolean(default=True)
-    barcode = fields.Char(string='Barcode', default=lambda self: self._get_random_barcode(), readonly=True, copy=False)
+    barcode = fields.Char(string='Barcode', default=lambda self: self._default_barcode(), readonly=True, copy=False)
     # utm informations
     utm_campaign_id = fields.Many2one('utm.campaign', 'Campaign', index=True, ondelete='set null')
     utm_source_id = fields.Many2one('utm.source', 'Source', index=True, ondelete='set null')
@@ -62,7 +62,7 @@ class EventRegistration(models.Model):
         readonly=False, store=True)
     event_begin_date = fields.Datetime("Event Start Date", compute="_compute_event_begin_date", search="_search_event_begin_date")
     event_end_date = fields.Datetime("Event End Date", compute="_compute_event_end_date", search="_search_event_end_date")
-    event_date_range = fields.Char("Date Range", compute="_compute_date_range")
+    event_date_range = fields.Char("Date Range", compute="_compute_event_date_range")
     event_organizer_id = fields.Many2one(string='Event Organizer', related='event_id.organizer_id', readonly=True)
     event_user_id = fields.Many2one(string='Event Responsible', related='event_id.user_id', readonly=True)
     company_id = fields.Many2one(
@@ -168,7 +168,7 @@ class EventRegistration(models.Model):
                     registration.date_closed = False
 
     @api.depends("event_id", "event_slot_id", "partner_id")
-    def _compute_date_range(self):
+    def _compute_event_date_range(self):
         for registration in self:
             registration.event_date_range = registration.event_id._get_date_range_str(
                 start_datetime=registration.event_slot_id.start_datetime,

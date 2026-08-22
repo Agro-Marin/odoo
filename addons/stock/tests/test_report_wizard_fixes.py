@@ -1,5 +1,3 @@
-"""Regression tests for report/wizard/controller layer fixes."""
-
 from collections import defaultdict
 
 from odoo.exceptions import UserError
@@ -37,13 +35,6 @@ class TestReportWizardFixes(TransactionCase):
         )
 
     def test_reception_assign_partially_linked_in_move(self):
-        """`action_assign` must only claim the unclaimed part of an in move.
-
-        `in_one` (10 units) already covers 3 units of another out, so only 7
-        remain. Assigning an out of 10 against [in_two, in_one] (`in_one`
-        iterated first) must draw 7 from `in_one` and continue to `in_two`,
-        instead of counting `in_one`'s full 10 and stopping short.
-        """
         report = self.env["report.stock.report_reception"]
         out_pre = self._create_move(3, self.stock_location, self.customer_location)
         out = self._create_move(10, self.stock_location, self.customer_location)
@@ -64,19 +55,12 @@ class TestReportWizardFixes(TransactionCase):
         self.assertEqual(in_one.move_dest_ids, out_pre | out)
 
     def test_reception_assign_length_mismatch(self):
-        """Mismatched assignment arrays must raise instead of truncating."""
         report = self.env["report.stock.report_reception"]
         out = self._create_move(1, self.stock_location, self.customer_location)
         with self.assertRaises(UserError):
             report.action_assign([out.id], [1.0, 2.0], [[]])
 
     def test_forecasted_reserved_capped_by_remaining_demand(self):
-        """`_compute_out_reserved` must not report more reserved than demanded.
-
-        Two linked moves each hold 8 reserved for an out of 10: the reserved
-        total must be capped at 10 (8 + 2), not 16, and the on-hand ledger
-        must be decremented by exactly that amount.
-        """
         report = self.env["stock.forecasted_product_product"]
         out = self._create_move(10, self.stock_location, self.customer_location)
         picks = self.env["stock.move"]
@@ -106,11 +90,6 @@ class TestReportWizardFixes(TransactionCase):
         )
 
     def test_reception_assigned_lines_conserve_quantity(self):
-        """`_add_assigned_lines` must allocate, not repeat, the assigned pool.
-
-        One received quantity of 10 chained to two outs of 10 each must render
-        assigned lines totalling 10, not 10 per out.
-        """
         report = self.env["report.stock.report_reception"]
         outs = self.env["stock.move"]
         for __ in range(2):
@@ -145,12 +124,6 @@ class TestReportWizardFixes(TransactionCase):
         self.assertTrue(all(line["is_assigned"] for line in lines))
 
     def test_return_wizard_no_returnable_moves(self):
-        """A done picking with no returnable move must raise a clear error.
-
-        Moves whose destination is an inventory location are excluded from the
-        return wizard; a picking made only of those must surface the "No
-        products to return" error instead of an empty wizard.
-        """
         inventory_location = self.env["stock.location"].search(
             [
                 ("usage", "=", "inventory"),

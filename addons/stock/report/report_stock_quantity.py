@@ -47,24 +47,6 @@ class ReportStockQuantity(models.Model):
         return "q.quantity"
 
     def init(self):
-        """
-        Because we can transfer a product from a warehouse to another one thanks to a stock move, we need to
-        generate some fake stock moves before processing all of them. That way, in case of an interwarehouse
-        transfer, we will have an outgoing stock move for the source warehouse and an incoming stock move
-        for the destination one. To do so, we select all relevant SM (incoming, outgoing and interwarehouse),
-        then we duplicate all these SM and edit the values:
-            - product_qty is kept if the SM is not the duplicated one or if the SM is an interwarehouse one
-                otherwise, we set the value to 0 (this allows us to filter it out during the SM processing)
-            - the source warehouse is kept if the SM is not the duplicated one
-            - the dest warehouse is kept if the SM is not the duplicated one and is not an interwarehouse
-                OR the SM is the duplicated one and is an interwarehouse
-
-        Locations map to their warehouse via the stored
-        ``stock_location.warehouse_id`` column (from ``parent_path``), which resolves
-        a nested location to the innermost warehouse. Joining on it rather than a
-        ``parent_path LIKE`` match is sargable and avoids double-counting nested
-        warehouses.
-        """
         drop_view_if_exists(self.env.cr, "report_stock_quantity")
         query = f"""
 CREATE or REPLACE VIEW report_stock_quantity AS (

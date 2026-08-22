@@ -1,6 +1,3 @@
-"""Regression tests for the procurement/topology fixes of the 2026-07-17 stock
-audit (findings #7, #24-#33 and the related low-severity group)."""
-
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -14,9 +11,6 @@ from odoo.addons.stock.models.stock_rule import StockRule
 
 
 class TestAuditRuleResolution(TransactionCase):
-    """Findings #26 (push/pull rule divergence) and #32 (per-procurement rule
-    resolution in `run()`)."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -36,8 +30,6 @@ class TestAuditRuleResolution(TransactionCase):
         )
 
     def _create_route_with_rules(self, name, sequence, push_dest, pull_src):
-        """A route holding one push rule (stock -> push_dest) and one pull rule
-        (pull_src -> stock)."""
         route = self.env["stock.route"].create(
             {
                 "name": name,
@@ -70,11 +62,6 @@ class TestAuditRuleResolution(TransactionCase):
         return route, push_rule, pull_rule
 
     def test_push_and_pull_prefer_product_route(self):
-        """Regression for the previously-divergent config: a category route with
-        a LOWER sequence and a product route with a HIGHER sequence both provide
-        applicable rules. Push resolution used to pick the category route
-        (ordered by route_sequence only) while pull resolution picked the
-        product route; both must now resolve the product route."""
         dest_a = self.env["stock.location"].create(
             {"name": "Audit Dest A", "location_id": self.stock_location.id},
         )
@@ -120,9 +107,6 @@ class TestAuditRuleResolution(TransactionCase):
         )
 
     def test_run_hoists_rule_dict_across_procurements(self):
-        """`run()` must resolve one rule dict per (root, company, warehouse,
-        route set) group, not one `_search_rule_for_warehouses` read-group per
-        procurement."""
         route = self.warehouse.reception_route_id
         self.env["stock.rule"].create(
             {
@@ -186,8 +170,6 @@ class TestAuditRuleResolution(TransactionCase):
 
 
 class TestAuditOrderpointFixes(TransactionCase):
-    """Findings #7, #24, #27, #31, #33 and the orderpoint-related lows."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -216,9 +198,6 @@ class TestAuditOrderpointFixes(TransactionCase):
         )
 
     def test_force_to_max_survives_intervening_flush(self):
-        """#27: the forced quantity must ride an explicit mapping, so an
-        intervening flush (which runs the deferred `qty_to_order` inverse and
-        used to zero the forced value for auto orderpoints) cannot degrade it."""
         self._add_supplier_rule()
         self.env["stock.quant"]._update_available_quantity(
             self.product,
@@ -256,8 +235,6 @@ class TestAuditOrderpointFixes(TransactionCase):
         )
 
     def test_qty_to_order_explicit_zero_sticks(self):
-        """Low: a user-entered 0 on a manual orderpoint must stick (suppress the
-        computed suggestion) instead of being silently refused."""
         orderpoint = self.env["stock.warehouse.orderpoint"].create(
             {
                 "product_id": self.product.id,
@@ -298,10 +275,6 @@ class TestAuditOrderpointFixes(TransactionCase):
         self.assertEqual(orderpoint.qty_to_order, 10.0)
 
     def test_qty_to_order_onchange_echo_not_latched(self):
-        """A falsy qty_to_order arriving in the same write as a
-        suggestion-source field is the client echoing the virtual record's
-        onchange artifact (NewId records compute the suggestion to 0), not a
-        user-entered 0: it must not latch the suppression flag."""
         orderpoint = self.env["stock.warehouse.orderpoint"].create(
             {
                 "product_id": self.product.id,
@@ -321,8 +294,6 @@ class TestAuditOrderpointFixes(TransactionCase):
         )
 
     def test_compute_qty_to_order_computed_is_batched(self):
-        """#7: the stored scheduler quantity must be fed from one grouped
-        `qty_available_virtual` read, not one full forecast read per record."""
         products = self.env["product.product"].create(
             [
                 {"name": f"Audit Batch Product {i}", "is_storable": True}
@@ -363,9 +334,6 @@ class TestAuditOrderpointFixes(TransactionCase):
             self.assertEqual(orderpoint.qty_to_order_computed, 7.0)
 
     def test_lead_time_stats_exclude_immediate_receipts(self):
-        """#31: receipts validated within an hour of creation are ad-hoc
-        immediate receipts and must not feed the lead-time statistics."""
-
         def make_done_receipt(span):
             picking = self.env["stock.picking"].create(
                 {
@@ -417,9 +385,6 @@ class TestAuditOrderpointFixes(TransactionCase):
         self.assertAlmostEqual(orderpoint.actual_lead_time_avg, 5.0, places=2)
 
     def test_report_attributes_sublocation_shortage(self):
-        """#33: the inverted report loop must still attribute a shortage in a
-        sub-location to its replenish ancestor, and flag the created orderpoint
-        as autogenerated."""
         shelf = self.env["stock.location"].create(
             {
                 "name": "Audit Shelf",
@@ -453,8 +418,6 @@ class TestAuditOrderpointFixes(TransactionCase):
         self.assertEqual(orderpoint.trigger, "manual")
 
     def test_autovacuum_keyed_on_is_autogenerated(self):
-        """Low: the report-orderpoint vacuum must only delete autogenerated
-        orderpoints, not manual ones an administrator created."""
         Orderpoint = self.env["stock.warehouse.orderpoint"]
         admin_manual = Orderpoint.with_user(SUPERUSER_ID).create(
             {
@@ -483,8 +446,6 @@ class TestAuditOrderpointFixes(TransactionCase):
         self.assertFalse(autogenerated.exists())
 
     def test_search_effective_route_id_name_operator(self):
-        """Low: searching `effective_route_id` with a name operator (as typed
-        in a search filter) must work instead of crashing on `("id", "ilike")`."""
         route = self.warehouse.reception_route_id
         orderpoint = self.env["stock.warehouse.orderpoint"].create(
             {
@@ -505,8 +466,6 @@ class TestAuditOrderpointFixes(TransactionCase):
 
 
 class TestAuditTopologyFixes(TransactionCase):
-    """Findings #25, #28, #29, #30 and the topology-related lows."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -516,8 +475,6 @@ class TestAuditTopologyFixes(TransactionCase):
         )
 
     def test_archive_ancestor_of_warehouse_stock_blocked(self):
-        """#25: archiving an ancestor zone must be blocked when a warehouse's
-        stock location lives in its subtree, instead of silently archiving it."""
         warehouse = self.env["stock.warehouse"].create(
             {"name": "Audit Zone WH", "code": "AZWH"},
         )
@@ -534,8 +491,6 @@ class TestAuditTopologyFixes(TransactionCase):
         self.assertTrue(warehouse.lot_stock_id.active)
 
     def test_unlink_location_with_descendants_guarded(self):
-        """#28: deleting a location with (archived) descendants must raise
-        unless the internal subtree flag is passed."""
         parent = self.env["stock.location"].create(
             {
                 "name": "Audit Unlink Parent",
@@ -560,8 +515,6 @@ class TestAuditTopologyFixes(TransactionCase):
         self.assertFalse(child.exists())
 
     def test_settings_compute_replenish_on_order_without_mto(self):
-        """#30: the settings compute must assign on every record even when the
-        MTO route was deleted."""
         route = self.env.ref("stock.route_warehouse0_mto", raise_if_not_found=False)
         if route:
             route.sudo().unlink()
@@ -569,8 +522,6 @@ class TestAuditTopologyFixes(TransactionCase):
         self.assertFalse(settings.replenish_on_order)
 
     def test_route_unarchive_realigns_resupply_legs(self):
-        """Low: unarchiving a resupply route must not resurrect step-config
-        rules contradicting the supplier warehouse's current delivery steps."""
         supplier_wh = self.env["stock.warehouse"].create(
             {
                 "name": "Audit Supplier WH",
@@ -620,9 +571,6 @@ class TestAuditTopologyFixes(TransactionCase):
         )
 
     def test_replenish_mixin_excludes_intercompany_routes(self):
-        """Low: the allowed-route domain must exclude routes with ANY rule
-        touching the inter-company location, not require a rule differing from
-        it (which almost every route has)."""
         inter_company_location = self.env.ref("stock.stock_location_inter_company")
         supplier_location = self.env.ref("stock.stock_location_suppliers")
         stock_location = self.warehouse.lot_stock_id
@@ -687,20 +635,7 @@ class TestAuditTopologyFixes(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestAuditProcureMultiCompany(TransactionCase):
-    """Company-creating regressions for #24 and #29.
-
-    post_install: `res.company.create` runs the full provisioning chain of every
-    installed module (account, payment, ...). At stock's at_install slot the
-    registry is still partial — e.g. `delivery` (loaded after stock) registers
-    the `cash_on_delivery` value of `payment.provider.custom_mode`, so on a
-    database where that provider row exists, payment's provider duplication
-    crashes for ANY company created from an at_install stock test. Running
-    post_install exercises the real, fully-loaded provisioning instead.
-    """
-
     def test_deadline_date_other_company(self):
-        """#24: the deadline move domains must come from the orderpoint
-        company's own locations, not from the ambient companies' warehouses."""
         customer_location = self.env.ref("stock.stock_location_customers")
         company_b = self.env["res.company"].create({"name": "Audit Deadline Co"})
         warehouse_b = (
@@ -776,8 +711,6 @@ class TestAuditProcureMultiCompany(TransactionCase):
         )
 
     def test_create_warehouse_idempotent_with_archived(self):
-        """#29: `_create_warehouse` must see archived warehouses in its dedup
-        search and return them instead of crashing on the unique constraints."""
         company = self.env["res.company"].create({"name": "Audit Dedup Co"})
         warehouse = company.sudo()._create_warehouse()
         self.assertTrue(warehouse)

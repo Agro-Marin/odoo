@@ -56,11 +56,6 @@ class ReportStockReport_Stock_Rule(models.AbstractModel):
 
     @api.model
     def _get_header_lines(self, locations, putaway_rules, reordering_rules):
-        """Map each location to the putaway/reordering rules it hosts.
-
-        Returns ``{location_id: {"putaway": recordset, "orderpoint": recordset}}``,
-        only for locations that host at least one of either.
-        """
         putaways_by_loc = defaultdict(lambda: self.env["stock.putaway.rule"])
         for putaway in putaway_rules:
             putaways_by_loc[putaway.location_in_id.id] |= putaway
@@ -81,14 +76,6 @@ class ReportStockReport_Stock_Rule(models.AbstractModel):
 
     @api.model
     def _get_route_lines(self, routes, relevant_rules, loc_by_rule, locations):
-        """Build one grid row per displayed rule.
-
-        Each row has a slot per location (same order/length as ``locations``);
-        a slot is an empty list for locations the rule doesn't touch, or a
-        ``(rule, "origin"|"destination", color)`` tuple for its source/dest.
-        Locations are addressed by id, never by ``display_name`` (which is not
-        unique). One palette color is consumed per route that is actually drawn.
-        """
         loc_index = {location.id: idx for idx, location in enumerate(locations)}
         colors = self._get_route_colors()
         route_lines = []
@@ -117,7 +104,6 @@ class ReportStockReport_Stock_Rule(models.AbstractModel):
 
     @api.model
     def _get_routes(self, data):
-        """Extract the routes to display from the wizard's content."""
         product = self.env["product.product"].browse(data["product_id"])
         warehouses = self.env["stock.warehouse"].browse(data["warehouse_ids"])
         return (
@@ -140,15 +126,6 @@ class ReportStockReport_Stock_Rule(models.AbstractModel):
 
     @api.model
     def _sort_locations(self, rules_and_loc, warehouses):
-        """Order the locations left-to-right along the flow of goods.
-
-        Rules define a directed graph (source -> destination) over the
-        locations. We lay them out so that, as much as possible, a rule's
-        source sits left of its destination (a topological order), then group
-        that order by role: supplier/production locations first, then the
-        internal locations of each selected warehouse, then customer locations,
-        then anything left (views, transit, unmatched warehouses).
-        """
         Location = self.env["stock.location"]
         sources = Location.union(*(rl["source"] for rl in rules_and_loc))
         destinations = Location.union(*(rl["destination"] for rl in rules_and_loc))
@@ -176,11 +153,6 @@ class ReportStockReport_Stock_Rule(models.AbstractModel):
 
     @api.model
     def _topological_rank(self, locations, edges):
-        """Return ``{location_id: rank}`` following a Kahn topological sort.
-
-        Deterministic (ties broken by id) and cycle-safe: any location left in a
-        cycle is appended in id order after the acyclic part.
-        """
         location_ids = set(locations.ids)
         successors = defaultdict(set)
         indegree = dict.fromkeys(location_ids, 0)

@@ -4,8 +4,6 @@ from odoo.tests import TransactionCase, tagged
 
 @tagged("post_install", "-at_install")
 class TestReportStockRule(TransactionCase):
-    """Data-layer tests for the ``report.stock.report_stock_rule`` 2D report."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -51,14 +49,12 @@ class TestReportStockRule(TransactionCase):
         return self.report._get_report_values(None, data=data)
 
     def test_locations_follow_the_flow(self):
-        """Supplier is leftmost, customer rightmost, stock in between."""
         vals = self._report_values()
         order = list(vals["locations"])
         self.assertLess(order.index(self.supplier), order.index(self.stock))
         self.assertLess(order.index(self.stock), order.index(self.customer))
 
     def test_topological_rank_is_cycle_safe(self):
-        """A cycle must not hang or drop nodes; every location gets a rank."""
         a, b, c = (
             self.env["stock.location"].create({"name": n, "usage": "internal"})
             for n in ("A", "B", "C")
@@ -90,11 +86,6 @@ class TestReportStockRule(TransactionCase):
         self.assertEqual(len(rule_colors), 1)
 
     def test_positions_use_id_not_display_name(self):
-        """Two locations sharing a display_name must not collapse to one column.
-
-        Regression guard: the report must index columns by location id, never by
-        the (non-unique) display_name.
-        """
         dup1, dup2 = (
             self.env["stock.location"].create({"name": "DUP", "usage": "internal"})
             for _ in range(2)

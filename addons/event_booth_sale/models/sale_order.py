@@ -34,7 +34,7 @@ class SaleOrder(models.Model):
         return res
 
     def action_view_booth_list(self):
-        action = self.env['ir.actions.act_window']._for_xml_id('event_booth.event_booth_action')
+        action = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('event_booth.event_booth_action')
         action['domain'] = [('sale_order_id', 'in', self.ids)]
         return action
 

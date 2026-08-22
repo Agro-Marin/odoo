@@ -113,8 +113,6 @@ class TestLotSerial(TestStockCommon):
         self.assertEqual(vals[2]["quantity"], 1, "default lot qty")
 
     def test_lot_no_company(self):
-        """check the lot created in a receipt should not have a company if the product is not
-        linked to a company"""
         picking1 = self.env["stock.picking"].create(
             {
                 "name": "Picking 1",
@@ -143,7 +141,6 @@ class TestLotSerial(TestStockCommon):
         self.assertFalse(move.move_line_ids.lot_id.company_id)
 
     def test_lot_uniqueness(self):
-        """Checks that the same lot name cannot be inserted twice for the same company or 'no-company'."""
         lot_1 = self.env["stock.lot"].create(
             {
                 "name": "unique",
@@ -195,9 +192,6 @@ class TestLotSerial(TestStockCommon):
             )
 
     def test_bypass_reservation(self):
-        """
-        Check that the reservation of is bypassed when a stock move is added after the picking is done
-        """
         customer = self.PartnerObj.create({"name": "bob"})
         delivery_picking = self.env["stock.picking"].create(
             {
@@ -245,9 +239,6 @@ class TestLotSerial(TestStockCommon):
         self.assertRecordValues(quant, [{"quantity": 7.0, "reserved_quantity": 0.0}])
 
     def test_location_lot_id_update_quant_qty(self):
-        """
-        Test that the location of a lot is updated when its linked quants change
-        """
         self.assertEqual(self.lot_p_b.location_id, self.locationA)
         starting_quant = self.lot_p_b.quant_ids
         self.assertEqual(starting_quant.quantity, 1)
@@ -284,8 +275,6 @@ class TestLotSerial(TestStockCommon):
         self.assertEqual(self.lot_p_b.location_id, self.locationA)
 
     def test_lot_id_with_branch_company(self):
-        """Test that a lot can be created in branch company when
-        the product is limited to the parent company"""
         branch_a = self.env["res.company"].create(
             {
                 "name": "Branch X",
@@ -335,7 +324,6 @@ class TestLotSerial(TestStockCommon):
         self.assertEqual(sn.company_id, branch_a)
 
     def test_lot_search_partner_ids(self):
-        """Test that the correct lots show when doing searches based on partner_ids"""
         lot_location = self.env["stock.location"].create(
             {
                 "name": "Test Lots Only",
@@ -413,10 +401,6 @@ class TestLotSerial(TestStockCommon):
         self.assertEqual(lot_id, lot_a)
 
     def test_product_qty_search_matches_compute(self):
-        """The `product_qty` search must agree with the computed field. They used
-        to resolve stock through different location domains, so a lot could read 0
-        yet still match `product_qty > 0` (and a `location`/`warehouse_id` context
-        scoped the field but was ignored by the search)."""
         transit = self.env["stock.location"].create(
             {"name": "Transit X", "usage": "transit", "company_id": self.env.company.id}
         )
@@ -464,9 +448,6 @@ class TestLotSerial(TestStockCommon):
         )
 
     def test_delivery_ids_traceability_graph(self):
-        """`_find_delivery_ids_by_lot` walks produce lines and propagates outgoing
-        pickings down to component lots, and returns the same result whether a lot
-        is queried alone or as part of a batch (a diamond-shaped produce graph)."""
         out_type = self.picking_type_out
 
         def mk_lot(name):
@@ -520,17 +501,16 @@ class TestLotSerial(TestStockCommon):
         mk_done_line(L3, picking=pk3)
         self.env["stock.move.line"].invalidate_model()
 
-        by_lot = (L0 + L1 + L2 + L3)._find_delivery_ids_by_lot()
+        by_lot = (L0 + L1 + L2 + L3)._get_delivery_ids_by_lot()
         self.assertEqual(set(by_lot[L3.id]), {pk0.id, pk3.id})
         self.assertEqual(set(by_lot[L1.id]), {pk0.id})
         self.assertEqual(set(by_lot[L2.id]), {pk0.id})
         self.assertEqual(set(by_lot[L0.id]), {pk0.id})
 
-        self.assertEqual(set(L3._find_delivery_ids_by_lot()[L3.id]), {pk0.id, pk3.id})
+        self.assertEqual(set(L3._get_delivery_ids_by_lot()[L3.id]), {pk0.id, pk3.id})
         self.assertEqual(L3.delivery_ids, pk0 | pk3)
 
     def test_default_lot_sequence(self):
-        """Test that the default lot sequence is used when the product is created with a null prefix"""
         product_a = self.env["product.product"].create(
             {
                 "name": "Test Product A",
@@ -544,8 +524,6 @@ class TestLotSerial(TestStockCommon):
 
 
 class TestLotNameFormat(TestStockCommon):
-    """A product can state the shape its lot names take, rather than only their prefix."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -559,7 +537,6 @@ class TestLotNameFormat(TestStockCommon):
         )
 
     def test_name_is_composed_when_left_empty(self):
-        """A lot created without a name gets one shaped like the format."""
         lot = self.env["stock.lot"].create(
             {
                 "product_id": self.product.id,
@@ -572,11 +549,6 @@ class TestLotNameFormat(TestStockCommon):
         self.assertEqual(lot.name, f"{expected} - AYE4B1501C")
 
     def test_ref_slot_falls_back_to_the_sequence(self):
-        """With no manufacturer reference, the slot still gets filled.
-
-        Two lots of one product on the same day would otherwise collide on the
-        uniqueness constraint.
-        """
         first, second = self.env["stock.lot"].create(
             [
                 {"product_id": self.product.id},
@@ -587,7 +559,6 @@ class TestLotNameFormat(TestStockCommon):
         self.assertNotEqual(first.name, second.name)
 
     def test_an_explicit_name_is_never_overwritten(self):
-        """Composition fills a gap; it does not rename what the caller supplied."""
         lot = self.env["stock.lot"].create(
             {
                 "product_id": self.product.id,
@@ -597,7 +568,6 @@ class TestLotNameFormat(TestStockCommon):
         self.assertEqual(lot.name, "TYPED-BY-HAND")
 
     def test_products_without_a_format_are_untouched(self):
-        """The feature is inert unless a product opts in."""
         plain = self.env["product.product"].create(
             {
                 "name": "Plain lot product",
@@ -610,7 +580,6 @@ class TestLotNameFormat(TestStockCommon):
         self.assertNotIn(" - ", lot.name)
 
     def test_a_composed_name_parses_back(self):
-        """Composition and parsing are the same format read in both directions."""
         lot = self.env["stock.lot"].create(
             {
                 "product_id": self.product.id,
@@ -628,7 +597,6 @@ class TestLotNameFormat(TestStockCommon):
         )
 
     def test_a_legacy_name_parses_to_nothing(self):
-        """Names written before the format was set are reported, not crashed on."""
         lot = self.env["stock.lot"].create(
             {
                 "product_id": self.product.id,

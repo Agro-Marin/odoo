@@ -114,7 +114,7 @@ class DeliveryCarrier(models.Model):
         total_weight = order._get_estimated_weight() + default_package_type.base_weight
         order_weight = self.env.context.get('order_weight', False)
         total_weight = order_weight or total_weight
-        if float_is_zero(total_weight, precision_digits=self.env['decimal.precision'].precision_get('Stock Weight')):
+        if float_is_zero(total_weight, precision_digits=self.env['decimal.precision'].get_precision('Stock Weight')):
             weight_uom_name = self.env['product.template']._get_weight_uom_name_from_ir_config_parameter()
             raise UserError(_("The package cannot be created because the total weight of the products in the picking is 0.0 %s", weight_uom_name))
         # If max weight == 0 => division by 0. If this happens, we want to have

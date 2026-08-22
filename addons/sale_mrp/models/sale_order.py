@@ -6,10 +6,11 @@ from odoo import _, api, fields, models
 class SaleOrder(models.Model):
     _inherit = 'sale.order'
 
-    mrp_production_count = fields.Integer(
+    mrp_production_count = fields.Count(
+        "mrp_production_ids",
         "Count of MO generated",
-        compute='_compute_mrp_production_ids',
-        groups='mrp.group_mrp_user')
+        groups='mrp.group_mrp_user',
+    )
     mrp_production_ids = fields.Many2many(
         'mrp.production',
         compute='_compute_mrp_production_ids',
@@ -22,7 +23,6 @@ class SaleOrder(models.Model):
             # We want only manufacturing orders of first level
             mos = sale.stock_reference_ids.production_ids
             sale.mrp_production_ids = mos.filtered(lambda mo: not mo.production_group_id.parent_ids and mo.state != 'cancel')
-            sale.mrp_production_count = len(sale.mrp_production_ids)
 
     def action_view_mrp_production(self):
         self.ensure_one()

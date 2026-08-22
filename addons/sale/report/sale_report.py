@@ -10,22 +10,16 @@ class SaleReport(models.Model):
     _auto = False
     _order = "date_order desc"
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
 
     order_reference = fields.Reference(
         string="Order",
         selection=[("sale.order", "Sales Order")],
         aggregator="count_distinct",
     )
-    # sale.order fields
-    # company_id is inherited from order.report.mixin.
     currency_id = fields.Many2one(
         comodel_name="res.currency",
         readonly=True,
     )
-    # res.partner fields
     partner_id = fields.Many2one(
         comodel_name="res.partner",
         string="Customer",
@@ -69,7 +63,6 @@ class SaleReport(models.Model):
         string="Salesperson",
         readonly=True,
     )
-    # utm fields
     campaign_id = fields.Many2one(
         comodel_name="utm.campaign",
         string="Campaign",
@@ -99,7 +92,6 @@ class SaleReport(models.Model):
         string="Order Invoice Status",
         readonly=True,
     )
-    # sale.order.line fields
     line_invoice_state = fields.Selection(
         selection=const.INVOICE_STATE,
         string="Invoice Status",
@@ -141,29 +133,16 @@ class SaleReport(models.Model):
         readonly=True,
     )
 
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
     @api.model
     def _get_done_states(self):
         return ["done"]
 
     def _case_value_or_one(self, value):
-        """Helper to handle division by zero in currency rates."""
         return f"""CASE COALESCE({value}, 0) WHEN 0 THEN 1.0 ELSE {value} END"""
 
-    # ------------------------------------------------------------
-    # REGISTRY METHODS
-    # ------------------------------------------------------------
 
-    def _get_select_fields(self) -> dict:
-        """Registry of fields for the SELECT clause.
-
-        :return: order-preserving mapping of field name (without AS clause) to
-            SQL expression (may be a multi-line string)
-        :rtype: dict
-        """
+    def _get_fields_select(self) -> dict:
         currency_rate_o = self._case_value_or_one("o.currency_rate")
         currency_rate_table = self._case_value_or_one("account_currency_table.rate")
 
@@ -171,10 +150,6 @@ class SaleReport(models.Model):
             "id": "MIN(l.id)",
             "order_reference": "CONCAT('sale.order', ',', o.id)",
             "company_id": "o.company_id",
-            # A numeric-literal SQL expression, not a column reference like its
-            # siblings here — safe only because `.id` is always a small trusted
-            # integer (never attacker-controlled text); do not follow this
-            # pattern for anything that isn't a plain int/float (t24068, base_sql_report audit).
             "currency_id": str(self.env.company.currency_id.id),
             "partner_id": "o.partner_id",
             "commercial_partner_id": "partner.commercial_partner_id",
@@ -292,25 +267,18 @@ class SaleReport(models.Model):
             "nbr_lines": "COUNT(*)",
         }
 
-        # Add additional fields from hook
         additional_fields = self._select_additional_fields()
         fields.update(additional_fields)
 
         return fields
 
     def _get_from_tables(self) -> list:
-        """Registry of tables and joins for the FROM clause.
-
-        :return: list of ``(table_name, alias, join_type, on_condition)`` tuples;
-            ``join_type`` and ``on_condition`` are ``None`` for the base table.
-        :rtype: list
-        """
         currency_table = self.env["res.currency"]._get_simple_currency_table(
             self.env.companies,
         )
 
         return [
-            ("sale_order_line", "l", None, None),  # Base table
+            ("sale_order_line", "l", None, None),
             ("sale_order", "o", "LEFT JOIN", "l.order_id=o.id"),
             ("res_partner", "partner", "LEFT JOIN", "o.partner_id=partner.id"),
             (
@@ -325,12 +293,7 @@ class SaleReport(models.Model):
             ("uom_uom", "u2", "LEFT JOIN", "t.uom_id=u2.id"),
         ]
 
-    def _get_group_by_fields(self) -> list:
-        """Registry of fields for the GROUP BY clause.
-
-        :return: field expressions for the GROUP BY clause
-        :rtype: list
-        """
+    def _get_fields_group_by(self) -> list:
         return [
             "l.product_id",
             "l.order_id",
@@ -363,9 +326,4 @@ class SaleReport(models.Model):
         ]
 
     def _select_additional_fields(self):
-        """Hook for inheriting modules to add custom fields to the SELECT clause.
-
-        :return: mapping of field name to SQL expression
-        :rtype: dict
-        """
         return {}

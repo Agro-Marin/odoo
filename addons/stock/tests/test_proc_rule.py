@@ -24,7 +24,6 @@ class TestProcRule(TransactionCase):
         cls.partner = cls.env["res.partner"].create({"name": "Partner"})
 
     def test_qty_to_order_remainder_decimal(self):
-        """Test case for when remainder is decimal"""
         self.env.user.group_ids += self.env.ref("stock.group_stock_multi_locations")
         orderpoint_form = Form(self.env["stock.warehouse.orderpoint"])
         orderpoint_form.product_id = self.product
@@ -42,10 +41,6 @@ class TestProcRule(TransactionCase):
         self.assertAlmostEqual(orderpoint.qty_to_order, orderpoint.product_max_qty)
 
     def test_run_with_falsy_date_planned(self):
-        """`run` must tolerate a procurement carrying an explicit falsy
-        `date_planned`: it should fall back to now() instead of crashing in
-        `_get_stock_move_values` on `None - relativedelta(...)`.
-        """
         warehouse = self.env["stock.warehouse"].search(
             [("company_id", "=", self.env.company.id)], limit=1
         )
@@ -70,10 +65,6 @@ class TestProcRule(TransactionCase):
         self.assertTrue(move.date, "the move must get a fallback scheduled date")
 
     def test_endless_loop_rules_from_location(self):
-        """Creates and configure a rule the way, when trying to get rules from
-        location, it goes in a state where the found rule tries to trigger another
-        rule but finds nothing else than itself and so get stuck in a recursion error.
-        """
         warehouse = self.env["stock.warehouse"].search(
             [("company_id", "=", self.env.company.id)], limit=1
         )
@@ -176,8 +167,6 @@ class TestProcRule(TransactionCase):
         )
 
     def test_get_rule_respects_sequence_order(self):
-        """Test that _get_rule selects the rule associated with the route of the lowest sequence."""
-
         warehouse = self.env["stock.warehouse"].search([], limit=1)
         product = self.env["product.product"].create(
             {"name": "Test Product", "is_storable": True}
@@ -234,14 +223,6 @@ class TestProcRule(TransactionCase):
         )
 
     def test_get_rule_multi_warehouse_chain_no_keyerror(self):
-        """A location chain spanning two warehouses must not make _get_rule raise.
-
-        When the destination location's hierarchy crosses into a second
-        warehouse, `_search_rule_for_warehouses` may return a (location, route)
-        group whose only key is the foreign warehouse (no warehouse-agnostic
-        entry). `_get_rule` must fall through to the parent-location search
-        instead of raising `KeyError(False)` on that group.
-        """
         wh1 = self.env["stock.warehouse"].search([], limit=1)
         wh2 = self.env["stock.warehouse"].create({"name": "WH Foreign", "code": "WHF"})
         wh1.view_location_id.location_id = wh2.view_location_id.id
@@ -378,10 +359,6 @@ class TestProcRule(TransactionCase):
         self.assertEqual(receipt_move.product_uom_qty, 17.0)
 
     def test_reordering_rule_2(self):
-        """Test when there is not enough product to assign a picking => automatically run
-        reordering rule (RR). Add extra product to already confirmed picking => automatically
-        run another RR
-        """
         self.env.user.group_ids += self.env.ref("stock.group_stock_multi_locations")
 
         self.productA = self.env["product.product"].create(
@@ -494,7 +471,6 @@ class TestProcRule(TransactionCase):
         self.assertEqual(receipt_move2.product_uom_qty, 10.0)
 
     def test_reordering_rule_3(self):
-        """Test how replenishment_uom_id affects qty_to_order"""
         stock_location = self.stock_location = self.env.ref(
             "stock.stock_location_stock"
         )
@@ -556,12 +532,6 @@ class TestProcRule(TransactionCase):
         self.assertEqual(orderpoint.qty_to_order, 15.5)
 
     def test_get_multiple_rounded_qty_rounds_up_to_multiple(self):
-        """`_get_multiple_rounded_qty` must round the order quantity UP to a whole
-        multiple of `replenishment_uom_id`, converting through the product UoM both
-        ways. This pins the rounding *direction* (UP) and the boundary directly; a
-        silent switch to DOWN/HALF-UP would slip past the state-only integration
-        tests that only read the final `qty_to_order`.
-        """
         unit = self.env.ref("uom.product_uom_unit")
         pack_of_10 = self.env["uom.uom"].create(
             {
@@ -591,8 +561,6 @@ class TestProcRule(TransactionCase):
         self.assertEqual(_round(11.0), 11.0)
 
     def test_orderpoint_replenishment_view_1(self):
-        """Create two warehouses + two moves
-        verify that the replenishment view is consistent"""
         warehouse_1 = self.env["stock.warehouse"].search(
             [("company_id", "=", self.env.company.id)], limit=1
         )
@@ -664,9 +632,6 @@ class TestProcRule(TransactionCase):
         )
 
     def test_orderpoint_replenishment_view_2(self):
-        """Create a warehouse  + location to replenish warehouse instead of main location
-        verify that the orderpoints created are for the replenish locations not the warehouse main location
-        """
         warehouse_1 = self.env["stock.warehouse"].create(
             {
                 "name": "Warehouse 1",
@@ -712,10 +677,6 @@ class TestProcRule(TransactionCase):
         )
 
     def test_orderpoint_replenishment_view_3(self):
-        """
-        Create a selectable on product route and a product without routes.
-        Verify that none of the created orderpoints set the route by default.
-        """
         stock_location = self.env.ref("stock.stock_location_stock")
         interdimensional_portal = self.env["stock.location"].create(
             {
@@ -921,9 +882,6 @@ class TestProcRule(TransactionCase):
         self.env["stock.warehouse.orderpoint"].action_open_orderpoints()
 
     def test_compute_qty_to_order(self):
-        """
-        Check that the quantity to order is updated in the orderpoint when a new demand is created.
-        """
         orderpoint = self.env["stock.warehouse.orderpoint"].create(
             {
                 "name": "auto orderpoint",
@@ -948,9 +906,6 @@ class TestProcRule(TransactionCase):
         self.assertEqual(orderpoint.qty_to_order, 6)
 
     def test_rule_help_message_mto_mtso(self):
-        """Verify that the rule's help message correctly displays all relevant
-        information when the procurement method is MTO or MTSO.
-        """
         mto_rule = self.env.ref("stock.route_warehouse0_mto").rule_ids[0]
         source_mto = mto_rule.location_src_id.display_name
         self.assertIn(
@@ -967,8 +922,6 @@ class TestProcRule(TransactionCase):
         )
 
     def test_replenishment_creation(self):
-        """Test that the default replenishment order values
-        are computed correctly in the tree view."""
         orderpoint_list_view = Form(
             self.env["stock.warehouse.orderpoint"],
             view="stock.view_stock_warehouse_orderpoint_list_editable",
@@ -977,7 +930,6 @@ class TestProcRule(TransactionCase):
         self.assertFalse(orderpoint_list_view.product_id)
 
     def test_orderpoint_warning(self):
-        """Checks that the warning correctly computes depending on the configuration."""
         self.product.is_storable = True
         orderpoint = self.env["stock.warehouse.orderpoint"].create(
             {
@@ -1020,7 +972,6 @@ class TestProcRule(TransactionCase):
 
     @freeze_time("2025-09-02 14:00:00")
     def test_orderpoint_deadline_date(self):
-        """Test that the deadline date is correctly computed."""
         self.product.is_storable = True
         product_1 = self.env["product.product"].create(
             {
@@ -1170,7 +1121,6 @@ class TestProcRule(TransactionCase):
 
     @freeze_time("2025-08-14 10:00:00")
     def test_orderpoint_wizard_graph(self):
-        """Test that the graph data is correctly computed."""
         self.product.is_storable = True
         orderpoint = self.env["stock.warehouse.orderpoint"].create(
             {
@@ -1258,13 +1208,6 @@ class TestProcRule(TransactionCase):
         )
 
     def test_replenishment_graph_has_no_side_effect_on_orderpoint(self):
-        """Rendering the forecast graph must never write back to the orderpoint.
-
-        Regression guard: ``_compute_json_replenishment_graph`` used to clamp and
-        *persist* ``product_max_qty`` on the orderpoint as a side effect of
-        computing a JSON field. Recompute the graph and assert the orderpoint is
-        left untouched.
-        """
         self.product.is_storable = True
         orderpoint = self.env["stock.warehouse.orderpoint"].create(
             {
@@ -1284,7 +1227,6 @@ class TestProcRule(TransactionCase):
         self.assertEqual(orderpoint.product_min_qty, 10)
 
     def test_prepare_graph_data_is_pure(self):
-        """``_prepare_graph_data`` derives its result purely from its arguments."""
         Info = self.env["stock.replenishment.info"]
         ordering_period, data = Info._prepare_graph_data(10, 50, daily_demand=0)
         self.assertEqual(ordering_period, 0)
@@ -1296,7 +1238,6 @@ class TestProcRule(TransactionCase):
         self.assertEqual(ordering_period, 1)
 
     def test_replenishment_info_rejects_negative_percent_factor(self):
-        """A negative percentage factor is meaningless and must be rejected."""
         orderpoint = self.env["stock.warehouse.orderpoint"].create(
             {
                 "product_id": self.product.id,
@@ -1316,9 +1257,6 @@ class TestProcRuleLoad(TransactionCase):
         self.skipTest("Performance test, too heavy to run.")
 
     def test_orderpoint_1(self):
-        """Try 500 products with a 1000 RR(stock -> shelf1 and stock -> shelf2)
-        Also randomly include 4 miss configuration.
-        """
         warehouse = self.env["stock.warehouse"].create(
             {"name": "Test Warehouse", "code": "TWH"}
         )

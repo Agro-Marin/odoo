@@ -59,6 +59,7 @@ Key Features
     'installable': True,
     'assets': {
         'web.assets_backend': [
+            'event/static/src/clickbot_entries.js',
             'event/static/src/client_action/**/*',
             'event/static/src/scss/event.scss',
             'event/static/src/event_state_selection_field/*',

@@ -32,7 +32,7 @@ class StockWarehouse(models.Model):
     def _update_dropship_subcontract_rules(self):
         '''update (archive/unarchive) any warehouse subcontracting location dropship rules'''
         subcontracting_locations = self._get_subcontracting_locations()
-        route_id = self._find_or_create_global_route('stock_dropshipping.route_drop_shipping',
+        route_id = self._get_or_create_global_route('stock_dropshipping.route_drop_shipping',
                                            _('Dropship Subcontractor on Order'))
         warehouses_dropship = self.filtered(lambda w: w.subcontracting_to_resupply and w.active)
         if warehouses_dropship:
@@ -51,7 +51,7 @@ class StockWarehouse(models.Model):
                 ('location_src_id', 'in', subcontracting_locations.ids)]).action_archive()
 
     def update_global_route_dropship_subcontractor(self):
-        route_id = self._find_or_create_global_route('stock_dropshipping.route_drop_shipping',
+        route_id = self._get_or_create_global_route('stock_dropshipping.route_drop_shipping',
                                            _('Dropship Subcontractor on Order'))
         # if route has no pull rules, it means all warehouses have Dropship Subcontractor disabled
         # Pick type is per company so we need to check rules per company to archive it, however
@@ -75,7 +75,7 @@ class StockWarehouse(models.Model):
                     'company_id': self.company_id.id,
                     'action': 'pull',
                     'auto': 'manual',
-                    'route_id': self._find_or_create_global_route('stock_dropshipping.route_drop_shipping', self.env._('Dropship Subcontractor on Order')).id,
+                    'route_id': self._get_or_create_global_route('stock_dropshipping.route_drop_shipping', self.env._('Dropship Subcontractor on Order')).id,
                     'name': self._format_rulename(subcontract_location_id, production_location_id, False),
                     'location_dest_id': production_location_id.id,
                     'location_src_id': subcontract_location_id.id,

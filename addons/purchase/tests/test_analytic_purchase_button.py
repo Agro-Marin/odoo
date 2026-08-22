@@ -4,8 +4,6 @@ from odoo.tests import TransactionCase, tagged
 
 @tagged("post_install", "-at_install")
 class TestAnalyticPurchaseButton(TransactionCase):
-    """Purchase smart button on an analytic account."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -66,13 +64,11 @@ class TestAnalyticPurchaseButton(TransactionCase):
         return order
 
     def test_count_reaches_the_account_through_the_bill(self):
-        """An order billed against the account is counted on it."""
         self._billed_order()
         self.account.invalidate_recordset(["purchase_order_count"])
         self.assertEqual(self.account.purchase_order_count, 1)
 
     def test_account_without_bills_counts_zero(self):
-        """An analytic account nobody billed reports nothing (boundary)."""
         idle = self.env["account.analytic.account"].create(
             {
                 "name": "Idle account",
@@ -82,7 +78,6 @@ class TestAnalyticPurchaseButton(TransactionCase):
         self.assertEqual(idle.purchase_order_count, 0)
 
     def test_orders_of_another_account_are_not_counted(self):
-        """Spending charged elsewhere never reaches this account."""
         other = self.env["account.analytic.account"].create(
             {
                 "name": "Other account",
@@ -94,14 +89,12 @@ class TestAnalyticPurchaseButton(TransactionCase):
         self.assertEqual(self.account.purchase_order_count, 0)
 
     def test_button_opens_the_single_order_as_a_form(self):
-        """With one order the button lands directly on its form."""
         order = self._billed_order()
         action = self.account.action_view_purchase_orders()
         self.assertEqual(action["view_mode"], "form")
         self.assertEqual(action["res_id"], order.id)
 
     def test_button_opens_a_list_for_several_orders(self):
-        """With several orders the button opens the filtered list."""
         first = self._billed_order()
         second = self._billed_order()
         action = self.account.action_view_purchase_orders()

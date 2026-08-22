@@ -841,7 +841,7 @@ class TestBatchPicking02(TransactionCase):
 
         batch.action_done()
         self.assertEqual(batch.estimated_shipping_weight, 10 + 10*10 + 10*15)
-        precision = self.env['decimal.precision'].precision_get('Product Unit')
+        precision = self.env['decimal.precision'].get_precision('Product Unit')
         volume = float_round((500*500*500)/1000**3, precision_digits=precision)
         self.assertEqual(batch.estimated_shipping_volume, volume)
         self.assertRecordValues(pickings.move_ids, [

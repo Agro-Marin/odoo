@@ -21,7 +21,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
 
     @api.model
     def get_report_values(self, production_id):
-        """Endpoint for HTML display."""
         return {
             "data": self._get_report_data(production_id),
             "context": self._get_display_context(),
@@ -29,7 +28,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
 
     @api.model
     def _get_report_values(self, docids, data=None):
-        """Endpoint for PDF display."""
         docs = []
         for prod_id in docids:
             doc = self._get_report_data(prod_id)
@@ -46,13 +44,13 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
 
         if not data:
             data = {}
-        footer_colspan = 2  # Name & Quantity
+        footer_colspan = 2
         doc["show_replenishments"] = data.get("replenishments") == "1"
         if doc["show_replenishments"]:
             footer_colspan += 1
         doc["show_availabilities"] = data.get("availabilities") == "1"
         if doc["show_availabilities"]:
-            footer_colspan += 2  # Free to use / On Hand & Reserved
+            footer_colspan += 2
         doc["show_receipts"] = data.get("receipts") == "1"
         if doc["show_receipts"]:
             footer_colspan += 1
@@ -86,7 +84,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
 
     def _get_report_data(self, production_id):
         production = self.env["mrp.production"].browse(production_id)
-        # Necessary to fetch the right quantities for multi-warehouse
         production = production.with_context(warehouse_id=production.warehouse_id.id)
 
         components = self._get_components_data(production, level=1, current_index="")
@@ -130,11 +127,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                     quantity=production.product_qty,
                     unit=production.product_uom_id,
                 ).cost
-                # One rounding, in the order's own currency. This rounded first
-                # with `self.env.company.currency_id` -- the *viewing* company's
-                # -- and then again with the order's, so a multi-company report
-                # quantised an operation cost to a currency it is not expressed
-                # in before converting it.
                 initial_bom_cost += currency.round(
                     cost * production.product_uom_qty / production.bom_id.product_qty
                 )
@@ -243,18 +235,15 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         if production.state != "done" or not production.move_byproduct_ids:
             return []
 
-        # Prepare byproducts data
         quantities_by_product = defaultdict(float)
         total_cost_by_product = defaultdict(float)
         component_cost_by_product = defaultdict(float)
         operation_cost_by_product = defaultdict(float)
         for bp_move in production.move_byproduct_ids:
-            # Byproducts without cost share are irrelevant in a cost breakdrown.
             if bp_move.state == "cancel" or float_is_zero(
                 bp_move.cost_share, precision_digits=2
             ):
                 continue
-            # As UoMs can vary, we use the default UoM of each product
             quantities_by_product[bp_move.product_id] += (
                 bp_move.product_uom_id._compute_quantity_report(
                     bp_move.quantity,
@@ -273,7 +262,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 extras["total_real_cost_operations"] * cost_share
             )
 
-        # Add finished product to its own default UoM (not the production UoM)
         breakdown_lines = [
             self._format_cost_breakdown_lines(
                 0,
@@ -289,8 +277,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         ]
         index = 0
         for product, quantity in quantities_by_product.items():
-            # A byproduct with a cost share but no produced quantity (e.g. fully
-            # backordered / zero yield) would divide by zero: skip its unit-cost line.
             if product.uom_id.is_zero(quantity):
                 continue
             index += 1
@@ -408,7 +394,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         }
 
     def _get_unit_cost(self, move):
-        """Returns the unit cost of the move expressed in the UOM of the move"""
         if not move:
             return 0.0
         return move.product_id.uom_id._compute_price(
@@ -416,11 +401,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         )
 
     def _format_state(self, record, components=False):
-        """For MOs, provide a custom state based on the demand vs quantities available for components.
-        All other records types will provide their standard state value.
-        :param dict components: components in the structure provided by `_get_components_data`
-        :return: string to be used as custom state
-        """
         if (
             record._name != "mrp.production"
             or record.state not in ("draft", "confirmed")
@@ -465,7 +445,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         elif record.product_uom_id.compare(producible_qty, record.product_qty) == -1:
             producible_qty = float_repr(
                 producible_qty,
-                self.env["decimal.precision"].precision_get("Product Unit"),
+                self.env["decimal.precision"].get_precision("Product Unit"),
             )
             return _("%(producible_qty)s Ready", producible_qty=producible_qty)
         return _("Ready")
@@ -811,13 +791,11 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             if production.state == "done" and move_raw.product_uom_id.is_zero(
                 move_raw.quantity
             ):
-                # If a product wasn't consumed in the MO by the time it is done, no need to display it on the final Overview.
                 continue
             component_index = f"{current_index}{count}"
             replenishments = self._get_replenishment_lines(
                 production, move_raw, replenish_data, level, component_index
             )
-            # If not enough replenishment -> To Order / Might get "non-available" in summary since all component won't be there in time
             components.append(
                 {
                     "summary": self._format_component_move(
@@ -945,7 +923,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         if any(
             rep.get("summary", {}).get("model") == "to_order" for rep in replenishments
         ):
-            # Means that there's an extra "To Order" line summing up what's left to order.
             component["formatted_state"] = _("To Order")
             component["state"] = "to_order"
 
@@ -1040,7 +1017,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 )
                 >= 0
             ):
-                # If a same product is used twice in the same MO, don't duplicate the replenishment lines
                 break
             doc_in = self.env[forecast_line["document_in"]["_name"]].browse(
                 forecast_line["document_in"]["id"]
@@ -1053,11 +1029,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 forecast_uom_id._compute_quantity_report(
                     forecast_line["quantity"], move_raw.product_uom_id
                 ),
-            )  # Avoid over-rounding
-            # Component demand expressed in BoM terms must be normalized the same
-            # way as _format_component_move: convert the MO qty into the BoM UoM
-            # and divide by the BoM batch size, otherwise a batch BoM
-            # (product_qty > 1) inflates bom_cost by that factor.
+            )
             if production.bom_id and move_raw.bom_line_id:
                 qty_in_bom_uom = production.product_uom_id._compute_quantity_report(
                     production.product_qty, production.bom_id.product_uom_id
@@ -1174,7 +1146,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             replenishments.append(replenishment)
             total_ordered += replenishment["summary"]["quantity"]
 
-        # Add "In transit" line if necessary
         in_transit_line = self._add_transit_line(
             move_raw, forecast, production, level, current_index
         )
@@ -1182,7 +1153,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             total_ordered += in_transit_line["summary"]["quantity"]
             replenishments.append(in_transit_line)
 
-        # Avoid creating a "to_order" line to compensate for missing stock (i.e. negative qty_free).
         qty_free = max(
             0,
             product.uom_id._compute_quantity_report(
@@ -1195,8 +1165,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             qty_in_bom_uom = production.product_uom_id._compute_quantity_report(
                 production.product_qty, production.bom_id.product_uom_id
             )
-            # Divide by the BoM batch size (see _format_component_move): without
-            # it a batch BoM (product_qty > 1) inflates the missing qty and cost.
             full_bom_demand = (
                 qty_in_bom_uom
                 * move_raw.bom_line_id.product_qty
@@ -1213,7 +1181,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             and production.state not in ("done", "cancel")
             and move_raw.product_uom_id.compare(missing_quantity, 0) > 0
         ):
-            # Need to order more products to fulfill the need
             resupply_rules = self._get_resupply_rules(
                 production, product, replenish_data
             )
@@ -1379,7 +1346,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                     in_transit["uom_id"]._compute_quantity_report(
                         in_transit["quantity"], move_raw.product_uom_id
                     ),
-                ),  # Avoid over-rounding
+                ),
                 "uom_name": move_raw.product_uom_id.display_name,
                 "uom_precision": self._get_uom_precision(
                     move_raw.product_uom_id.rounding
@@ -1500,7 +1467,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             forecast_lines = self._add_origins_to_forecast(forecast_lines)
             for product in unknown_products:
                 extra_docs = self._get_extra_replenishments(product)
-                # Sorting the extra documents so that the ones flagged with an explicit production_id are on top of the list.
                 extra_docs.sort(
                     key=lambda ex: ex.get("production_id", False), reverse=True
                 )
@@ -1520,7 +1486,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         return replenish_data
 
     def _get_replenishment_from_moves(self, production, replenish_data):
-        # Go through the component's move see if we can find an incoming origin
         for component_move in production.move_raw_ids:
             product_lines = []
             product = component_move.product_id
@@ -1535,7 +1500,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                     )
                     used_qty = min(required_qty, to_uom_qty)
                     required_qty -= used_qty
-                    # Create a fake "forecast line" so it will be processed as normal afterwards with only the required info
                     product_lines.append(
                         {
                             "document_in": {
@@ -1574,7 +1538,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         return replenish_data["products"][product.id]["resupply_rules"]
 
     def _add_origins_to_forecast(self, forecast_lines):
-        # Keeps the link to its origin even when the product is now in stock.
         new_lines = []
         for line in filter(
             lambda line: (
@@ -1592,14 +1555,12 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             ):
                 doc_origin = self._get_origin(move_origin)
                 if doc_origin:
-                    # Remove 'in_transit' for MTO replenishments
                     line["in_transit"] = False
                     move_origin_qty = (
                         move_origin.product_uom_id._compute_quantity_report(
                             move_origin.product_uom_qty, line["uom_id"]
                         )
                     )
-                    # Move quantity matches forecast, can add origin to the line
                     if (
                         float_compare(
                             line["quantity"],
@@ -1615,7 +1576,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                         line["move_in"] = move_origin
                         break
 
-                    # Quantity doesn't match, either multiple origins for a single line or multiple lines for a single origin
                     used_quantity = min(move_out_qty, move_origin_qty)
                     new_line = copy.copy(line)
                     new_line["quantity"] = used_quantity
@@ -1625,7 +1585,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                     }
                     new_line["move_in"] = move_origin
                     new_lines.append(new_line)
-                    # Remove used quantity from original forecast line
                     line["quantity"] -= used_quantity
 
                     move_out_qty -= used_quantity
@@ -1680,8 +1639,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                     extra["init_quantity"], forecast_line["uom_id"]
                 )
                 line_qty -= taken_from_extra
-                # Create copy of the current forecast line to add a possible replenishment.
-                # Needs to be a copy since it might take multiple replenishment to fulfill a single "out" line.
                 new_extra_line = copy.copy(forecast_line)
                 new_extra_line["quantity"] = taken_from_extra
                 new_extra_line["document_in"] = {
@@ -1716,7 +1673,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
     ):
         manufacture_rules = [rule for rule in rules if rule.action == "manufacture"]
         if manufacture_rules:
-            # Need to get rules from Production location to get delays before production
             wh_manufacture_rules = product._get_rules_from_location(
                 product.property_stock_production,
                 route_ids=production.warehouse_id.route_ids,
@@ -1745,9 +1701,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         return replenish_data["warehouses"][warehouse.id]
 
     def _get_reserved_qty(self, move_raw, warehouse, replenish_data):
-        # Presence check, not truthiness: a cached 0.0 (nothing reserved, the common
-        # case) must still count as a hit, otherwise the expensive move-graph rollup
-        # below re-runs on every call for every unreserved component.
         if move_raw not in replenish_data["qty_reserved"]:
             total_reserved = 0
             wh_location_ids = self._get_warehouse_locations(warehouse, replenish_data)
@@ -1759,11 +1712,9 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             for move in linked_moves:
                 if move.state not in ("partially_available", "assigned"):
                     continue
-                # count reserved stock in move_raw's uom
                 reserved = move.product_uom_id._compute_quantity_report(
                     move.quantity, move_raw.product_uom_id
                 )
-                # check if the move reserved qty was counted before (happens if multiple outs share pick/pack)
                 reserved = min(
                     reserved
                     - move.product_uom_id._compute_quantity_report(

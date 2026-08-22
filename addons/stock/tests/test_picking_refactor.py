@@ -11,20 +11,10 @@ from odoo.addons.stock.tests.common import TestStockCommon
 
 
 class TestPickingRefactor(TestStockCommon):
-    """Regression tests for the `stock.picking` refactor (marin fork).
-
-    Each test pins a bug that was fixed while refactoring `stock_picking.py`, so a
-    future change that reintroduces it fails loudly.
-    """
-
     def _new_picking(self, picking_type):
         return self.PickingObj.create({"picking_type_id": picking_type.id})
 
     def test_write_picking_type_keeps_explicit_location(self):
-        """Changing `picking_type_id` and passing an explicit `location_id` in the same
-        `write` must keep the caller's location (it used to be silently overwritten by
-        the new type's default source location).
-        """
         picking = self._new_picking(self.picking_type_in)
         self.assertNotEqual(
             self.shelf_1,
@@ -40,9 +30,6 @@ class TestPickingRefactor(TestStockCommon):
         self.assertEqual(picking.location_id, self.shelf_1)
 
     def test_write_picking_type_defaults_location_when_not_given(self):
-        """When no explicit location is passed, changing the type still adopts the new
-        type's default locations (the `setdefault` path).
-        """
         picking = self._new_picking(self.picking_type_in)
         picking.write({"picking_type_id": self.picking_type_out.id})
         self.assertEqual(
@@ -55,9 +42,6 @@ class TestPickingRefactor(TestStockCommon):
         )
 
     def test_shipping_volume_recomputes_on_quantity_change(self):
-        """`shipping_volume` is a non-stored compute; without its `@api.depends` it
-        served a stale cached value after the move quantity changed.
-        """
         self.product_2.volume = 2.0
         picking = self._new_picking(self.picking_type_out)
         move = self.MoveObj.create(
@@ -80,9 +64,6 @@ class TestPickingRefactor(TestStockCommon):
         )
 
     def test_entire_pack_move_line_vals_use_company_not_picking_id(self):
-        """`_prepare_entire_pack_move_line_vals` set `company_id` to the picking id
-        instead of the company id.
-        """
         product = self.ProductObj.create({"name": "Packed", "is_storable": True})
         package = self.env["stock.package"].create({})
         self.env["stock.quant"].create(
@@ -100,7 +81,6 @@ class TestPickingRefactor(TestStockCommon):
         self.assertNotEqual(vals[0]["company_id"], picking.id)
 
     def test_has_deadline_issue_reflects_dates(self):
-        """`has_deadline_issue` is True only when a deadline precedes the scheduled date."""
         picking = self._new_picking(self.picking_type_out)
         move = self.MoveObj.create(
             {
@@ -119,9 +99,6 @@ class TestPickingRefactor(TestStockCommon):
         self.assertFalse(picking.has_deadline_issue)
 
     def test_show_allocation_batched_matches_per_picking(self):
-        """The batched `_compute_show_allocation` must equal the per-picking
-        `_get_show_allocation`, and be True exactly when allocatable demand exists.
-        """
         self.env.user.group_ids = [
             (4, self.env.ref("stock.group_reception_report").id),
         ]
@@ -179,9 +156,6 @@ class TestPickingRefactor(TestStockCommon):
         )
 
     def test_action_split_transfer_requires_single_record(self):
-        """`action_split_transfer` operates on one transfer; calling it on several must
-        raise rather than silently mixing moves across pickings.
-        """
         pickings = self._new_picking(self.picking_type_out) | self._new_picking(
             self.picking_type_out,
         )
@@ -189,10 +163,6 @@ class TestPickingRefactor(TestStockCommon):
             pickings.action_split_transfer()
 
     def test_bulk_weight_sums_move_line_quantities(self):
-        """`_compute_bulk_weight` sums the quantities of the unpackaged move lines
-        (refactored from a group-by-quantity + count read_group to `quantity:sum`).
-        Distinct quantities for the same product must all be counted.
-        """
         self.product_2.weight = 2.0
         picking = self._new_picking(self.picking_type_out)
         move = self.MoveObj.create(
@@ -220,9 +190,6 @@ class TestPickingRefactor(TestStockCommon):
         self.assertEqual(picking.weight_bulk, 16.0)
 
     def test_get_report_lang_requires_single_record(self):
-        """`_get_report_lang` renders one document at a time; it now asserts a single
-        record, so a multi-record set must raise rather than silently pick the first.
-        """
         p1 = self._new_picking(self.picking_type_out)
         p2 = self._new_picking(self.picking_type_out)
         self.assertEqual(p1._get_report_lang(), self.env.lang)
@@ -230,9 +197,6 @@ class TestPickingRefactor(TestStockCommon):
             (p1 | p2)._get_report_lang()
 
     def test_allocation_allowed_move_states_helper(self):
-        """The shared allocation state helper is the single source of truth for the
-        reception report and both show-allocation paths.
-        """
         self.assertEqual(
             self.PickingObj._get_allocation_allowed_move_states(),
             ["confirmed", "partially_available", "waiting"],
@@ -243,9 +207,6 @@ class TestPickingRefactor(TestStockCommon):
         )
 
     def test_allocation_source_location_ids_excludes_suppliers(self):
-        """The shared source-location helper returns warehouse-internal locations and
-        never supplier locations.
-        """
         view_location = self.picking_type_in.warehouse_id.view_location_id
         ids = self.PickingObj._get_allocation_source_location_ids(view_location.ids)
         locations = self.env["stock.location"].browse(ids)
@@ -256,10 +217,6 @@ class TestPickingRefactor(TestStockCommon):
         )
 
     def _two_types_sharing(self, **overrides):
-        """Two picking types with independent sequences (so picking names don't clash)
-        and the same field overrides applied to both. All auto-print flags are cleared
-        first so a test can isolate exactly one report type.
-        """
         Seq = self.env["ir.sequence"]
         auto_off = dict.fromkeys(
             (
@@ -294,10 +251,6 @@ class TestPickingRefactor(TestStockCommon):
         return pt_a, pt_b
 
     def test_autoprint_product_labels_multi_type_same_format(self):
-        """Two picking types sharing a product-label format, validated together, must
-        produce exactly one product-label action — no singleton crash from reading the
-        format off a multi-type recordset, and no duplicate action from iterating types.
-        """
         pt_a, pt_b = self._two_types_sharing(
             auto_print_product_labels=True,
             product_label_format="zpl",
@@ -331,9 +284,6 @@ class TestPickingRefactor(TestStockCommon):
         )
 
     def test_autoprint_lot_labels_multi_type_same_format(self):
-        """Two picking types sharing a lot-label format must emit a single lot-label
-        action, not one per picking type (duplicate-action regression).
-        """
         self.env.user.group_ids = [
             (4, self.env.ref("stock.group_production_lot").id),
         ]
@@ -387,10 +337,6 @@ class TestPickingRefactor(TestStockCommon):
         )
 
     def test_get_show_allocation_matches_per_picking_field(self):
-        """`_get_show_allocation` (batch helper) must equal the OR of the per-picking
-        `show_allocation` field over the same set — they share `_get_show_allocation_map`
-        so a batch can never disagree with the pickings it contains.
-        """
         self.env.user.group_ids = [
             (4, self.env.ref("stock.group_reception_report").id),
         ]
@@ -423,9 +369,6 @@ class TestPickingRefactor(TestStockCommon):
         )
 
     def test_sanity_check_flags_zero_quantity_picking(self):
-        """The `float_is_zero` -> `move.product_uom_id.is_zero` swap in `_sanity_check`
-        must still detect a picking whose moves have no done quantity.
-        """
         product = self.ProductObj.create({"name": "ZeroQty", "is_storable": True})
         picking = self._new_picking(self.picking_type_out)
         self.MoveObj.create(
@@ -443,10 +386,6 @@ class TestPickingRefactor(TestStockCommon):
             picking.button_validate()
 
     def test_split_backorder_pickings_partitions_by_type_and_context(self):
-        """`_split_backorder_pickings` (extracted from `button_validate`) sends
-        `create_backorder == "never"` types and `picking_ids_not_to_backorder` records
-        to the no-backorder side, everything else to the backorder side.
-        """
         Seq = self.env["ir.sequence"]
         pt_never = self.picking_type_out.copy(
             {
@@ -493,12 +432,6 @@ class TestPickingRefactor(TestStockCommon):
         )
 
     def test_pre_action_done_hook_autopicks_scrap_destination_move(self):
-        """A picking whose move goes to a scrap (inventory) location must have that move
-        auto-picked, so a scrap transfer can validate to ``done``. This pins the
-        `_pre_action_done_hook` behavior that `test_move.test_scrap_10` depends on: a
-        scrap move's quantity counts as demand and the move is auto-picked. Do NOT
-        "fix" this into excluding inventory moves — it breaks scrap validation.
-        """
         picking = self._new_picking(self.picking_type_int)
         scrap_move = self._internal_move(picking, self.scrap_location, demand=3)
         picking.action_confirm()
@@ -514,11 +447,6 @@ class TestPickingRefactor(TestStockCommon):
         )
 
     def test_pre_action_done_hook_scrap_pick_does_not_suppress_real_moves(self):
-        """The `has_pick` detection deliberately excludes inventory moves: an
-        already-picked scrap move must NOT prevent auto-picking the real moves. Pins the
-        intentional asymmetry (scrap counts for demand + gets picked, but doesn't count
-        as "the user already picked something").
-        """
         picking = self._new_picking(self.picking_type_int)
         real_move = self._internal_move(picking, self.stock_location)
         scrap_move = self._internal_move(picking, self.scrap_location, demand=3)
@@ -536,9 +464,6 @@ class TestPickingRefactor(TestStockCommon):
         )
 
     def test_pre_action_done_hook_autopicks_real_moves(self):
-        """Positive control: a real move carrying quantity with nothing picked yet is
-        auto-picked by the hook (unchanged behavior).
-        """
         picking = self._new_picking(self.picking_type_int)
         move = self._internal_move(picking, self.stock_location)
         picking.action_confirm()
@@ -550,9 +475,6 @@ class TestPickingRefactor(TestStockCommon):
         self.assertTrue(move.picked, "real move with quantity must be auto-picked")
 
     def test_write_picking_type_batch_adopts_locations(self):
-        """Changing `picking_type_id` on several pickings at once adopts each new type's
-        default locations (the batched, grouped-by-resolved-pair write path).
-        """
         p1 = self._new_picking(self.picking_type_in)
         p2 = self._new_picking(self.picking_type_in)
         (p1 | p2).write({"picking_type_id": self.picking_type_out.id})
@@ -567,12 +489,6 @@ class TestPickingRefactor(TestStockCommon):
             )
 
     def test_measure_total_by_picking_shared_helper(self):
-        """`weight_bulk` and `shipping_volume` are driven by the same
-        `_measure_total_by_picking` read-group helper, and both must recompute on a
-        quantity change *via `@api.depends`* — no manual invalidation. This guards the
-        decorator staying attached to each compute (a helper inserted between the
-        decorator and `_compute_bulk_weight` would silently swallow it).
-        """
         self.product_2.weight = 4.0
         self.product_2.volume = 2.0
         picking = self._new_picking(self.picking_type_out)
@@ -608,14 +524,6 @@ class TestPickingRefactor(TestStockCommon):
         )
 
     def test_search_products_availability_state_matches_compute(self):
-        """`products_availability_state` is False for incoming (and non-outgoing/
-        internal) pickings — the compute only assigns a real state to outgoing/internal
-        ones. The search must agree with the field: an assigned *incoming* picking, even
-        with a fully reserved move, must NOT match available/expected/late and MUST
-        match False. Regression for the search scanning every non-terminal picking
-        without the picking-type restriction (which leaked receipts into "Available"
-        and hid them from a "False" filter).
-        """
         product = self.env["product.product"].create(
             {"name": "Availability probe", "is_storable": True},
         )
@@ -676,11 +584,6 @@ class TestPickingRefactor(TestStockCommon):
 
     @freeze_time("2024-06-06 11:00")
     def test_calculate_date_category_naive_utc_on_non_utc_server(self):
-        """Stored datetimes are naive UTC: `calculate_date_category` must classify
-        them independently of the server's OS timezone (a naive `astimezone` used
-        to reinterpret them in the OS zone), and must agree with the bucket built
-        by `date_category_to_domain`.
-        """
         self.env.user.tz = "UTC"
         dt = datetime(2024, 6, 6, 2, 0)
         old_tz = os.environ.get("TZ")
@@ -710,10 +613,6 @@ class TestPickingRefactor(TestStockCommon):
             time.tzset()
 
     def test_inverse_date_planned_keeps_done_move_dates(self):
-        """Rescheduling a picking must not rewrite the effective date of its done
-        moves (e.g. a scrap validated from the picking): `stock.move.write`
-        cascades `date` to done move lines, corrupting inventory history.
-        """
         picking = self._new_picking(self.picking_type_int)
         open_move = self._internal_move(picking, self.shelf_1)
         scrap_move = self._internal_move(picking, self.scrap_location, demand=2)
@@ -739,11 +638,6 @@ class TestPickingRefactor(TestStockCommon):
         )
 
     def test_show_allocation_excludes_sibling_pickings(self):
-        """Per-picking `show_allocation` counts demand from any other picking, but
-        the batch-level `_get_show_allocation` must not count demand held by a
-        sibling picking of the same evaluated set (upstream `not in self.ids`
-        semantics).
-        """
         product = self.ProductObj.create({"name": "SiblingDemand", "is_storable": True})
 
         def make_internal(dest):
@@ -777,11 +671,6 @@ class TestPickingRefactor(TestStockCommon):
         )
 
     def test_sanity_check_multi_flags_zero_quantity_picking(self):
-        """Validating several transfers at once must flag the ones without any
-        quantity set (they used to slip through the multi-transfer branch and get
-        stamped with a `date_done` while staying open). Draft pickings are exempt:
-        `button_validate` backfills their quantities after confirming them.
-        """
         product = self.ProductObj.create({"name": "MultiZero", "is_storable": True})
 
         def make_delivery(confirm):
@@ -813,27 +702,17 @@ class TestPickingRefactor(TestStockCommon):
         (draft_picking | ok_picking)._sanity_check()
 
     def test_search_date_category_ignores_unknown_values(self):
-        """Unknown date categories (possible through raw RPC domains) must match
-        nothing instead of crashing, and must not swallow valid values passed
-        alongside them.
-        """
         picking = self._new_picking(self.picking_type_out)
         self.assertFalse(
-            self.PickingObj.search([("search_date_category", "in", ["bogus"])]),
+            self.PickingObj.search([("date_category", "in", ["bogus"])]),
         )
         found = self.PickingObj.search(
-            [("search_date_category", "in", ["today", "bogus"])],
+            [("date_category", "in", ["today", "bogus"])],
         )
         self.assertIn(picking, found)
 
     @freeze_time("2024-06-06 14:00")
     def test_count_picking_late_uses_user_day_boundary(self):
-        """The "Late" dashboard count shares the graph's day boundary (start of
-        today in the user's timezone), not the server's UTC calendar date. For an
-        Auckland user at 2024-06-07 02:00 local, a picking scheduled 2024-06-06
-        11:00 UTC (23:00 local, yesterday) is late; the old UTC-date cutoff
-        (2024-06-06 00:00) missed it.
-        """
         self.env.user.tz = "Pacific/Auckland"
         picking_type = self.picking_type_out
         count_before = picking_type.count_picking_late
@@ -862,10 +741,6 @@ class TestPickingRefactor(TestStockCommon):
         )
 
     def test_state_recomputes_on_bypass_location_change(self):
-        """`_compute_state` reads the source location's reservation bypass; moving
-        a confirmed picking to a bypass location (e.g. supplier) must re-derive
-        its state to assigned without waiting for a move-state write.
-        """
         product = self.ProductObj.create({"name": "BypassProbe", "is_storable": True})
         picking = self._new_picking(self.picking_type_int)
         self.MoveObj.create(
@@ -888,11 +763,6 @@ class TestPickingRefactor(TestStockCommon):
         )
 
     def test_reservation_days_explicit_zero_and_days_only_refresh(self):
-        """`date_reservation` maintenance in `stock.picking.type.write`: an
-        explicit 0 in the same write must win over the stored day count, and
-        changing only the day count on an already-by_date type must refresh the
-        open moves.
-        """
         picking_type = self.picking_type_out
         picking_type.reservation_method = "manual"
         picking_type.reservation_days_before = 7
@@ -930,10 +800,6 @@ class TestPickingRefactor(TestStockCommon):
         )
 
     def test_reference_picking_ids_follow_move_reassignment(self):
-        """`stock.reference.picking_ids` must follow `move_ids.picking_id` through
-        `@api.depends` — no stale cache after a move is reassigned to another
-        picking in the same transaction.
-        """
         picking_a = self._new_picking(self.picking_type_out)
         picking_b = self._new_picking(self.picking_type_out)
         move = self.MoveObj.create(

@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import float_is_zero
@@ -34,11 +32,6 @@ class ChangeProductionQty(models.TransientModel):
 
     @api.model
     def _update_finished_moves(self, production, new_qty, old_qty):
-        """Update finished product and its byproducts. This method only update
-        the finished moves not done or cancel and just increase or decrease
-        their quantity according the unit_ratio. It does not use the BoM, BoM
-        modification during production would not be taken into consideration.
-        """
         modification = {}
         push_moves = self.env["stock.move"]
         for move in production.move_finished_ids:
@@ -62,7 +55,7 @@ class ChangeProductionQty(models.TransientModel):
         return move.move_dest_ids and not move.product_uom_id.is_zero(qty)
 
     def change_prod_qty(self):
-        precision = self.env["decimal.precision"].precision_get("Product Unit")
+        precision = self.env["decimal.precision"].get_precision("Product Unit")
         activity_mixin = self.env["mixin.stock.activity"]
         for wizard in self:
             production = wizard.mo_id
@@ -100,7 +93,7 @@ class ChangeProductionQty(models.TransientModel):
                 and not production.workorder_ids
             ):
                 production.qty_producing = new_production_qty
-                production._set_qty_producing()
+                production._inverse_qty_producing()
 
             for wo in production.workorder_ids:
                 operation = wo.operation_id
@@ -128,9 +121,6 @@ class ChangeProductionQty(models.TransientModel):
                     wo.state = "progress"
                 if wo.qty_produced == wo.qty_production and wo.state == "progress":
                     wo.state = "done"
-                # assign moves; last operation receive all unassigned moves
-                # TODO: following could be put in a function as it is similar as code in _workorders_create
-                # TODO: only needed when creating new moves
                 moves_raw = production.move_raw_ids.filtered(
                     lambda move, operation=operation: (
                         move.operation_id == operation
@@ -143,11 +133,10 @@ class ChangeProductionQty(models.TransientModel):
                     )
                 moves_finished = production.move_finished_ids.filtered(
                     lambda move, operation=operation: move.operation_id == operation
-                )  # TODO: code does nothing, unless maybe by_products?
+                )
                 moves_raw.mapped("move_line_ids").write({"workorder_id": wo.id})
                 (moves_finished + moves_raw).write({"workorder_id": wo.id})
 
-        # run scheduler for moves forecasted to not have enough in stock
         self.mo_id.filtered(
             lambda mo: mo.state in ["confirmed", "progress"]
         ).move_raw_ids._trigger_scheduler()

@@ -189,7 +189,7 @@ class StockRule(models.Model):
             )
         ]
 
-    def _make_po_get_domain(self, company_id, values, partner):
+    def _prepare_po_get_domain(self, company_id, values, partner):
         currency = (
             ("supplier" in values and values["supplier"].currency_id)
             or partner.with_company(company_id).property_purchase_currency_id
@@ -305,7 +305,7 @@ class StockRule(models.Model):
 
     def _prepare_purchase_order_vals(self, company_id, origins, values):
         """Create a purchase order for procuremets that share the same domain
-        returned by _make_po_get_domain.
+        returned by _prepare_po_get_domain.
         params values: values of procurements
         params origins: procuremets origins to write on the PO
         """
@@ -399,7 +399,9 @@ class StockRule(models.Model):
             # we put `supplier_info` in values for extensibility purposes
             procurement.values["supplier"] = supplier
             procurement.values["propagate_cancel"] = rule.propagate_cancel
-            domain = rule._make_po_get_domain(company_id, procurement.values, partner)
+            domain = rule._prepare_po_get_domain(
+                company_id, procurement.values, partner
+            )
             procurements_by_po_domain[domain].append((procurement, rule))
 
         if errors:
@@ -431,7 +433,7 @@ class StockRule(models.Model):
                         positive_values,
                     )
                     # The company_id is the same for all procurements since
-                    # _make_po_get_domain add the company in the domain.
+                    # _prepare_po_get_domain add the company in the domain.
                     # We use SUPERUSER_ID since we don't want the current user to be follower of the PO.
                     # Indeed, the current user may be a user without access to Purchase, or even be a portal user.
                     po = (

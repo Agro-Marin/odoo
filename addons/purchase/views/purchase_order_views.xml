@@ -61,6 +61,10 @@
                 <separator />
                 <filter name="draft_rfqs" string="Quotations"
                     domain="[('state', '=', 'draft')]" />
+                <!-- Mirrors the `sent` bucket of purchase.order.prepare_dashboard;
+                     the "RFQ Sent" dashboard cards toggle this by name. -->
+                <filter name="waiting_rfqs" string="RFQ Sent"
+                    domain="[('sent', '=', True), ('state', '=', 'draft')]" />
                 <filter name="approved" string="Purchase Orders"
                     domain="[('state', '=', 'done')]" />
                 <separator />

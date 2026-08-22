@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 from datetime import timedelta
 
 from odoo import exceptions, fields
@@ -32,7 +31,6 @@ class TestBoM(TestMrpCommon):
 
     @classmethod
     def _get_component_line(cls, bom, product, qty=1.0):
-        """Helper to fetch component line from BoM overview for given qty."""
         data = cls.env["report.mrp.report_bom_structure"]._get_report_data(
             bom.id, searchQty=qty
         )["lines"]
@@ -90,10 +88,6 @@ class TestBoM(TestMrpCommon):
             }
         )
 
-        # FNS BoM Structure:
-        # 1 Unit of FNS:
-        #  - 10 Units of CMP1:
-        #    - 0.10 Units of CMP2  (50 / 5000 * 10)
 
         _, lines = fns_bom.explode(fns, 1)
         self.assertEqual(lines[0][1]["qty"], 0.10)
@@ -226,9 +220,9 @@ class TestBoM(TestMrpCommon):
 
         mrp_order_form = Form(self.env["mrp.production"])
         mrp_order_form.product_id = self.product_7_1
-        mrp_order_form.product_id = self.env["product.product"]  # Check form
+        mrp_order_form.product_id = self.env["product.product"]
         mrp_order_form.product_id = self.product_7_1
-        mrp_order_form.bom_id = self.env["mrp.bom"]  # Check form
+        mrp_order_form.bom_id = self.env["mrp.bom"]
         mrp_order_form.bom_id = test_bom
         mrp_order = mrp_order_form.save()
         self.assertEqual(mrp_order.bom_id, test_bom)
@@ -374,7 +368,6 @@ class TestBoM(TestMrpCommon):
             test_bom_2.bom_line_ids
         )
 
-        # check product > product_tmpl
         boms, lines = test_bom_2.explode(self.product_7_1, 4)
         self.assertEqual(set((test_bom_2 | self.bom_2).ids), {b[0].id for b in boms})
         self.assertEqual(
@@ -382,7 +375,6 @@ class TestBoM(TestMrpCommon):
             {l[0].id for l in lines},
         )
 
-        # check sequence priority
         test_bom_1.write({"sequence": 1})
         boms, lines = test_bom_2.explode(self.product_7_1, 4)
         self.assertEqual(set((test_bom_2 | test_bom_1).ids), {b[0].id for b in boms})
@@ -391,7 +383,6 @@ class TestBoM(TestMrpCommon):
             {l[0].id for l in lines},
         )
 
-        # check with another picking_type
         test_bom_1.write({"picking_type_id": self.picking_type_manu.id})
         self.bom_2.write({"picking_type_id": tmp_picking_type.id})
         test_bom_2.write({"picking_type_id": tmp_picking_type.id})
@@ -405,15 +396,14 @@ class TestBoM(TestMrpCommon):
         self.product_9, self.product_10 = self.env["product.product"].create(
             [
                 {
-                    "name": "Paper",  # product_9
+                    "name": "Paper",
                 },
                 {
-                    "name": "Stone",  # product_10
+                    "name": "Stone",
                 },
             ]
         )
 
-        # check recursion
         test_bom_3 = self.env["mrp.bom"].create(
             {
                 "product_id": self.product_9.id,
@@ -453,24 +443,19 @@ class TestBoM(TestMrpCommon):
             ]
 
     def test_12_multi_level_variants2(self):
-        """Test skip bom line with same attribute values in bom lines."""
-
         Product = self.env["product.product"]
         ProductAttribute = self.env["product.attribute"]
         ProductAttributeValue = self.env["product.attribute.value"]
 
-        # Product Attribute
         att_color = ProductAttribute.create({"name": "Color", "sequence": 1})
         att_size = ProductAttribute.create({"name": "size", "sequence": 2})
 
-        # Product Attribute color Value
         att_color_red = ProductAttributeValue.create(
             {"name": "red", "attribute_id": att_color.id, "sequence": 1}
         )
         att_color_blue = ProductAttributeValue.create(
             {"name": "blue", "attribute_id": att_color.id, "sequence": 2}
         )
-        # Product Attribute size Value
         att_size_big = ProductAttributeValue.create(
             {"name": "big", "attribute_id": att_size.id, "sequence": 1}
         )
@@ -478,7 +463,6 @@ class TestBoM(TestMrpCommon):
             {"name": "medium", "attribute_id": att_size.id, "sequence": 2}
         )
 
-        # Create Template Product
         product_template = self.env["product.template"].create(
             {
                 "name": "Sofa",
@@ -511,11 +495,9 @@ class TestBoM(TestMrpCommon):
             1
         ]
 
-        # Create components Of BOM
         product_A = Product.create({"name": "Wood"})
         product_B = Product.create({"name": "Clothes"})
 
-        # Create BOM
         self.env["mrp.bom"].create(
             {
                 "product_tmpl_id": product_template.id,
@@ -554,7 +536,6 @@ class TestBoM(TestMrpCommon):
             sofa_blue + sofa_medium: product_B,
         }
 
-        # Create production order for all variants.
         for combination, consumed_products in dict_consumed_products.items():
             product = product_template.product_variant_ids.filtered(
                 lambda p, combination=combination: (
@@ -565,7 +546,6 @@ class TestBoM(TestMrpCommon):
             mrp_order_form.product_id = product
             mrp_order = mrp_order_form.save()
 
-            # Check consumed materials in production order.
             self.assertEqual(mrp_order.move_raw_ids.product_id, consumed_products)
 
     def test_13_bom_kit_qty(self):
@@ -598,25 +578,12 @@ class TestBoM(TestMrpCommon):
         self.env["stock.quant"]._update_available_quantity(
             self.product_3, self.stock_location, 8.0
         )
-        # Force the kit product available qty to be computed at the same time than its component quantities
-        # Because `qty_available` of a bom kit "recurse" on `qty_available` of its component,
-        # and this is a tricky thing for the ORM:
-        # `qty_available` gets called for `product_7_3`, `product_2` and `product_3`
-        # which then recurse on calling `qty_available` for `product_2` and `product_3` to compute the quantity of
-        # the kit `product_7_3`. `product_2` and `product_3` gets protected at the first call of the compute method,
-        # ending the recurse call to not call the compute method and just left the Falsy value `0.0`
-        # for the components available qty.
         kit_product_qty, _, _ = (
             self.product_7_3 + self.product_2 + self.product_3
         ).mapped("qty_available")
         self.assertEqual(kit_product_qty, 8)
 
     def test_kit_quantity_search(self):
-        """A kit's quantity comes from its components, not its own quants, so it must
-        still be found by a forecast/on-hand quantity search. The `product.product`
-        candidate-set search computes those fields only for products with quants/moves,
-        so `_get_quantity_search_candidates` is overridden in mrp to add phantom kits.
-        """
         self.env["mrp.bom"].create(
             {
                 "product_id": self.product_7_3.id,
@@ -632,7 +599,6 @@ class TestBoM(TestMrpCommon):
         self.env["stock.quant"]._update_available_quantity(
             self.product_2, self.stock_location, 12.0
         )
-        # The kit has no quants of its own; its qty is derived from the component: 12 // 3.
         self.assertEqual(self.product_7_3.qty_available_virtual, 4.0)
         found = self.env["product.product"].search(
             ["&", ("id", "in", self.product_7_3.ids), ("qty_available_virtual", ">", 0)]
@@ -694,9 +660,6 @@ class TestBoM(TestMrpCommon):
         self.assertEqual(product_unit.qty_available, 12.0)
 
     def test_13_negative_on_hand_qty(self):
-        # We set the Product Unit digits to 5.
-        # Because float_round(-384.0, 5) = -384.00000000000006
-        # And float_round(-384.0, 2) = -384.0
         precision = self.env.ref("uom.decimal_product_uom")
         precision.digits = 5
 
@@ -724,8 +687,7 @@ class TestBoM(TestMrpCommon):
 
         kit_product_qty = (
             self.product_2.qty_available
-        )  # Without product_3 in the prefetch
-        # Use the float_repr to remove extra small decimal (and represent the front-end behavior)
+        )
         self.assertEqual(
             float_repr(
                 float_round(kit_product_qty, precision_digits=precision.digits),
@@ -737,7 +699,7 @@ class TestBoM(TestMrpCommon):
         self.product_2.invalidate_recordset(["qty_available"])
         kit_product_qty, _ = (self.product_2 + self.product_3).mapped(
             "qty_available"
-        )  # With product_3 in the prefetch
+        )
         self.assertEqual(
             float_repr(
                 float_round(kit_product_qty, precision_digits=precision.digits),
@@ -874,9 +836,6 @@ class TestBoM(TestMrpCommon):
         self.assertNotIn(kit_products.product_tmpl_id, product_tmpl_without_kit)
 
     def test_20_bom_report(self):
-        """Simulate a crumble receipt with mrp and open the bom structure
-        report and check that data insde are correct.
-        """
         uom_kg = self.env.ref("uom.product_uom_kgm")
         uom_litre = self.env.ref("uom.product_uom_litre")
         crumble = self.env["product.product"].create(
@@ -956,17 +915,14 @@ class TestBoM(TestMrpCommon):
             }
         )
 
-        # TEST BOM STRUCTURE VALUE WITH BOM QUANTITY
         report_values = self.env["report.mrp.report_bom_structure"]._get_report_data(
             bom_id=bom_crumble.id, searchQty=11, searchVariant=False
         )
-        # 5 min 'Prepare biscuits' + 3 min 'Prepare butter' + 5 min 'Mix manually' = 13 minutes for 1 biscuits so 13 * 11 = 143 minutes
         self.assertEqual(
             report_values["lines"]["operations_time"],
             143.0,
             "Operation time should be the same for 1 unit or for the batch",
         )
-        # Operation cost is the sum of operation line.
         self.assertEqual(
             float_compare(
                 report_values["lines"]["operations_cost"], 23.84, precision_digits=2
@@ -976,9 +932,7 @@ class TestBoM(TestMrpCommon):
         )
 
         for component_line in report_values["lines"]["components"]:
-            # standard price * bom line quantity * current quantity / bom finished product quantity
             if component_line["product"].id == butter.id:
-                # 5 kg of butter at 7.01$ for 11kg of crumble -> 35.05$
                 self.assertEqual(
                     float_compare(
                         component_line["bom_cost"], (7.01 * 5), precision_digits=2
@@ -986,14 +940,12 @@ class TestBoM(TestMrpCommon):
                     0,
                 )
             if component_line["product"].id == biscuit.id:
-                # 6 kg of biscuits at 1.50$ for 11kg of crumble -> 9$
                 self.assertEqual(
                     float_compare(
                         component_line["bom_cost"], (1.5 * 6), precision_digits=2
                     ),
                     0,
                 )
-        # total price = 35.05 + 9 + operation_cost(23.84) = 67.89
         self.assertEqual(
             float_compare(
                 report_values["lines"]["bom_cost"], 67.89, precision_digits=2
@@ -1009,17 +961,14 @@ class TestBoM(TestMrpCommon):
             "Product Unit Bom Price is not correct",
         )
 
-        # TEST BOM STRUCTURE VALUE BY UNIT
         report_values = self.env["report.mrp.report_bom_structure"]._get_report_data(
             bom_id=bom_crumble.id, searchQty=1, searchVariant=False
         )
-        # 5 min 'Prepare biscuits' + 3 min 'Prepare butter' + 5 min 'Mix manually' = 13 minutes
         self.assertEqual(
             report_values["lines"]["operations_time"],
             143.0,
             "Operation time should be the same for 1 unit or for the batch",
         )
-        # Operation cost is the sum of operation line.
         operation_cost = float_round(
             bom_crumble.product_qty * 5 / 60 * 10, precision_digits=2
         ) * 2 + float_round(bom_crumble.product_qty * 3 / 60 * 10, precision_digits=2)
@@ -1034,9 +983,7 @@ class TestBoM(TestMrpCommon):
         )
 
         for component_line in report_values["lines"]["components"]:
-            # standard price * bom line quantity * current quantity / bom finished product quantity
             if component_line["product"].id == butter.id:
-                # 5 kg of butter at 7.01$ for 11kg of crumble -> / 11 for price per unit (3.19)
                 self.assertEqual(
                     float_compare(
                         component_line["bom_cost"],
@@ -1046,7 +993,6 @@ class TestBoM(TestMrpCommon):
                     0,
                 )
             if component_line["product"].id == biscuit.id:
-                # 6 kg of biscuits at 1.50$ for 11kg of crumble -> / 11 for price per unit (0.82)
                 self.assertEqual(
                     float_compare(
                         component_line["bom_cost"],
@@ -1055,7 +1001,6 @@ class TestBoM(TestMrpCommon):
                     ),
                     0,
                 )
-        # total price = 3.19 + 0.82 + operation_cost(23.84) = 27.85
         self.assertEqual(
             float_compare(
                 report_values["lines"]["bom_cost"], 27.85, precision_digits=2
@@ -1064,7 +1009,6 @@ class TestBoM(TestMrpCommon):
             "Bom Price is not correct",
         )
 
-        # TEST OPERATION COST WHEN PRODUCED QTY > BOM QUANTITY
         self.env["report.mrp.report_bom_structure"]._get_report_data(
             bom_id=bom_crumble.id, searchQty=12, searchVariant=False
         )
@@ -1072,7 +1016,6 @@ class TestBoM(TestMrpCommon):
             bom_id=bom_crumble.id, searchQty=22, searchVariant=False
         )
 
-        # Operation cost = 47.66 € = 256 (min) * 10€/h
         self.assertEqual(
             float_compare(
                 report_values_22["lines"]["operations_cost"], 47.66, precision_digits=2
@@ -1081,7 +1024,6 @@ class TestBoM(TestMrpCommon):
             "Operation cost is not correct",
         )
 
-        # Create a more complex BoM with a sub product
         cheese_cake = self.env["product.product"].create(
             {
                 "name": "Cheese Cake 300g",
@@ -1159,17 +1101,14 @@ class TestBoM(TestMrpCommon):
             }
         )
 
-        # TEST CHEESE BOM STRUCTURE VALUE WITH BOM QUANTITY
         report_values = self.env["report.mrp.report_bom_structure"]._get_report_data(
             bom_id=bom_cheese_cake.id, searchQty=60, searchVariant=False
         )
-        # Operation time = 15 min * 60 + capacity_time_start + capacity_time_stop = 928
         self.assertEqual(
             report_values["lines"]["operations_time"],
             928.0,
             "Operation time should be the same for 1 unit or for the batch",
         )
-        # Operation cost is the sum of operation line : (60 * 10)/60 * 10€ + (10 + 15 + 60 * 5)/60 * 20€ + (1 + 2)/60 * 20€ = 209,33€
         self.assertEqual(
             float_compare(
                 report_values["lines"]["operations_cost"], 209.33, precision_digits=2
@@ -1178,9 +1117,7 @@ class TestBoM(TestMrpCommon):
         )
 
         for component_line in report_values["lines"]["components"]:
-            # standard price * bom line quantity * current quantity / bom finished product quantity
             if component_line["product"].id == cream.id:
-                # 3 liter of cream at 5.17$ for 60 unit of cheese cake -> 15.51$
                 self.assertEqual(
                     float_compare(
                         component_line["bom_cost"], (3 * 5.17), precision_digits=2
@@ -1188,7 +1125,6 @@ class TestBoM(TestMrpCommon):
                     0,
                 )
             if component_line["product"].id == crumble.id:
-                # 5.4 kg of crumble at the cost of a batch.
                 crumble_cost = self.env[
                     "report.mrp.report_bom_structure"
                 ]._get_report_data(
@@ -1200,7 +1136,6 @@ class TestBoM(TestMrpCommon):
                     ),
                     0,
                 )
-        # total price = Cream (15.51€) + crumble_cost (45.47 €) + operation_cost(209,33) = 270.31€
         self.assertEqual(
             float_compare(
                 report_values["lines"]["bom_cost"], 270.31, precision_digits=2
@@ -1210,7 +1145,6 @@ class TestBoM(TestMrpCommon):
         )
 
     def test_bom_report_dozens(self):
-        """Simulate a drawer bom with dozens as bom units"""
         drawer = self.env["product.product"].create(
             {
                 "name": "drawer",
@@ -1267,11 +1201,9 @@ class TestBoM(TestMrpCommon):
             }
         )
 
-        # TEST BOM STRUCTURE VALUE WITH BOM QUANTITY
         report_values = self.env["report.mrp.report_bom_structure"]._get_report_data(
             bom_id=bom_drawer.id, searchQty=11, searchVariant=False
         )
-        # 5 min 'Prepare biscuits' + 3 min 'Prepare butter' + 5 min 'Mix manually' = 13 minutes
         self.assertEqual(
             report_values["lines"]["operations_time"],
             660.0,
@@ -1279,10 +1211,6 @@ class TestBoM(TestMrpCommon):
         )
 
     def test_bom_report_planning_with_producible_qty(self):
-        """Simulate a BoM of a pickaxe, and test that the BoM structure report
-        respects the hardcoded limit of 700 planning days (mocked as 28 days).
-        """
-        # Workcenter is working 24/7
         self.full_availability()
 
         location = self.env.ref("stock.stock_location_stock")
@@ -1315,7 +1243,6 @@ class TestBoM(TestMrpCommon):
             {"costs_hour": 10, "name": "Crafting Table"}
         )
 
-        # Required to display `operation_ids` in the form view
         self.env.user.group_ids += self.env.ref("mrp.group_mrp_routings")
         bom_pickaxe.write(
             {
@@ -1345,26 +1272,21 @@ class TestBoM(TestMrpCommon):
         report_values = self.env["report.mrp.report_bom_structure"]._get_report_data(
             bom_id=bom_pickaxe.id, searchQty=1, searchVariant=False
         )
-        # 10 min 'Place items' + 5 min 'Craft items' = 15 minutes for 1 pickaxe
         self.assertEqual(report_values["lines"]["operations_time"], 15.0)
         self.assertEqual(report_values["lines"]["producible_qty"], 0)
 
         report_values = self.env["report.mrp.report_bom_structure"]._get_report_data(
             bom_id=bom_pickaxe.id, searchQty=2, searchVariant=False
         )
-        # 10 min 'Place items' + 5 min 'Craft items' = 30 minutes for 2 pickaxes
         self.assertEqual(report_values["lines"]["operations_time"], 30.0)
         self.assertEqual(report_values["lines"]["producible_qty"], 0)
 
-        # Limit the planning to two fortnights, and fill it almost completely while keeping
-        # 15 minutes available, so that we can still plan a single operation.
         self.env["ir.config_parameter"].sudo().set_param(
             "mrp.workcenter_max_planning_iterations", "2"
         )
         date_start = fields.Datetime.today() + timedelta(days=14 * 2 - 1)
         end_of_day = date_start + timedelta(days=1)
 
-        # Populate the workcenter's planning with a reservation
         self.env["resource.reservation"].create(
             {
                 "name": "Game update",
@@ -1376,50 +1298,42 @@ class TestBoM(TestMrpCommon):
             }
         )
 
-        # Check that we still have one available slot of 15 minutes
         self.assertEqual(
             workcenter._get_first_available_slot(date_start, 15),
             (end_of_day - timedelta(minutes=15), end_of_day),
         )
 
-        # 1 quantity should still work
         report_values = self.env["report.mrp.report_bom_structure"]._get_report_data(
             bom_id=bom_pickaxe.id, searchQty=1, searchVariant=False
         )
         self.assertEqual(report_values["lines"]["operations_time"], 15.0)
         self.assertEqual(report_values["lines"]["producible_qty"], 0)
 
-        # 2 quantities should be over the limit
         with self.assertRaises(exceptions.UserError):
             report_values = self.env[
                 "report.mrp.report_bom_structure"
             ]._get_report_data(bom_id=bom_pickaxe.id, searchQty=2, searchVariant=False)
-            # should raise above; test the operations time for easier debugging
             self.assertEqual(report_values["lines"]["operations_time"], 15.0)
             self.assertEqual(report_values["lines"]["producible_qty"], 0)
 
-        # Add quantities on hand to increase the 'producible_qty'
         self.env["stock.quant"]._update_available_quantity(stick, location, 2.0)
         self.env["stock.quant"]._update_available_quantity(iron, location, 3.0)
         (stick | iron).invalidate_recordset(["qty_free"])
         self.assertEqual(stick.qty_free, 2)
         self.assertEqual(iron.qty_free, 3)
 
-        # 1 quantity should work too
         report_values = self.env["report.mrp.report_bom_structure"]._get_report_data(
             bom_id=bom_pickaxe.id, searchQty=1, searchVariant=False
         )
         self.assertEqual(report_values["lines"]["operations_time"], 15.0)
         self.assertEqual(report_values["lines"]["producible_qty"], 1)
 
-        # Add a second procucible quantity
         self.env["stock.quant"]._update_available_quantity(stick, location, 2.0)
         self.env["stock.quant"]._update_available_quantity(iron, location, 3.0)
         (stick | iron).invalidate_recordset(["qty_free"])
         self.assertEqual(stick.qty_free, 4)
         self.assertEqual(iron.qty_free, 6)
 
-        # If we have 2 producible quantity, it should still work, as we requested 1 quantity
         report_values = self.env["report.mrp.report_bom_structure"]._get_report_data(
             bom_id=bom_pickaxe.id, searchQty=1, searchVariant=False
         )
@@ -1427,42 +1341,13 @@ class TestBoM(TestMrpCommon):
         self.assertEqual(report_values["lines"]["producible_qty"], 2)
 
         with self.assertRaises(exceptions.UserError):
-            # but 2 won't, as expected
             report_values = self.env[
                 "report.mrp.report_bom_structure"
             ]._get_report_data(bom_id=bom_pickaxe.id, searchQty=2, searchVariant=False)
-            # should raise above
             self.assertEqual(report_values["lines"]["operations_time"], 15.0)
             self.assertEqual(report_values["lines"]["producible_qty"], 2)
 
     def test_21_bom_report_variant(self):
-        """Test a sub BoM process with multiple variants.
-        BOM 1:
-        product template = car
-        quantity = 5 units
-        - red paint 50l -> red car (product.product)
-        - blue paint 50l -> blue car
-        - red dashboard with gps -> red car with GPS
-        - red dashboard w/h gps -> red w/h GPS
-        - blue dashboard with gps -> blue car with GPS
-        - blue dashboard w/h gps -> blue w/h GPS
-
-        BOM 2:
-        product_tmpl = dashboard
-        quantity = 2
-        - red paint 1l -> red dashboard (product.product)
-        - blue paint 1l -> blue dashboard
-        - gps -> dashboard with gps
-
-        Check the Price for a Blue Car with GPS -> 910$:
-        10l of blue paint -> 200$
-        1 blue dashboard GPS -> 710$:
-            - 0.5l of blue paint -> 10$
-            - GPS -> 700$
-
-        Check the price for a red car -> 10.5l of red paint -> 210$
-        """
-        # Create a product template car with attributes gps(yes, no), color(red, blue)
         self.car = self.env["product.template"].create(
             {
                 "name": "Car",
@@ -1530,7 +1415,6 @@ class TestBoM(TestMrpCommon):
             1
         ]
 
-        # Blue and red paint
         uom_litre = self.env.ref("uom.product_uom_litre")
         self.paint = self.env["product.template"].create(
             {"name": "Paint", "uom_id": uom_litre.id}
@@ -1676,16 +1560,13 @@ class TestBoM(TestMrpCommon):
         report_values = self.env["report.mrp.report_bom_structure"]._get_report_data(
             bom_id=bom_car.id, searchQty=1, searchVariant=blue_car_with_gps.id
         )
-        # Two lines. blue dashboard with gps and blue paint.
         self.assertEqual(len(report_values["lines"]["components"]), 2)
 
-        # 10l of blue paint
         blue_paint = self.paint._get_variant_for_combination(self.paint_color_blue)
         self.assertEqual(
             blue_paint.id, report_values["lines"]["components"][0]["product"].id
         )
         self.assertEqual(report_values["lines"]["components"][0]["quantity"], 10)
-        # 1 blue dashboard with GPS
         blue_dashboard_gps = self.dashboard._get_variant_for_combination(
             self.dashboard_color_blue + self.dashboard_gps_yes
         )
@@ -1703,17 +1584,12 @@ class TestBoM(TestMrpCommon):
             self.gps.id, report_values_dashboad["components"][1]["product"].id
         )
 
-        # 0.5l of paint at price of 20$/litre -> 10$
         self.assertEqual(report_values_dashboad["components"][0]["bom_cost"], 10)
-        # GPS 700$
         self.assertEqual(report_values_dashboad["components"][1]["bom_cost"], 700)
 
-        # Dashboard blue with GPS should have a BoM cost of 710$
         self.assertEqual(report_values["lines"]["components"][1]["bom_cost"], 710)
-        # 10l of paint at price of 20$/litre -> 200$
         self.assertEqual(report_values["lines"]["components"][0]["bom_cost"], 200)
 
-        # Total cost of blue car with GPS: 10 + 700 + 200 = 910
         self.assertEqual(report_values["lines"]["bom_cost"], 910)
 
         red_car_without_gps = self.car._get_variant_for_combination(
@@ -1723,29 +1599,9 @@ class TestBoM(TestMrpCommon):
         report_values = self.env["report.mrp.report_bom_structure"]._get_report_data(
             bom_id=bom_car.id, searchQty=1, searchVariant=red_car_without_gps.id
         )
-        # Same math than before but without GPS
         self.assertEqual(report_values["lines"]["bom_cost"], 210)
 
     def test_22_bom_report_recursive_bom(self):
-        """Test report with recursive BoM and different quantities.
-        BoM 1:
-        product = Finished (units)
-        quantity = 100 units
-        - Semi-Finished 5 kg
-
-        BoM 2:
-        product = Semi-Finished (kg)
-        quantity = 11 kg
-        - Assembly 2 dozens
-
-        BoM 3:
-        product = Assembly (dozens)
-        quantity = 5 dozens
-        - Raw Material 4 litres (product.product 5$/litre)
-
-        Check the Price for 80 units of Finished -> 2.92$:
-        """
-        # Create a products templates
         uom_litre = self.env.ref("uom.product_uom_litre")
 
         finished = self.env["product.product"].create(
@@ -1781,7 +1637,6 @@ class TestBoM(TestMrpCommon):
             }
         )
 
-        # Create bom
         bom_finished = Form(self.env["mrp.bom"])
         bom_finished.product_tmpl_id = finished.product_tmpl_id
         bom_finished.product_qty = 100
@@ -1872,8 +1727,6 @@ class TestBoM(TestMrpCommon):
             bom_id=bom.id
         )
 
-        # The first product shouldn't affect the producible quantity because the target needs none of it
-        # So with 4 of the second product available, we can produce 40 items
         self.assertEqual(report_values["lines"]["producible_qty"], 40)
 
     def test_bom_report_capacity_with_duplicate_components(self):
@@ -1904,11 +1757,9 @@ class TestBoM(TestMrpCommon):
         report_values = self.env["report.mrp.report_bom_structure"]._get_report_data(
             bom_id=bom.id
         )
-        # Total quantity of components is 4, so shouldn't be able to produce a single one.
         self.assertEqual(report_values["lines"]["producible_qty"], 0)
 
     def test_bom_report_same_component(self):
-        """Test report bom structure with duplicated components."""
         final_product_tmpl = self.env["product.template"].create(
             {"name": "Final Product", "is_storable": True}
         )
@@ -1956,9 +1807,6 @@ class TestBoM(TestMrpCommon):
         )
 
     def test_report_data_bom_with_0_qty(self):
-        """
-        Test that a bom with a child-bom set with a zero qty will still have have 0 qty for the child-bom on the report.
-        """
         self.bom_4.bom_line_ids = [
             Command.create(
                 {
@@ -1981,9 +1829,6 @@ class TestBoM(TestMrpCommon):
         )
 
     def test_validate_no_bom_line_with_same_product(self):
-        """
-        Cannot set a BOM line on a BOM with the same product as the BOM itself
-        """
         finished = self.env["product.product"].create(
             {
                 "name": "Finished",
@@ -2002,9 +1847,6 @@ class TestBoM(TestMrpCommon):
             bom_finished = bom_finished.save()
 
     def test_validate_no_bom_line_with_same_product_variant(self):
-        """
-        Cannot set a BOM line on a BOM with the same product variant as the BOM itself
-        """
         bom_finished = Form(self.env["mrp.bom"])
         bom_finished.product_tmpl_id = self.product_7_template
         bom_finished.product_id = self.product_7_3
@@ -2017,11 +1859,6 @@ class TestBoM(TestMrpCommon):
             bom_finished = bom_finished.save()
 
     def test_validate_bom_line_with_different_product_variant(self):
-        """
-        Can set a BOM line on a BOM with a different product variant as the BOM itself (same product)
-        Usecase for example A black T-shirt made  from a white T-shirt and
-        black color.
-        """
         bom_finished = Form(self.env["mrp.bom"])
         bom_finished.product_tmpl_id = self.product_7_template
         bom_finished.product_id = self.product_7_3
@@ -2033,12 +1870,8 @@ class TestBoM(TestMrpCommon):
         bom_finished = bom_finished.save()
 
     def test_validate_bom_line_with_variant_of_bom_product(self):
-        """
-        Can set a BOM line on a BOM with a product variant when the BOM has no variant selected
-        """
         bom_finished = Form(self.env["mrp.bom"])
         bom_finished.product_tmpl_id = self.product_6.product_tmpl_id
-        # no product_id
         bom_finished.product_qty = 100
         with bom_finished.bom_line_ids.new() as line:
             line.product_id = self.product_7_2
@@ -2047,11 +1880,6 @@ class TestBoM(TestMrpCommon):
         bom_finished = bom_finished.save()
 
     def test_replenishment(self):
-        """Tests the auto generation of manual orderpoints.
-        The multiple quantity of the orderpoint should be the
-        quantity of the BoM in the UoM of the product.
-        """
-
         product_gram = self.env["product.product"].create(
             {
                 "name": "Product sold in grams",
@@ -2060,7 +1888,6 @@ class TestBoM(TestMrpCommon):
                 "route_ids": [Command.link(self.route_manufacture.id)],
             }
         )
-        # We create a BoM that manufactures 2kg of product
         self.env["mrp.bom"].create(
             {
                 "product_id": product_gram.id,
@@ -2070,7 +1897,6 @@ class TestBoM(TestMrpCommon):
                 "type": "normal",
             }
         )
-        # We create a delivery order of 2300 grams
         picking_form = Form(self.env["stock.picking"])
         picking_form.picking_type_id = self.picking_type_out
         with picking_form.move_ids.new() as move:
@@ -2079,22 +1905,16 @@ class TestBoM(TestMrpCommon):
         customer_picking = picking_form.save()
         customer_picking.action_confirm()
 
-        # We check the created orderpoint
         self.env.flush_all()
         self.env["stock.warehouse.orderpoint"]._get_orderpoint_action()
         orderpoint = self.env["stock.warehouse.orderpoint"].search(
             [("product_id", "=", product_gram.id)]
         )
         orderpoint.replenishment_uom_id = self.uom_kg
-        # No route is set by default
         self.assertEqual(orderpoint.route_id.id, False)
         self.assertEqual(orderpoint.qty_to_order, 3000.0)
 
     def test_bom_generated_from_mo(self):
-        """Creates a Manufacturing Order without BoM, then uses it to generate a new BoM.
-        Checks the generated BoM has the expected BoM lines, by-products and operations.
-        """
-        # Creates some products.
         common_vals = {"is_storable": True}
         finished_product = self.env["product.product"].create(
             dict(common_vals, name="Monster in Jar")
@@ -2108,7 +1928,6 @@ class TestBoM(TestMrpCommon):
         )
 
         def create_mo(qty_to_produce=1):
-            # Creates a MO using some components.
             mo_form = Form(self.env["mrp.production"])
             mo_form.product_id = finished_product
             mo_form.product_qty = qty_to_produce
@@ -2124,10 +1943,8 @@ class TestBoM(TestMrpCommon):
                 self.env["mrp.bom"].with_context(action_generate_new_bom["context"])
             ).save()
 
-        # Generates a BoM from a draft MO.
         mo_1 = create_mo()
         bom_from_mo_1 = generate_bom_from_mo(mo_1)
-        # Checks the MO's data.
         self.assertEqual(
             mo_1.bom_id, bom_from_mo_1, "New BoM was assigned to the draft MO"
         )
@@ -2138,7 +1955,6 @@ class TestBoM(TestMrpCommon):
         self.assertEqual(
             mo_1.move_raw_ids[1].bom_line_id, bom_from_mo_1.bom_line_ids[1]
         )
-        # Checks the BoM's data.
         self.assertEqual(bom_from_mo_1.product_id, finished_product)
         self.assertRecordValues(
             bom_from_mo_1.bom_line_ids,
@@ -2148,21 +1964,18 @@ class TestBoM(TestMrpCommon):
             ],
         )
         bom_from_mo_1.active = (
-            False  # Archives the created BoM to avoid to use it for the next MOs
+            False
         )
 
-        # Generates a BoM from a done MO.
         mo_2 = create_mo()
         mo_2.action_confirm()
         mo_2.button_mark_done()
         move_ids = mo_2.move_raw_ids.ids
         bom_from_mo_2 = generate_bom_from_mo(mo_2)
         bom_lines = bom_from_mo_2.bom_line_ids
-        # Checks the MO's data.
         self.assertEqual(
             mo_2.bom_id, bom_from_mo_2, "New BoM should be assigned to the done MO"
         )
-        # The move lines weren't linked to the BoM lines since the MO is done.
         self.assertRecordValues(
             mo_2.move_raw_ids,
             [
@@ -2178,7 +1991,6 @@ class TestBoM(TestMrpCommon):
                 },
             ],
         )
-        # Checks the BoM's data.
         self.assertEqual(bom_from_mo_2.product_id, finished_product)
         self.assertRecordValues(
             bom_from_mo_2.bom_line_ids,
@@ -2188,17 +2000,15 @@ class TestBoM(TestMrpCommon):
             ],
         )
         bom_from_mo_2.active = (
-            False  # Archives the created BoM to avoid to use it for the next MOs
+            False
         )
 
-        # Generates a BoM from a confirmed MO using operations and by-products.
         self.env.user.group_ids += self.env.ref(
             "mrp.group_mrp_byproducts"
-        )  # Enables by-products.
+        )
         self.env.user.group_ids += self.env.ref(
             "mrp.group_mrp_routings"
-        )  # Enables workorders.
-        # Produces 3 qties to check if the operations' duration will be correctly divided by 3.
+        )
         mo_3 = create_mo(3)
         mo_3.action_confirm()
         mo_form = Form(mo_3)
@@ -2215,7 +2025,6 @@ class TestBoM(TestMrpCommon):
             by_product_line.quantity = 6
         mo_3 = mo_form.save()
         bom_from_mo_3 = generate_bom_from_mo(mo_3)
-        # Checks the MO's data.
         self.assertEqual(
             mo_3.bom_id, bom_from_mo_3, "New BoM was assigned to the confirmed MO"
         )
@@ -2234,7 +2043,6 @@ class TestBoM(TestMrpCommon):
         self.assertEqual(
             mo_3.move_byproduct_ids.byproduct_id, bom_from_mo_3.byproduct_ids
         )
-        # Checks the BoM's data.
         self.assertEqual(mo_3.bom_id, bom_from_mo_3)
         self.assertEqual(bom_from_mo_3.product_id, finished_product)
         self.assertEqual(bom_from_mo_3.product_qty, 3)
@@ -2245,7 +2053,6 @@ class TestBoM(TestMrpCommon):
                 {"product_id": component_2.id, "product_qty": 3},
             ],
         )
-        # Durations should be divided by 3 (op1: 60 / 3 = 20; op2: 480 / 3 : 160).
         self.assertRecordValues(
             bom_from_mo_3.operation_ids,
             [
@@ -2265,12 +2072,7 @@ class TestBoM(TestMrpCommon):
         self.assertEqual(bom_from_mo_3.byproduct_ids.product_qty, 6)
 
     def test_bom_generated_from_mo_with_different_uom(self):
-        """Creates a Manufacturing Order without BoM and using different UoM for its raw moves,
-        then to generate a new BoM from this MO.
-        Checks the generated BoM has the expected BoM lines UoM and quantity.
-        """
         self.env.user.group_ids += self.env.ref("uom.group_uom")
-        # Creates some products.
         common_vals = {"is_storable": True}
         finished_product = self.env["product.product"].create(
             dict(common_vals, name="CO² Molecule")
@@ -2281,7 +2083,6 @@ class TestBoM(TestMrpCommon):
         component_2 = self.env["product.product"].create(
             dict(common_vals, name="Oxygen Molecule")
         )
-        # Creates a MO.
         mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = finished_product
         mo_form.product_qty = 1
@@ -2296,7 +2097,6 @@ class TestBoM(TestMrpCommon):
             raw_move.product_uom_id = self.uom_dozen
         mo = mo_form.save()
         mo.action_confirm()
-        # Generates a BoM from the MO and checks its values.
         action_generate_new_bom = mo.action_generate_bom()
         bom_form = Form(
             self.env["mrp.bom"].with_context(action_generate_new_bom["context"])
@@ -2321,13 +2121,9 @@ class TestBoM(TestMrpCommon):
         )
 
     def test_bom_generated_from_mo_with_byproducts(self):
-        """Creates a Manufacturing Order without BoM then to generate a new BoM from this MO and
-        modifies by-products values.
-        """
         self.env.user.group_ids += self.env.ref(
             "mrp.group_mrp_byproducts"
-        )  # Enables by-products.
-        # Creates some products.
+        )
         common_vals = {"is_storable": True}
         finished_product = self.env["product.product"].create(
             dict(common_vals, name="Banana Bread")
@@ -2341,7 +2137,6 @@ class TestBoM(TestMrpCommon):
         by_product = self.env["product.product"].create(
             dict(common_vals, name="Banana Peels")
         )
-        # Creates a MO.
         mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = finished_product
         mo_form.product_qty = 1
@@ -2358,7 +2153,6 @@ class TestBoM(TestMrpCommon):
         mo = mo_form.save()
         mo.action_confirm()
         self.assertEqual(mo.move_byproduct_ids.cost_share, 50)
-        # Generates a BoM from the MO and checks its values.
         action_generate_new_bom = mo.action_generate_bom()
         bom_form = Form(
             self.env["mrp.bom"].with_context(action_generate_new_bom["context"])
@@ -2405,12 +2199,7 @@ class TestBoM(TestMrpCommon):
         self.assertEqual(prod1.qty_available, 57.0)
 
     def test_bom_updates_mo(self):
-        """Creates a Manufacturing Order using a BoM, then modifies the BoM.
-        Checks the BoM will be marked as updated in the right situation, and checks the "Update BoM"
-        action update the MO accordingly to the changes done in the BoM.
-        """
         self.env.user.group_ids += self.env.ref("mrp.group_mrp_byproducts")
-        # Creates a BoM.
         common_vals = {"is_storable": True}
         finished_product = self.env["product.product"].create(
             dict(common_vals, name="Monster in Jar")
@@ -2444,14 +2233,12 @@ class TestBoM(TestMrpCommon):
             }
         )
 
-        # Creates a MO.
         mo_form = Form(self.env["mrp.production"])
         mo_form.bom_id = bom
         mo_form.product_qty = 10
         mo_1 = mo_form.save()
         self.assertEqual(mo_1.move_raw_ids[0].product_uom_qty, 10)
         self.assertEqual(mo_1.is_outdated_bom, False)
-        # Update MO's component quantity.
         mo_form = Form(mo_1)
         with mo_form.move_raw_ids.edit(0) as raw_move:
             raw_move.product_uom_qty = 123
@@ -2465,7 +2252,6 @@ class TestBoM(TestMrpCommon):
             "Making a modification in the MO shouldn't mark the BoM as updated",
         )
 
-        # Now, adds an operation and a by-product in the BoM.
         bom.byproduct_ids = [
             Command.create({"product_id": by_product.id, "product_qty": 2})
         ]
@@ -2487,7 +2273,6 @@ class TestBoM(TestMrpCommon):
             "By-Product and Operation were added to the BoM, it should be marked as updated",
         )
         bom.bom_line_ids = bom.bom_line_ids[:-1]
-        # Call "Update BoM" action, it should reset the MO as defined by the BoM.
         mo_1.action_update_bom()
         self.assertEqual(mo_1.product_qty, 10, "MO's quantity should be kept")
         self.assertEqual(
@@ -2497,20 +2282,17 @@ class TestBoM(TestMrpCommon):
         )
         self.assertEqual(mo_1.workorder_ids.operation_id.id, operation.id)
         self.assertEqual(mo_1.move_byproduct_ids.byproduct_id.id, bom_byproduct.id)
-        # Check that the deleted move_raws were unlinked
         self.assertTrue(initial_move_raws - mo_1.move_raw_ids)
         self.assertFalse((initial_move_raws - mo_1.move_raw_ids).exists())
         self.assertTrue(inital_workorder_ids - mo_1.workorder_ids)
         self.assertFalse((inital_workorder_ids - mo_1.workorder_ids).exists())
 
-        # Now, checks the update works also with confirmed MO.
         mo_1.action_confirm()
         self.assertEqual(
             mo_1.is_outdated_bom,
             False,
             "After 'Update BoM' action, MO's BoM should no longer be marked as updated",
         )
-        # Updates the BoM again (increase first component quantity).
         bom_form = Form(bom)
         with bom_form.bom_line_ids.edit(0) as bom_line:
             bom_line.product_qty += 1
@@ -2539,7 +2321,6 @@ class TestBoM(TestMrpCommon):
                 },
             ],
         )
-        # Updates the BoM again (replace a component by another product).
         bom_form = Form(bom)
         with bom_form.bom_line_ids.edit(1) as bom_line:
             bom_line.product_id = component_3
@@ -2563,7 +2344,6 @@ class TestBoM(TestMrpCommon):
             ],
         )
 
-        # Updates the BoM again (delete a BoM line).
         bom_form = Form(bom)
         bom_form.bom_line_ids.remove(1)
         bom = bom_form.save()
@@ -2580,7 +2360,6 @@ class TestBoM(TestMrpCommon):
         )
         self.assertEqual(len(mo_1.move_raw_ids), 1)
 
-        # Updates the BoM again (increase by-product qty).
         with bom_form.byproduct_ids.edit(0) as byproduct_line:
             byproduct_line.product_qty += 1
         bom = bom_form.save()
@@ -2599,7 +2378,6 @@ class TestBoM(TestMrpCommon):
             mo_1.move_byproduct_ids.product_uom_qty, bom.byproduct_ids.product_qty * 10
         )
 
-        # Updates the BoM by multiplying all its quantities by 3.
         bom.product_qty *= 3
         bom.bom_line_ids[0].product_qty *= 3
         bom.byproduct_ids.product_qty *= 3
@@ -2610,12 +2388,7 @@ class TestBoM(TestMrpCommon):
         )
 
     def test_bom_updates_mo_with_different_uom(self):
-        """Creates a Manufacturing Order using a BoM and produces 1 dozen of the finished product,
-        then modifies the BoM's component's quantity and update the MO.
-        Checks the MO's raw moves' quantities are correctly updated.
-        """
         self.env.user.group_ids += self.env.ref("uom.group_uom")
-        # Creates a BoM.
         common_vals = {"is_storable": True}
         finished_product = self.env["product.product"].create(
             dict(common_vals, name="Monster in Jar")
@@ -2635,7 +2408,6 @@ class TestBoM(TestMrpCommon):
             }
         )
 
-        # Creates a MO.
         mo_form = Form(self.env["mrp.production"])
         mo_form.bom_id = bom
         mo_form.product_qty = 4
@@ -2657,8 +2429,6 @@ class TestBoM(TestMrpCommon):
             ],
         )
 
-        ### Test draft MO ###
-        # Updates BOM's quantity to 1 unit
         bom.product_qty = 1
         self.assertEqual(
             mo_1.is_outdated_bom, True, "BoM changed, it should be marked as updated."
@@ -2683,7 +2453,6 @@ class TestBoM(TestMrpCommon):
             ],
         )
 
-        ### Test confirmed MO ###
         mo_1.product_qty = 1
         self.assertRecordValues(
             mo_1.move_raw_ids,
@@ -2701,14 +2470,12 @@ class TestBoM(TestMrpCommon):
             ],
         )
         mo_1.action_confirm()
-        # Updates the BoM by set the first BoM line's quantity to 2.
         bom_form = Form(bom)
         with bom_form.bom_line_ids.edit(0) as bom_line:
             bom_line.product_qty = 2
         bom = bom_form.save()
         self.assertEqual(mo_1.is_outdated_bom, True)
 
-        # Call "Update BoM" action, it should update the MO raw moves' quantity accordingly.
         mo_1.action_update_bom()
         self.assertEqual(mo_1.is_outdated_bom, False)
         self.assertRecordValues(
@@ -2727,7 +2494,6 @@ class TestBoM(TestMrpCommon):
             ],
         )
 
-        # Do the same but while changing the raw moves' UoM too.
         mo_form = Form(self.env["mrp.production"])
         mo_form.bom_id = bom
         mo_form.product_uom_id = self.uom_dozen
@@ -2763,20 +2529,13 @@ class TestBoM(TestMrpCommon):
             move_raw.quantity = 5
         mo_2 = mo_form.save()
 
-        # Updates the BoM by set the second BoM line's quantity to 2.
         bom_form = Form(bom)
         with bom_form.bom_line_ids.edit(1) as bom_line:
             bom_line.product_qty = 2
         bom = bom_form.save()
         self.assertEqual(mo_2.is_outdated_bom, False)
-        # As the quantities were changed manually, the MO will be in progress and can no longer be updated from the BOM.
 
     def test_bom_updates_mo_after_updating_operations(self):
-        """Creates a Manufacturing Order using a BoM with operations and checks the raw moves are
-        correctly linked to the right operation/workorder. Then modifies the BoM and updates the MO
-        and checks the moves' operation/workorder are correctly updated too.
-        """
-        # Creates a BoM.
         common_vals = {"is_storable": True}
         finished_product = self.env["product.product"].create(
             dict(common_vals, name="Monster in Jar")
@@ -2815,7 +2574,6 @@ class TestBoM(TestMrpCommon):
         )
         bom.bom_line_ids[0].operation_id = bom.operation_ids[0].id
         bom.bom_line_ids[1].operation_id = bom.operation_ids[1].id
-        # Creates a MO and confirms it.
         mo_form = Form(self.env["mrp.production"])
         mo_form.bom_id = bom
         mo_1 = mo_form.save()
@@ -2834,7 +2592,6 @@ class TestBoM(TestMrpCommon):
             ],
         )
 
-        # Adds a new operation and links BoM's lines to other operations.
         self.env["mrp.routing.workcenter"].create(
             {"name": "OP3", "bom_id": bom.id, "workcenter_id": self.workcenter_1.id}
         )
@@ -2845,7 +2602,6 @@ class TestBoM(TestMrpCommon):
             bom_line.operation_id = bom.operation_ids[0]
         bom = bom_form.save()
         self.assertEqual(mo_1.is_outdated_bom, True)
-        # Updates the MO's BoM, its raw moves' operations/workorders should be updated too.
         mo_1.action_update_bom()
         self.assertEqual(mo_1.is_outdated_bom, False)
         self.assertRecordValues(
@@ -2862,7 +2618,6 @@ class TestBoM(TestMrpCommon):
             ],
         )
 
-        # Modifies the BoM's operations again.
         bom_form = Form(bom)
         with bom_form.bom_line_ids.edit(0) as bom_line:
             bom_line.operation_id = self.env["mrp.routing.workcenter"]
@@ -2870,7 +2625,6 @@ class TestBoM(TestMrpCommon):
             bom_line.operation_id = self.env["mrp.routing.workcenter"]
         bom = bom_form.save()
         self.assertEqual(mo_1.is_outdated_bom, True)
-        # Updates the MO's BoM, its raw moves' operations/workorders should be correctly linked.
         mo_1.action_update_bom()
         self.assertEqual(mo_1.is_outdated_bom, False)
         self.assertRecordValues(
@@ -2882,14 +2636,9 @@ class TestBoM(TestMrpCommon):
         )
 
     def test_bom_updates_mo_with_pre_prod_picking(self):
-        """With a 2-steps config, creates a MO, then updates its BoM by
-        replacing one of its BoM line's product. Updates the MO and checks a new
-        move for this product was created in the MO's picking.
-        """
         self.env.user.group_ids += self.env.ref("stock.group_adv_location")
         self.warehouse_1.manufacture_steps = "pbm"
 
-        # Creates a MO.
         mo_form = Form(self.env["mrp.production"])
         mo_form.bom_id = self.bom_1
         mo_form.picking_type_id = self.picking_type_manu
@@ -2904,7 +2653,6 @@ class TestBoM(TestMrpCommon):
             ],
         )
 
-        # Updates the BoM, then updates the MO.
         bom_form = Form(self.bom_1)
         with bom_form.bom_line_ids.edit(0) as bom_line:
             bom_line.product_id = self.product_3
@@ -2917,36 +2665,25 @@ class TestBoM(TestMrpCommon):
                 {
                     "product_id": self.product_2.id,
                     "product_uom_qty": 0,
-                },  # Ideally, this move should have been deleted but this isn't handled for now (updated to 0 demand instead of removing).
+                },
                 {"product_id": self.product_1.id, "product_uom_qty": 4},
                 {"product_id": self.product_3.id, "product_uom_qty": 2},
             ],
         )
 
     def test_operation_blocked_by_another_operation(self):
-        """Test that an operation is not blocked by another operation if the variant is different
-        Product with 4 variants (red big, red medium, blue big, blue medium)
-        BoM:
-            - OP1 (apply on Red)
-            - OP2 (blocked by OP1)
-        Create a MO for Red big, OP1 is started, OP2 should be blocked
-        Create a Mo for Blue big, OP1 is not applied, OP2 should not be blocked
-        """
         ProductAttribute = self.env["product.attribute"]
         ProductAttributeValue = self.env["product.attribute.value"]
 
-        # Product Attribute
         att_color = ProductAttribute.create({"name": "Color", "sequence": 1})
         att_size = ProductAttribute.create({"name": "size", "sequence": 2})
 
-        # Product Attribute color Value
         att_color_red = ProductAttributeValue.create(
             {"name": "red", "attribute_id": att_color.id, "sequence": 1}
         )
         att_color_blue = ProductAttributeValue.create(
             {"name": "blue", "attribute_id": att_color.id, "sequence": 2}
         )
-        # Product Attribute size Value
         att_size_big = ProductAttributeValue.create(
             {"name": "big", "attribute_id": att_size.id, "sequence": 1}
         )
@@ -2954,7 +2691,6 @@ class TestBoM(TestMrpCommon):
             {"name": "medium", "attribute_id": att_size.id, "sequence": 2}
         )
 
-        # Create create a product with 4 variants
         product_template = self.env["product.template"].create(
             {
                 "name": "Sofa",
@@ -3009,12 +2745,10 @@ class TestBoM(TestMrpCommon):
                 ],
             }
         )
-        # Make 1st workorder depend on 2nd
         bom.operation_ids[1].blocked_by_operation_ids = [
             Command.link(bom.operation_ids[0].id)
         ]
 
-        # Make MO for red big
         mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = product_template.product_variant_ids[0]
         mo_form.bom_id = bom
@@ -3022,7 +2756,6 @@ class TestBoM(TestMrpCommon):
         mo = mo_form.save()
         mo.action_confirm()
         self.assertEqual(mo.state, "confirmed")
-        # Make MO for blue big
         mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = product_template.product_variant_ids[2]
         mo_form.bom_id = bom
@@ -3040,14 +2773,12 @@ class TestBoM(TestMrpCommon):
         bom_1_finished_product = self.bom_1.product_id
         bom_2_finished_product = self.bom_2.product_id
         with self.assertRaises(exceptions.ValidationError):
-            # finished product is one of the components:
             self.bom_1.bom_line_ids = [
                 Command.create(
                     {"product_id": bom_1_finished_product.id, "product_qty": 1.0}
                 )
             ]
         with self.assertRaises(exceptions.ValidationError):
-            # cycle:
             self.bom_1.bom_line_ids = [
                 Command.create(
                     {"product_id": bom_2_finished_product.id, "product_qty": 1.0}
@@ -3103,16 +2834,6 @@ class TestBoM(TestMrpCommon):
             )
 
     def test_indirect_cycle_on_bom_creation(self):
-        """
-        Three BoMs:
-            A -> D
-            A -> B
-            B -> C
-        Create a new BoM C -> A. At first glance, this new BoM is ok because it
-        does nat have a cycle (C -> A -> D). But there is an indirect cycle:
-        A -> B -> C -> A
-        Hence this new BoM should raise an error.
-        """
         product_A, product_B, product_C, product_D = self.env["product.product"].create(
             [{"name": "%s" % i} for i in range(4)]
         )
@@ -3152,19 +2873,6 @@ class TestBoM(TestMrpCommon):
             )
 
     def test_cycle_on_bom_sequencing(self):
-        """
-        Six BoMs:
-            A -> D
-            A -> B
-            C -> D
-            C -> E
-            B -> C
-            C -> A
-        First new sequence: we reverse C->D and C->E, this is ok as it does not
-        create any cycle. Change the sequence again and set C->A before C->D: it
-        should raise an error because C->A becomes the main BoM of C, and this
-        will create a cycle: A -> B -> C -> A
-        """
         product_A, product_B, product_C, product_D, product_E = self.env[
             "product.product"
         ].create([{"name": "%s" % i} for i in range(5)])
@@ -3191,15 +2899,12 @@ class TestBoM(TestMrpCommon):
             ]
         )
 
-        # simulate resequence from UI (reverse C->D and C->E)
-        # (see odoo/addons/web/controllers/main.py:1352)
         boms.invalidate_recordset()
         for i, record in enumerate(
             boms[0] | boms[1] | boms[3] | boms[2] | boms[4] | boms[5]
         ):
             record.write({"sequence": i})
 
-        # simulate a second resequencing (set C->A before C->D)
         with self.assertRaises(exceptions.ValidationError):
             for i, record in enumerate(
                 boms[0] | boms[1] | boms[5] | boms[3] | boms[2] | boms[4]
@@ -3207,7 +2912,6 @@ class TestBoM(TestMrpCommon):
                 record.write({"sequence": i})
 
     def test_cycle_on_legit_apply_variants(self):
-        """Should not raise anything"""
         self.env["mrp.bom"].create(
             {
                 "product_tmpl_id": self.product_7_template.id,
@@ -3249,18 +2953,6 @@ class TestBoM(TestMrpCommon):
         )
 
     def test_component_when_bom_change(self):
-        """
-        Checks that the component of the previous BoM is removed when another BoM is set on the MO:
-            - Create a product with 2 BoMs:
-                BoM 1: compoennt 1
-                BoM 2: component 2
-            - Create a MO for the product with BoM 1
-            - check that the component 1 is set
-            - change the BoM on the MO to BoM 2
-            - come back to BoM 1
-            - check that the component 2 is removed and replaced by the component 1
-        """
-        # Create BoM 1 with component 1
         bom_1 = self.env["mrp.bom"].create(
             {
                 "product_tmpl_id": self.product_7_template.id,
@@ -3277,7 +2969,6 @@ class TestBoM(TestMrpCommon):
                 ],
             }
         )
-        # Create BoM 2 with component 2
         bom_2 = self.env["mrp.bom"].create(
             {
                 "product_tmpl_id": self.product_7_template.id,
@@ -3294,34 +2985,26 @@ class TestBoM(TestMrpCommon):
                 ],
             }
         )
-        # Create a MO with BoM 1
         mo = self.env["mrp.production"].create(
             {
                 "product_qty": 1.0,
                 "bom_id": bom_1.id,
             }
         )
-        # Check that component 1 is set
         self.assertEqual(mo.move_raw_ids.product_id, self.product_1)
-        # Change BoM in the MO to BoM 2
         mo_form = Form(mo)
         mo_form.bom_id = bom_2
-        # Check that component 2 is set
         self.assertEqual(
             mo_form.move_raw_ids._records[0]["product_id"], self.product_2.id
         )
         self.assertEqual(len(mo_form.move_raw_ids._records), 1)
-        # Revert back to BoM 1
         mo_form.bom_id = bom_1
-        # Check that component 1 is set again and component 2 is removed
         self.assertEqual(
             mo_form.move_raw_ids._records[0]["product_id"], self.product_1.id
         )
         self.assertEqual(len(mo_form.move_raw_ids._records), 1)
 
     def test_update_operations(self):
-        """Update the operations in BoM which reflects the changes in Manufacturing Order"""
-
         mo_form = Form(self.env["mrp.production"].with_user(self.user_mrp_user))
         mo_form.product_id = self.product_7_1
         mo_form.product_qty = 1.0
@@ -3341,9 +3024,6 @@ class TestBoM(TestMrpCommon):
         )
 
     def test_archive_operations(self):
-        """Archive the operation in BoM and update the BoM in MO
-        Unarchive the operation which will reflect in BoM and MO"""
-
         mo_form = Form(self.env["mrp.production"].with_user(self.user_mrp_user))
 
         mo_form.product_id = self.product_7_1
@@ -3365,10 +3045,6 @@ class TestBoM(TestMrpCommon):
         self.assertEqual(len(mo_order.workorder_ids), 1)
 
     def test_update_bom_in_routing_workcenter(self):
-        """
-        This test checks the behaviour of updating the BoM associated with a routing workcenter,
-        It verifies that the link between the BOM lines and the operation is correctly deleted.
-        """
         resource_calendar_std_id = self.env.ref("resource.resource_calendar_std").id
         mrp_workcenter_1 = self.env["mrp.workcenter"].create(
             {
@@ -3430,7 +3106,6 @@ class TestBoM(TestMrpCommon):
             }
         )
 
-        # ensures that the archived docs are not taken into account
         self.env["product.document"].create(
             {
                 "name": "doc_product_bom_archived",
@@ -3463,13 +3138,11 @@ class TestBoM(TestMrpCommon):
             }
         )
 
-        # only the document linked to the product.template and visible at bom should be in the chatter
         self.assertEqual(
             bom._get_extra_attachments(), doc_template_bom.ir_attachment_id
         )
 
         bom.product_id = self.product_4
-        # the document linked to the product.template and product.product visible at bom should be in the chatter
         self.assertEqual(bom._get_extra_attachments(), attachments)
 
         bom = self.env["mrp.bom"].create(
@@ -3491,23 +3164,17 @@ class TestBoM(TestMrpCommon):
 
         self.assertEqual(bom.bom_line_ids.attachments_count, 2)
         action = bom.bom_line_ids.action_see_attachments()
-        # the filter is applied because there are attachements on the product.product
         self.assertTrue(action["context"]["search_default_context_variant"])
 
         doc_product_bom.attached_on_mrp = "hidden"
         action = bom.bom_line_ids.action_see_attachments()
-        # the filter is not applied because there are attachements on the product.template but not on the product.product
         self.assertFalse(action["context"]["search_default_context_variant"])
 
         doc_template_bom.attached_on_mrp = "hidden"
         action = bom.bom_line_ids.action_see_attachments()
-        # the filter is applied because there are attachements on the product.template and on the product.product
         self.assertTrue(action["context"]["search_default_context_variant"])
 
     def test_compute_days_to_prepare_from_mo_if_unavailable(self):
-        """
-        Checks that a notification is sent when at least one component can not be resupplied.
-        """
         bom = self.bom_1
         product = bom.product_id
         product.route_ids = [Command.set([self.route_manufacture.id])]
@@ -3519,10 +3186,6 @@ class TestBoM(TestMrpCommon):
         )
 
     def test_bom_never_attribute(self):
-        # We create 4 bom lines, 4 operations and 4 byproducts, each with:
-        # one without any attribute values, two with one value and one with two values
-        # Create a MO with, modify its never_product_template_attribute_value_ids and check if the moves/workorders created are correct
-
         product_attribute_radio = self.env["product.attribute"].create(
             {
                 "name": "PA",
@@ -3725,7 +3388,6 @@ class TestBoM(TestMrpCommon):
         mo_form.product_id = self.product_1
         mo_order = mo_form.save()
 
-        # no never values, so only the first bom line should be used
         self.assertEqual(
             len(mo_order.move_raw_ids),
             1,
@@ -3737,7 +3399,6 @@ class TestBoM(TestMrpCommon):
         self.assertEqual(len(mo_order.move_byproduct_ids), 1)
         self.assertEqual(mo_order.move_byproduct_ids.product_id, bp1)
 
-        # one never values, the two first bom line should match
         mo_order.never_product_template_attribute_value_ids = (
             tmpl_attr_line_radio.product_template_value_ids[0]
         )
@@ -3752,7 +3413,6 @@ class TestBoM(TestMrpCommon):
         self.assertEqual(len(mo_order.move_byproduct_ids), 2)
         self.assertEqual(mo_order.move_byproduct_ids.product_id, bp1 + bp2)
 
-        # two never values, the first and fourth bom line should match
         mo_order.never_product_template_attribute_value_ids = (
             tmpl_attr_line_radio.product_template_value_ids[1]
             + tmpl_attr_line_radio.product_template_value_ids[2]
@@ -3770,9 +3430,6 @@ class TestBoM(TestMrpCommon):
         self.assertEqual(mo_order.move_byproduct_ids.product_id, bp1 + bp3 + bp4)
 
     def test_bom_never_attribute_mix(self):
-        """For a product that has two 'no_variant' attributes but only one used in its bom,
-        check that it computes properly which line to get when using the other attribute.
-        """
         color, size = self.env["product.attribute"].create(
             [
                 {
@@ -3842,10 +3499,6 @@ class TestBoM(TestMrpCommon):
         self.assertEqual(len(order.move_raw_ids), 0, "No component should be selected")
 
     def test_workorders_on_bom_changes(self):
-        """
-        Check that the workorders of the MO are changed according to the bom
-        and that bom free workorders are not reset on bom changes.
-        """
         product = self.product_4
         bom_1, bom_2, bom_3 = self.env["mrp.bom"].create(
             [
@@ -3917,16 +3570,13 @@ class TestBoM(TestMrpCommon):
         mo_form.bom_id = bom_1
         mo = mo_form.save()
         self.assertEqual(mo.workorder_ids.mapped("name"), ["op1", "op2"])
-        # test simple on change
         with Form(mo) as mo_form:
             mo_form.bom_id = bom_2
         self.assertEqual(mo.workorder_ids.mapped("name"), ["op3", "op4"])
-        # test double onchange
         with Form(mo) as mo_form:
             mo_form.bom_id = bom_1
             mo_form.bom_id = bom_3
         self.assertEqual(mo.workorder_ids.mapped("name"), ["op5", "op6"])
-        # add a new operation and check that it is not removed on bom change
         with Form(mo) as mo_form:
             with mo_form.workorder_ids.new() as wo_form:
                 wo_form.name = "new op"
@@ -3937,7 +3587,6 @@ class TestBoM(TestMrpCommon):
         self.assertEqual(set(mo.workorder_ids.mapped("name")), {"op3", "op4", "new op"})
 
     def test_archive_operation(self):
-        """Checks that archiving an operation having both a bom line and a byproduct line linked to it properly unlinks them."""
         final, comp1, comp2, bp1, bp2 = self.make_prods(5)
         bom = self.env["mrp.bom"].create(
             {
@@ -3961,14 +3610,12 @@ class TestBoM(TestMrpCommon):
                 ],
             }
         )
-        # Assign operation to each bom/byproduct line
         ope_1, ope_2 = bom.operation_ids
         bom.bom_line_ids[0].operation_id = ope_1
         bom.byproduct_ids[0].operation_id = ope_1
         bom.bom_line_ids[1].operation_id = ope_2
         bom.byproduct_ids[1].operation_id = ope_2
 
-        # Archive first operation
         ope_1.action_archive()
         self.assertFalse(bom.bom_line_ids[0].operation_id)
         self.assertFalse(bom.byproduct_ids[0].operation_id)
@@ -3976,10 +3623,6 @@ class TestBoM(TestMrpCommon):
         self.assertEqual(bom.byproduct_ids[1].operation_id, ope_2)
 
     def test_bom_overview_for_product_template_with_dynamic_variants(self):
-        """
-        This test checks if the bom overview report is generated when we have a product with dynamic create variants
-        meaning the product variants are only created on adding them to a sales order
-        """
         dynamic_attribute = self.env["product.attribute"].create(
             {
                 "name": "Dynamic",
@@ -4034,10 +3677,6 @@ class TestBoM(TestMrpCommon):
         self.assertTrue(bom_overview["components"])
 
     def test_copy_bom_with_operations(self):
-        """
-        Check that copying a bom with operations reassign the component and by
-        product lines to the appropirate operations.
-        """
         bom = self.bom_2
         bom.bom_line_ids.operation_id = bom.operation_ids
         bom.byproduct_ids = [
@@ -4050,23 +3689,17 @@ class TestBoM(TestMrpCommon):
             )
         ]
         copied_bom = bom.copy()
-        # check that a new operation was created and linked to th copied lines
         copied_operation = copied_bom.operation_ids
         self.assertEqual(len(copied_operation), 1)
         self.assertNotEqual(bom.operation_ids, copied_operation)
         self.assertEqual(copied_bom.bom_line_ids.operation_id, copied_operation)
         self.assertEqual(copied_bom.byproduct_ids.operation_id, copied_operation)
-        # Archive the operation of the copied bom and check that the operation linked are removed
         copied_operation.action_archive()
         self.assertFalse(
             copied_bom.bom_line_ids.operation_id | copied_bom.byproduct_ids.operation_id
         )
 
     def test_bom_overview_forecasted_component_status(self):
-        """This test case is for verifying that BoM overview availability respects forecasted stock and future
-        replenishments, and ensures that when the availability state is 'expected', the status column remains empty
-        (not 'To Order').
-        """
         main_bom = self.make_bom(self.productA, self.productB)
         self.env["mrp.production"].create(
             {
@@ -4084,19 +3717,15 @@ class TestBoM(TestMrpCommon):
         self.assertEqual(comp_line["availability_state"], "expected")
         self.assertFalse(
             comp_line.get("status")
-        )  # Empty status when availability is 'expected'
+        )
 
         comp_line = self._get_component_line(main_bom, self.productB, qty=2)
         self.assertEqual(
             comp_line["availability_state"], "unavailable"
-        )  # Reserved for the MO
+        )
         self.assertEqual(comp_line.get("status"), "1.00 To Order")
 
     def test_bom_with_operations_for_kit_variant(self):
-        """
-        Create a bom for a product P using a kit product as compnent. Check that the operations
-        defined on the kit bom for specific variant values influence the MO of P.
-        """
         kit_product_template = self.product_7_template
         red, blue = kit_product_template.product_variant_ids[
             :2
@@ -4161,14 +3790,10 @@ class TestBoM(TestMrpCommon):
         )
 
     def test_correct_bom_final_product_unit(self):
-        """
-        Checks if the Final product (tracked by lot) is manufactured with the correct unit.
-        """
         final_product = self.env["product.product"].create(
             dict({"is_storable": True}, name="Product to manufacture")
         )
         final_product.tracking = "lot"
-        # Create MO.with a different UOM
         mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = final_product
         mo_form.product_qty = 1
@@ -4179,10 +3804,6 @@ class TestBoM(TestMrpCommon):
         self.assertEqual(mo.finished_move_line_ids.product_uom_id, self.uom_dozen)
 
     def test_bom_overview_with_decimal_quantity(self):
-        """
-        Checks that the times for a bom with a decimal quantity
-        are correctly computed in the bom overview
-        """
         product_in_square_meter = self.env["product.template"].create(
             {
                 "name": "test",
@@ -4242,7 +3863,6 @@ class TestTourBoM(HttpCase):
                 "type": "normal",
             }
         )
-        # This product is not directly used in py tests but needed to run tours without demo data.
         cls.component = cls.env["product.product"].create(
             {
                 "name": "compo test",
@@ -4263,14 +3883,10 @@ class TestTourBoM(HttpCase):
         self.assertEqual(len(self.bom.bom_line_ids), 1)
 
     def test_manufacture_from_bom(self):
-        """
-        Create a new MO by pressing the "Manufacture" button in BoM Overview
-        """
         url = "/odoo/action-mrp.mrp_bom_form_action"
         self.start_tour(url, "test_manufacture_from_bom", login="admin", timeout=100)
 
     def test_bom_kit_rounding(self):
-        """Checks that the available quantity is rounded down for kit products to not over-promise availability"""
         integer_unit = self.env["uom.uom"].create(
             {
                 "name": "unit_int",
@@ -4301,14 +3917,9 @@ class TestTourBoM(HttpCase):
 
         location = self.env.ref("stock.stock_location_stock")
         self.env["stock.quant"]._update_available_quantity(comp, location, 3.0)
-        # With 3 components on hand, 1.5 products could be created, rounded down to 1.0 due to the integer uom
         self.assertEqual(prod.qty_available, 1.0)
 
     def test_byproduct_bom_cost_share_constraint_with_variants(self):
-        """
-        Check that the cost share constraint is well behaved with respect to product attribute values:
-        the sum of the cost share's of the bom of any product variant should can not exceed 100%
-        """
         attributes = self.env["product.attribute"].create(
             [{"name": name} for name in ("Size", "Color")]
         )
@@ -4346,7 +3957,6 @@ class TestTourBoM(HttpCase):
             [{"name": f"Comp {i}"} for i in range(1, 4)]
         )
 
-        # Check that optional lines (with a product_qty of 0) are ignored -> Valid
         self.env["mrp.bom"].create(
             {
                 "product_tmpl_id": product_template.id,
@@ -4364,7 +3974,6 @@ class TestTourBoM(HttpCase):
             }
         )
 
-        # All possible variant combination sum up to 100 cost_share -> Valid
         self.env["mrp.bom"].create(
             {
                 "product_tmpl_id": product_template.id,
@@ -4385,7 +3994,7 @@ class TestTourBoM(HttpCase):
                                 )
                             ],
                         }
-                    ),  # S
+                    ),
                     Command.create(
                         {
                             "product_id": c1.id,
@@ -4399,7 +4008,7 @@ class TestTourBoM(HttpCase):
                                 )
                             ],
                         }
-                    ),  # M
+                    ),
                     Command.create(
                         {
                             "product_id": c2.id,
@@ -4413,15 +4022,14 @@ class TestTourBoM(HttpCase):
                                 )
                             ],
                         }
-                    ),  # M
+                    ),
                     Command.create(
                         {"product_id": c2.id, "product_qty": 1, "cost_share": 70}
-                    ),  # All attributes
+                    ),
                 ],
             }
         )
 
-        # Set up fails for M, Blue only (total cost_share of 130) -> only valid if this variants do not exist
         with self.assertRaises(UserError):
             self.env["mrp.bom"].create(
                 {
@@ -4443,7 +4051,7 @@ class TestTourBoM(HttpCase):
                                     ),
                                 ],
                             }
-                        ),  # M
+                        ),
                         Command.create(
                             {
                                 "product_id": c2.id,
@@ -4457,14 +4065,13 @@ class TestTourBoM(HttpCase):
                                     ),
                                 ],
                             }
-                        ),  # Blue
+                        ),
                         Command.create(
                             {"product_id": c3.id, "product_qty": 1, "cost_share": 70}
-                        ),  # All attributes
+                        ),
                     ],
                 }
             )
-        # Keep only the S Blue and the M Red variant
         product_template.product_variant_ids[1:3].action_archive()
         self.assertEqual(product_template.product_variant_count, 2)
         self.env["mrp.bom"].create(
@@ -4487,7 +4094,7 @@ class TestTourBoM(HttpCase):
                                 ),
                             ],
                         }
-                    ),  # M
+                    ),
                     Command.create(
                         {
                             "product_id": c2.id,
@@ -4501,25 +4108,18 @@ class TestTourBoM(HttpCase):
                                 ),
                             ],
                         }
-                    ),  # Blue
+                    ),
                     Command.create(
                         {"product_id": c3.id, "product_qty": 1, "cost_share": 70}
-                    ),  # All attributes
+                    ),
                 ],
             }
         )
 
 
 class TestBoMComponentChatter(TestMrpCommon):
-    """Component edits and removals are logged in the parent BoM chatter."""
-
     def setUp(self):
         super().setUp()
-        # The shared test environment arrives pre-muted -- its context carries
-        # `tracking_disable` and `mail_notrack`, the two switches this feature
-        # honours -- so every assertion here would pass without the code ever
-        # running, the silence ones vacuously. Work in an environment shaped
-        # like the user session the feature actually serves.
         self.env = self.env(
             context={
                 **self.env.context,
@@ -4548,10 +4148,10 @@ class TestBoMComponentChatter(TestMrpCommon):
         self.assertIn(
             "{} → {}".format(
                 float_repr(
-                    2.0, self.env["decimal.precision"].precision_get("Product Unit")
+                    2.0, self.env["decimal.precision"].get_precision("Product Unit")
                 ),
                 float_repr(
-                    5.0, self.env["decimal.precision"].precision_get("Product Unit")
+                    5.0, self.env["decimal.precision"].get_precision("Product Unit")
                 ),
             ),
             body,
@@ -4565,8 +4165,6 @@ class TestBoMComponentChatter(TestMrpCommon):
         line.write({"product_id": self.product_3.id, "product_qty": 7.0})
 
         body = str(self._get_new_messages(bom, before).body)
-        # The entry is headed by the component as it was, so the line stays
-        # identifiable after its product has been swapped out.
         self.assertIn(self.product_2.display_name, body)
         self.assertIn(self.product_3.display_name, body)
         self.assertIn("Quantity", body)
@@ -4631,9 +4229,6 @@ class TestBoMComponentChatter(TestMrpCommon):
         )
 
     def test_o2m_update_command_posts(self):
-        # The shape the web client actually saves: a write on the BoM carrying
-        # the whole one2many, not a write on the line. It reaches the override
-        # through `One2many.write_real`'s UPDATE branch.
         bom = self.bom_1
         line = bom.bom_line_ids.filtered(lambda l: l.product_id == self.product_2)
         before = bom.message_ids
@@ -4645,8 +4240,6 @@ class TestBoMComponentChatter(TestMrpCommon):
         self.assertIn(self.product_2.display_name, str(message.body))
 
     def test_o2m_delete_command_posts(self):
-        # Removing a component in the form sends DELETE, which the ORM defers to
-        # `flush()` and turns into a real `unlink()` because `bom_id` cascades.
         bom = self.bom_1
         line = bom.bom_line_ids.filtered(lambda l: l.product_id == self.product_2)
         before = bom.message_ids
@@ -4658,9 +4251,6 @@ class TestBoMComponentChatter(TestMrpCommon):
         self.assertIn(self.product_2.display_name, body)
 
     def test_restamping_the_unit_from_the_product_is_silent(self):
-        # `product.product._update_uom` rewrites `product_uom_id` on every line
-        # holding the product. That is the unit being renamed, not somebody
-        # editing these BoMs, so it must not reach their chatter.
         component = self.env["product.product"].create(
             {"name": "Restamped component", "uom_id": self.uom_unit.id}
         )
@@ -4677,8 +4267,6 @@ class TestBoMComponentChatter(TestMrpCommon):
 
         component.product_tmpl_id.uom_id = self.uom_dozen
 
-        # The restamp really happened -- the silence is the override standing
-        # down, not the write being refused upstream.
         self.assertEqual(bom.bom_line_ids.product_uom_id, self.uom_dozen)
         self.assertFalse(self._get_new_messages(bom, before))
 
@@ -4694,7 +4282,6 @@ class TestBoMComponentChatter(TestMrpCommon):
         self.assertFalse(self._get_new_messages(bom, before))
 
     def test_adding_a_component_posts(self):
-        # Adding a line in the form is a CREATE inside the BoM's one2many.
         bom = self.bom_1
         before = bom.message_ids
 
@@ -4730,8 +4317,6 @@ class TestBoMComponentChatter(TestMrpCommon):
         self.assertIn("Components added", str(self._get_new_messages(bom, before).body))
 
     def test_creating_a_bom_with_its_lines_posts_nothing(self):
-        # The initial components are what the BoM *is*, not something added to
-        # it -- announcing them to an empty thread is noise.
         bom = self.env["mrp.bom"].create(
             {
                 "product_tmpl_id": self.product_4.product_tmpl_id.id,
@@ -4748,9 +4333,6 @@ class TestBoMComponentChatter(TestMrpCommon):
         )
 
     def test_duplicating_a_bom_posts_nothing(self):
-        # `copy` creates the lines *and* remaps `operation_id` on each of them,
-        # so a duplicate would otherwise arrive holding both an "added" and an
-        # "updated" note about components nobody touched.
         source = self.env["mrp.bom"].create(
             {
                 "product_tmpl_id": self.product_4.product_tmpl_id.id,
@@ -4774,12 +4356,10 @@ class TestBoMComponentChatter(TestMrpCommon):
 
         copied = source.copy()
 
-        # The remap really ran -- the silence is the mute, not an empty copy.
         self.assertEqual(copied.bom_line_ids.operation_id, copied.operation_ids)
         self.assertFalse(
             copied.message_ids.filtered(lambda m: "Components" in str(m.body))
         )
-        # And the source keeps only the note for the line added to it above.
         self.assertEqual(
             len(source.message_ids.filtered(lambda m: "Components" in str(m.body))), 1
         )

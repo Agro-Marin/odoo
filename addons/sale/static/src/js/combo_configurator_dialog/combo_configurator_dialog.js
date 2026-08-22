@@ -3,6 +3,7 @@ import { Component, useState, useSubEnv } from "@odoo/owl";
 import { formatCurrency } from "@web/core/currency";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
+import { KeepLast } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";
 
@@ -54,13 +55,23 @@ export class ComboConfiguratorDialog extends Component {
         });
         this._initSelectedComboItems();
         this.getPriceUrl = "/sale/combo_configurator/get_price";
+        // Same reasoning as the product configurator: the quantity buttons can outrun the
+        // price round trip, and without sequencing a stale response overwrites the base
+        // price the total is computed from.
+        this._priceRequests = new KeepLast();
         useSubEnv({ currency: { id: this.props.currency_id } });
 
+        // A combo whose items were all filtered out server-side (their products are
+        // archived) has nothing to choose from, so it is neither "included" nor
+        // configurable. Left in `configurableCombos` it renders a heading with no cards
+        // while still counting towards `areAllCombosSelected`, i.e. a dialog the user
+        // can never complete and cannot diagnose.
+        this.emptyCombos = this.props.combos.filter((combo) => combo.isEmpty);
         this.unconfigurableCombos = this.props.combos.filter(
-            (combo) => !combo.isConfigurable,
+            (combo) => !combo.isEmpty && !combo.isConfigurable,
         );
         this.configurableCombos = this.props.combos.filter(
-            (combo) => combo.isConfigurable,
+            (combo) => !combo.isEmpty && combo.isConfigurable,
         );
     }
 
@@ -119,15 +130,17 @@ export class ComboConfiguratorDialog extends Component {
             quantity = 1;
         }
         this.state.quantity = quantity;
-        this.state.basePrice = await rpc(this.getPriceUrl, {
-            product_tmpl_id: this.props.product_tmpl_id,
-            currency_id: this.props.currency_id,
-            quantity: quantity,
-            date: this.props.date,
-            company_id: this.props.company_id,
-            pricelist_id: this.props.pricelist_id,
-            ...this._getAdditionalRpcParams(),
-        });
+        this.state.basePrice = await this._priceRequests.add(
+            rpc(this.getPriceUrl, {
+                product_tmpl_id: this.props.product_tmpl_id,
+                currency_id: this.props.currency_id,
+                quantity: quantity,
+                date: this.props.date,
+                company_id: this.props.company_id,
+                pricelist_id: this.props.pricelist_id,
+                ...this._getAdditionalRpcParams(),
+            }),
+        );
     }
 
     /**
@@ -169,14 +182,28 @@ export class ComboConfiguratorDialog extends Component {
      * @return {Boolean} Whether a combo item has been selected for each combo.
      */
     get areAllCombosSelected() {
-        return this.state.selectedComboItems.size === this.props.combos.length;
+        // Count against the combos that can actually be selected: an empty combo offers
+        // no card, so requiring a selection for it would deadlock the dialog.
+        return (
+            this.state.selectedComboItems.size ===
+            this.props.combos.length - this.emptyCombos.length
+        );
     }
 
     async confirm(options) {
         this.state.isLoading = true;
-        await this.props
-            .save(this._comboProductData, this._selectedComboItems, options)
-            .finally(() => (this.state.isLoading = false));
+        try {
+            // `save` is typed `Function`, not `() => Promise`: overriding modules are
+            // free to return nothing, and calling `.finally` straight on the result
+            // turned that into a TypeError instead of a save.
+            await this.props.save(
+                this._comboProductData,
+                this._selectedComboItems,
+                options,
+            );
+        } finally {
+            this.state.isLoading = false;
+        }
         this.props.close();
     }
 

@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from datetime import datetime, timedelta
 from json import loads
 
@@ -27,9 +25,6 @@ class TestMrpReplenish(TestMrpCommon):
         )
 
     def test_mrp_delay(self):
-        """Open the replenish view and check if delay is taken into account
-        in the base date computation
-        """
         route = self.warehouse_1.manufacture_pull_id.route_id
         product = self.product_4
         product.route_ids = route
@@ -67,7 +62,6 @@ class TestMrpReplenish(TestMrpCommon):
             }
         )
 
-        # setup orderpoint (reordering rule)
         rr = self.env["stock.warehouse.orderpoint"].create(
             {
                 "name": "Cake RR",
@@ -80,13 +74,9 @@ class TestMrpReplenish(TestMrpCommon):
 
         info = self.env["stock.replenishment.info"].create({"orderpoint_id": rr.id})
 
-        # for manufacturing delay should be taken from the bom
         self.assertEqual("4.0 days", info.wh_replenishment_option_ids.lead_time)
 
     def test_rr_picking_type_id(self):
-        """Check manufacturing order take bom according to picking type of the rule triggered by an
-        orderpoint."""
-
         self.product_4.route_ids = self.warehouse_1.manufacture_pull_id.route_id
         picking_type_2 = self.picking_type_manu.copy({"sequence": 100})
         self.product_4.bom_ids.picking_type_id = picking_type_2
@@ -131,9 +121,6 @@ class TestMrpReplenish(TestMrpCommon):
             )
 
     def test_replenish_from_scrap(self):
-        """Test that when ticking replenish on the scrap wizard of a MO, the new move
-        is linked to the MO and validating it will automatically reserve the quantity
-        on the MO."""
         self.warehouse_1.manufacture_steps = "pbm"
         basic_mo, _dummy1, _dummy2, product_to_scrap, other_product = self.generate_mo(
             qty_final=1, qty_base_1=1, qty_base_2=1
@@ -173,8 +160,6 @@ class TestMrpReplenish(TestMrpCommon):
         )
 
     def test_scrap_replenishment_reassigns_required_qty_to_component(self):
-        """Test that when validating the scrap replenishment transfer, the required quantity
-        is re-assigned to the component for the final manufacturing product."""
         self.warehouse_1.manufacture_steps = "pbm"
         basic_mo, _, _, product_to_scrap, other_product = self.generate_mo(
             qty_final=1, qty_base_1=10, qty_base_2=10
@@ -196,7 +181,6 @@ class TestMrpReplenish(TestMrpCommon):
             basic_mo.move_raw_ids.mapped("state"), ["assigned", "assigned"]
         )
 
-        # Scrap the product and trigger replenishment
         scrap_form = Form.from_action(self.env, basic_mo.button_scrap())
         scrap_form.product_id = product_to_scrap
         scrap_form.scrap_qty = 5
@@ -204,7 +188,6 @@ class TestMrpReplenish(TestMrpCommon):
         self.assertEqual(scrap_form.location_id, self.warehouse_1.pbm_loc_id)
         scrap_form.save().action_validate()
 
-        # Assert that the component quantity is reduced
         self.assertNotEqual(
             basic_mo.move_raw_ids.mapped("state"), ["assigned", "assigned"]
         )
@@ -227,7 +210,6 @@ class TestMrpReplenish(TestMrpCommon):
         )
         replenish_picking.button_validate()
 
-        # Assert that the component quantity is re-assigned
         self.assertEqual(
             basic_mo.move_raw_ids.mapped("state"), ["assigned", "assigned"]
         )
@@ -239,9 +221,6 @@ class TestMrpReplenish(TestMrpCommon):
         )
 
     def test_global_horizon_days_affect_lead_time_manufacture_rule(self):
-        """Ensure global horizon days will only be captured one time in an orderpoint's
-        lead_days/json_lead_days.
-        """
         self.warehouse_1.manufacture_steps = "pbm"
         finished_product = self.product_4
         finished_product.route_ids = [
@@ -280,10 +259,6 @@ class TestMrpReplenish(TestMrpCommon):
         self.assertEqual(lead_horizon_date, fields.Date.today() + timedelta(days=365))
 
     def test_orderpoint_onchange_reordering_rule(self):
-        """Ensure onchange logic works properly when editing a reordering rule
-        linked to a confirmed MO, which is started but not finished by the
-        end of the stock forecast.
-        """
         route_manufacture = self.warehouse_1.manufacture_pull_id.route_id
 
         self.product_4.route_ids = [Command.set([route_manufacture.id])]
@@ -300,7 +275,6 @@ class TestMrpReplenish(TestMrpCommon):
         orderpoint.action_replenish()
 
         prod = self.env["mrp.production"].search([("origin", "=", orderpoint.name)])
-        # Error is triggered for date_start <= lead_horizon_date < date_end
         prod.date_start = fields.Date.today() + timedelta(days=1)
 
         with Form(
@@ -319,16 +293,6 @@ class TestMrpReplenish(TestMrpCommon):
         self.assertEqual(orderpoint.qty_to_order, 8)
 
     def test_replenish_multi_level_bom_with_pbm_sam(self):
-        """
-        Ensure that in a 3-step manufacturing flow ('pbm_sam') with MTO + reordering rule,
-        a multi-level BOM triggers separate MOs for each level without constraint errors.
-        1.) Set warehouse manufacture to (manufacture_steps == 'pbm_sam')
-        2.) Product_1 (enable manufacture and mto routes)
-        3.) Product_4 (enable manufacture)
-        4.) Add Product_1 as bom for product_4
-        5.) Add a reordering rule (manufacture) for product_4
-        6.) trigger replenishment for product_4
-        """
         self.warehouse = self.env.ref("stock.warehouse0")
         self.warehouse.write({"manufacture_steps": "pbm_sam"})
         self.warehouse.mto_pull_id.route_id.active = True
@@ -338,15 +302,14 @@ class TestMrpReplenish(TestMrpCommon):
 
         self.product_1.write(
             {"route_ids": [(6, 0, [route_mto, route_manufacture])]}
-        )  # Component
+        )
         self.product_4.write(
             {
                 "route_ids": [(6, 0, [route_manufacture])],
                 "bom_ids": [(6, 0, [self.bom_1.id])],
             }
-        )  # Finished Product
+        )
 
-        # Create reordering rule
         orderpoint = self.env["stock.warehouse.orderpoint"].create(
             {
                 "location_id": self.warehouse.lot_stock_id.id,
@@ -358,7 +321,6 @@ class TestMrpReplenish(TestMrpCommon):
         )
         orderpoint.action_replenish()
 
-        # Check the final MO was created but not the component one (no BoM yet)
         mo_final = self.env["mrp.production"].search(
             [("product_id", "=", self.product_4.id)]
         )
@@ -384,7 +346,6 @@ class TestMrpReplenish(TestMrpCommon):
         )
 
     def test_orderpoint_warning_mrp(self):
-        """Checks that the warning correctly computes depending on if there's a bom."""
         orderpoint = self.env["stock.warehouse.orderpoint"].create(
             {
                 "product_id": self.product_4.id,
@@ -395,18 +356,15 @@ class TestMrpReplenish(TestMrpCommon):
         self.product_4.bom_ids.active = False
         self.assertTrue(orderpoint.show_supply_warning)
 
-        # Archive the boms linked to the product
         self.product_4.with_context(active_test=False).bom_ids.active = True
         orderpoint.invalidate_recordset(fnames=["rule_ids", "show_supply_warning"])
         self.assertFalse(orderpoint.show_supply_warning)
 
-        # Add a manufacture route to the product
         self.product_4.route_ids |= self.route_manufacture
         orderpoint.invalidate_recordset(fnames=["show_supply_warning"])
         self.assertFalse(orderpoint.show_supply_warning)
 
     def test_set_bom_on_orderpoint(self):
-        """Test that action_set_bom_on_orderpoint correctly sets a bom on selected orderpoint."""
         orderpoint = self.env["stock.warehouse.orderpoint"].create(
             {
                 "product_id": self.product_4.id,
@@ -443,7 +401,6 @@ class TestMrpReplenish(TestMrpCommon):
                 "product_max_qty": 4,
             }
         )
-        # The Manufacture route is not set on the product -> no effective BoM
         self.assertFalse(orderpoint.effective_bom_id)
 
         self.productA.write(
@@ -452,7 +409,6 @@ class TestMrpReplenish(TestMrpCommon):
             }
         )
         self.env.invalidate_all()
-        # The route is set, but there is no BoM -> no effective BoM
         self.assertFalse(orderpoint.effective_bom_id)
 
         bom = self.env["mrp.bom"].create(
@@ -464,16 +420,11 @@ class TestMrpReplenish(TestMrpCommon):
         )
 
         self.env.invalidate_all()
-        # The route is set and there is a BoM -> effective BoM is available
         self.assertEqual(orderpoint.effective_bom_id, bom)
         self.assertEqual(orderpoint.bom_id_placeholder, "Ref 1234: Product A")
-        # The actual BoM remains empty
         self.assertFalse(orderpoint.bom_id)
 
     def test_lead_time_with_no_bom(self):
-        """Test that lead time is incremented by 365 days (1 year) when there
-        is no BoM defined.
-        """
         route_manufacture = self.warehouse_1.manufacture_pull_id.route_id
         product = self.env["product.product"].create(
             {
@@ -494,9 +445,6 @@ class TestMrpReplenish(TestMrpCommon):
         self.assertEqual(orderpoint.lead_days, 365)
 
     def test_orderpoint_with_kit_bom_in_another_company(self):
-        """Test that an orderpoint can be created for a product
-        having a kit-type BoM defined in another company.
-        """
         self.assertEqual(self.bom_2.type, "phantom")
         self.assertEqual(self.bom_2.company_id, self.env.company)
         company_2 = self.env["res.company"].create({"name": "Company 2"})

@@ -180,7 +180,7 @@ class ProductTemplate(models.Model):
                 ('res_id', '=', self.id),
                 ('res_model', '=', 'product.template'),
                 ('is_gelato', '=', True),  # Avoid finding regular documents with the same name.
-            ]))
+            ], limit=1))
             if not print_image_found:
                 self.gelato_image_ids = [Command.create({
                     'name': print_image_data['printArea'].lower(),

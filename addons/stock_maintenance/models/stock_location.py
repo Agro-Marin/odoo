@@ -13,6 +13,6 @@ class StockLocation(models.Model):
             location.equipment_count = mapped_data.get(location.id, 0)
 
     def action_view_equipments_records(self):
-        action = self.env["ir.actions.actions"]._for_xml_id("maintenance.hr_equipment_action")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("maintenance.hr_equipment_action")
         action['domain'] = [('location_id', '=', self.id)]
         return action

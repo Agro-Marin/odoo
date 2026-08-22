@@ -26,7 +26,7 @@ class PurchaseOrder(models.Model):
         comodel_name="stock.picking.type",
         string="Deliver To",
         required=True,
-        default=lambda self: self._default_picking_type(),
+        default=lambda self: self._default_picking_type_id(),
         domain="['|', ('warehouse_id', '=', False), ('warehouse_id.company_id', '=', company_id)]",
         help="This will determine operation type of incoming shipment",
     )
@@ -472,7 +472,7 @@ class PurchaseOrder(models.Model):
         return True
 
     @api.model
-    def _default_picking_type(self):
+    def _default_picking_type_id(self):
         return self._get_picking_type(
             self.env.context.get("company_id") or self.env.company.id,
         )

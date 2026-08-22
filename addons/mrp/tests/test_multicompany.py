@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.exceptions import UserError
 from odoo.fields import Command
 from odoo.tests import Form, common
@@ -46,9 +44,6 @@ class TestMrpMulticompany(common.TransactionCase):
         )
 
     def test_bom_1(self):
-        """Check it is not possible to use a product of Company B in a
-        bom of Company A."""
-
         product_b = self.env["product.product"].create(
             {
                 "name": "p1",
@@ -65,9 +60,6 @@ class TestMrpMulticompany(common.TransactionCase):
             )
 
     def test_bom_2(self):
-        """Check it is not possible to use a product of Company B as a component
-        in a bom of Company A."""
-
         product_a = self.env["product.product"].create(
             {
                 "name": "p1",
@@ -91,9 +83,6 @@ class TestMrpMulticompany(common.TransactionCase):
             )
 
     def test_production_1(self):
-        """Check it is not possible to confirm a production of Company B with
-        product of Company A."""
-
         product_a = self.env["product.product"].create(
             {
                 "name": "p1",
@@ -111,9 +100,6 @@ class TestMrpMulticompany(common.TransactionCase):
             mo.action_confirm()
 
     def test_production_2(self):
-        """Check that confirming a production in company b with user_a will create
-        stock moves on company b."""
-
         product_a = self.env["product.product"].create(
             {
                 "name": "p1",
@@ -142,9 +128,6 @@ class TestMrpMulticompany(common.TransactionCase):
         self.assertEqual(mo.move_finished_ids.company_id, self.company_a)
 
     def test_product_produce_1(self):
-        """Check that using a finished lot of company b in the produce wizard of a production
-        of company a is not allowed"""
-
         product = self.env["product.product"].create(
             {
                 "name": "p1",
@@ -172,8 +155,6 @@ class TestMrpMulticompany(common.TransactionCase):
         )
         mo_form = Form(self.env["mrp.production"].with_user(self.user_a))
         mo_form.product_id = product
-        # The mo must be confirmed, no longer in draft, in order for `lot_producing_ids` to be visible in the view
-        # <div class="o_row" invisible="state == 'draft' or product_tracking in ('none', False)">
         mo = mo_form.save()
         mo.action_confirm()
         mo_form = Form(mo)
@@ -183,9 +164,6 @@ class TestMrpMulticompany(common.TransactionCase):
             mo.with_user(self.user_b).action_confirm()
 
     def test_product_produce_2(self):
-        """Check that using a component lot of company b in the produce wizard of a production
-        of company a is not allowed"""
-
         product = self.env["product.product"].create(
             {
                 "name": "p1",
@@ -231,7 +209,6 @@ class TestMrpMulticompany(common.TransactionCase):
             mo.button_mark_done()
 
     def test_is_kit_in_multi_company_env(self):
-        """Check that is_kits is company dependant"""
         product1, product2 = self.env["product.product"].create(
             [{"name": "Kit Kat"}, {"name": "twix"}]
         )
@@ -275,9 +252,6 @@ class TestMrpMulticompany(common.TransactionCase):
         self.assertTrue(template2.with_company(self.company_b).is_kits)
 
     def test_partner_1(self):
-        """On a product without company, as a user of Company B, check it is not possible to use a
-        location limited to Company A as `property_stock_production`"""
-
         shared_product = self.env["product.product"].create(
             {
                 "name": "Shared Product",
@@ -290,11 +264,6 @@ class TestMrpMulticompany(common.TransactionCase):
             ).property_stock_production = self.stock_location_a
 
     def test_company_specific_routes_and_company_creation(self):
-        """
-        Setup: company-specific manufacture routes
-        Use case: create a new company
-        A manufacture route should be created for the new company
-        """
         company = self.env.company
         warehouse = self.env["stock.warehouse"].search(
             [("company_id", "=", company.id)], limit=1
@@ -303,7 +272,6 @@ class TestMrpMulticompany(common.TransactionCase):
         manufacture_rule = warehouse.manufacture_pull_id
         manufacture_route = manufacture_rule.route_id
 
-        # Allocate each company-specific manufacture rule to a new route
         for rule in manufacture_route.rule_ids.sudo():
             rule_company = rule.company_id
             if not rule_company or rule_company == company:
@@ -314,7 +282,6 @@ class TestMrpMulticompany(common.TransactionCase):
                     "rule_ids": [(4, rule.id)],
                 }
             )
-        # Also specify the company of the "generic route" (the one from the master data)
         manufacture_route.company_id = company
 
         new_company = self.env["res.company"].create({"name": "Super Company"})
@@ -326,8 +293,6 @@ class TestMrpMulticompany(common.TransactionCase):
         )
 
     def test_company_specific_routes_and_warehouse_creation(self):
-        """Check that we are able to create a new warehouse when the generic manufacture route
-        is in a different company."""
         group_stock_manager = self.env.ref("stock.group_stock_manager")
         self.user_a.write({"group_ids": [(4, group_stock_manager.id)]})
 
@@ -344,7 +309,6 @@ class TestMrpMulticompany(common.TransactionCase):
             )
         manufacture_route.company_id = self.company_a
 
-        # Enable multi warehouse
         group_user = self.env.ref("base.group_user")
         group_stock_multi_warehouses = self.env.ref(
             "stock.group_stock_multi_warehouses"
@@ -380,11 +344,6 @@ class TestMrpMulticompany(common.TransactionCase):
         )
 
     def test_multi_company_kit_reservation(self):
-        """
-        Create and assign a delivery in company_b for a product that is a kit in company_a.
-        Check that the move is treated just as a non-kit product.
-        """
-        """ Check that is_kits is company dependant """
         semi_kit_product = self.env["product.product"].create(
             {
                 "name": "Kit Kat",
@@ -427,7 +386,6 @@ class TestMrpMulticompany(common.TransactionCase):
                 }
             )
         )
-        # confirm and assign the delivery with company_a and check that it was treated as a non-kit product
         delivery.with_company(self.company_a).action_confirm()
         delivery.with_company(self.company_a).action_assign()
         self.assertRecordValues(

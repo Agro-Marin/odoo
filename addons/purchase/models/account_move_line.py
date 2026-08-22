@@ -4,9 +4,6 @@ from odoo import api, fields, models
 class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
 
     purchase_line_ids = fields.Many2many(
         comodel_name="purchase.order.line",
@@ -20,9 +17,6 @@ class AccountMoveLine(models.Model):
         compute="_compute_purchase_line_warn_msg",
     )
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
 
     @api.depends("product_id.purchase_line_warn_msg")
     def _compute_purchase_line_warn_msg(self):
@@ -31,22 +25,11 @@ class AccountMoveLine(models.Model):
             "purchase.group_warning_purchase",
         )
 
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
-    def _get_order_line_link_fields(self):
-        return [*super()._get_order_line_link_fields(), "purchase_line_ids"]
+    def _get_fields_order_line_link(self):
+        return [*super()._get_fields_order_line_link(), "purchase_line_ids"]
 
     def _purchase_prepare_purchase_line_values(self):
-        """Build creation values for ``purchase.order.line`` records from invoice lines.
-
-        Used by the "Create Purchase Order from Bill" wizard to seed PO lines with
-        the product, quantity, UoM, price and discount of the originating bill lines.
-
-        :return: One dict of creation values per record in ``self``.
-        :rtype: list[dict]
-        """
         return [
             {
                 "product_id": line.product_id.id,
@@ -57,6 +40,3 @@ class AccountMoveLine(models.Model):
             }
             for line in self
         ]
-
-    # _copy_data_extend_business_fields and _related_analytic_distribution are
-    # inherited from base_order; both act on _get_order_line_link_fields above.

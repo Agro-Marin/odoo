@@ -305,7 +305,7 @@ class DeliveryCarrier(models.Model):
         self.ensure_one()
         if self.delivery_type == 'fixed':
             return float(price)
-        fixed_margin_in_sale_currency = self._compute_currency(order, self.fixed_margin, 'company_to_pricelist') if order else self.fixed_margin
+        fixed_margin_in_sale_currency = self._compute_currency_id(order, self.fixed_margin, 'company_to_pricelist') if order else self.fixed_margin
         return float(price) * (1.0 + self.margin) + fixed_margin_in_sale_currency
 
     # -------------------------- #
@@ -350,7 +350,7 @@ class DeliveryCarrier(models.Model):
                 res['success']
                 and self.free_over
                 and self.delivery_type != 'base_on_rule'
-                and self._compute_currency(order, amount_without_delivery, 'pricelist_to_company') >= self.amount
+                and self._compute_currency_id(order, amount_without_delivery, 'pricelist_to_company') >= self.amount
             ):
                 res['warning_message'] = _('The shipping is free since the order amount exceeds %.2f.', self.amount)
                 res['price'] = 0.0
@@ -391,14 +391,14 @@ class DeliveryCarrier(models.Model):
     # Fixed price shipping, aka a very simple provider #
     # ------------------------------------------------ #
 
-    fixed_price = fields.Float(compute='_compute_fixed_price', inverse='_set_product_fixed_price', store=True, string='Fixed Price')
+    fixed_price = fields.Float(compute='_compute_fixed_price', inverse='_inverse_fixed_price', store=True, string='Fixed Price')
 
     @api.depends('product_id.list_price', 'product_id.product_tmpl_id.list_price')
     def _compute_fixed_price(self):
         for carrier in self:
             carrier.fixed_price = carrier.product_id.list_price
 
-    def _set_product_fixed_price(self):
+    def _inverse_fixed_price(self):
         for carrier in self:
             carrier.product_id.list_price = carrier.fixed_price
 
@@ -435,7 +435,7 @@ class DeliveryCarrier(models.Model):
                     'error_message': e.args[0],
                     'warning_message': False}
 
-        price_unit = self._compute_currency(order, price_unit, 'company_to_pricelist')
+        price_unit = self._compute_currency_id(order, price_unit, 'company_to_pricelist')
 
         return {'success': True,
                 'price': price_unit,
@@ -452,7 +452,7 @@ class DeliveryCarrier(models.Model):
             return pricelist_currency, company_currency
         return None
 
-    def _compute_currency(self, order, price, conversion):
+    def _compute_currency_id(self, order, price, conversion):
         from_currency, to_currency = self._get_conversion_currencies(order, conversion)
         if from_currency.id == to_currency.id:
             return price
@@ -482,7 +482,7 @@ class DeliveryCarrier(models.Model):
             quantity += qty
         total = order._compute_amount_total_without_delivery()
 
-        total = self._compute_currency(order, total, 'pricelist_to_company')
+        total = self._compute_currency_id(order, total, 'pricelist_to_company')
         # weight is either,
         # 1- weight chosen by user in choose.delivery.carrier wizard passed by context
         # 2- saved weight to use on sale order

@@ -1,17 +1,3 @@
-"""Characterization of `stock.move._action_assign`'s allocation across a batch.
-
-These tests exist to make one refactor safe: `_action_assign` decides *and persists*
-one move's reservation before it looks at the next, which costs a database round trip
-per move. Batching the persistence means later moves must still see what earlier ones
-took — so what needs pinning first is exactly that: how a batch divides stock that is
-not enough for all of it, in every shape the loop can take (plain, partial, serial,
-lot, chained, foreign UoM, bypassed, and a move that already holds a line).
-
-Every assertion here is behaviour that must be identical before and after. Written
-against the unbatched implementation and passing there; if a batching change alters
-any of them it has changed what users get, not just when the write happens.
-"""
-
 from odoo import Command
 from odoo.tests import tagged
 
@@ -59,13 +45,6 @@ class TestReservationBatching(TestStockCommon):
         return sum(quants.mapped("reserved_quantity"))
 
     def test_batch_divides_insufficient_stock_in_order(self):
-        """Three moves, stock for one and a half: the batch is served in order, and
-        the total reserved never exceeds what is on hand.
-
-        This is the invariant a naive batching breaks — every move would measure
-        availability against the same untouched quant and each would believe it had
-        the stock.
-        """
         self._stock(self.product, 15.0)
         moves = (
             self._out_move(self.product, 10.0)
@@ -98,8 +77,6 @@ class TestReservationBatching(TestStockCommon):
         self.assertEqual(self._reserved(self.product), 60.0)
 
     def test_batch_spans_several_quants_in_removal_order(self):
-        """Stock split across two sublocations: a move too big for one takes from
-        both, and the batch keeps draining them in FIFO order."""
         self._stock(self.product, 6.0, location=self.shelf_1)
         self._stock(self.product, 6.0, location=self.shelf_2)
         moves = self._out_move(self.product, 8.0) | self._out_move(self.product, 8.0)
@@ -152,8 +129,6 @@ class TestReservationBatching(TestStockCommon):
         self.assertEqual(self._reserved(self.lot_product), 12.0)
 
     def test_a_move_in_a_foreign_uom_reserves_the_product_quantity(self):
-        """A move in Dozens against stock counted in Units: the quant reservation is
-        in the product's unit, the move's quantity in its own."""
         self._stock(self.product, 30.0)
         move = self._out_move(self.product, 2.0, uom=self.uom_dozen)
         move._action_confirm()
@@ -164,8 +139,6 @@ class TestReservationBatching(TestStockCommon):
         self.assertEqual(self._reserved(self.product), 24.0)
 
     def test_a_partially_reserved_move_tops_up_rather_than_duplicating(self):
-        """The in-place update path: a move that already holds a line gets that line
-        raised, not a second one."""
         self._stock(self.product, 4.0)
         move = self._out_move(self.product, 10.0)
         move._action_confirm()
@@ -183,8 +156,6 @@ class TestReservationBatching(TestStockCommon):
         self.assertEqual(self._reserved(self.product), 10.0)
 
     def test_bypassed_moves_reserve_nothing_on_quants(self):
-        """A receipt reserves no quants but still lays down its lines, and it shares
-        the loop with quant-reserving moves."""
         self._stock(self.product, 5.0)
         receipt = self.env["stock.move"].create(
             {
@@ -207,8 +178,6 @@ class TestReservationBatching(TestStockCommon):
         self.assertEqual(self._reserved(self.product), 5.0)
 
     def test_chained_moves_distribute_what_their_origin_brought(self):
-        """A two-step delivery: the second leg reserves out of what the first one
-        actually moved, and two siblings split it rather than both claiming it."""
         self._stock(self.product, 10.0)
         pick = self.env["stock.move"].create(
             {
@@ -270,13 +239,6 @@ class TestReservationBatching(TestStockCommon):
         self.assertEqual(len(moves.move_line_ids), 2)
 
     def test_a_batch_creates_its_move_lines_in_one_call(self):
-        """The architectural property, asserted directly rather than as a query count.
-
-        `_action_assign` decides the whole batch's allocation and applies it once, so
-        the number of `stock.move.line.create` calls must not grow with the number of
-        moves. A count of *calls* survives an unrelated module adding a query, which a
-        raw query-count assertion does not.
-        """
         self._stock(self.product, 500.0)
         moves = self.env["stock.move"].browse()
         for _i in range(6):
@@ -307,9 +269,6 @@ class TestReservationBatching(TestStockCommon):
         self.assertEqual(self._reserved(self.product), 30.0)
 
     def test_the_ledger_is_scoped_to_one_run(self):
-        """The ledger must not survive `_action_assign`: the batched create writes the
-        real reservations, and a ledger still in context there would subtract the very
-        claims it is about to persist."""
         self._stock(self.product, 10.0)
         move = self._out_move(self.product, 4.0)
         move._action_confirm()

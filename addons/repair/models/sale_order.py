@@ -10,13 +10,11 @@ class SaleOrder(models.Model):
     repair_order_ids = fields.One2many(
         comodel_name='repair.order', inverse_name='sale_order_id',
         string='Repair Order', groups='stock.group_stock_user')
-    repair_count = fields.Integer(
-        "Repair Order(s)", compute='_compute_repair_count', groups='stock.group_stock_user')
-
-    @api.depends('repair_order_ids')
-    def _compute_repair_count(self):
-        for order in self:
-            order.repair_count = len(order.repair_order_ids)
+    repair_count = fields.Count(
+        "repair_order_ids",
+        "Repair Order(s)",
+        groups='stock.group_stock_user',
+    )
 
     def _action_cancel(self):
         res = super()._action_cancel()

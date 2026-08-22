@@ -474,7 +474,7 @@ class LoyaltyProgram(models.Model):
 
     def action_open_loyalty_cards(self):
         self.ensure_one()
-        action = self.env['ir.actions.act_window']._for_xml_id('loyalty.loyalty_card_action')
+        action = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('loyalty.loyalty_card_action')
         action['name'] = self._program_items_name()[self.program_type]
         action['display_name'] = action['name']
         action['context'] = {
@@ -586,10 +586,10 @@ class LoyaltyProgram(models.Model):
         program = self.create(template_values[template_id])
         action = {}
         if self.env.context.get('menu_type') == 'gift_ewallet':
-            action = self.env['ir.actions.act_window']._for_xml_id('loyalty.loyalty_program_gift_ewallet_action')
+            action = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('loyalty.loyalty_program_gift_ewallet_action')
             action['views'] = [[False, 'form']]
         else:
-            action = self.env['ir.actions.act_window']._for_xml_id('loyalty.loyalty_program_discount_loyalty_action')
+            action = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('loyalty.loyalty_program_discount_loyalty_action')
             view_id = self.env.ref('loyalty.loyalty_program_view_form').id
             action['views'] = [[view_id, 'form']]
         action['view_mode'] = 'form'

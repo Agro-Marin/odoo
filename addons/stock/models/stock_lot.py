@@ -74,9 +74,9 @@ class StockLot(models.Model):
         string="Transfers",
         compute="_compute_delivery_ids",
     )
-    count_transfer_outgoing = fields.Integer(
+    count_transfer_outgoing = fields.Count(
+        "delivery_ids",
         string="Delivery order count",
-        compute="_compute_delivery_ids",
     )
     partner_ids = fields.Many2many(
         comodel_name="res.partner",
@@ -91,7 +91,7 @@ class StockLot(models.Model):
     location_id = fields.Many2one(
         comodel_name="stock.location",
         string="Location",
-        compute="_compute_single_location",
+        compute="_compute_location_id",
         store=True,
         readonly=False,
         inverse="_inverse_location_id",
@@ -151,15 +151,6 @@ class StockLot(models.Model):
 
     @api.model
     def _check_duplicate_lot_keys(self, keys, exclude_ids=None):
-        """Raise the uniqueness ``ValidationError`` for exact (product, name,
-        company) duplicates before the INSERT/UPDATE reaches the
-        ``_name_product_company_uniq`` SQL constraint, so in-process callers
-        keep getting a ``ValidationError``; the SQL constraint only backstops
-        concurrent transactions. Falsy company must be normalized to ``False``
-        by the caller; entries with a falsy product or name are ignored (the
-        required-field errors surface elsewhere). The company-vs-no-company
-        collision rule stays in ``_check_unique_lot``.
-        """
         keys = [key for key in keys if key[0] and key[1]]
         if not keys:
             return
@@ -269,10 +260,9 @@ class StockLot(models.Model):
         return super(StockLot, self.with_context(context)).default_get(fields)
 
     def _compute_delivery_ids(self):
-        delivery_ids_by_lot = self._find_delivery_ids_by_lot()
+        delivery_ids_by_lot = self._get_delivery_ids_by_lot()
         for lot in self:
             lot.delivery_ids = delivery_ids_by_lot.get(lot.id, [])
-            lot.count_transfer_outgoing = len(lot.delivery_ids)
 
     def _compute_partner_ids(self):
         for lot in self:
@@ -285,7 +275,7 @@ class StockLot(models.Model):
             if lot.name:
                 continue
             if lot.product_id.lot_name_format:
-                lot.name = lot._compose_name()
+                lot.name = lot._prepare_name()
                 continue
             lot.name = (
                 lot.product_id.lot_sequence_id.next_by_id()
@@ -295,27 +285,12 @@ class StockLot(models.Model):
 
     @api.model
     def _get_lot_name_placeholders(self) -> dict[str, str]:
-        """Placeholders a lot name format may use, mapped to their regex.
-
-        The date ones come from `ir.sequence`, so a format written here means the
-        same thing it would as a sequence prefix. `ref` is this model's own: the
-        manufacturer's lot number, which is captured rather than generated.
-
-        Override to add placeholders filled in `_get_lot_name_values`.
-        """
         return dict(
             self.env["ir.sequence"]._get_pattern_placeholders(),
             ref=r".+?",
         )
 
     def _get_lot_name_values(self) -> dict:
-        """Values to interpolate into the product's lot name format.
-
-        Dates are taken at composition time, the same instant a sequence would
-        have used. `ref` falls back to the product's sequence: a lot with no
-        manufacturer reference still needs the slot filled, or names would
-        collide between two lots of one product on the same day.
-        """
         self.ensure_one()
         now = fields.Datetime.context_timestamp(self, fields.Datetime.now())
         formats = self.env["ir.sequence"]._get_interpolation_formats()
@@ -327,19 +302,11 @@ class StockLot(models.Model):
         )
         return values
 
-    def _compose_name(self) -> str:
-        """Build this lot's name from the format its product declares."""
+    def _prepare_name(self) -> str:
         self.ensure_one()
         return self.product_id.lot_name_format % self._get_lot_name_values()
 
     def _parse_name(self, name=None):
-        """Take a lot name apart into the components its format declares.
-
-        :return: component name -> matched text, or None when the name does not
-            have the shape the product's format defines (including legacy names
-            written before the format was set)
-        :rtype: dict | None
-        """
         self.ensure_one()
         lot_format = self.product_id.lot_name_format
         name = self.name if name is None else name
@@ -364,18 +331,13 @@ class StockLot(models.Model):
 
     @api.depends("name")
     def _compute_display_complete(self):
-        """Whether to display all fields on the lot form: true once the record is saved
-        (`id` set) or if forced via the `display_complete` context key.
-        Depends on `name` only because it always has a default value and is thus always
-        recomputed on creation.
-        """
         for prod_lot in self:
             prod_lot.display_complete = prod_lot.id or self.env.context.get(
                 "display_complete"
             )
 
     @api.depends("quant_ids", "quant_ids.quantity")
-    def _compute_single_location(self):
+    def _compute_location_id(self):
         for lot in self:
             quants = lot.quant_ids.filtered(
                 lambda q: q.product_uom_id.compare(q.quantity, 0) > 0
@@ -436,11 +398,6 @@ class StockLot(models.Model):
         return [("id", "in", ids)]
 
     def _search_partner_ids(self, operator, value):
-        """returns partner_ids that are directly delivered the product of the lot/SN, i.e. not
-        lots/SNs that are consumed within a MO. This means this search is NOT symmetric with the
-        partner_ids field within the form view since it uses different logic that isn't efficient
-        enough for this search due to it being usable within the list view.
-        """
         if operator in Domain.NEGATIVE_OPERATORS or not isinstance(value, (Iterable)):
             return NotImplemented
         is_no_partner = operator == "in" and list(value) == [False]
@@ -499,7 +456,6 @@ class StockLot(models.Model):
 
     @api.model
     def generate_lot_names(self, first_lot, count):
-        """Generate `lot_names` from a string."""
         caught_initial_number = re.findall(r"\d+", first_lot)
         if not caught_initial_number:
             return self.generate_lot_names(first_lot + "0", count)
@@ -520,7 +476,6 @@ class StockLot(models.Model):
 
     @api.model
     def _get_next_serial(self, company, product):
-        """Return the next serial number to be attributed to the product."""
         if product.tracking != "none":
             last_serial = self.search(
                 [
@@ -537,25 +492,9 @@ class StockLot(models.Model):
         return False
 
     def _get_partners_from_deliveries(self, pickings):
-        """Partners to expose on `partner_ids` for the given delivery pickings
-        (already sorted most-recent first). Overridable so modules can remap the
-        picking->partner relation (e.g. dropshipping uses the sale's shipping
-        address)."""
         return pickings.partner_id
 
     def _get_product_qty_by_lot(self, lot_domain):
-        """Aggregate the on-hand quantity per lot, honouring the same
-        location/owner/package/to_date context as the ``product_qty`` field.
-
-        ``lot_domain`` scopes which lots are aggregated: ``('lot_id', 'in', ids)`` for
-        the compute, ``('lot_id', '!=', False)`` for the search. Both go through this
-        single method so the field and its search stay in lockstep; they previously
-        used different domains, so a lot in transit (or narrowed by a
-        ``location``/``warehouse_id`` context) could read 0 yet still match
-        ``product_qty > 0`` in a search, and vice versa.
-
-        :return: dict mapping each in-scope ``stock.lot`` record to its quantity.
-        """
         domain_quant_loc, domain_move_in_loc, domain_move_out_loc = (
             self.env["product.product"]
             .with_context(skip_in_progress=True)
@@ -619,17 +558,7 @@ class StockLot(models.Model):
             ("produce_line_ids", "!=", False),
         ]
 
-    def _find_delivery_ids_by_lot(self):
-        """Retrieve all delivery IDs (outgoing picking) linked to the lots in self
-        and to any lot found while walking their produce lines.
-
-        The walk is iterative (BFS down the produce-line graph, then an upward
-        fixpoint propagation of pickings) so it terminates cleanly on shared or
-        cyclic produce-line graphs and issues one query per graph level.
-
-        :return: dict mapping each lot ID in self to a list of 'stock.picking' IDs.
-        """
-
+    def _get_delivery_ids_by_lot(self):
         all_lot_ids = set(self.ids)
         barren_lines = defaultdict(set)
         parent_map = defaultdict(set)
@@ -681,11 +610,6 @@ class StockLot(models.Model):
 
     @api.model
     def _get_accessible_location_domain(self):
-        """Domain leaves keeping lots that are unlocated or in an allowed company.
-
-        Shared by the product and variant "Lot/Serial Numbers" actions so the two
-        cannot drift apart.
-        """
         return [
             "|",
             ("location_id", "=", False),

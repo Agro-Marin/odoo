@@ -35,11 +35,11 @@ class SaleOrder(models.Model):
             if len(self) == 1:
                 return self.env['ir.actions.act_window'].with_context(
                     default_sale_order_id=so.id
-                )._for_xml_id('event_sale.action_sale_order_event_registration')
+                )._get_action_dict_by_xml_id('event_sale.action_sale_order_event_registration')
         return res
 
     def action_view_attendee_list(self):
-        action = self.env["ir.actions.actions"]._for_xml_id("event.event_registration_action_tree")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("event.event_registration_action_tree")
         action['domain'] = [('sale_order_id', 'in', self.ids)]
         return action
 

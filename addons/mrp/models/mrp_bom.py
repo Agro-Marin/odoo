@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from collections import defaultdict
 from itertools import starmap
 
@@ -13,8 +11,6 @@ from odoo.tools.misc import OrderedSet, clean_context
 
 
 class MrpBom(models.Model):
-    """Defines bills of material for a product or a product template"""
-
     _name = "mrp.bom"
     _description = "Bill of Material"
     _inherit = ["mixin.mail.thread", "mixin.product.catalog"]
@@ -23,7 +19,7 @@ class MrpBom(models.Model):
     _order = "sequence, id"
     _check_company_auto = True
 
-    def _get_default_product_uom_id(self):
+    def _default_product_uom_id(self):
         return self.env["uom.uom"].search([], limit=1, order="id").id
 
     code = fields.Char("Reference")
@@ -64,7 +60,7 @@ class MrpBom(models.Model):
     product_uom_id = fields.Many2one(
         "uom.uom",
         "Unit",
-        default=_get_default_product_uom_id,
+        default=_default_product_uom_id,
         required=True,
         help="Unit of Measure (Unit of Measure) is the unit of measurement for the inventory control",
     )
@@ -72,9 +68,7 @@ class MrpBom(models.Model):
     operation_ids = fields.One2many(
         "mrp.routing.workcenter", "bom_id", "Operations", copy=True
     )
-    operation_count = fields.Integer(
-        "Operations Count", compute="_compute_operation_count"
-    )
+    operation_count = fields.Count("operation_ids", "Operations Count")
     show_copy_operations_button = fields.Boolean(
         compute="_compute_show_copy_operations_button",
         help="Technical field used to control the visibility of the 'Copy Existing Operations' button.",
@@ -158,12 +152,6 @@ class MrpBom(models.Model):
             bom.possible_product_template_attribute_value_ids = bom.product_tmpl_id.valid_product_template_attribute_line_ids.product_template_value_ids._only_active()
 
     def _reset_variant_data(self):
-        """Clear every "Apply on Variants" restriction, warning if any existed.
-
-        Shared by the two onchanges that change which product a BoM describes:
-        the restrictions name attribute values of the *old* product and mean
-        nothing once it changes.
-        """
         self.ensure_one()
         had_variant_data = (
             self.bom_line_ids.bom_product_template_attribute_value_ids
@@ -192,18 +180,6 @@ class MrpBom(models.Model):
 
     @api.constrains("product_uom_id", "product_tmpl_id", "product_id")
     def _check_product_uom_id_category(self):
-        """A BoM must be quantified in a unit that measures its own product.
-
-        `product_qty` is expressed in `product_uom_id` while the product it
-        produces is measured in `product_tmpl_id.uom_id`; every explosion,
-        report and cost roll-up converts between the two. Nothing else pins
-        them together: `create` aligns the unit only when it is *not* given
-        (see the override below), the field carries no domain, and a
-        cross-category value silently turned every such conversion into a
-        scale by the ratio of two unrelated factors -- e.g. a subcontracted
-        BoM stated in kg for a product sold in Units wrote a `standard_price`
-        off by 1000 (`mrp_subcontracting_account._compute_bom_price`).
-        """
         for bom in self:
             product_uom = bom.product_tmpl_id.uom_id
             if (
@@ -227,12 +203,6 @@ class MrpBom(models.Model):
         subcomponents_dict = {}
 
         def _check_cycle(components, finished_products):
-            """Raise if the components are part of the finished products (-> cycle).
-
-            Components that have a BoM are recursed into with their subcomponents.
-
-            :raises ValidationError: naming the product variants forming the cycle
-            """
             products_to_find = self.env["product.product"]
 
             for component in components:
@@ -374,7 +344,6 @@ class MrpBom(models.Model):
     def onchange_product_tmpl_id(self):
         if self.product_tmpl_id:
             default_uom_id = self.env.context.get("default_product_uom_id")
-            # Avoids updating the BoM's UoM in case a specific UoM was passed through as a default value.
             if self.product_uom_id.id != default_uom_id:
                 self.product_uom_id = self.product_tmpl_id.uom_id.id
             if self.product_id.product_tmpl_id != self.product_tmpl_id:
@@ -387,7 +356,7 @@ class MrpBom(models.Model):
             number_of_bom_of_this_product = self.env["mrp.bom"].search_count(domain)
             if (
                 number_of_bom_of_this_product
-            ):  # add a reference to the bom if there is already a bom for this product
+            ):
                 self.code = _(
                     "%(product_name)s (new) %(number_of_boms)s",
                     product_name=self.product_tmpl_id.name,
@@ -400,34 +369,22 @@ class MrpBom(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         for values in vals_list:
-            # Keep the BoM UoM in the same category as its product when it isn't
-            # given explicitly (mirrors mrp.bom.line.create). The field default is
-            # the first uom.uom ("Units"), so a BoM created in code for a product
-            # measured in e.g. m² would otherwise keep "Units" and every UoM
-            # conversion in the BoM/MO reports and explode() would raise.
             if values.get("product_tmpl_id") and "product_uom_id" not in values:
                 values["product_uom_id"] = (
                     self.env["product.template"]
                     .browse(values["product_tmpl_id"])
                     .uom_id.id
                 )
-        # The lines created alongside the BoM are its initial content, not
-        # components somebody added to an existing BoM, so they stay out of a
-        # chatter that has nothing above them yet.
         res = super(MrpBom, self.with_context(skip_bom_component_chatter=True)).create(
             vals_list
         )
-        # Checks if the BoM was created from a Manufacturing Order (through Generate BoM action).
         parent_production_id = self.env.context.get("parent_production_id")
         if (
             parent_production_id
-        ):  # In this case, assign the newly created BoM to the MO.
-            # Clean context to avoid parasitic default values.
+        ):
             env = self.env(context=clean_context(self.env.context))
             production = env["mrp.production"].browse(parent_production_id)
             production._link_bom(res[0])
-        # Hand the records back in the caller's environment: the mute above is an
-        # implementation detail of building the BoM, not a property of the result.
         return res.with_env(self.env)
 
     def write(self, vals):
@@ -446,9 +403,6 @@ class MrpBom(models.Model):
         return res
 
     def copy(self, default=None):
-        # Same reasoning as `create`, plus the operation remapping below, which
-        # rewrites `operation_id` on every copied line -- that is this method
-        # finishing the duplicate, not somebody re-assigning operations by hand.
         new_boms = super(
             MrpBom, self.with_context(skip_bom_component_chatter=True)
         ).copy(default)
@@ -483,7 +437,6 @@ class MrpBom(models.Model):
 
     @api.model
     def name_create(self, name):
-        # prevent to use string as product_tmpl_id
         if isinstance(name, str):
             key = "default_" + self._rec_name
             if key in self.env.context:
@@ -509,14 +462,7 @@ class MrpBom(models.Model):
                 bom.product_qty > 1 or bom.product_uom_id != bom.product_tmpl_id.uom_id
             ):
                 display_name += f" ({bom.product_qty} {bom.product_uom_id.name})"
-            # Not wrapped in `_()`: the msgid would be a bare placeholder, which
-            # gives translators nothing to translate and exports a useless entry.
             bom.display_name = display_name
-
-    @api.depends("operation_ids")
-    def _compute_operation_count(self):
-        for bom in self:
-            bom.operation_count = len(bom.operation_ids)
 
     def _compute_show_copy_operations_button(self):
         exist_operation = bool(
@@ -617,12 +563,6 @@ class MrpBom(models.Model):
 
     @api.model
     def _bom_find(self, products, picking_type=None, company_id=False, bom_type=False):
-        """Find the first BoM for each products
-
-        :param products: `product.product` recordset
-        :return: One bom (or empty recordset `mrp.bom` if none find) by product (`product.product` record)
-        :rtype: defaultdict(`lambda: self.env['mrp.bom']`)
-        """
         bom_by_product = defaultdict(lambda: self.env["mrp.bom"])
         products = products.filtered(lambda p: p.type != "service")
         if not products:
@@ -634,7 +574,6 @@ class MrpBom(models.Model):
             bom_type=bom_type,
         )
 
-        # Performance optimization, allow usage of limit and avoid the for loop `bom.product_tmpl_id.product_variant_ids`
         if len(products) == 1:
             bom = self.search(domain, order="sequence, product_id, id", limit=1)
             if bom:
@@ -666,13 +605,6 @@ class MrpBom(models.Model):
     def explode(
         self, product, quantity, picking_type=False, never_attribute_values=False
     ):
-        """Explode the BoM, expanding phantom (kit) sub-BoMs recursively.
-
-        :param quantity: the number of times the BoM is needed, i.e. the quantity
-            divided by the number the BoM creates and converted into its UoM
-        :return: (boms_done, lines_done), each a list of (record, values) tuples
-        :rtype: tuple(list, list)
-        """
         self = self.with_context(
             bom_cost_share_cache=self.env.context.get("bom_cost_share_cache") or {}
         )
@@ -689,7 +621,6 @@ class MrpBom(models.Model):
                     bom_type="phantom",
                 )
             )
-            # Set missing keys to default value
             for prod in products:
                 product_boms.setdefault(prod, self.env["mrp.bom"])
 
@@ -706,11 +637,6 @@ class MrpBom(models.Model):
         bom_lines = []
         for bom_line in self.bom_line_ids:
             product_id = bom_line.product_id
-            # The 5th tuple element is the runtime cycle guard: the products whose phantom
-            # BoM was already expanded on the path to this line (seeded with the finished
-            # product). _check_bom_cycle resolves BoMs without the phantom/company/
-            # picking_type parameters explode() uses, so a phantom-only cycle slips past
-            # it and would loop here forever.
             bom_lines.append(
                 (bom_line, product, quantity, False, frozenset((product.id,)))
             )
@@ -769,8 +695,6 @@ class MrpBom(models.Model):
                     )
                 )
             else:
-                # We round up here because the user expects that if he has to consume a little more, the whole UOM unit
-                # should be consumed.
                 line_quantity = current_line.product_uom_id.round(
                     line_quantity, rounding_method="UP"
                 )
@@ -806,7 +730,6 @@ class MrpBom(models.Model):
     def _set_outdated_bom_in_productions(self):
         if not self:
             return
-        # Searches for MOs using these BoMs to notify them that their BoM has been updated.
         list_of_domain_by_bom = []
         list_of_domain_by_bom_to_unmark = []
         for bom in self:
@@ -819,7 +742,6 @@ class MrpBom(models.Model):
             domain_for_confirmed_mo = (
                 Domain("state", "=", "confirmed") & domain_by_products
             )
-            # Avoid confirmed MOs if the BoM's product was changed.
             domain_by_states = Domain("state", "=", "draft") | domain_for_confirmed_mo
             list_of_domain_by_bom.append(
                 Domain("bom_id", "=", bom.id) & domain_by_states
@@ -829,7 +751,6 @@ class MrpBom(models.Model):
         )
         if productions:
             productions.is_outdated_bom = True
-        # Manually sets the MO's bom to not outdated if product or its variant is changed.
         if not self.env.context.get("skip_bom_outdated_unmark"):
             for bom in self:
                 template_domain = [
@@ -849,9 +770,6 @@ class MrpBom(models.Model):
                     Domain.OR(list_of_domain_by_bom_to_unmark)
                 ).write({"is_outdated_bom": False})
 
-    # -------------------------------------------------------------------------
-    # CATALOG
-    # -------------------------------------------------------------------------
 
     def _get_action_add_from_catalog_extra_context(self):
         return {
@@ -911,9 +829,6 @@ class MrpBom(models.Model):
 
         return self.env["product.product"].browse(product_id).standard_price
 
-    # -------------------------------------------------------------------------
-    # DOCUMENT
-    # -------------------------------------------------------------------------
 
     def _get_mail_thread_data_attachments(self):
         res = super()._get_mail_thread_data_attachments()
@@ -947,53 +862,37 @@ class MrpBom(models.Model):
     def _skip_for_no_variant(
         self, product, bom_attribule_values, never_attribute_values=False
     ):
-        """Controls if a Component/Operation/Byproduct line should be skipped based on
-        the 'no_variant' attributes.
-
-        A 'no_variant' attribute on the line needs at least one value in common with
-        `never_attribute_values`; 'always' and 'dynamic' ones go through
-        `product._match_all_variant_values`. The branches below take the cases in turn.
-        """
         no_variant_bom_attributes = bom_attribule_values.filtered(
             lambda av: av.attribute_id.create_variant == "no_variant"
         )
 
-        # Attributes create_variant 'always' and 'dynamic'
         other_attribute_valid = product._match_all_variant_values(
             bom_attribule_values - no_variant_bom_attributes
         )
 
-        # If there are no never attribute values on the line => 'always' and 'dynamic'
         if not no_variant_bom_attributes:
             return not other_attribute_valid
 
-        # Or if the line has no_variant attributes but no value is passed => cannot match
         if not never_attribute_values:
             return True
 
         bom_values_by_attribute = no_variant_bom_attributes.grouped("attribute_id")
         never_values_by_attribute = never_attribute_values.grouped("attribute_id")
 
-        # Or if there is no overlap between the given values' attributes and the BoM's
         if not any(
             never_att_id in no_variant_bom_attributes.attribute_id.ids
             for never_att_id in never_attribute_values.attribute_id.ids
         ):
             return True
 
-        # Check that at least one variant attribute is correct
         for attribute, values in bom_values_by_attribute.items():
             if never_values_by_attribute.get(attribute) and any(
                 val.id in never_values_by_attribute[attribute].ids for val in values
             ):
                 return not other_attribute_valid
 
-        # None were found, so we skip the line
         return True
 
-    # -------------------------------------------------------------------------
-    # REPLENISHMENT WIZARD
-    # -------------------------------------------------------------------------
 
     def _compute_show_set_bom_button(self):
         self.show_set_bom_button = True
@@ -1063,7 +962,7 @@ class MrpBomLine(models.Model):
     _description = "Bill of Material Line"
     _check_company_auto = True
 
-    def _get_default_product_uom_id(self):
+    def _default_product_uom_id(self):
         return self.env["uom.uom"].search([], limit=1, order="id").id
 
     product_id = fields.Many2one(
@@ -1083,7 +982,7 @@ class MrpBomLine(models.Model):
         "Quantity", default=1.0, digits="Product Unit", required=True
     )
     product_uom_id = fields.Many2one(
-        "uom.uom", "Unit", default=_get_default_product_uom_id, required=True
+        "uom.uom", "Unit", default=_default_product_uom_id, required=True
     )
     sequence = fields.Integer(
         "Sequence", default=1, help="Gives the sequence order when displaying."
@@ -1144,8 +1043,6 @@ class MrpBomLine(models.Model):
 
     @api.depends("product_id")
     def _compute_attachments_count(self):
-        # Two grouped queries for the whole set. This ran one `search_count` per
-        # line, and every component row of every BoM form reads it.
         counts_by_product = {}
         counts_by_template = {}
         for res_model, counts in (
@@ -1180,19 +1077,11 @@ class MrpBomLine(models.Model):
 
     @api.depends("child_bom_id")
     def _compute_child_line_ids(self):
-        """Set the child BoM's lines on the line, when it refers to a BoM."""
         for line in self:
             line.child_line_ids = line.child_bom_id.bom_line_ids.ids or False
 
     @api.constrains("product_uom_id", "product_id")
     def _check_product_uom_id_category(self):
-        """A component line must be quantified in a unit measuring its component.
-
-        Same reasoning as `mrp.bom._check_product_uom_id_category`: `create`
-        and the onchange below align the unit only when it is not supplied, so
-        an explicit cross-category value reached `explode()` and the cost
-        roll-up unchecked.
-        """
         for line in self:
             component_uom = line.product_id.uom_id
             if (
@@ -1227,10 +1116,6 @@ class MrpBomLine(models.Model):
         lines._post_components_note(self.env._("Components added:"))
         return lines
 
-    # Component changes worth an entry in the parent BoM chatter. `sequence` is
-    # deliberately out: reordering the components rewrites it on every line at once
-    # and would bury the real edits. So are the stored related fields
-    # (`product_tmpl_id`, `company_id`), which the ORM rewrites by itself.
     CHATTER_TRACKED_FIELDS = (
         "product_id",
         "product_qty",
@@ -1244,9 +1129,6 @@ class MrpBomLine(models.Model):
         if not tracked or self._chatter_is_muted():
             return super().write(vals)
 
-        # Snapshot before the write, since the whole point is the old value. The
-        # component name is captured apart from the tracked values: it heads the
-        # chatter entry even when `product_id` itself is what changed.
         before = {
             line.id: (line.product_id.display_name, line._get_chatter_values(tracked))
             for line in self
@@ -1284,18 +1166,10 @@ class MrpBomLine(models.Model):
         return result
 
     def unlink(self):
-        # Deleting a whole BoM cascades through `bom_id`'s `ondelete` in SQL, so it
-        # never reaches this override and never posts to a thread on its way out.
         self._post_components_note(self.env._("Components removed:"))
         return super().unlink()
 
     def _post_components_note(self, heading):
-        """Log these components under `heading` in each parent BoM's chatter.
-
-        Shared by the two changes that are about the component itself rather than
-        one of its fields -- being added and being removed -- so both read the
-        same way in the thread.
-        """
         if self._chatter_is_muted():
             return
         for bom, lines in self.grouped("bom_id").items():
@@ -1316,18 +1190,6 @@ class MrpBomLine(models.Model):
             )
 
     def _chatter_is_muted(self):
-        """Whether this write should stay out of the parent BoM's chatter.
-
-        An entry that mimics field tracking has no business ignoring the switches
-        `mail.thread` itself obeys (`mail_thread.py:498`): module loading, imports
-        and `copy_data` already set them, and so does any bulk restamp that is not
-        a user editing a component -- `product.product._update_uom` being the one
-        in `mrp`, which would otherwise post to every BoM holding the product.
-
-        `skip_bom_component_chatter` is this module's own: `mrp.bom.create` and
-        `.copy` set it while they build a BoM, so the lines they bring into
-        existence are not announced as components added to it afterwards.
-        """
         return bool(
             self.env.context.get("tracking_disable")
             or self.env.context.get("mail_notrack")
@@ -1335,36 +1197,27 @@ class MrpBomLine(models.Model):
         )
 
     def _get_chatter_label(self, field_name):
-        """Translated label of a field, as the chatter entry should name it."""
         return self._fields[field_name].get_description(
             self.env, attributes=["string"]
         )["string"]
 
     def _get_chatter_values(self, field_names):
-        """Readable value of `field_names`, keyed by name, for one component line."""
         self.ensure_one()
         return {name: self._get_chatter_value(name) for name in field_names}
 
     def _get_chatter_value(self, field_name):
-        """Render one field the way the chatter should show it, old or new."""
         self.ensure_one()
         field = self._fields[field_name]
         value = self[field_name]
         if field.relational:
             return ", ".join(value.mapped("display_name")) or self.env._("(none)")
         if field.type == "float":
-            # `product_qty` is the only tracked float, and it carries the "Product
-            # Unit" precision -- printing it raw would show its full binary tail.
             return formatLang(self.env, value, dp="Product Unit")
         if field.type == "selection":
             return dict(field._description_selection(self.env)).get(value, value)
         return str(value)
 
     def _skip_bom_line(self, product, never_attribute_values=False):
-        """Control if a BoM line should be produced, can be inherited to add custom control.
-
-        The attribute matching rules live in `mrp.bom._skip_for_no_variant`.
-        """
         self.ensure_one()
         if not product or product._name == "product.template":
             return False
@@ -1423,9 +1276,6 @@ class MrpBomLine(models.Model):
             "search_view_id": self.env.ref("product.view_product_document_search").ids,
         }
 
-    # -------------------------------------------------------------------------
-    # CATALOG
-    # -------------------------------------------------------------------------
 
     def action_add_from_catalog(self):
         bom = self.env["mrp.bom"].browse(self.env.context.get("order_id"))
@@ -1519,19 +1369,13 @@ class MrpBomByproduct(models.Model):
     sequence = fields.Integer("Sequence")
     cost_share = fields.Float(
         "Cost Share (%)",
-        digits=(5, 2),  # decimal = 2 is important for rounding calculations!!
+        digits=(5, 2),
         help="The percentage of the final production cost for this by-product line (divided between the quantity produced)."
         "The total of all by-products' cost share must be less than or equal to 100.",
     )
 
     @api.constrains("product_uom_id", "product_id")
     def _check_product_uom_id_category(self):
-        """A by-product must be quantified in a unit measuring it.
-
-        The compute below is `readonly=False`, so a value written explicitly
-        survives and would otherwise feed `cost_share` allocation and the
-        by-product moves in a unit unrelated to the product.
-        """
         for byproduct in self:
             byproduct_uom = byproduct.product_id.uom_id
             if (
@@ -1552,14 +1396,10 @@ class MrpBomByproduct(models.Model):
 
     @api.depends("product_id")
     def _compute_product_uom_id(self):
-        """Changes UoM if product_id changes."""
         for record in self:
             record.product_uom_id = record.product_id.uom_id.id
 
     def _skip_byproduct_line(self, product, never_attribute_values=False):
-        """Control if a byproduct line should be produced, can be inherited to add
-        custom control.
-        """
         self.ensure_one()
         if not product or product._name == "product.template":
             return False
@@ -1570,9 +1410,6 @@ class MrpBomByproduct(models.Model):
             never_attribute_values,
         )
 
-    # -------------------------------------------------------------------------
-    # CATALOG
-    # -------------------------------------------------------------------------
 
     def action_add_from_catalog(self):
         bom = self.env["mrp.bom"].browse(self.env.context.get("order_id"))

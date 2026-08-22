@@ -1281,16 +1281,21 @@ class TestProductAuditFixes(ProductCommon):
         self.env.flush_all()
         self._warm_caches(template)
 
-        default_before = len(lrus["default"])
+        # Compare the *keys*, not their number. A count is only stable for a
+        # given set of installed modules: the write below legitimately warms a
+        # new "default" entry once enough modules hook it (measured: 10 with
+        # `product` alone, 11 once industry_fsm_sale's dependencies are in), and
+        # this assertion is about eviction, not about growth.
+        default_before = set(lrus["default"])
         variants_before = len(lrus["product_variants"])
         self.assertTrue(default_before, "sanity: 'default' is warm")
         self.assertTrue(variants_before, "sanity: 'product_variants' is warm")
 
         template.product_variant_id.write({"active": False})
 
-        self.assertEqual(
-            len(lrus["default"]),
+        self.assertLessEqual(
             default_before,
+            set(lrus["default"]),
             "archiving a variant must not evict unrelated 'default' caches",
         )
         self.assertEqual(

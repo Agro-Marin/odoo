@@ -1,10 +1,3 @@
-"""Regression tests for the `product.product` quantity/scope audit (2026-08-12).
-
-Each test names the defect it pins. The audit that produced them is
-`agromarin-knowledge/research/2026-08-12-stock-product-product-audit.md`; every case
-here failed before the corresponding fix and none was covered by an existing test.
-"""
-
 import datetime
 
 from odoo import fields
@@ -37,23 +30,12 @@ class TestProductQuantityScope(TransactionCase):
         )._apply_inventory()
 
     def test_boolean_location_context_is_rejected_in_python(self):
-        """A boolean reached the recursive CTE as `id = ANY(true)`.
-
-        `isinstance(True, int)` holds, so the unguarded int test let a boolean into
-        the id set and Postgres answered with
-        `UndefinedFunction: operator does not exist: integer = boolean`.
-        """
         for key in ("location", "warehouse_id", "search_location", "search_warehouse"):
             with self.subTest(context_key=key):
                 with self.assertRaises(ValueError):
                     self.product.with_context(**{key: True}).qty_available
 
     def test_unresolvable_location_context_never_raises_missing_error(self):
-        """Every unresolvable filter must reach the same empty scope.
-
-        A nonexistent id used to be silent on its own but fatal alongside
-        `warehouse_id`, because only that branch dereferenced the browsed record.
-        """
         self._stock_up(self.product, 7)
         self.assertEqual(self.product.qty_available, 7)
         cases = (
@@ -70,7 +52,6 @@ class TestProductQuantityScope(TransactionCase):
                 self.assertEqual(product.qty_available, 0.0)
 
     def test_valid_location_context_still_resolves(self):
-        """The `.exists()` filter must not drop ids that do exist."""
         self._stock_up(self.product, 7)
         for context in (
             {"location": self.stock_location.id},
@@ -83,12 +64,6 @@ class TestProductQuantityScope(TransactionCase):
                 self.assertEqual(product.qty_available, 7.0)
 
     def test_strict_scope_already_skips_in_progress(self):
-        """`skip_in_progress` is a no-op under `strict` by construction.
-
-        The strict branch never introduces the `location_final_id` reasoning that
-        `skip_in_progress` exists to remove, so its default output already equals the
-        shortcut's. Pinned because it reads like a dropped context key.
-        """
         Product = self.env["product.product"]
         location_ids = self.stock_location.ids
         strict = Product.with_context(strict=True)._get_domain_locations_new(
@@ -107,12 +82,6 @@ class TestProductQuantityScope(TransactionCase):
         self.assertNotIn("location_final_id", repr(skipping))
 
     def test_inverse_qty_available_uses_the_products_own_company(self):
-        """The adjustment must land in the product's company, not the active one.
-
-        Resolving the warehouse from `self.env.company` paired a company-B product
-        with company-A's stock location, which the multi-company check rejected with
-        a message blaming the warehouse setup.
-        """
         company_b = self.env["res.company"].create({"name": "Scope Co B"})
         warehouse_b = self.env["stock.warehouse"].search(
             [("company_id", "=", company_b.id)], limit=1
@@ -142,7 +111,6 @@ class TestProductQuantityScope(TransactionCase):
         self.assertEqual(quant.company_id, company_b)
 
     def test_inverse_qty_available_batches_two_companies_at_once(self):
-        """A mixed-company batch resolves one warehouse per company, not per product."""
         company_b = self.env["res.company"].create({"name": "Scope Co B2"})
         warehouse_b = self.env["stock.warehouse"].search(
             [("company_id", "=", company_b.id)], limit=1
@@ -180,7 +148,6 @@ class TestProductQuantityScope(TransactionCase):
             self.product.flush_recordset()
 
     def test_count_moves_is_invalidated_by_a_receipt(self):
-        """`count_moves_in` declared no depends, so it stayed stale in-transaction."""
         self.assertEqual(self.product.count_moves_in, 0)
         supplier = self.env.ref("stock.stock_location_suppliers")
         picking_type = self.env["stock.picking.type"].search(
@@ -240,11 +207,6 @@ class TestProductQuantityScope(TransactionCase):
         self.assertEqual(self.product.reordering_qty_max, 9)
 
     def test_filter_to_unlink_excludes_products_the_database_will_refuse(self):
-        """Quant- and move-bound products drove the savepoint/dichotomy retry path.
-
-        `_unlink_or_archive` recovers, so this is about query count, not correctness:
-        a blocked product turns one statement into a binary search over the batch.
-        """
         with_stock = self.env["product.product"].create(
             {"name": "Scope Stocked", "is_storable": True, "type": "consu"}
         )
@@ -276,7 +238,6 @@ class TestProductQuantityScope(TransactionCase):
             (self.product | other)._get_picking_description(picking_type)
 
     def test_action_view_orderpoints_tolerates_an_empty_context(self):
-        """`literal_eval` raised on an empty context string (SyntaxError)."""
         action = self.env.ref("stock.action_orderpoint")
         for context in ("{'search_default_trigger': 'auto'}", "{}", ""):
             with self.subTest(context=context):
@@ -287,7 +248,6 @@ class TestProductQuantityScope(TransactionCase):
                 self.assertTrue(result["context"]["search_default_filter_not_snoozed"])
 
     def test_prepare_quantities_scope_carries_the_dates_without_reading(self):
-        """The scope phase decides what to read; only `_read_quantities` reads it."""
         location_domains = self.env["product.product"]._get_domain_locations()
         self.env.flush_all()
         past = fields.Datetime.now() - datetime.timedelta(days=5)
@@ -313,11 +273,6 @@ class TestProductQuantityScope(TransactionCase):
         self.assertEqual(scope.move_out_done, Domain.FALSE)
 
     def test_prepare_quantities_scope_honours_the_to_date_parameter_for_expiry(self):
-        """The expiry cutoff follows the parameter, not `context['to_date']`.
-
-        Every other window in the method honours the parameter, so an override that
-        rewrites it -- `purchase_stock` does -- must not be ignored here.
-        """
         context_date = "2020-01-01 00:00:00"
         param_date = fields.Datetime.now() + datetime.timedelta(days=30)
         scope = self.product.with_context(
@@ -344,8 +299,6 @@ class TestProductQuantityScope(TransactionCase):
         self.assertFalse(in_the_past)
 
     def test_prepare_quantities_vals_accepts_preresolved_location_domains(self):
-        """The search path resolves the location triple once and hands it to both
-        `_get_quantity_search_candidates` and `_prepare_quantities_vals`."""
         self._stock_up(self.product, 6)
         Product = self.env["product.product"]
         location_domains = Product._get_domain_locations()
@@ -359,7 +312,6 @@ class TestProductQuantityScope(TransactionCase):
         self.assertIn(self.product, candidates)
 
     def test_quantity_search_resolves_location_domains_once_per_condition(self):
-        """Pins the de-duplication: two resolutions per condition became one."""
         self._stock_up(self.product, 6)
         Product = self.env["product.product"]
         cls = type(Product)
@@ -401,7 +353,6 @@ class TestProductQuantityScope(TransactionCase):
                 resolve("stock.location", [value])
 
     def test_narrow_quantity_domains_leaves_unfiltered_domains_alone(self):
-        """`None` means unfiltered; `False` is a real value selecting "no lot/owner"."""
         product = self.env["product.product"]
         base = (Domain.TRUE, Domain.TRUE, Domain.TRUE)
         untouched = product._narrow_quantity_domains(*base, None, None, None)
@@ -429,17 +380,8 @@ class TestProductQuantityScope(TransactionCase):
             0.0,
         )
 
-    # ------------------------------------------------------------------
-    # 2026-08-13 follow-up audit
-    # ------------------------------------------------------------------
 
     def test_inverse_qty_available_lands_in_the_scoped_warehouse(self):
-        """The write half must honour the scope the compute half reads through.
-
-        `_compute_quantities` narrows by `warehouse_id`, the inverse resolved the
-        company's *first* warehouse regardless, so setting 9 under one warehouse put
-        the stock in another and the scoped value read back 0.
-        """
         warehouse_b = self.env["stock.warehouse"].create(
             {"name": "Scope WH2", "code": "SW2", "company_id": self.env.company.id}
         )
@@ -480,7 +422,6 @@ class TestProductQuantityScope(TransactionCase):
         )
 
     def test_inverse_qty_available_refuses_an_ambiguous_scope(self):
-        """A total over several locations cannot be split by guessing."""
         shelf_a = self.env["stock.location"].create(
             {
                 "name": "Scope Shelf A",
@@ -501,7 +442,6 @@ class TestProductQuantityScope(TransactionCase):
             ).qty_available = 5.0
 
     def test_inverse_qty_available_without_a_scope_still_uses_the_warehouse(self):
-        """No scope keys must keep the per-company warehouse behaviour."""
         self.product.qty_available = 6.0
         self.product.flush_recordset()
         quant = self.env["stock.quant"].search(
@@ -513,11 +453,6 @@ class TestProductQuantityScope(TransactionCase):
         self.assertEqual(quant.location_id, self.warehouse.lot_stock_id)
 
     def test_count_moves_follows_the_move_line_not_the_move(self):
-        """The counter reads `stock.move.line`; its dependency must name that.
-
-        Declaring `stock_move_ids.state` refreshed on validation by coincidence, but
-        backdating a line of an already-done move left the value stale.
-        """
         picking = self.env["stock.picking"].create(
             {
                 "picking_type_id": self.warehouse.in_type_id.id,
@@ -553,7 +488,6 @@ class TestProductQuantityScope(TransactionCase):
         )
 
     def test_template_count_moves_is_invalidated_by_a_receipt(self):
-        """The template counter went stale where the variant's did not."""
         template = self.product.product_tmpl_id
         self.assertEqual(template.count_moves_in, 0)
         picking = self.env["stock.picking"].create(
@@ -588,7 +522,6 @@ class TestProductQuantityScope(TransactionCase):
         )
 
     def test_template_quantity_search_resolves_location_domains_once(self):
-        """The variant path was de-duplicated; the template path was not."""
         self._stock_up(self.product, 6)
         cls = type(self.env["product.product"])
         calls = []
@@ -610,7 +543,6 @@ class TestProductQuantityScope(TransactionCase):
         )
 
     def test_falsy_date_context_keeps_the_quant_only_fast_path(self):
-        """`to_date=False` asks for no cutoff, which the fast path already answers."""
         self._stock_up(self.product, 5)
         cls = type(self.env["product.product"])
         slow_path = []
@@ -633,7 +565,6 @@ class TestProductQuantityScope(TransactionCase):
         self.assertFalse(slow_path, "a falsy date must not abandon the quant-only path")
 
     def test_owners_context_still_takes_the_slow_path_when_empty(self):
-        """An empty `owners` list is a real filter: stock with no owner."""
         self._stock_up(self.product, 5)
         cls = type(self.env["product.product"])
         slow_path = []
@@ -653,7 +584,6 @@ class TestProductQuantityScope(TransactionCase):
         self.assertTrue(slow_path, "an owner filter must still take the full pass")
 
     def test_fields_get_relabels_a_location_given_by_name_or_list(self):
-        """The scope accepts ids, names and lists; the labels must resolve the same."""
         customers = self.env.ref("stock.stock_location_customers")
         Product = self.env["product.product"]
         expected = Product.with_context(location=customers.id).fields_get(
@@ -669,7 +599,6 @@ class TestProductQuantityScope(TransactionCase):
                 )
 
     def test_fields_get_survives_an_unresolvable_location(self):
-        """Labels are cosmetic; a bad context key must not break view loading."""
         Product = self.env["product.product"]
         for value in (True, 99999999, "No Such Location"):
             with self.subTest(location=value):

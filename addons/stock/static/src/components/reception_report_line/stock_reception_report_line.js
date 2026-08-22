@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { useOperationGuard } from "@stock/utils/use_operation_guard";
-import { formatFloat } from "@web/core/formatters";
+import { formatFieldFloat } from "@web/core/formatters";
 import { useService } from "@web/core/utils/hooks";
 
 import { assignMoves, buildLabelAction } from "../reception_report_utils.js";
@@ -20,7 +20,7 @@ export class ReceptionReportLine extends Component {
         this.ormService = useService("orm");
         this.actionService = useService("action");
         this.formatFloat = (val) =>
-            formatFloat(val, { digits: [false, this.props.precision] });
+            formatFieldFloat(val, { digits: [false, this.props.precision] });
         this.opGuard = useOperationGuard();
         this.onClickAssign = this.opGuard.guard(this.onClickAssign.bind(this));
         this.onClickUnassign = this.opGuard.guard(this.onClickUnassign.bind(this));

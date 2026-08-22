@@ -57,7 +57,7 @@ class StockWarehouse(models.Model):
     # ------------------------------------------------------------
 
     def _create_or_update_route(self):
-        purchase_route = self._find_or_create_global_route(
+        purchase_route = self._get_or_create_global_route(
             "purchase_stock.route_warehouse0_buy",
             _("Buy"),
         )
@@ -77,7 +77,7 @@ class StockWarehouse(models.Model):
                         "action": "buy",
                         "picking_type_id": self.in_type_id.id,
                         "company_id": self.company_id.id,
-                        "route_id": self._find_or_create_global_route(
+                        "route_id": self._get_or_create_global_route(
                             "purchase_stock.route_warehouse0_buy",
                             _("Buy"),
                         ).id,

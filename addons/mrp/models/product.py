@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import collections
 from datetime import timedelta
 
@@ -31,9 +29,6 @@ class ProductTemplate(models.Model):
     is_kits = fields.Boolean(compute="_compute_is_kits", search="_search_is_kits")
 
     def _compute_bom_count(self):
-        # Two grouped queries instead of one `search_count` per template. A BoM
-        # reached both ways -- it produces the template and lists it as a
-        # by-product -- must still count once, hence the set union.
         bom_ids_by_template = collections.defaultdict(set)
         for template, bom_ids in self.env["mrp.bom"]._read_group(
             [("product_tmpl_id", "in", self.ids)],
@@ -95,8 +90,6 @@ class ProductTemplate(models.Model):
         return super()._should_open_product_quants() or self.is_kits
 
     def _compute_used_in_bom_count(self):
-        # One grouped query instead of one `search_count` per template. Distinct
-        # BoMs, since a BoM may list the same product on several lines.
         counts = {
             template.id: count
             for template, count in self.env["mrp.bom.line"]._read_group(
@@ -117,7 +110,7 @@ class ProductTemplate(models.Model):
 
     def action_used_in_bom(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id("mrp.mrp_bom_form_action")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("mrp.mrp_bom_form_action")
         action["domain"] = [("bom_line_ids.product_tmpl_id", "=", self.id)]
         return action
 
@@ -128,7 +121,7 @@ class ProductTemplate(models.Model):
             )
 
     def action_view_mos(self):
-        action = self.env["ir.actions.actions"]._for_xml_id("mrp.mrp_production_action")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("mrp.mrp_production_action")
         action["domain"] = [
             ("state", "=", "done"),
             (
@@ -169,7 +162,7 @@ class ProductTemplate(models.Model):
                         filtered_products,
                     ),
                     "type": "warning",
-                    "sticky": True,  # True/False will display for few seconds if false
+                    "sticky": True,
                     "next": {"type": "ir.actions.act_window_close"},
                 },
             }
@@ -200,23 +193,17 @@ class ProductProduct(models.Model):
     )
     is_kits = fields.Boolean(compute="_compute_is_kits", search="_search_is_kits")
 
-    # Catalog related fields
     product_catalog_product_is_in_bom = fields.Boolean(
         compute="_compute_product_is_in_bom_and_mo",
-        search="_search_product_is_in_bom",
+        search="_search_product_catalog_product_is_in_bom",
     )
 
     product_catalog_product_is_in_mo = fields.Boolean(
         compute="_compute_product_is_in_bom_and_mo",
-        search="_search_product_is_in_mo",
+        search="_search_product_catalog_product_is_in_mo",
     )
 
     def _compute_bom_count(self):
-        # Three grouped queries instead of one `search_count` per variant --
-        # the same treatment `product.template` already had, which this half of
-        # the pair was left out of. A BoM reachable by more than one route
-        # (variant BoM, template BoM, by-product) must still count once, hence
-        # the set union.
         bom_ids_by_product = collections.defaultdict(set)
         bom_ids_by_template = collections.defaultdict(set)
         Bom = self.env["mrp.bom"]
@@ -316,8 +303,6 @@ class ProductProduct(models.Model):
                 product.show_forecasted_qty_status_button = False
 
     def _compute_used_in_bom_count(self):
-        # One grouped query instead of one `search_count` per variant. Distinct
-        # BoMs, since a BoM may list the same component on several lines.
         counts = {
             product.id: count
             for product, count in self.env["mrp.bom.line"]._read_group(
@@ -331,11 +316,10 @@ class ProductProduct(models.Model):
 
     @api.depends_context("order_id")
     def _compute_product_is_in_bom_and_mo(self):
-        # Just to enable the _search method
         self.product_catalog_product_is_in_bom = False
         self.product_catalog_product_is_in_mo = False
 
-    def _search_product_is_in_bom(self, operator, value):
+    def _search_product_catalog_product_is_in_bom(self, operator, value):
         if operator != "in":
             return NotImplemented
         product_ids = (
@@ -349,7 +333,7 @@ class ProductProduct(models.Model):
         )
         return [("id", operator, product_ids)]
 
-    def _search_product_is_in_mo(self, operator, value):
+    def _search_product_catalog_product_is_in_mo(self, operator, value):
         if operator != "in":
             return NotImplemented
         product_ids = (
@@ -380,7 +364,6 @@ class ProductProduct(models.Model):
         return routes
 
     def _get_components(self):
-        """The storable components of a kit; the product itself otherwise."""
         self.ensure_one()
         bom_kit = self.env["mrp.bom"]._bom_find(self, bom_type="phantom")[self]
         if not bom_kit:
@@ -396,7 +379,7 @@ class ProductProduct(models.Model):
 
     def action_used_in_bom(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id("mrp.mrp_bom_form_action")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("mrp.mrp_bom_form_action")
         action["domain"] = [("bom_line_ids.product_id", "=", self.id)]
         return action
 
@@ -436,16 +419,6 @@ class ProductProduct(models.Model):
         to_date=False,
         location_domains=None,
     ):
-        """When the product is a kit, this override computes the fields :
-         - 'qty_available_virtual'
-         - 'qty_available'
-         - 'qty_incoming'
-         - 'qty_outgoing'
-         - 'qty_free'
-
-        This override is used to get the correct quantities of products
-        with 'phantom' as BoM type.
-        """
         bom_kits = self.env["mrp.bom"]._bom_find(self, bom_type="phantom")
         kits = self.filtered(bom_kits.get)
         regular_products = self - kits
@@ -463,7 +436,6 @@ class ProductProduct(models.Model):
         )
         qties = self.env.context.get("mrp_compute_quantities", {})
         qties.update(res)
-        # pre-compute bom lines and identify missing kit components to prefetch
         bom_sub_lines_per_kit = {}
         prefetch_component_ids = set()
         for product in bom_kits:
@@ -472,10 +444,8 @@ class ProductProduct(models.Model):
             for bom_line, __ in bom_sub_lines:
                 if bom_line.product_id.id not in qties:
                     prefetch_component_ids.add(bom_line.product_id.id)
-        # compute kit quantities
         for product in bom_kits:
             bom_sub_lines = bom_sub_lines_per_kit[product]
-            # group lines by component
             bom_sub_lines_grouped = collections.defaultdict(list)
             for info in bom_sub_lines:
                 bom_sub_lines_grouped[info[0].product_id].append(info)
@@ -494,9 +464,6 @@ class ProductProduct(models.Model):
                     if not component.is_storable or bom_line.product_uom_id.is_zero(
                         bom_line_data["qty"]
                     ):
-                        # BoMs allow components with 0 qty (optional ones): skip them to
-                        # avoid a division by zero. Non-storable products are skipped for
-                        # the same reason, their available qty being 0.
                         continue
                     uom_qty_per_kit = (
                         bom_line_data["qty"] / bom_line_data["original_qty"]
@@ -554,11 +521,8 @@ class ProductProduct(models.Model):
                 )
             if (
                 bom_sub_lines and ratios_virtual_available
-            ):  # Guard against an all-consumable bom: at least one ratio must be present.
+            ):
                 res[product.id] = {
-                    # Round in the KIT's own UoM (not the last-iterated `component`) and
-                    # DOWN before flooring to whole kits: rounding a fractional shortfall
-                    # up would over-report the number of buildable kits.
                     "qty_available_virtual": product.uom_id.round(
                         min(ratios_virtual_available) * bom_kits[product].product_qty,
                         rounding_method="DOWN",
@@ -597,9 +561,8 @@ class ProductProduct(models.Model):
         return res
 
     def action_view_bom(self):
-        action = self.env["ir.actions.actions"]._for_xml_id("mrp.product_open_bom")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("mrp.product_open_bom")
         template_ids = self.mapped("product_tmpl_id").ids
-        # bom specific to this variant or global to template or that contains the product as a byproduct
         action["context"] = {
             "default_product_tmpl_id": template_ids[0],
             "default_product_id": (
@@ -648,17 +611,7 @@ class ProductProduct(models.Model):
         return res
 
     def _match_all_variant_values(self, product_template_attribute_value_ids):
-        """It currently checks that all variant values (`product_template_attribute_value_ids`)
-        are in the product (`self`).
-
-        If multiple values are encoded for the same attribute line, only one of
-        them has to be found on the variant.
-        """
         self.ensure_one()
-        # The intersection of the values of the product and those of the line satisfy:
-        # * the number of items equals the number of attributes (since a product cannot
-        #   have multiple values for the same attribute),
-        # * the attributes are a subset of the attributes of the line.
         return len(
             self.product_template_attribute_value_ids
             & product_template_attribute_value_ids
@@ -675,20 +628,12 @@ class ProductProduct(models.Model):
         return super()._count_returned_sn_products_domain(sn_lot, or_domains)
 
     def _get_phantom_bom_products(self):
-        """Products manufactured as a kit (phantom BoM). Their quantity is derived from
-        their components, so quantity searches must consider them explicitly.
-
-        Scoped to the environment's companies: an unscoped search handed back
-        kits the caller cannot even read, and every one of them costs a full kit
-        explosion downstream in `_search_qty_available_new`.
-        """
         kit_boms = self.env["mrp.bom"].search(
             [
                 ("type", "=", "phantom"),
                 ("company_id", "in", [False, *self.env.companies.ids]),
             ]
         )
-        # `product_variant_ids` in one prefetch rather than one read per BoM.
         return (
             kit_boms.product_id
             | (
@@ -697,8 +642,6 @@ class ProductProduct(models.Model):
         )
 
     def _get_quantity_search_candidates(self, location_domains=None):
-        # Kits can have a non-zero quantity without any quants/moves of their own (it comes
-        # from their components), so they must be added to the candidate set.
         return (
             super()._get_quantity_search_candidates(location_domains=location_domains)
             | self._get_phantom_bom_products()
@@ -707,7 +650,6 @@ class ProductProduct(models.Model):
     def _search_qty_available_new(
         self, operator, value, lot_id=False, owner_id=False, package_id=False
     ):
-        """extending the method in stock's product.product to take into account kits"""
         op = PY_OPERATORS.get(operator)
         if not op:
             return NotImplemented
@@ -717,19 +659,11 @@ class ProductProduct(models.Model):
         kits = self._get_phantom_bom_products()
         if not kits:
             return product_ids
-        # A kit's quantity is derived from its components, so it has to be
-        # evaluated in Python -- but once for the whole set. Reading
-        # `qty_available` off each record in turn made every kit its own
-        # explosion and its own round trip; one `mapped` lets the ORM batch the
-        # component reads behind them.
         matching, not_matching = set(), set()
         for product, qty_available in zip(
             kits, kits.mapped("qty_available"), strict=True
         ):
             (matching if op(qty_available, value) else not_matching).add(product.id)
-        # A set from the start: this rebuilt a list with `pop(index(...))`, which
-        # is quadratic, and then `list(set(...))` threw away super()'s ordering
-        # anyway.
         return list((set(product_ids) - not_matching) | matching)
 
     def action_archive(self):
@@ -750,7 +684,7 @@ class ProductProduct(models.Model):
                         filtered_products,
                     ),
                     "type": "warning",
-                    "sticky": True,  # True/False will display for few seconds if false
+                    "sticky": True,
                     "next": {"type": "ir.actions.act_window_close"},
                 },
             }
@@ -762,9 +696,6 @@ class ProductProduct(models.Model):
         ]
 
     def _update_uom(self, to_uom_id):
-        # mrp.bom, mrp.bom.line and mrp.production carried three copies of the
-        # same fifteen lines, differing only in the model, what identifies the
-        # product on it, and the domain that selects its rows.
         for model, product_field, domain in (
             (
                 "mrp.bom",
@@ -793,13 +724,6 @@ class ProductProduct(models.Model):
                         )
                     )
                 if model == "mrp.bom.line":
-                    # Restamping the unit is a rename of the unit, not somebody
-                    # editing these BoMs: without `mail_notrack` every BoM holding
-                    # the product collects a "components updated" note from a
-                    # change made on the product form
-                    # (`mrp.bom.line._chatter_is_muted`). Scoped to the lines
-                    # rather than set for all three models, so it cannot silence a
-                    # `tracking=True` a later change puts on the other two.
                     records = records.with_context(mail_notrack=True)
                 records.product_uom_id = to_uom_id
 

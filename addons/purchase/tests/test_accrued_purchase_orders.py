@@ -12,10 +12,8 @@ class TestAccruedPurchaseOrders(AccountTestInvoicingCommon):
         super().setUpClass()
         cls.other_currency = cls.setup_other_currency("XAF")
         cls.alt_exp_account = cls.company_data["default_account_expense"].copy()
-        # set 'type' to 'service' to allow manualy set 'qty_delivered' even with purchase_stock installed
         cls.product_a.update({"type": "service", "bill_policy": "transferred"})
         cls.product_b.update({"type": "service", "bill_policy": "transferred"})
-        # analytic distribution
         cls.default_plan = cls.env["account.analytic.plan"].create({"name": "Default"})
         cls.analytic_account_a = cls.env["account.analytic.account"].create(
             {
@@ -86,29 +84,24 @@ class TestAccruedPurchaseOrders(AccountTestInvoicingCommon):
         )
 
     def test_accrued_order(self):
-        # nothing to bill : no entries to be created
         with self.assertRaises(UserError):
             self.wizard.create_entries()
 
-        # 5 qty of each product billeable
         self.purchase_order.line_ids.qty_transferred = 5
         self.assertRecordValues(
             self.env["account.move"]
             .search(self.wizard.create_entries()["domain"])
             .line_ids,
             [
-                # reverse move lines
                 {"account_id": self.account_expense.id, "debit": 0, "credit": 5000},
                 {"account_id": self.alt_exp_account.id, "debit": 0, "credit": 1000},
                 {"account_id": self.account_revenue.id, "debit": 6000, "credit": 0},
-                # move lines
                 {"account_id": self.account_expense.id, "debit": 5000, "credit": 0},
                 {"account_id": self.alt_exp_account.id, "debit": 1000, "credit": 0},
                 {"account_id": self.account_revenue.id, "debit": 0, "credit": 6000},
             ],
         )
 
-        # received products billed, nothing to bill left
         move = self.purchase_order.create_invoice()
         move.invoice_date = "2020-01-01"
         move.action_post()
@@ -117,14 +110,13 @@ class TestAccruedPurchaseOrders(AccountTestInvoicingCommon):
             self.wizard.with_context(accrual_entry_date="2020-01-30").create_entries()
 
     def test_multi_currency_accrued_order(self):
-        # Create a fresh PO to avoid test isolation issues with shared state
         purchase_order = (
             self.env["purchase.order"]
             .with_context(tracking_disable=True)
             .create(
                 {
                     "partner_id": self.partner_a.id,
-                    "currency_id": self.other_currency.id,  # Set currency upfront
+                    "currency_id": self.other_currency.id,
                     "line_ids": [
                         Command.create(
                             {
@@ -152,7 +144,6 @@ class TestAccruedPurchaseOrders(AccountTestInvoicingCommon):
         )
         purchase_order.action_confirm()
 
-        # 5 qty of each product billeable
         purchase_order.line_ids.qty_transferred = 5
 
         wizard = (
@@ -173,7 +164,6 @@ class TestAccruedPurchaseOrders(AccountTestInvoicingCommon):
         self.assertRecordValues(
             moves.line_ids,
             [
-                # reverse move lines
                 {
                     "account_id": self.account_expense.id,
                     "debit": 0,
@@ -192,7 +182,6 @@ class TestAccruedPurchaseOrders(AccountTestInvoicingCommon):
                     "credit": 0,
                     "amount_currency": 0.0,
                 },
-                # move lines
                 {
                     "account_id": self.account_expense.id,
                     "debit": 5000 / 2,
@@ -222,7 +211,6 @@ class TestAccruedPurchaseOrders(AccountTestInvoicingCommon):
             .search(self.wizard.create_entries()["domain"])
             .line_ids,
             [
-                # reverse move lines
                 {
                     "account_id": self.account_expense.id,
                     "debit": 0.0,
@@ -247,7 +235,6 @@ class TestAccruedPurchaseOrders(AccountTestInvoicingCommon):
                         str(self.analytic_account_b.id): 33.33,
                     },
                 },
-                # move lines
                 {
                     "account_id": self.account_expense.id,
                     "debit": 10000.0,
@@ -291,7 +278,6 @@ class TestAccruedPurchaseOrders(AccountTestInvoicingCommon):
             .search(self.wizard.create_entries()["domain"])
             .line_ids,
             [
-                # reverse move lines
                 {
                     "account_id": self.account_expense.id,
                     "debit": 0.0,
@@ -303,7 +289,6 @@ class TestAccruedPurchaseOrders(AccountTestInvoicingCommon):
                     "debit": 5454.54,
                     "credit": 0.0,
                 },
-                # move lines
                 {
                     "account_id": self.account_expense.id,
                     "debit": 4545.45,
@@ -320,7 +305,6 @@ class TestAccruedPurchaseOrders(AccountTestInvoicingCommon):
 
     def test_accrued_order_returned(self):
         self.purchase_order.line_ids.qty_transferred = 10
-        # received products billed, nothing to bill left
         move = self.purchase_order.create_invoice()
         move.invoice_date = "2020-01-01"
         move.action_post()
@@ -337,11 +321,9 @@ class TestAccruedPurchaseOrders(AccountTestInvoicingCommon):
         self.assertRecordValues(
             res,
             [
-                # reverse move lines
                 {"account_id": self.account_expense.id, "debit": 5000.0, "credit": 0.0},
                 {"account_id": self.alt_exp_account.id, "debit": 1000.0, "credit": 0.0},
                 {"account_id": self.account_revenue.id, "debit": 0.0, "credit": 6000.0},
-                # move lines
                 {"account_id": self.account_expense.id, "debit": 0.0, "credit": 5000.0},
                 {"account_id": self.alt_exp_account.id, "debit": 0.0, "credit": 1000.0},
                 {"account_id": self.account_revenue.id, "debit": 6000.0, "credit": 0.0},
@@ -357,7 +339,6 @@ class TestAccruedPurchaseOrders(AccountTestInvoicingCommon):
         self.assertRecordValues(
             res,
             [
-                # reverse move lines
                 {
                     "account_id": self.account_expense.id,
                     "debit": 10000.0,
@@ -369,7 +350,6 @@ class TestAccruedPurchaseOrders(AccountTestInvoicingCommon):
                     "debit": 0.0,
                     "credit": 12000.0,
                 },
-                # move lines
                 {
                     "account_id": self.account_expense.id,
                     "debit": 0.0,
@@ -385,10 +365,6 @@ class TestAccruedPurchaseOrders(AccountTestInvoicingCommon):
         )
 
     def test_error_when_different_currencies_accrued(self):
-        """
-        Tests that if two Purchase Orders with different currencies are selected for Accrued Expense Entry,
-        a UserError is raised.
-        """
         purchase_orders = self.env["purchase.order"].create(
             [
                 {

@@ -11,9 +11,6 @@ class ReportStockReport_Reception(models.AbstractModel):
 
     @api.model
     def get_report_data(self, docids, data):
-        """Entry point for the interactive (OWL) report: same values as
-        `_get_report_values` but with recordsets flattened to JSON-friendly
-        primitives for the RPC payload."""
         report_values = self._get_report_values(docids, data)
         sources_to_lines = report_values.get("sources_to_lines", {})
         report_values["docs"] = self._format_html_docs(report_values.get("docs"))
@@ -31,7 +28,6 @@ class ReportStockReport_Reception(models.AbstractModel):
 
     @api.model
     def _get_report_values(self, docids, data=None):
-        """This report is flexibly designed to work with both individual and batch pickings."""
         docs, reason = self._get_validated_docs(docids)
         if not docs:
             return {"docs": False, "reason": reason}
@@ -58,14 +54,12 @@ class ReportStockReport_Reception(models.AbstractModel):
             "doc_ids": docids,
             "doc_model": self._get_doc_model(),
             "sources_to_lines": sources_to_lines,
-            "precision": self.env["decimal.precision"].precision_get("Product Unit"),
+            "precision": self.env["decimal.precision"].get_precision("Product Unit"),
             "docs": docs,
             "sources_to_formatted_scheduled_date": sources_to_formatted_scheduled_date,
         }
 
     def _get_validated_docs(self, docids):
-        """Return `(docs, reason)`. `docs` is empty (and `reason` set) for the
-        unsupported cases the report cannot render."""
         docs = self._get_docs(docids)
         doc_types = self._get_doc_types()
         if not docs:
@@ -79,13 +73,6 @@ class ReportStockReport_Reception(models.AbstractModel):
         return docs, None
 
     def _classify_incoming_moves(self, moves):
-        """Bucket incoming `moves` by how their quantity should appear in the
-        report:
-
-        * `qty_draft`      product -> qty from draft moves (shown, not assignable)
-        * `qty_to_assign`  product -> FIFO list of `(qty, move)` still to assign
-        * `total_assigned` product -> `[already_assigned_qty, [move ids]]`
-        """
         qty_draft = defaultdict(float)
         qty_to_assign = defaultdict(list)
         total_assigned = defaultdict(lambda: [0.0, []])
@@ -113,8 +100,6 @@ class ReportStockReport_Reception(models.AbstractModel):
         return qty_draft, qty_to_assign, total_assigned
 
     def _search_candidate_outs(self, docs, doc_states, qty_to_assign, qty_draft):
-        """Outgoing moves (not already chained, non-mto, same warehouse) that
-        could consume the incoming quantities."""
         warehouse = docs[0].picking_type_id.warehouse_id
         wh_location_ids = self.env["stock.location"]._search(
             [
@@ -141,8 +126,6 @@ class ReportStockReport_Reception(models.AbstractModel):
         )
 
     def _match_outs_to_incoming(self, outs, doc_states, qty_to_assign, qty_draft):
-        """Build `sources_to_lines`: for each outgoing move, draw from the
-        assignable incoming queue and, for any shortfall, from expected drafts."""
         products_to_outs = defaultdict(list)
         for out in outs:
             products_to_outs[out.product_id].append(out)
@@ -194,12 +177,6 @@ class ReportStockReport_Reception(models.AbstractModel):
         return sources_to_lines
 
     def _consume_from_queue(self, assign_queue, qty_to_reserve, product_uom_id):
-        """Draw up to `qty_to_reserve` from the FIFO `assign_queue` of
-        `(qty, move)` entries, mutating it in place (fully-consumed entries are
-        popped, a partially-consumed entry keeps its remainder at the front).
-
-        :returns: `(quantity_drawn, [ids of every incoming move drawn from])`
-        """
         quantity = 0
         moves_in_ids = []
         while assign_queue and product_uom_id.compare(quantity, qty_to_reserve) < 0:
@@ -216,7 +193,6 @@ class ReportStockReport_Reception(models.AbstractModel):
         return quantity, moves_in_ids
 
     def _add_assigned_lines(self, sources_to_lines, total_assigned):
-        """Append the already-assigned (chained) lines to `sources_to_lines`."""
         for product, (assigned_qty, move_in_ids) in total_assigned.items():
             moves_in = self.env["stock.move"].browse(move_in_ids)
             for out_move in moves_in.move_dest_ids:
@@ -239,8 +215,6 @@ class ReportStockReport_Reception(models.AbstractModel):
                 )
 
     def _get_move_quantity(self, move):
-        """The move's demand in the product's reference UoM, falling back to the
-        reserved quantity when there is no stored demand (e.g. done moves)."""
         return move.product_qty or move.product_uom_id._compute_quantity(
             move.quantity, move.product_id.uom_id, rounding_method="HALF-UP"
         )
@@ -299,20 +273,11 @@ class ReportStockReport_Reception(models.AbstractModel):
         return [("picking_id", "not in", docs.ids)]
 
     def _get_formatted_scheduled_date(self, source):
-        """Extendable since different source record types name their "Scheduled Date" field differently."""
         if source._name == "stock.picking":
             return format_date(self.env, source.date_planned)
         return False
 
     def action_assign(self, move_ids, qtys, in_ids):
-        """Assign picking move(s) [i.e. link] to other moves (i.e. make them MTO)
-        :param move_ids ids: the ids of the moves to make MTO
-        :param qtys list: the quantities that are being assigned to the move_ids (in same order as move_ids)
-        :param in_ids: one list of incoming move ids per entry of ``move_ids``.
-            Two historical flat shapes are also accepted: all incoming ids for
-            a single out move, or one incoming id per out move (positionally
-            aligned). The old zip-based parsing silently truncated both.
-        """
         if in_ids and all(isinstance(in_id, int) for in_id in in_ids):
             if len(move_ids) == 1:
                 in_ids = [in_ids]
@@ -451,11 +416,6 @@ class ReportStockReport_Reception(models.AbstractModel):
         outs._action_assign()
 
     def action_unassign(self, move_id, qty, in_ids):
-        """Unassign moves [i.e. unlink] from a move (i.e. make non-MTO)
-        :param move_id id: the id of the move to make non-MTO
-        :param qty float: the total quantity that is being unassigned from move_id
-        :param in_ids ids: the ids of the moves that are to be unassigned from move_id
-        """
         out = self.env["stock.move"].browse(move_id)
         ins = self.env["stock.move"].browse(in_ids)
 
@@ -545,7 +505,6 @@ class ReportStockReport_Reception(models.AbstractModel):
         return True
 
     def _share_source_references(self, in_move, out_move):
-        """share reference across source documents"""
         in_ref = in_move.reference_ids
         out_ref = out_move.reference_ids
         in_source = in_move._get_source_document()
@@ -556,7 +515,6 @@ class ReportStockReport_Reception(models.AbstractModel):
             out_source._add_reference(in_ref)
 
     def _unshare_source_references(self, in_move, out_move):
-        """remove shared reference across source documents if any"""
         in_ref = in_move.reference_ids
         out_ref = out_move.reference_ids
         in_source = in_move._get_source_document()
@@ -567,7 +525,6 @@ class ReportStockReport_Reception(models.AbstractModel):
             out_source._remove_reference(in_ref)
 
     def _format_html_docs(self, docs):
-        """Format docs to be sent in an html request."""
         if not docs:
             return docs
         return [
@@ -583,11 +540,9 @@ class ReportStockReport_Reception(models.AbstractModel):
         ]
 
     def _format_html_sources_to_date(self, sources_to_dates):
-        """Format sources_to_formatted_scheduled_date to be sent in an html request."""
         return {str(source): date for (source, date) in sources_to_dates.items()}
 
     def _format_html_sources_to_lines(self, sources_to_lines):
-        """Format sources_to_lines to be sent in an html request, while adding an index for OWL's t-foreach."""
         return {
             str(source): [
                 self._format_html_line(line, i) for i, line in enumerate(lines)
@@ -596,15 +551,12 @@ class ReportStockReport_Reception(models.AbstractModel):
         }
 
     def _format_html_line(self, line, index):
-        """Flatten a report line for the RPC payload: drop the `move_out`
-        recordset (only its id is consumed client-side) and add the OWL index."""
         formatted = {key: value for key, value in line.items() if key != "move_out"}
         formatted["index"] = index
         formatted["move_out_id"] = line["move_out"].id
         return formatted
 
     def _format_html_sources_info(self, sources_to_lines):
-        """Format used info from sources of sources_to_lines to be sent in an html request."""
         return {
             str(source): [
                 self._format_html_source(s, s._name == "stock.picking") for s in source
@@ -613,7 +565,6 @@ class ReportStockReport_Reception(models.AbstractModel):
         }
 
     def _format_html_source(self, source, is_picking=False):
-        """Format used info from a single source to be sent in an html request."""
         formatted = {
             "id": source.id,
             "model": source._name,

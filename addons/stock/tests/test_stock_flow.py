@@ -52,7 +52,6 @@ class TestStockFlow(TestStockCommon):
 
     @mute_logger("odoo.addons.base.models.ir_model", "odoo.models")
     def test_00_picking_create_and_transfer_quantity(self):
-        """Basic stock operation on incoming and outgoing shipment."""
         LotObj = self.env["stock.lot"]
 
         picking_in = self.PickingObj.create(
@@ -693,8 +692,6 @@ class TestStockFlow(TestStockCommon):
         )
 
     def test_10_pickings_transfer_with_different_uom(self):
-        """Picking transfer with diffrent unit of meassure."""
-
         picking_in_A = self.PickingObj.create(
             {
                 "picking_type_id": self.picking_type_in.id,
@@ -1678,7 +1675,6 @@ class TestStockFlow(TestStockCommon):
         )
 
     def test_20_create_inventory_with_packs_and_lots(self):
-
         packproduct = self.ProductObj.create(
             {"name": "Pack Product", "uom_id": self.uom_unit.id, "is_storable": True}
         )
@@ -1793,7 +1789,6 @@ class TestStockFlow(TestStockCommon):
         )
 
     def test_30_check_with_no_incoming_lot(self):
-        """Picking in without lots and picking out with"""
         self.picking_type_in.use_create_lots = False
         self.productA.tracking = "lot"
         picking_in = self.PickingObj.create(
@@ -1883,7 +1878,6 @@ class TestStockFlow(TestStockCommon):
         )
 
     def test_40_pack_in_pack(self):
-        """Put a pack in pack"""
         picking_out = self.PickingObj.create(
             {
                 "picking_type_id": self.picking_type_out.id,
@@ -2197,10 +2191,6 @@ class TestStockFlow(TestStockCommon):
         )
 
     def test_70_picking_state_all_at_once_reserve(self):
-        """This test will check that the state of the picking is correctly computed according
-        to the state of its move lines and its move type.
-        """
-
         inventory_quant = self.env["stock.quant"].create(
             {
                 "location_id": self.stock_location.id,
@@ -2241,10 +2231,6 @@ class TestStockFlow(TestStockCommon):
         self.assertEqual(picking_out.state, "assigned")
 
     def test_71_picking_state_all_at_once_force_assign(self):
-        """This test will check that the state of the picking is correctly computed according
-        to the state of its move lines and its move type.
-        """
-
         picking_out = self.PickingObj.create(
             {
                 "picking_type_id": self.picking_type_out.id,
@@ -2270,10 +2256,6 @@ class TestStockFlow(TestStockCommon):
         self.assertEqual(picking_out.state, "confirmed")
 
     def test_72_picking_state_partial_reserve(self):
-        """This test will check that the state of the picking is correctly computed according
-        to the state of its move lines and its move type.
-        """
-
         inventory_quant = self.env["stock.quant"].create(
             {
                 "location_id": self.stock_location.id,
@@ -2314,10 +2296,6 @@ class TestStockFlow(TestStockCommon):
         self.assertEqual(picking_out.state, "assigned")
 
     def test_73_picking_state_partial_force_assign(self):
-        """This test will check that the state of the picking is correctly computed according
-        to the state of its move lines and its move type.
-        """
-
         picking_out = self.PickingObj.create(
             {
                 "picking_type_id": self.picking_type_out.id,
@@ -2343,10 +2321,6 @@ class TestStockFlow(TestStockCommon):
         self.assertEqual(picking_out.state, "confirmed")
 
     def test_74_move_state_waiting_mto(self):
-        """This test will check that when a move is unreserved, its state changes to 'waiting' if
-        it has ancestors or if it has a 'procure_method' equal to 'make_to_order' else the state
-        changes to 'confirmed'.
-        """
         picking_out = self.PickingObj.create(
             {
                 "picking_type_id": self.picking_type_out.id,
@@ -2411,12 +2385,6 @@ class TestStockFlow(TestStockCommon):
         self.assertEqual(other_move.state, "confirmed")
 
     def test_80_partial_picking_without_backorder(self):
-        """This test will create a picking with an initial demand for a product
-        then process a lesser quantity than the expected quantity to be processed.
-        When the wizard ask for a backorder, the 'NO BACKORDER' option will be selected
-        and no backorder should be created afterwards
-        """
-
         picking = self.PickingObj.create(
             {
                 "picking_type_id": self.picking_type_in.id,
@@ -2457,9 +2425,6 @@ class TestStockFlow(TestStockCommon):
         self.assertEqual(move_done.state, "done")
 
     def test_backorder_setting(self):
-        """Create 3 pickings with each has different backorder settings on its
-        picking type. Check the backorder behavior for each picking.
-        """
         self.picking_type_in.create_backorder = "ask"
         picking_type_always = self.picking_type_in.copy(
             {
@@ -2557,9 +2522,6 @@ class TestStockFlow(TestStockCommon):
         )
 
     def test_transit_multi_companies(self):
-        """Ensure that inter company rules set the correct company on picking
-        and their moves.
-        """
         grp_multi_loc = self.env.ref("stock.group_stock_multi_locations")
         grp_multi_routes = self.env.ref("stock.group_adv_location")
         grp_multi_companies = self.env.ref("base.group_multi_company")
@@ -2639,12 +2601,6 @@ class TestStockFlow(TestStockCommon):
         self.assertEqual(outgoing_picking.move_ids.company_id, company_2)
 
     def test_transit_multi_companies_ultimate(self):
-        """Ensure that inter company rules set the correct company on picking
-        and their moves. This test validate a picking with make_to_order moves.
-        Moves are created in batch with a company-focused environment. This test
-        should create moves for company_2 and company_3 at the same time.
-        Ensure they are not create in the same batch.
-        """
         grp_multi_loc = self.env.ref("stock.group_stock_multi_locations")
         grp_multi_routes = self.env.ref("stock.group_adv_location")
         grp_multi_companies = self.env.ref("base.group_multi_company")
@@ -2770,9 +2726,6 @@ class TestStockFlow(TestStockCommon):
         self.assertEqual(outgoing_picking.move_ids.company_id, company_3)
 
     def test_picking_date_planned_readonlyness(self):
-        """As it seems we keep breaking this thing over and over this small
-        test ensure the date_planned is writable on a picking in state 'draft' or 'confirmed'
-        """
         partner = self.env["res.partner"].create(
             {"name": "Hubert Bonisseur de la Bath"}
         )
@@ -2811,10 +2764,6 @@ class TestStockFlow(TestStockCommon):
         self.assertEqual(f.state, "confirmed")
 
     def test_scrap_location_readonlyness(self):
-        """As it seems we keep breaking this thing over and over this small
-        test ensure the location and scrap_location is writable on a scrap order in state 'draft'
-        but not in state 'confirmed'.
-        """
         grp_multi_loc = self.env.ref("stock.group_stock_multi_locations")
         self.env.user.write({"group_ids": [Command.link(grp_multi_loc.id)]})
 
@@ -2853,9 +2802,6 @@ class TestStockFlow(TestStockCommon):
             f.scrap_location_id = wh.wh_input_stock_loc_id
 
     def test_validate_multiple_pickings_with_same_lot_names(self):
-        """Checks only one lot is created when the same lot name is used in
-        different pickings and those pickings are validated together.
-        """
         product_lot = self.env["product.product"].create(
             {
                 "name": "Tracked by lot",
@@ -2988,10 +2934,6 @@ class TestStockFlow(TestStockCommon):
             (receipt_1 | receipt_2).button_validate()
 
     def test_assign_qty_to_first_move(self):
-        """Suppose two out picking waiting for an available quantity. When receiving such
-        a quantity, the latter should be assign to the picking with the highest priority
-        and the earliest scheduled date."""
-
         def create_picking(picking_type, from_loc, to_loc, sequence=10, delay=0):
             picking = self.PickingObj.create(
                 {
@@ -3060,9 +3002,6 @@ class TestStockFlow(TestStockCommon):
         self.assertEqual(out03.state, "assigned")
 
     def test_auto_assign_backorder(self):
-        """When a backorder is created, the quantities should be assigned if the reservation method
-        is set on 'At Confirmation'"""
-
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 10
         )
@@ -3139,9 +3078,6 @@ class TestStockFlow(TestStockCommon):
         self.assertFalse(picking_in.show_check_availability)
 
     def test_stock_move_with_partner_id(self):
-        """Ensure that the partner_id of the picking entry is
-        transmitted to the SM upon object creation.
-        """
         partner_1 = self.env["res.partner"].create(
             {"name": "Hubert Bonisseur de la Bath"}
         )
@@ -3169,8 +3105,6 @@ class TestStockFlow(TestStockCommon):
         self.assertEqual(picking.move_ids.partner_id, partner_2)
 
     def test_scrap_tracked_product_without_lot(self):
-        """Scrapping a tracked product without lot should not raise
-        if is_scrap context is set."""
         tracked_product = self.env["product.product"].create(
             {
                 "name": "Tracked Product",
@@ -3196,10 +3130,6 @@ class TestStockFlow(TestStockCommon):
         self.assertEqual(scrap.move_ids.state, "done")
 
     def test_cancel_picking_with_scrapped_products(self):
-        """
-        The user scraps some products of a picking, then cancel this picking
-        The test ensures that the scrapped SM is not cancelled
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 10
         )
@@ -3266,13 +3196,6 @@ class TestStockFlow(TestStockCommon):
         self.assertEqual(quant.lot_id.name, "USN01")
 
     def test_assign_sm_to_existing_picking(self):
-        """
-        Suppose:
-            - Two warehouses WH01, WH02
-            - Three products with the route 'WH02 supplied by WH01'
-        We trigger an orderpoint for each product
-        There should be two pickings (out from WH01 + in to WH02)
-        """
         wh01_address, wh02_address = self.env["res.partner"].create(
             [
                 {
@@ -3361,11 +3284,6 @@ class TestStockFlow(TestStockCommon):
         )
 
     def test_2steps_and_automatic_reservation(self):
-        """
-        Suppose the automatic reservation of the picking is enabled. An out-move
-        is waiting for one available P in stock. When receiving some P (in 2
-        steps), the out-move should be automatically assigned.
-        """
         self.env["ir.config_parameter"].sudo().set_param(
             "stock.picking_no_auto_reserve", False
         )
@@ -3419,12 +3337,6 @@ class TestStockFlow(TestStockCommon):
         )
 
     def test_assign_done_sml_and_validate_it(self):
-        """
-        From the detailed operations wizard, create a SML that has a
-        sub-location as destination location. After its creation, the
-        destination location should not changed. Same when marking the picking
-        as done
-        """
         grp_multi_loc = self.env.ref("stock.group_stock_multi_locations")
         self.env.user.write({"group_ids": [Command.link(grp_multi_loc.id)]})
 
@@ -3459,8 +3371,6 @@ class TestStockFlow(TestStockCommon):
         self.assertEqual(receipt.move_ids.move_line_ids.location_dest_id, sub_loc)
 
     def test_multi_picking_validation(self):
-        """This test ensures that the validation of 2 pickings is successfull even if they have different operation types"""
-
         self.env.user.write(
             {
                 "group_ids": [
@@ -3513,7 +3423,6 @@ class TestStockFlow(TestStockCommon):
         )
 
     def test_empty_picking_draft(self):
-        """test an empty still can be reset to draft"""
         picking = self.PickingObj.create(
             {
                 "picking_type_id": self.picking_type_in.id,
@@ -3525,13 +3434,6 @@ class TestStockFlow(TestStockCommon):
         self.assertEqual(picking.state, "draft")
 
     def test_validate_backorder(self):
-        """Test That a backorder can be validated:
-        - Create a picking with 2 moves (A and B)
-        - Set the quantity done of A to 2 and B to 0
-        - Validate the picking and create a backorder
-        - Check that the backorder has 2 moves (A with 8 and B with 10)
-        - Validate the backorder
-        """
         picking = self.env["stock.picking"].create(
             {
                 "picking_type_id": self.picking_type_in.id,
@@ -3627,10 +3529,6 @@ class TestStockFlow(TestStockCommon):
 class TestStockFlowTourPostInstall(TestStockCommon, HttpCase):
     @users("pauline")
     def test_basic_stock_flow_with_minimal_access_rights(self):
-        """
-        Test that a stock user with minimal access rights can open both the
-        list and form picking view, create and process a receipt and a delivery.
-        """
         receipt, delivery = self.env["stock.picking"].create(
             [
                 {
@@ -3763,9 +3661,6 @@ class TestStockFlowPostInstall(TestStockCommon):
         self.assertEqual(backorder.move_ids.description_picking, "Ipsum")
 
     def test_onchange_picking_type_id_and_name(self):
-        """
-        when changing picking_type_id of a stock.picking, should change the name too
-        """
         stock_location_1 = self.stock_location
         stock_location_2 = stock_location_1.copy()
         picking_type_1 = self.env["stock.picking.type"].create(
@@ -3822,11 +3717,6 @@ class TestStockFlowPostInstall(TestStockCommon):
         self.assertEqual(picking.name, "PT1/00002")
 
     def test_name_create_location(self):
-        """
-        e.g., from .csv/.xlsx import:
-            If name str has a parent location prefix we try to create as child location
-            else ignore prefixes
-        """
         parent_location = self.env["stock.location"].create({"name": "ParentLocation"})
         new_location_id = self.env["stock.location"].name_create(
             "ParentLocation/TestLocation1"

@@ -6,12 +6,6 @@ from odoo.addons.stock.tests.common import TestStockCommon
 
 @tagged("post_install", "-at_install")
 class TestMoveLineReservationSymmetry(TestStockCommon):
-    """A move line reserves at its *own* `location_id`, so the bypass verdict must be
-    taken there too. Deciding it on the move's location let a line whose source differed
-    from its move's in usage class reserve without releasing, or release without
-    reserving -- neither of which any existing test asserted.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -67,7 +61,6 @@ class TestMoveLineReservationSymmetry(TestStockCommon):
         )
 
     def test_create_and_unlink_are_symmetric_when_locations_agree(self):
-        """Control: the reserve/release pair nets to zero and leaves others alone."""
         product = self._make_product("sym-control")
         victim = self.Move.create(
             {
@@ -89,9 +82,6 @@ class TestMoveLineReservationSymmetry(TestStockCommon):
         self.assertEqual(self._reserved(product, self.stock_location), 40.0)
 
     def test_line_source_outside_the_move_source_does_not_steal(self):
-        """A move sourced at a bypass location with a line sourced at real stock must
-        still reserve on create, so its unlink releases its own reservation instead of
-        eating a sibling's."""
         product = self._make_product("sym-steal")
         victim = self.Move.create(
             {
@@ -127,7 +117,6 @@ class TestMoveLineReservationSymmetry(TestStockCommon):
         )
 
     def test_line_source_on_a_bypass_location_reserves_nothing(self):
-        """The reverse pairing must not strand a reservation on a virtual location."""
         product = self._make_product("sym-phantom")
         line = self._make_line(product, self.stock_location, self.inventory_loc)
         self.assertFalse(
@@ -154,11 +143,6 @@ class TestMoveLineReservationSymmetry(TestStockCommon):
 
 @tagged("post_install", "-at_install")
 class TestMoveLineUntrackedCompensation(TestStockCommon):
-    """Removing more of a lot than exists is compensated from untracked stock at the
-    same location. The repair is sized by the on-hand shortfall, not by the amount moved
-    and not by availability (which nets off reserved quantity).
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -183,8 +167,6 @@ class TestMoveLineUntrackedCompensation(TestStockCommon):
         return tracked, untracked
 
     def test_compensation_covers_the_shortfall_not_the_whole_move(self):
-        """Shipping 20 of a lot holding 5 must leave the lot at 0 and take 15 from
-        untracked stock -- not leave the lot at 5 and take 20."""
         product = self._tracked_product("comp-shortfall")
         lot = self.env["stock.lot"].create(
             {
@@ -231,8 +213,6 @@ class TestMoveLineUntrackedCompensation(TestStockCommon):
         self.assertEqual(untracked, 35.0, "only the 15 short may come from untracked")
 
     def test_a_fully_reserved_lot_is_not_compensated(self):
-        """A lot quant whose on-hand is positive must not draw on untracked stock just
-        because all of it is reserved (availability negative, on-hand not)."""
         product = self._tracked_product("comp-reserved")
         lot = self.env["stock.lot"].create(
             {
@@ -265,8 +245,6 @@ class TestMoveLineUntrackedCompensation(TestStockCommon):
         self.assertEqual(untracked, 100.0, "untracked stock must be untouched")
 
     def test_compensation_is_capped_by_available_untracked_stock(self):
-        """When untracked stock cannot cover the shortfall, take all of it and leave the
-        remainder negative."""
         product = self._tracked_product("comp-capped")
         lot = self.env["stock.lot"].create(
             {
@@ -326,8 +304,6 @@ class TestMoveLineWriteGuards(TestStockCommon):
         return product
 
     def test_quant_id_cannot_change_the_product_outside_draft(self):
-        """`quant_id` expands into `product_id`, so it must face the same guard a direct
-        `product_id` write does."""
         product_a = self._stocked_product("guard-a")
         product_b = self._stocked_product("guard-b")
         quant_b = self.Quant.search(
@@ -342,7 +318,6 @@ class TestMoveLineWriteGuards(TestStockCommon):
             line.write({"quant_id": quant_b.id})
 
     def test_quant_id_of_the_same_product_still_writes(self):
-        """The ordinary 'Pick From' flow must keep working."""
         product = self._stocked_product("guard-same")
         quant = self.Quant.search(
             [
@@ -356,7 +331,6 @@ class TestMoveLineWriteGuards(TestStockCommon):
         self.assertEqual(line.product_id, product)
 
     def test_quant_id_may_fill_an_empty_product(self):
-        """A blank detail row picking its product from a quant is not a product change."""
         product = self._stocked_product("guard-empty")
         move = self._assigned_move(product)
         move.move_line_ids.unlink()
@@ -372,8 +346,6 @@ class TestMoveLineWriteGuards(TestStockCommon):
         self.assertEqual(line.product_id, product)
 
     def test_write_does_not_mutate_the_caller_vals(self):
-        """`_copy_quant_info` must not leak the first line's characteristics into a vals
-        dict the caller goes on to reuse."""
         product = self._stocked_product("guard-vals")
         quant = self.Quant.search(
             [
@@ -391,8 +363,6 @@ class TestMoveLineWriteGuards(TestStockCommon):
 @tagged("post_install", "-at_install")
 class TestMoveLinePutInPack(TestStockCommon):
     def test_put_in_pack_without_a_label_format(self):
-        """`package_label_to_print` is not required, so auto-print with it cleared must
-        not raise UnboundLocalError."""
         picking_type = self.env["stock.picking.type"].search(
             [("code", "=", "outgoing"), ("company_id", "=", self.env.company.id)],
             limit=1,

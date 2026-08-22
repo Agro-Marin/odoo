@@ -2,8 +2,6 @@ from odoo.addons.sale.tests.common import TestSaleCommon
 
 
 class TestSaleFlow(TestSaleCommon):
-    """Test running at-install to test flows independently to other modules, e.g. 'sale_stock'."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -20,7 +18,6 @@ class TestSaleFlow(TestSaleCommon):
         )
         user.partner_id.email = "saleman@test.com"
 
-        # Shadow the current environment/cursor with the newly created user.
         cls.env = cls.env(user=user)
         cls.cr = cls.env.cr
 
@@ -51,8 +48,6 @@ class TestSaleFlow(TestSaleCommon):
         user.company_id = cls.company
 
     def test_qty_transferred(self):
-        """Test 'qty_transferred' at-install to avoid a change in the behavior when 'sale_stock' is installed."""
-
         sale_order = (
             self.env["sale.order"]
             .with_context(mail_notrack=True, mail_create_nolog=True)

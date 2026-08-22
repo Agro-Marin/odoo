@@ -36,7 +36,7 @@ class StockPickingBatch(models.Model):
         'stock.move', string="Stock moves", compute='_compute_move_ids')
     move_line_ids = fields.One2many(
         'stock.move.line', string='Stock move lines',
-        compute='_compute_move_line_ids', inverse='_set_move_line_ids', search='_search_move_line_ids')
+        compute='_compute_move_line_ids', inverse='_inverse_move_line_ids', search='_search_move_line_ids')
     state = fields.Selection([
         ('draft', 'Draft'),
         ('in_progress', 'In progress'),
@@ -165,7 +165,7 @@ class StockPickingBatch(models.Model):
         if self.date_planned:
             self.picking_ids.date_planned = self.date_planned
 
-    def _set_move_line_ids(self):
+    def _inverse_move_line_ids(self):
         new_move_lines = self[0].move_line_ids
         for picking in self.picking_ids:
             old_move_lines = picking.move_line_ids

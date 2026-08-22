@@ -1,5 +1,12 @@
 /** @odoo-module native */
-import { Component, markup, onRendered, onWillStart, useState } from "@odoo/owl";
+import {
+    Component,
+    markup,
+    onRendered,
+    onWillStart,
+    useRef,
+    useState,
+} from "@odoo/owl";
 import { useSetupAction } from "@web/core/action_hook";
 import { download } from "@web/core/network";
 import { registry } from "@web/core/registry";
@@ -10,67 +17,59 @@ import { Layout } from "@web/search/layout";
 import { SelectCreateDialog } from "@web/views/view_dialogs";
 import { standardActionServiceProps } from "@web/webclient/actions";
 
-function sendCustomNotification(type, message) {
-    return {
-        type: "ir.actions.client",
-        tag: "display_notification",
-        params: {
-            type: type,
-            message: message,
-        },
-    };
-}
-
 export class ProductPricelistReport extends Component {
     static props = { ...standardActionServiceProps };
     static components = { Layout };
     static template = "product.ProductPricelistReport";
 
+    static MAX_QTY = 5;
+
     setup() {
         this.action = useService("action");
         this.orm = useService("orm");
         this.dialog = useService("dialog");
+        this.notification = useService("notification");
 
-        this.MAX_QTY = 5;
         // Serialize report renders so a slow earlier request can't overwrite
         // the HTML of a later pricelist/quantity selection.
         this.renderKeepLast = new KeepLast();
-        const pastState = this.props.state || {};
+        this.qtyInputRef = useRef("qtyInput");
+        this.formatRef = useRef("format");
 
-        const active_model =
+        const pastState = this.props.state || {};
+        const activeModel =
             pastState.activeModel || this.props.action.context.active_model;
-        this.noProducts = active_model === "product.pricelist";
-        this.activeIds = this.noProducts
-            ? []
-            : pastState.activeIds || this.props.action.context.active_ids;
-        this.activeModel = this.noProducts ? "product.template" : active_model;
-        this.defaultPricelistId = this.noProducts
+        const noProducts = activeModel === "product.pricelist";
+
+        this.activeModel = noProducts ? "product.template" : activeModel;
+        this.defaultPricelistId = noProducts
             ? this.props.action.context.active_id
             : false;
 
         this.state = useState({
+            activeIds: noProducts
+                ? []
+                : pastState.activeIds || this.props.action.context.active_ids || [],
             displayPricelistTitle: pastState.displayPricelistTitle || false,
             html: "",
+            noProducts,
             pricelists: [],
-            _quantities: pastState.quantities || [1, 5, 10],
+            quantities: pastState.quantities || [1, 5, 10],
             selectedPricelist: {},
         });
 
         onWillStart(async () => {
             this.state.pricelists = await this.getPricelists();
-            if (this.defaultPricelistId) {
-                this.state.selectedPricelist =
-                    this.pricelists.find((p) => p.id === this.defaultPricelistId) ||
-                    this.pricelists[0] ||
-                    {};
-            } else {
-                this.state.selectedPricelist =
-                    pastState.selectedPricelist || this.pricelists[0] || {};
-            }
+            this.state.selectedPricelist =
+                (this.defaultPricelistId &&
+                    this.pricelists.find((p) => p.id === this.defaultPricelistId)) ||
+                (!this.defaultPricelistId && pastState.selectedPricelist) ||
+                this.pricelists[0] ||
+                {};
             if (this.noProducts) {
-                await this.onClickAddProducts();
+                this.onClickAddProducts();
             }
-            this.renderHtml();
+            await this.renderHtml();
         });
 
         onRendered(() => {
@@ -95,7 +94,11 @@ export class ProductPricelistReport extends Component {
         });
     }
 
-    // getters and setters
+    // getters
+
+    get activeIds() {
+        return this.state.activeIds;
+    }
 
     get displayPricelistTitle() {
         return this.state.displayPricelistTitle;
@@ -105,25 +108,25 @@ export class ProductPricelistReport extends Component {
         return this.state.html;
     }
 
+    get noProducts() {
+        return this.state.noProducts;
+    }
+
     get pricelists() {
         return this.state.pricelists;
     }
 
     get quantities() {
-        return this.state._quantities;
-    }
-
-    set quantities(value) {
-        this.state._quantities = value;
+        return this.state.quantities;
     }
 
     get reportParams() {
         return {
             active_model: this.activeModel || "product.template",
-            active_ids: this.activeIds || [],
-            display_pricelist_title: this.displayPricelistTitle || "",
+            active_ids: this.activeIds,
+            display_pricelist_title: this.displayPricelistTitle,
             pricelist_id: this.selectedPricelist.id || "",
-            quantities: this.quantities || [1],
+            quantities: this.quantities.length ? this.quantities : [1],
         };
     }
 
@@ -153,53 +156,50 @@ export class ProductPricelistReport extends Component {
 
     // events
 
-    async onClickAddQty(ev) {
+    onClickAddQty(ev) {
         ev.preventDefault(); // avoid automatic reloading of the page
 
-        if (this.quantities.length >= this.MAX_QTY) {
-            const message = _t(
-                "At most %s quantities can be displayed simultaneously. Remove a selected quantity to add others.",
-                this.MAX_QTY,
+        if (this.quantities.length >= this.constructor.MAX_QTY) {
+            this.notification.add(
+                _t(
+                    "At most %s quantities can be displayed simultaneously. Remove a selected quantity to add others.",
+                    this.constructor.MAX_QTY,
+                ),
+                { type: "warning" },
             );
-            await this.action.doAction(sendCustomNotification("warning", message));
             return;
         }
 
-        const qty = parseInt(ev.target.previousSibling.value, 10);
-        if (Number.isInteger(qty) && qty > 0) {
-            // Check qty already exist.
-            if (this.quantities.indexOf(qty) === -1) {
-                this.quantities.push(qty);
-                this.quantities = this.quantities.sort((a, b) => a - b);
-                this.renderHtml();
-            } else {
-                const message = _t("Quantity already present (%s).", qty);
-                await this.action.doAction(sendCustomNotification("info", message));
-            }
-        } else {
-            await this.action.doAction(
-                sendCustomNotification(
-                    "info",
-                    _t("Please enter a positive whole number."),
-                ),
-            );
+        const qty = parseInt(this.qtyInputRef.el?.value, 10);
+        if (!Number.isInteger(qty) || qty <= 0) {
+            this.notification.add(_t("Please enter a positive whole number."), {
+                type: "info",
+            });
+            return;
         }
+        if (this.quantities.includes(qty)) {
+            this.notification.add(_t("Quantity already present (%s).", qty), {
+                type: "info",
+            });
+            return;
+        }
+        this.state.quantities = [...this.quantities, qty].sort((a, b) => a - b);
+        this.renderHtml();
     }
 
     onClickLink(ev) {
         ev.preventDefault();
 
         const parent = ev.target.parentElement;
-
-        const classes = parent.getAttribute("class", "");
-        const resModel = parent.getAttribute("data-model", "");
-        const resId = parent.getAttribute("data-res-id", "");
+        const classes = parent.getAttribute("class");
+        const resModel = parent.getAttribute("data-model");
+        const resId = parent.getAttribute("data-res-id");
 
         if (classes && classes.includes("o_action") && resModel && resId) {
             this.action.doAction({
                 type: "ir.actions.act_window",
                 res_model: resModel,
-                res_id: parseInt(resId),
+                res_id: parseInt(resId, 10),
                 views: [[false, "form"]],
                 target: "self",
             });
@@ -208,23 +208,20 @@ export class ProductPricelistReport extends Component {
 
     async onClickPrint() {
         if (this.noProducts) {
-            this.action.doAction(
-                sendCustomNotification(
-                    "warning",
-                    _t("Please select some products first."),
-                ),
-            );
+            this.notification.add(_t("Please select some products first."), {
+                type: "warning",
+            });
             return;
         }
-        const selectedFormat = document.getElementById("formats").value;
+        const selectedFormat = this.formatRef.el?.value;
         if (selectedFormat === "pdf") {
-            this.export_pdf();
+            this.exportPdf();
         } else {
-            await this.export_pricelist_csv_xlsx(selectedFormat);
+            await this.exportPricelist(selectedFormat);
         }
     }
 
-    export_pdf() {
+    exportPdf() {
         this.action.doAction({
             type: "ir.actions.report",
             report_type: "qweb-pdf",
@@ -234,7 +231,7 @@ export class ProductPricelistReport extends Component {
         });
     }
 
-    async export_pricelist_csv_xlsx(format) {
+    async exportPricelist(format) {
         try {
             await download({
                 url: `/product/export/pricelist/`,
@@ -245,53 +242,43 @@ export class ProductPricelistReport extends Component {
             });
         } catch (error) {
             console.error(`Error exporting ${format.toUpperCase()} file:`, error);
-            await this.action.doAction(
-                sendCustomNotification(
-                    "danger",
-                    _t("Error exporting file. Please try again."),
-                ),
-            );
+            this.notification.add(_t("Error exporting file. Please try again."), {
+                type: "danger",
+            });
         }
     }
 
-    async onClickAddProducts() {
+    onClickAddProducts() {
         this.dialog.add(SelectCreateDialog, {
             resModel: this.activeModel || "product.template",
             title: _t("Add Products to pricelist report"),
             noCreate: true,
             onSelected: async (resIds) => {
-                resIds.forEach((id) => {
-                    if (!this.activeIds.includes(id)) {
-                        this.activeIds.push(id);
-                    }
-                });
-                this.noProducts = false;
+                const added = resIds.filter((id) => !this.activeIds.includes(id));
+                if (added.length) {
+                    this.state.activeIds = [...this.activeIds, ...added];
+                }
+                this.state.noProducts = false;
                 await this.renderHtml();
             },
         });
     }
 
-    async onClickRemoveQty(ev) {
+    onClickRemoveQty(qty) {
         if (this.quantities.length <= 1) {
-            await this.action.doAction(
-                sendCustomNotification(
-                    "warning",
-                    _t("You must leave at least one quantity."),
-                ),
-            );
+            this.notification.add(_t("You must leave at least one quantity."), {
+                type: "warning",
+            });
             return;
         }
-
-        const qty = parseInt(ev.srcElement.parentElement.childNodes[0].data, 10);
-        this.quantities = this.quantities.filter((q) => q !== qty);
+        this.state.quantities = this.quantities.filter((q) => q !== qty);
         this.renderHtml();
     }
 
     onSelectPricelist(ev) {
-        this.state.selectedPricelist = this.pricelists.filter(
-            (pricelist) => pricelist.id === parseInt(ev.target.value),
-        )[0];
-
+        const id = parseInt(ev.target.value, 10);
+        this.state.selectedPricelist =
+            this.pricelists.find((pricelist) => pricelist.id === id) || {};
         this.renderHtml();
     }
 

@@ -53,7 +53,7 @@ class ProjectProject(models.Model):
 
     def action_view_mrp_production(self):
         self.ensure_one()
-        action = self.env['ir.actions.actions']._for_xml_id('mrp.mrp_production_action')
+        action = self.env['ir.actions.actions']._get_action_dict_by_xml_id('mrp.mrp_production_action')
         action['domain'] = [('project_id', '=', self.id)]
         action['context'] = {'default_project_id': self.id, 'from_project_action': True}
         productions = self.env['mrp.production'].search([('project_id', '=', self.id)])

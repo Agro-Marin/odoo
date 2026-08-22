@@ -42,7 +42,7 @@ class ProjectTemplateCreateWizard(models.TransientModel):
                 wizard.template_id.date_start and wizard.template_id.date
             )
 
-    def _get_template_whitelist_fields(self) -> list[str]:
+    def _get_fields_template_whitelist(self) -> list[str]:
         """Whitelist of fields of this wizard that will be used when creating a project from a template."""
         return ["name", "date_start", "date", "alias_name", "alias_domain_id"]
 
@@ -52,7 +52,7 @@ class ProjectTemplateCreateWizard(models.TransientModel):
         field_values = self._convert_to_write(
             {
                 fname: self[fname]
-                for fname in self._fields.keys() & self._get_template_whitelist_fields()
+                for fname in self._fields.keys() & self._get_fields_template_whitelist()
             }
         )
         return self.template_id.action_create_from_template(

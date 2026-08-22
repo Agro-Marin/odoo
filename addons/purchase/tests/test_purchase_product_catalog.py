@@ -9,11 +9,6 @@ from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 @tagged("-at_install", "post_install")
 class TestPurchaseProductCatalog(AccountTestInvoicingCommon, HttpCase):
     def test_catalog_price(self):
-        """
-        Products having a SupplierInfo record in a foreign currency should have their price
-        converted in the product catalog
-        When it's the same currency, the price shouldn't be changed
-        """
         self.authenticate(self.env.user.login, self.env.user.login)
         company_currency = self.env.company.currency_id
         other_currency = self.setup_other_currency(
@@ -87,7 +82,6 @@ class TestPurchaseProductCatalog(AccountTestInvoicingCommon, HttpCase):
         ]
         self.assertEqual(catalog_price_company_cur, company_product_price)
 
-        # The prices are recalculated on product order line update
         resp = self.url_open(
             url="/product/catalog/update_order_line_info",
             data=json.dumps(
@@ -124,10 +118,7 @@ class TestPurchaseProductCatalog(AccountTestInvoicingCommon, HttpCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["result"], company_product_price)
 
-    # === TOUR TESTS ===#
     def test_catalog_vendor_uom(self):
-        """Check the product's UoM matches the one set on the vendor line."""
-        # Enable units of measure and create two partners using different UoM.
         self._enable_uom()
         uom_liter = self.env.ref("uom.product_uom_litre")
         vendor_by_liter, vendor_by_unit = self.env["res.partner"].create(
@@ -136,7 +127,6 @@ class TestPurchaseProductCatalog(AccountTestInvoicingCommon, HttpCase):
                 {"name": "Vendor B (unit)"},
             ]
         )
-        # Create a product and configure some vendor's prices.
         self.env["product.template"].create(
             {
                 "name": "Crab Juice",
@@ -176,8 +166,6 @@ class TestPurchaseProductCatalog(AccountTestInvoicingCommon, HttpCase):
                 ],
             }
         )
-        # Create two PO and rename them to find them easily in the tour.
-        # Assign to accountman so they're visible with "My Purchases" default filter.
         accountman = self.env["res.users"].search(
             [("login", "=", "accountman")], limit=1
         )
@@ -197,14 +185,6 @@ class TestPurchaseProductCatalog(AccountTestInvoicingCommon, HttpCase):
         )
 
     def test_catalog_price_vendor_uom_cross_category(self):
-        """Model-level guard for the catalog pricing exercised by the
-        ``test_catalog_vendor_uom`` tour.
-
-        A product measured in ``Units`` may be sold by a vendor quoting in a
-        different UoM *category* (``L``). Seller selection and the product-UoM
-        quantity must handle that without raising, while still honouring the
-        ``min_qty`` price tiers of the same-category vendor.
-        """
         self._enable_uom()
         uom_liter = self.env.ref("uom.product_uom_litre")
         vendor_l, vendor_u = self.env["res.partner"].create(
@@ -254,8 +234,6 @@ class TestPurchaseProductCatalog(AccountTestInvoicingCommon, HttpCase):
             .product_variant_id
         )
 
-        # Units vendor: the min_qty tiers must apply as the quantity grows, even
-        # though an incompatible-UoM (L) seller exists on the same product.
         po_unit = self.env["purchase.order"].create({"partner_id": vendor_u.id})
         for qty, expected in [(5, 2.50), (6, 2.45), (11, 2.45), (12, 2.20)]:
             price = po_unit._update_order_line_info(product.id, qty)
@@ -263,8 +241,6 @@ class TestPurchaseProductCatalog(AccountTestInvoicingCommon, HttpCase):
                 price, expected, places=2, msg=f"unit vendor @ qty {qty}"
             )
 
-        # Liter vendor: the line lives in the vendor's UoM; product_uom_qty has
-        # no cross-category value and must fall back rather than raise.
         po_liter = self.env["purchase.order"].create({"partner_id": vendor_l.id})
         price = po_liter._update_order_line_info(product.id, 1)
         self.assertAlmostEqual(price, 1.55, places=2)
@@ -277,10 +253,8 @@ class TestPurchaseProductCatalog(AccountTestInvoicingCommon, HttpCase):
         ProductAttribute = self.env["product.attribute"]
         ProductAttributeValue = self.env["product.attribute.value"]
 
-        # Product Attribute
         att_color = ProductAttribute.create({"name": "Color", "sequence": 1})
 
-        # Product Attribute color Value
         att_color_red = ProductAttributeValue.create(
             {"name": "red", "attribute_id": att_color.id, "sequence": 1}
         )

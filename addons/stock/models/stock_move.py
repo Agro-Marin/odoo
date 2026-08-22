@@ -383,7 +383,7 @@ class StockMove(models.Model):
         string="Is quantity done editable",
         compute="_compute_is_quantity_done_editable",
     )
-    move_lines_count = fields.Integer(compute="_compute_move_lines_count")
+    move_lines_count = fields.Count("move_line_ids")
     show_lot_actions = fields.Boolean(
         string="Show Lot/Serial Actions",
         compute="_compute_show_lot_actions",
@@ -710,9 +710,6 @@ class StockMove(models.Model):
 
     @api.depends("product_id", "has_tracking", "move_line_ids")
     def _compute_show_details_visible(self):
-        """According to this field, the button that calls `action_show_details` will be displayed
-        to work on a move from its picking form view, or not.
-        """
         has_package = self.env.user.has_group("stock.group_tracking_lot")
         multi_locations_enabled = self.env.user.has_group(
             "stock.group_stock_multi_locations",
@@ -783,11 +780,6 @@ class StockMove(models.Model):
             else:
                 move.reference = move.picking_id.name
 
-    @api.depends("move_line_ids")
-    def _compute_move_lines_count(self):
-        for move in self:
-            move.move_lines_count = len(move.move_line_ids)
-
     @api.depends("product_id", "product_uom_id", "product_uom_qty")
     def _compute_product_qty(self):
         for move in self:
@@ -822,14 +814,6 @@ class StockMove(models.Model):
 
     @api.depends("move_line_ids.quantity", "move_line_ids.product_uom_id")
     def _compute_quantity(self):
-        """This field represents the sum of the move lines `quantity`. It allows the user to know
-        if there is still work to do.
-
-        We take care of rounding this value at the general decimal precision and not the rounding
-        of the move's UOM to make sure this value is really close to the real sum, because this
-        field will be used in `_action_done` in order to know if the move will need a backorder or
-        an extra move.
-        """
         new_moves = self.browse(move_id for move_id in self._ids if not move_id)
         for move in new_moves:
             move.quantity = move._quantity_sml()
@@ -865,7 +849,6 @@ class StockMove(models.Model):
         "location_id",
     )
     def _compute_forecast_information(self):
-        """Compute forecasted information of the related product by warehouse."""
         self.forecast_availability = False
         self.date_planned_forecast = False
 
@@ -934,10 +917,6 @@ class StockMove(models.Model):
         self._forecast_apply_outgoing(outgoing_unreserved_moves_per_warehouse)
 
     def _forecast_wh_date_key(self, now, incoming=False):
-        """Return the ``(warehouse_id, to_date)`` context key under which this
-        move's virtual availability is read. Uses the destination warehouse for
-        incoming moves and the source warehouse otherwise.
-        """
         warehouse_id = (
             self.location_dest_id.warehouse_id.id
             if incoming
@@ -946,11 +925,6 @@ class StockMove(models.Model):
         return warehouse_id, max(self.date or now, now)
 
     def _forecast_prefetch_virtual_available(self, now):
-        """Read ``qty_available_virtual``/``qty_free`` for the moves in `self` in one
-        batch per ``(warehouse, date)`` context instead of once per move.
-
-        :return: {(warehouse_id, to_date): {product_id: (qty_available_virtual, qty_free)}}
-        """
         prefetch_virtual_available = defaultdict(set)
         for move in self:
             if move._is_consuming() and move.state == "draft":
@@ -981,10 +955,6 @@ class StockMove(models.Model):
         return virtual_available_dict
 
     def _forecast_apply_outgoing(self, outgoing_unreserved_moves_per_warehouse):
-        """Resolve forecast availability/date for the outgoing unreserved moves
-        collected during the main pass, grouped by warehouse then source
-        location, using the forecast report.
-        """
         for warehouse, moves_ids in outgoing_unreserved_moves_per_warehouse.items():
             if not warehouse:
                 continue
@@ -1164,11 +1134,6 @@ class StockMove(models.Model):
                 _process_decrease(move, abs(delta_qty))
 
     def _inverse_product_qty(self):
-        """The meaning of product_qty field changed lately and is now a functional field computing the quantity
-        in the default product UoM. This code has been added to raise an error if a write is made given a value
-        for `product_qty`, where the same write should set the `product_uom_qty` field instead, in order to
-        detect errors.
-        """
         raise UserError(
             _(
                 "The requested operation cannot be processed because of a programming error setting the `product_qty` field instead of the `product_uom_qty`.",
@@ -1176,13 +1141,6 @@ class StockMove(models.Model):
         )
 
     def _inverse_lot_ids(self):
-        """
-        Setting the lot_ids of a stock move should adapt the reservation following these rules:
-
-        1. Removing a lot should remove its reference from sml but not the reserved quantity.
-        2. Additional lots should be handled sequentially assigning the maximum between the
-           remaining demand and the available quantity of the lot if none is available.
-        """
         for move in self:
             if move.product_id.tracking == "none":
                 continue
@@ -1201,9 +1159,6 @@ class StockMove(models.Model):
 
     @api.onchange("lot_ids")
     def _onchange_lot_ids(self):
-        """
-        Updates the quantity of the move to match the quantity resulting from the `_inverse_lot_ids`.
-        """
         product = self.product_id
         if product.tracking == "none":
             return None
@@ -1333,10 +1288,6 @@ class StockMove(models.Model):
         return None
 
     def action_show_details(self):
-        """Returns an action that will open a form view (in a popup) allowing to work on all the
-        move lines of a particular move. This form view is used when "show operations" is not
-        checked on the picking type.
-        """
         self.ensure_one()
         view = self.env.ref("stock.view_stock_move_form_operations")
 
@@ -1381,12 +1332,6 @@ class StockMove(models.Model):
         count,
         lot_text,
     ):
-        """Build the move line values the Generate/Import Serials-Lots dialog creates.
-
-        RPC entry point: every argument comes from the client, so each phase below
-        validates before it allocates. Kept as a five-step outline; the steps carry
-        the detail.
-        """
         default_vals = self._prepare_lot_generation_defaults(context_data, mode)
         lot_names, lot_qties = self._prepare_lot_generation_names(
             default_vals, mode, first_lot, count, lot_text
@@ -1412,13 +1357,6 @@ class StockMove(models.Model):
 
     @api.model
     def _prepare_lot_generation_defaults(self, context_data, mode):
-        """Normalise the client context into move line defaults, rejecting a request
-        that cannot produce them.
-
-        Raises rather than returns on a bad request: the fields dereferenced by the
-        later phases come straight from the client-supplied context, and a missing key
-        must surface as a clean UserError, not a raw KeyError -> Fault 500.
-        """
         if not context_data.get("default_product_id"):
             raise UserError(_("No product found to generate Serials/Lots for."))
         if mode not in ("generate", "import"):
@@ -1446,13 +1384,6 @@ class StockMove(models.Model):
     def _prepare_lot_generation_names(
         self, default_vals, mode, first_lot, count, lot_text
     ):
-        """Resolve the lot names to create and the quantity carried by each.
-
-        :return: ``(lot_names, lot_qties)``, of equal length and each bounded by
-            `GENERATED_LOT_VALS_MAX` -- the bound is applied *before* any list is
-            materialised, because `count` and `quantity` are client-supplied and an
-            absurd value would otherwise allocate gigabytes here.
-        """
         if default_vals["tracking"] == "lot" and mode == "generate":
             lot_qties = self._prepare_lot_generation_split(
                 default_vals["quantity"], count
@@ -1474,7 +1405,6 @@ class StockMove(models.Model):
 
     @api.model
     def _prepare_lot_generation_split(self, quantity, qty_per_lot):
-        """Split `quantity` into one entry per lot of `qty_per_lot`, plus the leftover."""
         try:
             quantity = float(quantity)
             qty_per_lot = float(qty_per_lot)
@@ -1496,7 +1426,6 @@ class StockMove(models.Model):
 
     @api.model
     def _check_generated_lot_count(self, count):
-        """Bound a client-supplied line count before anything is allocated for it."""
         if count > GENERATED_LOT_VALS_MAX:
             raise UserError(
                 _(
@@ -1507,7 +1436,6 @@ class StockMove(models.Model):
 
     @api.model
     def _prepare_generated_move_line_vals(self, default_vals, lot_names, lot_qties):
-        """One move line values dict per lot, each routed by the putaway strategy."""
         vals_list = []
         loc_dest = self.env["stock.location"].browse(
             default_vals["location_dest_id"],
@@ -1529,12 +1457,6 @@ class StockMove(models.Model):
 
     @api.model
     def _format_move_line_vals_for_client(self, vals_list):
-        """Rewrite every relational value in place as the webclient's
-        ``{id, display_name}`` shape.
-
-        Resolves `display_name` with one browse per field (records prefetch together)
-        instead of one browse per value across every row (N+1).
-        """
         MoveLine = self.env["stock.move.line"]
         relational_fields = {
             f_name
@@ -1560,7 +1482,6 @@ class StockMove(models.Model):
 
     @api.model
     def _update_lot_sequence(self, product, first_lot, generated_count):
-        """Advance the product's lot sequence past the names just generated."""
         if not product.lot_sequence_id or not first_lot:
             return
         current_sequence = product.lot_sequence_id._get_current_sequence()
@@ -1578,10 +1499,6 @@ class StockMove(models.Model):
             current_sequence.sudo().write({"number_next_actual": final_number})
 
     def _action_confirm(self, merge=True, merge_into=False, create_proc=True):
-        """Confirms stock move or put it in waiting if it's linked to another move.
-        :param: merge: According to this boolean, a newly confirmed move will be merged
-        in another move of the same picking sharing its characteristics.
-        """
         consumed_from_stock_dict = self.env.context.get(
             "consumed_from_stock_dict",
             defaultdict(float),
@@ -1698,7 +1615,6 @@ class StockMove(models.Model):
         return moves
 
     def action_view_reference(self):
-        """Open the form view of the move's reference document, if one exists, otherwise open form view of self"""
         self.ensure_one()
         if (
             not self.is_inventory
@@ -1730,11 +1646,6 @@ class StockMove(models.Model):
         return True
 
     def _action_assign(self, force_qty=False):
-        """Reserve stock moves by creating their stock move lines. A stock move is
-        considered reserved once the sum of `quantity_product_uom` for all its move
-        lines is equal to its `product_qty`. If it is less, the stock move is
-        considered partially available.
-        """
         StockMove = self.env["stock.move"]
         assigned_moves_ids = OrderedSet()
         partially_available_moves_ids = OrderedSet()
@@ -1996,11 +1907,6 @@ class StockMove(models.Model):
         return moves_todo
 
     def _adjust_procure_method(self, picking_type_code=False):
-        """Set procure_method to MTO if a compatible MTO route is found for the move,
-        else fall back to MTS.
-
-        :param picking_type_code: restrict the rule search to this picking type's code
-        """
         rule_cache = {}
         for move in self:
             product_id = move.product_id
@@ -2053,11 +1959,6 @@ class StockMove(models.Model):
         ]
 
     def _apply_lot_ids_to_move_lines(self):
-        """Rewrite this move's lines so that every lot in `lot_ids` is carried
-        by a line: relabel/keep matching lines, drop lines whose lot was
-        removed, then place each new lot (reserving stock unless reservation
-        is bypassed) and rebalance the leftover lot-less lines.
-        """
         self.ensure_one()
         product = self.product_id
         (
@@ -2097,11 +1998,6 @@ class StockMove(models.Model):
         self.write({"move_line_ids": move_lines_commands})
 
     def _update_picking(self):
-        """Try to assign the moves to an existing picking that has not been
-        reserved yet and has the same procurement group, locations and picking
-        type (moves should already have them identical). Otherwise, create a new
-        picking to assign them to.
-        """
         Picking = self.env["stock.picking"]
         grouped_moves = groupby(self, key=lambda m: m._key_assign_picking())
         for _group, moves in grouped_moves:
@@ -2148,11 +2044,6 @@ class StockMove(models.Model):
         partially_available_moves_ids,
         moves_to_redirect,
     ):
-        """Reserve a move whose source location bypasses reservation (or whose
-        product is not storable): create the move line(s) without impacting quants.
-
-        Extracted from `_action_assign`; mutates the passed accumulators in place.
-        """
         self.ensure_one()
         if self.move_orig_ids:
             available_move_lines = self._get_available_move_lines(
@@ -2231,14 +2122,6 @@ class StockMove(models.Model):
         partially_available_moves_ids,
         moves_to_redirect,
     ):
-        """Reserve a move against real quants: either a plain MTS move (no origin)
-        or a chained move distributing what its done origins brought.
-
-        Extracted from `_action_assign`; mutates the passed accumulators in place
-        and returns whether the caller should keep processing this move. Returning
-        ``False`` replicates the ``continue`` the original inline code used to skip
-        the trailing per-move bookkeeping.
-        """
         self.ensure_one()
         if self.product_uom_id.is_zero(self.product_uom_qty) and not force_qty:
             assigned_moves_ids.add(self.id)
@@ -2336,10 +2219,6 @@ class StockMove(models.Model):
         return True
 
     def _reverse_negative_moves(self):
-        """Turn moves confirmed with a negative initial demand into positive
-        moves in the opposite direction (a return), rewiring the chain links
-        to match the new direction, then assign them to a picking.
-        """
         for move in self:
             move.write(
                 {
@@ -2374,16 +2253,6 @@ class StockMove(models.Model):
         self._recompute_state()
 
     def _classify_move_lines_for_lots(self):
-        """Match the existing move lines against `lot_ids`.
-
-        :return: a 4-tuple of
-            - the initial commands (relabel matching lines, delete lines whose
-              lot is no longer wanted),
-            - the lines carrying no lot at all (usable to place new lots),
-            - the ids of the lots already carried by a line,
-            - the remaining demand, in the product's UoM, not consumed by the
-              matched lines.
-        """
         self.ensure_one()
         product = self.product_id
         commands = []
@@ -2418,11 +2287,9 @@ class StockMove(models.Model):
         )
 
     def _clean_merged(self):
-        """Cleanup hook used when merging moves"""
         self.write({"propagate_cancel": False})
 
     def _create_backorder(self):
-        """Split off the undone quantity of each move in `self` into a backorder move."""
         backorder_moves_vals = []
         for move in self:
             if (
@@ -2452,7 +2319,6 @@ class StockMove(models.Model):
         product_id,
         company_id=False,
     ):
-        """Search or create the lot from `lot_name` and set `lot_id` in `vals_list`."""
         lot_names = [vals["lot_name"] for vals in vals_list if vals.get("lot_name")]
         lot_ids = self.env["stock.lot"].search(
             [
@@ -2481,14 +2347,6 @@ class StockMove(models.Model):
             vals["lot_name"] = False
 
     def _convert_string_into_field_data(self, string, options):
-        """Convert one pasted lot-line token into move line values.
-
-        Contract (overrides extend it, e.g. `product_expiry` parses dates):
-        - a dict of move line values when the token was recognized;
-        - the string ``"ignore"`` when the token was recognized but does not
-          apply to this move (keep the lot name, drop the token);
-        - ``False`` when the token could not be parsed at all.
-        """
         string = string.replace(
             ",",
             ".",
@@ -2501,14 +2359,6 @@ class StockMove(models.Model):
         return False
 
     def _delay_alert_get_documents(self):
-        """Returns a list of recordset of the documents linked to the stock.move in `self` in order
-        to post the delay alert next activity. These documents are deduplicated. This method is meant
-        to be overridden by other modules, each of them adding an element by type of recordset on
-        this list.
-
-        :return: a list of recordset of the documents linked to `self`
-        :rtype: list
-        """
         return list(self.mapped("picking_id"))
 
     def _do_unreserve(self):
@@ -2547,11 +2397,6 @@ class StockMove(models.Model):
         next_serial_count=False,
         location_id=False,
     ):
-        """Generate `lot_name` values from `next_serial` and create a move line for each.
-
-        :param location_id: optional destination to force on the created move
-            lines; when not given, the putaway strategy decides per line.
-        """
         self.ensure_one()
         count = next_serial_count or self.next_serial_count
         if not count:
@@ -2583,18 +2428,6 @@ class StockMove(models.Model):
         location_dest_id=False,
         origin_move_line=None,
     ):
-        """Return a list of commands to update the move lines (write on
-        existing ones or create new ones).
-        Called when user want to create and assign multiple serial numbers in
-        one time (using the button/wizard or copy-paste a list in the field).
-
-        :param field_data: A list containing dict with at least `lot_name` and `quantity`
-        :type field_data: list
-        :param origin_move_line: A move line to duplicate the value from, empty record by default
-        :type origin_move_line: record of :class:`stock.move.line`
-        :return: A list of commands to create/update :class:`stock.move.line`
-        :rtype: list
-        """
         self.ensure_one()
         origin_move_line = origin_move_line or self.env["stock.move.line"]
         loc_dest = origin_move_line.location_dest_id or location_dest_id
@@ -2690,7 +2523,6 @@ class StockMove(models.Model):
         return {}
 
     def _get_new_picking_values(self):
-        """Return the create values for a new picking linking the group of moves in self."""
         origins = self.filtered(lambda m: m.origin).mapped("origin")
         origins = list(dict.fromkeys(origins))
         if len(origins) == 0:
@@ -2839,7 +2671,6 @@ class StockMove(models.Model):
         }
 
     def _get_lang(self):
-        """Determine language to use for translated description"""
         return (
             self.picking_id.partner_id.lang
             or self.partner_id.lang
@@ -2847,9 +2678,6 @@ class StockMove(models.Model):
         )
 
     def _get_source_document(self):
-        """Return the move's document, used by `stock.forecasted_product_product`;
-        override to add more document types to the report.
-        """
         self.ensure_one()
         return self.picking_id or False
 
@@ -2877,12 +2705,6 @@ class StockMove(models.Model):
         return description
 
     def _get_forecast_availability_outgoing(self, warehouse, location_id=False):
-        """Get forecasted information (sum_qty_expected, max_date_expected) of self for the warehouse's locations.
-        :param warehouse: warehouse to search under
-        :param  location_id: location source of outgoing moves
-        :return: a defaultdict of outgoing moves from warehouse for product_id in self, values are tuple (sum_qty_expected, max_date_expected)
-        :rtype: defaultdict
-        """
         wh_location_query = self.env["stock.location"]._search(
             [("id", "child_of", warehouse.view_location_id.id)],
         )
@@ -2950,11 +2772,6 @@ class StockMove(models.Model):
         return
 
     def _lot_commands_bypass(self, lot, available_move_lines, extra_uom_qty):
-        """Place `lot` without touching quants (reservation is bypassed):
-        relabel an existing lot-less line when possible, else create one.
-
-        :return: (commands, remaining lot-less lines, remaining extra quantity)
-        """
         self.ensure_one()
         product = self.product_id
         uom = product.uom_id if product.tracking == "serial" else self.product_uom_id
@@ -2993,11 +2810,6 @@ class StockMove(models.Model):
         return commands, available_move_lines, extra_uom_qty
 
     def _lot_commands_reserve(self, lot, quants, extra_uom_qty):
-        """Place `lot` by reserving against `quants`; when no quant has
-        availability, still create a 1-unit line so the lot is represented.
-
-        :return: (commands, remaining extra quantity)
-        """
         self.ensure_one()
         product = self.product_id
         commands = []
@@ -3041,13 +2853,6 @@ class StockMove(models.Model):
         return commands, extra_uom_qty
 
     def _lot_commands_rebalance_unlotted(self, available_move_lines, extra_uom_qty):
-        """Unlink and re-create the lot-less move lines (capped to the
-        remaining extra quantity) to alter the reservation order and
-        prioritise lot-set move lines in the un-reservation process relying
-        on the process decrease.
-
-        :return: commands
-        """
         self.ensure_one()
         product = self.product_id
         commands = [Command.delete(ml.id) for ml in available_move_lines]
@@ -3077,22 +2882,9 @@ class StockMove(models.Model):
         return commands
 
     def _availability_relevant(self):
-        """The moves whose shortage bears on their operation's availability.
-
-        Cancelled moves are irrelevant, and done moves have already moved their
-        goods; both keep a non-zero `product_qty` with `forecast_availability`
-        left at 0 by `_compute_forecast_information`, so counting them would
-        wrongly flag their picking 'Not Available' (see
-        `_compute_products_availability` and `_get_availability_state`).
-        """
         return self.filtered(lambda move: move.state not in ("cancel", "done"))
 
     def _is_availability_short(self):
-        """Whether any relevant move is short of its demand (of 0 for drafts).
-
-        Single source of the shortage predicate shared by the picking-level
-        display compute and the availability-state search classifier.
-        """
         return any(
             move.product_id
             and move.product_id.uom_id.compare(
@@ -3104,12 +2896,6 @@ class StockMove(models.Model):
         )
 
     def _get_availability_state(self, get_comparison_date):
-        """Picking-level availability of these moves, mirroring
-        `stock.picking._compute_products_availability` exactly: 'late' when any
-        move is short of its demand (short of 0 for drafts) or when the latest
-        forecast date exceeds the comparison date, 'expected' when fully
-        available with an on-time forecast date, 'available' otherwise.
-        """
         if not self:
             return "available"
         if self._is_availability_short():
@@ -3130,15 +2916,6 @@ class StockMove(models.Model):
         return "available"
 
     def _match_searched_availability(self, operator, value, get_comparison_date):
-        """Whether the (single) availability state of these moves' operation
-        matches the searched value(s).
-
-        The previous per-move OR classification could disagree with the
-        displayed state (a picking with one short move and one clean move
-        matched 'available' while displaying 'Late', and shortage-only
-        pickings matched nothing); the search now classifies the operation
-        with the same rules as the display compute.
-        """
         if not value:
             raise UserError(_("Search not supported without a value."))
         if operator not in ("=", "!=", "in", "not in"):
@@ -3148,7 +2925,6 @@ class StockMove(models.Model):
         return matched == (operator in ("=", "in"))
 
     def _merge_moves_fields(self):
-        """Return a dict of stock move values merging all the moves in `self`."""
         state = self._get_relevant_state_among_moves()
         origin = "/".join(
             dict.fromkeys(self.filtered(lambda m: m.origin).mapped("origin")),
@@ -3189,7 +2965,7 @@ class StockMove(models.Model):
             for f_name in float_fields
         }
         if "price_unit" in float_fields:
-            price_unit_prec = self.env["decimal.precision"].precision_get(
+            price_unit_prec = self.env["decimal.precision"].get_precision(
                 "Product Price",
             )
             currency_precision = (
@@ -3219,11 +2995,6 @@ class StockMove(models.Model):
         )
 
     def _merge_moves(self, merge_into=False):
-        """This method will, for each move in `self`, go up in their linked picking and try to
-        find in their existing moves a candidate into which we can merge the move.
-        :return: Recordset of moves passed to this method. If some of the passed moves were merged
-        into another existing one, return this one and not the (now unlinked) original.
-        """
         candidate_moves_set = set()
         if not merge_into:
             self._update_candidate_moves_list(candidate_moves_set)
@@ -3271,16 +3042,6 @@ class StockMove(models.Model):
         neg_qty_moves,
         neg_key,
     ):
-        """First merge phase: within each candidate group, fold every set of
-        same-key positive moves into a single kept move (record 0), relinking
-        their move lines onto it and marking the rest for removal.
-
-        :return: a 3-tuple of
-            - the redundant moves to unlink,
-            - the kept (merged) moves,
-            - a map of each kept move's negative-merge key to that move, used by
-              `_merge_absorb_negative_moves` to locate absorbers.
-        """
         moves_to_unlink = self.env["stock.move"]
         merged_moves = self.env["stock.move"]
         moves_by_neg_key = defaultdict(lambda: self.env["stock.move"])
@@ -3303,17 +3064,10 @@ class StockMove(models.Model):
         return moves_to_unlink, merged_moves, moves_by_neg_key
 
     def _merge_absorb_negative_moves(self, neg_qty_moves, moves_by_neg_key, neg_key):
-        """Second merge phase: let each positive move absorb the negative-demand
-        moves sharing its limited (negative) key, adjusting quantities and unit
-        prices and rewiring the chain links.
-
-        :return: a 3-tuple of (moves that absorbed something, negative moves to
-            unlink, positive moves left at zero demand to cancel).
-        """
         merged_moves = self.env["stock.move"]
         moves_to_unlink = self.env["stock.move"]
         moves_to_cancel = self.env["stock.move"]
-        price_unit_prec = self.env["decimal.precision"].precision_get("Product Price")
+        price_unit_prec = self.env["decimal.precision"].get_precision("Product Price")
         for neg_move in neg_qty_moves:
             for pos_move in moves_by_neg_key.get(neg_key(neg_move), []):
                 new_total_value = (
@@ -3373,12 +3127,6 @@ class StockMove(models.Model):
         return merged_moves, moves_to_unlink, moves_to_cancel
 
     def _on_demand_change(self, vals):
-        """Log the demand change and unreserve moves whose reservation now
-        exceeds the new demand. Runs before the write, on the old quantities.
-
-        :return: (receipt moves to re-assign after the write,
-                  moves whose state must be recomputed after the write)
-        """
         new_qty = vals["product_uom_qty"]
         for move in self.filtered(
             lambda m: m.state not in ("done", "draft") and m.picking_id,
@@ -3415,12 +3163,6 @@ class StockMove(models.Model):
         return receipt_moves_to_reassign, move_to_recompute_state
 
     def _on_source_location_change(self):
-        """Called after a write changed the moves' source location: drop the
-        move lines whose own source is no longer under it and detach the
-        moves from their origin chain.
-
-        :return: the moves that must be re-assigned
-        """
         mls_to_unlink = self.move_line_ids.filtered(
             lambda ml: not ml.location_id._child_of(ml.move_id.location_id),
         )
@@ -3433,9 +3175,6 @@ class StockMove(models.Model):
         return affected
 
     def _post_process_created_moves(self):
-        """Hook for moves auto-created alongside move lines (e.g. via the barcode app)
-        that bypass `_action_confirm` and so never run its post-creation logic.
-        """
         pass
 
     def _prepare_procurement_origin(self):
@@ -3503,9 +3242,6 @@ class StockMove(models.Model):
         return quantities
 
     def _prepare_procurement_vals(self):
-        """Prepare values for the procurement created from this move by a stock rule.
-        Meant to be overridden to add custom keys used in move/PO creation.
-        """
         self.ensure_one()
 
         product_id = self.product_id.with_context(lang=self._get_lang())
@@ -3563,15 +3299,8 @@ class StockMove(models.Model):
         }
 
     def _uom_quantity_if_faithful(self, quantity, to_uom):
-        """Convert `quantity` (expressed in the product's UoM) into `to_uom`.
-
-        :return: the converted quantity, rounded at the "Product Unit"
-            precision, or ``None`` when `to_uom` cannot faithfully represent
-            `quantity` (converting back diverges) and the caller should keep
-            working in the product's UoM.
-        """
         self.ensure_one()
-        digits = self.env["decimal.precision"].precision_get("Product Unit")
+        digits = self.env["decimal.precision"].get_precision("Product Unit")
         uom_quantity = self.product_id.uom_id._compute_quantity(
             quantity,
             to_uom,
@@ -3830,10 +3559,6 @@ class StockMove(models.Model):
         self._rollup_moves_fetch("move_orig_ids")
 
     def _rollup_moves_fetch(self, target_field):
-        """Prefetch the whole move chain along `target_field` (`move_dest_ids`
-        or `move_orig_ids`) so later reads of it don't hit the DB one hop at a
-        time.
-        """
         seen = set(self.ids)
         self.fetch([target_field])
         next_ids = set(self[target_field].ids)
@@ -3850,10 +3575,6 @@ class StockMove(models.Model):
         return self._rollup_moves(seen=seen)
 
     def _rollup_moves(self, origin=True, seen=False) -> OrderedSet[int]:
-        """Find all moves in the chain, depending on the direction.
-
-        :param origin: if set (default), returns the origin moves, else the destination moves
-        """
         target_field = "move_orig_ids" if origin else "move_dest_ids"
         if not seen:
             seen = OrderedSet()
@@ -3954,12 +3675,6 @@ class StockMove(models.Model):
         return move_lines_vals
 
     def _split(self, qty, restrict_partner_id=False):
-        """Splits `self` quantity and return values for a new moves to be created afterwards
-
-        :param qty: float. quantity to split (given in product UoM)
-        :param restrict_partner_id: optional partner that can be given in order to force the new move to restrict its choice of quants to the ones belonging to this partner.
-        :returns: list of dict. stock move values
-        """
         self.ensure_one()
         if self.state in ("done", "cancel"):
             raise UserError(
@@ -3995,7 +3710,7 @@ class StockMove(models.Model):
         )
         new_product_qty = float_round(
             new_product_qty,
-            precision_digits=self.env["decimal.precision"].precision_get(
+            precision_digits=self.env["decimal.precision"].get_precision(
                 "Product Unit",
             ),
         )
@@ -4006,25 +3721,12 @@ class StockMove(models.Model):
         return new_move_vals
 
     def _set_date_deadline(self, new_deadline):
-        """Propagate the new deadline to linked moves upstream and downstream.
-
-        Entry point called from `write`: it resolves the set of already-visited
-        move ids (threaded across the nested writes through the context) and
-        delegates the actual propagation.
-        """
         visited = self.env.context.get("date_deadline_propagate_ids")
         if visited is None:
             visited = set()
         self._propagate_date_deadline(new_deadline, visited)
 
     def _propagate_date_deadline(self, new_deadline, visited):
-        """Shift the deadline of the moves linked to `self` by the same delta.
-
-        :param visited: set of move ids already handled, updated in place. The
-            writes below re-enter `_set_date_deadline` (via `write`) carrying
-            the same set through the context, so every move of the chain is
-            visited exactly once even across sibling branches.
-        """
         visited.update(self.ids)
         new_deadline_dt = fields.Datetime.to_datetime(new_deadline)
         for move in self.with_context(date_deadline_propagate_ids=visited):
@@ -4157,17 +3859,11 @@ class StockMove(models.Model):
         return res
 
     def _set_quantity_done(self, qty):
-        """Set the given quantity as done on the move through its move lines. Can handle move
-        lines with a different UoM than the move, though that's best avoided.
-
-        :param qty: quantity in the UoM of move.product_uom_id
-        """
         existing_smls = self.move_line_ids
         self.move_line_ids = self._set_quantity_done_prepare_vals(qty)
         (self.move_line_ids - existing_smls)._apply_putaway_strategy()
 
     def _sync_warehouse_from_locations(self):
-        """Realign `warehouse_id` with the warehouse of the (new) locations."""
         wh_by_moves = defaultdict(self.env["stock.move"].browse)
         for move in self:
             move_warehouse = (
@@ -4180,7 +3876,6 @@ class StockMove(models.Model):
             moves.warehouse_id = warehouse.id
 
     def _trigger_scheduler(self):
-        """Check for auto-triggered orderpoints and trigger them."""
         if not self or self.env["ir.config_parameter"].sudo().get_param(
             "stock.no_auto_scheduler",
         ):
@@ -4259,9 +3954,6 @@ class StockMove(models.Model):
             )._procure_orderpoint_confirm(company_id=company, raise_user_error=False)
 
     def _trigger_assign(self):
-        """Check for and trigger action_assign for confirmed/partially_available moves related to done moves.
-        Disable auto reservation if user configured to do so.
-        """
         if not self or self.env["ir.config_parameter"].sudo().get_param(
             "stock.picking_no_auto_reserve",
         ):
@@ -4297,7 +3989,6 @@ class StockMove(models.Model):
             candidate_moves_set.add(picking.move_ids)
 
     def _get_orderpoints_to_update(self):
-        """Return the orderpoints whose forecast the moves in `self` impact."""
         if not self:
             return self.env["stock.warehouse.orderpoint"]
         seen = set()
@@ -4326,13 +4017,6 @@ class StockMove(models.Model):
         )
 
     def _update_orderpoints(self, orderpoints=None):
-        """Manually mark the relevant orderpoints for re-computation.
-        This allows us to only recompute the qty_to_order for the orderpoints in the relevant warehouse(s),
-        instead of all the orderpoints linked to the product.
-
-        :param orderpoints: optional pre-collected orderpoints; `unlink` passes
-            them because they must be gathered before the moves are deleted.
-        """
         if orderpoints is None:
             orderpoints = self._get_orderpoints_to_update()
         orderpoints.invalidate_recordset(["qty_to_order", "qty_forecast"])
@@ -4350,16 +4034,6 @@ class StockMove(models.Model):
         owner_id=None,
         strict=True,
     ):
-        """Reserve `need` from quants at `location_id` by creating or raising move lines.
-
-        Signature and return value are load-bearing: this is an extension point
-        (`product_expiry`, `industry_fsm_stock` -- which calls it repeatedly and sums
-        the results -- and `point_of_sale` all go through it), so what changes under a
-        ledger is *when* the lines are written, never what the caller is told it got.
-        With a ledger in context the values join the batch and the take is already
-        recorded, so a second call sees the reduced availability exactly as it would
-        have seen a persisted one.
-        """
         self.ensure_one()
         move_line_vals, taken_quantity = self._update_reserved_quantity_vals(
             need,
@@ -4481,17 +4155,6 @@ class StockMove(models.Model):
         return move_line_vals, taken_quantity
 
     def _record_pending_reservation(self, quant, quantity):
-        """Tell this run's ledger that `quantity` of `quant` is spoken for.
-
-        Called from the two branches of `_update_reserved_quantity_vals` that produce
-        move line *values* rather than writing a line -- i.e. exactly the takes whose
-        quant update has been deferred to the end of `_action_assign`. The branch that
-        raises an existing line does not call this, because that write syncs the quant
-        immediately and recording it too would count the take twice.
-
-        A no-op outside `_action_assign`, where there is no ledger and every take is
-        written before the next question is asked.
-        """
         ledger = self.env.context.get("reservation_ledger")
         if ledger is not None:
             ledger.take(quant, quantity)
@@ -4521,7 +4184,6 @@ class StockMove(models.Model):
         )
 
     def _check_write_vals(self, vals):
-        """Validate `vals` before writing; return it, reordered if needed."""
         if "quantity" in vals:
             if any(move.state == "cancel" for move in self):
                 raise UserError(

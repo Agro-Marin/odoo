@@ -218,7 +218,7 @@ class StockPickingType(models.Model):
     count_picking_waiting = fields.Integer(compute="_compute_picking_count")
     count_picking_late = fields.Integer(compute="_compute_picking_count")
     count_picking_backorders = fields.Integer(compute="_compute_picking_count")
-    count_move_ready = fields.Integer(compute="_compute_move_count")
+    count_move_ready = fields.Integer(compute="_compute_count_move_ready")
     hide_reservation_method = fields.Boolean(compute="_compute_hide_reservation_method")
     barcode = fields.Char(string="Barcode", copy=False)
     company_id = fields.Many2one(
@@ -535,7 +535,7 @@ class StockPickingType(models.Model):
                 record.id, ("assigned", "waiting", "confirmed")
             )
 
-    def _compute_move_count(self):
+    def _compute_count_move_ready(self):
         data = self.env["stock.move"]._read_group(
             [("state", "=", "assigned"), ("picking_type_id", "in", self.ids)],
             ["picking_type_id"],
@@ -547,7 +547,6 @@ class StockPickingType(models.Model):
 
     @api.depends("warehouse_id")
     def _compute_display_name(self):
-        """Display 'Warehouse_name: PickingType_name'"""
         for picking_type in self:
             if picking_type.warehouse_id:
                 picking_type.display_name = (
@@ -731,7 +730,7 @@ class StockPickingType(models.Model):
 
     @api.model
     def action_redirect_to_barcode_installation(self):
-        action = self.env["ir.actions.act_window"]._for_xml_id("base.open_module_tree")
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id("base.open_module_tree")
         action["context"] = dict(
             literal_eval(action["context"]), search_default_name="Barcode"
         )
@@ -739,7 +738,7 @@ class StockPickingType(models.Model):
 
 
     def _get_action(self, action_xmlid):
-        action = self.env["ir.actions.actions"]._for_xml_id(action_xmlid)
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(action_xmlid)
         context = {}
 
         if self:
@@ -788,7 +787,7 @@ class StockPickingType(models.Model):
         return self._get_action("stock.action_picking_tree_ready")
 
     def get_action_picking_type_moves_analysis(self):
-        action = self.env["ir.actions.actions"]._for_xml_id("stock.stock_move_action")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("stock.stock_move_action")
         action["domain"] = Domain.AND(
             [action["domain"] or [], [("picking_type_id", "=", self.id)]]
         )
@@ -807,16 +806,6 @@ class StockPickingType(models.Model):
         return self._get_action("stock.action_get_picking_type_ready_moves")
 
     def _get_aggregated_records_by_date(self):
-        """
-        Returns a list, each element containing 3 values:
-        * picking type ID
-        * per-date-category counts of that type's open (assigned/waiting/confirmed)
-          pickings, as a ``{date_category: count}`` dict — overrides adding other
-          source records (e.g. mrp, repair) may instead return the legacy list of
-          raw datetime values, which `_compute_kanban_dashboard_graph` still
-          classifies one by one
-        * data series name, used to display it in the graph
-        """
         if not self:
             return []
         counts_by_type = self._get_date_category_counts(
@@ -831,17 +820,6 @@ class StockPickingType(models.Model):
         ]
 
     def _get_date_category_counts(self, model_name, date_field, domain):
-        """Per-date-category counts of ``model_name``'s open records, keyed by
-        picking type: ``{picking_type_id: {date_category: count}}``.
-
-        Buckets in SQL — one grouped COUNT per (picking type, date category)
-        using the same boundaries as `calculate_date_category` — instead of
-        array_agg-ing every record's datetime out of PostgreSQL and classifying
-        them one by one in Python on every dashboard render. Shared by the
-        dashboard sources (stock pickings; mrp productions and repair orders in
-        their overrides): ``model_name`` needs a ``picking_type_id`` field and
-        a datetime ``date_field``.
-        """
         model = self.env[model_name]
         model.browse().check_access("read")
         query = model._search(
@@ -890,10 +868,6 @@ class StockPickingType(models.Model):
         return code_names.get(self.code)
 
     def _prepare_graph_data(self, summaries):
-        """Convert each picking type summary into dashboard graph data.
-
-        If all values in a graph are 0, it is assigned the "sample" type instead.
-        """
         data_category_mapping = {
             "total_before": {"label": _("Before"), "type": "past"},
             "total_yesterday": {"label": _("Yesterday"), "type": "past"},

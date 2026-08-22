@@ -12,6 +12,39 @@ import { ForecastedDetails } from "./forecasted_details.js";
 import { ForecastedHeader } from "./forecasted_header.js";
 import { ForecastedWarehouseFilter } from "./forecasted_warehouse_filter.js";
 
+/**
+ * Last-resort recovery of `active_model` from a serialised action.
+ *
+ * The report normally reads the model from its own context. This path is for an
+ * action restored from a URL, where the context has been through the server and
+ * the model survives only inside the original action's `context` -- which, for a
+ * server action, is a *Python expression as a string*.
+ *
+ * Reading a Python expression with a regex is not a defensible design; the
+ * action should carry the model in a field of its own. It is load-bearing until
+ * that payload changes, so it lives here: named, isolated, tested, and audible
+ * when it fails, rather than inlined behind an empty `catch`.
+ *
+ * @param {string | undefined} originalAction the action as serialised JSON
+ * @returns {string | undefined}
+ */
+export function activeModelOfOriginalAction(originalAction) {
+    if (!originalAction) {
+        return undefined;
+    }
+    let context;
+    try {
+        context = JSON.parse(originalAction).context;
+    } catch (error) {
+        console.warn("[stock] forecast: unreadable original action:", error);
+        return undefined;
+    }
+    if (typeof context === "string") {
+        return context.match(/active_model['"]?\s*:\s*['"]([\w.]+)['"]/)?.[1];
+    }
+    return context?.active_model;
+}
+
 export class StockForecasted extends Component {
     static template = "stock.Forecasted";
     static components = {
@@ -88,19 +121,10 @@ export class StockForecasted extends Component {
                     resModel = actionModel[0]?.model;
                 }
                 this.resModel = resModel;
-            } else if (this.props.action._originalAction) {
-                try {
-                    const originalContext = JSON.parse(
-                        this.props.action._originalAction,
-                    ).context;
-                    if (typeof originalContext === "string") {
-                        this.resModel = originalContext.match(
-                            /active_model['"]?\s*:\s*['"]([\w.]+)['"]/,
-                        )?.[1];
-                    } else if (originalContext) {
-                        this.resModel = originalContext.active_model;
-                    }
-                } catch {}
+            } else {
+                this.resModel = activeModelOfOriginalAction(
+                    this.props.action._originalAction,
+                );
             }
             this.context.active_model = this.resModel;
         }

@@ -56,38 +56,6 @@ class TestPurchaseOrderReport(AccountTestInvoicingCommon):
         f = Form(self.env["account.move"].with_context(default_move_type="in_invoice"))
         f.invoice_date = f.date
         f.partner_id = po.partner_id
-        # <field name="invoice_vendor_bill_id" position="after">
-        #     <field name="purchase_id" invisible="1"/>
-        #     <label for="purchase_vendor_bill_id" string="Auto-Complete" class="oe_edit_only"
-        #             invisible="state != 'draft' or move_type != 'in_invoice'" />
-        #     <field name="purchase_vendor_bill_id" nolabel="1"
-        #             invisible="state != 'draft' or move_type != 'in_invoice'"
-        #             class="oe_edit_only"
-        #             domain="('company_id', '=', company_id), ('partner_id.commercial_partner_id', '=', commercial_partner_id)] if partner_id else [('company_id', '=', company_id)]"
-        #             placeholder="Select a purchase order or an old bill"
-        #             context="{'show_total_amount': True}"
-        #             options="{'no_create': True, 'no_open': True}"/>
-        # </field>
-        # @api.onchange('purchase_vendor_bill_id', 'purchase_id')
-        # def _onchange_purchase_auto_complete(self):
-        #     ...
-        #     elif self.purchase_vendor_bill_id.purchase_order_id:
-        #         self.purchase_id = self.purchase_vendor_bill_id.purchase_order_id
-        #     self.purchase_vendor_bill_id = False
-        # purchase_vendor_bill_id = fields.Many2one('purchase.bill.match'
-        # class PurchaseBillMatch(models.Model):
-        #     _name = 'purchase.bill.match'
-        #     ...
-        #     def init(self):
-        #         self.env.cr.execute("""
-        #                 ...
-        #                 SELECT
-        #                     -id, name, ...
-        #                     id as purchase_order_id
-        #                 FROM purchase_order
-        #                 ...
-        #             )""")
-        #     ...
         f.purchase_vendor_bill_id = self.env["purchase.bill.match"].browse(-po.id)
         invoice = f.save()
         invoice.action_post()
@@ -101,11 +69,9 @@ class TestPurchaseOrderReport(AccountTestInvoicingCommon):
             ]
         )
 
-        # check that report will convert dozen to unit or not
         self.assertEqual(
             res_product1.product_uom_qty, 12.0, "UoM conversion is not working"
         )
-        # report should show in company currency (amount/rate) = (100/2)
         self.assertAlmostEqual(
             res_product1.price_total,
             50.0,
@@ -126,7 +92,6 @@ class TestPurchaseOrderReport(AccountTestInvoicingCommon):
             1.0,
             "No conversion needed since product_b is already a dozen",
         )
-        # report should show in company currency (amount/rate) = (200/2)
         self.assertAlmostEqual(
             res_product2.price_total,
             100.0,
@@ -202,15 +167,11 @@ class TestPurchaseOrderReport(AccountTestInvoicingCommon):
         result_po = self.env["purchase.report"].search(
             [("order_reference", "=", f"purchase.order,{po.id}")]
         )
-        # The report should include the product line but not the notes/sections
         self.assertEqual(
             len(result_po), 1, "The report should include only the product line"
         )
 
     def test_po_report_currency(self):
-        """
-        Check that the currency of the report is the one of the current company
-        """
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -247,7 +208,6 @@ class TestPurchaseOrderReport(AccountTestInvoicingCommon):
                 ],
             }
         )
-        # flush the POs to make sure the report is up to date
         po.flush_model()
         po_2.flush_model()
         report = self.env["purchase.report"].search(
@@ -256,14 +216,6 @@ class TestPurchaseOrderReport(AccountTestInvoicingCommon):
         self.assertEqual(report.currency_id, self.env.company.currency_id)
 
     def test_avg_price_calculation(self):
-        """
-        Check that the average price is calculated based on the quantity ordered in each line
-        PO:
-            - 10 unit of product A -> price $50
-            - 1 unit of product A -> price $10
-        Total product_uom_qty: 11
-        avergae price: 46.36 = ((10 * 50) + (10 * 1)) / 11
-        """
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -300,12 +252,6 @@ class TestPurchaseOrderReport(AccountTestInvoicingCommon):
         self.assertEqual(round(report[0]["price_average:avg"], 2), 46.36)
 
     def test_purchase_report_multi_uom(self):
-        """
-        PO:
-            - 2 Pairs of P1 @ 200
-            - 1 Dozen of P2 @ 2400
-        """
-
         uom_units = self.env.ref("uom.product_uom_unit")
         uom_dozens = self.env.ref("uom.product_uom_dozen")
         uom_pairs = self.env["uom.uom"].create(

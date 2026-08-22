@@ -1,9 +1,50 @@
 /** @odoo-module native */
 import { Component, onWillUpdateProps, useState } from "@odoo/owl";
 import { useOperationGuard } from "@stock/utils/use_operation_guard";
-import { formatFloat } from "@web/core/formatters";
+import { formatFieldFloat } from "@web/core/formatters";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+
+/**
+ * Which bucket a forecast line falls in.
+ *
+ * These were five near-identical grouping loops over four boolean predicates,
+ * and reading them as a table showed the predicates are mutually exclusive but
+ * NOT exhaustive: an incoming document with no matched outgoing demand
+ * (`document_in` set, `document_out` unset, replenishment filled) satisfies none
+ * of them. It is not rare -- 17 of 169 lines on an ordinary product -- it simply
+ * had no name, so it was invisible. Naming it is the point of this function; the
+ * membership tests it enables are O(1) rather than a scan, which is a by-product.
+ *
+ * Returns null for the combinations that remain unclassified, which is what the
+ * scans returned for them too.
+ *
+ * @param {object} line
+ * @returns {"inTransit"|"onHand"|"reconciled"|"freeStock"|"notAvailable"|"incoming"|null}
+ */
+export function classifyLine(line) {
+    if (line.in_transit) {
+        return "inTransit";
+    }
+    const hasIn = Boolean(line.document_in);
+    const hasOut = Boolean(line.document_out);
+    const isFilled = Boolean(line.replenishment_filled);
+    if (isFilled && hasOut) {
+        return hasIn ? "reconciled" : "onHand";
+    }
+    if (isFilled && !hasOut) {
+        return hasIn ? "incoming" : "freeStock";
+    }
+    if (!isFilled && hasOut && !hasIn) {
+        return "notAvailable";
+    }
+    return null;
+}
+
+/** The identity `_sameDocument` compares, as a single indexable value. */
+function documentKey(document) {
+    return document ? `${document._name}|${document.id}|${document.name}` : null;
+}
 
 export class ForecastedDetails extends Component {
     static template = "stock.ForecastedDetails";
@@ -22,132 +63,21 @@ export class ForecastedDetails extends Component {
         onWillUpdateProps((nextProps) => this._deriveLinesData(nextProps.docs));
 
         this._formatFloat = (num) =>
-            formatFloat(num, { digits: [false, this.props.docs.precision] });
+            formatFieldFloat(num, { digits: [false, this.props.docs.precision] });
     }
 
     _deriveLinesData(docs) {
         this.docs = docs;
         this._prepareLines();
-        this._groupLines();
-        this._prepareData();
+        // Indexed, then pruned, then indexed again: `_dropEmptyFreeStockLine`
+        // needs the index to decide, and mutating `this._lines` behind an index
+        // built from it is what used to leave a removed line reachable through
+        // the groups. One extra linear pass buys the invariant.
+        this._indexLines();
+        this._dropEmptyFreeStockLine();
+        this._indexLines();
+        this._computeTotals();
         this._mergeLines();
-    }
-
-    async _reserve(move_id) {
-        await this.orm.call(
-            "stock.forecasted_product_product",
-            "action_reserve_linked_picks",
-            [move_id],
-        );
-        this.props.reloadReport();
-    }
-
-    async _unreserve(move_id) {
-        await this.orm.call(
-            "stock.forecasted_product_product",
-            "action_unreserve_linked_picks",
-            [move_id],
-        );
-        this.props.reloadReport();
-    }
-
-    async _onClickChangePriority(modelName, record) {
-        const value = record.priority === "0" ? "1" : "0";
-
-        await this.orm.call(modelName, "write", [[record.id], { priority: value }]);
-        this.props.reloadReport();
-    }
-
-    _onHandCondition(line) {
-        return (
-            !line.document_in &&
-            !line.in_transit &&
-            line.replenishment_filled &&
-            line.document_out
-        );
-    }
-
-    _reconciledCondition(line) {
-        return (
-            line.document_in &&
-            !line.in_transit &&
-            line.replenishment_filled &&
-            line.document_out
-        );
-    }
-
-    _freeStockCondition(line) {
-        return (
-            !line.document_in &&
-            !line.in_transit &&
-            line.replenishment_filled &&
-            !line.document_out
-        );
-    }
-
-    _notAvailableCondition(line) {
-        return (
-            !line.document_in &&
-            !line.in_transit &&
-            !line.replenishment_filled &&
-            line.document_out
-        );
-    }
-
-    _groupLines() {
-        this._groupLinesByProduct();
-        this._groupOnHandLinesByProduct();
-        this._groupReconciledLinesByProduct();
-        this._groupFreeStockLinesByProduct();
-        this._groupNotAvailableLinesByProduct();
-    }
-
-    _groupLinesByProduct() {
-        this.LinesPerProduct = {};
-        for (const line of this.lines) {
-            const key = line.product.id;
-            (this.LinesPerProduct[key] ??= []).push(line);
-        }
-    }
-
-    _groupOnHandLinesByProduct() {
-        this.OnHandLinesPerProduct = {};
-        for (const line of this.lines) {
-            if (this._onHandCondition(line)) {
-                const key = line.product.id;
-                (this.OnHandLinesPerProduct[key] ??= []).push(line);
-            }
-        }
-    }
-
-    _groupReconciledLinesByProduct() {
-        this.ReconciledLinesPerProduct = {};
-        for (const line of this.lines) {
-            if (this._reconciledCondition(line)) {
-                const key = line.product.id;
-                (this.ReconciledLinesPerProduct[key] ??= []).push(line);
-            }
-        }
-    }
-
-    _groupNotAvailableLinesByProduct() {
-        this.NotAvailableLinesPerProduct = {};
-        for (const line of this.lines) {
-            if (this._notAvailableCondition(line)) {
-                const key = line.product.id;
-                (this.NotAvailableLinesPerProduct[key] ??= []).push(line);
-            }
-        }
-    }
-
-    _groupFreeStockLinesByProduct() {
-        this.FreeStockLinesPerProduct = {};
-        for (const line of this.lines) {
-            if (this._freeStockCondition(line)) {
-                const key = line.product.id;
-                (this.FreeStockLinesPerProduct[key] ??= []).push(line);
-            }
-        }
     }
 
     _prepareLines() {
@@ -157,44 +87,71 @@ export class ForecastedDetails extends Component {
         }
     }
 
-    _prepareData() {
-        this.OnHandTotalQty = Object.fromEntries(
-            Object.entries(this.OnHandLinesPerProduct).map(([id, lines]) => [
-                id,
-                lines.reduce((sum, line) => sum + line.quantity, 0),
-            ]),
-        );
-        this.AvailableOnHandTotalQty = Object.fromEntries(
-            Object.entries(this.OnHandLinesPerProduct).map(([id, lines]) => [
-                id,
-                lines.reduce(
-                    (sum, line) => sum + (line.reservation ? 0 : line.quantity),
-                    0,
-                ),
-            ]),
-        );
-        for (const productId of this.productIds) {
-            if (
-                !(productId in this.FreeStockLinesPerProduct) ||
-                !(productId in this.LinesPerProduct)
-            ) {
+    /**
+     * One pass over the lines, producing everything the template asks per row:
+     * the category of a line, the lines of a product, the lines of a product in
+     * a category, and the outgoing documents covered by a product's category.
+     */
+    _indexLines() {
+        this._categoryByLine = new Map();
+        this._linesByProduct = new Map();
+        this._linesByProductCategory = new Map();
+        this._outDocsByProductCategory = new Map();
+        for (const line of this._lines) {
+            const productId = line.product.id;
+            const category = classifyLine(line);
+            this._categoryByLine.set(line, category);
+            push(this._linesByProduct, productId, line);
+            if (!category) {
                 continue;
             }
-            const lines = this.FreeStockLinesPerProduct[productId];
-            if (
-                this.LinesPerProduct[productId].length > 1 &&
-                lines.length === 1 &&
-                lines[0]?.quantity === 0
-            ) {
-                const removeIndex = this.lines.indexOf(lines[0]);
-                this.lines.splice(removeIndex, 1);
+            const key = `${productId}|${category}`;
+            push(this._linesByProductCategory, key, line);
+            const outKey = documentKey(line.document_out);
+            if (outKey) {
+                let docs = this._outDocsByProductCategory.get(key);
+                if (!docs) {
+                    docs = new Set();
+                    this._outDocsByProductCategory.set(key, docs);
+                }
+                docs.add(outKey);
             }
+        }
+    }
+
+    /**
+     * A product whose only free-stock line carries nothing, alongside other
+     * lines, contributes an empty row. Drop it.
+     */
+    _dropEmptyFreeStockLine() {
+        for (const productId of this.productIds) {
+            const all = this._linesByProduct.get(productId);
+            const free = this.linesOf(productId, "freeStock");
+            if (all?.length > 1 && free.length === 1 && free[0].quantity === 0) {
+                this._lines.splice(this._lines.indexOf(free[0]), 1);
+            }
+        }
+    }
+
+    _computeTotals() {
+        this.onHandTotalQty = {};
+        this.availableOnHandTotalQty = {};
+        for (const productId of this.productIds) {
+            const onHand = this.linesOf(productId, "onHand");
+            this.onHandTotalQty[productId] = onHand.reduce(
+                (sum, line) => sum + line.quantity,
+                0,
+            );
+            this.availableOnHandTotalQty[productId] = onHand.reduce(
+                (sum, line) => sum + (line.reservation ? 0 : line.quantity),
+                0,
+            );
         }
     }
 
     _mergeLines() {
         const lines = this.lines;
-        this.mergesLinesData = {};
+        this.mergedRows = {};
         let lastIndex = 0;
         for (let i = 0; i < lines.length - 1; i++) {
             const line = lines[i];
@@ -206,46 +163,70 @@ export class ForecastedDetails extends Component {
                 lastIndex = i + 1;
                 continue;
             }
-            if (!this.mergesLinesData[lastIndex]) {
-                this.mergesLinesData[lastIndex] = {
-                    rowcount: 1,
-                    tot_qty: line.quantity,
-                };
+            if (!this.mergedRows[lastIndex]) {
+                this.mergedRows[lastIndex] = { rowcount: 1, tot_qty: line.quantity };
             }
-            this.mergesLinesData[lastIndex].rowcount += 1;
-            this.mergesLinesData[lastIndex].tot_qty += nextLine.quantity;
+            this.mergedRows[lastIndex].rowcount += 1;
+            this.mergedRows[lastIndex].tot_qty += nextLine.quantity;
         }
     }
 
     _sameLineRule(line, nextLine) {
-        const OnHand = this.OnHandLinesPerProduct[line.product.id] || [];
-        const NotAvailable = this.NotAvailableLinesPerProduct[line.product.id] || [];
-        const sameReceiptDate = line.receipt_date === nextLine.receipt_date;
+        const category = this.categoryOf(line);
+        const sameCategory = category === this.categoryOf(nextLine);
         return (
-            (this.sameDocumentIn(line, nextLine) && sameReceiptDate) ||
-            (OnHand.includes(line) && OnHand.includes(nextLine)) ||
-            (NotAvailable.includes(line) && NotAvailable.includes(nextLine))
+            (this.sameDocumentIn(line, nextLine) &&
+                line.receipt_date === nextLine.receipt_date) ||
+            (sameCategory && (category === "onHand" || category === "notAvailable"))
         );
     }
+
+    // -- membership -------------------------------------------------------
+
+    /** @returns {string | null} */
+    categoryOf(line) {
+        return this._categoryByLine.get(line) ?? null;
+    }
+
+    /** @returns {object[]} */
+    linesOf(productId, category) {
+        return this._linesByProductCategory.get(`${productId}|${category}`) || [];
+    }
+
+    isOnHand(line) {
+        return this.categoryOf(line) === "onHand";
+    }
+
+    isReconciled(line) {
+        return this.categoryOf(line) === "reconciled";
+    }
+
+    /** Does any line of this product/category cover the same outgoing document? */
+    _coversSameDocumentOut(productId, category, line) {
+        const outKey = documentKey(line.document_out);
+        return Boolean(
+            outKey &&
+            this._outDocsByProductCategory.get(`${productId}|${category}`)?.has(outKey),
+        );
+    }
+
+    // -- rendering --------------------------------------------------------
 
     displayReserve(line, lineIndex) {
         let splittedLine = true;
         if (lineIndex - 1 >= 0) {
             const previousLine = this.lines[lineIndex - 1];
-            const sameProduct = line.product.id === previousLine.product.id;
-            const isOnHandSplittedLine =
-                this.OnHandLinesPerProduct[line.product.id] &&
-                this.OnHandLinesPerProduct[line.product.id].some((l) =>
-                    this.sameDocumentOut(l, line),
-                );
+            const productId = line.product.id;
+            const isOnHandSplittedLine = this._coversSameDocumentOut(
+                productId,
+                "onHand",
+                line,
+            );
             const isReconciledSplittedLine =
-                this.ReconciledLinesPerProduct[line.product.id] &&
                 !this.isReconciled(line) &&
-                this.ReconciledLinesPerProduct[line.product.id].some((l) =>
-                    this.sameDocumentOut(l, line),
-                );
+                this._coversSameDocumentOut(productId, "reconciled", line);
             splittedLine =
-                sameProduct &&
+                productId === previousLine.product.id &&
                 (this.sameDocumentOut(line, previousLine) ||
                     isOnHandSplittedLine ||
                     isReconciledSplittedLine);
@@ -277,22 +258,38 @@ export class ForecastedDetails extends Component {
     }
 
     _sameDocument(line1, line2, docField) {
-        return (
-            line1[docField] &&
-            line2[docField] &&
-            line1[docField].id === line2[docField].id &&
-            line1[docField]._name === line2[docField]._name &&
-            line1[docField].name === line2[docField].name
+        const key = documentKey(line1[docField]);
+        return Boolean(key && key === documentKey(line2[docField]));
+    }
+
+    // -- actions ----------------------------------------------------------
+
+    async _reserve(move_id) {
+        await this.orm.call(
+            "stock.forecasted_product_product",
+            "action_reserve_linked_picks",
+            [move_id],
         );
+        this.props.reloadReport();
     }
 
-    isOnHand(line) {
-        return Boolean(this.OnHandLinesPerProduct[line.product.id]?.includes(line));
+    async _unreserve(move_id) {
+        await this.orm.call(
+            "stock.forecasted_product_product",
+            "action_unreserve_linked_picks",
+            [move_id],
+        );
+        this.props.reloadReport();
     }
 
-    isReconciled(line) {
-        return Boolean(this.ReconciledLinesPerProduct[line.product.id]?.includes(line));
+    async _onClickChangePriority(modelName, record) {
+        const value = record.priority === "0" ? "1" : "0";
+
+        await this.orm.call(modelName, "write", [[record.id], { priority: value }]);
+        this.props.reloadReport();
     }
+
+    // -- template helpers -------------------------------------------------
 
     get freeStockLabel() {
         return _t("Free Stock");
@@ -308,7 +305,7 @@ export class ForecastedDetails extends Component {
 
     stockToReserveSentence(line) {
         return _t("Stock To Reserve: %(quantity)s %(uom)s", {
-            quantity: this._formatFloat(this.OnHandTotalQty[line.product.id]),
+            quantity: this._formatFloat(this.onHandTotalQty[line.product.id]),
             uom: line.uom_id.display_name,
         });
     }
@@ -335,5 +332,14 @@ export class ForecastedDetails extends Component {
 
     get productIds() {
         return Object.keys(this.docs.product).map(Number);
+    }
+}
+
+function push(map, key, value) {
+    const bucket = map.get(key);
+    if (bucket) {
+        bucket.push(value);
+    } else {
+        map.set(key, [value]);
     }
 }

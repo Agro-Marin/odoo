@@ -225,7 +225,7 @@ class ProjectProject(models.Model):
 
     def action_billable_time_button(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id("sale_timesheet.timesheet_action_from_sales_order_item")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("sale_timesheet.timesheet_action_from_sales_order_item")
         action.update({
             'context': {
                 'search_default_groupby_timesheet_invoice_type': True,

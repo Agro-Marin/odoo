@@ -24,10 +24,6 @@ class StockMove(TransactionCase):
         )
 
     def test_show_detailed(self):
-        """
-        Create an delivery immediate transfer with a storable and a consumable
-        product. The consumable product should not create move line from quants.
-        """
         picking = Form(
             self.env["stock.picking"].with_context(
                 default_picking_type_id=self.ref("stock.picking_type_out")
@@ -45,9 +41,6 @@ class StockMove(TransactionCase):
         self.assertEqual(picking.move_ids[1].show_quant, False)
 
     def test_create_move_line_reserved(self):
-        """Create a delivery immediate transfer with a storable product.
-        The move line should be reserved.
-        """
         picking = Form(
             self.env["stock.picking"].with_context(
                 default_picking_type_id=self.ref("stock.picking_type_out")

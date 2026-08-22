@@ -78,14 +78,6 @@ class StockReplenishmentInfo(models.TransientModel):
             raise ValidationError(_("The percentage factor cannot be negative."))
 
     def _create_wh_replenishment_options(self):
-        """Create one replenishment option per warehouse resupply route.
-
-        This runs from ``create()`` rather than a compute: creating records is
-        a side effect a compute must not have (it would fire on every cache
-        miss). Options are created ordered by decreasing free quantity so the
-        default ``id`` ordering shows the best-supplied warehouse first (the
-        historical compute sorted the recordset the same way).
-        """
         option_vals = []
         for replenishment_info in self:
             product = replenishment_info.product_id
@@ -198,12 +190,6 @@ class StockReplenishmentInfo(models.TransientModel):
 
     @api.model
     def _prepare_graph_data(self, product_min_qty, product_max_qty, daily_demand=0):
-        """Build the scatter-graph payload consumed by ``replenishment_graph_widget``.
-
-        Pure helper: it derives everything from its arguments so it can be unit
-        tested and reasoned about without a record. ``product_max_qty`` is assumed
-        ``>= product_min_qty`` (enforced by ``orderpoint._check_min_max_qty``).
-        """
         if not daily_demand:
             ordering_period = 0
             x_axis_vals = ["", " "]
@@ -344,12 +330,12 @@ class StockReplenishmentOption(models.TransientModel):
     )
     uom = fields.Char(related="product_id.uom_name")
     qty_to_order = fields.Float(related="replenishment_info_id.qty_to_order")
-    qty_free = fields.Float(compute="_compute_free_qty")
+    qty_free = fields.Float(compute="_compute_qty_free")
     lead_time = fields.Char(compute="_compute_lead_time")
     warning_message = fields.Char(compute="_compute_warning_message")
 
     @api.depends("product_id", "route_id")
-    def _compute_free_qty(self):
+    def _compute_qty_free(self):
         for record in self:
             record.qty_free = record.product_id.with_context(
                 location=record.location_id.id

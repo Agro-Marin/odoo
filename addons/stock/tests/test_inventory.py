@@ -31,9 +31,6 @@ class TestInventory(TransactionCase):
         )
 
     def test_inventory_1(self):
-        """Check that making an inventory adjustment to remove all products from stock is working
-        as expected.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.product1, self.stock_location, 100
         )
@@ -77,7 +74,6 @@ class TestInventory(TransactionCase):
         )
 
     def test_inventory_2(self):
-        """Check that adding a tracked product through an inventory adjustment works as expected."""
         inventory_quant = self.env["stock.quant"].search(
             [
                 ("location_id", "=", self.stock_location.id),
@@ -124,9 +120,6 @@ class TestInventory(TransactionCase):
         self.assertEqual(lot1.product_qty, 1.0)
 
     def test_inventory_3(self):
-        """Check that it's not possible to have multiple products with the same serial number through an
-        inventory adjustment
-        """
         inventory_quant = self.env["stock.quant"].search(
             [
                 ("location_id", "=", self.stock_location.id),
@@ -157,9 +150,6 @@ class TestInventory(TransactionCase):
             inventory_quant.action_apply_inventory()
 
     def test_inventory_4(self):
-        """Check that even if a product is tracked by serial number, it's possible to add an
-        untracked one in an inventory adjustment.
-        """
         quant_domain = [
             ("location_id", "=", self.stock_location.id),
             ("product_id", "=", self.product2.id),
@@ -236,7 +226,6 @@ class TestInventory(TransactionCase):
         )
 
     def test_inventory_5(self):
-        """Check that assigning an owner works."""
         owner1 = self.env["res.partner"].create({"name": "test_inventory_5"})
 
         inventory_quant = self.env["stock.quant"].create(
@@ -257,10 +246,6 @@ class TestInventory(TransactionCase):
         self.assertEqual(quant.owner_id.id, owner1.id)
 
     def test_inventory_6(self):
-        """Test that for chained moves, making an inventory adjustment to reduce a quantity that
-        has been reserved correctly frees the reservation. After that, add products to stock and check
-        that they're used if the user encodes more than what's available through the chain
-        """
         inventory_quant = self.env["stock.quant"].create(
             {
                 "location_id": self.stock_location.id,
@@ -374,7 +359,6 @@ class TestInventory(TransactionCase):
         )
 
     def test_inventory_7(self):
-        """Check that duplicated quants create a single inventory line."""
         owner1 = self.env["res.partner"].create({"name": "test_inventory_7"})
         vals = {
             "product_id": self.product1.id,
@@ -407,9 +391,6 @@ class TestInventory(TransactionCase):
         self.assertEqual(inventory_quant.quantity, 2)
 
     def test_inventory_counted_quantity(self):
-        """Checks that inventory quants have a `inventory quantity` set to zero
-        after an adjustment.
-        """
         inventory_quant = self.env["stock.quant"].create(
             {
                 "product_id": self.product1.id,
@@ -434,8 +415,6 @@ class TestInventory(TransactionCase):
         self.assertEqual(inventory_quant.inventory_quantity_set, False)
 
     def test_inventory_request_count_quantity(self):
-        """Ensures when a request to count a quant for tracked product is done, other quants for
-        the same product in the same location are also marked as to count."""
         self.env.user.group_ids = [
             Command.link(self.env.ref("stock.group_production_lot").id),
             Command.link(self.env.ref("stock.group_stock_multi_locations").id),
@@ -518,11 +497,6 @@ class TestInventory(TransactionCase):
         )
 
     def test_inventory_outdate_1(self):
-        """Checks that applying an inventory adjustment that is outdated due to
-        its corresponding quant being modified after its inventory quantity is set
-        opens a wizard. The wizard should warn about the conflict and its value should be
-        corrected after user confirms the inventory quantity.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.product1, self.stock_location, 7
         )
@@ -570,9 +544,6 @@ class TestInventory(TransactionCase):
         self.assertEqual(inventory_quant.quantity, 5)
 
     def test_inventory_outdate_2(self):
-        """Checks that an outdated inventory adjustment auto-corrects when
-        changing its inventory quantity after its corresponding quant has been modified.
-        """
         vals = {
             "product_id": self.product1.id,
             "product_uom_id": self.uom_unit.id,
@@ -605,9 +576,6 @@ class TestInventory(TransactionCase):
         self.assertEqual(quant.inventory_diff_quantity, 0)
 
     def test_inventory_outdate_3(self):
-        """Checks that an inventory adjustment line without a difference
-        doesn't change quant when validated.
-        """
         vals = {
             "product_id": self.product1.id,
             "product_uom_id": self.uom_unit.id,
@@ -622,9 +590,6 @@ class TestInventory(TransactionCase):
         self.assertEqual(quant.inventory_quantity, 0)
 
     def test_inventory_dont_outdate_1(self):
-        """Checks that inventory adjustment line isn't marked as outdated when
-        a non-corresponding quant is created.
-        """
         inventory_quant = self.env["stock.quant"].create(
             {
                 "product_id": self.product1.id,
@@ -654,9 +619,6 @@ class TestInventory(TransactionCase):
         self.assertEqual(inventory_quant.quantity, 5)
 
     def test_cyclic_inventory(self):
-        """Check that locations with and without cyclic inventory set has its inventory
-        dates auto-generate and apply relevant dates.
-        """
         grp_multi_loc = self.env.ref("stock.group_stock_multi_locations")
         self.env.user.write({"group_ids": [(4, grp_multi_loc.id)]})
         now = datetime.now()

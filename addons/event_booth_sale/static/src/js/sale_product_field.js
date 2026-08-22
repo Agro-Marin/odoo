@@ -1,8 +1,20 @@
 /** @odoo-module native */
-import { SaleOrderLineProductField } from "@sale/js/sale_product_field";
+import {
+    SaleOrderLineProductField,
+    saleOrderLineProductField,
+} from "@sale/js/sale_product_field";
 import { x2ManyCommands } from "@web/core/network";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
+
+// See the note in event_sale: the reader declares the field, and a duplicate across the
+// two event addons is merged by `addFieldDependencies`.
+Object.assign(saleOrderLineProductField, {
+    fieldDependencies: [
+        ...saleOrderLineProductField.fieldDependencies,
+        { name: "service_tracking", type: "selection" },
+    ],
+});
 
 patch(SaleOrderLineProductField.prototype, {
     setup() {
@@ -22,11 +34,11 @@ patch(SaleOrderLineProductField.prototype, {
             super.onEditConfiguration();
         }
     },
-    _onProductUpdate() {
+    async _onProductUpdate() {
         if (this.isEventBooth) {
-            this._openEventBoothConfigurator(false);
+            await this._openEventBoothConfigurator(false);
         } else {
-            super._onProductUpdate();
+            await super._onProductUpdate();
         }
     },
     async _openEventBoothConfigurator(edit) {

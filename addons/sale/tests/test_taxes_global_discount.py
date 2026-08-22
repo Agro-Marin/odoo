@@ -8,10 +8,6 @@ from odoo.addons.sale.tests.common import TestTaxCommonSale
 
 @tagged("post_install", "-at_install")
 class TestTaxesGlobalDiscountSale(TestTaxCommonSale, TestTaxesGlobalDiscount):
-    # -------------------------------------------------------------------------
-    # HELPERS
-    # -------------------------------------------------------------------------
-
     def assert_sale_order_global_discount(
         self,
         sale_order,
@@ -20,25 +16,11 @@ class TestTaxesGlobalDiscountSale(TestTaxCommonSale, TestTaxesGlobalDiscount):
         expected_values,
         soft_checking=False,
     ):
-        """Assert the expected values for the tax totals summary of the sale order
-        passed as parameter after the applicability of a global discount.
-
-        :param sale_order:      The SO as a sale.order record.
-        :param amount_type:     The type of the global discount: 'percent' or 'fixed'.
-        :param amount:          The amount to consider.
-                                For 'percent', it should be a percentage [0-100].
-                                For 'fixed', any amount.
-        :param expected_values: The expected values for the tax_total_summary.
-        :param soft_checking:   Limit the asserted values to the ones in 'expected_results'
-                                and don't go deeper inside the tax_total_summary.
-                                It allows to assert only the totals without asserting all the
-                                tax details.
-        """
         if amount_type == "percent":
             discount_type = "so_discount"
             discount_percentage = amount / 100.0
             discount_amount = None
-        else:  # amount_type == 'fixed'
+        else:
             discount_type = "amount"
             discount_percentage = None
             discount_amount = amount
@@ -62,9 +44,6 @@ class TestTaxesGlobalDiscountSale(TestTaxCommonSale, TestTaxesGlobalDiscount):
             soft_checking=soft_checking,
         )
 
-    # -------------------------------------------------------------------------
-    # GENERIC TAXES TEST SUITE
-    # -------------------------------------------------------------------------
 
     def test_taxes_l10n_in_sale_orders(self):
         for (
@@ -126,9 +105,6 @@ class TestTaxesGlobalDiscountSale(TestTaxCommonSale, TestTaxesGlobalDiscount):
                     soft_checking=soft_checking,
                 )
 
-    # -------------------------------------------------------------------------
-    # SPECIFIC TESTS
-    # -------------------------------------------------------------------------
 
     def test_global_discount_with_sol_discount(self):
         product = self.company_data["product_order_cost"]
@@ -136,7 +112,6 @@ class TestTaxesGlobalDiscountSale(TestTaxCommonSale, TestTaxesGlobalDiscount):
             {
                 "partner_id": self.partner_a.id,
                 "line_ids": [
-                    # Standalone line with a discount already:
                     Command.create(
                         {
                             "name": "line_1",
@@ -145,7 +120,6 @@ class TestTaxesGlobalDiscountSale(TestTaxCommonSale, TestTaxesGlobalDiscount):
                             "discount": 50.0,
                         }
                     ),
-                    # Standalone line without any discount:
                     Command.create(
                         {
                             "name": "line_2",
@@ -168,7 +142,6 @@ class TestTaxesGlobalDiscountSale(TestTaxCommonSale, TestTaxesGlobalDiscount):
             ],
         )
 
-        # Put a discount of 30% on all SO lines.
         wizard = self.env["sale.order.discount"].create(
             {
                 "sale_order_id": so.id,
@@ -196,7 +169,6 @@ class TestTaxesGlobalDiscountSale(TestTaxCommonSale, TestTaxesGlobalDiscount):
             ],
         )
 
-        # Use the same wizard to clear the discount.
         wizard.discount_percentage = 0.0
         wizard.action_apply_discount()
 
@@ -218,7 +190,6 @@ class TestTaxesGlobalDiscountSale(TestTaxCommonSale, TestTaxesGlobalDiscount):
             ],
         )
 
-        # Try to put a percentage higher than 100%.
         with self.assertRaises(ValidationError):
             wizard.discount_percentage = 110.0
 
@@ -250,7 +221,6 @@ class TestTaxesGlobalDiscountSale(TestTaxCommonSale, TestTaxesGlobalDiscount):
             ],
         )
 
-        # Put a discount of 25%.
         wizard = self.env["sale.order.discount"].create(
             {
                 "sale_order_id": so.id,
@@ -278,7 +248,6 @@ class TestTaxesGlobalDiscountSale(TestTaxCommonSale, TestTaxesGlobalDiscount):
             ],
         )
 
-        # Put another discount of 10%.
         wizard.discount_percentage = 0.10
         wizard.action_apply_discount()
 

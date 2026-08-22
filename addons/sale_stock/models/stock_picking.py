@@ -15,7 +15,7 @@ class StockPicking(models.Model):
         string="Sales Order",
         compute="_compute_sale_id",
         store=True,
-        inverse="_set_sale_id",
+        inverse="_inverse_sale_id",
         index="btree_not_null",
     )
     # delay_pass is declared by base_order_stock; this module contributes the
@@ -118,7 +118,7 @@ class StockPicking(models.Model):
     # INVERSE METHODS
     # ------------------------------------------------------------
 
-    def _set_sale_id(self):
+    def _inverse_sale_id(self):
         # References are system-managed plumbing: this inverse runs for users
         # (salespeople) without write/create rights on stock.reference.
         if self.reference_ids:

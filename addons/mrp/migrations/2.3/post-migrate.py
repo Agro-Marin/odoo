@@ -1,24 +1,3 @@
-"""Post-migration: drop `mrp_workorder.reservation_id`.
-
-Work orders now reach their booking through `mixin.resource.scheduling`'s
-reverse One2many (`resource_reservation.res_model` / `res_id`), which every
-consumer of the ledger shares. The dedicated `reservation_id` column was a
-*second* pointer at the same row, and the two could disagree: nothing stopped
-a reservation being retargeted or deleted while the column still named it.
-
-`reservation_id` survives as a computed convenience over `reservation_ids[:1]`,
-so the readers of `wo.reservation_id` keep working; only the column goes.
-
-Before dropping it, any reservation the column names that is missing its
-origin reference is repaired. Every code path in this module set `res_model` /
-`res_id` at creation time, so this is expected to touch nothing -- but the
-column is about to become unreadable, and a booking with no origin is invisible
-to the mixin, which would leave the work order looking unplanned while still
-holding its workcenter.
-
-Idempotent: both steps are guarded on the column still existing.
-"""
-
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -55,8 +34,6 @@ def migrate(cr, version):
             repaired,
         )
 
-    # A booking the column names but whose origin points elsewhere would be
-    # silently re-owned by the UPDATE above, so it is only reported.
     cr.execute("""
         SELECT count(*)
           FROM mrp_workorder wo

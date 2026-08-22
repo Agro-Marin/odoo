@@ -45,20 +45,20 @@
                     domain="[('picking_type_code', '=', 'internal')]" />
                 <separator />
                 <filter invisible="1" name="before" string="Before"
-                    domain="[('search_date_category', '=', 'before')]" />
+                    domain="[('date_category', '=', 'before')]" />
                 <filter name="late" string="Late" 
                     help="Deadline exceed or/and by the scheduled"
                     domain="[('state', 'in', ('assigned', 'waiting', 'confirmed')), '|', '|', ('has_deadline_issue', '=', True), ('date_deadline', '&lt;', current_date), ('date_planned', '&lt;', current_date)]" />
                 <filter name="yesterday" string="Yesterday"
-                    domain="[('search_date_category', '=', 'yesterday')]" />
+                    domain="[('date_category', '=', 'yesterday')]" />
                 <filter name="today" string="Today"
-                    domain="[('search_date_category', '=', 'today')]" />
+                    domain="[('date_category', '=', 'today')]" />
                 <filter name="day_1" string="Tomorrow"
-                    domain="[('search_date_category', '=', 'day_1')]" />
+                    domain="[('date_category', '=', 'day_1')]" />
                 <filter invisible="1" name="day_2" string="The day after tomorrow"
-                    domain="[('search_date_category', '=', 'day_2')]" />
+                    domain="[('date_category', '=', 'day_2')]" />
                 <filter invisible="1" name="after" string="After"
-                    domain="[('search_date_category', '=', 'after')]" />
+                    domain="[('date_category', '=', 'after')]" />
                 <separator />
                 <filter string="Late Availability" name="late_availability"
                     domain="[('products_availability_state', '=', 'late')]" />

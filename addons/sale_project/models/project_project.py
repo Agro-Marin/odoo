@@ -202,7 +202,7 @@ class ProjectProject(models.Model):
         return [("id", "in", all_sale_orders.ids)]
 
     def _get_view_action(self):
-        return self.env["ir.actions.act_window"]._for_xml_id("sale.action_sale_order")
+        return self.env["ir.actions.act_window"]._get_action_dict_by_xml_id("sale.action_sale_order")
 
     def action_view_sols(self):
         self.ensure_one()
@@ -281,7 +281,7 @@ class ProjectProject(models.Model):
             return action
 
         if section_name in ['other_invoice_revenues', 'downpayments']:
-            action = self.env["ir.actions.actions"]._for_xml_id("account.action_move_out_invoice_type")
+            action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("account.action_move_out_invoice_type")
             action['domain'] = domain or []
             action['context'] = {
                 **ast.literal_eval(action['context']),
@@ -318,7 +318,7 @@ class ProjectProject(models.Model):
         (self - project_nothing_to_invoice).has_any_so_with_nothing_to_invoice = False
 
     def action_create_invoice(self):
-        action = self.env["ir.actions.actions"]._for_xml_id("sale.action_view_sale_advance_payment_inv")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("sale.action_view_sale_advance_payment_inv")
         so_ids = (self.sale_order_id | self.task_ids.sale_order_id).filtered(lambda so: so.invoice_state in ['to do', 'partial', 'no']).ids
         action['context'] = {
             'active_id': so_ids[0] if len(so_ids) == 1 else False,

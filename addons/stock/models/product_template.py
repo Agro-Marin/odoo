@@ -129,7 +129,7 @@ class ProductTemplate(models.Model):
         digits="Product Unit",
         compute="_compute_quantities",
         compute_sudo=False,
-        search="_search_virtual_available",
+        search="_search_qty_available_virtual",
         help="Sum of the forecasted quantity (on hand - outgoing + incoming) of "
         "every variant of this product.",
     )
@@ -138,7 +138,7 @@ class ProductTemplate(models.Model):
         digits="Product Unit",
         compute="_compute_quantities",
         compute_sudo=False,
-        search="_search_incoming_qty",
+        search="_search_qty_incoming",
         help="Sum of the planned incoming quantity of every variant of this product.",
     )
     qty_outgoing = fields.Float(
@@ -146,13 +146,9 @@ class ProductTemplate(models.Model):
         digits="Product Unit",
         compute="_compute_quantities",
         compute_sudo=False,
-        search="_search_outgoing_qty",
+        search="_search_qty_outgoing",
         help="Sum of the planned outgoing quantity of every variant of this product.",
     )
-    # Search-view context carriers, not data: `product_views.xml` gives each of them
-    # `filter_domain="[]"` and a `context="{'search_location': self}"`, so what the user
-    # picks scopes the quantity computes instead of filtering on the field. Unstored
-    # with no compute, search or inverse, they always *read* as an empty recordset.
     location_id = fields.Many2one(
         comodel_name="stock.location",
         string="Location",
@@ -166,7 +162,7 @@ class ProductTemplate(models.Model):
     has_available_route_ids = fields.Boolean(
         string="Routes can be selected on this product",
         compute="_compute_has_available_route_ids",
-        default=lambda self: self._has_product_selectable_route(),
+        default=lambda self: self._default_has_available_route_ids(),
     )
     route_ids = fields.Many2many(
         comodel_name="stock.route",
@@ -216,16 +212,6 @@ class ProductTemplate(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Create the templates, then apply any requested quantity afterwards.
-
-        ``qty_available`` is withheld from ``super()`` on the *presence* of the key,
-        never on the truth of its value. The field's inverse runs from inside the base
-        ORM ``create``, which is before ``product.template.create`` builds the variants,
-        so a value that reaches it finds ``product_variant_id`` empty; with a zero
-        quantity that used to slip past the guard in ``_check_qty_available_update`` and
-        die on a ``zip(..., strict=True)`` instead. An all-zero import batch was enough
-        to trigger it, while the same file with one non-zero row imported cleanly.
-        """
         product_tmpl_quantities = [vals.get("qty_available") or 0 for vals in vals_list]
         if any("qty_available" in vals for vals in vals_list):
             vals_list = [
@@ -249,16 +235,6 @@ class ProductTemplate(models.Model):
         return product_templates
 
     def _check_qty_available_update(self, quantities):
-        """Refuse every way a quantity write would be lost or misapplied.
-
-        Shared by ``create`` and ``_inverse_qty_available`` so the two paths cannot
-        drift: without it a value silently vanished for non-storable and service
-        products, and landed on an arbitrary variant for multi-variant templates.
-
-        Eligibility is checked before the sign, so the message names the real blocker:
-        sign-first told the author of a *service* product to make the number
-        non-negative, when no number at all was going to be accepted.
-        """
         for template, qty in zip(self, quantities, strict=True):
             if template.type != "consu" or not template.is_storable:
                 raise UserError(
@@ -298,13 +274,6 @@ class ProductTemplate(models.Model):
                 )
 
     def _set_qty_available(self, quantities):
-        """Validate, then push each template's quantity onto its single variant.
-
-        Templates that cannot hold stock are dropped when the quantity is zero --
-        saving a service or non-storable product sends 0 and has nothing to lose --
-        and refused when it is not, which is the silent discard this replaces.
-        The whole set is applied in one inventory adjustment rather than one apiece.
-        """
         templates_to_apply = self.browse()
         quantities_to_apply = []
         for template, qty in zip(self, quantities, strict=True):
@@ -323,9 +292,6 @@ class ProductTemplate(models.Model):
                 lambda product: product.company_id.id != vals["company_id"],
             )
             if products_changing_company:
-                # Archived variants keep their moves and their quants, so the guard
-                # has to see them: scoped to the active ones it waved through a
-                # template whose archived variant still held stock in the old company.
                 variant_ids = products_changing_company.with_context(
                     active_test=False
                 ).product_variant_ids.ids
@@ -380,18 +346,6 @@ class ProductTemplate(models.Model):
         return res
 
     def copy(self, default=None):
-        """Carry each variant's storage capacities onto the duplicate's counterpart.
-
-        Variants are matched on the attribute values they materialise, not by
-        position: the copy generates its own variants and nothing guarantees the two
-        orders agree.
-
-        Read with ``active_test=False``, because archiving a *variant* does not remove
-        the attribute value from the *template* -- so the copy gets a live variant for
-        that combination, and it was the only one coming out without its capacity.
-        A capacity with no counterpart at all is still dropped, which is what happens
-        when ``default`` narrows the copy's attribute lines.
-        """
         new_products = super().copy(default=default)
         Capacity = self.env["stock.storage.category.capacity"]
         storage_category_capacity_vals = []
@@ -421,15 +375,6 @@ class ProductTemplate(models.Model):
 
     @api.model
     def _default_lot_sequence(self):
-        """The stock-wide lot sequence, as an empty recordset when it is gone.
-
-        ``env.ref(..., raise_if_not_found=False)`` returns ``None``, not an empty
-        recordset, and nothing stops an administrator deleting the sequence from
-        Settings > Technical. ``_compute_next_serial`` guarded for that;
-        ``_inverse_serial_prefix_format`` read ``.padding`` off it and raised
-        ``AttributeError`` on saving any product with a custom prefix. One helper, so
-        the ``None`` is neutralised once instead of at each call site.
-        """
         return (
             self.env.ref("stock.sequence_production_lots", raise_if_not_found=False)
             or self.env["ir.sequence"]
@@ -440,14 +385,6 @@ class ProductTemplate(models.Model):
         "product_variant_ids.orderpoint_ids.product_max_qty",
     )
     def _compute_count_reordering_rules(self):
-        """Sum each template's variants' reordering rules.
-
-        Keyed by ``_origin``, not by ``id``: ``self.ids`` resolves a ``NewId`` to the
-        record it was spawned from, so the read group matches real rows that a
-        ``res[template.id]`` lookup then misses -- silently, because the default
-        answers 0. The variant twin has always keyed by ``_origin``; the two now agree,
-        which is what makes the ``@api.depends`` above safe to add.
-        """
         res = defaultdict(lambda: {"count": 0, "min": 0.0, "max": 0.0})
         for product, count, product_min_qty, product_max_qty in self.env[
             "stock.warehouse.orderpoint"
@@ -488,15 +425,6 @@ class ProductTemplate(models.Model):
         "lot_sequence_id.suffix",
     )
     def _compute_next_serial(self):
-        """The name the next lot of this product will actually carry.
-
-        Through ``ir.sequence.preview_next``, which interpolates the prefix and
-        honours date ranges, rather than formatting the number by hand: hand-formatting
-        showed ``0000001`` for a product whose lots are named ``PRB-2026-0000001``, in
-        the box next to the prefix input that produced it. ``preview_next`` never
-        consumes a number, which is why it and not ``next_by_id`` backs a displayed
-        field.
-        """
         default_sequence = self._default_lot_sequence()
         for template in self:
             sequence = template.lot_sequence_id or default_sequence
@@ -511,21 +439,10 @@ class ProductTemplate(models.Model):
             )
 
     def _compute_has_available_route_ids(self):
-        self.has_available_route_ids = self._has_product_selectable_route()
+        self.has_available_route_ids = self._default_has_available_route_ids()
 
     @api.model
-    def _has_product_selectable_route(self):
-        """Whether any route at all can be put on a product.
-
-        Backs both the compute and the field's default. The default is what a
-        form gets: with no ``@api.depends`` to declare — the answer depends on
-        ``stock.route`` config, not on the record — nothing marks the field for
-        recomputation during onchange, so a new product form would read the
-        Boolean's own ``False`` and hide the routes widget even when routes are
-        selectable.
-
-        Only existence matters, so limit=1 avoids counting the whole table.
-        """
+    def _default_has_available_route_ids(self):
         return bool(
             self.env["stock.route"].search_count(
                 [("product_selectable", "=", True)],
@@ -535,14 +452,6 @@ class ProductTemplate(models.Model):
 
     @api.depends("product_variant_count", "tracking")
     def _compute_show_qty_update_button(self):
-        """Whether the form offers the quants view instead of a plain quantity input.
-
-        Goes through ``_should_open_product_quants`` rather than restating its rule:
-        the inlined copy dropped ``mrp``'s override, so a storable kit rendered the
-        input -- which ``mrp``'s own quant constraint then refused -- where it used to
-        render the button that works. The group lookup this once hoisted out of the
-        loop is ormcached, so there was nothing to hoist.
-        """
         for product in self:
             product.show_qty_update_button = (
                 product._should_open_product_quants()
@@ -567,11 +476,6 @@ class ProductTemplate(models.Model):
         "search_location",
         "search_warehouse",
         "allowed_company_ids",
-        # Read further down the chain, and every one of them changes the answer:
-        # `strict` and `skip_in_progress` in `_get_domain_locations_new`,
-        # `with_expiration` and `fresh_qty_forecast` in `_expired_quant_domain`.
-        # Left out of the cache key, one scope answered with the other's value --
-        # whichever was computed first, in either direction.
         "strict",
         "skip_in_progress",
         "with_expiration",
@@ -583,17 +487,6 @@ class ProductTemplate(models.Model):
             template.update(res[template.id])
 
     def _aggregate_variant_quantities(self):
-        """Sum each template's quantity fields over its (active) variants.
-
-        Named apart from ``product.product._prepare_quantities_vals`` on purpose. The
-        two used to share that name and share none of its contract -- the variant
-        method takes the lot/owner/package/date scope explicitly and aggregates quants
-        and moves, this one only reads the variants' already-computed fields and rolls
-        them up -- and ``_search_variant_quantity`` calls the *variant* one four lines
-        after ``_compute_quantities`` calls this one. ``mrp``, ``purchase_stock`` and
-        ``product_expiry`` all override the variant method; nothing in this file used
-        to tell an override author the two were unrelated.
-        """
         self.product_variant_ids._origin.fetch(TEMPLATE_QUANTITY_FIELDS)
         prod_available = {}
         for template in self:
@@ -608,17 +501,6 @@ class ProductTemplate(models.Model):
         "product_variant_ids.count_moves_out",
     )
     def _compute_count_moves(self):
-        """Roll the variants' move counters up to the template.
-
-        Was a second pair of ``stock.move.line`` read-groups reproducing the variant
-        method's window, `done` filter and `picking_code` split. Rolling up instead is
-        the same arithmetic -- summing per-variant line counts over a template is
-        counting that template's lines -- for two fewer queries, one definition of what
-        "a move in the last 12 months" means, and, most of the point, a dependency that
-        can be *declared*: the counters carried no ``@api.depends`` at all, so they went
-        stale on the ordinary receipt flow while the variant's own counter, which does
-        declare one, was already correct in the same transaction.
-        """
         fnames = ("count_moves_in", "count_moves_out")
         self.product_variant_ids._origin.fetch(fnames)
         for template in self:
@@ -627,13 +509,6 @@ class ProductTemplate(models.Model):
                 template[fname] = sum(variants.mapped(fname))
 
     def _inverse_serial_prefix_format(self):
-        """Bind each template to the lot sequence carrying its prefix, creating it once.
-
-        Keyed by (prefix, company): lot names are unique per (name, product, company),
-        so two companies using the same prefix need their own counters. Sharing one
-        made company B draw numbers from a sequence company A created, with a single
-        counter interleaving between them.
-        """
         default_sequence = self._default_lot_sequence()
         valid_sequences = self.env["ir.sequence"].search(
             [
@@ -670,33 +545,11 @@ class ProductTemplate(models.Model):
         self._set_qty_available([template.qty_available for template in self])
 
     def _search_variant_quantity(self, field_name, operator, value):
-        """Match on the template total, the value the field actually displays.
-
-        Matching "any variant satisfies the criterion" instead made a template
-        showing 0 (variants +5 and -5) answer both ``> 0`` and ``< 0`` while
-        missing ``= 0``. Quantities are summed per template and compared once.
-
-        Only **active** variants are summed, because those are the ones
-        ``_aggregate_variant_quantities`` sums. The candidate set comes from quant and
-        move read-groups run with ``active_test=False``, so archived variants arrive
-        here carrying stock: a template displaying 7 matched ``= 10`` and missed ``= 7``.
-        ``action_view_quants`` deliberately keeps that archived stock visible -- you
-        cannot correct what you cannot open -- but a search has to return the records
-        whose displayed value satisfies the domain, so the two part company here on
-        purpose.
-
-        Operators outside ``PY_OPERATORS`` cannot be evaluated against an aggregate, so
-        they fall back to filtering every template on its own computed value, the way
-        ``product.product._search_product_quantity`` does. They must NOT fall back to
-        "any variant matches", which is the semantics this method exists to abolish.
-        """
         Product = self.env["product.product"]
         operation = PY_OPERATORS.get(operator)
         if operation is None:
             return self._filter_quantity_in_python(field_name, operator, value)
 
-        # Resolve the location triple once and hand it to both helpers, which each
-        # re-resolved it otherwise -- a warehouse or location search per call.
         location_domains = Product._get_domain_locations()
         candidates = Product._get_quantity_search_candidates(
             location_domains=location_domains
@@ -724,13 +577,6 @@ class ProductTemplate(models.Model):
         return [("id", "in", matched)]
 
     def _filter_quantity_in_python(self, field_name, operator, value):
-        """Match ``field_name`` per template, for operators no aggregate can answer.
-
-        The expensive branch by construction -- it computes the field for every
-        template -- and reached only by operators a Float search rarely carries.
-        Mirrors ``product.product._search_product_quantity``'s own fallback, including
-        the negated-operator handling, so the two models answer such a domain alike.
-        """
         records = self.with_context(prefetch_fields=False).search_fetch(
             [], [field_name], order="id"
         )
@@ -747,13 +593,13 @@ class ProductTemplate(models.Model):
     def _search_qty_available(self, operator, value):
         return self._search_variant_quantity("qty_available", operator, value)
 
-    def _search_virtual_available(self, operator, value):
+    def _search_qty_available_virtual(self, operator, value):
         return self._search_variant_quantity("qty_available_virtual", operator, value)
 
-    def _search_incoming_qty(self, operator, value):
+    def _search_qty_incoming(self, operator, value):
         return self._search_variant_quantity("qty_incoming", operator, value)
 
-    def _search_outgoing_qty(self, operator, value):
+    def _search_qty_outgoing(self, operator, value):
         return self._search_variant_quantity("qty_outgoing", operator, value)
 
     @api.onchange("tracking")
@@ -763,8 +609,6 @@ class ProductTemplate(models.Model):
     @api.onchange("type")
     def _onchange_type(self):
         res = super()._onchange_type()
-        # `active_test=False`: the warning is about this template's movement history,
-        # and an archived variant's move lines are part of it.
         variant_ids = self.with_context(active_test=False).product_variant_ids.ids
         if (
             self.ids
@@ -813,7 +657,7 @@ class ProductTemplate(models.Model):
 
     def action_view_stock_move_lines(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.stock_move_line_action",
         )
         action["domain"] = [("product_id.product_tmpl_id", "=", self.id)]
@@ -821,7 +665,7 @@ class ProductTemplate(models.Model):
 
     def action_view_product_lot(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.action_stock_lot_form_2",
         )
         action["domain"] = [
@@ -841,7 +685,6 @@ class ProductTemplate(models.Model):
         return action
 
     def _resolve_diagram_products(self):
-        """Variants the routes diagram is about, from the context or from self."""
         Product = self.env["product.product"]
         if self.env.context.get("default_product_id"):
             products = Product.browse(self.env.context["default_product_id"])
@@ -877,7 +720,7 @@ class ProductTemplate(models.Model):
                 },
                 config=False,
             )
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.action_stock_rules_report",
         )
         action["context"] = {
@@ -890,19 +733,11 @@ class ProductTemplate(models.Model):
         self.ensure_one()
         if not self.env.user._get_default_warehouse_id():
             self.env["stock.warehouse"]._warehouse_redirect_warning()
-        return self.env["ir.actions.actions"]._for_xml_id(
+        return self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.stock_forecasted_product_template_action",
         )
 
     def _reset_inventory(self):
-        """Create quants matching the move history of products that just became
-        storable, then reset them via inventory adjustment. Needed to keep product
-        valuation consistent once stock tracking starts.
-
-        Scoped with ``active_test=False``, matching the ``_clean_reservations`` call
-        that precedes it in ``write``: the two are halves of one operation, and an
-        archived variant with move history was cleaned but never ledgered.
-        """
         move_line_domain = Domain(
             [
                 (
@@ -961,10 +796,6 @@ class ProductTemplate(models.Model):
 
     @api.model
     def _has_advanced_stock_option(self):
-        """Whether any option that makes a single on-hand figure insufficient is on.
-
-        Record-independent, so callers looping over records resolve it once.
-        """
         advanced_option_groups = [
             "stock.group_stock_multi_locations",
             "stock.group_tracking_owner",

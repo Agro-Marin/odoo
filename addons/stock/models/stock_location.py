@@ -418,25 +418,10 @@ class StockLocation(models.Model):
 
     @api.model
     def _get_occupancy_domain(self):
-        """The one definition of "this location is not empty", as a domain over
-        ``stock.quant``.
-
-        A quant occupies its location when it carries any stock at all — negative
-        included, since negative stock is a discrepancy to resolve, not an absence
-        — or when it holds a reservation. ``is_empty``, its search and the archive
-        guard all read this, so they cannot drift apart: a location the UI shows
-        as empty is exactly one that archives without complaint.
-
-        Summing instead would be wrong twice over: it nets a shortage of one
-        product against stock of another, and it reports a purely reserved
-        location as empty.
-        """
         return Domain("quantity", "!=", 0) | Domain("reserved_quantity", "!=", 0)
 
     @api.model
     def _get_occupied_location_ids(self, locations=None):
-        """Ids of the stock-holding locations that are not empty, restricted to
-        ``locations`` when given. One aggregate, never one query per location."""
         domain = self._get_occupancy_domain() & Domain(
             "location_id.usage", "in", STOCKED_USAGES
         )
@@ -456,15 +441,10 @@ class StockLocation(models.Model):
         return self.parent_path.startswith(other_location.parent_path)
 
     def _prefixed_by_parent(self):
-        """Whether ``complete_name``/``display_name`` prepend the parent's path.
-        True only for a non-view location with a parent: a view aggregates its
-        children and isn't shown nested under its own parent."""
         self.ensure_one()
         return bool(self.location_id) and self.usage != "view"
 
     def _propagate_active(self, active):
-        """Cascade (de)activation to the whole subtree, guarding a deactivation
-        against locations that back a warehouse or still hold stock."""
         self = self.filtered(lambda location: location.active != bool(active))
         if not self:
             return
@@ -521,13 +501,6 @@ class StockLocation(models.Model):
         )
 
     def _recompute_descendants_warehouse(self):
-        """Recompute ``warehouse_id`` for ``self`` and every descendant.
-
-        ``warehouse_id`` is derived from ``parent_path`` (see
-        ``_compute_warehouse_id``), which ``@api.depends`` cannot track, so any
-        operation that reshapes the tree (create-with-children, reparent) must
-        trigger the recompute for the whole subtree explicitly.
-        """
         self.with_context(active_test=False).search(
             [("id", "child_of", self.ids)]
         )._compute_warehouse_id()
@@ -535,14 +508,6 @@ class StockLocation(models.Model):
     def _get_putaway_strategy(
         self, product, quantity=0, package=None, packaging=None, additional_qty=None
     ):
-        """Returns the location suggested by the first matching putaway rule.
-        Falls back to the first candidate location if self is a view location,
-        otherwise returns self. Quantity is expected in the product's default
-        UOM and is only used when no package is specified.
-
-        Single-record by contract: the answer is *one* destination, chosen from
-        this location's own rules and its own subtree.
-        """
         self.ensure_one()
         self = self._filter_putaway_access()
         products = self.env.context.get("products", self.env["product.product"])
@@ -606,13 +571,6 @@ class StockLocation(models.Model):
     def _get_putaway_qty_by_location(
         self, product, package, package_type, locations, additional_qty=None
     ):
-        """Current + planned quantity per candidate location, used to enforce
-        storage-category capacity when ranking putaway rules. Counts distinct
-        packages when a package is given, otherwise the product quantity (in the
-        product's default UoM), summing on-hand quants and inbound move lines.
-        Move lines in context ``exclude_sml_ids`` are skipped so a line being
-        (re)assigned doesn't count against itself.
-        """
         qty_by_location = defaultdict(int)
         if locations.storage_category_id:
             exclude_sml_ids = list(self.env.context.get("exclude_sml_ids", set()))
@@ -637,8 +595,6 @@ class StockLocation(models.Model):
     def _get_putaway_package_count_by_location(
         self, package_type, locations, exclude_sml_ids
     ):
-        """Distinct packages of ``package_type`` already at / inbound to each
-        candidate location (on-hand quants + planned move lines)."""
         count_by_location = defaultdict(int)
         move_line_data = self.env["stock.move.line"]._read_group(
             [
@@ -665,8 +621,6 @@ class StockLocation(models.Model):
         return count_by_location
 
     def _get_putaway_product_qty_by_location(self, product, locations, exclude_sml_ids):
-        """On-hand + inbound quantity of ``product`` (in its default UoM) at each
-        candidate location (on-hand quants + planned move lines, UoM-converted)."""
         qty_by_location = defaultdict(float)
         quant_data = self.env["stock.quant"]._read_group(
             [
@@ -698,9 +652,6 @@ class StockLocation(models.Model):
         return qty_by_location
 
     def _get_next_inventory_date(self):
-        """Returns the next inventory date for a quant in this location: the
-        earlier of the location's cyclic inventory date and the company's
-        annual inventory date, whichever is set, or False if neither is."""
         self.ensure_one()
         if self.usage not in ("internal", "transit"):
             return False
@@ -711,10 +662,6 @@ class StockLocation(models.Model):
         return cyclic_date or annual_date
 
     def _get_company_annual_inventory_date(self):
-        """The company's next annual inventory date — this year's if still
-        upcoming, otherwise next year's — or False when the company configures no
-        annual inventory month. The configured day is clamped into each month's
-        valid range (handling 0/negative values and leap-year February)."""
         self.ensure_one()
         if not self.company_id.annual_inventory_month:
             return False
@@ -729,12 +676,6 @@ class StockLocation(models.Model):
         return annual_date
 
     def _get_weight(self, exclude_sml_ids=False):
-        """Return ``{location: {"net_weight": ..., "forecast_weight": ...}}``.
-
-        :param exclude_sml_ids: set of ``stock.move.line`` ids to leave out of the
-            forecast (e.g. the line currently being (re)assigned); named to match
-            the ``exclude_sml_ids`` context key callers read it from.
-        """
         if not exclude_sml_ids:
             exclude_sml_ids = set()
         Product = self.env["product.product"]
@@ -801,16 +742,6 @@ class StockLocation(models.Model):
         forecast_weight=None,
         foreign_inbound_ids=None,
     ):
-        """Check if product/package can be stored in the location. Quantity
-        should be in the product's default UoM; only used when no package is
-        specified.
-
-        ``forecast_weight`` and ``foreign_inbound_ids`` are the two per-location
-        aggregates this check needs. Both may be supplied by a caller sweeping
-        many candidate locations, so the aggregate runs once for the set instead
-        of once per location; when either is None it is computed for this
-        location alone.
-        """
         self.ensure_one()
         if not self.storage_category_id:
             return True
@@ -825,14 +756,6 @@ class StockLocation(models.Model):
         return self._can_store_product(product, quantity, location_qty, forecast_weight)
 
     def _can_store_new_product(self, product, package, foreign_inbound_ids=None):
-        """Whether the storage category's ``allow_new_product`` rule permits
-        storing this product/package here (True = allowed).
-
-        ``foreign_inbound_ids`` is the precomputed answer to "which locations
-        already expect a *different* product", from
-        ``_get_foreign_inbound_location_ids``; None means look it up for this
-        location alone.
-        """
         self.ensure_one()
         policy = self.storage_category_id.allow_new_product
         if policy not in ("empty", "same"):
@@ -855,9 +778,6 @@ class StockLocation(models.Model):
 
     @api.model
     def _get_foreign_inbound_location_ids(self, locations, product):
-        """Ids among ``locations`` that already expect an incoming product other
-        than ``product`` — the locations an ``allow_new_product == "same"``
-        category must refuse. One aggregate for the whole candidate set."""
         return {
             location.id
             for (location,) in self.env["stock.move.line"]._read_group(
@@ -871,14 +791,11 @@ class StockLocation(models.Model):
         }
 
     def _has_weight_capacity(self, added_weight, forecast_weight):
-        """Whether the storage category's max weight allows ``added_weight`` on
-        top of ``forecast_weight``. A max weight of 0 means no weight limit.
-        Rounding-aware: aggregated float weights carry accumulation noise."""
         self.ensure_one()
         max_weight = self.storage_category_id.max_weight
         if not max_weight:
             return True
-        weight_precision = self.env["decimal.precision"].precision_get("Stock Weight")
+        weight_precision = self.env["decimal.precision"].get_precision("Stock Weight")
         return (
             float_compare(
                 forecast_weight + added_weight,
@@ -889,8 +806,6 @@ class StockLocation(models.Model):
         )
 
     def _can_store_package(self, package, location_qty, forecast_weight):
-        """Enforce the storage category's max weight and per-package-type
-        capacity for a package move into this location (True = fits)."""
         self.ensure_one()
         storage_category = self.storage_category_id
         package_smls = self.env["stock.move.line"].search(
@@ -911,7 +826,7 @@ class StockLocation(models.Model):
         )
         if not package_capacity:
             return True
-        qty_precision = self.env["decimal.precision"].precision_get("Product Unit")
+        qty_precision = self.env["decimal.precision"].get_precision("Product Unit")
         return (
             float_compare(
                 location_qty,
@@ -922,8 +837,6 @@ class StockLocation(models.Model):
         )
 
     def _can_store_product(self, product, quantity, location_qty, forecast_weight):
-        """Enforce the storage category's max weight and per-product capacity for
-        a bare-product move into this location (True = fits)."""
         self.ensure_one()
         storage_category = self.storage_category_id
         if not self._has_weight_capacity(product.weight * quantity, forecast_weight):
@@ -941,8 +854,6 @@ class StockLocation(models.Model):
         )
 
     def _check_company_not_changed(self, company_id):
-        """A location's company is immutable once set; archive and recreate
-        instead of moving it between companies."""
         if any(location.company_id.id != company_id for location in self):
             raise UserError(
                 _(
@@ -952,15 +863,6 @@ class StockLocation(models.Model):
 
     @api.model
     def _check_cyclic_inventory_frequency(self, frequency):
-        """Refuse an out-of-range cyclic frequency at write time.
-
-        ``_inventory_freq_bounded`` states the same rule in SQL, but a stored
-        computed field is recomputed during the flush that precedes the INSERT /
-        UPDATE, so ``_compute_next_inventory_date`` would reach the value first
-        and raise a bare ``OverflowError`` before PostgreSQL ever saw it. This
-        guard runs before the value reaches the cache; the constraint stays as the
-        backstop for whatever does not come through the ORM.
-        """
         if frequency is None or 0 <= frequency <= MAX_CYCLIC_INVENTORY_DAYS:
             return
         raise ValidationError(
@@ -971,14 +873,6 @@ class StockLocation(models.Model):
         )
 
     def _check_usage_convertible(self, usage):
-        """Block a usage change that would strand stock: a location can't become
-        a view while it holds products, nor change type while it holds stock.
-
-        Both checks read only the records whose usage actually changes. That is
-        equivalent to reading the whole recordset — a record that is not
-        converting is already a view, and ``stock.quant`` forbids a quant in a
-        view location — but it states the intent plainly.
-        """
         modified_locations = self.filtered(lambda l: l.usage != usage)
         if usage == "view" and self.env["stock.quant"].search_count(
             [("location_id", "in", modified_locations.ids)],

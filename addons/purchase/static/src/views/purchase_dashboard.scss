@@ -30,8 +30,12 @@
         pointer-events: none;
     }
 
+    // Themed, not a literal: `yellow` washes out on the light card grounds this
+    // star sits on and does not follow dark mode. This is the same token
+    // `priority_field.scss` paints a solid star with, so the dashboard's star
+    // matches every other one in the UI.
     .o_priority_star {
-        color: yellow;
+        color: o-token(--o-favorite, $o-main-favorite-color);
     }
 }
 

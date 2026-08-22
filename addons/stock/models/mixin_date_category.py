@@ -1,32 +1,46 @@
 from datetime import UTC, timedelta
 
 from odoo import api, fields, models
+from odoo.fields import Domain
 
 
 class MixinDateCategory(models.AbstractModel):
-    """Classify a datetime into a day bucket relative to today, and search on it.
-
-    Nothing here is about any one model: the caller names the field, and the only
-    state involved is the reading user's timezone. It lived on `stock.picking`
-    because that is where the picking dashboard needed it first, which left
-    `repair.order` asking `stock.picking` how to bucket its `schedule_date` and
-    `mrp.production` doing the same for `date_start`. Inherit this instead.
-
-    The six buckets are "before", "yesterday", "today", "day_1" (tomorrow),
-    "day_2" and "after"; `calculate_date_category` names one for a value, and
-    `date_category_to_domain` turns a name back into a domain on a given field, so
-    the classification and the search can never drift apart.
-    """
-
     _name = "mixin.date.category"
     _description = "Relative Day Category"
 
+    _date_category_field = None
+
+    date_category = fields.Selection(
+        selection=[
+            ("before", "Before"),
+            ("yesterday", "Yesterday"),
+            ("today", "Today"),
+            ("day_1", "Tomorrow"),
+            ("day_2", "The day after tomorrow"),
+            ("after", "After"),
+        ],
+        string="Date Category",
+        store=False,
+        readonly=True,
+        search="_search_date_category",
+    )
+
+    def _search_date_category(self, operator, value):
+        if operator != "in":
+            return NotImplemented
+        if not self._date_category_field:
+            raise NotImplementedError(
+                f"{self._name} inherits date.category.mixin without setting "
+                f"_date_category_field, so there is no column to bucket."
+            )
+        return Domain.OR(
+            domain
+            for item in value
+            if (domain := self.date_category_to_domain(self._date_category_field, item))
+        )
+
     @api.model
     def _date_category_boundaries(self):
-        """Day boundaries (tz-aware, in the current user's timezone) used to classify a
-        datetime relative to today. Returns the start of "yesterday", "today", "day_1"
-        (tomorrow), "day_2" and "day_3".
-        """
         start_today = fields.Datetime.context_timestamp(
             self.env.user,
             fields.Datetime.now(),
@@ -41,10 +55,6 @@ class MixinDateCategory(models.AbstractModel):
 
     @api.model
     def calculate_date_category(self, value):
-        """Classify `value` (a datetime, assumed UTC) as "before", "yesterday", "today",
-        "day_1" (tomorrow), "day_2" or "after", relative to the current user's timezone.
-        Returns "" if `value` is falsy.
-        """
         if not value:
             return ""
         if value.tzinfo is None:
@@ -66,10 +76,6 @@ class MixinDateCategory(models.AbstractModel):
 
     @api.model
     def date_category_to_domain(self, field_name, date_category):
-        """Build a domain on `field_name` matching the given date category (one of "before",
-        "yesterday", "today", "day_1", "day_2", "after"; see `calculate_date_category`).
-        Returns None if `date_category` is not one of these.
-        """
         bound = {
             key: value.astimezone(UTC).replace(tzinfo=None)
             for key, value in self._date_category_boundaries().items()

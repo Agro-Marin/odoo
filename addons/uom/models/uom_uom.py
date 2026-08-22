@@ -217,10 +217,10 @@ class UomUom(models.Model):
 
         Single accessor for the 'Product Unit' precision, so `rounding`,
         `round`, `compare` and `is_zero` cannot drift apart the way three
-        independent `precision_get` calls could. Cheap to call in a loop:
-        `precision_get` is ormcached on the "stable" cache.
+        independent `get_precision` calls could. Cheap to call in a loop:
+        `get_precision` is ormcached on the "stable" cache.
         """
-        return self.env["decimal.precision"].precision_get("Product Unit")
+        return self.env["decimal.precision"].get_precision("Product Unit")
 
     def round(self, value: float, rounding_method: RoundingMethod = "HALF-UP") -> float:
         """Round the value using the 'Product Unit' precision

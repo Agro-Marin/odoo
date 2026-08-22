@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import re
 from datetime import datetime, timedelta
 
@@ -12,20 +10,7 @@ from .common import TestMrpCommon
 
 @tagged("post_install", "-at_install")
 class TestMrpAuditFixes(TestMrpCommon):
-    """Regression tests for the correctness fixes applied to the MRP module.
-
-    Each test is written so that it fails against the pre-fix code and passes
-    afterwards; the docstring names the method that was corrected.
-    """
-
     def test_report_bom_structure_merges_duplicate_component_qty(self):
-        """report.mrp.report_bom_structure._merge_components
-
-        When the same component appears on two BoM lines the report merges them
-        into a single row. `base_bom_line_qty` (which feeds the "producible" /
-        ready-to-produce computation) must be the SUM of the two lines' per-unit
-        quantities, not `merged_quantity + second_line_quantity`.
-        """
         final = self.env["product.product"].create(
             {"name": "Audit Final", "is_storable": True}
         )
@@ -55,25 +40,14 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.assertEqual(
             len(merged), 1, "The duplicated component must be merged into one row."
         )
-        # 2 + 3 = 5. The pre-fix code produced (2 + 3) + 3 = 8.
         self.assertAlmostEqual(
             merged[0]["base_bom_line_qty"],
             5.0,
             msg="Merged base_bom_line_qty must sum the two lines (2 + 3 = 5).",
         )
-        # The scaled quantity (also 5 at searchQty=1) stays correct too.
         self.assertAlmostEqual(merged[0]["quantity"], 5.0)
 
     def test_create_mo_with_non_create_finished_command_and_byproduct(self):
-        """mrp.production.create
-
-        Passing both `move_finished_ids` (with a non-CREATE command, whose [2]
-        element is not a values dict) and `move_byproduct_ids` must not raise.
-        The pre-fix code did `command[2]["product_id"]` unconditionally and
-        crashed (TypeError) on any non-CREATE command. `Command.set([])` is used
-        here because its [2] is a list, reproducing the crash without needing an
-        external move to link.
-        """
         final = self.env["product.product"].create(
             {"name": "Audit Final 2", "is_storable": True}
         )
@@ -84,7 +58,6 @@ class TestMrpAuditFixes(TestMrpCommon):
             self.env.company.id
         )
 
-        # Should not raise (pre-fix: TypeError on the non-CREATE command).
         mo = self.env["mrp.production"].create(
             {
                 "product_id": final.id,
@@ -115,32 +88,14 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
 
     def test_monetary_opt_widget_blanks_unset_amount(self):
-        """ir.qweb.field.monetary_opt.value_to_html
-
-        The MO Overview report uses False as a "not applicable" sentinel for
-        cost cells (mirroring the OWL props type [Number, Boolean]). The base
-        'monetary' widget rejects booleans and raises, so those cells use the
-        'monetary_opt' widget instead: an unset (False/None) amount renders
-        blank, while a genuine amount — including 0 — still renders.
-        """
         converter = self.env["ir.qweb.field.monetary_opt"]
         options = {"display_currency": self.env.company.currency_id}
         self.assertEqual(converter.value_to_html(False, options), "")
         self.assertEqual(converter.value_to_html(None, options), "")
-        # A real amount (and a genuine 0) is delegated to the parent monetary
-        # converter and still rendered as a currency value.
         self.assertIn("oe_currency_value", converter.value_to_html(0.0, options))
         self.assertIn("oe_currency_value", converter.value_to_html(12.5, options))
 
     def test_mo_overview_report_renders_with_unset_costs(self):
-        """report.mrp.report_mo_overview (PDF/HTML rendering)
-
-        A confirmed MO whose operations carry no BoM cost reports bom_cost as
-        False. Rendering the report with the BoM Costs column enabled must not
-        raise 'The value send to monetary field is not a number.' — the False
-        cell is rendered blank via the 'monetary_opt' widget.
-        """
-        # A zero-cost workcenter makes the operation's bom_cost falsy -> False.
         self.workcenter_1.costs_hour = 0.0
         product = (
             self.bom_2.product_id or self.bom_2.product_tmpl_id.product_variant_ids[:1]
@@ -163,14 +118,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.assertTrue(html, "The MO Overview report should render non-empty HTML.")
 
     def test_bom_producible_qty_sums_mixed_uom_component_lines(self):
-        """report.mrp.report_bom_structure._compute_current_production_capacity
-
-        A component on two BoM lines in *different* UoMs is not merged (merging
-        requires the same UoM), so both rows reach the producible computation.
-        "Ready To Produce" must sum the two demands in a single unit and use the
-        component's free stock once — not add raw quantities across units and
-        overwrite the availability with whichever line is iterated last.
-        """
         unit = self.env.ref("uom.product_uom_unit")
         dozen = self.env.ref("uom.product_uom_dozen")
         component = self.env["product.product"].create(
@@ -202,9 +149,6 @@ class TestMrpAuditFixes(TestMrpCommon):
                 ],
             }
         )
-        # 28 units on hand -> demand per finished unit = 2 + (1 dozen = 12) = 14
-        # units -> floor(28 / 14) = 2 producible. The pre-fix code mixed units
-        # (2 + 1 = 3) and overwrote availability, yielding a wrong count.
         self.env["stock.quant"]._update_available_quantity(
             component, self.env.ref("stock.stock_location_stock"), 28.0
         )
@@ -227,13 +171,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
 
     def test_bom_create_syncs_product_uom_id(self):
-        """mrp.bom.create
-
-        A BoM created in code (no `product_uom_id` given) for a product measured
-        in a non-default UoM must inherit the product's UoM, not the field's
-        default ("Units"). Otherwise every UoM conversion in the BoM/MO reports
-        and in explode() raises "cannot be converted" across UoM categories.
-        """
         square_meter = self.env.ref("uom.product_uom_square_meter")
         template = self.env["product.template"].create(
             {"name": "Audit m2 product", "uom_id": square_meter.id}
@@ -248,13 +185,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
 
     def test_routing_bom_change_removes_only_moved_operation_blocker(self):
-        """mrp.routing.workcenter.write (bom_id change)
-
-        Moving an operation to another BoM must strip *only that operation* from
-        the blockers of its former siblings, leaving the other blockers intact.
-        The pre-fix code compared a recordset to a singleton
-        (`blocked_by_operation_ids == op`) and then cleared *all* blockers.
-        """
         product = self.env["product.product"].create(
             {"name": "Audit Dep Final", "is_storable": True}
         )
@@ -272,7 +202,6 @@ class TestMrpAuditFixes(TestMrpCommon):
             }
         )
         op_a, op_b, op_c = bom.operation_ids
-        # C is blocked by BOTH A and B.
         op_c.blocked_by_operation_ids = [Command.set((op_a + op_b).ids)]
         self.assertEqual(op_c.blocked_by_operation_ids, op_a + op_b)
 
@@ -283,7 +212,6 @@ class TestMrpAuditFixes(TestMrpCommon):
                 "allow_operation_dependencies": True,
             }
         )
-        # Move A to another BoM; only A must be removed from C's blockers.
         op_a.bom_id = other_bom.id
         self.assertEqual(
             op_c.blocked_by_operation_ids,
@@ -292,23 +220,12 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
 
     def test_explode_detects_phantom_cycle(self):
-        """mrp.bom.explode
-
-        A phantom-BoM cycle (A's kit contains B, B's kit contains A) must raise a
-        clean ValidationError rather than looping forever. `_check_bom_cycle`
-        resolves BoMs without the phantom/company/picking_type parameters that
-        explode() uses, so a phantom-specific cycle can slip past the config-time
-        constraint; the runtime guard in explode() is the backstop. The
-        constraint is patched off here only to build the cyclic data that would
-        otherwise be rejected at save time.
-        """
         prod_a = self.env["product.product"].create(
             {"name": "Cycle A", "is_storable": True}
         )
         prod_b = self.env["product.product"].create(
             {"name": "Cycle B", "is_storable": True}
         )
-        # Two empty phantom BoMs (each valid on its own).
         bom_a = self.env["mrp.bom"].create(
             {
                 "product_tmpl_id": prod_a.product_tmpl_id.id,
@@ -325,10 +242,6 @@ class TestMrpAuditFixes(TestMrpCommon):
                 "type": "phantom",
             }
         )
-        # Close the loop (A's kit -> B, B's kit -> A) with direct SQL to bypass
-        # the config-time _check_bom_cycle constraint, simulating a phantom cycle
-        # it failed to resolve (it omits the phantom/company/picking_type
-        # parameters that explode() uses).
         self.env.cr.execute(
             """
             INSERT INTO mrp_bom_line (product_id, product_uom_id, bom_id, product_qty)
@@ -345,19 +258,10 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
         self.env["mrp.bom"].invalidate_model()
         self.env["mrp.bom.line"].invalidate_model()
-        # Pre-fix: this would loop forever (the BFS queue grows without bound).
         with self.assertRaises(ValidationError):
             bom_a.explode(prod_a, 1.0)
 
     def test_bom_rejects_product_uom_of_another_category(self):
-        """mrp.bom._check_product_uom_id_category
-
-        `create` aligns the BoM unit with the product's only when it is not
-        supplied (see test_bom_create_syncs_product_uom_id). An explicit
-        cross-category unit had nothing stopping it, and `product_qty` is
-        expressed in it: every explosion and cost roll-up then scaled by the
-        ratio of two unrelated factors.
-        """
         kgm = self.env.ref("uom.product_uom_kgm")
         unit = self.env.ref("uom.product_uom_unit")
         template = self.env["product.template"].create(
@@ -373,7 +277,6 @@ class TestMrpAuditFixes(TestMrpCommon):
             )
 
     def test_bom_accepts_convertible_product_uom(self):
-        """Control: a different but convertible unit stays allowed."""
         dozen = self.env.ref("uom.product_uom_dozen")
         unit = self.env.ref("uom.product_uom_unit")
         template = self.env["product.template"].create(
@@ -389,7 +292,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.assertEqual(bom.product_uom_id, dozen)
 
     def test_bom_line_rejects_product_uom_of_another_category(self):
-        """mrp.bom.line._check_product_uom_id_category"""
         kgm = self.env.ref("uom.product_uom_kgm")
         unit = self.env.ref("uom.product_uom_unit")
         template = self.env["product.template"].create(
@@ -416,12 +318,6 @@ class TestMrpAuditFixes(TestMrpCommon):
             )
 
     def test_byproduct_rejects_product_uom_of_another_category(self):
-        """mrp.bom.byproduct._check_product_uom_id_category
-
-        The UoM compute on by-products is `readonly=False`, so an explicit
-        value survives and would feed `cost_share` allocation in a unit
-        unrelated to the by-product.
-        """
         kgm = self.env.ref("uom.product_uom_kgm")
         unit = self.env.ref("uom.product_uom_unit")
         template = self.env["product.template"].create(
@@ -447,9 +343,6 @@ class TestMrpAuditFixes(TestMrpCommon):
                 }
             )
 
-    # ------------------------------------------------------------------
-    # mrp.workorder.write -- per-record derived values
-    # ------------------------------------------------------------------
     def _audit_mo_with_two_workorders(self):
         unit = self.env.ref("uom.product_uom_unit")
         finished = self.env["product.product"].create(
@@ -499,13 +392,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         return production, workorders
 
     def test_workorder_write_keeps_per_record_end_date(self):
-        """mrp.workorder.write
-
-        `date_end` is recomputed from each work order's own duration. It used to
-        be written back into the dict shared by the whole recordset, so a single
-        `write` of both dates gave every work order the end date computed for the
-        last one.
-        """
         _production, workorders = self._audit_mo_with_two_workorders()
         start = datetime(2030, 1, 1, 8, 0, 0)
         workorders.write({"date_start": start, "date_end": start + timedelta(hours=1)})
@@ -513,12 +399,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.assertEqual(workorders[1].date_end, start + timedelta(minutes=30))
 
     def test_workorder_write_keeps_per_record_duration(self):
-        """mrp.workorder.write
-
-        The multi-edit shape: only `date_start` is sent, for two work orders
-        already planned over different spans. Each one's `duration_expected` is
-        derived from its own span, and they must not collapse onto one value.
-        """
         _production, workorders = self._audit_mo_with_two_workorders()
         base = datetime(2030, 2, 1, 6, 0, 0)
         workorders[0].write(
@@ -543,10 +423,7 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
 
     def test_workorder_write_does_not_mutate_caller_vals(self):
-        """mrp.workorder.write must not rewrite the dict it was handed."""
         _production, workorders = self._audit_mo_with_two_workorders()
-        # The 30-minute work order, against a one-hour request: the recomputed
-        # end date differs from the one passed in, so a write-back is visible.
         vals = {
             "date_start": datetime(2030, 3, 1, 8, 0, 0),
             "date_end": datetime(2030, 3, 1, 9, 0, 0),
@@ -555,9 +432,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         workorders[1].write(vals)
         self.assertEqual(vals, snapshot)
 
-    # ------------------------------------------------------------------
-    # mrp.production.write -- multi-record safety
-    # ------------------------------------------------------------------
     def _audit_two_productions(self):
         unit = self.env.ref("uom.product_uom_unit")
         finished = self.env["product.product"].create(
@@ -586,13 +460,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         return productions, component, unit
 
     def test_production_write_multi_record_with_raw_moves(self):
-        """mrp.production.write
-
-        Adding a component to several manufacturing orders at once used to raise
-        `Expected singleton`: the method read `self.state` and
-        `self.location_src_id` straight off the recordset. Each order must get
-        its own move, stamped with its own source warehouse.
-        """
         productions, component, unit = self._audit_two_productions()
         productions.action_confirm()
         productions.write(
@@ -616,11 +483,6 @@ class TestMrpAuditFixes(TestMrpCommon):
             )
 
     def test_production_write_multi_record_product_id_is_dropped(self):
-        """mrp.production.write
-
-        `product_id` is silently dropped once an order has left draft. On a
-        recordset the guard used to raise `Expected singleton` instead.
-        """
         productions, _component, _unit = self._audit_two_productions()
         original = productions.product_id
         productions.action_confirm()
@@ -631,7 +493,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.assertEqual(productions.product_id, original)
 
     def test_production_write_does_not_mutate_caller_vals(self):
-        """mrp.production.write must not rewrite the dict it was handed."""
         productions, _component, _unit = self._audit_two_productions()
         productions.action_confirm()
         vals = {"product_id": productions[0].product_id.id, "priority": "1"}
@@ -639,26 +500,13 @@ class TestMrpAuditFixes(TestMrpCommon):
         productions.write(vals)
         self.assertEqual(vals, snapshot)
 
-    # ------------------------------------------------------------------
-    # Misc robustness
-    # ------------------------------------------------------------------
     def test_get_name_backorder_reads_its_own_group(self):
-        """mrp.production._get_name_backorder
-
-        It reads `self.production_group_id`, so it is not an `@api.model`
-        helper; called on the bare model the `max()` over an empty group raised.
-        """
         self.assertEqual(
             self.env["mrp.production"]._get_name_backorder("WH/MO/00001-002", 3),
             "WH/MO/00001-003",
         )
 
     def test_autoprint_mass_generated_lots_without_label_format(self):
-        """mrp.production._autoprint_mass_generated_lots
-
-        The label format is an optional selection. With no format set, neither
-        print branch bound `action` and `clean_action` raised UnboundLocalError.
-        """
         productions, _component, _unit = self._audit_two_productions()
         picking_type = productions[0].picking_type_id
         picking_type.write(
@@ -670,12 +518,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.assertEqual(productions._autoprint_mass_generated_lots(), [])
 
     def test_bom_overview_attachment_lookup(self):
-        """report.mrp.report_bom_structure._has_bom_attachment
-
-        Resolved from one batched index instead of a `search_count` per node;
-        it must still answer for both a variant-level and a template-level
-        document.
-        """
         report = self.env["report.mrp.report_bom_structure"]
         on_variant = self.env["product.product"].create(
             {"name": "Audit attach variant", "is_storable": True}
@@ -702,12 +544,10 @@ class TestMrpAuditFixes(TestMrpCommon):
                 },
             ]
         )
-        # A variant-level document answers for the variant only ...
         self.assertTrue(report._has_bom_attachment(on_variant))
         self.assertFalse(
             report._has_bom_attachment(template=on_variant.product_tmpl_id)
         )
-        # ... a template-level one answers for both.
         self.assertTrue(report._has_bom_attachment(on_template))
         self.assertTrue(
             report._has_bom_attachment(template=on_template.product_tmpl_id)
@@ -715,18 +555,7 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.assertFalse(report._has_bom_attachment(plain))
         self.assertFalse(report._has_bom_attachment(template=plain.product_tmpl_id))
 
-    # ------------------------------------------------------------------
-    # Batched counts. Unlike the tests above these pass against the
-    # pre-batch code too: they exist to pin the answers a `search_count`
-    # per record used to give, now that two grouped queries give them.
-    # ------------------------------------------------------------------
     def test_bom_counts_are_deduplicated(self):
-        """product.template._compute_bom_count / _compute_used_in_bom_count
-
-        A BoM reached both ways -- it produces the template and lists it as a
-        by-product -- counts once, and so does a BoM naming the same component
-        on two lines.
-        """
         unit = self.env.ref("uom.product_uom_unit")
         finished = self.env["product.product"].create(
             {"name": "Count finished", "is_storable": True}
@@ -764,7 +593,6 @@ class TestMrpAuditFixes(TestMrpCommon):
 
         bom(finished, [(component, 1.0)])
         bom(finished, [(component, 2.0)])
-        # Lists `component` twice, and `finished` as a by-product.
         bom(other, [(component, 1.0), (component, 5.0)], byproducts=(finished,))
         self.env.invalidate_all()
 
@@ -774,13 +602,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.assertEqual(component.product_tmpl_id.bom_count, 0)
 
     def test_unbuild_without_bom_or_mo_is_refused(self):
-        """mrp.unbuild.action_unbuild
-
-        An unbuild order needs either a manufacturing order or a bill of
-        materials to take the product apart into. With neither, the factor the
-        moves are scaled by divided by an empty BoM's quantity and the user got
-        a bare ZeroDivisionError.
-        """
         product = self.env["product.product"].create(
             {"name": "Unbuild no BoM", "is_storable": True}
         )
@@ -793,8 +614,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
         self.assertFalse(unbuild.bom_id)
         self.assertFalse(unbuild.mo_id)
-        # Stock it where this order will look, so `action_validate` gets past
-        # its availability check and reaches the step under test.
         self.env["stock.quant"].create(
             {
                 "location_id": unbuild.location_id.id,
@@ -806,15 +625,6 @@ class TestMrpAuditFixes(TestMrpCommon):
             unbuild.action_validate()
 
     def test_show_allocation_without_warehouse_on_operation_type(self):
-        """mrp.production._compute_show_allocation
-
-        An operation type is not required to name a warehouse, and the
-        operation-type form lets a user clear it (`force_save="1"`). The compute
-        cached one location set per warehouse and then read that cache with
-        `picking_type_id.warehouse_id.id`, which is `False` for such a type --
-        `KeyError: False`, raised out of the `web_read` that opens the
-        manufacturing order's form, since `show_allocation` is in its arch.
-        """
         self.env.user.group_ids = [
             Command.link(self.env.ref("mrp.group_mrp_reception_report").id)
         ]
@@ -852,19 +662,11 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
         self.env.flush_all()
         production.invalidate_recordset()
-        # The RPC the form issues, not just a Python read.
         self.assertFalse(
             production.web_read({"id": {}, "show_allocation": {}})[0]["show_allocation"]
         )
 
     def test_production_state_leaves_progress_when_nothing_is_consumed(self):
-        """mrp.production._compute_state
-
-        Ticking a component as consumed moves the order to `progress`. Removing
-        the tick has to move it back: the branch chain used to fall through with
-        nothing assigned, so the stored `progress` survived and the order could
-        never return to `confirmed` from the interface.
-        """
         production = self.generate_mo()[0]
         production.action_confirm()
         self.env.flush_all()
@@ -882,12 +684,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.assertEqual(production.state, "confirmed")
 
     def test_draft_production_is_not_confirmed_by_its_state_compute(self):
-        """mrp.production._compute_state
-
-        Guards the branch added for the test above: `draft` is the one state the
-        compute cannot re-derive from the moves, so it must be carried over
-        rather than turned into `confirmed`.
-        """
         production = self.env["mrp.production"].create(
             {"product_id": self.product_4.id, "product_qty": 1.0}
         )
@@ -900,13 +696,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.assertEqual(production.state, "draft")
 
     def test_picking_type_is_computed_per_company(self):
-        """mrp.production._compute_picking_type_id
-
-        The compute builds a map keyed by company, but filled it from a
-        `limit=1` search -- so it could only ever hold one company and every
-        other order fell through to `False` on a required field. A batch create
-        spanning two companies reached that as a NotNullViolation.
-        """
         company_a = self.env.company
         company_b = self.env["res.company"].create({"name": "Audit second company"})
         self.env["stock.warehouse"].create(
@@ -920,8 +709,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
         product = env["product.product"].create({"name": "Two-company product"})
 
-        # An explicit name is what makes `create` leave the field to the
-        # precompute instead of filling it itself.
         productions = env["mrp.production"].create(
             [
                 {
@@ -947,17 +734,6 @@ class TestMrpAuditFixes(TestMrpCommon):
             )
 
     def test_deleting_a_workorder_keeps_its_predecessors_other_edges(self):
-        """mrp.workorder.unlink
-
-        Splicing the deleted work order out of the dependency graph assigned a
-        recordset to `needed_by_workorder_ids`, which *replaces* it: with B
-        blocking both A and C, deleting A wiped B's successors and left C
-        unblocked. Only work orders without an operation stay damaged -- the
-        others are rebuilt by the `_action_confirm` at the end of `unlink` --
-        which is exactly the case enterprise's "Add Work Order" wizard creates.
-        """
-        # A draft order: confirming one chains its work orders automatically,
-        # and the point here is a graph the user shaped.
         production = self.env["mrp.production"].create(
             {"product_id": self.product_4.id, "product_qty": 1.0}
         )
@@ -984,15 +760,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.assertEqual(workorder_c.blocked_by_workorder_ids, workorder_b)
 
     def test_planned_workorders_may_be_rescheduled_onto_each_other(self):
-        """mrp.workorder._plan_workorder
-
-        Planning booked its `resource.reservation` in `hard` enforcement while
-        every other reservation this model creates is `soft`, so moving a
-        planned work order onto an occupied slot raised "already reserved
-        during this time" instead of being reported as a conflict -- which is
-        what `_get_conflicted_workorder_ids` and the work order popover exist
-        to do.
-        """
         finished, component = self.env["product.product"].create(
             [
                 {"name": "Replan finished", "is_storable": True},
@@ -1031,15 +798,9 @@ class TestMrpAuditFixes(TestMrpCommon):
         second.write({"date_start": first.date_start, "date_end": first.date_end})
         self.env.flush_all()
         self.assertEqual(second.date_start, first.date_start)
-        # The overlap is reported, not refused.
         self.assertIn(second.id, first._get_conflicted_workorder_ids()[first.id])
 
     def test_manual_consumption_flag_is_a_boolean(self):
-        """stock.move._determine_is_manual_consumption
-
-        `bom_line and bom_line.operation_id` yields a recordset, and the value
-        is written into a Boolean field.
-        """
         Move = self.env["stock.move"]
         self.assertIs(
             Move._determine_is_manual_consumption(self.env["mrp.bom.line"]), False
@@ -1052,12 +813,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.assertIs(Move._determine_is_manual_consumption(bom.bom_line_ids[0]), True)
 
     def test_variant_bom_counts_match_their_template_counterparts(self):
-        """product.product._compute_bom_count / _compute_used_in_bom_count
-
-        The `product.template` pair was batched into grouped queries and the
-        `product.product` pair was left running one `search_count` per record.
-        Beyond the query count, the two must agree on what they count.
-        """
         finished, other, component = self.env["product.product"].create(
             [
                 {"name": "Variant counts finished", "is_storable": True},
@@ -1104,16 +859,13 @@ class TestMrpAuditFixes(TestMrpCommon):
             ]
         )
         self.env.invalidate_all()
-        # Template BoM + variant BoM + the by-product BoM, counted once each.
         self.assertEqual(finished.bom_count, 3)
         self.assertEqual(finished.product_tmpl_id.bom_count, 3)
-        # Two BoMs use it, one of them on two lines.
         self.assertEqual(component.used_in_bom_count, 2)
         self.assertEqual(component.product_tmpl_id.used_in_bom_count, 2)
         self.assertEqual(component.bom_count, 0)
 
     def _count_queries(self, callback, pattern):
-        """Run `callback` and count the queries whose SQL matches `pattern`."""
         cursor = self.env.cr
         original = cursor.execute
         matched = []
@@ -1131,13 +883,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         return len(matched)
 
     def test_orderpoint_bom_placeholder_does_not_scale_with_the_row_count(self):
-        """stock.warehouse.orderpoint._get_default_boms
-
-        `bom_id_placeholder` is a column of the Replenishment list, and its
-        compute resolved the default BoM one orderpoint at a time -- a
-        `_bom_find` search per row. `_bom_find` takes a recordset, so the whole
-        list needs a bounded number of them.
-        """
         warehouse = self.env["stock.warehouse"].search(
             [("company_id", "=", self.env.company.id)], limit=1
         )
@@ -1177,11 +922,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         )
 
     def test_variant_bom_counters_do_not_scale_with_the_record_count(self):
-        """product.product._compute_bom_count / _compute_used_in_bom_count
-
-        Both ran one `search_count` per record while their `product.template`
-        counterparts were already grouped.
-        """
         products = self.env["product.product"].create(
             [{"name": f"Counter {i}", "is_storable": True} for i in range(20)]
         )
@@ -1194,7 +934,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.env.flush_all()
 
         for field in ("bom_count", "used_in_bom_count"):
-
             def read_field(field=field):
                 products.invalidate_recordset([field])
                 products.mapped(field)
@@ -1208,18 +947,6 @@ class TestMrpAuditFixes(TestMrpCommon):
             )
 
     def test_live_duration_reports_a_running_timer(self):
-        """mrp.workorder.duration_live
-
-        `duration` is stored and only recomputed when a timer row changes, so
-        it is a snapshot: it freezes at the value the last recompute saw and
-        goes stale while a timer keeps running. `duration_live` is the same
-        answer as `get_duration()`, evaluated at read time -- which is what the
-        timer widget needs and what it used to fetch with one RPC per record.
-
-        The clock here is `cr.now()`, fixed for the transaction, so the
-        staleness itself cannot be shown in a single test; what is asserted is
-        the contract the widget relies on.
-        """
         production = self.generate_mo()[0]
         workorder = self.env["mrp.workorder"].create(
             {
@@ -1237,7 +964,6 @@ class TestMrpAuditFixes(TestMrpCommon):
                 "workcenter_id": self.workcenter_1.id,
                 "loss_id": loss.id,
                 "date_start": self.env.cr.now() - timedelta(minutes=30),
-                # No `date_end`: the timer is still running.
             }
         )
         self.env.flush_all()
@@ -1245,17 +971,9 @@ class TestMrpAuditFixes(TestMrpCommon):
 
         self.assertAlmostEqual(workorder.duration_live, 30.0, delta=1.0)
         self.assertAlmostEqual(workorder.duration_live, workorder.get_duration())
-        # The row itself contributes no duration while it is open, which is why
-        # the stored field cannot follow a running timer on its own.
         self.assertEqual(workorder.time_ids.duration, 0.0)
 
     def test_live_duration_matches_the_stored_one_when_nothing_runs(self):
-        """mrp.workorder.duration_live
-
-        With every timer closed there is nothing to accrue, so the live value
-        must not drift from the stored one -- the widget shows it in both
-        states.
-        """
         production = self.generate_mo()[0]
         workorder = self.env["mrp.workorder"].create(
             {
@@ -1284,12 +1002,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.assertAlmostEqual(workorder.duration_live, workorder.duration)
 
     def test_live_duration_is_computed_for_the_whole_list_at_once(self):
-        """mrp.workorder.duration_live
-
-        The point of the field is that a list of work orders costs one read
-        rather than one round trip per row, so the compute has to answer for a
-        recordset.
-        """
         production = self.generate_mo()[0]
         workorders = self.env["mrp.workorder"].create(
             [
@@ -1306,16 +1018,6 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.assertEqual(workorders.mapped("duration_live"), [0.0] * 5)
 
     def test_mo_overview_rounds_costs_in_the_orders_own_currency(self):
-        """report.mrp.report_mo_overview._get_report_data
-
-        A BoM operation with no work order counts as "missing" and its cost is
-        added to the BoM total. That total belongs to the order's company, but
-        the cost was rounded first with `self.env.company.currency_id` -- the
-        *viewing* company's -- and only then with the order's. A viewer whose
-        currency is coarser than the order's therefore saw the cost quantised
-        to their own precision: a USD order read from a JPY company reported
-        10.00 instead of 10.48.
-        """
         jpy = (
             self.env["res.currency"]
             .with_context(active_test=False)
@@ -1356,7 +1058,6 @@ class TestMrpAuditFixes(TestMrpCommon):
                         {
                             "name": "Currency operation",
                             "workcenter_id": workcenter.id,
-                            # 17 min at 37/h -> 10.4833..., not a whole unit.
                             "time_cycle_manual": 17,
                         }
                     )
@@ -1367,7 +1068,6 @@ class TestMrpAuditFixes(TestMrpCommon):
             {"product_id": finished.id, "bom_id": bom.id, "product_qty": 1.0}
         )
         production.action_confirm()
-        # No work order for the operation: that is the branch under test.
         production.workorder_ids.unlink()
         self.env.flush_all()
 
@@ -1377,19 +1077,9 @@ class TestMrpAuditFixes(TestMrpCommon):
 
         order_currency = production.company_id.currency_id
         self.assertAlmostEqual(bom_cost, order_currency.round(10.4833), places=2)
-        # The value the double rounding produced.
         self.assertNotAlmostEqual(bom_cost, 10.0, places=2)
 
     def test_split_wizard_bounds_the_batch_count_on_the_onchange_path(self):
-        """mrp.production.split._compute_num_splits
-
-        The MAX_SPLITS bound has to hold on the path the wizard's own form uses.
-        That path is onchange, not write: it runs the computes and builds one
-        `mrp.production.split.line` per batch. An @api.constrains on
-        `max_batch_size` / `num_splits` cannot cover it — both are computed,
-        non-stored and inverse-less, so a constraint only sees a direct write(),
-        by which point the records it exists to prevent already exist.
-        """
         product = self.env["product.product"].create(
             {"name": "Split bound", "is_storable": True}
         )
@@ -1400,19 +1090,12 @@ class TestMrpAuditFixes(TestMrpCommon):
             {"production_id": production.id}
         )
         max_splits = wizard.MAX_SPLITS
-        # The default batch size is the whole order, i.e. a single batch.
         self.assertEqual(len(wizard.production_detailed_vals_ids), 1)
 
-        # 100000 / 20 = 5000 batches, five times the bound.
         with self.assertRaises(ValidationError), Form(wizard) as form:
             form.max_batch_size = 20.0
-        # The refused batch size built nothing: the wizard still holds only the
-        # single default line, not 5000.
         self.assertEqual(len(wizard.production_detailed_vals_ids), 1)
 
-        # The bound itself is still reachable: exactly MAX_SPLITS is accepted.
-        # `num_splits` is asserted inside the form — it is not stored, so a read
-        # after the save recomputes it from the default batch size.
         with Form(wizard) as form:
             form.max_batch_size = production.product_qty / max_splits
             self.assertEqual(form.num_splits, max_splits)

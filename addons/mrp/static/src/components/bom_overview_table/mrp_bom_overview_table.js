@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { formatFloat, formatMonetary } from "@web/core/formatters";
+import { formatFieldFloat, formatMonetary } from "@web/core/formatters";
 import { useService } from "@web/core/utils/hooks";
 
 import { BomOverviewComponentsBlock } from "../bom_overview_components_block/mrp_bom_overview_components_block.js";
@@ -30,7 +30,7 @@ export class BomOverviewTable extends Component {
 
     setup() {
         this.actionService = useService("action");
-        this.formatFloat = formatFloat;
+        this.formatFloat = formatFieldFloat;
         this.formatMonetary = (val) =>
             formatMonetary(val, { currencyId: this.data.currency_id });
     }

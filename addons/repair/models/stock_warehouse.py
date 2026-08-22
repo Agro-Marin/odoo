@@ -94,7 +94,7 @@ class StockWarehouse(models.Model):
                     'company_id': self.company_id.id,
                     'action': 'pull',
                     'auto': 'manual',
-                    'route_id': self._find_or_create_global_route('stock.route_warehouse0_mto', _('Replenish on Order (MTO)')).id,
+                    'route_id': self._get_or_create_global_route('stock.route_warehouse0_mto', _('Replenish on Order (MTO)')).id,
                     'location_dest_id': self.repair_type_id.default_location_dest_id.id,
                     'location_src_id': self.repair_type_id.default_location_src_id.id,
                     'picking_type_id': self.repair_type_id.id

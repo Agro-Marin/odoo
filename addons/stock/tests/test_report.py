@@ -72,12 +72,6 @@ class TestReportsCommon(TransactionCase):
         return report_values, docs, lines
 
     def sum_dicts(self, dicts, key):
-        """Aggregate the values of a specified key across a dict of dicts.
-
-        :param dicts: a dict whose values are dicts.
-        :param key: the key to look for in each inner dict.
-        :return: a dict mapping inner keys to the sum of their values.
-        """
         res = {}
         for d in dicts.values():
             for k, v in d.get(key, {}).items():
@@ -91,9 +85,6 @@ class TestReports(TestReportsCommon):
         self.assertFalse(wrong_xz_count, "invalid closure command")
 
     def test_product_label_reports(self):
-        """Test that all the special characters are correctly rendered for the product name, the default code and the barcode.
-        In this test we test that the double quote is rendered correctly.
-        """
         report = self.env.ref("stock.label_product_product")
         target = b'\n\n^XA^CI28\n\n^FT35,40^A0N,25^FD[C4181234""154654654654]Mellohi"^FS\n^FO35,77^BY2^BCN,100,Y,N,N^FDscan""me^FS\n^XZ\n\n\n^XA^CI28\n\n^FT35,40^A0N,25^FD[C4181234""154654654654]Mellohi"^FS\n^FO35,77^BY2^BCN,100,Y,N,N^FDscan""me^FS\n^XZ\n'
         rendering, qweb_type = report._render_qweb_text(
@@ -114,7 +105,6 @@ class TestReports(TestReportsCommon):
         self.assertEqual(qweb_type, "text", "the report type is not good")
 
     def test_product_label_custom_barcode_reports(self):
-        """Test that the custom barcodes are correctly rendered with special characters."""
         report = self.env.ref("stock.label_product_product")
         target = b'\n\n^XA^CI28\n\n^FT35,40^A0N,25^FD[C4181234""154654654654]Mellohi"^FS\n^FO35,77^BY2^BCN,100,Y,N,N^FD123"barcode^FS\n^XZ\n\n\n^XA^CI28\n\n^FT35,40^A0N,25^FD[C4181234""154654654654]Mellohi"^FS\n^FO35,77^BY2^BCN,100,Y,N,N^FD123"barcode^FS\n^XZ\n\n\n^XA^CI28\n\n^FT35,40^A0N,25^FD[C4181234""154654654654]Mellohi"^FS\n^FO35,77^BY2^BCN,100,Y,N,N^FDbarcode"456^FS\n^XZ\n\n\n^XA^CI28\n\n^FT35,40^A0N,25^FD[C4181234""154654654654]Mellohi"^FS\n^FO35,77^BY2^BCN,100,Y,N,N^FDbarcode"456^FS\n^XZ\n'
         rendering, qweb_type = report._render_qweb_text(
@@ -173,7 +163,6 @@ class TestReports(TestReportsCommon):
         self.assertEqual(qweb_type, "text", "the report type is not good")
 
     def test_reports_product_no_barcode(self):
-        """Test that product without barcode is correctly rendered without a barcode."""
         report = self.env.ref("stock.label_product_product")
         self.product1.barcode = False
         target = b'\n\n^XA^CI28\n\n^FT35,40^A0N,25^FD[C4181234""154654654654]Mellohi"^FS\n^XZ\n'
@@ -469,7 +458,6 @@ class TestReports(TestReportsCommon):
         )
 
     def test_report_quantity_2(self):
-        """Not supported case."""
         product_form = Form(self.env["product.product"])
         product_form.is_storable = True
         product_form.name = "Product"
@@ -644,7 +632,6 @@ class TestReports(TestReportsCommon):
         self.assertEqual(report_records[0][0], 10.0)
 
     def test_report_quantity_4(self):
-        """Checks the predicted quantity works in a multi-step setup."""
         now = datetime.now()
         customer_loc, supplier_loc = self.env[
             "stock.warehouse"
@@ -732,9 +719,6 @@ class TestReports(TestReportsCommon):
         self.assertEqual(report_records[0][0], 5)
 
     def test_report_forecast_1(self):
-        """Checks report data for product is empty. Then creates and process
-        some operations and checks the report data accords rigthly these operations.
-        """
         _report_values, docs, lines = self.get_report_forecast(
             product_template_ids=self.product_template.ids
         )
@@ -849,9 +833,6 @@ class TestReports(TestReportsCommon):
         self.assertEqual(line2["document_out"]["id"], delivery.id)
 
     def test_report_forecast_2_replenishments_order(self):
-        """Creates a receipt then creates a delivery using half of the receipt quantity.
-        Checks replenishment lines are correctly sorted (assigned first, unassigned at the end).
-        """
         receipt_form = Form(
             self.env["stock.picking"], view="stock.view_stock_picking_form"
         )
@@ -886,10 +867,6 @@ class TestReports(TestReportsCommon):
         self.assertEqual(line_2["document_out"], False)
 
     def test_report_forecast_3_sort_by_date(self):
-        """Creates some deliveries with different dates and checks the report
-        lines are correctly sorted by date. Then, creates some receipts and
-        check their are correctly linked according to their date.
-        """
         today = datetime.today()
         one_hours = timedelta(hours=1)
         one_day = timedelta(days=1)
@@ -1056,7 +1033,6 @@ class TestReports(TestReportsCommon):
         self.assertEqual(lines[6]["document_in"], False)
 
     def test_report_forecast_4_intermediate_transfers(self):
-        """Create a receipt in 3 steps and check the report line."""
         grp_multi_loc = self.env.ref("stock.group_stock_multi_locations")
         grp_multi_routes = self.env.ref("stock.group_adv_location")
         self.env.user.write({"group_ids": [(4, grp_multi_loc.id)]})
@@ -1101,9 +1077,6 @@ class TestReports(TestReportsCommon):
         self.assertEqual(lines[1]["quantity"], reordering_rule.product_max_qty)
 
     def test_report_forecast_5_multi_warehouse(self):
-        """Create some transfer for two different warehouses and check the
-        report display the good moves according to the selected warehouse.
-        """
         wh_2 = self.wh_2
         picking_type_out_2 = self.env["stock.picking.type"].search(
             [
@@ -1204,9 +1177,6 @@ class TestReports(TestReportsCommon):
         self.assertEqual(lines[0]["quantity"], 8)
 
     def test_report_forecast_5_multi_warehouse_chain(self):
-        """Create a MTO chain inter warehouse, the forecast report should ignore the
-        "not current" warehouse"""
-
         wh_2 = self.wh_2
         wh = self.env.ref("stock.warehouse0")
         replenish_route = self.env["stock.route"].create(
@@ -1276,9 +1246,6 @@ class TestReports(TestReportsCommon):
         self.assertEqual(lines[0]["document_in"]["id"], inter_wh_delivery.picking_id.id)
 
     def test_report_forecast_6_multi_company(self):
-        """Create transfers for two different companies and check report
-        display the right transfers.
-        """
         company_2 = self.env["res.company"].create({"name": "Aperture Science"})
         wh_2 = self.env["stock.warehouse"].search([("company_id", "=", company_2.id)])
         wh_2_picking_type_in = wh_2.in_type_id
@@ -1341,10 +1308,6 @@ class TestReports(TestReportsCommon):
         self.assertEqual(lines[1]["quantity"], 5)
 
     def test_report_forecast_7_multiple_variants(self):
-        """Create receipts for different variant products and check the report
-        work well with them.Also, check the receipt/delivery lines are correctly
-        linked depending of their product variant.
-        """
         product_attr_color = self.env["product.attribute"].create({"name": "Color"})
         color_gray = self.env["product.attribute.value"].create(
             {
@@ -1480,11 +1443,6 @@ class TestReports(TestReportsCommon):
         self.assertEqual(line_2["document_out"]["id"], delivery.id)
 
     def test_report_forecast_8_delivery_to_receipt_link(self):
-        """
-        Create 2 deliveries, and 1 receipt tied to the second delivery.
-        The report should show the source document as the 2nd delivery, and show the first
-        delivery completely unfilled.
-        """
         delivery_form = Form(
             self.env["stock.picking"], view="stock.view_stock_picking_form"
         )
@@ -1546,12 +1504,6 @@ class TestReports(TestReportsCommon):
         self.assertTrue(delivery2_line["replenishment_filled"])
 
     def test_report_forecast_9_delivery_to_receipt_link_over_received(self):
-        """
-        Create 2 deliveries, and 1 receipt tied to the second delivery.
-        Set the quantity on the receipt to be enough for BOTH deliveries.
-        For example, this can happen if they have manually increased the quantity on the generated PO.
-        The report should show both deliveries fulfilled.
-        """
         delivery_form = Form(
             self.env["stock.picking"], view="stock.view_stock_picking_form"
         )
@@ -1613,9 +1565,6 @@ class TestReports(TestReportsCommon):
         self.assertTrue(delivery2_line["replenishment_filled"])
 
     def test_report_forecast_10_report_line_corresponding_to_picking_highlighted(self):
-        """When accessing the report from a stock move, checks if the correct picking is highlighted in the report
-        and if the forecasted availability for incoming and outcoming moves is correct
-        """
         delivery_form = Form(self.env["stock.picking"])
         delivery_form.partner_id = self.partner
         delivery_form.picking_type_id = self.picking_type_out
@@ -1691,15 +1640,6 @@ class TestReports(TestReportsCommon):
                     )
 
     def test_report_forecast_11_non_reserved_order(self):
-        """Creates deliveries with different operation type reservation methods.
-        Checks replenishment lines are correctly sorted by the flollowing criteria:
-            - If the reservation date is in the past at any time T, use the priority and scheduled date
-            - If the reservation date is in the future, use reservation date, priority and scheduled date
-            'manual': always last (no date_reservation)
-            'at_confirm': date_reservation = time of creation
-            'by_date': date_reservation = date_planned - reservation_days_before(_priority)
-        """
-
         picking_type_manual = self.picking_type_out.copy()
         picking_type_by_date = picking_type_manual.copy()
         picking_type_at_confirm = picking_type_manual.copy()
@@ -1796,10 +1736,6 @@ class TestReports(TestReportsCommon):
         )
 
     def test_report_forecast_12_reserved_transit(self):
-        """Tests the transit feature, in 2 step incoming shipment warehouse, create
-        incoming transfer, validate it, create outgoing transfer and check report to show
-        quantities needed are in transit
-        """
         grp_multi_loc = self.env.ref("stock.group_stock_multi_locations")
         grp_multi_routes = self.env.ref("stock.group_adv_location")
         self.env.user.write({"group_ids": [(4, grp_multi_loc.id)]})
@@ -1830,10 +1766,6 @@ class TestReports(TestReportsCommon):
         self.assertEqual(lines[0]["in_transit"], True)
 
     def test_report_forecast_13_availability_from_sublocations(self):
-        """
-        Check that the forecast_availability is correctly computed for moves
-        whose source is a sublocation of the stock warehouse location
-        """
         stock_location = self.env.ref("stock.warehouse0").lot_stock_id
         sublocation = self.env["stock.location"].create(
             {
@@ -1897,7 +1829,6 @@ class TestReports(TestReportsCommon):
         )
 
     def test_report_forecast_14_ongoing_multi_step_delivery(self):
-        """Check that an ongoing multi-step delivery is properly picked up by the forecast report."""
         customer_loc, __ = self.env["stock.warehouse"]._get_partner_locations()
         self.wh_2.write({"delivery_steps": "pick_ship"})
 
@@ -1919,11 +1850,6 @@ class TestReports(TestReportsCommon):
         self.assertEqual(lines[0]["move_out"]["id"], move_pick.id)
 
     def test_report_reception_1_one_receipt(self):
-        """Create 2 deliveries and 1 receipt where some of the products being received
-        can be reserved for the deliveries. Check that the reception report correctly
-        shows these corresponding potential allocations + correctly reserves incoming moves
-        when reserve button is pushed.
-        """
         product2 = self.env["product.product"].create(
             {
                 "name": "Extra Product",
@@ -2102,10 +2028,6 @@ class TestReports(TestReportsCommon):
         )
 
     def test_report_reception_2_two_receipts(self):
-        """Create 1 delivery and 2 receipts where the products being received
-        can be reserved for the delivery. Check that the reception report correctly
-        shows corresponding potential allocations when receipts have differing states.
-        """
         qty_outgoing = 100
         delivery_form = Form(
             self.env["stock.picking"], view="stock.view_stock_picking_form"
@@ -2333,9 +2255,6 @@ class TestReports(TestReportsCommon):
         )
 
     def test_report_reception_3_multiwarehouse(self):
-        """Check that reception report respects same warehouse for
-        receipts and deliveries.
-        """
         wh_2 = self.env["stock.warehouse"].create(
             {
                 "name": "Other Warehouse",
@@ -2379,11 +2298,6 @@ class TestReports(TestReportsCommon):
         )
 
     def test_report_reception_5_move_splitting(self):
-        """Check the complicated use cases of correct move splitting when assigning/unassigning when:
-        1. Qty to assign is less than delivery qty demand
-        2. Delivery already has some reserved quants
-        3. Receipt and delivery are not yet 'done' at time of assign/unassign
-        """
         qty_incoming = 4
         qty_outgoing = 10
         qty_in_stock = qty_outgoing - qty_incoming
@@ -2490,11 +2404,6 @@ class TestReports(TestReportsCommon):
         )
 
     def test_report_reception_6_backorders(self):
-        """Check the complicated use case with backorder when:
-        1. Incoming qty is greater than outgoing qty needed to be assigned + total outgoing qty is assigned
-        2. Smaller qty is completed + backorder is made for rest
-        3. Backorder qty (which is still assigned) is unassigned + re-assigned
-        """
         qty_incoming = 10
         qty_outgoing = 8
         orig_incoming_quantity = 4
@@ -2611,11 +2520,6 @@ class TestReports(TestReportsCommon):
             )
 
     def test_report_reception_7_done_receipt(self):
-        """Check the complicated use cases of correct move splitting when assigning when:
-        1. Outgoing qty is greater than incoming qty + total outgoing qty is already reserved
-        2. Receipt is already done and then assigned
-        """
-
         qty_incoming = 4
         qty_outgoing = 10
         self.env["stock.quant"].with_context(inventory_mode=True).create(
@@ -2725,10 +2629,6 @@ class TestReports(TestReportsCommon):
         )
 
     def test_report_reception_immediate_transfer(self):
-        """Having a delivery, a receipt with a move line created before the move
-        (i.e., an immediate transfer) for the product of the SO should have the delivery in its
-        'Allocation' entries.
-        """
         Report = self.env["report.stock.report_reception"]
 
         planned_delivery = self.env["stock.picking"].create(
@@ -2797,10 +2697,6 @@ class TestReports(TestReportsCommon):
         self.assertEqual(out_move.procure_method, "make_to_stock")
 
     def test_report_stock_lot_customer_simple_delivery(self):
-        """
-        Deliver an SN product
-        The SN/Lot report should show the delivered SN
-        """
         stock_location = self.env.ref("stock.stock_location_stock")
         customer_location = self.env.ref("stock.stock_location_customers")
         out_type = self.env.ref("stock.picking_type_out")
@@ -2840,11 +2736,6 @@ class TestReports(TestReportsCommon):
         self.assertEqual(customer_lots, sn)
 
     def test_partner_lot_report_sml_without_picking(self):
-        """
-        Deliver a classic product and a tracked one
-        The SML of the SN is not directly linked to the picking
-        The report should still show the delivered SN
-        """
         stock_location = self.env.ref("stock.stock_location_stock")
         customer_location = self.env.ref("stock.stock_location_customers")
         out_type = self.env.ref("stock.picking_type_out")
@@ -2901,14 +2792,6 @@ class TestReports(TestReportsCommon):
         self.assertEqual(customer_lots, sn)
 
     def test_stock_reception_partial_available_move_assign(self):
-        """
-        Test partial assignment, unassignment, and reassignment of moves via
-        the Reception Report when some quantity is already available in stock
-        and the rest comes from an incoming receipt.
-        This ensures that after unassign/assign, the reservations remain
-        consistent: the stock already available stays reserved, and the
-        incoming quantity can be reassigned correctly.
-        """
         warehouse_1 = self.env.ref("stock.warehouse0")
         shelf1 = self.env["stock.location"].create(
             {
@@ -2968,13 +2851,6 @@ class TestReports(TestReportsCommon):
         self.assertEqual(picking_out.move_ids.mapped("quantity"), [1.0, 2.0])
 
     def test_report_reception_assign_all_with_expected_line(self):
-        """A report that shows both an assignable line and an "expected" (draft)
-        line for the same outgoing move: the "Assign all" button sends every
-        not-yet-assigned line - including the expected one, whose `move_ins` is
-        `False`. `action_assign` must tolerate that empty entry (it used to
-        raise `IndexError` on `browse(False)[0]`) and still link the assignable
-        incoming move, without splitting the out for the un-linkable draft qty.
-        """
         warehouse = self.env.ref("stock.warehouse0")
         supplier_loc = self.ref("stock.stock_location_suppliers")
         stock_loc = warehouse.lot_stock_id.id

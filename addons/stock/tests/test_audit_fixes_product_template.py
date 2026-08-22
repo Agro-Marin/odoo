@@ -1,5 +1,3 @@
-"""Regression pins for the product.template stock audit fixes (2026-08-12)."""
-
 from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
 
@@ -56,7 +54,6 @@ class TestProductTemplateAuditFixes(TransactionCase):
             self.Tmpl.create({"name": "V2", "type": "service", "qty_available": 9})
 
     def test_nonstorable_zero_qty_is_still_a_noop(self):
-        """A Form save sends 0.0; that must stay harmless."""
         res = self.Tmpl.web_save(
             {"name": "V3", "type": "service", "qty_available": 0.0},
             {"qty_available": {}},
@@ -237,23 +234,14 @@ class TestProductTemplateAuditFixes(TransactionCase):
         self.assertNotIn(v_arch.id, action["domain"][0][2])
 
     def test_count_lot_ids_removed_from_template(self):
-        """Unreferenced on the template. Still live on product.product, which has
-        its own compute, its own @api.depends and a test pinning invalidation."""
         self.assertNotIn("count_lot_ids", self.Tmpl._fields)
         self.assertIn("count_lot_ids", self.env["product.product"]._fields)
 
     def test_action_view_routes_is_gone(self):
-        """It called a product.template method that never existed."""
         self.assertFalse(hasattr(self.env["product.product"], "action_view_routes"))
         self.assertFalse(hasattr(self.Tmpl, "action_view_routes"))
 
     def test_create_batch_adjusts_each_product_exactly_once(self):
-        """One stock quant per product -- no duplicate adjustment from the batch path.
-
-        ``_apply_inventory`` also writes a counterpart quant at the adjustment
-        location, so the total is two per product; only the stock-location one is
-        the adjustment itself.
-        """
         Quant = self.env["stock.quant"]
         tmpls = self.Tmpl.create(
             [
@@ -299,7 +287,6 @@ class TestProductTemplateAuditFixes(TransactionCase):
         )
 
     def test_create_batch_skips_nonstorable_without_shifting_others(self):
-        """A zero-quantity service in the middle must not misalign the rest."""
         tmpls = self.Tmpl.create(
             [
                 {
@@ -369,7 +356,6 @@ class TestProductTemplateAuditFixes(TransactionCase):
         self.assertEqual(resolved, tmpl.product_variant_ids)
 
     def test_diagram_products_ignores_empty_context_ids(self):
-        """A stale default_product_id must not shadow self."""
         tmpl = self.Tmpl.create({"name": "V22", "type": "consu", "is_storable": True})
         resolved = tmpl.with_context(
             default_product_id=False
@@ -377,7 +363,6 @@ class TestProductTemplateAuditFixes(TransactionCase):
         self.assertEqual(resolved, tmpl.product_variant_ids)
 
     def test_default_responsible_still_applies(self):
-        """String-name default must behave exactly like the old lambda."""
         self.assertTrue(self.env.user._is_superuser())
         tmpl = self.Tmpl.create({"name": "V18", "type": "consu"})
         self.assertFalse(tmpl.responsible_id, "superuser gets no responsible")

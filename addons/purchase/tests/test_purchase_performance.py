@@ -1,39 +1,3 @@
-"""
-Performance Testing Suite for Purchase Module
-
-This module provides comprehensive performance testing for the purchase module,
-combining two testing approaches:
-
-1. **Query Count Assertions** (`assertQueryCount`):
-   - Regression testing to catch performance regressions
-   - Deterministic query counting for CI/CD pipelines
-   - Use `@warmup` decorator for consistent measurements
-
-2. **Profiling** (`self.profile()`):
-   - Detailed execution analysis with Speedscope output
-   - SQL query timing and stack traces
-   - Async stack sampling for bottleneck identification
-
-Run tests:
-    # The query-count classes are `-standard`: they must be asked for by tag,
-    # and their database must not carry modules that extend the measured flow
-    # (see the comment above them). The profiling/scaling classes are unaffected.
-
-    # Run all performance tests
-    ./odoo-bin -u purchase -d testdb --test-enable --test-tags=purchase_perf
-
-    # Run specific test
-    ./odoo-bin -u purchase -d testdb --test-enable --test-tags=po_create_perf
-
-    # Run with profiling output (check ir.profile records after)
-    ./odoo-bin -u purchase -d testdb --test-enable --test-tags=purchase_profile
-
-View profiling results:
-    1. Navigate to Profiling menu in Odoo
-    2. Find profiles by session name (test method)
-    3. Click speedscope_url to view in Speedscope
-"""
-
 import functools
 import logging
 import time
@@ -49,15 +13,8 @@ _logger = logging.getLogger(__name__)
 
 
 def prepare(func, /):
-    """Prepare data to remove common queries from the count.
-
-    Must be run after `warmup` because of the invalidations.
-    Prefetches company-related data that can vary between environments.
-    """
-
     @functools.wraps(func)
     def wrapper(self):
-        # Prefetch common data that might cause query count variations
         self.env.company.country_id.code
         self.env.company.currency_id.rate
         return func(self)
@@ -65,35 +22,14 @@ def prepare(func, /):
     return wrapper
 
 
-# =============================================================================
-# QUERY COUNT REGRESSION TESTS
-#
-# The baselines below are calibrated for `purchase` on its own. They are
-# `-standard` — run only when asked for by tag, as the module docstring
-# documents — because a query count is only meaningful against a pinned set of
-# installed modules, and nothing here pins it: `purchase_stock` is
-# ``auto_install``, and it extends `action_confirm()` with `_create_picking()`,
-# so on any database carrying stock these counts are several times the numbers
-# asserted here. Left standard they would fail in the ordinary configuration
-# rather than in the exceptional one, which trains everyone to ignore them.
-# =============================================================================
-
-
 @tagged("purchase_perf", "po_create_perf", "-at_install", "post_install", "-standard")
 class TestPurchaseOrderCreationPerf(AccountTestInvoicingCommon):
-    """Query count tests for Purchase Order creation operations.
-
-    These tests establish baseline query counts for regression detection.
-    If query counts increase, it indicates a potential performance regression.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.BATCH_SIZE = 10
         cls.LINES_PER_ORDER = 10
 
-        # Create test products with suppliers
         cls.products = cls.env["product.product"].create(
             [
                 {
@@ -116,7 +52,6 @@ class TestPurchaseOrderCreationPerf(AccountTestInvoicingCommon):
             ]
         )
 
-        # Create test partners
         cls.partners = cls.env["res.partner"].create(
             [
                 {
@@ -132,7 +67,6 @@ class TestPurchaseOrderCreationPerf(AccountTestInvoicingCommon):
     @warmup
     @prepare
     def test_empty_po_creation(self):
-        """Test query count for creating a single empty PO."""
         with self.assertQueryCount(admin=11):
             self.env["purchase.order"].create(
                 {
@@ -144,10 +78,6 @@ class TestPurchaseOrderCreationPerf(AccountTestInvoicingCommon):
     @warmup
     @prepare
     def test_empty_po_batch_creation(self):
-        """Test query count for batch creating empty POs.
-
-        Batch creation should have O(1) query growth, not O(n).
-        """
         with self.assertQueryCount(admin=14):
             self.env["purchase.order"].create(
                 [
@@ -162,10 +92,6 @@ class TestPurchaseOrderCreationPerf(AccountTestInvoicingCommon):
     @warmup
     @prepare
     def test_po_with_lines_creation(self):
-        """Test query count for creating PO with product lines.
-
-        This is the most common operation - creating a PO with actual lines.
-        """
         with self.assertQueryCount(admin=39):
             self.env["purchase.order"].create(
                 {
@@ -186,7 +112,6 @@ class TestPurchaseOrderCreationPerf(AccountTestInvoicingCommon):
     @warmup
     @prepare
     def test_po_with_dummy_lines_creation(self):
-        """Test that section/note lines don't add significant queries."""
         with self.assertQueryCount(admin=12):
             self.env["purchase.order"].create(
                 [
@@ -209,10 +134,6 @@ class TestPurchaseOrderCreationPerf(AccountTestInvoicingCommon):
     @warmup
     @prepare
     def test_po_batch_with_lines_creation(self):
-        """Test batch creation of POs with lines.
-
-        Critical for imports and automated PO generation.
-        """
         vals_list = [
             {
                 "partner_id": self.partners[i % len(self.partners)].id,
@@ -235,8 +156,6 @@ class TestPurchaseOrderCreationPerf(AccountTestInvoicingCommon):
 
 @tagged("purchase_perf", "po_write_perf", "-at_install", "post_install", "-standard")
 class TestPurchaseOrderWritePerf(AccountTestInvoicingCommon):
-    """Query count tests for Purchase Order write operations."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -271,41 +190,26 @@ class TestPurchaseOrderWritePerf(AccountTestInvoicingCommon):
     @users("admin")
     @warmup
     def test_po_write_single_field(self):
-        """Test query count for updating a single field on PO."""
         with self.assertQueryCount(admin=2):
             self.purchase_order.write({"partner_ref": "VENDOR-REF-001"})
 
     @users("admin")
     @warmup
     def test_po_line_qty_update(self):
-        """Test query count for updating line quantity.
-
-        This triggers cascading recomputes for amounts, dates, etc.
-        """
         line = self.purchase_order.line_ids[0]
-        # Changing product_qty re-selects the seller (price breaks), which
-        # recomputes the line name; _get_line_description reads the stored
-        # product_no_variant_attribute_value_ids m2m (one query) to append the
-        # no-variant attribute spec to the RFQ description (upstream 19.0 fix
-        # ported in "port upstream 19.0 fixes since fork"). Baseline was 22.
         with self.assertQueryCount(admin=23):
             line.write({"product_qty": 20})
 
     @users("admin")
     @warmup
     def test_po_line_batch_qty_update(self):
-        """Test query count for batch updating line quantities."""
         lines = self.purchase_order.line_ids[:5]
-        # +1 vs the former baseline of 23: the no-variant attribute description
-        # read (see test_po_line_qty_update) batched across the five lines.
         with self.assertQueryCount(admin=24):
             lines.write({"product_qty": 15})
 
 
 @tagged("purchase_perf", "po_confirm_perf", "-at_install", "post_install", "-standard")
 class TestPurchaseOrderConfirmPerf(AccountTestInvoicingCommon):
-    """Query count tests for Purchase Order confirmation."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -322,7 +226,6 @@ class TestPurchaseOrderConfirmPerf(AccountTestInvoicingCommon):
         cls.env.flush_all()
 
     def _create_po(self, line_count=10):
-        """Helper to create a fresh PO for confirmation tests."""
         return self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -342,52 +245,29 @@ class TestPurchaseOrderConfirmPerf(AccountTestInvoicingCommon):
     @users("admin")
     @warmup
     def test_po_confirm_small(self):
-        """Test confirmation of PO with 5 lines."""
         po = self._create_po(5)
         self.env.flush_all()
         self.env.invalidate_all()
 
-        # +1 vs the former baseline of 26: the no-variant attribute description
-        # read (see test_po_line_qty_update) on line-name computation at confirm.
         with self.assertQueryCount(admin=27):
             po.action_confirm()
 
     @users("admin")
     @warmup
     def test_po_confirm_medium(self):
-        """Test confirmation of PO with 10 lines."""
         po = self._create_po(10)
         self.env.flush_all()
         self.env.invalidate_all()
 
-        # +1 vs the former baseline of 27: the no-variant attribute description
-        # read (see test_po_line_qty_update) on line-name computation at confirm.
         with self.assertQueryCount(admin=28):
             po.action_confirm()
 
 
-# =============================================================================
-# PROFILING TESTS - Detailed Performance Analysis
-# =============================================================================
-
-
 @tagged("purchase_profile", "-at_install", "post_install")
 class TestPurchaseOrderProfiling(AccountTestInvoicingCommon):
-    """Profiling tests for detailed performance analysis.
-
-    These tests generate Speedscope-compatible profiles that can be
-    visualized to identify bottlenecks. Results are stored in ir.profile.
-
-    After running, check:
-    1. Profiling menu in Odoo
-    2. Click on profile record
-    3. Open speedscope_url in browser
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Create products with varying seller configurations
         cls.products_simple = cls.env["product.product"].create(
             [
                 {
@@ -415,7 +295,7 @@ class TestPurchaseOrderProfiling(AccountTestInvoicingCommon):
                             }
                         )
                         for qty in [1, 5, 10, 50]
-                    ],  # Multiple price breaks
+                    ],
                 }
                 for i in range(20)
             ]
@@ -433,10 +313,6 @@ class TestPurchaseOrderProfiling(AccountTestInvoicingCommon):
         cls.env.flush_all()
 
     def test_profile_po_creation_scaling(self):
-        """Profile PO creation with varying line counts.
-
-        Generates profiles for 10, 25, 50 lines to identify scaling issues.
-        """
         for line_count in [10, 25, 50]:
             with self.profile(description=f"PO creation with {line_count} lines"):
                 self.env["purchase.order"].create(
@@ -459,13 +335,6 @@ class TestPurchaseOrderProfiling(AccountTestInvoicingCommon):
             self.env.invalidate_all()
 
     def test_profile_seller_selection_impact(self):
-        """Profile impact of seller selection on PO creation.
-
-        Compares products with no sellers vs products with multiple sellers.
-        The seller selection algorithm runs for each line, so this
-        highlights potential N+1 issues.
-        """
-        # Profile without seller lookup
         with self.profile(description="PO creation - no sellers"):
             self.env["purchase.order"].create(
                 {
@@ -485,7 +354,6 @@ class TestPurchaseOrderProfiling(AccountTestInvoicingCommon):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        # Profile with seller lookup
         with self.profile(description="PO creation - with sellers"):
             self.env["purchase.order"].create(
                 {
@@ -503,10 +371,6 @@ class TestPurchaseOrderProfiling(AccountTestInvoicingCommon):
             )
 
     def test_profile_batch_po_creation(self):
-        """Profile batch creation of multiple POs.
-
-        Tests whether batch operations properly leverage batching.
-        """
         with self.profile(description="Batch PO creation - 20 POs x 5 lines"):
             self.env["purchase.order"].create(
                 [
@@ -527,17 +391,6 @@ class TestPurchaseOrderProfiling(AccountTestInvoicingCommon):
             )
 
     def test_profile_computed_field_cascade(self):
-        """Profile computed field cascade when updating product_qty.
-
-        Changing product_qty triggers:
-        - _compute_selected_seller_id
-        - _compute_price_and_discount
-        - _compute_date_commitment
-        - _compute_amounts (on order)
-
-        This test identifies which computed fields are the bottleneck.
-        """
-        # Create PO with lines
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -555,14 +408,12 @@ class TestPurchaseOrderProfiling(AccountTestInvoicingCommon):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        # Profile quantity updates
         with self.profile(description="Line qty update cascade - 15 lines"):
             with ExecutionContext(operation="bulk_qty_update"):
                 for line in po.line_ids:
-                    line.product_qty = 25  # Triggers seller reselection
+                    line.product_qty = 25
 
     def test_profile_po_confirmation_flow(self):
-        """Profile the full PO confirmation workflow."""
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -584,19 +435,8 @@ class TestPurchaseOrderProfiling(AccountTestInvoicingCommon):
             po.action_confirm()
 
 
-# =============================================================================
-# SCALING TESTS - Measure Performance at Different Scales
-# =============================================================================
-
-
 @tagged("purchase_scale", "-at_install", "post_install")
 class TestPurchaseOrderScaling(AccountTestInvoicingCommon):
-    """Scaling tests to measure performance at different data volumes.
-
-    These tests measure actual execution time and query counts at
-    various scales to identify algorithmic complexity issues (O(n), O(n²), etc.).
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -632,10 +472,6 @@ class TestPurchaseOrderScaling(AccountTestInvoicingCommon):
         cls.env.flush_all()
 
     def _measure_operation(self, description, operation_func):
-        """Measure an operation and log results.
-
-        Returns (duration, query_count).
-        """
         self.env.flush_all()
         self.env.invalidate_all()
 
@@ -657,16 +493,10 @@ class TestPurchaseOrderScaling(AccountTestInvoicingCommon):
         return t1 - t0, query_count, result
 
     def test_scaling_po_creation_by_line_count(self):
-        """Test PO creation scaling with increasing line counts.
-
-        Expected: O(n) or better
-        Red flag: O(n²) growth indicates N+1 problem
-        """
         results = []
         line_counts = [5, 10, 25, 50, 100]
 
         for line_count in line_counts:
-
             def create_po(lc=line_count):
                 return self.env["purchase.order"].create(
                     {
@@ -695,7 +525,6 @@ class TestPurchaseOrderScaling(AccountTestInvoicingCommon):
                 }
             )
 
-        # Log summary
         _logger.info("=" * 60)
         _logger.info("SCALING SUMMARY: PO Creation by Line Count")
         _logger.info("=" * 60)
@@ -708,12 +537,9 @@ class TestPurchaseOrderScaling(AccountTestInvoicingCommon):
                 r["queries_per_line"],
             )
 
-        # Assert queries per line should be roughly constant (O(n) scaling)
-        # Allow for some overhead on small counts
         if len(results) >= 2:
             first_qpl = results[0]["queries_per_line"]
             last_qpl = results[-1]["queries_per_line"]
-            # Queries per line shouldn't more than double
             self.assertLess(
                 last_qpl,
                 first_qpl * 2.5,
@@ -721,16 +547,11 @@ class TestPurchaseOrderScaling(AccountTestInvoicingCommon):
             )
 
     def test_scaling_batch_po_creation(self):
-        """Test batch PO creation scaling.
-
-        Creating N POs in batch should be faster than N individual creates.
-        """
         po_counts = [5, 10, 25]
         lines_per_po = 5
 
         results = []
         for po_count in po_counts:
-
             def create_batch(pc=po_count):
                 return self.env["purchase.order"].create(
                     [
@@ -763,7 +584,6 @@ class TestPurchaseOrderScaling(AccountTestInvoicingCommon):
                 }
             )
 
-        # Log summary
         _logger.info("=" * 60)
         _logger.info("SCALING SUMMARY: Batch PO Creation")
         _logger.info("=" * 60)
@@ -778,8 +598,6 @@ class TestPurchaseOrderScaling(AccountTestInvoicingCommon):
             )
 
     def test_scaling_line_update(self):
-        """Test line update scaling when modifying quantities."""
-        # Create a PO with many lines
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -800,7 +618,6 @@ class TestPurchaseOrderScaling(AccountTestInvoicingCommon):
         results = []
 
         for update_count in update_counts:
-            # Reset quantities
             po.line_ids.write({"product_qty": 5})
             self.env.flush_all()
             self.env.invalidate_all()
@@ -821,7 +638,6 @@ class TestPurchaseOrderScaling(AccountTestInvoicingCommon):
                 }
             )
 
-        # Log summary
         _logger.info("=" * 60)
         _logger.info("SCALING SUMMARY: Line Quantity Updates")
         _logger.info("=" * 60)
@@ -834,22 +650,8 @@ class TestPurchaseOrderScaling(AccountTestInvoicingCommon):
             )
 
 
-# =============================================================================
-# STRESS TESTS - High Volume Performance Testing
-# =============================================================================
-
-
 @tagged("purchase_stress", "-at_install", "post_install")
 class TestPurchaseOrderStress(AccountTestInvoicingCommon):
-    """Stress tests with high data volumes to detect real bottlenecks.
-
-    These tests use significantly larger data volumes than the scaling tests
-    to stress-test the system and reveal performance issues that only appear
-    at scale.
-
-    WARNING: These tests may take several minutes to complete.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -860,7 +662,6 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
 
         t0 = time.perf_counter()
 
-        # Create many products with multiple seller price breaks
         cls.products_heavy = cls.env["product.product"].create(
             [
                 {
@@ -877,13 +678,12 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
                             }
                         )
                         for qty in [1, 5, 10, 25, 50, 100, 250, 500]
-                    ],  # 8 price breaks each
+                    ],
                 }
                 for i in range(200)
             ]
-        )  # 200 products × 8 sellers = 1600 seller records
+        )
 
-        # Create many partners
         cls.partners_heavy = cls.env["res.partner"].create(
             [
                 {
@@ -902,7 +702,6 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
         )
 
     def _stress_measure(self, description, operation_func):
-        """Measure a stress operation with detailed logging."""
         self.env.flush_all()
         self.env.invalidate_all()
 
@@ -929,11 +728,6 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
         }
 
     def test_stress_large_po_creation(self):
-        """Stress test: Create POs with 200, 500, and 1000 lines.
-
-        This reveals N+1 issues and computed field cascades that
-        only appear with large line counts.
-        """
         _logger.info("=" * 60)
         _logger.info("STRESS TEST: Large PO Creation")
         _logger.info("=" * 60)
@@ -942,7 +736,6 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
         line_counts = [200, 500]
 
         for line_count in line_counts:
-
             def create_large_po(lc=line_count):
                 return self.env["purchase.order"].create(
                     {
@@ -951,7 +744,7 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
                             Command.create(
                                 {
                                     "product_id": self.products_heavy[i % 200].id,
-                                    "product_qty": 10 + (i % 50),  # Varying quantities
+                                    "product_qty": 10 + (i % 50),
                                 }
                             )
                             for i in range(lc)
@@ -967,7 +760,6 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
             result["ms_per_line"] = (result["duration"] * 1000) / line_count
             results.append(result)
 
-        # Summary
         _logger.info("=" * 60)
         _logger.info("STRESS SUMMARY: Large PO Creation")
         _logger.info("=" * 60)
@@ -981,7 +773,6 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
                 r["ms_per_line"],
             )
 
-        # Detect O(n²) - queries per line should stay roughly constant
         if len(results) >= 2:
             qpl_first = results[0]["queries_per_line"]
             qpl_last = results[-1]["queries_per_line"]
@@ -1003,10 +794,6 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
                 )
 
     def test_stress_batch_po_creation(self):
-        """Stress test: Batch create 50 and 100 POs with 10 lines each.
-
-        Tests batching efficiency at scale.
-        """
         _logger.info("=" * 60)
         _logger.info("STRESS TEST: Batch PO Creation")
         _logger.info("=" * 60)
@@ -1016,7 +803,6 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
         lines_per_po = 10
 
         for batch_size in batch_sizes:
-
             def create_batch(bs=batch_size):
                 return self.env["purchase.order"].create(
                     [
@@ -1047,7 +833,6 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
             result["queries_per_line"] = result["queries"] / result["total_lines"]
             results.append(result)
 
-        # Summary
         _logger.info("=" * 60)
         _logger.info("STRESS SUMMARY: Batch PO Creation")
         _logger.info("=" * 60)
@@ -1063,15 +848,10 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
             )
 
     def test_stress_line_updates_cascade(self):
-        """Stress test: Update quantities on 100, 200, 500 lines.
-
-        Tests computed field cascade efficiency at scale.
-        """
         _logger.info("=" * 60)
         _logger.info("STRESS TEST: Line Update Cascade")
         _logger.info("=" * 60)
 
-        # Create a large PO
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -1092,7 +872,6 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
         update_counts = [100, 200, 500]
 
         for update_count in update_counts:
-            # Reset
             po.line_ids.write({"product_qty": 5})
             self.env.flush_all()
             self.env.invalidate_all()
@@ -1100,7 +879,6 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
             lines_to_update = po.line_ids[:update_count]
 
             def update_lines(lines=lines_to_update):
-                # Use write() for batch update
                 lines.write({"product_qty": 50})
 
             result = self._stress_measure(
@@ -1109,7 +887,6 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
             result["lines_updated"] = update_count
             results.append(result)
 
-        # Summary
         _logger.info("=" * 60)
         _logger.info("STRESS SUMMARY: Line Update Cascade")
         _logger.info("=" * 60)
@@ -1122,11 +899,6 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
             )
 
     def test_stress_seller_selection_heavy(self):
-        """Stress test: Seller selection with many sellers per product.
-
-        Each product has 8 price breaks. Test with 100+ lines to stress
-        the _select_seller algorithm.
-        """
         _logger.info("=" * 60)
         _logger.info("STRESS TEST: Seller Selection (8 price breaks × 200 products)")
         _logger.info("=" * 60)
@@ -1135,7 +907,6 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
         line_counts = [50, 100, 200]
 
         for line_count in line_counts:
-
             def create_po_with_sellers(lc=line_count):
                 return self.env["purchase.order"].create(
                     {
@@ -1146,7 +917,7 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
                                     "product_id": self.products_heavy[i % 200].id,
                                     "product_qty": [1, 5, 10, 25, 50, 100, 250, 500][
                                         i % 8
-                                    ],  # Hit different price breaks
+                                    ],
                                 }
                             )
                             for i in range(lc)
@@ -1162,7 +933,6 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
             result["queries_per_line"] = result["queries"] / line_count
             results.append(result)
 
-        # Summary
         _logger.info("=" * 60)
         _logger.info("STRESS SUMMARY: Seller Selection Heavy")
         _logger.info("=" * 60)
@@ -1176,11 +946,6 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
             )
 
     def test_stress_po_confirmation_large(self):
-        """Stress test: Confirm PO with 100 and 200 lines.
-
-        Confirmation triggers stock moves, pickings, and various
-        side effects that compound at scale.
-        """
         _logger.info("=" * 60)
         _logger.info("STRESS TEST: PO Confirmation (Large)")
         _logger.info("=" * 60)
@@ -1189,7 +954,6 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
         line_counts = [100, 200]
 
         for line_count in line_counts:
-            # Create fresh PO
             po = self.env["purchase.order"].create(
                 {
                     "partner_id": self.partner_a.id,
@@ -1217,7 +981,6 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
             result["queries_per_line"] = result["queries"] / line_count
             results.append(result)
 
-        # Summary
         _logger.info("=" * 60)
         _logger.info("STRESS SUMMARY: PO Confirmation Large")
         _logger.info("=" * 60)
@@ -1230,7 +993,6 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
                 r["queries_per_line"],
             )
 
-        # Check scaling
         if len(results) >= 2:
             qpl_first = results[0]["queries_per_line"]
             qpl_last = results[-1]["queries_per_line"]
@@ -1242,22 +1004,11 @@ class TestPurchaseOrderStress(AccountTestInvoicingCommon):
                 )
 
 
-# =============================================================================
-# BOTTLENECK IDENTIFICATION TESTS
-# =============================================================================
-
-
 @tagged("purchase_bottleneck", "-at_install", "post_install")
 class TestPurchaseBottlenecks(AccountTestInvoicingCommon):
-    """Tests specifically designed to identify performance bottlenecks.
-
-    Each test isolates a specific component to measure its impact.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Products with complex seller configurations
         cls.products_many_sellers = cls.env["product.product"].create(
             [
                 {
@@ -1274,7 +1025,7 @@ class TestPurchaseBottlenecks(AccountTestInvoicingCommon):
                             }
                         )
                         for qty in range(1, 20)
-                    ],  # 19 seller price breaks!
+                    ],
                 }
                 for i in range(10)
             ]
@@ -1283,17 +1034,10 @@ class TestPurchaseBottlenecks(AccountTestInvoicingCommon):
         cls.env.flush_all()
 
     def test_bottleneck_seller_selection_algorithm(self):
-        """Isolate seller selection performance.
-
-        The _compute_selected_seller_id method is called for each line
-        and iterates through all seller_ids. With many sellers and lines,
-        this becomes O(lines × sellers).
-        """
         _logger.info("=" * 60)
         _logger.info("BOTTLENECK TEST: Seller Selection Algorithm")
         _logger.info("=" * 60)
 
-        # Measure with products that have many sellers
         self.env.flush_all()
         self.env.invalidate_all()
 
@@ -1322,14 +1066,12 @@ class TestPurchaseBottlenecks(AccountTestInvoicingCommon):
             "10 products × 19 sellers each: %.3fs, %d queries", t1 - t0, query_count
         )
 
-        # Now change quantities to trigger seller reselection
         self.env.flush_all()
         self.env.invalidate_all()
 
         queries_start = self.env.cr.sql_log_count
         t0 = time.perf_counter()
 
-        # This should trigger _compute_selected_seller_id for all lines
         po.line_ids.write({"product_qty": 50})
 
         t1 = time.perf_counter()
@@ -1342,16 +1084,10 @@ class TestPurchaseBottlenecks(AccountTestInvoicingCommon):
         )
 
     def test_bottleneck_amount_computation(self):
-        """Isolate amount computation performance.
-
-        The _compute_amounts_invoice method uses 4 separate mapped() calls.
-        This could be optimized to a single iteration.
-        """
         _logger.info("=" * 60)
         _logger.info("BOTTLENECK TEST: Amount Computation")
         _logger.info("=" * 60)
 
-        # Create confirmed PO with many lines
         po = self.env["purchase.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -1371,11 +1107,9 @@ class TestPurchaseBottlenecks(AccountTestInvoicingCommon):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        # Force recomputation of amounts
         queries_start = self.env.cr.sql_log_count
         t0 = time.perf_counter()
 
-        # Access amount fields to trigger computation
         _ = po.amount_untaxed
         _ = po.amount_tax
         _ = po.amount_total
@@ -1390,11 +1124,6 @@ class TestPurchaseBottlenecks(AccountTestInvoicingCommon):
         )
 
     def test_bottleneck_date_commitment_computation(self):
-        """Isolate date_commitment computation performance.
-
-        The _compute_date_commitment method iterates through all seller_ids
-        to check if current date matches any seller's expected date.
-        """
         _logger.info("=" * 60)
         _logger.info("BOTTLENECK TEST: Date Planned Computation")
         _logger.info("=" * 60)
@@ -1416,11 +1145,9 @@ class TestPurchaseBottlenecks(AccountTestInvoicingCommon):
         self.env.flush_all()
         self.env.invalidate_all()
 
-        # Change product to trigger date_commitment recomputation
         queries_start = self.env.cr.sql_log_count
         t0 = time.perf_counter()
 
-        # Simulate product change (triggers date_commitment recompute)
         for line in po.line_ids:
             line.invalidate_recordset(["date_commitment"])
             _ = line.date_commitment

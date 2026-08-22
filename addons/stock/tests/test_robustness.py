@@ -20,12 +20,6 @@ class TestRobustness(TransactionCase):
         )
 
     def test_create_done_line_frees_over_reservation(self):
-        """Directly creating a *done* move line that forces the source quant
-        negative must free the now-invalid reservations pointing at it -- exactly
-        as write() and _action_done already do. Regression: the create() path
-        discarded _apply_quant_move()'s return value, so the over-reservation was
-        never released, leaving phantom (double) reservations and a wrong forecast.
-        """
         Quant = self.env["stock.quant"]
         Quant._update_available_quantity(self.product1, self.stock_location, 10.0)
 
@@ -70,10 +64,6 @@ class TestRobustness(TransactionCase):
         self.assertEqual(quant.reserved_quantity, 4.0)
 
     def test_uom_factor(self):
-        """Changing the factor of a unit of measure shouldn't be allowed while
-        quantities are reserved, else the existing move lines won't be consistent
-        with the `reserved_quantity` on quants.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.product1,
             self.stock_location,
@@ -104,9 +94,6 @@ class TestRobustness(TransactionCase):
         move1._do_unreserve()
 
     def test_location_usage(self):
-        """Changing the usage of a location shouldn't be allowed
-        or changing a location from scrap to non-scrap or vice versa
-        shouldn't be allowed when stock is available in a location"""
         test_stock_location = self.env["stock.location"].create(
             {
                 "name": "Test Location",
@@ -148,9 +135,6 @@ class TestRobustness(TransactionCase):
             test_stock_location.usage = "inventory"
 
     def test_package_unpack(self):
-        """Unpack a package that contains quants with a reservation
-        should also remove the package on the reserved move lines.
-        """
         package = self.env["stock.package"].create(
             {
                 "name": "Shell Helix HX7 10W30",
@@ -198,9 +182,6 @@ class TestRobustness(TransactionCase):
         )
 
     def test_lot_id_product_id_mix(self):
-        """Make sure it isn't possible to create a move line with a lot incompatible with its
-        product.
-        """
         product1 = self.env["product.product"].create(
             {
                 "name": "Product 1",
@@ -297,7 +278,6 @@ class TestRobustness(TransactionCase):
             )
 
     def test_lot_quantity_remains_unchanged_after_done(self):
-        """Make sure the method _set_lot_ids does not change the quantities of lots to 1 once they are done."""
         productA = self.env["product.product"].create(
             {
                 "name": "ProductA",
@@ -349,7 +329,6 @@ class TestRobustness(TransactionCase):
         self.assertEqual(moveA.quantity, 5)
 
     def test_new_move_done_picking(self):
-        """Ensure that adding a Draft move to a Done picking doesn't change the picking state"""
         product1 = self.env["product.product"].create(
             {"name": "P1", "is_storable": True}
         )
@@ -401,7 +380,6 @@ class TestRobustness(TransactionCase):
         self.assertEqual(move2.state, "done")
 
     def test_clean_quants_synch(self):
-        """Ensure the _clean_reservaion method align the quants on stock.move.line"""
         product_reservation_too_high = self.env["product.product"].create(
             {
                 "name": "Product Reservation",
@@ -469,7 +447,6 @@ class TestRobustness(TransactionCase):
         self.assertEqual(quant.reserved_quantity, 0)
 
     def test_clean_quants_synch_with_different_uom(self):
-        """Ensure the _clean_reservaion method align the quants on stock.move.line when using different UoM"""
         uom_kg = self.env.ref("uom.product_uom_kgm")
         product_reservation_too_high = self.env["product.product"].create(
             {
@@ -503,13 +480,6 @@ class TestRobustness(TransactionCase):
         self.assertEqual(quant.reserved_quantity, 0.1)
 
     def test_clean_quants_synch_in_non_company_specific_locations(self):
-        """
-        Accessing the inventory view will add an inventory_mode in the context
-        and launch a call of the `_clean_reservation`.
-
-        This checks that the _clean_reservation method does not raise user errors if it
-        plans to create a quants in a non-company specific location.
-        """
         product_without_quant = self.env["product.product"].create(
             {
                 "name": "Product reserved without quant",
@@ -553,7 +523,6 @@ class TestRobustness(TransactionCase):
         )
 
     def test_push_rule_circular_recursion_guard(self):
-        """Circular transparent push rules (A→B→A) must raise UserError instead of infinite recursion."""
         warehouse = self.env["stock.warehouse"].search(
             [("company_id", "=", self.env.company.id)],
             limit=1,
@@ -643,8 +612,6 @@ class TestRobustness(TransactionCase):
             move._action_done()
 
     def test_move_location_write_unlinks_incompatible_lines(self):
-        """Writing location_id on a move must batch-unlink move lines whose location
-        is not a child of the new source location."""
         product = self.env["product.product"].create(
             {
                 "name": "Test Product",
@@ -684,7 +651,6 @@ class TestRobustness(TransactionCase):
         self.assertFalse(self.env["stock.move.line"].browse(old_ml_ids).exists())
 
     def test_product_tmpl_id_stored_and_synced(self):
-        """product_tmpl_id on stock.move should be stored and stay in sync with product_id."""
         template_a = self.env["product.template"].create(
             {
                 "name": "Template A",

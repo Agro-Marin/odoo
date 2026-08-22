@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="action_product_deduplicate" model="ir.actions.act_window">
+        <field name="name">Deduplicate Products</field>
+        <field name="res_model">product.merge.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="context">{'active_test': False}</field>
+    </record>
+
+    <record id="product_merge_wizard_form" model="ir.ui.view">
+        <field name="name">product.merge.wizard.form</field>
+        <field name="model">product.merge.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Merge Products">
+                <group invisible="state != 'finished'">
+                    <h2 colspan="2">There are no more products to merge for this request</h2>
+                    <button
+                        name="%(action_product_deduplicate)d"
+                        string="Deduplicate the other Products"
+                        class="oe_highlight"
+                        type="action"
+                        colspan="2" />
+                </group>
+                <p class="opacity-50" invisible="state != 'option'">
+                    Select the list of fields used to search for duplicated
+                    products. If you select several fields, only the products
+                    having all of them in common are proposed for merging (not
+                    one of the fields).
+                </p>
+                <group
+                    invisible="state not in ('selection', 'finished') or number_group == 0">
+                    <field name="number_group" />
+                </group>
+                <group
+                    string="Search duplicates based on duplicated data in"
+                    invisible="state != 'option'">
+                    <field name="group_by_name" />
+                    <field name="group_by_default_code" />
+                    <field name="group_by_barcode" />
+                    <field name="group_by_categ_id" />
+                    <field name="group_by_type" />
+                    <field name="group_by_uom_id" />
+                </group>
+                <group string="Exclude products having" invisible="state != 'option'">
+                    <field name="exclude_journal_item" />
+                </group>
+                <separator string="Options" invisible="state != 'option'" />
+                <group invisible="state not in ('option', 'finished')">
+                    <field name="maximum_group" readonly="state == 'finished'" />
+                </group>
+                <separator
+                    string="Merge the following products"
+                    invisible="state in ('option', 'finished')" />
+                <group invisible="state in ('option', 'finished')" col="1">
+                    <p class="opacity-50">
+                        Selected products will be merged together. All documents
+                        linked to one of these products will be redirected to the
+                        destination product, variant by variant. You can remove
+                        products from this list to avoid merging them.
+                    </p>
+                    <group col="2">
+                        <field
+                            name="dst_product_tmpl_id"
+                            domain="[('id', 'in', product_tmpl_ids or False)]"
+                            required="state == 'selection'" />
+                    </group>
+                    <field name="product_tmpl_ids" nolabel="1">
+                        <list string="Products">
+                            <field name="id" />
+                            <field name="display_name" />
+                            <field name="default_code" />
+                            <field name="barcode" />
+                            <field name="type" />
+                            <field name="uom_id" />
+                            <field name="categ_id" />
+                            <field name="product_variant_count" />
+                        </list>
+                    </field>
+                </group>
+                <footer>
+                    <button
+                        name="action_merge"
+                        string="Merge Products"
+                        class="oe_highlight"
+                        type="object"
+                        data-hotkey="q"
+                        invisible="state in ('option', 'finished')" />
+                    <button
+                        name="action_skip"
+                        string="Skip these products"
+                        type="object"
+                        invisible="state != 'selection'" />
+                    <button
+                        name="action_start_manual_process"
+                        string="Merge with Manual Check"
+                        data-hotkey="w"
+                        type="object"
+                        class="oe_highlight"
+                        invisible="state != 'option'" />
+                    <button
+                        name="action_start_automatic_process"
+                        string="Merge Automatically"
+                        data-hotkey="l"
+                        type="object"
+                        class="oe_highlight"
+                        confirm="Are you sure to execute the automatic merge of your products?"
+                        invisible="state != 'option'" />
+                    <button
+                        special="cancel"
+                        data-hotkey="x"
+                        string="Cancel"
+                        type="object"
+                        class="btn btn-secondary oe_inline"
+                        invisible="state == 'finished'" />
+                    <button
+                        special="cancel"
+                        data-hotkey="x"
+                        string="Close"
+                        type="object"
+                        class="btn btn-secondary oe_inline"
+                        invisible="state != 'finished'" />
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_product_template_merge" model="ir.actions.act_window">
+        <field name="name">Merge</field>
+        <field name="res_model">product.merge.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" ref="product.model_product_template" />
+        <field name="binding_view_types">list,kanban</field>
+        <field
+            name="group_ids"
+            eval="[Command.link(ref('product.group_product_manager'))]" />
+    </record>
+
+    <record id="action_product_variant_merge" model="ir.actions.act_window">
+        <field name="name">Merge</field>
+        <field name="res_model">product.merge.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" ref="product.model_product_product" />
+        <field name="binding_view_types">list,kanban</field>
+        <field
+            name="group_ids"
+            eval="[Command.link(ref('product.group_product_manager'))]" />
+    </record>
+
+</odoo>

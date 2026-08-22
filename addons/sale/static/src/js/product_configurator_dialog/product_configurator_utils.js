@@ -14,11 +14,35 @@
 /**
  * Return the selected PTAV ids of a product, across all its attribute lines.
  *
+ * This is the combination as the *server routes* understand it: it includes
+ * `no_variant` selections, because pricing, naming and variant creation all need them.
+ * It is NOT the set to compare against `archived_combinations` — see
+ * {@link getVariantCombination}.
+ *
  * @param {Object} product
  * @return {Number[]}
  */
 export function getCombination(product) {
     return product.attribute_lines.flatMap((ptal) => ptal.selected_attribute_value_ids);
+}
+
+/**
+ * Return the selected PTAV ids that actually take part in defining a variant.
+ *
+ * `archived_combinations` is built server-side from
+ * `product.product_template_attribute_value_ids.ids` of archived variants, which by
+ * construction holds only variant-creating PTAVs. Comparing it against
+ * {@link getCombination} therefore compares two different sets: every `no_variant`
+ * selection inflates one side, and the archived-combination match silently stops
+ * firing. That is why this narrower set exists.
+ *
+ * @param {Object} product
+ * @return {Number[]}
+ */
+export function getVariantCombination(product) {
+    return product.attribute_lines
+        .filter((ptal) => ptal.create_variant !== "no_variant")
+        .flatMap((ptal) => ptal.selected_attribute_value_ids);
 }
 
 /**
@@ -90,50 +114,57 @@ export function checkExclusions(products, product) {
     const ptavList = product.attribute_lines.flatMap((ptal) => ptal.attribute_values);
     ptavList.forEach((ptav) => (ptav.excluded = false)); // Reset all the values
 
+    // One index instead of a linear `find` per excluded id: this runs on every PTAV
+    // change, for the product and recursively for each of its children.
+    const ptavById = new Map(ptavList.map((ptav) => [ptav.id, ptav]));
+    const exclude = (ptavId) => {
+        const ptav = ptavById.get(ptavId);
+        if (ptav) {
+            ptav.excluded = true; // Assign only if the element exists
+        }
+    };
+
     if (exclusions) {
         for (const ptavId of combination) {
             for (const excludedPtavId of exclusions[ptavId] || []) {
-                const excludedPtav = ptavList.find(
-                    (ptav) => ptav.id === excludedPtavId,
-                );
-                if (excludedPtav) {
-                    excludedPtav.excluded = true; // Assign only if the element exists
-                }
+                exclude(excludedPtavId);
             }
         }
     }
-    if (parentCombination) {
+    if (parentExclusions) {
+        // Guard `parentExclusions`, not `parentCombination`: the latter is the return
+        // of `getParentsCombination`, i.e. always an array and so always truthy, which
+        // left the dereference below unguarded.
         for (const ptavId of parentCombination) {
             for (const excludedPtavId of parentExclusions[ptavId] || []) {
-                const ptav = ptavList.find((ptav) => ptav.id === excludedPtavId);
-                if (ptav) {
-                    ptav.excluded = true; // Assign only if the element exists
-                }
+                exclude(excludedPtavId);
             }
         }
     }
     if (archivedCombinations) {
+        // Compare like with like: `archived_combinations` holds the PTAVs of archived
+        // *variants*, so it never contains a `no_variant` selection. Measuring it
+        // against the full combination makes both branches below unreachable as soon
+        // as the template carries one.
+        const variantCombination = new Set(getVariantCombination(product));
         for (const excludedCombination of archivedCombinations) {
-            const ptavCommon = excludedCombination.filter((ptav) =>
-                combination.includes(ptav),
-            );
-            if (ptavCommon.length === combination.length) {
-                for (const excludedPtavId of ptavCommon) {
-                    const ptav = ptavList.find((ptav) => ptav.id === excludedPtavId);
-                    if (ptav) {
-                        ptav.excluded = true;
+            const excludedPtavIds = new Set(excludedCombination);
+            const commonCount = [...excludedPtavIds].filter((ptavId) =>
+                variantCombination.has(ptavId),
+            ).length;
+            if (commonCount === variantCombination.size) {
+                // The current selection *is* the archived combination.
+                for (const excludedPtavId of excludedPtavIds) {
+                    if (variantCombination.has(excludedPtavId)) {
+                        exclude(excludedPtavId);
                     }
                 }
-            } else if (ptavCommon.length === combination.length - 1) {
-                // In this case we only need to disable the remaining ptav
-                const disabledPtavId = excludedCombination.find(
-                    (ptav) => !combination.includes(ptav),
-                );
-                const excludedPtav = ptavList.find(
-                    (ptav) => ptav.id === disabledPtavId,
-                );
-                if (excludedPtav) {
-                    excludedPtav.excluded = true;
+            } else if (commonCount === variantCombination.size - 1) {
+                // One value away from it: disable the value that would complete it.
+                for (const ptavId of excludedPtavIds) {
+                    if (!variantCombination.has(ptavId)) {
+                        exclude(ptavId);
+                    }
                 }
             }
         }

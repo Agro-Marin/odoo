@@ -10,10 +10,10 @@ class TestProjectConfig(TestProjectCommon):
         cls.Settings = cls.env["res.config.settings"]
         cls.user_settings_project_manager = cls.env[
             "res.users.settings"
-        ]._find_or_create_for_user(cls.user_projectmanager)
+        ]._get_or_create_for_user(cls.user_projectmanager)
         cls.user_settings_project_user = cls.env[
             "res.users.settings"
-        ]._find_or_create_for_user(cls.user_projectuser)
+        ]._get_or_create_for_user(cls.user_projectuser)
 
     def test_project_stages_feature_enable_views(self) -> None:
         """Check that the Gantt, Calendar and Activities views are

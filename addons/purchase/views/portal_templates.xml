@@ -335,7 +335,7 @@
  t-att-data-access-token="order.access_token"
  t-att-data-order-id="order.id"
  t-att-data-line-id="line.id"
- t-att-data-value="line.date_commitment.isoformat()"
+ t-att-data-value="line.date_commitment and line.date_commitment.isoformat()"
  />
  </div>
  </div>

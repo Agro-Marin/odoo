@@ -35,11 +35,22 @@ class ProjectWorkflowStepDeleteWizard(models.TransientModel):
 
     @api.depends("step_ids")
     def _compute_tasks_count(self) -> None:
+        # One GROUP BY over every wizard's step_ids rather than a
+        # COUNT(*) per wizard, which `test_lint E8507` counts as a query
+        # inside a loop. `step_id` is a Many2one, so each record falls in
+        # exactly one group and summing a wizard's groups cannot double-count.
+        counts = dict(
+            self.env["project.task"]
+            .with_context(active_test=False)
+            ._read_group(
+                [("step_id", "in", self.step_ids.ids)],
+                ["step_id"],
+                ["__count"],
+            )
+        )
         for wizard in self:
-            wizard.tasks_count = (
-                self.with_context(active_test=False)
-                .env["project.task"]
-                .search_count([("step_id", "in", wizard.step_ids.ids)])
+            wizard.tasks_count = sum(
+                counts.get(record, 0) for record in wizard.step_ids
             )
 
     @api.depends("step_ids")

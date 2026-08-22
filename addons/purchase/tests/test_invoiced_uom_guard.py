@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo.exceptions import UserError
 from odoo.fields import Command
 from odoo.tests import tagged
@@ -9,21 +7,10 @@ from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
 @tagged("-at_install", "post_install")
 class TestInvoicedUomGuard(AccountTestInvoicingCommon):
-    """Posting-boundary guard for the leniently-computed invoiced qty.
-
-    ``qty_invoiced`` converts bill lines into the order-line UoM through
-    ``_compute_quantity_reconcile``, which degrades (returns the quantity
-    unconverted) instead of raising, so a stored compute replayed over the
-    whole table never aborts on one legacy row.  That degraded quantity must
-    never silently size the next bill: billing again must fail loud.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.uom_unit = cls.env.ref("uom.product_uom_unit")
-        # A UoM in an unrelated category (Working Time), so it shares no common
-        # reference with the product's Units UoM.
         cls.uom_incompatible = cls.env.ref("uom.product_uom_hour")
         cls.product = cls.env["product.product"].create(
             {
@@ -57,7 +44,6 @@ class TestInvoicedUomGuard(AccountTestInvoicingCommon):
         return po
 
     def _post_partial_bill(self, po, qty):
-        """Bill ``qty`` of ``po`` and post it, leaving a remainder to bill."""
         bill = po.create_invoice()
         bill.invoice_date = "2026-01-01"
         bill.invoice_line_ids.quantity = qty
@@ -65,11 +51,6 @@ class TestInvoicedUomGuard(AccountTestInvoicingCommon):
         return bill
 
     def _corrupt_bill_line_uom(self, bill):
-        """Record a posted bill line in an inconvertible UoM.
-
-        The ORM forbids editing a posted line, so write at the SQL level to
-        reproduce data that predates the guard.
-        """
         self.env.cr.execute(
             "UPDATE account_move_line SET product_uom_id = %s WHERE id = %s",
             (self.uom_incompatible.id, bill.invoice_line_ids.id),
@@ -77,7 +58,6 @@ class TestInvoicedUomGuard(AccountTestInvoicingCommon):
         self.env.invalidate_all()
 
     def test_fixture_uoms_share_no_reference(self):
-        """Sanity: the pair really is inconvertible, so the rest is meaningful."""
         self.assertFalse(self.uom_unit._has_common_reference(self.uom_incompatible))
 
     def test_incompatible_invoiced_uom_degrades_while_browsing(self):
@@ -102,8 +82,6 @@ class TestInvoicedUomGuard(AccountTestInvoicingCommon):
             po.create_invoice()
 
     def test_incompatible_invoiced_uom_blocks_bill_matching(self):
-        """The OCR/bill-matching path sizes lines from ``qty_to_invoice`` without
-        going through ``_prepare_aml_vals_list``, so it guards explicitly."""
         po = self._confirmed_po()
         bill = self._post_partial_bill(po, 4)
         self._corrupt_bill_line_uom(bill)
@@ -115,7 +93,6 @@ class TestInvoicedUomGuard(AccountTestInvoicingCommon):
             new_bill._add_purchase_order_lines(po.line_ids)
 
     def test_compatible_invoiced_uom_still_bills(self):
-        """The guard is inert on convertible units: ordinary billing proceeds."""
         po = self._confirmed_po()
         self._post_partial_bill(po, 4)
 

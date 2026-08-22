@@ -4,7 +4,6 @@ from odoo import _, api, fields, models
 class ResConfigSettings(models.TransientModel):
     _inherit = "res.config.settings"
 
-    # Defaults
     default_invoice_policy = fields.Selection(
         selection=[
             ("ordered", "Invoice what is ordered"),
@@ -15,7 +14,6 @@ class ResConfigSettings(models.TransientModel):
         default_model="product.template",
     )
 
-    # Lock functionality
     lock_confirmed_so = fields.Boolean(
         string="Lock Confirmed Sales Orders",
         default=lambda self: self.env.company.order_lock_so == "lock",
@@ -26,7 +24,6 @@ class ResConfigSettings(models.TransientModel):
         readonly=False,
     )
 
-    # Groups
     group_auto_done_setting = fields.Boolean(
         string="Lock Confirmed Sales",
         implied_group="sale.group_auto_done_setting",
@@ -45,7 +42,6 @@ class ResConfigSettings(models.TransientModel):
         implied_group="sale.group_warning_sale",
     )
 
-    # Config params
     automatic_invoice = fields.Boolean(
         string="Automatic Invoice",
         help="The invoice is generated automatically and available in the customer portal when the "
@@ -83,7 +79,6 @@ class ResConfigSettings(models.TransientModel):
         readonly=False,
     )
 
-    # Modules
     module_delivery = fields.Boolean(string="Delivery Methods")
     module_delivery_bpost = fields.Boolean(string="bpost Connector")
     module_delivery_dhl = fields.Boolean(string="DHL Express Connector")
@@ -106,7 +101,6 @@ class ResConfigSettings(models.TransientModel):
     module_sale_product_matrix = fields.Boolean(string="Sales Grid Entry")
     module_sale_shopee = fields.Boolean(string="Shopee Sync")
 
-    # === ONCHANGE METHODS ===#
 
     @api.onchange("group_discount_per_so_line")
     def _onchange_group_discount_per_so_line(self):
@@ -115,9 +109,6 @@ class ResConfigSettings(models.TransientModel):
 
     @api.onchange("group_product_variant")
     def _onchange_group_product_variant(self):
-        """The product Configurator requires the product variants activated.
-        If the user disables the product variants -> disable the product configurator as well
-        """
         if self.module_sale_product_matrix and not self.group_product_variant:
             self.module_sale_product_matrix = False
 
@@ -137,7 +128,6 @@ class ResConfigSettings(models.TransientModel):
             _("Quotation Validity"),
         )
 
-    # === CRUD METHODS ===#
 
     def set_values(self):
         super().set_values()
@@ -147,9 +137,7 @@ class ResConfigSettings(models.TransientModel):
             )
         self._sync_order_lock("lock_confirmed_so", "order_lock_so")
 
-    # === ACTION METHODS === #
 
-    # Unique name to avoid colliding with `website_payment`.
     def action_sale_start_payment_onboarding(self):
         menu = self.env.ref("sale.menu_sale_general_settings", raise_if_not_found=False)
         return self._start_payment_onboarding(menu and menu.id)

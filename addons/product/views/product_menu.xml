@@ -80,6 +80,14 @@
             </menuitem>
 
             <menuitem
+                id="menu_product_deduplicate"
+                name="Deduplicate Products"
+                action="product.action_product_deduplicate"
+                sequence="25"
+                groups="product.group_product_manager"
+            />
+
+            <menuitem
                 id="menu_configuration_logistics"
                 name="Logistics"
                 sequence="30"

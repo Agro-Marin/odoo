@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 
-from odoo import _, api, fields, models
+from odoo import _, fields, models
 
 
 class AccountMove(models.Model):
@@ -12,18 +12,16 @@ class AccountMove(models.Model):
         'mrp.production', 'wip_move_production_rel', 'move_id', 'production_id', string="Relevant WIP MOs",
         copy=False,
         help="The MOs that this WIP entry was based on. Expected to be set at time of WIP entry creation.")
-    wip_production_count = fields.Integer("Manufacturing Orders Count", compute='_compute_wip_production_count')
+    wip_production_count = fields.Count(
+        "wip_production_ids",
+        "Manufacturing Orders Count",
+    )
 
     def copy(self, default=None):
         records = super().copy(default)
         for record, source in zip(records.sudo(), self.sudo(), strict=True):
             record.wip_production_ids = source.wip_production_ids
         return records
-
-    @api.depends('wip_production_ids')
-    def _compute_wip_production_count(self):
-        for account in self:
-            account.wip_production_count = len(account.wip_production_ids)
 
     def action_view_wip_production(self):
         self.ensure_one()

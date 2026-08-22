@@ -4,6 +4,7 @@ import { SaleOrderLineListRenderer } from "@sale/js/sale_order_line_field/sale_o
 import { makeContext } from "@web/core/context";
 import { x2ManyCommands } from "@web/core/network";
 import { patch } from "@web/core/utils/patch";
+import { listId } from "@web/model/relational_model";
 
 patch(SaleOrderLineListRenderer.prototype, {
     setup() {
@@ -137,12 +138,9 @@ patch(SaleOrderLineListRenderer.prototype, {
             for (const sectionRecord of getSectionRecords(this.props.list, record)) {
                 if (this.isSubSection(sectionRecord)) {
                     commands.push(
-                        x2ManyCommands.update(
-                            sectionRecord.resId || sectionRecord._virtualId,
-                            {
-                                is_optional: false,
-                            },
-                        ),
+                        x2ManyCommands.update(listId(sectionRecord), {
+                            is_optional: false,
+                        }),
                     );
                 }
             }
@@ -162,7 +160,7 @@ patch(SaleOrderLineListRenderer.prototype, {
         const setOptional = !record.data.is_optional;
 
         const commands = [
-            x2ManyCommands.update(record.resId || record._virtualId, {
+            x2ManyCommands.update(listId(record), {
                 is_optional: setOptional,
             }),
         ];
@@ -189,12 +187,7 @@ patch(SaleOrderLineListRenderer.prototype, {
             }
 
             if (Object.keys(changes).length) {
-                commands.push(
-                    x2ManyCommands.update(
-                        sectionRecord.resId || sectionRecord._virtualId,
-                        changes,
-                    ),
-                );
+                commands.push(x2ManyCommands.update(listId(sectionRecord), changes));
             }
         }
 
@@ -326,13 +319,13 @@ patch(SaleOrderLineListRenderer.prototype, {
 
             if (wasOptional && !isOptional && !record.data.product_uom_qty) {
                 commands.push(
-                    x2ManyCommands.update(record.resId || record._virtualId, {
+                    x2ManyCommands.update(listId(record), {
                         product_uom_qty: 1,
                     }),
                 );
             } else if (!wasOptional && isOptional) {
                 commands.push(
-                    x2ManyCommands.update(record.resId || record._virtualId, {
+                    x2ManyCommands.update(listId(record), {
                         product_uom_qty: 0,
                     }),
                 );

@@ -5,17 +5,6 @@ from odoo.tools import groupby
 
 
 class MixinStockActivity(models.AbstractModel):
-    """Schedule warning activities on the documents a chain of moves reaches.
-
-    Both methods are model-agnostic: the caller supplies the changed records, the
-    relation to follow, and how to render the note. They lived on `stock.picking`
-    only because the delivery flow needed them first, which is why
-    `sale_stock`, `purchase_stock`, `mrp` and `industry_fsm_stock` all call
-    `env["stock.picking"]._log_activity_get_documents(...)` with sale lines,
-    purchase lines and manufacturing raw moves -- using a picking as a namespace.
-    Inherit this instead.
-    """
-
     _name = "mixin.stock.activity"
     _description = "Chained Document Activity Logging"
 
@@ -26,18 +15,6 @@ class MixinStockActivity(models.AbstractModel):
         stream,
         groupby_method=False,
     ):
-        """Find the (document, responsible) pairs to notify for the given changes, following
-        either the upstream ("UP") or downstream ("DOWN") documents, and build a rendering
-        context per document containing only the changes relevant to it (e.g. a picking is
-        only notified about the moves it actually contains).
-
-        :param dict orig_obj_changes: record -> change on that record, e.g. {move: (new_qty, old_qty)}
-        :param str stream_field: field on the `orig_obj_changes` records to follow, e.g. 'move_dest_ids'
-        :param str stream: ``'UP'`` (log on the topmost ongoing document) or ``'DOWN'`` (log on
-            the following documents)
-        :param groupby_method: required when `stream` is 'DOWN'; groups objects by
-            (document to log on, responsible for that document)
-        """
         if self.env.context.get("skip_activity") or not orig_obj_changes:
             return {}
         move_to_orig_object_rel = {
@@ -97,13 +74,6 @@ class MixinStockActivity(models.AbstractModel):
         return documents
 
     def _log_activity(self, render_method, documents):
-        """Schedule a warning activity on each (document, responsible) pair in `documents`,
-        with the note rendered by `render_method(rendering_context)`.
-
-        :param dict documents: (document, responsible) -> rendering_context, as returned by
-            `_log_activity_get_documents`
-        :param callable render_method: rendering_context -> html note string
-        """
         for (parent, responsible), rendering_context in documents.items():
             note = render_method(rendering_context)
             parent.sudo().activity_schedule(

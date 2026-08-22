@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import api, fields, models
 from odoo.fields import Domain
 
@@ -39,9 +37,6 @@ class StockMoveLine(models.Model):
                 if line.quantity:
                     line.move_id.manual_consumption = True
                 line.move_id.picked = True
-            # If the line is added in a done production, we need to map it
-            # manually to the produced move lines in order to see them in the
-            # traceability report
             if line.move_id.raw_material_production_id and line.state == "done":
                 mo = line.move_id.raw_material_production_id
                 finished_lots = mo.lot_producing_ids
@@ -106,16 +101,6 @@ class StockMoveLine(models.Model):
         return aggregated_properties
 
     def _get_aggregated_product_quantities(self, **kwargs):
-        """Returns dictionary of products and corresponding values of interest grouped by
-        optional kit_name.
-
-        Removes descriptions where description == kit_name. Being aggregated data, the
-        removal needs a pass over the aggregation.
-
-        :param str kit_name: optional kit name, passed as a kwarg since it is not stored
-            on move_line_ids
-        :return: same keys and values as super's
-        """
         aggregated_move_lines = super()._get_aggregated_product_quantities(**kwargs)
         kit_name = kwargs.get("kit_name")
 
@@ -147,9 +132,6 @@ class StockMoveLine(models.Model):
         return move_vals
 
     def _get_linkable_moves(self):
-        """Don't link move lines with kit products to moves with dissimilar locations so that
-        post `action_explode()` move lines will have accurate location data.
-        """
         self.ensure_one()
         if self.product_id and self.product_id.is_kits:
             moves = self.picking_id.move_ids.filtered(

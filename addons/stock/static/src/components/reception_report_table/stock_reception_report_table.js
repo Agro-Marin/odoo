@@ -36,6 +36,9 @@ export class ReceptionReportTable extends Component {
 
     async onClickAssignAll() {
         const { moveIds, quantities, inIds } = collectAssignable(this.props.lines);
+        if (!moveIds.length) {
+            return;
+        }
         await assignMoves(this.ormService, moveIds, quantities, inIds);
         this.env.bus.trigger("update-assign-state", {
             isAssigned: true,

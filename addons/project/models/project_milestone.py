@@ -14,7 +14,7 @@ class ProjectMilestone(models.Model):
     _inherit = ["mixin.mail.thread"]
     _order = "sequence, deadline, is_reached desc, name"
 
-    def _get_default_project_id(self) -> int | bool:
+    def _default_project_id(self) -> int | bool:
         return self.env.context.get("default_project_id") or self.env.context.get(
             "active_id"
         )
@@ -24,7 +24,7 @@ class ProjectMilestone(models.Model):
     project_id = fields.Many2one(
         "project.project",
         required=True,
-        default=_get_default_project_id,
+        default=_default_project_id,
         domain=[("is_template", "=", False)],
         index=True,
         ondelete="cascade",
@@ -177,7 +177,7 @@ class ProjectMilestone(models.Model):
 
     def action_view_tasks(self) -> dict:
         self.ensure_one()
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "project.action_view_task_from_milestone"
         )
         action["context"] = {

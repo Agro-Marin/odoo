@@ -6,8 +6,6 @@ from odoo.addons.mrp.tests.common import TestMrpCommon
 
 class TestMrpQuant(TestMrpCommon):
     def test_kit_product_reservation_flow(self):
-        """Test that kit products are not cleaned"""
-
         product_kit = self.env["product.product"].create(
             {"name": "This product will be a kit", "type": "consu", "is_storable": True}
         )
@@ -35,21 +33,18 @@ class TestMrpQuant(TestMrpCommon):
                 "product_tmpl_id": product_kit.product_tmpl_id.id,
                 "product_id": product_kit.id,
                 "product_qty": 1,
-                "type": "phantom",  # type kit
+                "type": "phantom",
             }
         )
 
-        # Force recomputation of is_kits, since it's currently not recomputed automatically when BOM is created
         product_kit._compute_is_kits()
         delivery.move_ids.quantity = 1
         product_normal = self.env["product.product"].create(
             {"name": "Normal Product Test", "type": "consu", "is_storable": True}
         )
 
-        # Should work without error
         product_normal.action_view_quants()
 
-        # Ensure it's raise an error if we try to update quantity of kit product directly
         with self.assertRaises(
             UserError,
             msg="You should update the components quantity instead of directly updating the quantity of the kit product.",

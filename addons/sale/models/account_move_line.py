@@ -6,9 +6,6 @@ from odoo.tools import float_compare, float_is_zero
 class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
 
     sale_line_ids = fields.Many2many(
         comodel_name="sale.order.line",
@@ -22,9 +19,6 @@ class AccountMoveLine(models.Model):
         compute="_compute_sale_line_warn_msg",
     )
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
 
     @api.depends("product_id.sale_line_warn_msg")
     def _compute_sale_line_warn_msg(self):
@@ -38,21 +32,15 @@ class AccountMoveLine(models.Model):
         super()._compute_is_storno()
         for line in self:
             if line.is_downpayment:
-                # Normal downpayments have a negative balance (credit on customer invoice)
-                # Positive balance indicate reversal lines for previous downpayments,
-                # which should be treated as storno line if storno accounting is enabled.
                 line.is_storno = (
                     line.company_id.account_storno
                     and line.company_id.currency_id.compare_amounts(line.balance, 0.0)
                     > 0
                 )
 
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
-    def _get_order_line_link_fields(self):
-        return [*super()._get_order_line_link_fields(), "sale_line_ids"]
+    def _get_fields_order_line_link(self):
+        return [*super()._get_fields_order_line_link(), "sale_line_ids"]
 
     def _get_downpayment_lines(self):
         return self.sale_line_ids.filtered("is_downpayment").invoice_line_ids.filtered(
@@ -60,12 +48,8 @@ class AccountMoveLine(models.Model):
         )
 
     def _prepare_analytic_lines(self):
-        """Note: This method is called only on the move.line that having an analytic distribution, and
-        so that should create analytic entries.
-        """
         values_list = super()._prepare_analytic_lines()
 
-        # filter the move lines that can be reinvoiced: a cost (negative amount) analytic line without SO line but with a product can be reinvoiced
         move_to_reinvoice = self.env["account.move.line"]
         if len(values_list) > 0:
             for index, move_line in enumerate(self):
@@ -74,10 +58,9 @@ class AccountMoveLine(models.Model):
                     if move_line._sale_can_be_reinvoice():
                         move_to_reinvoice |= move_line
 
-        # insert the sale line in the create values of the analytic entries
         if move_to_reinvoice.filtered(
             lambda aml: not aml.move_id.reversed_entry_id and aml.product_id
-        ):  # only if the move line is not a reversal one
+        ):
             map_sale_line_per_move = (
                 move_to_reinvoice._sale_create_reinvoice_sale_line()
             )
@@ -88,8 +71,6 @@ class AccountMoveLine(models.Model):
 
         return values_list
 
-    # _copy_data_extend_business_fields and _related_analytic_distribution are
-    # inherited from base_order; both act on _get_order_line_link_fields above.
 
     def _get_discount_lines(self):
         lines = super()._get_discount_lines()
@@ -110,24 +91,16 @@ class AccountMoveLine(models.Model):
 
     def _sale_create_reinvoice_sale_line(self):
         sale_order_map = self._sale_determine_order()
-        # the list of creation values of sale line to create.
         sale_line_values_to_create = []
         existing_sale_line_cache = {}
-        # in the sales_price-delivery case, we can reuse the same sale line. This cache will avoid doing a search each time the case happen
-        # `map_move_sale_line` is map where
-        #   - key is the move line identifier
-        #   - value is either a sale.order.line record (existing case), or an integer representing the index of the sale line to create in
-        #     the `sale_line_values_to_create` (not existing case, which will happen more often than the first one).
         map_move_sale_line = {}
 
         for move_line in self:
             sale_order = sale_order_map.get(move_line.id)
 
-            # no reinvoice as no sales order was found
             if not sale_order:
                 continue
 
-            # raise if the sale order is not currently open
             if sale_order.state == "draft":
                 raise UserError(
                     _(
@@ -154,24 +127,22 @@ class AccountMoveLine(models.Model):
 
             price = move_line._sale_get_invoice_price(sale_order)
 
-            # find the existing sale.line or keep its creation values to process this in batch
             sale_line = None
             if (
                 move_line.product_id.expense_policy == "sales_price"
                 and move_line.product_id.invoice_policy == "transferred"
                 and not self.env.context.get("force_split_lines")
             ):
-                # for those case only, we can try to reuse one
                 map_entry_key = (
                     sale_order.id,
                     move_line.product_id.id,
                     price,
-                )  # cache entry to limit the call to search
+                )
                 sale_line = existing_sale_line_cache.get(map_entry_key)
-                if sale_line:  # already search, so reuse it. sale_line can be sale.order.line record or index of a "to create values" in `sale_line_values_to_create`
+                if sale_line:
                     map_move_sale_line[move_line.id] = sale_line
                     existing_sale_line_cache[map_entry_key] = sale_line
-                else:  # search for existing sale line
+                else:
                     sale_line = self.env["sale.order.line"].search(
                         [
                             ("order_id", "=", sale_order.id),
@@ -181,54 +152,44 @@ class AccountMoveLine(models.Model):
                         ],
                         limit=1,
                     )
-                    if sale_line:  # found existing one, so keep the browse record
+                    if sale_line:
                         map_move_sale_line[move_line.id] = existing_sale_line_cache[
                             map_entry_key
                         ] = sale_line
-                    else:  # should be create, so use the index of creation values instead of browse record
-                        # save value to create it
+                    else:
                         sale_line_values_to_create.append(
                             move_line._sale_prepare_sale_line_values(sale_order, price)
                         )
-                        # store it in the cache of existing ones
                         existing_sale_line_cache[map_entry_key] = (
                             len(sale_line_values_to_create) - 1
-                        )  # save the index of the value to create sale line
-                        # store it in the map_move_sale_line map
+                        )
                         map_move_sale_line[move_line.id] = (
                             len(sale_line_values_to_create) - 1
-                        )  # save the index of the value to create sale line
-
-            else:  # save its value to create it anyway
+                        )
+            else:
                 sale_line_values_to_create.append(
                     move_line._sale_prepare_sale_line_values(sale_order, price)
                 )
                 map_move_sale_line[move_line.id] = (
                     len(sale_line_values_to_create) - 1
-                )  # save the index of the value to create sale line
+                )
 
-        # create the sale lines in batch
         new_sale_lines = self.env["sale.order.line"].create(sale_line_values_to_create)
 
-        # build result map by replacing index with newly created record of sale.order.line
         result = {}
         for move_line_id, unknown_sale_line in map_move_sale_line.items():
-            if isinstance(unknown_sale_line, int):  # index of newly created sale line
+            if isinstance(unknown_sale_line, int):
                 result[move_line_id] = new_sale_lines[unknown_sale_line]
             elif isinstance(
                 unknown_sale_line, models.BaseModel
-            ):  # already record of sale.order.line
+            ):
                 result[move_line_id] = unknown_sale_line
         return result
 
     def _sale_determine_order(self):
-        """Get the mapping of move.line with the sale.order record on which its analytic entries should be reinvoiced
-        :return a dict where key is the move line id, and value is sale.order record (or None).
-        """
         return {}
 
     def _sale_prepare_sale_line_values(self, order, price):
-        """Generate the sale.line creation value from the current move line"""
         self.ensure_one()
         last_so_line = self.env["sale.order.line"].search(
             [("order_id", "=", order.id)], order="sequence desc", limit=1
@@ -257,9 +218,6 @@ class AccountMoveLine(models.Model):
         }
 
     def _sale_get_invoice_price(self, order):
-        """Based on the current move line, compute the price to reinvoice the analytic line that is going to be created (so the
-        price of the sale line).
-        """
         self.ensure_one()
 
         unit_amount = self.quantity
@@ -273,14 +231,12 @@ class AccountMoveLine(models.Model):
                 date=order.date_order,
             )
 
-        uom_precision_digits = self.env["decimal.precision"].precision_get(
+        uom_precision_digits = self.env["decimal.precision"].get_precision(
             "Product Unit"
         )
         if float_is_zero(unit_amount, precision_digits=uom_precision_digits):
             return 0.0
 
-        # Prevent unnecessary currency conversion that could be impacted by exchange rate
-        # fluctuations
         if (
             self.company_id.currency_id
             and amount
@@ -299,19 +255,11 @@ class AccountMoveLine(models.Model):
             )
         return price_unit
 
-    # ------------------------------------------------------------
-    # VALIDATIONS
-    # ------------------------------------------------------------
 
     def _sale_can_be_reinvoice(self):
-        """determine if the generated analytic line should be reinvoiced or not.
-        For Vendor Bill flow, if the product has a 'erinvoice policy' and is a cost, then we will find the SO on which reinvoice the AAL
-        """
         self.ensure_one()
         if self.sale_line_ids:
             return False
-        # credit/debit are monetary — compare with the company currency's
-        # precision, not the (coarser) product-quantity UoM precision.
         return float_compare(
             self.credit or 0.0,
             self.debit or 0.0,

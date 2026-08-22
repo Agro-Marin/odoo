@@ -31,9 +31,9 @@ class PurchaseReport(models.Model):
     # QUERY METHODS
     # ------------------------------------------------------------
 
-    def _get_select_fields(self) -> dict:
+    def _get_fields_select(self) -> dict:
         """Add stock-specific fields to purchase report."""
-        fields = super()._get_select_fields()
+        fields = super()._get_fields_select()
         fields["order_id"] = "o.id"
         fields["picking_type_id"] = "spt.warehouse_id"
         fields["date_effective"] = "o.date_effective"
@@ -90,9 +90,9 @@ class PurchaseReport(models.Model):
 
         return tables
 
-    def _get_group_by_fields(self) -> list:
+    def _get_fields_group_by(self) -> list:
         """Add stock-specific fields to GROUP BY clause."""
-        fields = super()._get_group_by_fields()
+        fields = super()._get_fields_group_by()
         fields.extend(
             [
                 "spt.warehouse_id",

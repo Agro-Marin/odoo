@@ -3,9 +3,11 @@
     <t t-name="sale.ProductCard">
         <div class="col">
             <article
+                role="button"
                 tabindex="0"
+                t-att-aria-pressed="props.isSelected ? 'true' : 'false'"
                 t-attf-class="product-card d-flex align-items-start h-100 rounded p-2 cursor-pointer {{props.isSelected ? 'selected' : ''}}"
-                t-on-keypress="(event) => event.code === 'Space' ? props.onClick() : () => {}"
+                t-on-keydown="onKeydown"
                 t-on-click="props.onClick"
             >
                 <img

@@ -24,9 +24,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             }
         )
 
-    # -------------------------------------------------------------------------
-    # HELPERS
-    # -------------------------------------------------------------------------
 
     def assert_sale_order_down_payment(
         self,
@@ -36,27 +33,11 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
         expected_values,
         soft_checking=False,
     ):
-        """Assert the expected values for the tax totals summary of the
-        down payment invoice generated from the sale order passed as parameter.
-        Then, generate the final invoice and assert its total is well the original
-        total amount of the sale order minus the previously generated down payment.
-
-        :param sale_order:      The SO as a sale.order record.
-        :param amount_type:     The type of the global discount: 'percent' or 'fixed'.
-        :param amount:          The amount to consider.
-                                For 'percent', it should be a percentage [0-100].
-                                For 'fixed', any amount.
-        :param expected_values: The expected values for the tax_total_summary.
-        :param soft_checking:   Limit the asserted values to the ones in 'expected_results'
-                                and don't go deeper inside the tax_total_summary.
-                                It allows to assert only the totals without asserting all the
-                                tax details.
-        """
         if amount_type == "percent":
             advance_payment_method = "percentage"
             percent_amount = amount
             fixed_amount = None
-        else:  # amount_type == 'fixed'
+        else:
             advance_payment_method = "fixed"
             percent_amount = None
             fixed_amount = amount
@@ -83,7 +64,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             soft_checking=soft_checking,
         )
 
-        # Full invoice.
         wizard = (
             self.env["sale.advance.payment.inv"]
             .with_context(
@@ -109,9 +89,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             ],
         )
 
-    # -------------------------------------------------------------------------
-    # GENERIC TAXES TEST SUITE
-    # -------------------------------------------------------------------------
 
     def test_taxes_l10n_in_sale_orders(self):
         for (
@@ -196,9 +173,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             sale_order, amount_type, amount, expected_values
         )
 
-    # -------------------------------------------------------------------------
-    # SPECIFIC TESTS
-    # -------------------------------------------------------------------------
 
     @freeze_time("2017-01-01")
     def test_down_payment_invoice_multiple_taxes_and_accounts(self):
@@ -220,7 +194,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             {
                 "partner_id": self.partner_a.id,
                 "line_ids": [
-                    # Standalone line, no tax:
                     Command.create(
                         {
                             "name": "line_1",
@@ -230,7 +203,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
                             "tax_ids": [],
                         }
                     ),
-                    # Those lines will be merged together because same account, same tax:
                     Command.create(
                         {
                             "name": "line_2",
@@ -248,7 +220,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
                             "tax_ids": [Command.set(tax_15.ids)],
                         }
                     ),
-                    # Line linked to the same tax as the ones above but doesn't have the same account:
                     Command.create(
                         {
                             "name": "line_4",
@@ -257,7 +228,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
                             "tax_ids": [Command.set(tax_15.ids)],
                         }
                     ),
-                    # Multiple taxes on the line. One tax detail will be squashed but not the other.
                     Command.create(
                         {
                             "name": "line_5",
@@ -281,7 +251,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             ],
         )
 
-        # Create a down payment invoice of 30%.
         wizard = (
             self.env["sale.advance.payment.inv"]
             .with_context(active_model=so._name, active_ids=so.ids)
@@ -340,7 +309,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
         self.assertRecordValues(
             dp_invoice.line_ids,
             [
-                # Down payment product lines:
                 {"account_id": account_id, "tax_ids": [], "balance": -300.0},
                 {"account_id": account_id, "tax_ids": tax_15.ids, "balance": -2400.0},
                 {
@@ -348,16 +316,12 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
                     "tax_ids": (tax_10 + tax_15).ids,
                     "balance": -1500.0,
                 },
-                # Tax 15%:
                 {"account_id": tax_account.id, "tax_ids": [], "balance": -585.0},
-                # Tax 10%:
                 {"account_id": tax_account.id, "tax_ids": [], "balance": -150.0},
-                # Receivable line:
                 {"account_id": receivable.id, "tax_ids": [], "balance": 4935.0},
             ],
         )
 
-        # Create the final invoice.
         wizard = (
             self.env["sale.advance.payment.inv"]
             .with_context(active_model=so._name, active_ids=so.ids)
@@ -379,7 +343,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
         self.assertRecordValues(
             final_invoice.line_ids,
             [
-                # Product lines:
                 {"account_id": revenue_account_1.id, "tax_ids": [], "balance": -1000.0},
                 {
                     "account_id": revenue_account_1.id,
@@ -401,9 +364,7 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
                     "tax_ids": (tax_10 + tax_15).ids,
                     "balance": -5000.0,
                 },
-                # Down payment section line:
                 {"account_id": False, "tax_ids": [], "balance": 0.0},
-                # Down payment product lines:
                 {"account_id": account_id, "tax_ids": [], "balance": 300.0},
                 {"account_id": account_id, "tax_ids": tax_15.ids, "balance": 2400.0},
                 {
@@ -411,11 +372,8 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
                     "tax_ids": (tax_10 + tax_15).ids,
                     "balance": 1500.0,
                 },
-                # Tax 15%:
                 {"account_id": tax_account.id, "tax_ids": [], "balance": -1365.0},
-                # Tax 10%:
                 {"account_id": tax_account.id, "tax_ids": [], "balance": -350.0},
-                # Receivable line:
                 {"account_id": receivable.id, "tax_ids": [], "balance": 11515.0},
             ],
         )
@@ -451,7 +409,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             ],
         )
 
-        # First down payment of 30% but remove the tax from the invoice.
         wizard = (
             self.env["sale.advance.payment.inv"]
             .with_context(active_model=so._name, active_ids=so.ids)
@@ -478,7 +435,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             ],
         )
 
-        # Second down payment of 20%.
         wizard = (
             self.env["sale.advance.payment.inv"]
             .with_context(active_model=so._name, active_ids=so.ids)
@@ -504,7 +460,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             ],
         )
 
-        # Create the final invoice.
         wizard = (
             self.env["sale.advance.payment.inv"]
             .with_context(active_model=so._name, active_ids=so.ids)
@@ -532,19 +487,12 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
         self.assertRecordValues(
             final_invoice.line_ids,
             [
-                # Product line:
                 {"tax_ids": tax_15.ids, "balance": -1000.0},
-                # Down payment section line:
                 {"tax_ids": [], "balance": 0.0},
-                # Down payment 1:
                 {"tax_ids": [], "balance": 300.0},
-                # Down payment 2:
                 {"tax_ids": tax_15.ids, "balance": 200.0},
-                # Tax 15% - on account income account:
                 {"tax_ids": [], "balance": -150.0},
-                # Tax 15% - on downpayment account, we need to add the 30 we removed on dp_invoice_2:
                 {"tax_ids": [], "balance": 30.0},
-                # Receivable line:
                 {"tax_ids": [], "balance": 620.0},
             ],
         )
@@ -584,7 +532,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             ],
         )
 
-        # First down payment of 30% but remove the tax from the invoice.
         with freeze_time("2016-01-01"):
             wizard = (
                 self.env["sale.advance.payment.inv"]
@@ -613,20 +560,16 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             self.assertRecordValues(
                 dp_invoice.line_ids,
                 [
-                    # Product line:
                     {
                         "tax_ids": tax_15.ids,
                         "amount_currency": -360.0,
                         "balance": -120.0,
                     },
-                    # Tax 15%:
                     {"tax_ids": [], "amount_currency": -54.0, "balance": -18.0},
-                    # Receivable line:
                     {"tax_ids": [], "amount_currency": 414.0, "balance": 138.0},
                 ],
             )
 
-        # Create the final invoice.
         with freeze_time("2017-01-01"):
             wizard = (
                 self.env["sale.advance.payment.inv"]
@@ -649,21 +592,15 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             self.assertRecordValues(
                 final_invoice.line_ids,
                 [
-                    # Product line:
                     {
                         "tax_ids": tax_15.ids,
                         "amount_currency": -1200.0,
                         "balance": -600.0,
                     },
-                    # Down payment section line:
                     {"tax_ids": [], "amount_currency": 0.0, "balance": 0.0},
-                    # Down payment:
                     {"tax_ids": tax_15.ids, "amount_currency": 360.0, "balance": 180.0},
-                    # Tax 15%:
                     {"tax_ids": [], "amount_currency": -180.0, "balance": -90.0},
-                    # Tax 15%:
                     {"tax_ids": [], "amount_currency": 54.0, "balance": 27.0},
-                    # Receivable line:
                     {"tax_ids": [], "amount_currency": 966.0, "balance": 483.0},
                 ],
             )
@@ -699,7 +636,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             ],
         )
 
-        # First down payment of 30%.
         wizard = (
             self.env["sale.advance.payment.inv"]
             .with_context(active_model=so._name, active_ids=so.ids)
@@ -755,7 +691,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             ],
         )
 
-        # Credit note on the down payment.
         action_values = (
             self.env["account.move.reversal"]
             .with_context(active_model="account.move", active_ids=dp_invoice_1.ids)
@@ -778,7 +713,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             ],
         )
 
-        # Second down payment of 50%.
         wizard = (
             self.env["sale.advance.payment.inv"]
             .with_context(active_model=so._name, active_ids=so.ids)
@@ -841,7 +775,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             ],
         )
 
-        # Create the final invoice.
         wizard = (
             self.env["sale.advance.payment.inv"]
             .with_context(active_model=so._name, active_ids=so.ids)
@@ -862,7 +795,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             ],
         )
 
-        # Credit note on the final invoice.
         action_values = (
             self.env["account.move.reversal"]
             .with_context(active_model="account.move", active_ids=final_invoice_1.ids)
@@ -872,7 +804,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
         final_credit_note = self.env["account.move"].browse(action_values["res_id"])
         final_credit_note.action_post()
 
-        # Create a new final invoice.
         wizard = (
             self.env["sale.advance.payment.inv"]
             .with_context(active_model=so._name, active_ids=so.ids)
@@ -944,7 +875,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             ],
         )
 
-        # Create a down payment invoice of 100%.
         wizard = (
             self.env["sale.advance.payment.inv"]
             .with_context(active_model=so._name, active_ids=so.ids)
@@ -1003,7 +933,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             },
         )
 
-        # Create the final invoice.
         wizard = (
             self.env["sale.advance.payment.inv"]
             .with_context(active_model=so._name, active_ids=so.ids)
@@ -1107,7 +1036,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             ],
         )
 
-        # Create a down payment invoice of 100%.
         wizard = (
             self.env["sale.advance.payment.inv"]
             .with_context(active_model=so._name, active_ids=so.ids)
@@ -1166,7 +1094,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             },
         )
 
-        # Create the final invoice.
         wizard = (
             self.env["sale.advance.payment.inv"]
             .with_context(active_model=so._name, active_ids=so.ids)
@@ -1242,7 +1169,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             {
                 "partner_id": self.partner_a.id,
                 "line_ids": [
-                    # Aggregate distributions with positive amounts.
                     Command.create(
                         {
                             "name": "line_1",
@@ -1261,7 +1187,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
                             "tax_ids": [Command.set(tax_15.ids)],
                         }
                     ),
-                    # Aggregate distributions with mix of positive/negative amounts.
                     Command.create(
                         {
                             "name": "line_3",
@@ -1280,7 +1205,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
                             "tax_ids": [Command.set(tax_10.ids)],
                         }
                     ),
-                    # Aggregate distributions of lines that lead to an empty distribution.
                     Command.create(
                         {
                             "name": "line_5",
@@ -1341,7 +1265,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
         self.assertRecordValues(
             dp_invoice.line_ids,
             [
-                # Product line:
                 {
                     "tax_ids": tax_15.ids,
                     "analytic_distribution": {an_acc_1: 66.67, an_acc_2: 33.33},
@@ -1352,17 +1275,13 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
                     "analytic_distribution": {an_acc_1: 83.33, an_acc_2: 16.67},
                     "balance": -1500.0,
                 },
-                # Tax 15%:
                 {"tax_ids": [], "analytic_distribution": False, "balance": -225.0},
-                # Tax 10%:
                 {"tax_ids": [], "analytic_distribution": False, "balance": -150.0},
-                # Receivable line:
                 {"tax_ids": [], "analytic_distribution": False, "balance": 3375.0},
             ],
         )
 
     def test_downpayment_invoice_lines_with_down_payment_account(self):
-        # Make a sale order with multiple lines. Total amount of sale order is equal to 1680$
         sale_order = self.env["sale.order"].create(
             {
                 "partner_id": self.partner_a.id,
@@ -1391,7 +1310,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             }
         )
         sale_order.action_confirm()
-        # Make a down payment of 50%
         payment_params = {
             "advance_payment_method": "percentage",
             "amount": 50,
@@ -1400,31 +1318,14 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
         downpayment = self.env["sale.advance.payment.inv"].create(payment_params)
         downpayment.create_invoices()
         invoice = sale_order.invoice_ids
-        # Make sure we only have one line and we don't split into multiple lines
         self.assertEqual(len(invoice.invoice_line_ids), 1)
         self.assertEqual(
             invoice.invoice_line_ids.account_id.id,
             self.company_data["company"].downpayment_account_id.id,
         )
-        # We should have half the amount of the Sale Order -> 840$
         self.assertEqual(invoice.amount_total, 840)
 
     def test_down_payment_with_global_discount(self):
-        """This test checks that the down payment invoice lines are
-        correctly computed when a global discount is applied to the sale order.
-
-        Test data:
-        - A single sale order line with a 14,990.00 price and a 0% tax.
-        - A global discount of 990.00 is applied to the sale order.
-        - A down payment invoice of 1,000.00 is created.
-
-        Assert that the down payment invoice has one line with price_unit 1070.71
-        and one line with price_unit -70.71.
-
-        Since in saas-18.4 there is no longer the possibility to split the down payment lines
-        into multiple down payment accounts, we assert the result of `_prepare_down_payment_lines`
-        after passing a grouping_function that creates two different down payment lines
-        """
         self.env.company.downpayment_account_id = self.company_data[
             "default_account_assets"
         ]
@@ -1458,7 +1359,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             ],
         )
 
-        # Put a discount of 990.00 on the sale order.
         wizard = self.env["sale.order.discount"].create(
             {
                 "sale_order_id": so.id,
@@ -1468,7 +1368,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
         )
         wizard.action_apply_discount()
 
-        # Create a down payment invoice for 1,000.00.
         self.env["sale.advance.payment.inv"].with_context(
             active_model=so._name, active_ids=so.ids
         ).create(
@@ -1491,7 +1390,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
             company=self.env.company,
             amount_type="fixed",
             amount=1000.00,
-            # Group the product and global discount separately.
             grouping_function=lambda line: {
                 "special_type": line["special_type"],
             },
@@ -1500,9 +1398,6 @@ class TestTaxesDownPaymentSale(TestTaxCommonSale, TestTaxesDownPayment):
         self.assertAlmostEqual(dp_lines[0]["price_unit"], 1000.0, 2)
 
     def test_down_payment_account_prediction(self):
-        """The down payment account prediction should be determined by the db history and shouldn't
-        depend on res.partner.
-        """
         self.company_data["company"].downpayment_account_id = None
         new_partner = self.env["res.partner"].create(
             {

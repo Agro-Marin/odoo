@@ -14,9 +14,9 @@ class ResConfigSettings(models.TransientModel):
         api_secret = self.env['ir.config_parameter'].sudo().get_param('google_maps.signed_static_api_secret')
         return bool(api_key and api_secret)
 
-    google_maps_static_api_key = fields.Char("Google Maps API key", compute="_compute_maps_static_api_key",
+    google_maps_static_api_key = fields.Char("Google Maps API key", compute="_compute_google_maps_static_api_key",
                                              readonly=False, store=True, config_parameter='google_maps.signed_static_api_key')
-    google_maps_static_api_secret = fields.Char("Google Maps API secret", compute="_compute_maps_static_api_secret",
+    google_maps_static_api_secret = fields.Char("Google Maps API secret", compute="_compute_google_maps_static_api_secret",
                                                 readonly=False, store=True, config_parameter='google_maps.signed_static_api_secret')
     module_event_sale = fields.Boolean("Tickets with Sale")
     module_pos_event = fields.Boolean("Tickets with PoS")
@@ -31,14 +31,14 @@ class ResConfigSettings(models.TransientModel):
     use_google_maps_static_api = fields.Boolean("Google Maps static API", default=_default_use_google_maps_static_api)
 
     @api.depends('use_google_maps_static_api')
-    def _compute_maps_static_api_key(self):
+    def _compute_google_maps_static_api_key(self):
         """Clear API key on disabling google maps."""
         for config in self:
             if not config.use_google_maps_static_api:
                 config.google_maps_static_api_key = ''
 
     @api.depends('use_google_maps_static_api')
-    def _compute_maps_static_api_secret(self):
+    def _compute_google_maps_static_api_secret(self):
         """Clear API secret on disabling google maps."""
         for config in self:
             if not config.use_google_maps_static_api:

@@ -3,6 +3,7 @@ import { Component, onWillStart, useState, useSubEnv } from "@odoo/owl";
 import { formatCurrency } from "@web/core/currency";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
+import { KeepLast } from "@web/core/utils/concurrency";
 import { Dialog } from "@web/ui/dialog";
 
 import { ProductList } from "../product_list/product_list.js";
@@ -12,6 +13,7 @@ import {
     getChildProducts,
     getCombination,
     getParentsCombination,
+    getVariantCombination,
     isPossibleCombination,
 } from "./product_configurator_utils.js";
 
@@ -77,6 +79,13 @@ export class ProductConfiguratorDialog extends Component {
         // Nest the currency id in an object so that it stays up to date in the `env`, even if we
         // modify it in `onWillStart` afterwards.
         this.currency = { id: this.props.currencyId };
+        // `update_combination` is fired by the quantity buttons, the UoM radios and every
+        // PTAV change, all of which a user can trigger faster than the round trip. Without
+        // sequencing the *last response* wins rather than the last request, and the dialog
+        // ends up showing one quantity's price against another quantity — which the total
+        // in the footer then multiplies. One per product: two products' prices are
+        // independent and must not cancel each other.
+        this._combinationRequests = new Map();
         this.getValuesUrl = "/sale/product_configurator/get_values";
         this.createProductUrl = "/sale/product_configurator/create_product";
         this.updateCombinationUrl = "/sale/product_configurator/update_combination";
@@ -97,7 +106,7 @@ export class ProductConfiguratorDialog extends Component {
             updateProductTemplateSelectedPTAV:
                 this._updateProductTemplateSelectedPTAV.bind(this),
             updatePTAVCustomValue: this._updatePTAVCustomValue.bind(this),
-            isPossibleCombination: this._isPossibleCombination,
+            isPossibleCombination,
         });
 
         onWillStart(async () => {
@@ -109,7 +118,8 @@ export class ProductConfiguratorDialog extends Component {
             // a combo product has optional products), `_loadData` will return a single product
             // (i.e. the combo product), which should be linked to the previously selected combo
             // items.
-            products[0].selectedComboItems = this.props.selectedComboItems || [];
+            const mainProduct = findProduct(products, this.env.mainProductTmplId);
+            mainProduct.selectedComboItems = this.props.selectedComboItems || [];
 
             this.state.products = products;
             this.state.optionalProducts = optional_products;
@@ -120,7 +130,7 @@ export class ProductConfiguratorDialog extends Component {
                     customPtav.value,
                 );
             }
-            this._checkExclusions(this.state.products[0]);
+            checkExclusions(this._allProducts, mainProduct);
             // Use the currency id retrieved from the server if none was provided in the props.
             this.currency.id ??= currency_id;
         });
@@ -166,14 +176,14 @@ export class ProductConfiguratorDialog extends Component {
     async _createProduct(product) {
         return rpc(this.createProductUrl, {
             product_template_id: product.product_tmpl_id,
-            ptav_ids: this._getCombination(product),
+            ptav_ids: getCombination(product),
         });
     }
 
     async _updateCombination(product, quantity, uomId) {
         return rpc(this.updateCombinationUrl, {
             product_template_id: product.product_tmpl_id,
-            ptav_ids: this._getCombination(product),
+            ptav_ids: getCombination(product),
             currency_id: this.currency.id,
             so_date: this.props.soDate,
             quantity: quantity,
@@ -184,11 +194,30 @@ export class ProductConfiguratorDialog extends Component {
         });
     }
 
+    /**
+     * Run `_updateCombination` for a product such that only the newest call for that
+     * product can settle. A superseded call never resolves, so callers must treat it as
+     * "someone else is now in charge" rather than as a result.
+     *
+     * @param {Object} product
+     * @param {Number} quantity
+     * @param {Number} uomId
+     * @return {Promise<Object>} Resolves only if this call is still the latest one.
+     */
+    _updateCombinationSequenced(product, quantity, uomId) {
+        let keepLast = this._combinationRequests.get(product.product_tmpl_id);
+        if (!keepLast) {
+            keepLast = new KeepLast();
+            this._combinationRequests.set(product.product_tmpl_id, keepLast);
+        }
+        return keepLast.add(this._updateCombination(product, quantity, uomId));
+    }
+
     async _getOptionalProducts(product) {
         return rpc(this.getOptionalProductsUrl, {
             product_template_id: product.product_tmpl_id,
-            ptav_ids: this._getCombination(product),
-            parent_ptav_ids: this._getParentsCombination(product),
+            ptav_ids: getCombination(product),
+            parent_ptav_ids: getParentsCombination(this._allProducts, product),
             currency_id: this.currency.id,
             so_date: this.props.soDate,
             company_id: this.props.companyId,
@@ -242,7 +271,10 @@ export class ProductConfiguratorDialog extends Component {
         );
         if (index >= 0) {
             this.state.optionalProducts.push(...this.state.products.splice(index, 1));
-            for (const childProduct of this._getChildProducts(productTmplId)) {
+            for (const childProduct of getChildProducts(
+                this._allProducts,
+                productTmplId,
+            )) {
                 this._removeProduct(childProduct.product_tmpl_id);
                 this.state.optionalProducts.splice(
                     this.state.optionalProducts.findIndex(
@@ -259,6 +291,10 @@ export class ProductConfiguratorDialog extends Component {
      *
      * If the value is less than or equal to zero, the product is removed from the product list
      * instead, unless it is the main product, in which case the quantity is set to 1.
+     *
+     * Note: if a newer quantity change supersedes this one, the returned promise never
+     * settles (see `_updateCombinationSequenced`). Callers must not depend on it to
+     * decide anything the newer call will decide for them.
      *
      * @param {Number} productTmplId - The product template id, as a `product.template` id.
      * @param {Number} quantity - The new quantity of the product.
@@ -278,12 +314,10 @@ export class ProductConfiguratorDialog extends Component {
             return false;
         }
         product.quantity = quantity;
-        const { price } = await this._updateCombination(
+        this._applyCombination(
             product,
-            quantity,
-            product.uom.id,
+            await this._updateCombinationSequenced(product, quantity, product.uom.id),
         );
-        product.price = parseFloat(price);
 
         return true;
     }
@@ -301,7 +335,7 @@ export class ProductConfiguratorDialog extends Component {
         if (product.uom.id === uomId) {
             return false;
         }
-        const combination = await this._updateCombination(
+        const combination = await this._updateCombinationSequenced(
             product,
             product.quantity,
             uomId,
@@ -319,8 +353,23 @@ export class ProductConfiguratorDialog extends Component {
      * @param {Number} uomId - The new uom of the product, as an `uom.uom` id.
      */
     _handleUnitOfMeasureUpdate(product, combination, uomId) {
-        product.price = parseFloat(combination.price);
+        this._applyCombination(product, combination);
         product.uom = product.available_uoms.find((uom) => uom.id === uomId);
+    }
+
+    /**
+     * Apply an `update_combination` response to a product.
+     *
+     * Every caller applies the *whole* response rather than picking `price` out of it:
+     * `show_extra_price` is derived server-side from the matched pricelist rule, and the
+     * matched rule depends on the quantity, so cherry-picking left it (and
+     * `display_name`) describing a combination the user had already moved away from.
+     *
+     * @param {Object} product - The product to update.
+     * @param {Object} combination - The result of `_updateCombination`.
+     */
+    _applyCombination(product, combination) {
+        Object.assign(product, combination, { price: parseFloat(combination.price) });
     }
 
     /**
@@ -344,27 +393,34 @@ export class ProductConfiguratorDialog extends Component {
         } else {
             ptal.selected_attribute_value_ids = [ptavId];
         }
-        this._checkExclusions(product);
-        if (this._isPossibleCombination(product)) {
-            const updatedValues = await this._updateCombination(
+        checkExclusions(this._allProducts, product);
+        if (isPossibleCombination(product)) {
+            this._applyCombination(
                 product,
-                product.quantity,
-                product.uom.id,
+                await this._updateCombinationSequenced(
+                    product,
+                    product.quantity,
+                    product.uom.id,
+                ),
             );
-            Object.assign(product, updatedValues);
             // When a combination should exist but was deleted from the database, it should not be
             // selectable and considered as an exclusion.
+            //
+            // "Should exist" means every *variant-creating* line is `always`; a
+            // `no_variant` line has no bearing on whether a variant exists, so it must
+            // not veto this branch. And what gets recorded has to be the variant
+            // combination, since that is what `archived_combinations` is compared
+            // against (see `getVariantCombination`).
             if (
                 !product.id &&
                 product.attribute_lines.every(
-                    (ptal) => ptal.create_variant === "always",
+                    (ptal) => ptal.create_variant !== "dynamic",
                 )
             ) {
-                const combination = this._getCombination(product);
                 product.archived_combinations = product.archived_combinations.concat([
-                    combination,
+                    getVariantCombination(product),
                 ]);
-                this._checkExclusions(product);
+                checkExclusions(this._allProducts, product);
             }
         }
     }
@@ -381,15 +437,6 @@ export class ProductConfiguratorDialog extends Component {
         product.attribute_lines.find((ptal) =>
             ptal.selected_attribute_value_ids.includes(ptavId),
         ).customValue = customValue;
-    }
-
-    /**
-     * Check the exclusions of a given product and his child.
-     *
-     * @param {Object} product - The product for which to check the exclusions.
-     */
-    _checkExclusions(product) {
-        checkExclusions(this._allProducts, product);
     }
 
     //--------------------------------------------------------------------------
@@ -418,54 +465,12 @@ export class ProductConfiguratorDialog extends Component {
     }
 
     /**
-     * Return the list of dependents products for a given product.
-     *
-     * @param {Number} productTmplId - The product template id for which to find his children, as a
-     *                                 `product.template` id.
-     * @return {Array} - The list of dependents products.
-     */
-    _getChildProducts(productTmplId) {
-        return getChildProducts(this._allProducts, productTmplId);
-    }
-
-    /**
-     * Return the selected PTAV of the product, as a list of `product.template.attribute.value` id.
-     *
-     * @param {Object} product - The product for which to find the combination.
-     * @return {Array} - The combination of the product.
-     */
-    _getCombination(product) {
-        return getCombination(product);
-    }
-
-    /**
-     * Return the selected PTAVs of the parent product, as a list of
-     * `product.template.attribute.value` ids.
-     *
-     * @param {Object} product - The product for which to find the parent combination.
-     * @return {Array} - The combination of the parent product.
-     */
-    _getParentsCombination(product) {
-        return getParentsCombination(this._allProducts, product);
-    }
-
-    /**
-     * Check if a product has a valid combination.
-     *
-     * @param {Object} product - The product for which to check the combination.
-     * @return {Boolean} - Whether the combination is valid or not.
-     */
-    _isPossibleCombination(product) {
-        return isPossibleCombination(product);
-    }
-
-    /**
      * Check if all the products selected have a valid combination.
      *
      * @return {Boolean} - Whether all the products selected have a valid combination or not.
      */
     isPossibleConfiguration() {
-        return this.state.products.every((p) => this._isPossibleCombination(p));
+        return this.state.products.every(isPossibleCombination);
     }
 
     /**
@@ -477,22 +482,24 @@ export class ProductConfiguratorDialog extends Component {
         if (!this.isPossibleConfiguration()) {
             return;
         }
-        // Create the products with dynamic attributes
-        for (const product of this.state.products) {
-            if (
-                !product.id &&
-                product.attribute_lines.some(
-                    (ptal) => ptal.create_variant === "dynamic",
+        // Create the products with dynamic attributes. These calls are independent of
+        // each other, so a configuration with several dynamic products does not need to
+        // pay for them one round trip at a time.
+        await Promise.all(
+            this.state.products
+                .filter(
+                    (product) =>
+                        !product.id &&
+                        product.attribute_lines.some(
+                            (ptal) => ptal.create_variant === "dynamic",
+                        ),
                 )
-            ) {
-                const productId = await this._createProduct(product);
-                product.id = parseInt(productId);
-            }
-        }
+                .map(async (product) => {
+                    product.id = parseInt(await this._createProduct(product));
+                }),
+        );
         await this.props.save(
-            this.state.products.find(
-                (p) => p.product_tmpl_id === this.env.mainProductTmplId,
-            ),
+            findProduct(this.state.products, this.env.mainProductTmplId),
             this.state.products.filter(
                 (p) => p.product_tmpl_id !== this.env.mainProductTmplId,
             ),

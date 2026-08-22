@@ -166,7 +166,9 @@ class TestCatalogContextContract(TransactionCase):
         ]._get_action_add_from_catalog_extra_context()
 
         self.assertIn("order_id", context)
-        self.assertEqual(context["order_id"], context["product_catalog_order_id"])
+        # One key, not two: `product_catalog_order_id` used to carry the same id
+        # for the half of the client that read that name instead.
+        self.assertNotIn("product_catalog_order_id", context)
 
     def test_action_context_reaches_the_client_with_order_id(self):
         """End to end: no button context, yet the action still carries it."""
@@ -180,7 +182,6 @@ class TestCatalogContextContract(TransactionCase):
         action = order.action_add_from_catalog()
 
         self.assertEqual(action["context"]["order_id"], order.id)
-        self.assertEqual(action["context"]["product_catalog_order_id"], order.id)
         self.assertEqual(action["context"]["product_catalog_order_model"], "sale.order")
 
 
@@ -420,3 +421,50 @@ class TestTransientWizardIsolation(TransactionCase):
                     " record rule scoping it to its creator",
                 )
                 self.assertIn("create_uid", "".join(rules.mapped("domain_force")))
+
+
+@tagged("post_install", "-at_install")
+class TestCatalogPricePortalTarget(TransactionCase):
+    """The catalog card must keep the node `ProductCatalogOrderLine` portals into.
+
+    `order_line.xml` renders the price through
+    `t-portal="`#product-${props.productId}-price`"`, and that target is an empty
+    div declared in the *view arch*, not anywhere in JS. OWL does not degrade
+    when a portal target is missing -- it raises `invalid portal target` from
+    `onMounted`, which takes down the whole kanban rather than one card, and the
+    message names neither the view nor the component.
+
+    Nothing else checks this: the coupling crosses from a `.xml` view record to a
+    `.js` component, so no linter or asset gate sees both ends. An inheriting
+    view that xpath-removes or renames the node is exactly how it would be lost.
+    """
+
+    def test_catalog_card_declares_the_price_portal_target(self):
+        arch = self.env.ref("product.view_product_product_kanban_catalog").arch_db
+
+        self.assertIn(
+            "product-{{record.id.raw_value}}-price",
+            arch,
+            "product.view_product_product_kanban_catalog must keep the element "
+            "ProductCatalogOrderLine portals its price into; without it every "
+            "catalog card raises OwlError: invalid portal target.",
+        )
+
+    def test_the_order_line_still_addresses_that_target(self):
+        """The other end of the pair, so the test cannot silently outlive it."""
+        import pathlib
+
+        import odoo.addons.product as product_module
+
+        order_line = (
+            pathlib.Path(product_module.__file__).parent
+            / "static/src/product_catalog/order_line/order_line.xml"
+        )
+
+        self.assertIn(
+            "-price`",
+            order_line.read_text(),
+            f"{order_line} no longer portals into an id ending in '-price'; if "
+            "the price is rendered some other way now, drop this pair of tests "
+            "and the arch node they guard.",
+        )

@@ -1,5 +1,3 @@
-"""Changing a product's unit must behave the same from the variant and the template."""
-
 from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
 
@@ -38,10 +36,6 @@ class TestRestampUom(TransactionCase):
         return product, move
 
     def test_restamp_from_the_variant(self):
-        """The variant's `uom_id` is related, and the ORM fills its cache with the new
-        unit before determining that inverse -- so a guard reading it compared the
-        history against the unit being moved *to*, and refused every product that had
-        ever moved."""
         product, move = self._product_with_a_move("variant path", self.unit)
 
         product.uom_id = self.pack_of_6
@@ -58,8 +52,6 @@ class TestRestampUom(TransactionCase):
         self.assertEqual(move.product_uom_id, self.pack_of_6)
 
     def test_history_in_another_unit_is_still_refused_from_the_variant(self):
-        """The quantities are not converted, so a move recorded in some other unit
-        would be silently reinterpreted."""
         product, __ = self._product_with_a_move("mixed variant", self.dozen)
 
         with self.assertRaises(UserError) as caught:

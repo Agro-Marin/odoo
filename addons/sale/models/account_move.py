@@ -6,11 +6,7 @@ class AccountMove(models.Model):
     _name = "account.move"
     _inherit = ["account.move", "mixin.utm"]
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
 
-    # UTMs - enforcing the fact that we want to 'set null' when relation is unlinked
     campaign_id = fields.Many2one(ondelete="set null")
     medium_id = fields.Many2one(ondelete="set null")
     source_id = fields.Many2one(ondelete="set null")
@@ -27,7 +23,7 @@ class AccountMove(models.Model):
     )
     sale_order_count = fields.Integer(
         string="Sale Order Count",
-        compute="_compute_origin_so_count",
+        compute="_compute_sale_order_count",
         compute_sudo=True,
     )
     sale_warning_text = fields.Text(
@@ -36,9 +32,6 @@ class AccountMove(models.Model):
         help="Internal warning for the partner or the products as set by the user.",
     )
 
-    # ------------------------------------------------------------
-    # CRUD METHODS
-    # ------------------------------------------------------------
 
     def unlink(self):
         downpayment_lines = self.mapped("line_ids.sale_line_ids").filtered(
@@ -51,18 +44,10 @@ class AccountMove(models.Model):
             downpayment_lines.unlink()
         return res
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
 
     @api.depends("move_type", "partner_id")
-    def _compute_invoice_default_user(self):
-        """Extend to set salesperson for customer invoices.
-
-        For sale documents, sets the salesperson from the partner's default
-        salesperson or the commercial partner's salesperson.
-        """
-        super()._compute_invoice_default_user()
+    def _compute_invoice_user_id(self):
+        super()._compute_invoice_user_id()
         for move in self:
             if move.is_sale_document(include_receipts=True):
                 if not move.invoice_user_id or move.invoice_user_id == self.env.user:
@@ -92,7 +77,7 @@ class AccountMove(models.Model):
             )
 
     @api.depends("line_ids.sale_line_ids")
-    def _compute_origin_so_count(self):
+    def _compute_sale_order_count(self):
         for move in self:
             move.sale_order_count = len(move.line_ids.sale_line_ids.order_id)
 
@@ -127,9 +112,6 @@ class AccountMove(models.Model):
                     warnings.add(product.display_name + " - " + product_msg)
             move.sale_warning_text = "\n".join(warnings)
 
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
 
     def action_cancel(self):
         res = super().action_cancel()
@@ -148,7 +130,6 @@ class AccountMove(models.Model):
         return res
 
     def _action_invoice_ready_to_be_sent(self):
-        """Trigger the send-invoice cron when an invoice becomes ready to be sent by mail."""
         res = super()._action_invoice_ready_to_be_sent()
 
         send_invoice_cron = self.env.ref(
@@ -161,14 +142,12 @@ class AccountMove(models.Model):
         return res
 
     def action_post(self):
-        """Validate the tax and unit price of downpayment lines after posting."""
         res = super().action_post()
 
-        # We cannot change lines content on locked SO, changes on invoices are not forwarded to the SO if the SO is locked
         dp_lines = self.line_ids.sale_line_ids.filtered(
             lambda line: line.is_downpayment and not line.display_type,
         )
-        dp_lines._compute_name()  # Update the description of DP lines (Draft -> Posted)
+        dp_lines._compute_name()
         downpayment_lines = dp_lines.filtered(lambda line: not line.order_id.locked)
         other_so_lines = downpayment_lines.order_id.line_ids - downpayment_lines
         real_invoices = set(other_so_lines.invoice_line_ids.move_id)
@@ -181,7 +160,7 @@ class AccountMove(models.Model):
     def action_view_source_sale_orders(self):
         self.ensure_one()
         source_orders = self.line_ids.sale_line_ids.order_id
-        result = self.env["ir.actions.act_window"]._for_xml_id("sale.action_sale_order")
+        result = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id("sale.action_sale_order")
         if len(source_orders) > 1:
             result["domain"] = [("id", "in", source_orders.ids)]
         elif len(source_orders) == 1:
@@ -194,10 +173,6 @@ class AccountMove(models.Model):
         return result
 
     def _post(self, soft=True):
-        """Auto-reconcile posted invoices with payments coming from in-process transactions.
-
-        Useful when a sale order was marked "paid" via a payment transaction and is invoiced later.
-        """
         posted = super()._post(soft)
 
         for invoice in posted.filtered(lambda move: move.is_invoice()):
@@ -215,11 +190,8 @@ class AccountMove(models.Model):
         return posted
 
     def _reverse_moves(self, default_values_list=None, cancel=False):
-        """Preserve UTM fields (campaign, medium, source) on the reversal entries."""
         if not default_values_list:
             default_values_list = [{} for move in self]
-        # Don't mutate the caller's dicts in place: build a fresh list so a
-        # caller reusing its default_values_list doesn't inherit UTM fields.
         default_values_list = [
             {
                 **default_values,
@@ -234,12 +206,8 @@ class AccountMove(models.Model):
             cancel=cancel,
         )
 
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
     def _invoice_paid_hook(self):
-        """Post a chatter note on the linked sales order(s) when an invoice is paid."""
         res = super()._invoice_paid_hook()
         todo = set()
         for invoice in self.filtered(lambda move: move.is_invoice()):
@@ -253,11 +221,6 @@ class AccountMove(models.Model):
         return res
 
     def _get_sale_order_invoiced_amount(self, order):
-        """
-        Consider all lines on any invoice in self that stem from the sales order `order`. (All those invoices belong to order.company_id)
-        This function returns the sum of the totals of all those lines.
-        Note that this amount may be bigger than `order.amount_total`.
-        """
         order_amount = 0
         for invoice in self:
             prices = sum(
@@ -272,18 +235,11 @@ class AccountMove(models.Model):
                 prices * -invoice.direction_sign,
                 order.currency_id,
                 invoice.company_id,
-                # Draft invoices have no accounting ``date`` yet; fall back to
-                # the document date so the FX rate matches the eventual posting.
                 invoice.invoice_date or invoice.date or fields.Date.context_today(self),
             )
         return order_amount
 
     def _get_partner_credit_warning_exclude_amount(self):
-        """Subtract the SO-originated portion of an invoice from the partner credit warning amount."""
-        # On a draft invoice created from a sales order, after confirming the invoice the (partial)
-        # amount stemming from sales orders will be subtracted from `credit_to_invoice`, reducing the
-        # partner's total credit. The computation here mirrors that change of `credit_to_invoice`
-        # (see `_compute_credit_to_invoice` and `_compute_amount_to_invoice` on `sale.order`).
         exclude_amount = super()._get_partner_credit_warning_exclude_amount()
         for order in self.line_ids.sale_line_ids.order_id:
             order_amount = min(
@@ -299,12 +255,8 @@ class AccountMove(models.Model):
             exclude_amount += order_amount_company
         return exclude_amount
 
-    # ------------------------------------------------------------
-    # VALIDATIONS
-    # ------------------------------------------------------------
 
     def _is_downpayment(self):
-        """True when every line of the move originates from a sale order downpayment line."""
         self.ensure_one()
         return (
             self.line_ids.sale_line_ids

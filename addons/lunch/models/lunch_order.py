@@ -72,9 +72,9 @@ class LunchOrder(models.Model):
     @api.depends('category_id')
     def _compute_available_toppings(self):
         for order in self:
-            order.available_toppings_1 = bool(order.env['lunch.topping'].search_count([('supplier_id', '=', order.supplier_id.id), ('topping_category', '=', 1)]))
-            order.available_toppings_2 = bool(order.env['lunch.topping'].search_count([('supplier_id', '=', order.supplier_id.id), ('topping_category', '=', 2)]))
-            order.available_toppings_3 = bool(order.env['lunch.topping'].search_count([('supplier_id', '=', order.supplier_id.id), ('topping_category', '=', 3)]))
+            order.available_toppings_1 = bool(order.env['lunch.topping'].search_count([('supplier_id', '=', order.supplier_id.id), ('topping_category', '=', 1)], limit=1))
+            order.available_toppings_2 = bool(order.env['lunch.topping'].search_count([('supplier_id', '=', order.supplier_id.id), ('topping_category', '=', 2)], limit=1))
+            order.available_toppings_3 = bool(order.env['lunch.topping'].search_count([('supplier_id', '=', order.supplier_id.id), ('topping_category', '=', 3)], limit=1))
 
     @api.depends('name')
     def _compute_display_add_button(self):
@@ -160,7 +160,7 @@ class LunchOrder(models.Model):
     def create(self, vals_list):
         orders = self.env['lunch.order']
         for vals in vals_list:
-            lines = self._find_matching_lines({
+            lines = self._get_matching_lines({
                 **vals,
                 'toppings': self._extract_toppings(vals),
                 'state': 'new',
@@ -192,7 +192,7 @@ class LunchOrder(models.Model):
                 if change_topping:
                     self.invalidate_model(['topping_ids_2', 'topping_ids_3'])
                     values['topping_ids_1'] = [(6, 0, toppings)]
-                matching_lines = self._find_matching_lines({
+                matching_lines = self._get_matching_lines({
                     'user_id': values.get('user_id', line.user_id.id),
                     'product_id': values.get('product_id', line.product_id.id),
                     'note': values.get('note', line.note or False),
@@ -208,7 +208,7 @@ class LunchOrder(models.Model):
         return super().write(values)
 
     @api.model
-    def _find_matching_lines(self, values):
+    def _get_matching_lines(self, values):
         default_location_id = self.env.user.last_lunch_location_id and self.env.user.last_lunch_location_id.id or False
         domain = [
             ('user_id', '=', values.get('user_id', self.default_get(['user_id'])['user_id'])),
@@ -275,7 +275,7 @@ class LunchOrder(models.Model):
             'date': fields.Date.context_today(self),
             'state': 'ordered',
         })
-        action = self.env['ir.actions.act_window']._for_xml_id('lunch.lunch_order_action')
+        action = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('lunch.lunch_order_action')
         return action
 
     def action_confirm(self):

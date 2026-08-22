@@ -121,10 +121,6 @@ class TestOldRules(TestStockCommon):
         self.assertFalse(ship.date_delay_alert)
 
     def test_mtso(self):
-        """Run a procurement for 5 products when there are only 4 in stock then
-        check that MTS is applied on the moves when the rule is set to 'mts_else_mto'
-        Also ensure the whole stock is emptied and only the needed quantity is propagated.
-        """
         partner_demo_customer = self.partner
         final_location = partner_demo_customer.property_stock_customer
 
@@ -182,9 +178,6 @@ class TestOldRules(TestStockCommon):
         self.assertEqual(qty_available, 0, "The 4 products should still be available")
 
     def test_mtso_multi_pg(self):
-        """Run 3 procurements for 2 products at the same times when there are 4 in stock then
-        check that MTS is applied on the moves when the rule is set to 'mts_else_mto'
-        """
         warehouse = self.warehouse_3_steps
         partner_demo_customer = self.partner
         final_location = partner_demo_customer.property_stock_customer
@@ -274,9 +267,6 @@ class TestOldRules(TestStockCommon):
             self.assertEqual(picking.move_ids.product_uom_qty, 2)
 
     def test_2_steps_and_backorder(self):
-        """When creating a backorder with a package, the latter should be reserved in the new picking. Moreover,
-        the initial picking shouldn't have any line about this package"""
-
         def create_picking(pick_type, from_loc, to_loc):
             picking = self.env["stock.picking"].create(
                 {
@@ -351,11 +341,6 @@ class TestOldRules(TestStockCommon):
         self.assertEqual(bo.move_ids.state, "assigned")
 
     def test_pack_delivery_three_step_propagate_package_consumable_old(self):
-        """Checks all works right in the following case:
-        * For a three-step delivery
-        * Put products in a package then validate the receipt.
-        * The automatically generated internal transfer should have package set by default.
-        """
         prod = self.env["product.product"].create(
             {"name": "bad dragon", "type": "consu"}
         )
@@ -389,8 +374,6 @@ class TestOldRules(TestStockCommon):
         )
 
     def test_report_reception_4_pick_pack(self):
-        """Check that reception report ignores outgoing moves that are not beginning of chain"""
-
         warehouse = self.warehouse_3_steps
         self.product = self.env["product.product"].create(
             {
@@ -440,7 +423,6 @@ class TestOldRules(TestStockCommon):
         )
 
     def test_update_picking_origin(self):
-        """Check that adding new moves to a picking updates its origin without duplicate nor order mismatch"""
         reference = self.env["stock.reference"].create({"name": "reference"})
         moves = self.env["stock.move"].create(
             [
@@ -469,9 +451,6 @@ class TestOldRules(TestStockCommon):
         self.assertEqual(receipt.origin, "origin1,origin2")
 
     def test_propagate_cancel_in_pull_setup(self):
-        """
-        Check the cancellation propagation in pull set ups.
-        """
         product1 = self.env["product.product"].create(
             {
                 "name": "test_procurement_cancel_propagation",
@@ -512,10 +491,6 @@ class TestOldRules(TestStockCommon):
         self.assertEqual(move_chain.mapped("state"), ["cancel", "cancel", "cancel"])
 
     def test_negative_move_with_take_loc_from_rule(self):
-        """
-        This test checks if t a negative move will be merged correctly when the loc_dest_id
-        is taken from the rule instead of the picking type.
-        """
         rule = self.warehouse_1.reception_route_id.rule_ids.filtered(
             lambda r: r.action == "pull"
         )

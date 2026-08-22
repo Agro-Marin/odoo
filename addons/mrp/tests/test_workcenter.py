@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 from datetime import datetime, timedelta
 
 from freezegun import freeze_time
@@ -11,7 +10,7 @@ from . import common
 
 @tagged("-at_install", "post_install")
 class TestWorkcenterOverview(common.TestMrpCommon):
-    @freeze_time("2020-03-13")  # Friday
+    @freeze_time("2020-03-13")
     def test_workcenter_graph_data(self):
         fake_bom = self.env["mrp.bom"].create(
             {
@@ -35,7 +34,7 @@ class TestWorkcenterOverview(common.TestMrpCommon):
         )
 
         lang = self.env["res.lang"]._lang_get(self.env.user.lang)
-        lang.week_start = "3"  # Wednesday
+        lang.week_start = "3"
         week_range, date_start, date_stop = (
             self.workcenter_2._get_week_range_and_first_last_days()
         )

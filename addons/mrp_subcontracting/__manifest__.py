@@ -70,7 +70,6 @@
 
             'base/static/src/css/modules.css',
 
-            'web/static/src/core/utils/transitions.scss',
             'web/static/src/core/**/*',
             # The fork split web/static/src/core into components/, ui/ and
             # services/: without them the bundle misses their modules and

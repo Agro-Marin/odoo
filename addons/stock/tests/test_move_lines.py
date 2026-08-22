@@ -54,13 +54,11 @@ class TestStockMoveLine(TestStockCommon):
         )
 
     def test_pick_from_1(self):
-        """test quant display_name"""
         self.assertEqual(
             self.quant.display_name, "BWH/Stock/Shelf 1 - Lot 1 - Pack A - The Owner"
         )
 
     def test_pick_from_2(self):
-        """Create a move line from a quant"""
         move = self.env["stock.move"].create(
             {
                 "product_id": self.product.id,
@@ -82,7 +80,6 @@ class TestStockMoveLine(TestStockCommon):
         self.assertEqual(move.move_line_ids.quantity, 10)
 
     def test_pick_from_3(self):
-        """check the quantity done is added up to the initial demand"""
         move = self.env["stock.move"].create(
             {
                 "product_id": self.product.id,
@@ -105,7 +102,6 @@ class TestStockMoveLine(TestStockCommon):
         self.assertEqual(move.move_line_ids.quantity, 5)
 
     def test_pick_from_4(self):
-        """check the quantity done is not negative if the quant has negative quantity"""
         self.env["stock.quant"]._update_available_quantity(
             self.product,
             self.shelf_1,
@@ -130,7 +126,6 @@ class TestStockMoveLine(TestStockCommon):
         self.assertEqual(move.move_line_ids.quantity, 0)
 
     def test_pick_from_5(self):
-        """check small quantities get handled correctly"""
         precision = self.env.ref("uom.decimal_product_uom")
         precision.digits = 6
         self.product.uom_id = self.uom_kg
@@ -181,9 +176,6 @@ class TestStockMoveLine(TestStockCommon):
         self.assertEqual(move_line1.result_package_id, move_line2.result_package_id)
 
     def test_multi_edit_quant_and_lot(self):
-        """
-        Ensure that the quant_id and lot_id cannot be updated in multi-edit mode when the move lines use different products.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.product, self.shelf_1, 20, lot_id=self.lot, owner_id=self.partner
         )
@@ -283,10 +275,6 @@ class TestStockMoveLine(TestStockCommon):
             )
 
     def test_lot_creation_from_move_line_with_generic_stock(self):
-        """
-        Test that if the product already have quantities and after that tracking is set to serial,
-        we can create a lot and assign it to the move.
-        """
         self.productA.tracking = "none"
 
         self.env["stock.quant"]._update_available_quantity(

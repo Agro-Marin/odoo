@@ -93,7 +93,7 @@ class ProjectProject(models.Model):
 
     def action_profitability_items(self, section_name, domain=None, res_id=False):
         if section_name in ['other_revenues_aal', 'other_costs_aal', 'other_costs']:
-            action = self.env["ir.actions.actions"]._for_xml_id("analytic.account_analytic_line_action_entries")
+            action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("analytic.account_analytic_line_action_entries")
             action['domain'] = domain
             action['context'] = {
                 'group_by_date': True,
@@ -110,7 +110,7 @@ class ProjectProject(models.Model):
             return action
 
         if section_name == 'other_purchase_costs':
-            action = self.env["ir.actions.actions"]._for_xml_id("account.action_move_in_invoice_type")
+            action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("account.action_move_in_invoice_type")
             action['domain'] = domain or []
             if res_id:
                 action['views'] = [(False, 'form')]
@@ -173,7 +173,7 @@ class ProjectProject(models.Model):
         }
 
     def action_open_analytic_items(self):
-        action = self.env['ir.actions.act_window']._for_xml_id('analytic.account_analytic_line_action_entries')
+        action = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('analytic.account_analytic_line_action_entries')
         action['domain'] = [('account_id', '=', self.account_id.id)]
         context = literal_eval(action['context'])
         action['context'] = {

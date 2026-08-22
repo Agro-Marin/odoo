@@ -20,7 +20,7 @@ class FleetVehicleLogServices(models.Model):
     description = fields.Char('Description')
     odometer_id = fields.Many2one('fleet.vehicle.odometer', 'Odometer', help='Odometer measure of the vehicle at the moment of this log')
     odometer = fields.Float(
-        compute="_get_odometer", inverse='_set_odometer', string='Odometer Value',
+        compute="_compute_odometer", inverse='_inverse_odometer', string='Odometer Value',
         help='Odometer measure of the vehicle at the moment of this log')
     odometer_unit = fields.Selection(related='vehicle_id.odometer_unit', string="Unit", readonly=True)
     date = fields.Date(help='Date when the cost has been executed', default=fields.Date.context_today)
@@ -41,13 +41,13 @@ class FleetVehicleLogServices(models.Model):
         ('cancelled', 'Cancelled'),
     ], default='new', string='Stage', group_expand=True, tracking=True)
 
-    def _get_odometer(self):
+    def _compute_odometer(self):
         self.odometer = 0
         for record in self:
             if record.odometer_id:
                 record.odometer = record.odometer_id.value
 
-    def _set_odometer(self):
+    def _inverse_odometer(self):
         for record in self:
             if not record.odometer:
                 raise UserError(_('Emptying the odometer value of a vehicle is not allowed.'))

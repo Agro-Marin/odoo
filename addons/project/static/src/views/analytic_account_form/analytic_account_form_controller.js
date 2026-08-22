@@ -1,6 +1,5 @@
 /** @odoo-module native */
 import { _t } from "@web/core/translation";
-import { ConfirmationDialog } from "@web/ui/dialog";
 import { FormController } from "@web/views/form";
 
 export class AnalyticAccountFormController extends FormController {
@@ -12,8 +11,7 @@ export class AnalyticAccountFormController extends FormController {
                     [["account_id", "=", this.props.resId]],
                     ["name"],
                 ]);
-                this.dialogService.add(ConfirmationDialog, {
-                    ...this.archiveDialogProps,
+                this.archiveRecord({
                     body: _t(
                         "This analytic account is associated with the following projects:\n%(projectList)s\n\nArchiving the account will remove the option to log timesheets for these projects.\n\nAre you sure you want to proceed?",
                         {

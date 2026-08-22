@@ -17,45 +17,55 @@ export class ProductCatalogKanbanModel extends RelationalModel {
     static withCache = false;
 
     async _loadData(params) {
-        // if orm have isSample field and its value set to be true then we have sample data as there is no product found for selected vendor, show sample data
-        const isSample = this.orm.isSample !== undefined ? this.orm.isSample : false;
+        // The sample ORM is installed for the duration of the sample load, so
+        // this has to be read before awaiting super.
+        const isSample = Boolean(this.orm.isSample);
         const result = await super._loadData(...arguments);
-        if (!params.isMonoRecord) {
-            let records;
-            if (params.groupBy?.length) {
-                // web_read_group: find all opened records from (sub)group
-                records = [];
-                const stackGroups = [...result.groups];
-                while (stackGroups.length) {
-                    const group = stackGroups.pop();
-                    if (group.groups?.length) {
-                        stackGroups.push(...group.groups);
-                    }
-                    if (group.records?.length) {
-                        records.push(...group.records);
-                    }
-                }
-            } else {
-                records = result.records;
-            }
+        if (params.isMonoRecord) {
+            return result;
+        }
 
-            let orderLinesInfo;
-            if (!isSample) {
-                orderLinesInfo = await rpc(
-                    "/product/catalog/order_lines_info",
-                    this._getOrderLinesInfoParams(
-                        params,
-                        records.map((rec) => rec.id),
-                    ),
-                );
-            } else {
-                orderLinesInfo = this._getSampleOrderLineInfo();
-            }
-            for (const record of records) {
-                record.productCatalogData = orderLinesInfo[record.id];
-            }
+        const records = params.groupBy?.length
+            ? this._collectGroupedRecords(result.groups)
+            : result.records;
+        if (!records.length) {
+            // Nothing to describe -- the route would answer {} for an empty id
+            // list, so the round trip is pure latency.
+            return result;
+        }
+
+        const productIds = records.map((record) => record.id);
+        const orderLinesInfo = isSample
+            ? this._getSampleOrderLineInfo(productIds)
+            : await rpc(
+                  "/product/catalog/order_lines_info",
+                  this._getOrderLinesInfoParams(params, productIds),
+              );
+        for (const record of records) {
+            record.productCatalogData = orderLinesInfo[record.id];
         }
         return result;
+    }
+
+    /**
+     * Flatten the records held by an opened (sub)group tree.
+     *
+     * @param {Object[]} [groups] as returned by web_read_group
+     * @returns {Object[]}
+     */
+    _collectGroupedRecords(groups = []) {
+        const records = [];
+        const stack = [...groups];
+        while (stack.length) {
+            const group = stack.pop();
+            if (group.groups?.length) {
+                stack.push(...group.groups);
+            }
+            if (group.records?.length) {
+                records.push(...group.records);
+            }
+        }
+        return records;
     }
 
     _getOrderLinesInfoParams(params, productIds) {
@@ -67,16 +77,30 @@ export class ProductCatalogKanbanModel extends RelationalModel {
         };
     }
 
-    _getSampleOrderLineInfo() {
-        // this function only returns data for sample view similar to rpc call ("/product/catalog/order_lines_info) made in _loadData
+    /**
+     * Stand in for `/product/catalog/order_lines_info` when the view runs on
+     * sample data (no product matched, so there is no order line to read).
+     *
+     * Keyed by the ids actually loaded rather than by a fixed range: a grouped
+     * sample read hands out ids across the whole generated set, not just the
+     * first page of it, and a record with no entry here takes the card template
+     * down with it.
+     *
+     * Values are derived from the id rather than drawn at random so a rendered
+     * sample card is reproducible, and are limited to the props this module's
+     * `ProductCatalogOrderLine` declares -- fields owned by a downstream order
+     * line (`min_qty`, `suggested_qty`, ...) are that module's to supply.
+     *
+     * @param {number[]} productIds
+     * @returns {Object}
+     */
+    _getSampleOrderLineInfo(productIds) {
         const sampleOrderLineInfo = {};
-        const numRecords = 10; // Number of records to generate
-        for (let i = 1; i <= numRecords; i++) {
-            sampleOrderLineInfo[i] = {
+        for (const productId of productIds) {
+            sampleOrderLineInfo[productId] = {
                 isSample: true,
-                quantity: Math.floor(Math.random() * 10),
-                min_qty: 0,
-                price: Math.floor(Math.random() * 500) + 100,
+                quantity: (productId * 3) % 10,
+                price: 100 + ((productId * 37) % 400),
                 productType: "consu",
                 readOnly: false,
                 uomDisplayName: _t("Units"),

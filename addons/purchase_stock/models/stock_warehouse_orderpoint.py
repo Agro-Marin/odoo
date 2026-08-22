@@ -187,7 +187,7 @@ class StockWarehouseOrderpoint(models.Model):
         """This function returns an action that display existing
         purchase orders of given orderpoint.
         """
-        result = self.env["ir.actions.act_window"]._for_xml_id(
+        result = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "purchase.action_purchase_order"
         )
 

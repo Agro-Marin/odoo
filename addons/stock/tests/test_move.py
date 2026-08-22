@@ -67,14 +67,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_set_lot_ids_on_several_moves(self):
-        """Writing `lot_ids` on a recordset of several moves must not raise and
-        must keep *every* move's `quantity` in sync with its move lines.
-
-        Regression: `_set_lot_ids` iterates `for move in self` but used `self`
-        where it meant `move` when preparing move-line values, so a multi-move
-        write raised `Expected singleton`; and it forced the `quantity`
-        recompute only on the last move of the loop.
-        """
         lot_a = self.env["stock.lot"].create(
             {"product_id": self.product_lot.id, "name": "REG-LOT-A"}
         )
@@ -111,9 +103,6 @@ class TestStockMove(TestStockCommon):
             self.assertAlmostEqual(move.quantity, move._quantity_sml())
 
     def test_in_1(self):
-        """Receive products from a supplier. Check that a move line is created and that the
-        reception correctly increase a single quant in stock.
-        """
         move1 = self.env["stock.move"].create(
             {
                 "location_id": self.supplier_location.id,
@@ -162,10 +151,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_in_2(self):
-        """Receive 5 tracked products from a supplier. The create move line should have 5
-        reserved. If i assign the 5 items to lot1, the reservation should not change. Once
-        i validate, the reception correctly increase a single quant in stock.
-        """
         move1 = self.env["stock.move"].create(
             {
                 "location_id": self.supplier_location.id,
@@ -217,9 +202,6 @@ class TestStockMove(TestStockCommon):
             self.assertNotEqual(quant.in_date, False)
 
     def test_in_3(self):
-        """Receive 5 serial-tracked products from a supplier. The system should create 5 different
-        move line.
-        """
         move1 = self.env["stock.move"].create(
             {
                 "location_id": self.supplier_location.id,
@@ -277,9 +259,6 @@ class TestStockMove(TestStockCommon):
             self.assertNotEqual(quant.in_date, False)
 
     def test_out_1(self):
-        """Send products to a client. Check that a move line is created reserving products in
-        stock and that the delivery correctly remove the single quant in stock.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 100
         )
@@ -347,10 +326,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_out_2(self):
-        """Send a consumable product to a client. Check that a move line is created but
-        quants are not impacted.
-        """
-
         self.productA.is_storable = False
         self.assertEqual(
             len(self.gather_relevant(self.productA, self.stock_location)), 0.0
@@ -413,11 +388,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_out_3(self):
-        """Add three products. the two first have stock. The last one has no stock.
-        Create a delivery for it and set the deliver policy as all at once.
-        Unlock the picking and set the initial demand of a product in stock to zero.
-        Ensure the state is correct
-        """
         productA, productB, productC = self.env["product.product"].create(
             [
                 {"name": "Product A", "is_storable": True},
@@ -486,10 +456,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(picking.state, "confirmed")
 
     def test_mixed_tracking_reservation_1(self):
-        """Send products tracked by lot to a customer. In your stock, there are tracked and
-        untracked quants. Two moves lines should be created: one for the tracked ones, another
-        for the untracked ones.
-        """
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "lot1",
@@ -524,11 +490,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(len(move1.move_line_ids), 2)
 
     def test_mixed_tracking_reservation_2(self):
-        """Send products tracked by lot to a customer. In your stock, there are two tracked and
-        mulitple untracked quants. There should be as many move lines as there are quants
-        reserved. Edit the reserve move lines to set them to new serial numbers, the reservation
-        should stay. Validate and the final quantity in stock should be 0, not negative.
-        """
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "lot1",
@@ -676,11 +637,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_mixed_tracking_reservation_3(self):
-        """Send two products tracked by lot to a customer. In your stock, there two tracked quants
-        and two untracked. Once the move is validated, add move lines to also move the two untracked
-        ones and assign them serial numbers on the fly. The final quantity in stock should be 0, not
-        negative.
-        """
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "lot1",
@@ -792,11 +748,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_mixed_tracking_reservation_4(self):
-        """Send two products tracked by lot to a customer. In your stock, there two tracked quants
-        and on untracked. Once the move is validated, edit one of the done move line to change the
-        serial number to one that is not in stock. The original serial should go back to stock and
-        the untracked quant should be tracked on the fly and sent instead.
-        """
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "lot1",
@@ -993,11 +944,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_mixed_tracking_reservation_7(self):
-        """Similar test_mixed_tracking_reservation_2 but creates first the tracked quant, then the
-        untracked ones. When adding a lot to the untracked move line, it should not decrease the
-        untracked quant then increase a non-existing tracked one that will fallback on the
-        untracked quant.
-        """
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "lot1",
@@ -1068,9 +1014,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(len(quants), 0)
 
     def test_multi_step_update(self):
-        """
-        multi step reciept update done quantity
-        """
         self.warehouse_1.reception_steps = "two_steps"
 
         move_input = self.env["stock.move"].create(
@@ -1091,11 +1034,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move_input.move_dest_ids.product_uom_qty, 9)
 
     def test_mixed_tracking_reservation_8(self):
-        """Send one product tracked by lot to a customer. In your stock, there are one tracked and
-        one untracked quant. Reserve the move, then edit the lot to one not present in stock. The
-        system will update the reservation and use the untracked quant. Now unreserve, no error
-        should happen
-        """
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "lot1",
@@ -1199,9 +1137,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(quants.filtered(lambda q: q.lot_id == lot2).quantity, -1)
 
     def test_putaway_1(self):
-        """Receive products from a supplier. Check that putaway rules are rightly applied on
-        the receipt move line.
-        """
         putaway = self.env["stock.putaway.rule"].create(
             {
                 "location_in_id": self.stock_location.id,
@@ -1226,9 +1161,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move1.move_line_ids.location_dest_id.id, self.shelf_1.id)
 
     def test_putaway_2(self):
-        """Receive products from a supplier. Check that putaway rules are rightly applied on
-        the receipt move line.
-        """
         putaway = self.env["stock.putaway.rule"].create(
             {
                 "product_id": self.productA.id,
@@ -1258,9 +1190,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move1.move_line_ids.location_dest_id.id, self.shelf_1.id)
 
     def test_putaway_3(self):
-        """Receive products from a supplier. Check that putaway rules are rightly applied on
-        the receipt move line.
-        """
         putaway_category = self.env["stock.putaway.rule"].create(
             {
                 "location_in_id": self.supplier_location.id,
@@ -1296,9 +1225,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move1.move_line_ids.location_dest_id.id, self.shelf_2.id)
 
     def test_putaway_4(self):
-        """Receive products from a supplier. Check that putaway rules are rightly applied on
-        the receipt move line.
-        """
         putaway_category = self.env["stock.putaway.rule"].create(
             {
                 "location_in_id": self.stock_location.id,
@@ -1343,9 +1269,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move1.move_line_ids.location_dest_id.id, self.shelf_1.id)
 
     def test_putaway_5(self):
-        """Receive products from a supplier. Check that putaway rules are rightly applied on
-        the receipt move line.
-        """
         putaway = self.env["stock.putaway.rule"].create(
             {
                 "location_in_id": self.supplier_location.id,
@@ -1381,10 +1304,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move1.move_line_ids.location_dest_id.id, self.shelf_1.id)
 
     def test_putaway_6(self):
-        """Receive products from a supplier. Check that putaway rules are rightly applied on
-        the receipt move line.
-        """
-
         child_category = self.env["product.category"].create(
             {
                 "name": "child_category",
@@ -1436,9 +1355,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move1.move_line_ids.location_dest_id.id, self.shelf_2.id)
 
     def test_putaway_7(self):
-        """
-        Putaway with one package type and one product
-        """
         self.warehouse_1.reception_steps = "two_steps"
         child_loc = self.stock_location.child_ids[0]
 
@@ -1479,10 +1395,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move_stock.move_line_ids.location_dest_id, child_loc)
 
     def test_putaway_8(self):
-        """
-        Putaway with product P
-        Receive 1 x P in a package with a specific type
-        """
         self.warehouse_1.reception_steps = "two_steps"
         child_loc = self.stock_location.child_ids[0]
 
@@ -1522,12 +1434,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move_stock.move_line_ids.location_dest_id, child_loc)
 
     def test_putaway_9(self):
-        """
-        Putaway with one category C
-        2 steps receive
-        Receive one C-type product in a package with a specific type
-        The putaway should be selected
-        """
         self.warehouse_1.reception_steps = "two_steps"
 
         basic_category = self.env.ref("product.product_category_goods")
@@ -1594,10 +1500,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_putaway_with_packaging(self):
-        """
-        Putaway with product P
-        Receive 1 x P in a packaging with a specific type
-        """
         package_type = self.env["stock.package.type"].create(
             {
                 "name": "Super Package Type",
@@ -1630,9 +1532,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(sm.move_line_ids.location_dest_id, child_loc)
 
     def test_putaway_with_storage_category_1(self):
-        """Receive a product. Test the product will be move to a child location
-        with correct storage category.
-        """
         storage_category = self.env["stock.storage.category"].create(
             {"name": "storage category"}
         )
@@ -1673,9 +1572,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move1.move_line_ids.location_dest_id.id, self.shelf_2.id)
 
     def test_putaway_with_storage_category_2(self):
-        """Receive a product twice. Test first time the putaway applied since we
-        have enough space, and second time it is not since the location is full.
-        """
         storage_category = self.env["stock.storage.category"].create(
             {"name": "storage category"}
         )
@@ -1736,15 +1632,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_putaway_storage_category_multi_inbound_same_uom(self):
-        """Several pending inbound move lines to the same location, in the same
-        UoM, must all count toward a storage category's product capacity.
-
-        Regression: the planned quantity per location was read with a
-        ``product_uom_id:recordset`` aggregate, which deduplicates. Two lines
-        sharing a UoM collapsed to one, so the quantity/UoM ``zip`` dropped a
-        line and the location looked emptier than it was. A third receipt was
-        then wrongly put away into an already-full location.
-        """
         storage_category = self.env["stock.storage.category"].create(
             {"name": "storage category"}
         )
@@ -1795,10 +1682,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_putaway_with_storage_category_3(self):
-        """Received products twice, set storage category to only accept new
-        product when empty. Check the first time putaway rule applied and second
-        time not.
-        """
         storage_category = self.env["stock.storage.category"].create(
             {
                 "name": "storage category",
@@ -1860,10 +1743,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_putaway_with_storage_category_4(self):
-        """Received products, set storage category to only accept same product.
-        Check the putaway rule can't be applied when the location has different
-        products.
-        """
         storage_category = self.env["stock.storage.category"].create(
             {
                 "name": "storage category",
@@ -1926,9 +1805,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_putaway_with_storage_category_5(self):
-        """Receive a package. Test the package will be move to a child location
-        with correct storage category.
-        """
         self.env.user.group_ids += self.env.ref("stock.group_tracking_lot")
         storage_category = self.env["stock.storage.category"].create(
             {"name": "storage category"}
@@ -1987,9 +1863,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(package.location_id.id, self.shelf_2.id)
 
     def test_putaway_with_storage_category_6(self):
-        """Receive package with same package type twice. Check putaway rule can
-        be applied on the first one but not the second one due to no space.
-        """
         self.env.user.group_ids += self.env.ref("stock.group_tracking_lot")
         storage_category = self.env["stock.storage.category"].create(
             {"name": "storage category"}
@@ -2088,10 +1961,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(package2.location_id.id, self.stock_location.id)
 
     def test_putaway_with_storage_category_7(self):
-        """Receive package with same package type twice, set storage category to
-        only accept new product when empty. Check putaway rule can be applied on
-        the first one but not the second one.
-        """
         self.env.user.group_ids += self.env.ref("stock.group_tracking_lot")
         storage_category = self.env["stock.storage.category"].create(
             {
@@ -2193,10 +2062,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(package2.location_id.id, self.stock_location.id)
 
     def test_putaway_with_storage_category_8(self):
-        """Receive package withs different products, set storage category to only
-        accept same product. Check putaway rule can be applied on the first one
-        but not the second one.
-        """
         self.env.user.group_ids += self.env.ref("stock.group_tracking_lot")
         storage_category = self.env["stock.storage.category"].create(
             {
@@ -2304,9 +2169,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(package2.location_id.id, self.stock_location.id)
 
     def test_putaway_with_storage_category_9(self):
-        """Receive a product twice. Test first time the putaway applied, and second
-        time it is not since the products violate the max_weight limitaion.
-        """
         self.productA.weight = 1
         storage_category = self.env["stock.storage.category"].create(
             {
@@ -2364,14 +2226,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_putaway_rule_with_last_used_sublocation(self):
-        """
-        1. Create a putaway rule with 'last_used' sublocation
-        2. Initial 'store_to' location is 'WH/Stock'
-        3. Create a move with a destinaltion location set to 'WH/Stock', then confirm the move
-        4. Set destination location of move line to 'shelf_1'
-        5. Create another move with a destinaltion location set to 'WH/Stock', then confirm the move
-        6. Assert the destination location of move line is set to 'shelf_1'
-        """
         putaway = self.env["stock.putaway.rule"].create(
             {
                 "product_id": self.productA.id,
@@ -2420,9 +2274,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_availability_1(self):
-        """A freshly created (draft) move reserves nothing: the stock stays fully
-        available even though the move asks for part of it.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 150.0
         )
@@ -2452,9 +2303,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_availability_2(self):
-        """Same, when the move asks for more than the stock holds: a draft move still
-        reserves nothing.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 50.0
         )
@@ -2562,9 +2410,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(customer_quants.reserved_quantity, 0)
 
     def test_availability_5(self):
-        """Check that rerun action assign only create new stock move
-        lines instead of adding quantity in existing one.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.product_serial, self.stock_location, 2.0
         )
@@ -2598,11 +2443,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(len(move.move_line_ids), 4.0)
 
     def test_availability_6(self):
-        """Check that, in the scenario where a move is in a bigger uom than the uom of the quants
-        and this uom only allows entire numbers, we don't make a partial reservation when the
-        quantity available is not enough to reserve the move. Check also that it is not possible
-        to set `quantity` with a value not honouring the UOM's rounding.
-        """
         self.env["decimal.precision"].search([("name", "=", "Product Unit")]).digits = 0
 
         self.env["stock.quant"]._update_available_quantity(
@@ -2664,11 +2504,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_availability_7(self):
-        """Check that, in the scenario where a move is in a bigger uom than the uom of the quants
-        and this uom only allows entire numbers, we only reserve quantity honouring the uom's
-        rounding even if the quantity is set across multiple quants.
-        """
-
         for i in range(1, 13):
             lot_id = self.env["stock.lot"].create(
                 {
@@ -2714,9 +2549,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_availability_8(self):
-        """Test the assignment mechanism when the product quantity is decreased on a partially
-        reserved stock move.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 3.0
         )
@@ -2741,7 +2573,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move_partial.state, "assigned")
 
     def test_availability_10(self):
-        """test the reservation is taken into account when updating the quantity on a move."""
         lot1, lot2, lot3 = self.env["stock.lot"].create(
             [
                 {
@@ -2834,7 +2665,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_past_quantity(self):
-        """Test the quantity is correct when looking in the past."""
         self.env["stock.quant"].create(
             {
                 "product_id": self.productA.id,
@@ -2889,9 +2719,6 @@ class TestStockMove(TestStockCommon):
         self.assertAlmostEqual(product_in_past.qty_available, 0)
 
     def test_past_availability_in_strict_mode(self):
-        """
-        Test the quantity is correct when looking in the past in strict mode.
-        """
         today = fields.Date.today()
         self.product.is_storable = True
         self.env["stock.quant"]._update_available_quantity(
@@ -2936,7 +2763,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_product_tree_views(self):
-        """Test to make sure that there are no ACLs errors in users with basic permissions."""
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 3.0
         )
@@ -2955,9 +2781,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(template_view.name, self.productA.product_tmpl_id.name)
 
     def test_availability_9(self):
-        """Test the assignment mechanism when the product quantity is increase
-        on a receipt move.
-        """
         move_receipt = self.env["stock.move"].create(
             {
                 "location_id": self.supplier_location.id,
@@ -2977,9 +2800,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move_receipt.move_line_ids.quantity, 3)
 
     def test_unreserve_1(self):
-        """Check that unreserving a stock move sets the products reserved as available and
-        set the state back to confirmed.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 150.0
         )
@@ -3025,9 +2845,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move1.state, "confirmed")
 
     def test_unreserve_2(self):
-        """Check that unreserving a stock move sets the products reserved as available and
-        set the state back to confirmed even if they are in a pack.
-        """
         package1 = self.env["stock.package"].create({"name": "test_unreserve_2_pack"})
 
         self.env["stock.quant"]._update_available_quantity(
@@ -3075,7 +2892,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move1.state, "confirmed")
 
     def test_unreserve_3(self):
-        """Similar to `test_unreserve_1` but checking the quants more in details."""
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 2
         )
@@ -3131,7 +2947,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(len(move1.move_line_ids), 0.0)
 
     def test_unreserve_4(self):
-        """Check the unreservation of a partially available stock move."""
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 2
         )
@@ -3187,7 +3002,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(len(move1.move_line_ids), 0.0)
 
     def test_unreserve_5(self):
-        """Check the unreservation of a stock move reserved on multiple quants."""
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 3
         )
@@ -3233,7 +3047,6 @@ class TestStockMove(TestStockCommon):
             self.assertEqual(quant.reserved_quantity, 0)
 
     def test_unreserve_6(self):
-        """In a situation with a negative and a positive quant, reserve and unreserve."""
         q1 = self.env["stock.quant"].create(
             {
                 "product_id": self.productA.id,
@@ -3293,9 +3106,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(q1.reserved_quantity + q2.reserved_quantity, 10)
 
     def test_link_assign_1(self):
-        """Test the assignment mechanism when two chained stock moves try to move one unit of an
-        untracked product.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 1.0
         )
@@ -3336,9 +3146,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move_pack_cust.state, "assigned")
 
     def test_link_assign_2(self):
-        """Test the assignment mechanism when two chained stock moves try to move one unit of a
-        tracked product.
-        """
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "lot1",
@@ -3418,9 +3225,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_link_assign_3(self):
-        """Test the assignment mechanism when three chained stock moves (2 sources, 1 dest) try to
-        move multiple units of an untracked product.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 2.0
         )
@@ -3509,9 +3313,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move_pack_cust.state, "assigned")
 
     def test_link_assign_4(self):
-        """Test the assignment mechanism when three chained stock moves (2 sources, 1 dest) try to
-        move multiple units of a tracked by lot product.
-        """
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "lot1",
@@ -3591,9 +3392,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move_pack_cust.state, "assigned")
 
     def test_link_assign_5(self):
-        """Test the assignment mechanism when three chained stock moves (1 sources, 2 dest) try to
-        move multiple units of an untracked product.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 2.0
         )
@@ -3653,10 +3451,6 @@ class TestStockMove(TestStockCommon):
         (move_pack_cust_1 + move_pack_cust_2)._action_done()
 
     def test_link_assign_6(self):
-        """Test the assignment mechanism when four chained stock moves (2 sources, 2 dest) try to
-        move multiple units of an untracked by lot product. This particular test case simulates a two
-        step receipts with backorder.
-        """
         move_supp_stock_1 = self.env["stock.move"].create(
             {
                 "location_id": self.supplier_location.id,
@@ -3864,10 +3658,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_link_assign_8(self):
-        """Set the rounding of the dozen to 1.0, create a chain of two move for a dozen, the product
-        concerned is tracked by serial number. Check that the flow is ok.
-        """
-
         for i in range(1, 13):
             lot_id = self.env["stock.lot"].create(
                 {
@@ -3935,11 +3725,6 @@ class TestStockMove(TestStockCommon):
             self.assertTrue(bool(ml.lot_id.id))
 
     def test_link_assign_9(self):
-        """Create an uom "3 units" which is 3 times the units but without rounding. Create 3
-        quants in stock and two chained moves. The first move will bring the 3 quants but the
-        second only validate 2 and create a backorder for the last one. Check that the reservation
-        is correctly cleared up for the last one.
-        """
         uom_3units = self.env["uom.uom"].create(
             {
                 "name": "3 units",
@@ -4060,7 +3845,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_link_assign_10(self):
-        """Test the assignment mechanism with partial availability."""
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 2.0
         )
@@ -4118,9 +3902,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move_pack_cust.state, "partially_available")
 
     def test_use_reserved_move_line_1(self):
-        """Test that _free_reservation work when quantity is only available on
-        reserved move lines.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 10.0
         )
@@ -4208,9 +3989,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(quant.reserved_quantity, 0)
 
     def test_use_unreserved_move_line_1(self):
-        """Test that validating a stock move linked to an untracked product reserved by another one
-        correctly unreserves the other one.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 1.0
         )
@@ -4279,9 +4057,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_use_unreserved_move_line_2(self):
-        """Test that validating a stock move linked to a tracked product reserved by another one
-        correctly unreserves the other one.
-        """
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "lot1",
@@ -4357,10 +4132,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_use_unreserved_move_line_3(self):
-        """Test the behavior of `_free_reservation` when ran on a recordset of move lines where
-        some are assigned and some are force assigned. `_free_reservation` should not use an
-        already processed move line when looking for a move line candidate to unreserve.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 1.0
         )
@@ -4468,10 +4239,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(p01_move.state, "confirmed")
 
     def test_edit_reserved_move_line_1(self):
-        """Test that editing a stock move line linked to an untracked product correctly and
-        directly adapts the reservation. In this case, we edit the sublocation where we take the
-        product to another sublocation where a product is available.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.shelf_1, 1.0
         )
@@ -4551,9 +4318,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_edit_reserved_move_line_2(self):
-        """Test that editing a stock move line linked to a tracked product correctly and directly
-        adapts the reservation. In this case, we edit the lot to another available one.
-        """
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "lot1",
@@ -4646,9 +4410,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_edit_reserved_move_line_3(self):
-        """Test that editing a stock move line linked to a packed product correctly and directly
-        adapts the reservation. In this case, we edit the package to another available one.
-        """
         package1 = self.env["stock.package"].create(
             {"name": "test_edit_reserved_move_line_3"}
         )
@@ -4735,9 +4496,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_edit_reserved_move_line_4(self):
-        """Test that editing a stock move line linked to an owned product correctly and directly
-        adapts the reservation. In this case, we edit the owner to another available one.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 1.0, owner_id=self.partner_1
         )
@@ -4817,10 +4575,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_edit_reserved_move_line_5(self):
-        """Test that editing a stock move line linked to a packed and tracked product correctly
-        and directly adapts the reservation. In this case, we edit the lot to another available one
-        that is not in a pack.
-        """
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "lot1",
@@ -4916,10 +4670,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_edit_reserved_move_line_6(self):
-        """Test that editing a stock move line linked to an untracked product correctly and
-        directly adapts the reservation. In this case, we edit the sublocation where we take the
-        product to another sublocation where a product is NOT available.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.shelf_1, 1.0
         )
@@ -4998,12 +4748,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_edit_reserved_move_line_7(self):
-        """Send 5 tracked products to a client, but these products do not have any lot set in our
-        inventory yet: we only set them at delivery time. The created move line should have 5 items
-        without any lot set, if we edit to set them to lot1, the reservation should not change.
-        Validating the stock move should should not create a negative quant for this lot in stock
-        location.
-        #"""
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "lot1",
@@ -5068,11 +4812,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_edit_reserved_move_line_8(self):
-        """Send 5 tracked products to a client, but some of these products do not have any lot set
-        in our inventory yet: we only set them at delivery time. Adding a lot_id on the move line
-        that does not have any should not change its reservation, and validating should not create
-        a negative quant for this lot in stock.
-        """
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "lot1",
@@ -5171,12 +4910,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_edit_reserved_move_line_9(self):
-        """
-        When writing on the reserved quantity on the SML, a process tries to
-        reserve the quants with that new quantity. If it fails (for instance
-        because the written quantity is more than actually available), it should
-        take the maximum available.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 1.0
         )
@@ -5207,10 +4940,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_edit_done_move_line_1(self):
-        """Test that editing a done stock move line linked to an untracked product correctly and
-        directly adapts the transfer. In this case, we edit the sublocation where we take the
-        product to another sublocation where a product is available.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.shelf_1, 1.0
         )
@@ -5292,11 +5021,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_edit_done_move_line_preserves_in_date(self):
-        """Editing the quantity of a done move line must keep the destination quant's incoming
-        date so FIFO ordering is preserved -- matching what `_action_done` writes for a fresh
-        move. Regression: the post-write re-synchronization used to drop the `in_date`, stamping
-        the destination quant with the current time whenever the edit emptied it.
-        """
         old_date = fields.Datetime.to_datetime("2020-01-01 00:00:00")
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.shelf_1, 10.0, in_date=old_date
@@ -5335,9 +5059,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_edit_done_move_line_2(self):
-        """Test that editing a done stock move line linked to a tracked product correctly and directly
-        adapts the transfer. In this case, we edit the lot to another available one.
-        """
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "lot1",
@@ -5431,9 +5152,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_edit_done_move_line_3(self):
-        """Test that editing a done stock move line linked to a packed product correctly and directly
-        adapts the transfer. In this case, we edit the package to another available one.
-        """
         package1 = self.env["stock.package"].create(
             {"name": "test_edit_reserved_move_line_3"}
         )
@@ -5522,9 +5240,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_edit_done_move_line_4(self):
-        """Test that editing a done stock move line linked to an owned product correctly and directly
-        adapts the transfer. In this case, we edit the owner to another available one.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 1.0, owner_id=self.partner_1
         )
@@ -5606,10 +5321,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_edit_done_move_line_5(self):
-        """Test that editing a done stock move line linked to a packed and tracked product correctly
-        and directly adapts the transfer. In this case, we edit the lot to another available one
-        that is not in a pack.
-        """
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "lot1",
@@ -5707,10 +5418,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_edit_done_move_line_6(self):
-        """Test that editing a done stock move line linked to an untracked product correctly and
-        directly adapts the transfer. In this case, we edit the sublocation where we take the
-        product to another sublocation where a product is NOT available.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.shelf_1, 1.0
         )
@@ -5794,11 +5501,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_edit_done_move_line_7(self):
-        """Test that editing a done stock move line linked to an untracked product correctly and
-        directly adapts the transfer. In this case, we edit the sublocation where we take the
-        product to another sublocation where a product is NOT available because it has been reserved
-        by another move.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.shelf_1, 1.0
         )
@@ -5895,10 +5597,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move2.move_line_ids.location_id, self.shelf_1)
 
     def test_edit_done_move_line_8(self):
-        """Test that editing a done stock move line linked to an untracked product correctly and
-        directly adapts the transfer. In this case, we increment the quantity done (and we do not
-        have more in stock.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.shelf_1, 1.0
         )
@@ -5973,9 +5671,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move1.product_uom_qty, 1.0)
 
     def test_edit_done_move_line_9(self):
-        """Test that editing a done stock move line linked to an untracked product correctly and
-        directly adapts the transfer. In this case, we "cancel" the move by zeroing the qty done.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.shelf_1, 1.0
         )
@@ -6039,9 +5734,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_edit_done_move_line_10(self):
-        """Edit the quantity done for an incoming move shoudld also remove the quant if there
-        are no product in stock.
-        """
         move1 = self.env["stock.move"].create(
             {
                 "location_id": self.supplier_location.id,
@@ -6066,7 +5758,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move1.product_uom_qty, 10.0)
 
     def test_edit_done_move_line_11(self):
-        """Add a move line and check if the quant is updated"""
         picking = self.env["stock.picking"].create(
             {
                 "location_id": self.supplier_location.id,
@@ -6124,10 +5815,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_edit_done_move_line_12(self):
-        """Test that editing a done stock move line linked a tracked product correctly and directly
-        adapts the transfer. In this case, we edit the lot to another one, but the original move line
-        is not in the default product's UOM.
-        """
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "lot1",
@@ -6172,10 +5859,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_edit_done_move_line_13(self):
-        """Test that editing a done stock move line linked to a packed and tracked product correctly
-        and directly adapts the transfer. In this case, we edit the lot to another available one
-        that we put in the same pack.
-        """
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "lot1",
@@ -6250,10 +5933,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_edit_done_move_line_14(self):
-        """Test that editing a done stock move line with a different UoM from its stock move correctly
-        updates the quant when its qty and/or its UoM is edited. Also check that we don't allow editing
-        a done stock move's UoM.
-        """
         move1 = self.env["stock.move"].create(
             {
                 "location_id": self.supplier_location.id,
@@ -6300,9 +5979,6 @@ class TestStockMove(TestStockCommon):
             move1.product_uom_id = self.uom_dozen
 
     def test_immediate_validate_1(self):
-        """In a picking with a single available move, clicking on validate without filling any
-        quantities should open a wizard asking to process all the reservation (so, the whole move).
-        """
         picking = self.env["stock.picking"].create(
             {
                 "location_id": self.supplier_location.id,
@@ -6333,12 +6009,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_immediate_validate_2(self):
-        """In a picking with a single partially available move, clicking on validate without
-        filling any quantities should open a wizard asking to process all the reservation (so, only
-        a part of the initial demand). Validating this wizard should open another one asking for
-        the creation of a backorder. If the backorder is created, it should contain the quantities
-        not processed.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 5.0
         )
@@ -6393,12 +6063,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(backorder.move_ids.product_uom_qty, 5.0)
 
     def test_immediate_validate_3(self):
-        """In a picking with two moves, one partially available and one unavailable, clicking
-        on validate without filling any quantities should open a wizard asking to process all the
-        reservation (so, only a part of one of the moves). Validating this wizard should open
-        another one asking for the creation of a backorder. If the backorder is created, it should
-        contain the quantities not processed.
-        """
         product5 = self.env["product.product"].create(
             {
                 "name": "Product 5",
@@ -6465,9 +6129,6 @@ class TestStockMove(TestStockCommon):
                 self.assertEqual(backorder_move.product_qty, 100)
 
     def test_immediate_validate_4(self):
-        """In a picking with a single available tracked by lot move, clicking on validate without
-        filling any quantities should pop up the immediate transfer wizard.
-        """
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "lot1",
@@ -6541,10 +6202,6 @@ class TestStockMove(TestStockCommon):
         return picking
 
     def test_immediate_validate_5(self):
-        """In a receipt with a single tracked by serial numbers move, clicking on validate without
-        filling any quantities nor lot should open an UserError except if the picking type is
-        configured to allow otherwise.
-        """
         product_id = self.product_serial
         self.assertTrue(
             self.picking_type_in.use_create_lots
@@ -6566,14 +6223,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(picking.state, "done")
 
     def test_immediate_validate_6(self):
-        """In a receipt picking with two moves, one tracked and one untracked, clicking on
-        validate without filling any quantities should displays an UserError as long as no quantity
-        done and lot_name is set on the tracked move. Now if the user validates the picking, the
-        wizard telling the user all reserved quantities will be processed will NOT be opened. This
-        wizard is only opene if no quantities were filled. So validating the picking at this state
-        will open another wizard asking for the creation of a backorder. Now, if the user processed
-        on the second move more than the reservation, a wizard will ask him to confirm.
-        """
         self.picking_type_in.use_create_lots = True
         self.picking_type_in.use_existing_lots = False
         picking = self.env["stock.picking"].create(
@@ -6619,10 +6268,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(action.get("res_model"), "stock.backorder.confirmation")
 
     def test_immediate_validate_7(self):
-        """In a picking with a single unavailable move, clicking on validate without filling any
-        quantities should display an UserError telling the user he cannot process a picking without
-        any processed quantity.
-        """
         picking = self.env["stock.picking"].create(
             {
                 "location_id": self.stock_location.id,
@@ -6658,7 +6303,6 @@ class TestStockMove(TestStockCommon):
             picking.button_validate()
 
     def test_immediate_validate_8(self):
-        """Validate three receipts at once."""
         receipt1 = self.env["stock.picking"].create(
             {
                 "location_id": self.supplier_location.id,
@@ -6705,9 +6349,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(receipt2.state, "done")
 
     def test_immediate_validate_9_tracked_move_with_0_quantity(self):
-        """When trying to validate a picking as an immediate transfer, the done
-        quantity of tracked move should be automatically fulfilled if the
-        picking type doesn't use new or existing LN/SN."""
         self.picking_type_in.use_create_lots = False
         self.picking_type_in.use_existing_lots = False
 
@@ -6731,11 +6372,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(receipt.state, "done")
 
     def test_immediate_validate_10_tracked_move_without_backorder(self):
-        """
-        Create a picking for a tracked product, validate it as an
-        immediate transfer, and ensure that the backorder wizard is
-        not triggered when the qty is reserved.
-        """
         self.picking_type_int.use_create_lots = True
         self.picking_type_int.use_existing_lots = True
         lot = self.env["stock.lot"].create(
@@ -6764,10 +6400,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(internal_transfer.state, "done")
 
     def test_validate_picking_wihtout_picked_reservations(self):
-        """
-        Check that validating a picking where every picked move is unreserved
-        raises a user error for validating an an empty transfer
-        """
         picking = self.env["stock.picking"].create(
             {
                 "picking_type_id": self.ref("stock.picking_type_out"),
@@ -6833,9 +6465,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move2.quantity, 1)
 
     def test_initial_demand_1(self):
-        """Check that the initial demand is set to 0 when creating a move by hand, and
-        that changing the product on the move do not reset the initial demand.
-        """
         move1 = self.env["stock.move"].create(
             {
                 "location_id": self.supplier_location.id,
@@ -6851,9 +6480,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move1.product_uom_qty, 100)
 
     def test_scrap_1(self):
-        """Check the created stock move and the impact on quants when we scrap a
-        storable product.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 1
         )
@@ -6876,9 +6502,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_scrap_2(self):
-        """Check the created stock move and the impact on quants when we scrap a
-        consumable product.
-        """
         scrap = self.env["stock.scrap"].create(
             {
                 "product_id": self.product_consu.id,
@@ -6905,9 +6528,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_scrap_3(self):
-        """Scrap the product of a reserved move line. Check that the move line is
-        correctly deleted and that the associated stock move is not assigned anymore.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 1
         )
@@ -6938,10 +6558,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(len(move1.move_line_ids), 0)
 
     def test_scrap_4(self):
-        """Scrap the product of a picking. Then modify the
-        done linked stock move and ensure the scrap quantity is also
-        updated.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 10
         )
@@ -6995,9 +6611,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(scrap.scrap_qty, 8, "Scrap quantity is not updated.")
 
     def test_scrap_5(self):
-        """Scrap the product of a reserved move line where the product is reserved in another
-        unit of measure. Check that the move line is correctly updated after the scrap.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 4
         )
@@ -7041,7 +6654,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move1.quantity, 0.25)
 
     def test_scrap_6(self):
-        """Check that scrap correctly handle UoM."""
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 1
         )
@@ -7075,8 +6687,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(scrap.state, "done")
 
     def test_scrap_7_sn_warning(self):
-        """Check serial numbers are correctly double checked"""
-
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "serial1",
@@ -7108,10 +6718,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_scrap_8(self):
-        """
-        Suppose a user wants to scrap some products thanks to internal moves.
-        This test checks the state of the picking based on few cases
-        """
         self.picking_type_int.active = True
 
         product01 = self.productA
@@ -7199,10 +6805,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_scrap_9_with_delivery(self):
-        """
-        Scrap the product of a reserved move line and check that the picking can
-        correctly mark as done after the scrap.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 10
         )
@@ -7242,7 +6844,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(picking.state, "done")
 
     def test_scrap_10(self):
-        """Create a picking with a scrap destination location and attempt to validate it."""
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 10
         )
@@ -7271,10 +6872,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(picking.state, "done")
 
     def test_scrap_11(self):
-        """Use a sublocation as scrap location.
-        When moving the product back to stock ensure
-        the quant is not edited expect on quantity
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 10
         )
@@ -7317,9 +6914,6 @@ class TestStockMove(TestStockCommon):
         self.assertFalse(quant_scrap.quantity)
 
     def test_scrap_12_qty_in_sublocation(self):
-        """Checks that if a product is only available in a sublocation, then trying to validate a scrap order from a
-        parent location should trigger the insufficient quantity warning.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.shelf_1, 10
         )
@@ -7338,7 +6932,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_in_date_1(self):
-        """Check that moving a tracked quant keeps the incoming date."""
         move1 = self.env["stock.move"].create(
             {
                 "location_id": self.supplier_location.id,
@@ -7380,10 +6973,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(quant.in_date, initial_incoming_date)
 
     def test_in_date_2(self):
-        """Check that editing a done move line for a tracked product and changing its lot
-        correctly restores the original lot with its incoming date and remove the new lot
-        with its incoming date.
-        """
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "lot1",
@@ -7509,9 +7098,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_in_date_3(self):
-        """Check that, when creating a move line on a done stock move, the lot and its incoming
-        date are correctly moved to the destination location.
-        """
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "lot1",
@@ -7632,9 +7218,6 @@ class TestStockMove(TestStockCommon):
                 )
 
     def test_edit_initial_demand_1(self):
-        """Increase initial demand once everything is reserved and check if
-        the existing move_line is updated.
-        """
         move1 = self.env["stock.move"].create(
             {
                 "location_id": self.supplier_location.id,
@@ -7653,10 +7236,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(len(move1.move_line_ids), 1)
 
     def test_edit_initial_demand_2(self):
-        """Decrease initial demand once everything is reserved and check if
-        the existing move_line has been dropped after the updated and another
-        is created once the move is reserved.
-        """
         move1 = self.env["stock.move"].create(
             {
                 "location_id": self.supplier_location.id,
@@ -7676,9 +7255,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(len(move1.move_line_ids), 1)
 
     def test_initial_demand_3(self):
-        """Increase the initial demand on a receipt picking, the system should automatically
-        reserve the new quantity.
-        """
         picking = self.env["stock.picking"].create(
             {
                 "location_id": self.supplier_location.id,
@@ -7702,9 +7278,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(picking.state, "assigned")
 
     def test_initial_demand_4(self):
-        """Increase the initial demand on a delivery picking, the system should not automatically
-        reserve the new quantity.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 12
         )
@@ -7736,12 +7309,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move1.state, "assigned")
 
     def test_change_product_type(self):
-        """Changing type of an existing product will raise a user error if
-        - some move are reserved
-        - switching from a stockable product when qty_available is not zero
-        - switching the product type when there are already done moves
-        - switching the product tracking
-        """
         self.productA.is_storable = False
         move_in = self.env["stock.move"].create(
             {
@@ -7859,9 +7426,6 @@ class TestStockMove(TestStockCommon):
         move_out._action_done()
 
     def test_edit_done_picking_1(self):
-        """Add a new move line in a done picking should generate an
-        associated move.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 12
         )
@@ -7930,8 +7494,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_put_in_pack_1(self):
-        """Check that completing a move in 2 separate move lines and calling put in pack after
-        each ml's creation puts them in different packages."""
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 2
         )
@@ -8006,9 +7568,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_put_in_pack_2(self):
-        """Check that reserving moves without done quantity
-        adding in same package.
-        """
         product1 = self.env["product.product"].create(
             {
                 "name": "Product B",
@@ -8084,10 +7643,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_put_in_pack_3(self):
-        """Check that one reserving move without done quantity and
-        another reserving move with done quantity adding in different
-        package.
-        """
         product1 = self.env["product.product"].create(
             {
                 "name": "Product B",
@@ -8160,9 +7715,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_move_line_aggregated_product_quantities(self):
-        """Test the `stock.move.line` method `_get_aggregated_product_quantities`,
-        who returns data used to print delivery slips.
-        """
         product2 = self.env["product.product"].create(
             {
                 "name": "Product B",
@@ -8433,9 +7985,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(aggregate_val_2["quantity"], 0)
 
     def test_move_line_aggregated_product_quantities_duplicate_stock_move(self):
-        """Test the `stock.move.line` method `_get_aggregated_product_quantities`,
-        which returns data used to print delivery slips, with two stock moves of the same product
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 25
         )
@@ -8512,9 +8061,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_move_line_aggregated_product_quantities_two_packages(self):
-        """Test the `stock.move.line` method `_get_aggregated_product_quantities`,
-        which returns data used to print delivery slips, with two packages
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 25
         )
@@ -8587,9 +8133,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(aggregated_val["qty_ordered"], 10)
 
     def test_move_line_aggregated_product_quantities_incomplete_package(self):
-        """Test the `stock.move.line` method `_get_aggregated_product_quantities`,
-        which returns data used to print delivery slips, with an incomplete order put in packages
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 25
         )
@@ -8665,13 +8208,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_move_sn_warning(self):
-        """Check that warnings pop up when duplicate SNs added or when SN isn't in
-        expected location.
-        Two cases covered:
-        - Check for dupes when assigning serial number to a stock move
-        - Check for dupes when assigning serial number to a stock move line
-        """
-
         lot1 = self.env["stock.lot"].create(
             {
                 "name": "serial1",
@@ -8741,9 +8277,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_forecast_availability(self):
-        """Make an outgoing picking in dozens for a product stored in units.
-        Check that reserved_availabity is expressed in move uom and forecast_availability is in product base uom
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 36.0
         )
@@ -8771,13 +8304,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move.forecast_availability, 24)
 
     def test_SML_location_selection(self):
-        """
-        Suppose the setting 'Storage Categories' disabled.
-        A user creates an internal transfer from F to T, confirms it then adds a SML and selects
-        another destination location L (with L a child of T). When the user completes the field
-        `quantity`, the onchange should n't change the destination location L
-        """
-
         self.env.user.write(
             {"group_ids": [(3, self.env.ref("stock.group_stock_multi_locations").id)]}
         )
@@ -8884,11 +8410,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(picking.move_line_ids.location_dest_id.id, self.shelf_1.id)
 
     def test_receive_more_and_in_child_location(self):
-        """
-        Ensure that, when receiving more than expected, and when the destination
-        location of the SML is different from the SM one, the SM validation will
-        not change the destination location of the SML
-        """
         move = self.env["stock.move"].create(
             {
                 "location_id": self.supplier_location.id,
@@ -8913,11 +8434,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_serial_tracking(self):
-        """
-        Since updating the move's `lot_ids` field for product tracked by serial numbers will
-        also updates the move's `quantity`, this test checks the move's move lines will be
-        correctly updated and consequently its picking can be validated.
-        """
         sn = self.env["stock.lot"].create(
             {
                 "name": "test_lot_001",
@@ -8950,13 +8466,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(receipt.move_line_ids.quantity, 1)
 
     def test_skip_putaway_if_dest_loc_set_by_user(self):
-        """
-        Suppose the putaway rules and storage categories enabled. On the
-        detailed operations, the user adds a new line, set a specific
-        destination location and then the done quantity. In such cases, since
-        the user has defined himself the destination location, we should not try
-        to apply any putaway rule that would override his choice.
-        """
         self.env.user.write(
             {"group_ids": [(4, self.env.ref("stock.group_stock_multi_locations").id)]}
         )
@@ -9042,9 +8551,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(backorder.date_planned, today + relativedelta(day=10))
 
     def test_internal_transfer_with_tracked_product(self):
-        """
-        Test That we can do an internal transfer with a tracked products
-        """
         sn01 = self.env["stock.lot"].create(
             {
                 "name": "sn_1",
@@ -9071,7 +8577,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(picking.move_ids.lot_ids, sn01)
 
     def test_change_move_line_uom(self):
-        """Check the reserved_quantity of the quant is correctly updated when changing the UOM in the move line"""
         Quant = self.env["stock.quant"]
         Quant._update_available_quantity(self.productA, self.stock_location, 100)
         quant = Quant._gather(self.productA, self.stock_location)
@@ -9097,13 +8602,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(ml.quantity * self.uom_unit.factor, 2)
 
     def test_move_line_qty_with_quant_in_different_uom(self):
-        """
-        Check that the reserved_quantity of the quant is correctly calculated
-        when the move line is in different UOM.
-        - Quant: 100 units tracked with "Lot 1"
-        - Move: 1 dozen
-        the reserved qty should be 12 units in the quant.
-        """
         Quant = self.env["stock.quant"]
         lot1 = self.env["stock.lot"].create(
             {
@@ -9206,12 +8704,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_correct_quantity_autofilled(self):
-        """
-        Check if the quantity is correctly computed when:
-           - The product uom differs from the move uom.
-           - Move lines are manually removed and added back.
-           - The quantity is manually divided into different move lines.
-        """
         self.productA.uom_id = self.env.ref("uom.product_uom_gram")
         quant = self.env["stock.quant"].create(
             {
@@ -9249,7 +8741,6 @@ class TestStockMove(TestStockCommon):
 
     @freeze_time("2025-10-10")
     def test_free_reservation(self):
-        """Checks that the free_reservation uses the latest move line when the picking or date are equal."""
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 5
         )
@@ -9283,11 +8774,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(move_2.state, "partially_available")
 
     def test_compute_show_info(self):
-        """
-        Test that `lot_name` and `lot_id` are hidden in the view and that
-        `quant` is displayed when the picking type has `use_create_lots`
-        and `use_existing_lots` set to True.
-        """
         self.picking_type_in.use_create_lots = True
         self.picking_type_in.use_existing_lots = True
         move1 = self.env["stock.move"].create(
@@ -9347,10 +8833,6 @@ class TestStockMove(TestStockCommon):
             self.assertEqual(picking.move_type, move_type)
 
     def test_autocomplete_sml_location_based_on_sm_lot_ids(self):
-        """
-        When the user sets the lots on the SM, we will create the related SML. But in
-        case of serial number, we can also guess the source location
-        """
         lots = self.env["stock.lot"].create(
             [
                 {
@@ -9437,12 +8919,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(picking.move_ids.location_dest_id, self.stock_location)
 
     def test_set_quantity_done_with_rounding_issues(self):
-        """Imperial UoM can sometime create a discrepancy between the demand and the actual quantity moved,
-        this is mostly expected.
-        However, when the user force set the quantity manually, a ValidationError could be raised because
-        Odoo tried to create a new stock.move.line with the difference and then reserved the 0 quantity.
-        This test ensure that a move line with a product uom quantity of 0 does not impact the Quants reserved quantity.
-        """
         gram_uom = self.env.ref("uom.product_uom_gram")
         oz_uom = self.env.ref("uom.product_uom_oz")
 
@@ -9489,7 +8965,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_move_state_after_split(self):
-        """Test that move states are correctly recomputed after splitting a picking."""
         picking = self.env["stock.picking"].create(
             {
                 "picking_type_id": self.env.ref("stock.picking_type_out").id,
@@ -9525,13 +9000,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(backorder.move_ids.state, "assigned")
 
     def test_edit_serial_number_from_move(self):
-        """
-        This test verifies that when a move is assigned an initial serial number,
-        and the user manually replaces it with another available one before
-        validation, the system correctly updates the serial number on both the
-        stock move and the move line. It also ensures that the updated serial
-        number is preserved after validating the picking.
-        """
         lot1 = self.env["stock.lot"].create(
             {
                 "product_id": self.product_serial.id,
@@ -9575,15 +9043,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(picking.move_ids.lot_ids, lot2)
 
     def test_delivery_slip_aggregated_lines_with_canceled_move_and_packaging(self):
-        """
-        Ensure that the delivery slip report correctly aggregates product quantities
-        when a picking contains both a completed move and a canceled move that uses
-        packaging units.
-        - two products are ordered in packaging (e.g., 1 pack of 6)
-        - the picking is split, causing one move to be fulfilled and the other canceled
-        - the canceled move still contributes packaging information (ordered quantity)
-        The report must not crash and must return consistent aggregated values.
-        """
         pack_of_6 = self.env.ref("uom.product_uom_pack_6")
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 6
@@ -9639,11 +9098,6 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(aggregate_val_2["packaging_qty_ordered"], 0.0)
 
     def test_newly_added_move_line_is_picked_if_move_is_picked(self):
-        """
-        After a new move line is added in the "Details" popup of a move,
-        it should be automatically marked as picked if the stock move was
-        earlier marked as picked.
-        """
         lot_1, lot_2 = self.env["stock.lot"].create(
             [
                 {
@@ -9685,12 +9139,6 @@ class TestStockMove(TestStockCommon):
             self.assertTrue(move_line.picked)
 
     def test_show_lot_actions_follows_state(self):
-        """`show_lot_actions` gates the Generate/Import Serials-Lots buttons on the
-        Detailed Operations form. Its body reads `state` and `origin_returned_move_id`,
-        so both must be in its `@api.depends`: they were not, and the buttons kept
-        showing on a move that had just been validated until something else forced a
-        recompute. Asserted without invalidating the cache -- that is the whole point.
-        """
         picking_type = self.env.ref("stock.picking_type_in")
         self.assertTrue(picking_type.use_create_lots)
         product = self.env["product.product"].create(
@@ -9728,9 +9176,6 @@ class TestStockMove(TestStockCommon):
         )
 
     def test_show_lot_actions_follows_origin_returned_move(self):
-        """Same for `origin_returned_move_id`: a move that becomes a return stops
-        offering to create lots, and the flag must follow without a manual flush.
-        """
         picking_type = self.env.ref("stock.picking_type_in")
         product = self.env["product.product"].create(
             {"name": "SN product 2", "is_storable": True, "tracking": "serial"}

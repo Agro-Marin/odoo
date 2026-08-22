@@ -38,9 +38,9 @@ class DisplayDriver(Driver):
         self._actions.update({
             'update_url': self._action_update_url,
             'display_refresh': self._action_display_refresh,
-            'open_kiosk': self._action_open_kiosk,
+            'open_kiosk': self._action_view_kiosk,
             'rotate_screen': self._action_rotate_screen,
-            'open': self._action_open_customer_display,
+            'open': self._action_view_customer_display,
             'close': self._action_close_customer_display,
             'set': self._action_set_customer_display,
         })
@@ -95,7 +95,7 @@ class DisplayDriver(Driver):
     def _action_display_refresh(self, data):
         self.browser.refresh()
 
-    def _action_open_kiosk(self, data):
+    def _action_view_kiosk(self, data):
         origin = helpers.get_odoo_server_url()
         self.update_url(f"{origin}/pos-self/{data.get('pos_id')}?access_token={data.get('access_token')}")
         self.set_orientation(Orientation.RIGHT)
@@ -104,7 +104,7 @@ class DisplayDriver(Driver):
         orientation = data.get('orientation', 'NORMAL').upper()
         self.set_orientation(Orientation[orientation])
 
-    def _action_open_customer_display(self, data):
+    def _action_view_customer_display(self, data):
         if not data.get('pos_id') or not data.get('access_token'):
             return
 

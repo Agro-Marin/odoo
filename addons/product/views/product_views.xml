@@ -239,8 +239,10 @@
                                         nolabel="1"
                                         readonly="1" />
                                 </div>
-                                <!-- Used by @web/product/js/product_catalog/order_line to
-                                        show the price using a t-portal. -->
+                                <!-- Portal target for ProductCatalogOrderLine's price
+                                        (product/static/src/product_catalog/order_line).
+                                        The component addresses it by id, so removing
+                                        or renaming this node breaks the catalog. -->
                                 <div
                                     name="o_kanban_price"
                                     t-attf-id="product-{{record.id.raw_value}}-price" />

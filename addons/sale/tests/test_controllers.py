@@ -17,7 +17,6 @@ class TestAccessRightsControllers(HttpCase, SaleCommon):
     def test_access_controller(self):
         private_so = self.sale_order
         portal_so = self.sale_order.copy()
-        # set portal as customer to give portal access
         portal_so.partner_id = self.user_portal.partner_id.id
 
         portal_so._portal_ensure_token()
@@ -25,14 +24,12 @@ class TestAccessRightsControllers(HttpCase, SaleCommon):
 
         self.authenticate(None, None)
 
-        # Test public user can't print an order without a token
         req = self.url_open(
             url="/my/orders/%s?report_type=pdf" % portal_so.id,
             allow_redirects=False,
         )
         self.assertEqual(req.status_code, 303)
 
-        # or with a random token
         req = self.url_open(
             url="/my/orders/%s?access_token=%s&report_type=pdf"
             % (
@@ -43,7 +40,6 @@ class TestAccessRightsControllers(HttpCase, SaleCommon):
         )
         self.assertEqual(req.status_code, 303)
 
-        # but works fine with the right token
         req = self.url_open(
             url="/my/orders/%s?access_token=%s&report_type=pdf"
             % (
@@ -56,14 +52,12 @@ class TestAccessRightsControllers(HttpCase, SaleCommon):
 
         self.authenticate(self.user_portal.login, self.user_portal.login)
 
-        # do not need the token when logged in
         req = self.url_open(
             url="/my/orders/%s?report_type=pdf" % portal_so.id,
             allow_redirects=False,
         )
         self.assertEqual(req.status_code, 200)
 
-        # but still can't access another order
         req = self.url_open(
             url="/my/orders/%s?report_type=pdf" % private_so.id,
             allow_redirects=False,
@@ -108,10 +102,7 @@ class TestSalesControllers(HttpCase, SaleCommon):
 @tagged("post_install", "-at_install", "mail_flow")
 class TestSaleSignature(HttpCaseWithUserPortal):
     def test_01_portal_sale_signature_tour(self):
-        """The goal of this test is to make sure the portal user can sign SO."""
-
         portal_user_partner = self.partner_portal
-        # create a SO to be signed
         sales_order = self.env["sale.order"].create(
             {
                 "name": "test SO",
@@ -130,7 +121,6 @@ class TestSaleSignature(HttpCaseWithUserPortal):
         )
         self.assertFalse(sales_order.message_partner_ids)
 
-        # must be sent to the user so he can see it
         email_act = sales_order.action_send_quotation()
         email_ctx = email_act.get("context", {})
         sales_order.with_context(**email_ctx).message_post_with_source(

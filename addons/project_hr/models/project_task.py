@@ -109,7 +109,7 @@ class ProjectTask(models.Model):
         already company-scoped, no rebind needed.
         """
         self.ensure_one()
-        start_field, end_field = self._get_reservation_date_fields()
+        start_field, end_field = self._get_fields_reservation_date()
         if not start_field or not end_field:
             return []
         date_start = self[start_field]
@@ -134,9 +134,9 @@ class ProjectTask(models.Model):
             )
         return vals_list
 
-    def _get_sync_trigger_fields(self):
+    def _get_fields_sync_trigger(self):
         """``employee_ids`` is the writeable field; ``user_ids`` is computed."""
-        triggers = super()._get_sync_trigger_fields()
+        triggers = super()._get_fields_sync_trigger()
         triggers.discard("user_ids")
         triggers.add("employee_ids")
         return triggers
@@ -160,7 +160,7 @@ class ProjectTask(models.Model):
             action_name = self.env._("Schedule")
 
         context = {"search_default_my_schedule": 0}
-        start_field, end_field = self._get_reservation_date_fields()
+        start_field, end_field = self._get_fields_reservation_date()
         anchor = (start_field and self[start_field]) or (end_field and self[end_field])
         if anchor:
             context["initial_date"] = anchor

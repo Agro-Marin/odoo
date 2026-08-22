@@ -62,7 +62,6 @@ class TestEditableQuant(TransactionCase):
         cls.inventory_loss = cls.product.property_stock_inventory
 
     def test_create_quant_1(self):
-        """Create a new quant who don't exist yet."""
         quants = self.env["stock.quant"].search([("product_id", "=", self.product.id)])
         self.assertEqual(len(quants), 0)
         self.Quant.create(
@@ -90,9 +89,6 @@ class TestEditableQuant(TransactionCase):
         self.assertEqual(stock_move.location_dest_id.id, self.stock.id)
 
     def test_create_quant_2(self):
-        """Try to create a quant who already exist.
-        Must update the existing quant instead of creating a new one.
-        """
         first_quant = self.Quant.create(
             {
                 "product_id": self.product.id,
@@ -132,11 +128,6 @@ class TestEditableQuant(TransactionCase):
         self.assertEqual(len(stock_move), 1)
 
     def test_create_quant_3(self):
-        """Try to create a quant with `inventory_quantity` but without applying it.
-        Creates two quants:
-          - One with `quantity` (this one must be OK)
-          - One with `inventory_quantity` (this one will have null quantity)
-        """
         valid_quant = self.env["stock.quant"].create(
             {
                 "product_id": self.product.id,
@@ -155,14 +146,6 @@ class TestEditableQuant(TransactionCase):
         self.assertEqual(invalid_quant.quantity, 0)
 
     def test_create_quant_4(self):
-        """Try to create tree quants in inventory mode with `quantity` and/or `inventory_quantity`.
-        Creates two quants not in inventory mode:
-          - One with `quantity` (this one must be OK, but `inventory_mode` is useless here as it
-            doesn't enter in the inventory mode case and create quant as usual)
-          - One with `inventory_quantity` (this one must be OK)
-          - One with the two values (this one must raises an error as it enters in the inventory
-            mode but user can't edit directly `quantity` in inventory mode)
-        """
         valid_quant = (
             self.env["stock.quant"]
             .with_context(inventory_mode=True)
@@ -203,7 +186,6 @@ class TestEditableQuant(TransactionCase):
         self.assertEqual(inventoried_quant.quantity, 20)
 
     def test_edit_quant_1(self):
-        """Increases manually quantity of a quant."""
         quant = self.Quant.create(
             {
                 "product_id": self.product.id,
@@ -223,7 +205,6 @@ class TestEditableQuant(TransactionCase):
         self.assertEqual(stock_move.location_dest_id.id, self.room1.id)
 
     def test_edit_quant_2(self):
-        """Decreases manually quantity of a quant."""
         quant = self.Quant.create(
             {
                 "product_id": self.product.id,
@@ -243,9 +224,6 @@ class TestEditableQuant(TransactionCase):
         self.assertEqual(stock_move.location_dest_id.id, self.inventory_loss.id)
 
     def test_edit_quant_3(self):
-        """Try to edit a record without the inventory mode.
-        Must raise an error.
-        """
         self.demo_user = mail_new_test_user(
             self.env,
             name="Pauline Poivraisselle",
@@ -271,7 +249,6 @@ class TestEditableQuant(TransactionCase):
         self.assertEqual(quant.quantity, 8)
 
     def test_edit_quant_4(self):
-        """Update the quantity with the inventory report mode"""
         default_wh = self.env["stock.warehouse"].search(
             [("company_id", "=", self.env.company.id)], limit=1
         )
@@ -305,8 +282,6 @@ class TestEditableQuant(TransactionCase):
         )
 
     def test_edit_quant_5(self):
-        """Create a quant with inventory mode and check that the inventory adjustment reason
-        is used as a reference in the `stock.move`"""
         default_wh = self.env["stock.warehouse"].search(
             [("company_id", "=", self.env.company.id)], limit=1
         )
@@ -332,10 +307,6 @@ class TestEditableQuant(TransactionCase):
         )
 
     def test_sn_warning(self):
-        """Checks that a warning is given when reusing an existing SN
-        in inventory mode.
-        """
-
         sn1 = self.env["stock.lot"].create(
             {
                 "name": "serial1",
@@ -369,7 +340,6 @@ class TestEditableQuant(TransactionCase):
         )
 
     def test_revert_inventory_adjustment(self):
-        """Try to revert inventory adjustment"""
         default_wh = self.env["stock.warehouse"].search(
             [("company_id", "=", self.env.company.id)], limit=1
         )
@@ -403,7 +373,6 @@ class TestEditableQuant(TransactionCase):
         )
 
     def test_multi_revert_inventory_adjustment(self):
-        """Try to revert inventory adjustment with multiple lines"""
         default_wh = self.env["stock.warehouse"].search(
             [("company_id", "=", self.env.company.id)], limit=1
         )

@@ -8,8 +8,6 @@ from odoo.addons.base.tests.common import HttpCaseWithUserPortal
 
 @tagged("post_install", "-at_install")
 class TestPurchasePortalRoutes(HttpCaseWithUserPortal):
-    """Vendor portal routes: token gate, acknowledge, date updates, EDI."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -29,21 +27,16 @@ class TestPurchasePortalRoutes(HttpCaseWithUserPortal):
         cls.line = cls.order.line_ids[:1]
 
     def test_order_page_without_token_redirects_home(self):
-        """The public visitor without a token never sees the order page."""
         res = self.url_open(f"/my/purchase/{self.order.id}")
-        # /my itself needs a session, so the public visitor chains to login;
-        # the contract is that the document is not served.
         self.assertNotIn(f"/my/purchase/{self.order.id}", res.url)
         self.assertNotIn(self.order.name, res.text)
 
     def test_order_page_with_token_renders(self):
-        """A valid token shows the vendor the order page."""
         res = self.url_open(f"/my/purchase/{self.order.id}?access_token={self.token}")
         self.assertEqual(res.status_code, 200)
         self.assertIn(self.order.name, res.text)
 
     def test_acknowledge_flags_order_and_redirects(self):
-        """Acknowledging marks the order and redirects with the banner."""
         self.assertFalse(self.order.acknowledged)
         res = self.url_open(
             f"/my/purchase/{self.order.id}?access_token={self.token}&acknowledge=1"
@@ -52,7 +45,6 @@ class TestPurchasePortalRoutes(HttpCaseWithUserPortal):
         self.assertTrue(self.order.acknowledged)
 
     def test_update_line_date_from_portal(self):
-        """The vendor can push a new scheduled date on a line."""
         payload = {
             "jsonrpc": "2.0",
             "method": "call",
@@ -71,7 +63,6 @@ class TestPurchasePortalRoutes(HttpCaseWithUserPortal):
         self.assertEqual(self.line.date_commitment.date(), date(2026, 9, 15))
 
     def test_update_line_ignores_invalid_date(self):
-        """A malformed date leaves the scheduled date untouched."""
         before = self.line.date_commitment
         payload = {
             "jsonrpc": "2.0",
@@ -90,7 +81,6 @@ class TestPurchasePortalRoutes(HttpCaseWithUserPortal):
         self.assertEqual(self.line.date_commitment, before)
 
     def test_download_edi_serves_xml(self):
-        """With the fork's default builder the EDI download serves XML."""
         res = self.url_open(
             f"/my/purchase/{self.order.id}/download_edi?access_token={self.token}"
         )
@@ -99,9 +89,70 @@ class TestPurchasePortalRoutes(HttpCaseWithUserPortal):
         self.assertIn("attachment", res.headers.get("Content-Disposition", ""))
 
     def test_vendor_portal_lists_render(self):
-        """The vendor sees the RFQ and order lists once logged in."""
         self.authenticate("portal", "portal")
         res_rfq = self.url_open("/my/rfq")
         self.assertEqual(res_rfq.status_code, 200)
         res_orders = self.url_open("/my/purchase")
         self.assertEqual(res_orders.status_code, 200)
+
+    def test_update_returns_json_not_an_http_artifact(self):
+        payload = {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "id": 1,
+            "params": {
+                "access_token": self.token,
+                str(self.line.id): "2026-09-16",
+            },
+        }
+        res = self.opener.post(
+            self.base_url() + f"/my/purchase/{self.order.id}/update",
+            json=payload,
+        )
+        self.assertEqual(res.json()["result"], {"success": True})
+
+    def test_update_reports_failure_for_a_bad_token(self):
+        before = self.line.date_commitment
+        payload = {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "id": 1,
+            "params": {
+                "access_token": "not-the-token",
+                str(self.line.id): "2026-09-17",
+            },
+        }
+        res = self.opener.post(
+            self.base_url() + f"/my/purchase/{self.order.id}/update",
+            json=payload,
+        )
+        result = res.json()["result"]
+        self.assertFalse(result["success"])
+        self.assertTrue(result["error"])
+        self.env.invalidate_all()
+        self.assertEqual(self.line.date_commitment, before)
+
+    def test_update_rejects_a_token_passed_in_the_query_string(self):
+        before = self.line.date_commitment
+        payload = {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "id": 1,
+            "params": {str(self.line.id): "2026-09-18"},
+        }
+        res = self.opener.post(
+            self.base_url()
+            + f"/my/purchase/{self.order.id}/update?access_token={self.token}",
+            json=payload,
+        )
+        self.assertFalse(res.json()["result"]["success"])
+        self.env.invalidate_all()
+        self.assertEqual(self.line.date_commitment, before)
+
+    def test_update_page_renders_when_a_line_has_no_expected_arrival(self):
+        self.line.write({"date_commitment": False})
+        res = self.url_open(
+            f"/my/purchase/{self.order.id}?access_token={self.token}&update=True"
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("o-purchase-datetimepicker", res.text)

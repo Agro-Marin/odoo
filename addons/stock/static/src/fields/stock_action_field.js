@@ -64,6 +64,12 @@ const stockActionField = {
     ...floatField,
     ...monetaryField,
     component: StockActionField,
+    // Spreading `monetaryField` last brought its `supportedTypes` with it, which
+    // includes "integer" -- but `extractProps` below branches only on monetary
+    // and float, and `stock.actionField` renders anything that is not monetary
+    // through FloatField. An integer field therefore rendered as "7.00". Only
+    // claim the two types this actually handles.
+    supportedTypes: ["monetary", "float"],
     supportedOptions: [
         ...Object.values(
             Object.fromEntries(

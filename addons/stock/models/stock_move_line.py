@@ -526,10 +526,6 @@ class StockMoveLine(models.Model):
 
     @api.onchange("lot_name", "lot_id")
     def _onchange_serial_number(self):
-        """For a serial-tracked product: default `quantity` to 1, warn if the serial number is
-        already used on another line, and warn (and relocate if possible) if it isn't in the
-        expected source location.
-        """
         res = {}
         if self.product_id.tracking == "serial":
             if not self.quantity:
@@ -593,7 +589,6 @@ class StockMoveLine(models.Model):
 
     @api.onchange("quantity", "product_uom_id")
     def _onchange_quantity(self):
-        """Enforce that serial-tracked products are only ever processed in quantities of 1."""
         if self.quantity and self.product_id.tracking == "serial":
             if self.product_id.uom_id.compare(
                 self.quantity_product_uom, 1.0
@@ -623,11 +618,6 @@ class StockMoveLine(models.Model):
             )
 
     def _action_done(self):
-        """Called by the move's `_action_done` for all of its move lines: moves the reserved
-        quants from source to destination location, releasing reservations as needed.
-
-        Not meant to be used to edit an already-done move; see `write()` for that instead.
-        """
         mls_to_delete, mls_needing_lot_check, mls_without_lot = (
             self._classify_done_lines()
         )
@@ -660,20 +650,6 @@ class StockMoveLine(models.Model):
         )
 
     def _classify_done_lines(self):
-        """Sort these lines by what validating them requires.
-
-        A null-quantity line is unlinked -- mandatory to free the reservation and to
-        apply `_action_done` correctly on the following lines. Lines whose picking type
-        creates lots are handed on for lot resolution; the rest are validated as they are.
-
-        Missing-lot lines are *returned* rather than raised on, so the caller can report
-        them together with the ones lot resolution also fails to bind -- one error
-        listing every product, not one per phase.
-
-        :return: (lines to unlink, lines whose `lot_name` still needs resolving,
-                  lines that require a lot and have none)
-        :raises UserError: on a negative quantity.
-        """
         ml_ids_tracked_without_lot = OrderedSet()
         ml_ids_to_delete = OrderedSet()
         ml_ids_needing_lot_check = OrderedSet()
@@ -713,11 +689,6 @@ class StockMoveLine(models.Model):
         )
 
     def _resolve_done_lots(self):
-        """Bind each line's `lot_name` to an existing `stock.lot`, creating the ones that
-        do not exist yet. One search per (product, company) rather than per line.
-
-        :return: the lines left with no lot to bind, for the caller to report.
-        """
         ml_ids_tracked_without_lot = OrderedSet()
         ml_ids_to_create_lot = OrderedSet()
         for (product, company), mls in self.grouped(
@@ -746,7 +717,6 @@ class StockMoveLine(models.Model):
         return self.browse(ml_ids_tracked_without_lot)
 
     def _raise_missing_lot(self):
-        """Report every line at once, so the user fixes them in one pass."""
         if not self:
             return
         products_list = "\n".join(
@@ -761,13 +731,6 @@ class StockMoveLine(models.Model):
         )
 
     def _apply_done_quant_moves(self):
-        """Move each line's stock from source to destination, freeing the reservations
-        that the removal invalidated.
-
-        Consuming a line releases whatever it had reserved *and* removes the stock from
-        the source. Both deltas land on the same quant row, so `release_reserved` folds
-        them into one update instead of gathering, locking and re-reading that row twice.
-        """
         ml_ids_to_ignore = OrderedSet()
         quants_cache = self.env["stock.quant"]._get_quants_by_products_locations(
             self.product_id,
@@ -933,22 +896,6 @@ class StockMoveLine(models.Model):
     def _apply_quant_move(
         self, *, reverse=False, in_date=False, release_reserved=False
     ):
-        """Move this line's `quantity_product_uom` of *available* stock between its source and
-        destination, threading the removed stock's incoming date onto the addition so FIFO
-        ordering is preserved.
-
-        The physical move is always source -> destination with `result_package_id` sitting at
-        the destination; pass ``reverse=True`` to undo it (destination -> source).
-        `_synchronize_quant` compensates negative quants with untracked ones on its own.
-
-        :param release_reserved: also drop this line's reservation from the source quant.
-            Validating a line consumes what it had reserved, so on-hand and reserved both
-            fall by the same amount on the same row; passing this folds the pair into a
-            single quant update rather than two that each gather, lock and re-read it.
-            Meaningless for ``reverse=True`` (an undo restores stock, it releases nothing).
-        :return: tuple (available_qty at the location we removed from, in_date), so callers can
-                 free over-reservations when the source went negative.
-        """
         self.ensure_one()
         qty = self.quantity_product_uom
         if reverse:
@@ -979,14 +926,6 @@ class StockMoveLine(models.Model):
         return available_qty, in_date
 
     def _apply_reservation_delta(self, sign):
-        """Reserve (``sign=1``) or release (``sign=-1``) these lines' quantities.
-
-        One quant update per (product, location, lot, package, owner) tuple rather than
-        one per line: repeated calls for a single tuple gather, lock and re-read the very
-        same row each time. Call on :meth:`_reservation_holding_lines` -- the reserve and
-        release paths share both helpers so they cannot drift apart on which lines hold a
-        reservation, which is what let a line reserve without ever releasing.
-        """
         qty_by_characteristics = defaultdict(float)
         for ml in self:
             qty_by_characteristics[
@@ -1009,8 +948,6 @@ class StockMoveLine(models.Model):
             )
 
     def _bump_dates(self, vals, updates):
-        """Bump `date` to now on lines that just gained progress -- newly picked, or a picked
-        line whose done quantity increased -- unless the write set `date` explicitly."""
         if "date" in vals or not (
             "product_uom_id" in vals or "quantity" in vals or vals.get("picked", False)
         ):
@@ -1041,7 +978,6 @@ class StockMoveLine(models.Model):
         pass
 
     def _create_and_assign_production_lot(self):
-        """Create and assign new production lots for move lines."""
         lot_vals = []
         key_to_index = {}
         key_to_mls = defaultdict(lambda: self.env["stock.move.line"])
@@ -1086,15 +1022,6 @@ class StockMoveLine(models.Model):
         owner_id=None,
         ml_ids_to_ignore=None,
     ):
-        """When editing a done move line or validating one with some forced quantities, it is
-        possible to impact quants that were not reserved. It is therefore necessary to edit or
-        unlink the move lines that reserved a quantity now unavailable.
-
-        :param ml_ids_to_ignore: iterable of `stock.move.line` ids that should NOT be
-            unreserved. Copied, not mutated: `OrderedSet.__ior__` updates in place, so
-            extending the caller's own set with `self` was a side effect on an argument
-            that nothing documented.
-        """
         self.ensure_one()
         ml_ids_to_ignore = OrderedSet(ml_ids_to_ignore or ()) | OrderedSet(self.ids)
 
@@ -1186,13 +1113,6 @@ class StockMoveLine(models.Model):
         return properties
 
     def _get_aggregated_product_quantities(self, **kwargs):
-        """Aggregate quantities across move lines for reports (e.g. delivery slips).
-
-        Move lines are grouped by product/description/uom/packaging (and destination package,
-        when set), ignoring lots/serials since those are expected to already be split per line.
-
-        :return: dict keyed by that grouping, mapping to product/name/description/quantity info.
-        """
         aggregated_move_lines = {}
 
         backorders = self.env["stock.picking"]
@@ -1274,15 +1194,6 @@ class StockMoveLine(models.Model):
         return aggregated_move_lines
 
     def _original_ordered_quantity(self, uom, backorder_lines):
-        """Reconstruct, in `uom`, what this line's move was originally asked to deliver.
-
-        The move's own demand shrinks when a transfer is split, so the demand that moved
-        to the backorders is added back and the quantity the move's *other* lines already
-        account for is taken out -- they all share this move's base aggregation key by
-        construction, so they land in this entry's group.
-
-        :param backorder_lines: the backorder move lines sharing this move's base key.
-        """
         self.ensure_one()
         qty_ordered = self.move_id.product_uom_qty
         qty_ordered += sum(backorder_lines.move_id.mapped("product_uom_qty"))
@@ -1293,18 +1204,6 @@ class StockMoveLine(models.Model):
         return qty_ordered
 
     def _aggregate_empty_moves(self, aggregated_move_lines, base_by_agg_key, pickings):
-        """Fold in the moves left with no move line when a partially done transfer is
-        validated and split -- their ordered quantity would otherwise vanish from the
-        report.
-
-        Mutates `aggregated_move_lines` (and `base_by_agg_key`) in place, the way the
-        line loop that precedes it builds them.
-
-        :param base_by_agg_key: base (package-less) aggregation key of each entry
-            already present, so an empty move joins its own group. Matched on *exact*
-            base equality: the historical `str.startswith` prefix test merged unrelated
-            groups whenever one key was a textual prefix of another.
-        """
         for empty_move in pickings.move_ids:
             to_bypass = False
             if not (
@@ -1363,63 +1262,106 @@ class StockMoveLine(models.Model):
             )
         return additional_qty
 
-    def get_move_line_quant_match(self, move_id, dirty_move_line_ids, dirty_quant_ids):
+    @staticmethod
+    def _quant_match_key(record):
+        return (
+            record.product_id.id,
+            record.lot_id.id,
+            record.location_id.id,
+            record.package_id.id,
+            record.owner_id.id,
+        )
+
+    @api.model
+    def get_pending_quant_availability(self, move_id, pending_lines):
         move = self.env["stock.move"].browse(move_id)
-        deleted_move_lines = move.move_line_ids - self
-        dirty_move_lines = self.env["stock.move.line"].browse(dirty_move_line_ids)
-        quants_data = []
-        move_lines_data = []
-        domain = Domain("id", "in", dirty_quant_ids) | Domain.OR(
+        if not move.exists():
+            return []
+        product_uom = move.product_id.uom_id
+        move_uom = move.product_uom_id or product_uom
+
+        pending_by_id = {}
+        new_lines = []
+        picked_quant_ids = set()
+        for line in pending_lines:
+            if line.get("quant_id"):
+                picked_quant_ids.add(line["quant_id"])
+            if line.get("id"):
+                pending_by_id[line["id"]] = line
+            else:
+                new_lines.append(line)
+
+        saved_lines = move.move_line_ids
+        kept_lines = saved_lines.filtered(lambda ml: ml.id in pending_by_id)
+        deleted_lines = saved_lines - kept_lines
+
+        changed_lines = kept_lines.filtered(
+            lambda ml: (
+                pending_by_id[ml.id].get("quant_id")
+                or ml.product_uom_id.compare(
+                    float(pending_by_id[ml.id].get("quantity") or 0.0), ml.quantity
+                )
+                != 0
+            )
+        )
+        touched_lines = changed_lines | deleted_lines
+
+        domain = Domain("id", "in", sorted(picked_quant_ids)) | Domain.OR(
             Domain(
                 [
-                    ("product_id", "=", move_line.product_id.id),
-                    ("lot_id", "=", move_line.lot_id.id),
-                    ("location_id", "=", move_line.location_id.id),
-                    ("package_id", "=", move_line.package_id.id),
-                    ("owner_id", "=", move_line.owner_id.id),
+                    ("product_id", "=", ml.product_id.id),
+                    ("lot_id", "=", ml.lot_id.id),
+                    ("location_id", "=", ml.location_id.id),
+                    ("package_id", "=", ml.package_id.id),
+                    ("owner_id", "=", ml.owner_id.id),
                 ],
             )
-            for move_line in dirty_move_lines | deleted_move_lines
+            for ml in touched_lines
         )
-        if not domain.is_false():
+        if domain.is_false():
+            return []
+        quants = self.env["stock.quant"].search(domain)
 
-            def _match_key(record):
-                return (
-                    record.product_id.id,
-                    record.lot_id.id,
-                    record.location_id.id,
-                    record.package_id.id,
-                    record.owner_id.id,
-                )
+        released = defaultdict(float)
+        for ml in touched_lines:
+            released[self._quant_match_key(ml)] += ml.quantity_product_uom
 
-            empty = self.env["stock.move.line"]
-            dirty_by_key = defaultdict(lambda: empty)
-            for move_line in dirty_move_lines:
-                dirty_by_key[_match_key(move_line)] |= move_line
-            deleted_by_key = defaultdict(lambda: empty)
-            for move_line in deleted_move_lines:
-                deleted_by_key[_match_key(move_line)] |= move_line
+        consumed_by_quant = defaultdict(float)
+        consumed_by_key = defaultdict(float)
+        for ml in changed_lines:
+            pending = pending_by_id[ml.id]
+            qty = ml.product_uom_id._compute_quantity(
+                float(pending.get("quantity") or 0.0), product_uom, round=False
+            )
+            if pending.get("quant_id"):
+                consumed_by_quant[pending["quant_id"]] += qty
+            else:
+                consumed_by_key[self._quant_match_key(ml)] += qty
+        for pending in new_lines:
+            if not pending.get("quant_id"):
+                continue
+            consumed_by_quant[pending["quant_id"]] += move_uom._compute_quantity(
+                float(pending.get("quantity") or 0.0), product_uom, round=False
+            )
 
-            quants = self.env["stock.quant"].search(domain)
-            for quant in quants:
-                key = _match_key(quant)
-                dirty_lines = dirty_by_key.get(key, empty)
-                deleted_lines = deleted_by_key.get(key, empty)
-                quants_data.append(
-                    (
-                        quant.id,
-                        {
-                            "available_quantity": quant.available_quantity
-                            + sum(ml.quantity_product_uom for ml in deleted_lines),
-                            "move_line_ids": dirty_lines.ids,
-                        },
+        availability = []
+        for quant in quants:
+            key = self._quant_match_key(quant)
+            available = (
+                quant.available_quantity
+                + released[key]
+                - consumed_by_key[key]
+                - consumed_by_quant[quant.id]
+            )
+            availability.append(
+                [
+                    quant.id,
+                    product_uom._compute_quantity(
+                        available, move_uom, rounding_method="DOWN"
                     ),
-                )
-                move_lines_data += [
-                    (ml.id, {"quantity": ml.quantity, "quant_id": quant.id})
-                    for ml in dirty_lines
                 ]
-        return [quants_data, move_lines_data]
+            )
+        return availability
 
     def _get_similar_move_lines(self):
         self.ensure_one()
@@ -1434,12 +1376,6 @@ class StockMoveLine(models.Model):
         return lines
 
     def _get_lines_and_packages_to_pack(self, picked_first=True):
-        """Get all move lines & packages that need to be put in a pack.
-
-        :param picked_first: If enabled, will prioritize picked move lines over other move lines.
-        :return: move_lines_to_pack: All move lines without a pack that can be packed
-        :return: packages_to_pack: All packages that can be packed
-        """
         if len(self.picking_type_id) > 1:
             raise UserError(
                 _(
@@ -1468,7 +1404,6 @@ class StockMoveLine(models.Model):
         return move_lines_to_pack, packages_to_pack
 
     def _get_lines_not_entire_pack(self):
-        """Checks within self for move lines that should no longer be considered as entire packs."""
         relevant_move_lines = self.filtered(lambda ml: ml.is_entire_pack)
         if not relevant_move_lines:
             return self.browse()
@@ -1534,9 +1469,6 @@ class StockMoveLine(models.Model):
         )
 
     def _get_write_field_updates(self, vals):
-        """Resolve the reservation-affecting relational fields present in `vals` to recordsets,
-        so the reservation re-sync can compare old vs new characteristics. Returns an empty dict
-        when the caller opts out via the `skip_uom_conversion` context key."""
         triggers = [
             ("location_id", "stock.location"),
             ("location_dest_id", "stock.location"),
@@ -1558,20 +1490,6 @@ class StockMoveLine(models.Model):
         return updates
 
     def _link_or_create_moves(self):
-        """Give a `stock.move` to move lines created directly on a picking (e.g. from detailed
-        operations). For an ongoing picking, attach to a compatible existing move if any, else
-        a new one; a done picking always gets a fresh done move. New moves are batched --
-        ongoing lines sharing a (picking, product) reuse one (mirroring `_get_linkable_moves`),
-        while each done line gets its own.
-
-        The link to an *existing* move is written per line on purpose, not batched:
-        `stock.move.quantity` is the sum of its lines, so attaching one line changes
-        whether `_get_linkable_moves` still reports that move as short of its demand for
-        the next one. Deferring the writes would pile every line onto the first short
-        move instead of spreading them.
-
-        :return: OrderedSet of the newly created move ids.
-        """
         new_move_vals = []
         lines_per_new_move = []
         new_move_idx_by_key = {}
@@ -1616,13 +1534,6 @@ class StockMoveLine(models.Model):
 
     @api.model
     def _log_message(self, thread, tracked_record, template, vals):
-        """Post a chatter note on `thread` describing the changes `vals` applied to
-        `tracked_record` (a `stock.move` or `stock.move.line`), resolving each changed
-        relational id to its display name.
-
-        This uses no records from `self`; `tracked_record` is passed to the template under the
-        name ``move`` (the render contract expected by ``stock.message_body`` & friends).
-        """
         data = vals.copy()
         if "lot_id" in vals and vals["lot_id"] != tracked_record.lot_id.id:
             data["lot_name"] = self.env["stock.lot"].browse(vals.get("lot_id")).name
@@ -1657,9 +1568,6 @@ class StockMoveLine(models.Model):
 
     @api.model
     def _prepare_create_vals(self, vals_list):
-        """Fill `company_id`, default `picked`, and quant-derived characteristics into each
-        vals before creation, prefetching the parent moves/pickings in one shot so the per-vals
-        reads (company_id, picked) don't fire a query each."""
         moves = self.env["stock.move"].browse(
             OrderedSet(vals["move_id"] for vals in vals_list if vals.get("move_id"))
         )
@@ -1762,7 +1670,7 @@ class StockMoveLine(models.Model):
         if self._should_display_put_in_pack_wizard(
             package_id, package_type_id, package_name, from_package_wizard
         ):
-            action = self.env["ir.actions.actions"]._for_xml_id(
+            action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
                 "stock.action_put_in_pack_wizard"
             )
             action["context"] = {
@@ -1817,21 +1725,6 @@ class StockMoveLine(models.Model):
         return package
 
     def _reservation_holding_lines(self):
-        """The lines that hold a quant reservation: a non-zero quantity at a location
-        that does not bypass reservation.
-
-        The bypass verdict is taken on the *line's* own location, which is where
-        :meth:`_apply_reservation_delta` puts the reservation. Deciding it on the move's
-        location instead -- as the create path once did -- let a line whose source
-        differed from its move's in usage class reserve without releasing (the release
-        then landed on a sibling line's reservation) or release without reserving
-        (stranding a reservation on a virtual location forever).
-
-        (No `reserved_quant` context indirection either: quant
-        `_update_reserved_quantity` is @api.model and `_gather` never filters `self`,
-        so routing the call through a quant recordset from the context was a no-op
-        pretending to target that quant.)
-        """
         return self.filtered(
             lambda ml: (
                 not ml.product_id.uom_id.is_zero(ml.quantity_product_uom)
@@ -1840,8 +1733,6 @@ class StockMoveLine(models.Model):
         )
 
     def _reserve_new_move_lines(self):
-        """Reserve quants for the freshly created, not-yet-done move lines, then recompute the
-        state of the moves whose reservation changed."""
         lines = self.filtered(
             lambda ml: ml.state != "done"
         )._reservation_holding_lines()
@@ -1849,17 +1740,6 @@ class StockMoveLine(models.Model):
         lines.move_id._recompute_state()
 
     def _resync_reservation(self, vals, updates):
-        """Writing a reserved line's location, lot, package, owner, product_uom_id or quantity
-        desyncs the quants' reserved quantity from the sum of the lines' `quantity_product_uom`,
-        so unreserve the old characteristics and reserve the new ones (falling back to whatever
-        is available). Runs for any reservation-affecting change -- `quantity`, or any trigger
-        except the destination-side ones (`result_package_id`, `location_dest_id`), which are
-        irrelevant to a reservation keyed on source characteristics; those keys are subtracted
-        rather than tested for absence so the re-sync still fires when one is written alongside
-        a real trigger.
-
-        :return: the moves whose state must be recomputed because their quantity/uom changed.
-        """
         moves_to_recompute_state = self.env["stock.move"]
         if not (
             (set(updates) - {"result_package_id", "location_dest_id"})
@@ -1916,24 +1796,6 @@ class StockMoveLine(models.Model):
         reserved_delta=None,
         **quants_value,
     ):
-        """quantity is expressed in the product's UoM.
-
-        ``reserved_delta`` is a signed reservation change applied to the *same* quant
-        row, in the *same* update, as ``quantity`` -- for callers that change both at
-        once (see `_apply_quant_move`'s ``release_reserved``). It is subject to the same
-        bypass rule as ``action="reserved"``: a location that bypasses reservation holds
-        none to change. It is meaningful only for ``action="available"``; the
-        ``"reserved"`` branch changes a reservation and nothing else.
-
-        A removal that drives a lot's on-hand negative is compensated from untracked
-        stock at the same location. That repair is sized by the *on-hand shortfall*
-        (:meth:`stock.quant._get_on_hand_shortfall`), capped at what this call moved --
-        never by ``available_qty``, which nets off reserved quantity and so both
-        overstates the repair and reports a shortfall for a quant that merely has all
-        of its stock reserved. ``available_qty < 0`` survives only as the cheap
-        pre-filter it validly is: reserved is non-negative, so a negative on-hand always
-        shows up as a negative availability first.
-        """
         lot = quants_value.get("lot", self.lot_id)
         package = quants_value.get("package", self.package_id)
         owner = quants_value.get("owner", self.owner_id)
@@ -1969,16 +1831,6 @@ class StockMoveLine(models.Model):
         return available_qty, in_date
 
     def _compensate_lot_shortfall(self, location, lot, package, owner, cap, in_date):
-        """Cover a negative on-hand on `lot`'s quant by moving untracked stock at the
-        same location onto it.
-
-        Sized by the *on-hand* shortfall, capped at `cap` (what the caller just moved),
-        and capped again at the untracked stock actually there. Never by
-        `available_qty`: that nets off reserved quantity, so it both overstates the
-        repair -- restoring the lot to where it started rather than to zero, leaving a
-        shipped lot still showing stock -- and reports a shortfall for a quant whose
-        on-hand is fine and merely fully reserved.
-        """
         Quant = self.env["stock.quant"]
         shortfall = Quant._get_on_hand_shortfall(
             self.product_id, location, lot, package_id=package, owner_id=owner
@@ -2037,20 +1889,6 @@ class StockMoveLine(models.Model):
         return None
 
     def _check_write_allowed(self, vals):
-        """Guard writes this fork forbids: changing the product outside 'draft' state, or
-        changing the lot/serial across move lines of differing products.
-
-        Idempotent, and `write` calls it twice on purpose: once on the raw vals, so the
-        multi-product guard rejects a `quant_id` write before anything tries to resolve
-        it, and again once `_copy_quant_info` has expanded `quant_id` into the
-        characteristics it implies -- otherwise `quant_id` is a back door that changes
-        `product_id` on a non-draft line without ever tripping the guard that a direct
-        `product_id` write hits.
-
-        A line that has *no* product yet is exempt from the first rule: filling one in
-        is not changing one, and a blank detail row picking its product from a quant is
-        the ordinary "Pick From" flow.
-        """
         if "product_id" in vals and any(
             ml.product_id
             and vals.get("state", ml.state) != "draft"
@@ -2067,17 +1905,6 @@ class StockMoveLine(models.Model):
             )
 
     def _should_bypass_reservation(self, location):
-        """Whether this line's stock at ``location`` is exempt from reservation.
-
-        ``location`` is always the one the reservation actually sits at -- this
-        line's, never its move's. Every reserve/release path routes through here so
-        the two cannot disagree: deciding on the move's location while reserving at
-        the line's let a line reserve without releasing (or release without
-        reserving) whenever the two differed in usage class.
-
-        Safe for lines without a move: ``stock.move._should_bypass_reservation``
-        ``ensure_one()``s, so calling it through an empty ``move_id`` raises.
-        """
         self.ensure_one()
         if self.move_id:
             return self.move_id._should_bypass_reservation(location)
@@ -2094,9 +1921,5 @@ class StockMoveLine(models.Model):
         )
 
     def _should_set_package(self):
-        """Reads `picking_type_id`, not `picking_id.picking_type_id`: the field is the
-        one derivation of the concept, and modules that source it from elsewhere (mrp
-        from the production order) extend the compute. Spelling it through the picking
-        answered False for every line whose operation type does not come from one."""
         package_type = self.picking_type_id
         return len(package_type) == 1 and package_type.set_package_type

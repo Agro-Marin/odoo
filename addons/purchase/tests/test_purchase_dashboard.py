@@ -14,8 +14,6 @@ class TestPurchaseDashboard(AccountTestInvoicingCommon, MailCase):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Create two new users
-        # user_a needs group_purchase_user_all to see all POs for global dashboard counts
         cls.user_a = new_test_user(
             cls.env,
             login="purchaseusera",
@@ -25,7 +23,6 @@ class TestPurchaseDashboard(AccountTestInvoicingCommon, MailCase):
             cls.env, login="purchaseuserb", groups="purchase.group_purchase_user"
         )
 
-        # Create two products.
         product_data = {
             "name": "SuperProduct",
             "type": "consu",
@@ -39,15 +36,10 @@ class TestPurchaseDashboard(AccountTestInvoicingCommon, MailCase):
 
     @classmethod
     def default_env_context(cls):
-        # OVERRIDE
         return {}
 
     @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_purchase_dashboard(self):
-        """Test purchase dashboard values with multiple users."""
-
-        # Create 3 Request for Quotations with lines.
-        # Set user_id to allow access via personal purchase order rule
         rfqs = self.env["purchase.order"].create(
             [
                 {
@@ -70,7 +62,6 @@ class TestPurchaseDashboard(AccountTestInvoicingCommon, MailCase):
                 line_2.product_qty = qty
             rfq_form.save()
 
-        # Create 1 late RFQ without line (assigned to user_b so user_a sees 0 in 'my' late).
         self.env["purchase.order"].create(
             [
                 {
@@ -83,7 +74,6 @@ class TestPurchaseDashboard(AccountTestInvoicingCommon, MailCase):
             ]
         )
 
-        # Create 1 draft RFQ for user A.
         self.env["purchase.order"].with_user(self.user_a).create(
             [
                 {
@@ -100,19 +90,15 @@ class TestPurchaseDashboard(AccountTestInvoicingCommon, MailCase):
         with self.mock_mail_gateway():
             rfqs[0].with_user(self.user_a).write({"sent": True})
             self.flush_tracking()
-        # Sanity checks for rfq sent flag.
         self.assertTrue(rfqs[0].sent)
         with self.mock_mail_gateway():
             rfqs[1].with_user(self.user_b).write({"sent": True})
             self.flush_tracking()
         self.assertTrue(rfqs[1].sent)
 
-        # Confirm Orders with lines.
         rfqs.action_confirm()
-        # Retrieve dashboard as User A to check 'my_{to_send, waiting, late}' values.
         dashboard_result = rfqs.with_user(self.user_a).prepare_dashboard()
 
-        # Check dashboard values
         self.assertFalse(dashboard_result["global"]["sent"]["all"])
         self.assertFalse(dashboard_result["my"]["late"]["all"])
         self.assertEqual(dashboard_result["global"]["draft"]["all"], 2)
@@ -120,13 +106,9 @@ class TestPurchaseDashboard(AccountTestInvoicingCommon, MailCase):
         self.assertEqual(dashboard_result["my"]["draft"]["all"], 1)
         self.assertEqual(dashboard_result["global"]["late"]["all"], 1)
 
-        # `multiuser` is the authoritative flag the client uses to show the
-        # global/my split. Here user_b owns orders user_a can see, so global
-        # and my differ and the flag must be True.
         self.assertTrue(dashboard_result["multiuser"])
 
     def test_prepare_dashboard_multiuser_flag_single_user(self):
-        """The multiuser flag is False when only the current user's orders exist."""
         self.env["purchase.order"].with_user(self.user_a).create(
             {
                 "partner_id": self.partner_a.id,
@@ -139,14 +121,7 @@ class TestPurchaseDashboard(AccountTestInvoicingCommon, MailCase):
         self.assertFalse(result["multiuser"])
 
     def test_send_reminder_preview_without_email_returns_dict(self):
-        """The reachable crash scenario: a reminder-group member with no email
-        configured clicks the preview button. The method must return a warning
-        dict, not None -- the toaster widget dereferences the payload, so None
-        used to raise a TypeError on the client. (The happy path that actually
-        sends the mail is covered end-to-end by the purchase-flow tour.)
-        """
         order = self.env["purchase.order"].create({"partner_id": self.partner_a.id})
-        # Pass email=False explicitly: new_test_user auto-generates one otherwise.
         reminder_user = new_test_user(
             self.env,
             login="purchasereminder",
@@ -157,3 +132,31 @@ class TestPurchaseDashboard(AccountTestInvoicingCommon, MailCase):
         self.assertIsInstance(result, dict)
         self.assertEqual(result.get("toast_type"), "warning")
         self.assertTrue(result.get("toast_message"))
+
+    def test_prepare_dashboard_days_to_order_is_numeric(self):
+        result = self.env["purchase.order"].with_user(self.user_a).prepare_dashboard()
+        for scope in ("global", "my"):
+            self.assertIsInstance(
+                result[scope]["days_to_order"],
+                float,
+                f"{scope}.days_to_order must be numeric for the template comparison",
+            )
+
+    def test_dashboard_cards_have_matching_search_filters(self):
+        action = self.env.ref("purchase.action_purchase_order")
+        arch = self.env["purchase.order"].get_views(
+            [(action.search_view_id.id, "search")],
+        )["views"]["search"]["arch"]
+        for name in (
+            "draft_rfqs",
+            "waiting_rfqs",
+            "late",
+            "not_acknowledged",
+            "late_receipt",
+            "my_purchases",
+        ):
+            self.assertIn(
+                f'name="{name}"',
+                arch,
+                f"dashboard card filter {name!r} is missing from the search view",
+            )

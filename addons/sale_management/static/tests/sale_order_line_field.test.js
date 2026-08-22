@@ -106,14 +106,14 @@ class SaleOrder extends saleModels.SaleOrder {
         {
             id: 1,
             name: "Optional Sections Sale order",
-            order_line: SaleOrderLine._records.map(record => record.id),
+            line_ids: SaleOrderLine._records.map(record => record.id),
         },
     ];
     _views = {
         form: `
             <form>
                 <field
-                    name="order_line"
+                    name="line_ids"
                     widget="sol_o2m"
                     options="{'subsections': True, 'hide_composition': True, 'hide_prices': True}"
                 >
@@ -186,7 +186,7 @@ test("Setting section optional should reset some fields", async () => {
         expect.step('web_save');
         expect(args[1]).toEqual(
             {
-                order_line: [
+                line_ids: [
                     [1, 10, { collapse_composition: false, collapse_prices: false }],
                     [1, 8, { collapse_composition: false, collapse_prices: false }],
                     [1, 5, { is_optional: true }],
@@ -233,7 +233,7 @@ test("Unsetting optional section should reset some fields", async () => {
         expect.step('web_save');
         expect(args[1]).toEqual(
             {
-                order_line: [
+                line_ids: [
                     [1, 5, { is_optional: false }],
                     [1, 6, { product_uom_qty: 1 }],
                     [1, 7, { product_uom_qty: 1 }],
@@ -278,15 +278,15 @@ test("drag and drop regular line inside optional section resets some fields", as
     onRpc('web_save', ({ args }) => {
         expect.step('web_save');
 
-        expect(args[1].order_line.find(commands => commands[1] === 13)[2].product_uom_qty).toEqual(  // Sec4-r1
+        expect(args[1].line_ids.find(commands => commands[1] === 13)[2].product_uom_qty).toEqual(  // Sec4-r1
             0,
             { message: "Drag and drop inside optional section should reset product_uom_qty to 0" },
         );
-        expect(args[1].order_line.find(commands => commands[1] === 11)[2].product_uom_qty).toEqual(  // Sec3-sub2-r1
+        expect(args[1].line_ids.find(commands => commands[1] === 11)[2].product_uom_qty).toEqual(  // Sec3-sub2-r1
             1,
             { message: "Drag and drop line with 0 quantity outside optional section should reset product_uom_qty to 1" },
         );
-        expect(args[1].order_line.find(commands => commands[1] === 9)?.[2].product_uom_qty).toEqual(  // Sec3-sub1-r1
+        expect(args[1].line_ids.find(commands => commands[1] === 9)?.[2].product_uom_qty).toEqual(  // Sec3-sub1-r1
             undefined,
             { message: "Drag and drop line with non-zero quantity outside optional section shouldn't reset product_uom_qty" }
         );
@@ -315,15 +315,15 @@ test("Moving Optional Sections to include some lines should set quantity to 0", 
     onRpc('web_save', ({ args }) => {
         expect.step('web_save');
 
-        expect(args[1].order_line.find(commands => commands[1] === 7)[2].product_uom_qty).toEqual(  // Sec3-r2
+        expect(args[1].line_ids.find(commands => commands[1] === 7)[2].product_uom_qty).toEqual(  // Sec3-r2
             0,
             { message: "New lines added to an optional section should have product_uom_qty set to 0" },
         );
-        expect(args[1].order_line.find(commands => commands[1] === 9)[2].product_uom_qty).toEqual(  // Sec3-sub1-r1
+        expect(args[1].line_ids.find(commands => commands[1] === 9)[2].product_uom_qty).toEqual(  // Sec3-sub1-r1
             0,
             { message: "New lines added to a subsection of an optional section should also have product_uom_qty set to 0" },
         );
-        expect(args[1].order_line.find(commands => commands[1] === 13)?.[2].product_uom_qty).toEqual( // Sec4-r1
+        expect(args[1].line_ids.find(commands => commands[1] === 13)?.[2].product_uom_qty).toEqual( // Sec4-r1
             undefined,
             { message: "Existing optional lines should keep their current product_uom_qty" }
         );
@@ -349,19 +349,19 @@ test("Moving Optional Sections to exclude some lines should set quantity to 1", 
     onRpc('web_save', ({ args }) => {
         expect.step('web_save');
 
-        expect(args[1].order_line.find(command => command[1] === 6)[2].product_uom_qty).toEqual(  // Sec3-r1
+        expect(args[1].line_ids.find(command => command[1] === 6)[2].product_uom_qty).toEqual(  // Sec3-r1
             1,
             { message: "Non-optional lines should reset product_uom_qty to 1 when it was previously 0." },
         );
-        expect(args[1].order_line.find(command => command[1] === 7)?.[2].product_uom_qty).toEqual(  // Sec3-r2
+        expect(args[1].line_ids.find(command => command[1] === 7)?.[2].product_uom_qty).toEqual(  // Sec3-r2
             undefined,
             { message: "Non-optional lines should keep their existing product_uom_qty when it was already non-zero." },
         );
-        expect(args[1].order_line.find(command => command[1] === 9)[2].product_uom_qty).toEqual(  // Sec3-sub1-r1
+        expect(args[1].line_ids.find(command => command[1] === 9)[2].product_uom_qty).toEqual(  // Sec3-sub1-r1
             1,
             { message: "Lines moved out of an optional subsection should reset product_uom_qty to 1 when it was 0." },
         );
-        expect(args[1].order_line.find(command => command[1] === 11)?.[2].product_uom_qty).toEqual(  // Sec3-sub2-r1
+        expect(args[1].line_ids.find(command => command[1] === 11)?.[2].product_uom_qty).toEqual(  // Sec3-sub2-r1
             undefined,
             { message: "Lines moved out of an optional subsection should keep their existing product_uom_qty when it was already non-zero." },
         );

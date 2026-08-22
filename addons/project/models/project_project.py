@@ -288,9 +288,9 @@ class ProjectProject(models.Model):
         compute="_compute_active_sprint_id",
         export_string_translation=False,
     )
-    sprint_count = fields.Integer(
+    sprint_count = fields.Count(
+        "sprint_ids",
         "Sprint Count",
-        compute="_compute_sprint_count",
         export_string_translation=False,
     )
 
@@ -460,9 +460,9 @@ class ProjectProject(models.Model):
         string="Benefits",
         export_string_translation=False,
     )
-    benefit_count = fields.Integer(
+    benefit_count = fields.Count(
+        "benefit_ids",
         "Benefit Count",
-        compute="_compute_benefit_count",
         export_string_translation=False,
     )
 
@@ -487,11 +487,7 @@ class ProjectProject(models.Model):
         string="Gate Reviews",
         export_string_translation=False,
     )
-    gate_count = fields.Integer(
-        "Gates",
-        compute="_compute_gate_count",
-        export_string_translation=False,
-    )
+    gate_count = fields.Count("gate_ids", "Gates", export_string_translation=False)
 
     # ── Project History ──────────────────────────────────────────────
     history_ids = fields.One2many(
@@ -713,18 +709,6 @@ class ProjectProject(models.Model):
                 lambda s: s.state == "active"
             )[:1]
 
-    @api.depends("sprint_ids")
-    def _compute_sprint_count(self) -> None:
-        """Count sprints per project."""
-        for project in self:
-            project.sprint_count = len(project.sprint_ids)
-
-    @api.depends("benefit_ids")
-    def _compute_benefit_count(self) -> None:
-        """Count benefits per project."""
-        for project in self:
-            project.benefit_count = len(project.benefit_ids)
-
     @api.depends("baseline_ids", "baseline_ids.is_current")
     def _compute_current_baseline_id(self) -> None:
         """Find the current baseline for each project."""
@@ -732,12 +716,6 @@ class ProjectProject(models.Model):
             project.current_baseline_id = project.baseline_ids.filtered("is_current")[
                 :1
             ]
-
-    @api.depends("gate_ids")
-    def _compute_gate_count(self) -> None:
-        """Count gate reviews per project."""
-        for project in self:
-            project.gate_count = len(project.gate_ids)
 
     def action_archive_to_history(self) -> None:
         """Create a project.history record from this project's current state."""
@@ -2516,7 +2494,7 @@ class ProjectProject(models.Model):
     # ---------------------------------------------------
 
     def action_project_task_burndown_chart_report(self) -> dict:
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "project.action_project_task_burndown_chart_report"
         )
         action["display_name"] = _("%(name)s's Burndown Chart", name=self.name)
@@ -2535,7 +2513,7 @@ class ProjectProject(models.Model):
 
     def action_open_scatter_plot(self) -> dict:
         """Open cycle time scatter plot filtered to this project's tasks."""
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "project.action_project_task_scatter"
         )
         action["display_name"] = _("%(name)s's Cycle Time Scatter", name=self.name)
@@ -2565,7 +2543,7 @@ class ProjectProject(models.Model):
             if team_size:
                 domain.append(("team_size", ">=", max(1, team_size - 2)))
                 domain.append(("team_size", "<=", team_size + 2))
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "project.action_project_history"
         )
         action["display_name"] = _("Similar Projects to %(name)s", name=self.name)
@@ -2573,7 +2551,7 @@ class ProjectProject(models.Model):
         return action
 
     def project_update_all_action(self) -> dict:
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "project.project_update_all_action"
         )
         action["display_name"] = _("%(name)s Dashboard", name=self.name)
@@ -2590,7 +2568,7 @@ class ProjectProject(models.Model):
             "active_id": self.id,
             "active_model": "project.project",
         }
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "project.project_share_wizard_action"
         )
         if self.env.context.get("default_access_mode"):
@@ -2614,7 +2592,7 @@ class ProjectProject(models.Model):
         action = (
             self.env["ir.actions.act_window"]
             .with_context(active_id=self.id)
-            ._for_xml_id("project.act_project_project_2_project_task_all")
+            ._get_action_dict_by_xml_id("project.act_project_project_2_project_task_all")
         )
         action["display_name"] = self.name
         context = action["context"].replace("active_id", str(self.id))
@@ -2640,7 +2618,7 @@ class ProjectProject(models.Model):
 
     def action_view_all_rating(self) -> dict:
         """Return the action to see all the rating of the project and activate default filters"""
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "project.rating_rating_action_view_project_rating"
         )
         action["display_name"] = _("%(name)s's Rating", name=self.name)
@@ -2675,7 +2653,7 @@ class ProjectProject(models.Model):
 
     def action_view_tasks_analysis(self) -> dict:
         """Return the action to see the tasks analysis report of the project"""
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "project.action_project_task_user_tree"
         )
         action["display_name"] = _("%(name)s's Tasks Analysis", name=self.name)
@@ -2692,7 +2670,7 @@ class ProjectProject(models.Model):
         # generic (res_model, res_id) reference pair, so the domain cannot
         # push the project filter down through an ORM join.
         task_ids = self.env["project.task"].search([("project_id", "=", self.id)]).ids
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "project.action_project_task_assigned_resources"
         )
         action["display_name"] = _("%(name)s's Assigned Resources", name=self.name)
@@ -2703,14 +2681,14 @@ class ProjectProject(models.Model):
         return action
 
     def action_get_list_view(self) -> dict:
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "project.project_milestone_action"
         )
         action["display_name"] = _("%(name)s's Milestones", name=self.name)
         return action
 
     def action_view_tasks_from_project_milestone(self) -> dict:
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "project.project_milestone_action_view_tasks"
         )
         action["display_name"] = _("Tasks")

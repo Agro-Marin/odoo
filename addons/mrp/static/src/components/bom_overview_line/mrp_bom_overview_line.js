@@ -1,6 +1,10 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { formatFloat, formatFloatTime, formatMonetary } from "@web/core/formatters";
+import {
+    formatFieldFloat,
+    formatFloatTime,
+    formatMonetary,
+} from "@web/core/formatters";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 
@@ -31,7 +35,7 @@ export class BomOverviewLine extends Component {
     setup() {
         this.actionService = useService("action");
         this.ormService = useService("orm");
-        this.formatFloat = formatFloat;
+        this.formatFloat = formatFieldFloat;
         this.formatFloatTime = formatFloatTime;
         this.formatMonetary = (val) =>
             formatMonetary(val, { currencyId: this.data.currency_id });

@@ -22,7 +22,7 @@ class SaleLoyaltyCouponWizard(models.TransientModel):
         all_rewards = self.env['loyalty.reward']
         for rewards in status.values():
             all_rewards |= rewards
-        action = self.env['ir.actions.actions']._for_xml_id('sale_loyalty.sale_loyalty_reward_wizard_action')
+        action = self.env['ir.actions.actions']._get_action_dict_by_xml_id('sale_loyalty.sale_loyalty_reward_wizard_action')
         action['context'] = {
             'active_id': self.order_id.id,
             'default_reward_ids': all_rewards.ids,

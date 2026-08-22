@@ -7,10 +7,6 @@ from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 @tagged("-at_install", "post_install")
 class TestPurchaseFlowTourPostInstall(AccountTestInvoicingCommon, HttpCase):
     def test_basic_purchase_flow_with_minimal_access_rights(self):
-        """
-        Test that a purchase user with minimal access rights can open both the list and form view,
-        create and process a purchase order, upload and open the associated vendor bill.
-        """
         purchase_user = self.env["res.users"].create(
             {
                 "name": "Super Purchase Woman",
@@ -18,7 +14,6 @@ class TestPurchaseFlowTourPostInstall(AccountTestInvoicingCommon, HttpCase):
                 "group_ids": [Command.set([self.ref("purchase.group_purchase_user")])],
             }
         )
-        # create and confirm a PO to populate the list view
         purchase_order = (
             self.env["purchase.order"]
             .with_user(purchase_user.id)

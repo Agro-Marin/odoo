@@ -6,7 +6,7 @@ class EventQuestionAnswer(models.Model):
 
     def action_add_rule_button(self):
         self.ensure_one()
-        action = self.env['ir.actions.actions']._for_xml_id('event_crm.event_lead_rule_answer_action')
+        action = self.env['ir.actions.actions']._get_action_dict_by_xml_id('event_crm.event_lead_rule_answer_action')
         action['context'] = {
             'default_name': self.name,
             'default_lead_user_id': self.env.user.id,

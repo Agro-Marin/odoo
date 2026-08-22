@@ -53,7 +53,7 @@ class EventEvent(models.Model):
     def get_kiosk_url(self):
         return self.get_base_url() + "/odoo/registration-desk"
 
-    def _get_default_stage_id(self):
+    def _default_stage_id(self):
         return self.env['event.stage'].search([], limit=1)
 
     def _default_description(self):
@@ -62,7 +62,7 @@ class EventEvent(models.Model):
             ._render_template('event.event_default_descripton')
 
     def _default_event_mail_ids(self):
-        return self.env['event.type']._default_event_mail_type_ids()
+        return self.env['event.type']._default_event_type_mail_ids()
 
     @api.model
     def _lang_get(self):
@@ -106,7 +106,7 @@ class EventEvent(models.Model):
         ('cancel', 'Cancelled')
     ], default='normal', copy=False, compute='_compute_kanban_state', readonly=False, store=True, tracking=True)
     stage_id = fields.Many2one(
-        'event.stage', ondelete='restrict', default=_get_default_stage_id,
+        'event.stage', ondelete='restrict', default=_default_stage_id,
         group_expand='_read_group_expand_full', tracking=True, copy=False)
     # Seats and computation
     seats_max = fields.Integer(
@@ -153,7 +153,7 @@ class EventEvent(models.Model):
         'Sold Out', compute='_compute_event_registrations_sold_out', compute_sudo=True,
         help='The event is sold out if no more seats are available on event. If ticketing is used and all tickets are sold out, the event will be sold out.')
     start_sale_datetime = fields.Datetime(
-        'Start sale date', compute='_compute_start_sale_date',
+        'Start sale date', compute='_compute_start_sale_datetime',
         help='If ticketing is used, contains the earliest starting sale date of tickets.')
     # Date fields
     date_tz = fields.Selection(
@@ -164,7 +164,7 @@ class EventEvent(models.Model):
         help="When the event is scheduled to take place (expressed in your local timezone on the form view).")
     date_end = fields.Datetime(string='End Date', required=True, tracking=True)
     is_ongoing = fields.Boolean('Is Ongoing', compute='_compute_is_ongoing', search='_search_is_ongoing')
-    is_one_day = fields.Boolean(compute='_compute_field_is_one_day')
+    is_one_day = fields.Boolean(compute='_compute_is_one_day')
     is_finished = fields.Boolean(compute='_compute_is_finished', search='_search_is_finished')
     # Location and communication
     address_id = fields.Many2one(
@@ -301,7 +301,7 @@ class EventEvent(models.Model):
           * for cancelled events, registrations are not open;
           * event.date_end -> if event is done, registrations are not open anymore;
           * event.start_sale_datetime -> lowest start date of tickets (if any; start_sale_datetime
-            is False if no ticket are defined, see _compute_start_sale_date);
+            is False if no ticket are defined, see _compute_start_sale_datetime);
           * any ticket is available for sale (seats available) if any;
           * seats are unlimited or seats are available;
         """
@@ -334,7 +334,7 @@ class EventEvent(models.Model):
                 )
 
     @api.depends('event_ticket_ids.start_sale_datetime')
-    def _compute_start_sale_date(self):
+    def _compute_start_sale_datetime(self):
         """ Compute the start sale date of an event. Currently lowest starting sale
         date of tickets if they are used, of False. """
         for event in self:
@@ -380,7 +380,7 @@ class EventEvent(models.Model):
         return [('date_begin', '<=', now), ('date_end', '>', now)]
 
     @api.depends('date_begin', 'date_end', 'date_tz')
-    def _compute_field_is_one_day(self):
+    def _compute_is_one_day(self):
         for event in self:
             # Need to localize because it could begin late and finish early in
             # another timezone
@@ -525,7 +525,7 @@ class EventEvent(models.Model):
           * lines that have no registrations linked are remove;
           * type lines are added;
 
-        Note that updating event_ticket_ids triggers _compute_start_sale_date
+        Note that updating event_ticket_ids triggers _compute_start_sale_datetime
         (start_sale_datetime computation) so ensure result to avoid cache miss.
         """
         for event in self:

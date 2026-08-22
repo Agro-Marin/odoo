@@ -103,7 +103,7 @@ class ResPartner(models.Model):
     def action_view_tasks(self) -> dict:
         self.ensure_one()
         action = {
-            **self.env["ir.actions.actions"]._for_xml_id(
+            **self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
                 "project.project_task_action_from_partner"
             ),
             "display_name": _("%(partner_name)s's Tasks", partner_name=self.name),

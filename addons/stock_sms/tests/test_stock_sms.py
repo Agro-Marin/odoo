@@ -15,7 +15,7 @@ class TestStockSms(TransactionCase):
         """A company defaults its delivery-confirmation SMS to the data template."""
         expected = self.env.ref("stock_sms.sms_template_data_stock_delivery")
         self.assertEqual(
-            self.company._default_confirmation_sms_picking_template(), expected.id
+            self.company._default_stock_sms_confirmation_template_id(), expected.id
         )
 
     def test_check_warn_sms_is_disabled_during_tests(self):

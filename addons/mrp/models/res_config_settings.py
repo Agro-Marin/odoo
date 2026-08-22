@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import api, fields, models
 
 
@@ -44,14 +42,12 @@ class ResConfigSettings(models.TransientModel):
                 )
                 op_to_update.active = True
         if not self.group_mrp_workorder_dependencies:
-            # Disabling this option should not interfere with currently planned productions
             self.env["mrp.bom"].sudo().search(
                 [("allow_operation_dependencies", "=", True)]
             ).allow_operation_dependencies = False
 
     @api.onchange("group_unlocked_by_default")
     def _onchange_group_unlocked_by_default(self):
-        """When changing this setting, we want existing MOs to automatically update to match setting."""
         if self.group_unlocked_by_default:
             self.env["mrp.production"].search(
                 [("state", "not in", ("cancel", "done")), ("is_locked", "=", True)]

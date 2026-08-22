@@ -26,7 +26,7 @@ class ProjectTask(models.Model):
     sale_line_id = fields.Many2one(
         'sale.order.line', 'Sales Order Item',
         copy=True, tracking=True, index='btree_not_null', recursive=True,
-        compute='_compute_sale_line', store=True, readonly=False,
+        compute='_compute_sale_line_id', store=True, readonly=False,
         domain=lambda self: str(self._domain_sale_line_id()),
         help="Sales Order Item to which the time spent on this task will be added in order to be invoiced to your customer.\n"
              "By default the sales order item set on the project will be selected. In the absence of one, the last prepaid sales order item that has time remaining will be used.\n"
@@ -109,7 +109,7 @@ class ProjectTask(models.Model):
                 task.sale_order_id = task.sale_line_id = False
 
     @api.depends('sale_line_id.partner_id', 'parent_id.sale_line_id', 'project_id.sale_line_id', 'milestone_id.sale_line_id', 'allow_billable')
-    def _compute_sale_line(self):
+    def _compute_sale_line_id(self):
         for task in self:
             if not (task.allow_billable or task.parent_id.allow_billable):
                 task.sale_line_id = False

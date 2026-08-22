@@ -24,7 +24,7 @@ class AccountMoveLine(models.Model):
     # ORDER LINE LINKS
     # ------------------------------------------------------------
 
-    def _get_order_line_link_fields(self):
+    def _get_fields_order_line_link(self):
         """Many2many fields linking this invoice line back to its order lines.
 
         Each order module appends its own (``sale_line_ids``,
@@ -43,7 +43,7 @@ class AccountMoveLine(models.Model):
         the order's invoiced quantities stop adding up.
         """
         super()._copy_data_extend_business_fields(values)
-        for field_name in self._get_order_line_link_fields():
+        for field_name in self._get_fields_order_line_link():
             values[field_name] = [Command.set(self[field_name].ids)]
 
     def _related_analytic_distribution(self):
@@ -55,7 +55,7 @@ class AccountMoveLine(models.Model):
         them would be worse than taking the one the line came from.
         """
         vals = super()._related_analytic_distribution()
-        for field_name in self._get_order_line_link_fields():
+        for field_name in self._get_fields_order_line_link():
             if order_lines := self[field_name]:
                 vals |= order_lines[0].analytic_distribution or {}
         return vals

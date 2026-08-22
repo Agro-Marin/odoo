@@ -7,8 +7,6 @@ from odoo.addons.stock.tests.common import TestStockCommon
 
 @tagged("post_install", "-at_install")
 class TestStockTraceabilityReport(TestStockCommon):
-    """Cover the pure-stock traceability paths the mrp suite doesn't exercise."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -44,7 +42,6 @@ class TestStockTraceabilityReport(TestStockCommon):
         return line
 
     def _build_chain(self):
-        """supplier -> stock -> shelf_1 -> customer, one lot the whole way."""
         ml1 = self._done_move_line(
             self.supplier_location, self.stock_location, datetime(2026, 1, 1)
         )

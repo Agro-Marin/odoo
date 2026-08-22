@@ -1,8 +1,3 @@
-"""Regression tests for the 2026-08 stock.picking audit: the stored shipping weight
-that stopped following the product weight, the cancelled transfer that returned to
-draft, the lot check that inspected nothing, the idempotent operation-type write, and
-the batched backorder creation."""
-
 from odoo.exceptions import UserError
 from odoo.tests import tagged
 
@@ -44,7 +39,6 @@ class TestPickingAuditFixes(TestStockCommon):
         return picking
 
     def test_shipping_weight_follows_the_move_quantity(self):
-        """Control for the test below: the declared dependency works."""
         product = self._storable(weight=2.0)
         self.env["stock.quant"]._update_available_quantity(
             product,
@@ -62,12 +56,6 @@ class TestPickingAuditFixes(TestStockCommon):
         self.assertEqual(picking.shipping_weight, 6.0)
 
     def test_shipping_weight_follows_the_product_weight(self):
-        """`shipping_weight` is stored and is what the carriers rate and label
-        against, so it has to follow the product weight `weight_bulk` reads. Before
-        the fix `_compute_bulk_weight` never declared `product_id.weight`, so the
-        non-stored `weight_bulk` self-healed while the stored value kept a number
-        computed from a weight the product no longer had.
-        """
         product = self._storable(weight=2.0)
         self.env["stock.quant"]._update_available_quantity(
             product,
@@ -86,11 +74,6 @@ class TestPickingAuditFixes(TestStockCommon):
         self.assertEqual(picking.shipping_weight, 50.0)
 
     def test_weight_and_volume_of_an_unsaved_picking(self):
-        """An unsaved picking has no rows to group, so the read_group path reports
-        nothing. The cache path has to answer for it -- `shipping_weight` is editable
-        on the form, so 0.0 would be shown to the user next to lines that say
-        otherwise.
-        """
         product = self._storable(weight=3.0, volume=2.0)
         picking = self.env["stock.picking"].new(
             {"picking_type_id": self.picking_type_out.id},
@@ -124,11 +107,6 @@ class TestPickingAuditFixes(TestStockCommon):
         self.assertEqual(picking.shipping_volume, 8.0)
 
     def test_cancelled_moveless_picking_survives_a_write(self):
-        """`_compute_state` derives the state from the moves, and a picking with none
-        reads as draft. `action_cancel` still cancels empty transfers, and
-        `location_id` stays editable while cancelled, so touching "From" used to send
-        the transfer back to draft.
-        """
         picking = self.env["stock.picking"].create(
             {"picking_type_id": self.picking_type_out.id},
         )
@@ -150,10 +128,6 @@ class TestPickingAuditFixes(TestStockCommon):
         self.assertEqual(picking.state, "draft")
 
     def test_lot_check_covers_lines_that_will_be_autopicked(self):
-        """`_sanity_check` runs before `_pre_action_done_hook` auto-picks, and nothing
-        in the UI writes `picked`, so keying the lot check off `picked` alone left it
-        inspecting an empty set in the ordinary flow.
-        """
         self.picking_type_in.write(
             {"use_create_lots": True, "use_existing_lots": False},
         )
@@ -170,14 +144,6 @@ class TestPickingAuditFixes(TestStockCommon):
         self.assertTrue(picking._get_lot_move_lines_for_sanity_check())
 
     def test_multi_picking_lot_error_names_the_transfers(self):
-        """Validating several independent transfers names them in the error.
-
-        `auto_batch` is turned off when stock_picking_batch is installed: it would
-        put these two receipts in one batch, and `_should_show_transfers` then
-        deliberately reports the batch as a unit rather than listing its transfers.
-        That is the batch module's contract, not this one's — the field is set
-        through `_fields` because stock cannot import a downstream module's schema.
-        """
         vals = {"use_create_lots": True, "use_existing_lots": False}
         if "auto_batch" in self.picking_type_in._fields:
             vals["auto_batch"] = False
@@ -200,10 +166,6 @@ class TestPickingAuditFixes(TestStockCommon):
             self.assertIn(name, message)
 
     def test_autopick_still_ignores_a_pre_picked_scrap_move(self):
-        """Guards the asymmetry `_get_pickings_to_autopick` inherited from
-        `_pre_action_done_hook`: a picked scrap move must not suppress auto-picking
-        the real ones.
-        """
         product = self._storable()
         self.env["stock.quant"]._update_available_quantity(
             product,
@@ -274,10 +236,6 @@ class TestPickingAuditFixes(TestStockCommon):
             self.assertEqual(backorder.location_id, picking.location_id)
 
     def test_post_create_backorder_hook_runs_once_per_picking(self):
-        """The batched creation replaced `_create_backorder_picking` as the override
-        point; the hook has to fire for every (source, backorder) pair or modules
-        extending it lose their behaviour silently.
-        """
         product = self._storable()
         self.env["stock.quant"]._update_available_quantity(
             product,

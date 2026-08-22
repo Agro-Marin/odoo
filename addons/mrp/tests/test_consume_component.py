@@ -7,15 +7,6 @@ from odoo.tests import Form, common, tagged
 class TestConsumeComponentCommon(common.TransactionCase):
     @classmethod
     def setUpClass(cls):
-        """
-        The following variables are used in each test to define the number of MO to generate.
-        They're also used as a verification in the executeConsumptionTriggers() to see if enough MO were passed to it
-        in order to test all the triggers.
-
-        SERIAL : MO's product_tracking is 'serial'
-        DEFAULT : MO's product_tracking is 'none' or 'lot'
-        AVAILABLE : MO'S raw components are fully available
-        """
         super().setUpClass()
 
         cls.SERIAL_AVAILABLE_TRIGGERS_COUNT = 3
@@ -31,7 +22,6 @@ class TestConsumeComponentCommon(common.TransactionCase):
         )[0]
         cls.picking_type.use_create_components_lots = True
 
-        # Create Products & Components
         cls.produced_lot = cls.env["product.product"].create(
             {
                 "name": "Produced Lot",
@@ -81,14 +71,12 @@ class TestConsumeComponentCommon(common.TransactionCase):
 
         cls.raws = [cls.raw_none, cls.raw_lot, cls.raw_serial]
 
-        # Workcenter
         cls.workcenter = cls.env["mrp.workcenter"].create(
             {
                 "name": "Assembly Line",
             }
         )
 
-        # BoMs
         cls.bom_none = cls.env["mrp.bom"].create(
             {
                 "product_tmpl_id": cls.produced_none.product_tmpl_id.id,
@@ -122,7 +110,6 @@ class TestConsumeComponentCommon(common.TransactionCase):
 
         cls.bom_serial_lines = cls.create_bom_lines(cls.bom_serial, cls.raws, [3, 2, 1])
 
-        # Manufacturing Orders
         cls.mo_none_tmpl = {
             "product_id": cls.produced_none.id,
             "product_uom_id": cls.produced_none.uom_id.id,
@@ -200,13 +187,6 @@ class TestConsumeComponentCommon(common.TransactionCase):
         return cls.env["mrp.production"].create(vals)
 
     def executeConsumptionTriggers(self, mrp_productions):
-        """There's 3 different triggers to test : _onchange_producing(), action_generate_serial(), button_mark_done().
-
-        Depending on the tracking of the final product and the availability of the components,
-        only a part of these 3 triggers is available or intended to work.
-
-        This function automatically call and process the appropriate triggers.
-        """
         tracking = mrp_productions[0].product_tracking
         sameTracking = True
         for mo in mrp_productions:
@@ -258,11 +238,6 @@ class TestConsumeComponentCommon(common.TransactionCase):
 @tagged("post_install", "-at_install")
 class TestConsumeComponent(TestConsumeComponentCommon):
     def test_option_enabled_and_qty_available(self):
-        """Option enabled, qty available
-        -> Not Tracked components are fully consumed
-        -> Tracked components are fully consumed
-        """
-
         mo_none = self.create_mo(
             self.mo_none_tmpl, self.DEFAULT_AVAILABLE_TRIGGERS_COUNT
         )
@@ -284,7 +259,6 @@ class TestConsumeComponent(TestConsumeComponentCommon):
         quant |= self.create_quant(self.raw_serial, 1 * all_qty)
         quant.action_apply_inventory()
 
-        # Quantities are fully reserved (stock.move state is available)
         mo_all.action_assign()
         for mov in mo_all.move_raw_ids:
             self.assertEqual(
@@ -300,11 +274,6 @@ class TestConsumeComponent(TestConsumeComponentCommon):
             self.assertTrue(mov.picked, "All components should be picked")
 
     def test_option_enabled_and_qty_not_available(self):
-        """Option enabled, qty not available
-        -> Not Tracked components are fully consumed
-        -> Tracked components are not consumed
-        """
-
         mo_none = self.create_mo(self.mo_none_tmpl, self.DEFAULT_TRIGGERS_COUNT)
         mo_serial = self.create_mo(self.mo_serial_tmpl, self.SERIAL_TRIGGERS_COUNT)
         mo_lot = self.create_mo(self.mo_lot_tmpl, self.DEFAULT_TRIGGERS_COUNT)
@@ -312,7 +281,6 @@ class TestConsumeComponent(TestConsumeComponentCommon):
         mo_all = mo_none + mo_serial + mo_lot
         mo_all.action_confirm()
 
-        # Quantities are not reserved at all (stock.move state is confirmed)
         mo_all.action_assign()
         for mov in mo_all.move_raw_ids:
             self.assertEqual(0, mov.quantity, "Reserved quantity shall be equal to 0.")
@@ -335,12 +303,6 @@ class TestConsumeComponent(TestConsumeComponentCommon):
                 )
 
     def test_option_enabled_and_qty_partially_available(self):
-        """Option enabled, qty partially available
-        -> Not Tracked components are fully consumed
-        -> Tracked components are partially consumed
-        """
-
-        # Update BoM serial component qty
         self.bom_none_lines[2].product_qty = 2
         self.bom_serial_lines[2].product_qty = 2
         self.bom_lot_lines[2].product_qty = 2
@@ -353,12 +315,10 @@ class TestConsumeComponent(TestConsumeComponentCommon):
         quant |= self.create_quant(self.raw_serial, raw_tracked_qty)
         quant.action_apply_inventory()
 
-        # We must create & process each MO at once as we must assign quants for each individually
         def testUnit(mo_tmpl, serialTrigger=None):
             mo = self.create_mo(mo_tmpl, 1)
             mo.action_confirm()
 
-            #  are partially reserved (stock.move state is partially_available)
             mo.action_assign()
             for mov in mo.move_raw_ids:
                 if mov.has_tracking == "none":
@@ -382,7 +342,7 @@ class TestConsumeComponent(TestConsumeComponentCommon):
                 self.executeConsumptionTriggers(mo)
             elif serialTrigger == 1:
                 mo.qty_producing = 1
-                mo._set_qty_producing(False)
+                mo._inverse_qty_producing(False)
             elif serialTrigger == 2:
                 mo.action_generate_serial()
 
@@ -405,11 +365,6 @@ class TestConsumeComponent(TestConsumeComponentCommon):
         testUnit(self.mo_serial_tmpl, 2)
 
     def test_tracked_production_2_steps_manufacturing(self):
-        """
-        Create an MO for a product tracked by SN in 2-steps manufacturing with tracked components.
-        Assign a SN to the final product using the auto generation, then validate the pbm picking.
-        This test checks that the tracking of components is updated on the MO.
-        """
         warehouse = self.env.ref("stock.warehouse0")
         warehouse.manufacture_steps = "pbm"
         bom = self.bom_serial
@@ -498,9 +453,6 @@ class TestConsumeComponent(TestConsumeComponentCommon):
         mo.button_mark_done()
 
     def test_automatic_consume_new_added_component(self):
-        """
-        Create an MO for a product and set qty_producing than add a new component with quantity and automatically it's picked.
-        """
         sfg_product, compo1, compo2 = self.env["product.product"].create(
             [
                 {
@@ -583,10 +535,6 @@ class TestConsumeComponent(TestConsumeComponentCommon):
         )
 
     def test_no_component_consumption_on_lot_removal(self):
-        """
-        If we have a manufacturing order (MO) for a product tracked by lot, and we assign a lot number
-        and then unassign it, the components should not be consumed at that point.
-        """
         quant = self.create_quant(self.raw_none, 3)
         quant |= self.create_quant(self.raw_lot, 2)
         quant |= self.create_quant(self.raw_serial, 1)

@@ -7,7 +7,6 @@ from odoo import api, fields, models
 from odoo.exceptions import AccessDenied, UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.libs.datetime import timezone
-from odoo.libs.numbers import float_repr
 from odoo.tools import (
     SQL,
     format_amount,
@@ -32,12 +31,9 @@ class PurchaseOrder(models.Model):
     _check_company_auto = True
     _order = "priority desc, id desc"
 
-    def _get_rec_search_base_fields(self):
+    def _get_fields_rec_search_base(self):
         return ["name", "partner_ref"]
 
-    # ------------------------------------------------------------
-    # ORDER MIXIN ROUTING HOOKS
-    # ------------------------------------------------------------
 
     def _get_order_type(self):
         return "purchase"
@@ -45,9 +41,6 @@ class PurchaseOrder(models.Model):
     def _get_catalog_product_ok_field(self):
         return "purchase_ok"
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
 
     partner_id = fields.Many2one(
         string="Vendor",
@@ -65,8 +58,6 @@ class PurchaseOrder(models.Model):
         help="Put an address if you want to deliver directly from the vendor to the customer. "
         "Otherwise, keep empty to deliver to your own company.",
     )
-    # Only ``string`` and ``domain`` differ from ``order.mixin.user_id``; the
-    # rest (compute, store, precompute, readonly, index, tracking) is inherited.
     user_id = fields.Many2one(
         string="Buyer",
         domain=lambda self: """
@@ -79,15 +70,11 @@ class PurchaseOrder(models.Model):
             self.env.ref("purchase.group_purchase_user").ids,
         ),
     )
-    # Only ``string``, ``domain`` and ``help`` differ from
-    # ``order.mixin.journal_id``; the rest is inherited.
     journal_id = fields.Many2one(
         domain=[("type", "=", "purchase")],
         help="If set, the PO will invoice in this journal; "
         "otherwise the purchase journal with the lowest sequence is used.",
     )
-    # Same keys as ``order.mixin.state`` (draft/done/cancel), only relabelled.
-    # The rest is inherited.
     state = fields.Selection(
         selection=const.ORDER_STATE,
     )
@@ -110,7 +97,6 @@ class PurchaseOrder(models.Model):
         readonly=True,
     )
 
-    # Order line block
     line_ids = fields.One2many(comodel_name="purchase.order.line")
     date_commitment = fields.Datetime(
         string="Expected Arrival",
@@ -121,7 +107,6 @@ class PurchaseOrder(models.Model):
         help="Delivery date promised by vendor. "
         "This date is used to determine expected arrival of products.",
     )
-    # Invoice block
     invoice_ids = fields.Many2many(string="Bills")
     invoice_count = fields.Integer(string="Bill Count")
 
@@ -169,9 +154,6 @@ class PurchaseOrder(models.Model):
         readonly=False,
     )
 
-    # ------------------------------------------------------------
-    # CRUD METHODS
-    # ------------------------------------------------------------
 
     def copy(self, default=None):
         ctx = dict(self.env.context)
@@ -185,25 +167,12 @@ class PurchaseOrder(models.Model):
                 )
         return new_orders
 
-    # _unlink_except_draft_or_cancel is inherited from mixin.order (base_order).
-
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
 
     def _get_confirmed_type_name(self):
         return _("Purchase Order")
 
     @api.depends("state", "date_order", "date_confirmed")
     def _compute_date_calendar_start(self):
-        """
-        Compute calendar start date for purchase order.
-
-        Uses date_confirmed when order is confirmed (purchase state),
-        otherwise uses date_order.
-
-        :return: None (sets date_calendar_start field)
-        """
         for order in self:
             order.date_calendar_start = (
                 order.date_confirmed if order.state == "done" else order.date_order
@@ -214,7 +183,6 @@ class PurchaseOrder(models.Model):
         return self.company_id.po_quotation_validity_days
 
     def _get_default_user_from_partner(self):
-        """Buyer from the partner, falling back to the current user."""
         self.ensure_one()
         return (
             self.partner_id.user_purchase_id
@@ -256,7 +224,6 @@ class PurchaseOrder(models.Model):
 
     @api.depends("state", "line_ids", "line_ids.date_commitment")
     def _compute_date_commitment(self):
-        """date_commitment = the earliest date_commitment across all order lines."""
         for order in self:
             if order.state == "cancel":
                 order.date_commitment = False
@@ -325,12 +292,8 @@ class PurchaseOrder(models.Model):
     def _compute_purchase_warning_text(self):
         self._compute_warning_text("purchase_warning_text")
 
-    # ------------------------------------------------------------
-    # SEARCH METHODS
-    # ------------------------------------------------------------
 
     def _get_is_late_search_domain(self, domain, positive):
-        """Late purchases also require a line not yet fully transferred."""
         lines_domain = Domain("order_id", "any", domain) & Domain.custom(
             to_sql=lambda model, alias, query: SQL(
                 "%s < %s" if positive else "%s >= %s",
@@ -340,15 +303,8 @@ class PurchaseOrder(models.Model):
         )
         return Domain("line_ids", "any", lines_domain)
 
-    # ------------------------------------------------------------
-    # ONCHANGE METHODS
-    # ------------------------------------------------------------
 
     def onchange(self, values, field_names, fields_spec):
-        """
-        Override onchange to NOT update all date_commitment on PO lines when
-        date_commitment on PO is updated by the change of date_commitment on PO lines.
-        """
         result = super().onchange(values, field_names, fields_spec)
         if (
             any(self._must_delete_date_commitment(field) for field in field_names)
@@ -361,9 +317,6 @@ class PurchaseOrder(models.Model):
 
     @api.onchange("partner_id", "company_id")
     def onchange_partner_id(self):
-        # Ensures all properties and fiscal positions
-        # are taken with the company of the order
-        # if not defined, with_company doesn't change anything.
         self = self.with_company(self.company_id)
         if not self.partner_id:
             self.fiscal_position_id = False
@@ -385,14 +338,8 @@ class PurchaseOrder(models.Model):
 
     @api.onchange("company_id", "fiscal_position_id")
     def _onchange_fiscal_position_id(self):
-        """Trigger the recompute of the taxes if the fiscal position is changed"""
         self.line_ids._compute_tax_ids()
 
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
-
-    # action_acknowledge is inherited from mixin.order (base_order).
 
     def action_bill_matching(self):
         self.ensure_one()
@@ -419,56 +366,33 @@ class PurchaseOrder(models.Model):
             ],
         }
 
-    # action_confirm is inherited from mixin.order (base_order); purchase only
-    # customizes the post-confirmation hook below and _prepare_confirmation_values.
 
     def _action_confirm(self):
-        """Implementation of additional mechanism of Purchase Order confirmation.
-
-        This method should be extended when the confirmation should generate
-        other documents. In this method, the PO are in 'done' state.
-        """
         for order in self:
             order._create_supplier_to_product()
 
     def action_draft(self):
-        # Consistent with sale.order.action_draft: only draft/cancelled orders
-        # are resettable to draft. A confirmed order must be cancelled first, so
-        # calling this on one (e.g. via a server action or a mixed selection) is
-        # a graceful no-op rather than surfacing the low-level state-transition
-        # guard (done -> draft is intentionally illegal; see
-        # test_illegal_transition_done_to_draft_raises).
         self.filtered(lambda order: order.state in ("draft", "cancel")).write(
             {"state": "draft"},
         )
 
     def action_lock(self):
-        """Lock purchase orders to prevent modifications."""
         self.write({"locked": True, "priority": "0"})
 
-    # -------------------------------------------------------------------------
-    # RFQ Merge: purchase-specific hooks into mixin.order.merge (base_order).
-    # action_merge and the whole merge pipeline (eligibility, grouping, line
-    # consolidation, metadata, messages, result action) live in the mixin; PO
-    # only customises the wording and the finalize step below.
-    # -------------------------------------------------------------------------
 
     def _merge_validate_selection(self, orders):
-        # RFQ-specific wording (the mixin default says "orders").
         if len(orders) < 2:
             raise UserError(
                 _("Please select at least two RFQs to merge."),
             )
 
     def _get_merge_group_description(self):
-        # Criteria are those of _prepare_grouped_data below.
         return _("- Vendor\n- Currency\n- Dropship Address")
 
     def _get_merge_result_name(self):
         return _("Merged RFQs")
 
     def _merge_finalize(self, target, sources):
-        # Cancel the sources (mixin) then wire up alternative-PO references.
         super()._merge_finalize(target, sources)
         target._merge_alternative_po(sources)
 
@@ -480,7 +404,7 @@ class PurchaseOrder(models.Model):
 
     def action_purchase_comparison(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "purchase.action_purchase_history",
         )
         action["display_name"] = _("Purchase Comparison for %s", self.display_name)
@@ -488,7 +412,6 @@ class PurchaseOrder(models.Model):
         return action
 
     def action_send_rfq(self):
-        """Open the mail composer preloaded with the RFQ / PO template."""
         self.ensure_one()
         return self._action_send_by_email()
 
@@ -496,32 +419,20 @@ class PurchaseOrder(models.Model):
         return _("Compose Email")
 
     def _get_mail_composer_context(self):
-        """Seed the composer from the caller's context, then the shared keys.
-
-        Purchase's composers are opened from actions that already carry
-        ``default_*`` keys the wizard needs (the reminder mail, the RFQ button),
-        so the caller's context is kept underneath rather than discarded.
-        """
         return {**self.env.context, **super()._get_mail_composer_context()}
 
     def _get_mail_composer_lang_context(self):
-        # The "View..." button in the notification must name the document as it
-        # stands (RFQ vs Purchase Order), in the template's own language.
         return {
             **super()._get_mail_composer_lang_context(),
             "model_description": self.type_name,
         }
 
     def action_view_invoice(self, invoices=False):
-        """This function returns an action that display existing vendor bills of
-        given purchase order ids. When only one found, show the vendor bill
-        immediately.
-        """
         if not invoices:
             self.invalidate_model(["invoice_ids"])
             invoices = self.invoice_ids
 
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "account.action_move_in_invoice_type",
         )
 
@@ -558,9 +469,6 @@ class PurchaseOrder(models.Model):
         action["context"] = context
         return action
 
-    # ------------------------------------------------------------
-    # MAIL METHODS
-    # ------------------------------------------------------------
 
     def _create_update_date_activity(self, updated_dates):
         note = Markup("<p>%s</p>\n") % _(
@@ -579,22 +487,16 @@ class PurchaseOrder(models.Model):
             summary=_("Date Updated"),
             user_id=self.user_id.id,
         )
-        # add the note after we post the activity because the note can be soon
-        # changed when updating the date of the next PO line. So instead of
-        # sending a mail with incomplete note, we send one with no note.
         activity.note = note
         return activity
 
     def _tweak_notify_recipient_groups(self, groups):
-        # Tweak "view document" button for portal customers,
-        # calling directly routes for confirm specific to PO model.
         try:
             customer_portal_group = next(
                 group for group in groups if group[0] == "portal_customer"
             )
         except StopIteration:
             pass
-
         else:
             access_opt = customer_portal_group[2].setdefault("button_access", {})
             if self.env.context.get("is_reminder"):
@@ -607,7 +509,6 @@ class PurchaseOrder(models.Model):
 
     def _get_mail_subtitles(self, render_context):
         subtitles = [render_context["record"].name]
-        # don't show price on RFQ mail
         if self.state == "draft":
             subtitles.append(
                 _(
@@ -633,10 +534,8 @@ class PurchaseOrder(models.Model):
     def _get_state_track_subtype_xmlid(self, init_values):
         if "state" in init_values and self.state == "done":
             return "purchase.mt_rfq_confirmed"
-
         elif "locked" in init_values and self.locked:
             return "purchase.mt_rfq_done"
-
         elif "sent" in init_values and self.sent:
             return "purchase.mt_rfq_sent"
 
@@ -651,9 +550,6 @@ class PurchaseOrder(models.Model):
                 new_receipt_date=date.date(),
             )
 
-    # ------------------------------------------------------------
-    # CATALOGUE MIXIN METHODS
-    # ------------------------------------------------------------
 
     def action_add_from_catalog(self):
         res = super().action_add_from_catalog()
@@ -671,7 +567,7 @@ class PurchaseOrder(models.Model):
     def _get_action_add_from_catalog_extra_context(self):
         return {
             **super()._get_action_add_from_catalog_extra_context(),
-            "precision": self.env["decimal.precision"].precision_get("Product Unit"),
+            "precision": self.env["decimal.precision"].get_precision("Product Unit"),
             "product_catalog_currency_id": self.currency_id.id,
             "product_catalog_digits": self.line_ids._fields["price_unit"].get_digits(
                 self.env,
@@ -695,7 +591,6 @@ class PurchaseOrder(models.Model):
     def _catalog_on_line_created(self, line, **kwargs):
         line = super()._catalog_on_line_created(line, **kwargs)
         if line.selected_seller_id:
-            # Fix the PO line's price on the seller's one.
             seller = line.selected_seller_id
             price = seller.price
             if seller.currency_id != self.currency_id:
@@ -707,9 +602,6 @@ class PurchaseOrder(models.Model):
     def _get_catalog_line_price(self, line):
         return line.price_unit_discounted_taxexc
 
-    # ------------------------------------------------------------
-    # PRODUCT DOCUMENTS METHODS
-    # ------------------------------------------------------------
 
     def _get_import_template_label(self):
         return _("Import Template for Requests for Quotation")
@@ -717,24 +609,15 @@ class PurchaseOrder(models.Model):
     def _get_import_template_path(self):
         return "/purchase/static/xls/requests_for_quotation_import_template.xlsx"
 
-    # ------------------------------------------------------------
-    # EDI METHODS
-    # ------------------------------------------------------------
-
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
     def _create_downpayments(self, line_vals):
         return self._create_down_payment_lines(line_vals)
 
     def _get_invoiceable_lines(self, final=False):
-        """Bills cover every line; sections are filtered while building."""
         self.ensure_one()
         return self.line_ids
 
     def _prepare_invoice_line_commands(self, invoiceable_lines, sequence=10):
-        """Keep only the sections directly followed by a product line."""
         commands = []
         pending_section = None
         for line in invoiceable_lines:
@@ -757,7 +640,6 @@ class PurchaseOrder(models.Model):
         return ["company_id", "partner_id", "currency_id"]
 
     def _create_invoice_moves(self, invoice_vals_list):
-        """Plain per-company create (no sudo): billing needs account rights."""
         invoices = self.env["account.move"]
         AccountMove = self.env["account.move"].with_context(
             default_move_type=self._get_invoice_move_types()[0],
@@ -767,10 +649,8 @@ class PurchaseOrder(models.Model):
         return invoices
 
     def create_invoice(self, attachment_ids=False):
-        """Create the invoice associated to the PO."""
         invoices = self._create_invoices()
 
-        # Link the attachments to the invoice
         if attachment_ids:
             attachments = self.env["ir.attachment"].browse(attachment_ids)
             if attachments:
@@ -790,29 +670,10 @@ class PurchaseOrder(models.Model):
         return invoices
 
     def action_create_invoice_from_file(self, attachment_ids=False):
-        """Create a vendor bill from uploaded files and return navigation action.
-
-        Wrapper around :meth:`create_invoice` intended for the JS file uploader
-        widget, which needs an ``ir.actions.act_window`` dict to navigate to
-        the newly created bill. Python callers should use :meth:`create_invoice`
-        directly and work with the returned recordset.
-
-        :param attachment_ids: Optional list of ``ir.attachment`` IDs to link.
-        :returns: Window action opening the created vendor bill.
-        """
         invoices = self.create_invoice(attachment_ids=attachment_ids)
         return self.action_view_invoice(invoices)
 
     def _create_supplier_to_product(self):
-        """Add the partner to the supplier list of products on this order.
-
-        Creates supplier info records for products where the order's partner
-        is not yet registered as a seller, up to MAX_SUPPLIERS_PER_PRODUCT.
-
-        Performance: collects all new supplier info vals first, then creates
-        them in a single batch call instead of writing one-by-one per line.
-        """
-        # Do not add a contact as a supplier
         partner = (
             self.partner_id
             if not self.partner_id.parent_id
@@ -827,7 +688,6 @@ class PurchaseOrder(models.Model):
             if not line.product_id:
                 continue
             tmpl = line.product_id.product_tmpl_id
-            # Only add one supplierinfo per product template per order
             if tmpl.id in seen_tmpls:
                 continue
             already_seller = partners & line.product_id.seller_ids.mapped("partner_id")
@@ -840,7 +700,6 @@ class PurchaseOrder(models.Model):
 
             seen_tmpls.add(tmpl.id)
             price = line.price_unit
-            # Compute the price for the template's UoM, because the supplier's UoM is related to that UoM.
             if tmpl.uom_id != line.product_uom_id:
                 price = line.product_uom_id._compute_price(price, tmpl.uom_id)
 
@@ -850,8 +709,6 @@ class PurchaseOrder(models.Model):
                 price,
                 line.currency_id,
             )
-            # In case the order partner is a contact address, a new supplierinfo is created on
-            # the parent company. In this case, we keep the product name and code.
             if line.selected_seller_id:
                 supplierinfo["product_name"] = line.selected_seller_id.product_name
                 supplierinfo["product_code"] = line.selected_seller_id.product_code
@@ -859,7 +716,6 @@ class PurchaseOrder(models.Model):
             supplierinfo["product_tmpl_id"] = tmpl.id
             suppinfo_vals_list.append(supplierinfo)
 
-        # Supplier info should be added regardless of the user access rights
         if suppinfo_vals_list:
             self.env["product.supplierinfo"].sudo().create(suppinfo_vals_list)
 
@@ -867,25 +723,14 @@ class PurchaseOrder(models.Model):
         return self.get_portal_url(query_string="&acknowledge=True")
 
     def get_confirm_url(self, confirm_type=None):
-        """Create url for confirm reminder or purchase reception email for sending
-        in mail. Unsuported anymore. We only use the acknowledge mechanism. Keep it
-        for backward compatibility"""
         if confirm_type in ["reminder", "reception", "decline"]:
             return self.get_acknowledge_url()
         return self.get_portal_url()
 
     def _get_default_create_section_values(self):
-        """Return the default values for creating a section line in the purchase order through
-        catalog.
-
-        :return: A dictionary with default values for creating a new section.
-        :rtype: dict
-        """
         return {"product_qty": 0}
 
     def get_localized_date_commitment(self, date_commitment=False):
-        """Returns the localized date planned in the timezone of the order's user or the
-        company's partner or UTC if none of them are set."""
         self.ensure_one()
         date_commitment = date_commitment or self.date_commitment
         if not date_commitment:
@@ -897,7 +742,6 @@ class PurchaseOrder(models.Model):
         return date_commitment.astimezone(tz)
 
     def _get_mail_template(self):
-        """RFQs get the request template, confirmed orders the order template."""
         self.ensure_one()
         xmlid = (
             "purchase.email_template_edi_purchase"
@@ -908,12 +752,9 @@ class PurchaseOrder(models.Model):
             self.env.ref(xmlid, raise_if_not_found=False) or self.env["mail.template"]
         )
 
-    # _get_mail_composer_lang is inherited from mixin.order (base_order).
 
     @api.model
     def _get_orders_to_remind(self):
-        """When auto sending a reminder mail, only send for unconfirmed purchase
-        order and not all products are service."""
         return self.search(
             [
                 ("partner_id", "!=", False),
@@ -928,19 +769,12 @@ class PurchaseOrder(models.Model):
         )
 
     def _get_product_price_and_data(self, product):
-        """Fetch the product's data used by the purchase's catalog.
-
-        :return: the product's price and, if applicable, the minimum quantity to
-                 buy and the product's packaging data.
-        :rtype: dict
-        """
         self.ensure_one()
         product_infos = {
             "price": product.standard_price,
             "uomDisplayName": product.uom_id.display_name,
         }
         params = {"order_id": self}
-        # Check if there is a price and a minimum quantity for the order's vendor.
         seller = product._select_seller(
             partner_id=self.partner_id,
             quantity=None,
@@ -955,10 +789,6 @@ class PurchaseOrder(models.Model):
             if seller.currency_id != self.currency_id:
                 price = seller.currency_id._convert(price, self.currency_id)
             if seller.product_uom_id != product_uom_id:
-                # The discounted price is expressed in the product's UoM, not in the vendor
-                # price's UoM, so we need to convert it into to match the displayed UoM.
-                # Display value: degrade rather than raise when the vendor quotes
-                # in a unit unrelated to the product's own (which is allowed).
                 price = product_uom_id._compute_price_report(
                     price, seller.product_uom_id
                 )
@@ -978,14 +808,10 @@ class PurchaseOrder(models.Model):
         return f"Purchase Order-{self.name}"
 
     def get_timezone(self):
-        """Returns the timezone of the order's user or the company's partner
-        or UTC if none of them are set."""
         self.ensure_one()
         return timezone(self.user_id.tz or self.company_id.partner_id.tz or "UTC")
 
     def get_update_url(self):
-        """Create portal url for user to update the scheduled date on purchase
-        order lines."""
         update_param = urlencode({"update": "True"})
         return self.get_portal_url(query_string="&%s" % update_param)
 
@@ -994,9 +820,6 @@ class PurchaseOrder(models.Model):
 
     @api.model
     def prepare_dashboard(self):
-        """This function returns the values to populate the custom dashboard in
-        the purchase order views.
-        """
         if not self.env.user._is_internal():
             raise AccessDenied
 
@@ -1034,7 +857,6 @@ class PurchaseOrder(models.Model):
                 if priority != "0":
                     dict_to_update["my"][key]["priority"] += count
 
-        # easy counts
         groupby = ["priority", "user_id"]
         aggregate = ["id:count_distinct"]
         rfq_draft_domain = [("state", "=", "draft")]
@@ -1084,8 +906,6 @@ class PurchaseOrder(models.Model):
             fields.Datetime.now() - relativedelta(months=3),
         )
 
-        # Use SQL aggregation instead of Python loop for better performance
-        # This computes averages in a single query instead of iterating all POs
         self.env.cr.execute(
             """
             SELECT
@@ -1104,17 +924,15 @@ class PurchaseOrder(models.Model):
         avg_global_deliveries_seconds = row[0] or 0
         avg_my_deliveries_seconds = row[1] or 0
 
-        result["global"]["days_to_order"] = float_repr(
+        result["global"]["days_to_order"] = round(
             avg_global_deliveries_seconds / 60 / 60 / 24,
-            precision_digits=2,
+            2,
         )
-        result["my"]["days_to_order"] = float_repr(
+        result["my"]["days_to_order"] = round(
             avg_my_deliveries_seconds / 60 / 60 / 24,
-            precision_digits=2,
+            2,
         )
 
-        # Authoritative "are other users' orders in scope" flag, so the client
-        # doesn't have to infer it by structurally comparing the two dicts.
         count_keys = ("draft", "sent", "late", "not_acknowledged", "late_receipt")
         result["multiuser"] = (
             any(
@@ -1127,18 +945,9 @@ class PurchaseOrder(models.Model):
         return result
 
     def _prepare_confirmation_values(self):
-        """Prepare the purchase order confirmation values.
-
-        Note: self can contain multiple records.
-
-        :return: Purchase Order confirmation values
-        :rtype: dict
-        """
         return {"state": "done", "date_confirmed": fields.Datetime.now()}
 
     def _prepare_down_payment_line_section_values(self):
-        """Name the section explicitly: purchase's ``_compute_name`` needs a
-        product, so a display-type line would otherwise come out blank."""
         return {
             **super()._prepare_down_payment_line_section_values(),
             "name": _("Down Payments"),
@@ -1148,7 +957,6 @@ class PurchaseOrder(models.Model):
         return (rfq.partner_id.id, rfq.currency_id.id, rfq.dest_address_id.id)
 
     def _prepare_invoice_vals(self):
-        """Prepare the dict of values to create the new invoice for a purchase order."""
         values = super()._prepare_invoice_vals()
         partner_bank_id = self.commercial_partner_id.bank_ids.filtered_domain(
             [("company_id", "in", (False, self.company_id.id))],
@@ -1157,7 +965,6 @@ class PurchaseOrder(models.Model):
         return values
 
     def _prepare_supplierinfo(self, partner, line, price, currency):
-        # Prepare supplierinfo data when adding a product
         return {
             "partner_id": partner.id,
             "sequence": (
@@ -1230,12 +1037,6 @@ class PurchaseOrder(models.Model):
         }
 
     def send_reminder_preview(self):
-        """Send the reminder email to the current user as a preview.
-
-        Always returns a ``{"toast_message", "toast_type"}`` dict so the
-        ``toaster_button`` widget can give the user feedback in every case,
-        including the ones where nothing could be sent.
-        """
         self.ensure_one()
         if not self.env.user.has_group("purchase.group_send_reminder"):
             return {
@@ -1274,7 +1075,6 @@ class PurchaseOrder(models.Model):
         }
 
     def _update_order_lines_date_commitment(self, updated_dates):
-        # create or update the activity
         activity = self.env["mail.activity"].search(
             [
                 ("summary", "=", _("Date Updated")),
@@ -1289,28 +1089,11 @@ class PurchaseOrder(models.Model):
         else:
             self._create_update_date_activity(updated_dates)
 
-        # update the date on PO line
         for line, date in updated_dates:
             line._update_date_commitment(date)
 
-    # ------------------------------------------------------------
-    # VALIDATIONS
-    # ------------------------------------------------------------
-
-    # _can_confirm_proper_state, _can_confirm_has_lines and
-    # _can_confirm_lines_have_product are inherited from mixin.order
-    # (base_order); purchase only implements the analytic-distribution check.
 
     def _can_confirm_analytic_distribution(self):
-        """Ensure all order lines have valid analytic distributions.
-
-        Analytic distributions must be validated before confirming the order
-        to prevent creating confirmed orders with invalid accounting data.
-        This validation is triggered when context key 'validate_analytic' is True.
-
-        For each order with invalid analytics, collects the line numbers and
-        specific validation errors to help users fix the issues.
-        """
         if not self.env.context.get("validate_analytic"):
             return
 
@@ -1333,7 +1116,7 @@ class PurchaseOrder(models.Model):
                             "  • Line %(line_num)s (%(product)s): %(error)s",
                             line_num=line.sequence or "?",
                             product=line.product_id.display_name or _("No product"),
-                            error=str(e).split("\n")[0],  # First line of error message
+                            error=str(e).split("\n")[0],
                         ),
                     )
 
@@ -1360,31 +1143,17 @@ class PurchaseOrder(models.Model):
             )
 
     def _get_can_cancel_validation_methods(self):
-        """Extend the base cancel validators with the posted-bill guard.
-
-        ``_can_cancel_check_state`` and ``_can_cancel_except_locked`` come from
-        mixin.order (base_order); purchase adds ``_can_cancel_except_invoiced``.
-        """
         return [
             *super()._get_can_cancel_validation_methods(),
             "_can_cancel_except_invoiced",
         ]
 
     def _can_cancel_except_invoiced(self):
-        """Ensure orders don't have posted vendor bills.
-
-        Purchase orders with posted bills cannot be cancelled as this would
-        create accounting inconsistencies. Bills must be cancelled first.
-
-        Performance note: Uses filtered() to avoid loading all invoice records.
-        """
-        # Optimized: Use filtered instead of any() to leverage ORM
         orders_with_posted_invoices = self.filtered(
             lambda order: order.invoice_ids.filtered(lambda inv: inv.state == "posted"),
         )
 
         if orders_with_posted_invoices:
-            # Build detailed error message with order and invoice info
             error_details = []
             for order in orders_with_posted_invoices:
                 posted_bills = order.invoice_ids.filtered(lambda i: i.state == "posted")
@@ -1406,9 +1175,4 @@ class PurchaseOrder(models.Model):
             )
 
     def _must_delete_date_commitment(self, field_name):
-        # To be overridden
         return field_name == "line_ids"
-
-    # _should_be_locked is inherited from mixin.order (base_order): it resolves
-    # company.order_lock_po and the purchase.group_auto_done_setting group
-    # generically via _get_lock_setting_field / _get_order_type.

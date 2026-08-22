@@ -6,7 +6,6 @@ class StockTraceabilityReport(models.TransientModel):
 
     @api.model
     def _get_line_allowed_models(self):
-        # _get_reference below emits lines anchored on both models
         return super()._get_line_allowed_models() | {"mrp.production", "mrp.unbuild"}
 
     @api.model

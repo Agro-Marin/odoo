@@ -1,7 +1,3 @@
-"""Regression tests for the 2026-07 stock audit fixes on the picking / picking
-type / package / lot / scrap models (findings #1, #13-#23 and the
-picking/lot/package low-severity group)."""
-
 import json
 from datetime import timedelta
 
@@ -51,9 +47,6 @@ class TestAuditFixesPicking(TestStockCommon):
         return picking
 
     def test_package_type_company_only_write_without_sequence(self):
-        """A company-only write on a package type without a sequence must not
-        try to create a nameless sequence (NotNullViolation), and must move the
-        existing sequences of the other types to the new company."""
         no_seq_type = self.env["stock.package.type"].create({"name": "No Seq"})
         seq_type = self.env["stock.package.type"].create(
             {"name": "With Seq", "sequence_code": "PTAUD"}
@@ -108,8 +101,6 @@ class TestAuditFixesPicking(TestStockCommon):
         self.assertEqual(sum(backorder.move_ids.mapped("product_uom_qty")), 3)
 
     def test_lot_company_change_guard_multi_location(self):
-        """The guard must fire even when the lot spans several locations (where
-        the computed `location_id` reads False)."""
         product = self.ProductObj.create(
             {"name": "Lot audit product", "is_storable": True, "tracking": "lot"}
         )
@@ -187,10 +178,6 @@ class TestAuditFixesPicking(TestStockCommon):
         self.assertEqual(picking_type.default_location_dest_id, self.shelf_1)
 
     def test_picking_type_multistep_locations_survive_step_change(self):
-        """Warehouse-managed step locations (e.g. the pack type's source =
-        packing zone) must never be clobbered back to `lot_stock_id` by the
-        generic default-location logic when the warehouse switches steps —
-        regression for the sale_stock MTO-multistep return failure."""
         self.warehouse_1.delivery_steps = "pick_pack_ship"
         pack_type = self.warehouse_1.pack_type_id
         self.assertEqual(
@@ -210,8 +197,6 @@ class TestAuditFixesPicking(TestStockCommon):
         )
 
     def test_picking_type_incoming_source_without_warehouse(self):
-        """The missing-warehouse redirect must not fire for the branch that
-        does not read the warehouse (incoming source = supplier location)."""
         picking_type = self.env["stock.picking.type"].create(
             {
                 "name": "Audit incoming no WH",
@@ -361,9 +346,6 @@ class TestAuditFixesPicking(TestStockCommon):
             self.assertAlmostEqual(picking.shipping_weight, expected[picking.id])
 
     def test_reception_report_not_shown_for_other_warehouse_demand(self):
-        """Multi-warehouse batch validation: the demand probe must pair each
-        warehouse's locations with that warehouse's own received products, not
-        cross every warehouse's locations with every picking's products."""
         self.env.user.group_ids += self.env.ref("stock.group_reception_report")
         warehouse_2 = self.env["stock.warehouse"].create(
             {"name": "Audit WH RR", "code": "AWHR"}
@@ -587,10 +569,6 @@ class TestAuditFixesPicking(TestStockCommon):
 
 @tagged("post_install", "-at_install")
 class TestAuditAvailabilitySearch(TestStockCommon):
-    """The products_availability_state search must classify a picking exactly
-    like `_compute_products_availability` (a short move makes the whole picking
-    'late', regardless of its other moves)."""
-
     def test_availability_search_matches_display_state(self):
         in_stock = self.env["product.product"].create(
             {"name": "Avail In Stock", "is_storable": True},

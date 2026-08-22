@@ -6,7 +6,7 @@ class MixinOrderAmount(models.AbstractModel):
 
     Consolidates the tax computation pattern that is identical in sale.order
     and purchase.order — both delegate to ``account.tax._get_tax_totals_summary()``
-    via a shared helper ``_build_tax_totals_data()``.
+    via a shared helper ``_prepare_tax_totals_data()``.
 
     Hook: ``_get_additional_base_lines()`` — returns ``[]`` by default.
     Sale overrides to add early payment discount lines.
@@ -79,7 +79,7 @@ class MixinOrderAmount(models.AbstractModel):
 
     # ─── Tax Computation ───────────────────────────────────────────
 
-    def _build_tax_totals_data(self):
+    def _prepare_tax_totals_data(self):
         """Compute the tax totals summary for a single order.
 
         Shared helper called by both ``_compute_amounts`` (stored monetary
@@ -129,7 +129,7 @@ class MixinOrderAmount(models.AbstractModel):
         (``_compute_amounts``) derive from this one computation.
         """
         for order in self:
-            order.tax_totals = order._build_tax_totals_data()
+            order.tax_totals = order._prepare_tax_totals_data()
 
     @api.depends("tax_totals")
     def _compute_amounts(self):
@@ -191,7 +191,7 @@ class MixinOrderAmount(models.AbstractModel):
             if show_warning:
                 order.partner_credit_warning = self.env[
                     "account.move"
-                ]._build_credit_warning_message(
+                ]._prepare_credit_warning_message(
                     order.sudo(),  # ensure access to `credit` & `credit_limit` fields
                     current_amount=(order.amount_total / (order.currency_rate or 1.0)),
                 )

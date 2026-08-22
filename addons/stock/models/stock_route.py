@@ -74,7 +74,7 @@ class StockRoute(models.Model):
     )
     warehouse_domain_ids = fields.One2many(
         comodel_name="stock.warehouse",
-        compute="_compute_warehouses",
+        compute="_compute_warehouse_domain_ids",
     )
     warehouse_ids = fields.Many2many(
         comodel_name="stock.warehouse",
@@ -135,7 +135,7 @@ class StockRoute(models.Model):
         )
 
     @api.depends("company_id")
-    def _compute_warehouses(self):
+    def _compute_warehouse_domain_ids(self):
         for loc in self:
             domain = [("company_id", "=", loc.company_id.id)] if loc.company_id else []
             loc.warehouse_domain_ids = self.env["stock.warehouse"].search(domain)

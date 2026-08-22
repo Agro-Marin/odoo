@@ -43,12 +43,6 @@ class TestPackingCommon(TransactionCase):
 
 class TestPacking(TestPackingCommon):
     def test_package_name_regeneration_on_multi_write(self):
-        """Clearing the name on a recordset of >=2 packages must regenerate each
-        name from the sequence without raising. Regression: the write() branch used
-        to read ``self.package_type_id.id`` (the whole recordset) inside the per-record
-        loop, raising ``Expected singleton`` for multi-record writes and drawing the
-        name from the wrong record even for a singleton.
-        """
         packages = self.env["stock.package"].create(
             [{"name": "PKG-1"}, {"name": "PKG-2"}]
         )
@@ -57,13 +51,6 @@ class TestPacking(TestPackingCommon):
         self.assertEqual(len(set(packages.mapped("name"))), 2)
 
     def test_put_in_pack(self):
-        """In a pick pack ship scenario, create two packs in pick and check that
-        they are correctly recognised and handled by the pack and ship picking.
-        Along this test, we'll use action_toggle_processed to process a pack
-        from the entire_package_ids one2many and we'll directly fill the move
-        lines, the latter is the behavior when the user did not enable the display
-        of entire packs on the picking type.
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 20.0
         )
@@ -141,11 +128,6 @@ class TestPacking(TestPackingCommon):
         ship_picking._action_done()
 
     def test_put_in_pack_moves_button_auto_print_mixed(self):
-        """The 'Moves' button (`force_move_lines`) must not crash when the operation type
-        auto-prints package labels and some lines are already packed. `_post_put_in_pack_hook`
-        returns a print *action* rather than the created package in that case, which used to be
-        subtracted from a package recordset (`packages_to_pack -= <action dict>` -> TypeError).
-        """
         picking_type = self.env["stock.picking.type"].create(
             {
                 "name": "Auto-print delivery",
@@ -284,10 +266,6 @@ class TestPacking(TestPackingCommon):
         )
 
     def test_multi_pack_reservation(self):
-        """When we move entire packages, it is possible to add multiple times
-        the same package in the package list, we make sure that only one is added and that
-        the location_id of the package is the one where the package is once it is validated.
-        """
         pack = self.env["stock.package"].create({"name": "The pack to pick"})
         shelf1_location = self.env["stock.location"].create(
             {
@@ -321,10 +299,6 @@ class TestPacking(TestPackingCommon):
         self.assertEqual(pack.location_id, self.stock_location)
 
     def test_put_in_pack_to_different_location(self):
-        """Hitting 'Put in pack' button while some move lines go to different
-        location should trigger a wizard. This wizard applies the same destination
-        location to all the move lines
-        """
         shelf1_location = self.env["stock.location"].create(
             {
                 "name": "shelf1",
@@ -429,10 +403,6 @@ class TestPacking(TestPackingCommon):
         )
 
     def test_move_picking_with_package(self):
-        """
-        355.4 rounded with 0.01 precision is 355.4.
-        check that nonetheless, moving a picking is accepted
-        """
         location_dict = {
             "location_id": self.stock_location.id,
         }
@@ -477,9 +447,6 @@ class TestPacking(TestPackingCommon):
         picking._action_done()
 
     def test_move_picking_with_package_2(self):
-        """Generate two move lines going to different location in the same
-        package.
-        """
         shelf1 = self.env["stock.location"].create(
             {
                 "location_id": self.stock_location.id,
@@ -530,11 +497,6 @@ class TestPacking(TestPackingCommon):
             picking._action_done()
 
     def test_pack_delivery_three_step_propagate_package_consumable(self):
-        """Checks all works right in the following case:
-        * For a three-step delivery
-        * Put products in a package then validate the receipt.
-        * The automatically generated internal transfer should have package set by default.
-        """
         prod = self.env["product.product"].create(
             {"name": "bad dragon", "type": "consu"}
         )
@@ -564,13 +526,6 @@ class TestPacking(TestPackingCommon):
         )
 
     def test_pack_in_receipt_two_step_single_putway(self):
-        """Checks all works right in the following specific corner case:
-
-        * For a two-step receipt, receives two products using the same putaway
-        * Puts these products in a package then valid the receipt.
-        * Cancels the automatically generated internal transfer then create a new one.
-        * In this internal transfer, adds the package then valid it.
-        """
         grp_multi_loc = self.env.ref("stock.group_stock_multi_locations")
         grp_multi_step_rule = self.env.ref("stock.group_adv_location")
         grp_pack = self.env.ref("stock.group_tracking_lot")
@@ -692,14 +647,6 @@ class TestPacking(TestPackingCommon):
         internal_transfer.button_validate()
 
     def test_pack_in_receipt_two_step_multi_putaway(self):
-        """Checks all works right in the following specific corner case:
-
-        * For a two-step receipt, receives two products using two putaways
-        targeting different locations.
-        * Puts these products in a package then valid the receipt.
-        * Cancels the automatically generated internal transfer then create a new one.
-        * In this internal transfer, adds the package then valid it.
-        """
         grp_multi_loc = self.env.ref("stock.group_stock_multi_locations")
         grp_multi_step_rule = self.env.ref("stock.group_adv_location")
         grp_pack = self.env.ref("stock.group_tracking_lot")
@@ -828,9 +775,6 @@ class TestPacking(TestPackingCommon):
         internal_transfer.button_validate()
 
     def test_pack_in_pack_putaway(self):
-        """Ensure that if different putaway rules are set for different package type, then the putaway
-        related to the outermost package of each move line should apply.
-        """
         supplier_location = self.env.ref("stock.stock_location_suppliers")
         shelf2 = self.env["stock.location"].create(
             {
@@ -921,8 +865,6 @@ class TestPacking(TestPackingCommon):
         )
 
     def test_partial_put_in_pack(self):
-        """Create a simple move in a delivery. Reserve the quantity but set as quantity done only a part.
-        Call Put In Pack button."""
         self.productA.tracking = "lot"
         lot1 = self.env["stock.lot"].create(
             {
@@ -958,8 +900,6 @@ class TestPacking(TestPackingCommon):
         pack_picking.action_put_in_pack()
 
     def test_serial_partial_put_in_pack(self):
-        """Create a simple delivery order with a serial tracked product. Then split the move lines into two
-        different packages."""
         self.productA.tracking = "serial"
         self.warehouse.delivery_steps = "ship_only"
         serials = self.env["stock.lot"].create(
@@ -1018,17 +958,6 @@ class TestPacking(TestPackingCommon):
         )
 
     def test_action_assign_entire_package(self):
-        """calling _action_assign on move does not erase lines' "result_package_id"
-        At the end of the method ``StockMove._action_assign()``, the method
-        ``StockPicking._check_entire_pack()`` is called. This method compares
-        the move lines with the quants of their source package, and if the entire
-        package is moved at once in the same transfer, then the result package of
-        the move lines is directly updated with the entire package.
-        An override of ``StockPicking._check_move_lines_map_quant_package()`` ensures
-        that we ignore:
-        * picked lines (quantity > 0)
-        * lines with a different result package already
-        """
         package = self.env["stock.package"].create({"name": "Src Pack"})
         dest_package1 = self.env["stock.package"].create({"name": "Dest Pack1"})
 
@@ -1079,10 +1008,6 @@ class TestPacking(TestPackingCommon):
         )
 
     def test_entire_pack_overship(self):
-        """
-        Test the scenario of overshipping: we send the customer an entire package, even though it might be more than
-        what they initially ordered, and update the quantity on the sales order to reflect what was actually sent.
-        """
         self.warehouse.delivery_steps = "ship_only"
         package = self.env["stock.package"].create({"name": "Src Pack"})
         self.env["stock.quant"]._update_available_quantity(
@@ -1134,7 +1059,6 @@ class TestPacking(TestPackingCommon):
         self.assertEqual(len(backorders), 0, "Should not create a backorder")
 
     def test_picking_state_with_null_qty(self):
-        """Exclude empty stock move of the picking state computation"""
         delivery_form = Form(self.env["stock.picking"])
         picking_type_id = self.warehouse.out_type_id
         delivery_form.picking_type_id = picking_type_id
@@ -1165,9 +1089,6 @@ class TestPacking(TestPackingCommon):
         self.assertEqual(delivery.state, "assigned")
 
     def test_2_steps_and_backorder_new(self):
-        """When creating a backorder with a package, the latter should be reserved in the new picking. Moreover,
-        the initial picking shouldn't have any line about this package"""
-
         def create_picking(pick_type, from_loc, to_loc):
             picking = self.env["stock.picking"].create(
                 {
@@ -1239,11 +1160,6 @@ class TestPacking(TestPackingCommon):
         self.assertEqual(bo.move_ids.state, "assigned")
 
     def test_package_and_sub_location(self):
-        """
-        Suppose there are some products P available in shelf1, a child location of the pack location.
-        When moving these P to another child location of pack location, the source location of the
-        related package level should be shelf1
-        """
         shelf1_location = self.env["stock.location"].create(
             {
                 "name": "shelf1",
@@ -1280,12 +1196,6 @@ class TestPacking(TestPackingCommon):
         self.assertEqual(pack.location_id, shelf2_location)
 
     def test_pack_in_receipt_two_step_multi_putaway_02(self):
-        """
-        Suppose a product P, its weight is equal to 1kg
-        We have 100 x P on two pallets.
-        Receipt in two steps + Sub locations in WH/Stock + Storage Category
-        The Storage Category adds some constraints on weight/pallets capacity
-        """
         warehouse = self.stock_location.warehouse_id
         warehouse.reception_steps = "two_steps"
         self.productA.weight = 1.0
@@ -1419,14 +1329,6 @@ class TestPacking(TestPackingCommon):
         )
 
     def test_pack_in_receipt_two_step_multi_putaway_03(self):
-        """
-        Two sublocations (max 100kg, max 2 pallet)
-        Two products P1, P2, weight = 1kg
-        There are 10 x P1 on a pallet in the first sub location
-        Receive a pallet of 50 x P1 + 50 x P2 => because of weight constraint, should be redirected to the
-            second sub location
-        Then, same with max 200kg max 1 pallet => same result, this time because of pallet count constraint
-        """
         warehouse = self.stock_location.warehouse_id
         warehouse.reception_steps = "two_steps"
         self.productA.weight = 1.0
@@ -1575,20 +1477,6 @@ class TestPacking(TestPackingCommon):
         )
 
     def test_pack_in_receipt_two_step_multi_putaway_04(self):
-        """
-        Create a putaway rules for package type T and storage category SC. SC
-        only allows same products and has a maximum of 2 x T. Four SC locations
-        L1, L2, L3 and L4.
-        First, move a package that contains two different products: should not
-        redirect to L1/L2 because of the "same products" contraint.
-        Then, add one T-package (with product P01) at L1 and move 2 T-packages
-        (both with product P01): one should be redirected to L1 and the second
-        one to L2
-        Finally, move 3 T-packages (two with 1xP01, one with 1xP02): one P01
-        should be redirected to L2 and the second one to L3 (because of capacity
-        constraint), then P02 should be redirected to L4 (because of "same
-        product" policy)
-        """
         self.warehouse.reception_steps = "two_steps"
         supplier_location = self.env.ref("stock.stock_location_suppliers")
         input_location = self.warehouse.wh_input_stock_loc_id
@@ -1806,11 +1694,6 @@ class TestPacking(TestPackingCommon):
         )
 
     def test_rounding_and_reserved_qty(self):
-        """
-        Basic use case: deliver a storable product put in two packages. This
-        test actually ensures that the process 'put in pack' handles some
-        possible issues with the floating point representation
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 0.4
         )
@@ -1866,9 +1749,6 @@ class TestPacking(TestPackingCommon):
         self.assertEqual(len(picking.move_line_ids.result_package_id), 2)
 
     def test_put_out_of_pack_transfer(self):
-        """When a transfer has multiple products all in the same package, removing a product from the destination package
-        (i.e. removing it from the package but still putting it in the same location) shouldn't remove it for other products.
-        """
         loc_1 = self.env["stock.location"].create(
             {
                 "name": "Location A",
@@ -1978,10 +1858,6 @@ class TestPacking(TestPackingCommon):
         )
 
     def test_expected_to_pack(self):
-        """Test direct calling of `_get_lines_and_packages_to_pack` since it doesn't handle all multi-record cases
-        It's unlikely this situations will occur, but in case it is for customizations/future features,
-        ensure that we don't have unexpected behavior"""
-
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 20.0
         )
@@ -2059,12 +1935,6 @@ class TestPacking(TestPackingCommon):
         )
 
     def test_package_selection(self):
-        """
-        Test that the package selection is correct when using the least_package_strategy:
-        - Pack 1 -> 10 unit, PAck 2 -> 10 unit, Pack 3 -> 20 unit
-        - SO 1 -> 20 unit, SO 2 -> 10 unit, SO 3 -> 10 unit
-        SO 1 should be in Pack 3, SO 2 in Pack 1 and SO 3 in Pack 2
-        """
         product = self.env["product.product"].create(
             {
                 "name": "Product",
@@ -2242,7 +2112,6 @@ class TestPacking(TestPackingCommon):
             pack_1.location_id = self.shelf1
 
     def test_action_split_transfer(self):
-        """Check Split Picking if quantity `0 <= done < demand`"""
         loc_1 = self.env["stock.location"].create(
             {
                 "name": "Location A",
@@ -2297,7 +2166,6 @@ class TestPacking(TestPackingCommon):
         self.assertEqual(backorder.move_ids[1].product_uom_qty, 10)
 
     def test_put_in_pack_partial_different_destinations(self):
-        """Test putting some of the move lines of a pikcing with different destinations in a package"""
         self.productA.tracking = "serial"
 
         picking = self.env["stock.picking"].create(
@@ -2341,14 +2209,6 @@ class TestPacking(TestPackingCommon):
         )
 
     def test_pick_another_pack(self):
-        """Do a receipt and split the products in three different packages.
-        Enable move entire package for the delivery picking type
-        Create a delivery that require the quantities in the first two packages.
-        Remove the second package and use the third instead. Pick both package.
-        Check availability on the picking.
-        Ensure it results with the two first package reserved. The first and the third package
-        should be picked.
-        """
         self.warehouse.delivery_steps = "ship_only"
 
         pack1, pack2, pack3 = self.env["stock.package"].create(
@@ -2399,10 +2259,6 @@ class TestPacking(TestPackingCommon):
         )
 
     def test_picking_validation_with_already_reserved_pack(self):
-        """
-        Check that you can validate a picking moving a pack that has
-        already being reserved by an other picking.
-        """
         pack = self.env["stock.package"].create({"name": "The pack to pick"})
         locations = self.env["stock.location"].create(
             [
@@ -2493,8 +2349,6 @@ class TestPacking(TestPackingCommon):
 @odoo.tests.tagged("post_install", "-at_install")
 class TestPackagePropagation(TestPackingCommon):
     def test_reusable_package_propagation(self):
-        """Test a reusable package should not be propagated to the next picking
-        of a mto chain"""
         self.pack_type_pallet.package_use = "reusable"
         self.pack_type_box.package_use = "disposable"
         reusable_package = self.env["stock.package"].create(
@@ -2571,9 +2425,6 @@ class TestPackagePropagation(TestPackingCommon):
         )
 
     def test_conditional_package_propagation(self):
-        """If a picking completely moves the products of a package, you want to pass it as result_package_id.
-        On the other hand, if the quantity of the same pack is split between several pickings, you want to leave the result_package_id empty.
-        """
         package = self.env["stock.package"].create({"name": "packtest"})
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 30.0, package_id=package
@@ -2645,7 +2496,6 @@ class TestPackagePropagation(TestPackingCommon):
         )
 
     def test_multi_step_reservation_multi_level_packages(self):
-        """Checks that in a multi-step delivery, the packages are correctly re-assigned after the validation of the first step."""
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 6
         )
@@ -2708,10 +2558,6 @@ class TestPackagePropagation(TestPackingCommon):
         self.assertEqual(smol_pack.dest_complete_name, "Big > Mid > Smol")
 
     def test_add_only_child_package(self):
-        """Ensures that when adding packages directly into a picking, if that package has a
-        parent package but it isn't selected, then the parent won't be set as destination,
-        thus be removed from the parent.
-        """
         container, pack = self.env["stock.package"].create(
             [
                 {
@@ -2747,9 +2593,6 @@ class TestPackagePropagation(TestPackingCommon):
         self.assertEqual(pack.package_dest_id, container)
 
     def test_remove_part_of_entire_pack(self):
-        """Checks that removing quantity from an entire pack removes its `is_entire_pack` flag for all of its move lines,
-        while keeping the other ones untouched.
-        """
         pack1, pack2 = self.env["stock.package"].create(
             [
                 {
@@ -2791,9 +2634,6 @@ class TestPackagePropagation(TestPackingCommon):
         )
 
     def test_pack_in_pack_already_packed(self):
-        """Checks that if a package is already in another pack and we call put in pack again on it, it replaces its destination
-        container with the new one, and clears destination packages for now isolated packages.
-        """
         self.warehouse.in_type_id.set_package_type = False
         supplier_loc_id = self.ref("stock.stock_location_suppliers")
         receipt = self.env["stock.picking"].create(
@@ -2844,11 +2684,6 @@ class TestPackagePropagation(TestPackingCommon):
         self.assertFalse((pallet | container).picking_ids)
 
     def test_package_removal(self):
-        """Checks that the button 'Remove' in the package view in pickings behaves as expected:
-        - Only removes related move/move lines from the picking if it was only added through an entire pack
-        - Otherwise, just removes the package as destination
-        - When removing a destination container, don't remove its children, just reset their destination
-        """
         pack1, pack2, pack3 = self.env["stock.package"].create([{} for _ in range(3)])
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.warehouse.lot_stock_id, 2, package_id=pack1
@@ -2996,9 +2831,6 @@ class TestPackagePropagation(TestPackingCommon):
         self.assertFalse(pick.move_line_ids)
 
     def test_mid_level_package_removal(self):
-        """Checks that if a package is removed from a picking and implicitly disconnects the top-level packages from the bottom level ones,
-        Then those upper level packages reset their package_dest_id.
-        """
         packages = self.env["stock.package"].create(
             [
                 {
@@ -3085,7 +2917,6 @@ class TestPackagePropagation(TestPackingCommon):
         self.assertEqual(in_stock_move.package_ids, receipt.move_ids.package_ids)
 
     def test_package_info(self):
-        """Checks that package's location & company are correctly computed, be it in single or multiple layers"""
         pack1, pack2 = self.env["stock.package"].create(
             [
                 {"name": "Pack1"},

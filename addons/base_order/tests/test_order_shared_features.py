@@ -287,7 +287,7 @@ class TestOrderSharedFeatures(TransactionCase):
     def test_both_order_types_register_their_invoice_line_link(self):
         """The registry is what lets the two shared methods below exist at all;
         with both modules installed it must carry both fields."""
-        link_fields = self.env["account.move.line"]._get_order_line_link_fields()
+        link_fields = self.env["account.move.line"]._get_fields_order_line_link()
 
         self.assertIn("sale_line_ids", link_fields)
         self.assertIn("purchase_line_ids", link_fields)

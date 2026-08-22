@@ -15,9 +15,9 @@ class StockLot(models.Model):
         string="Purchase Orders",
         compute="_compute_purchase_order_ids",
     )
-    purchase_order_count = fields.Integer(
+    purchase_order_count = fields.Count(
+        "purchase_order_ids",
         string="Purchase order count",
-        compute="_compute_purchase_order_ids",
     )
 
     # ------------------------------------------------------------
@@ -38,7 +38,6 @@ class StockLot(models.Model):
                 purchase_orders[move_line.lot_id.id] |= move.purchase_line_id.order_id
         for lot in self:
             lot.purchase_order_ids = purchase_orders[lot.id]
-            lot.purchase_order_count = len(lot.purchase_order_ids)
 
     # ------------------------------------------------------------
     # ACTION METHODS
@@ -46,7 +45,7 @@ class StockLot(models.Model):
 
     def action_view_po(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "purchase.action_purchase_order_2",
         )
         action["domain"] = [("id", "in", self.mapped("purchase_order_ids.id"))]

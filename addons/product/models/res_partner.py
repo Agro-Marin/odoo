@@ -12,8 +12,8 @@ class ResPartner(models.Model):
     property_product_pricelist = fields.Many2one(
         comodel_name="product.pricelist",
         string="Pricelist",
-        compute="_compute_product_pricelist",
-        inverse="_inverse_product_pricelist",
+        compute="_compute_property_product_pricelist",
+        inverse="_inverse_property_product_pricelist",
         company_dependent=False,
         domain=lambda self: [("company_id", "in", (self.env.company.id, False))],
         # behave like company dependent field but is not company_dependent
@@ -29,12 +29,12 @@ class ResPartner(models.Model):
 
     @api.depends_context("company", "country_code")
     @api.depends("country_id", "specific_property_product_pricelist")
-    def _compute_product_pricelist(self):
+    def _compute_property_product_pricelist(self):
         res = self.env["product.pricelist"]._get_partner_pricelist_multi(self._ids)
         for partner in self:
             partner.property_product_pricelist = res.get(partner.id)
 
-    def _inverse_product_pricelist(self):
+    def _inverse_property_product_pricelist(self):
         defaults = self.env["product.pricelist"]._get_country_pricelist_multi(
             self.country_id.ids
         )

@@ -12,7 +12,7 @@ class StockRule(models.Model):
             res['project_id'] = values[0].get('project_id')
         return res
 
-    def _make_po_get_domain(self, company_id, values, partner):
-        domain = super()._make_po_get_domain(company_id, values, partner)
+    def _prepare_po_get_domain(self, company_id, values, partner):
+        domain = super()._prepare_po_get_domain(company_id, values, partner)
         domain += (('project_id', '=', values.get('project_id', False)),)
         return domain

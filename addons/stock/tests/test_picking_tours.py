@@ -24,7 +24,6 @@ class TestStockPickingTour(HttpCase):
         return "/odoo/action-stock.action_picking_tree_incoming/%s" % (picking_id)
 
     def test_generate_serial_1(self):
-        """generate some serial numbers in the detailed operation modal"""
         product_serial = self.env["product.product"].create(
             {
                 "name": "Product Serial",
@@ -49,7 +48,6 @@ class TestStockPickingTour(HttpCase):
         self.assertEqual(len(serial), 5)
 
     def test_generate_serial_2(self):
-        """Generate lot numbers in the detailed operation modal"""
         product_lot_1 = self.env["product.product"].create(
             {
                 "name": "Product Lot 1",
@@ -78,11 +76,6 @@ class TestStockPickingTour(HttpCase):
         self.assertEqual(lots_batch_2[-1].product_qty, 11)
 
     def test_inventory_adjustment_apply_all(self):
-        """
-        Checks if the "Apply All" button works for all new entries, even if
-        it was pressed immediately after entering the last entry's quantity
-        (without clicking on anything else)
-        """
         self.env["product.product"].create(
             [
                 {"name": "Product 1", "is_storable": True},
@@ -99,11 +92,6 @@ class TestStockPickingTour(HttpCase):
         )
 
     def test_add_new_line_in_detailled_op(self):
-        """
-        Check that the unsaved quantity/location changes of the detailed operations impact dynamically
-        the creation of new move lines (considering the real avaible quantity rather than DB data's).
-        """
-
         admin_user = self.env.ref("base.user_admin")
         admin_user.write(
             {

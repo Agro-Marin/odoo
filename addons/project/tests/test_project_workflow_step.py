@@ -24,7 +24,7 @@ class TestProjectWorkflowStep(TestProjectCommon):
         ``web/.../dynamic_group_list.js::_createGroup`` calls ``name_create``
         with the list's context, which for a project's task action carries
         ``default_project_id``. The project therefore arrives through
-        ``_get_default_project_ids``, never in ``vals``.
+        ``_default_project_ids``, never in ``vals``.
         """
         Step = self.env["project.workflow.step"]
         step_id, _label = Step.with_context(

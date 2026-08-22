@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import logging
 from collections import defaultdict
 from datetime import datetime
@@ -59,9 +57,6 @@ class StockRule(models.Model):
 
     @api.model
     def run(self, procurements, raise_user_error=True):
-        """If 'run' is called on a kit, this override is made in order to call
-        the original 'run' method with the values of the components of that kit.
-        """
         procurements_without_kit = []
         product_by_company = defaultdict(OrderedSet)
         for procurement in procurements:
@@ -93,7 +88,6 @@ class StockRule(models.Model):
                 for bom_line, bom_line_data in bom_sub_lines:
                     bom_line_uom = bom_line.product_uom_id
                     quant_uom = bom_line.product_id.uom_id
-                    # recreate dict of values since each child has its own bom_line_id
                     values = dict(procurement.values, bom_line_id=bom_line.id)
                     component_qty, procurement_uom = (
                         bom_line_uom._adjust_uom_quantities(
@@ -128,7 +122,6 @@ class StockRule(models.Model):
         new_productions_values_by_company = defaultdict(lambda: defaultdict(list))
         for procurement, rule in procurements:
             if procurement.product_uom_id.compare(procurement.product_qty, 0) <= 0:
-                # If procurement contains negative quantity, don't create a MO that would be for a negative value.
                 continue
             bom = rule._get_matching_bom(
                 procurement.product_id, procurement.company_id, procurement.values
@@ -141,20 +134,6 @@ class StockRule(models.Model):
             is_batch_size = bom and bom.enable_batch_size
             if not mo or is_batch_size:
                 if not bom:
-                    # Nothing here can make this product, so the procurement is
-                    # dropped. An orderpoint would simply propose it again, which is
-                    # what "only replenishment rules should handle this" meant; a
-                    # *chained* demand gets no second chance, and the move waiting on
-                    # it waits forever with nothing on its way and nothing said. That
-                    # is the case worth a warning, and measured over `mrp` and
-                    # `sale_mrp` it is the only one that occurs: five skips, every one
-                    # of them with a `move_dest_ids` and none from an orderpoint.
-                    #
-                    # Raising instead was tried and reverted -- it fires on
-                    # `mrp.production.action_confirm`, so a component with no bill of
-                    # materials stopped the order being confirmed at all rather than
-                    # leaving it short. See
-                    # `research/2026-08-15-mrp-silent-manufacture-skip.md`.
                     waiting_moves = procurement.values.get("move_dest_ids")
                     log = _logger.warning if waiting_moves else _logger.debug
                     log(
@@ -223,7 +202,6 @@ class StockRule(models.Model):
             productions_vals_list = new_productions_values_by_company[company_id][
                 "values"
             ]
-            # create the MO as SUPERUSER because the current user may not have the rights to do it (mto product launched by a sale for example)
             productions = (
                 self.env["mrp.production"]
                 .with_user(SUPERUSER_ID)
@@ -267,8 +245,8 @@ class StockRule(models.Model):
         domain = super()._get_moves_to_assign_domain(company_id)
         return Domain(domain) & Domain("production_id", "=", False)
 
-    def _get_custom_move_fields(self):
-        fields = super()._get_custom_move_fields()
+    def _get_fields_custom_move(self):
+        fields = super()._get_fields_custom_move()
         fields += ["bom_line_id"]
         return fields
 
@@ -343,11 +321,6 @@ class StockRule(models.Model):
         )
         picking_type = bom.picking_type_id or self.picking_type_id
         if not picking_type:
-            # Neither the BoM nor the rule names one, so fall back to the
-            # warehouse's manufacturing type. `values["warehouse_id"]` was read
-            # by key further down, which is a bare KeyError when a procurement
-            # does not carry one -- and the source/destination locations below
-            # would already have written `False` into required fields.
             warehouse = values.get("warehouse_id") or location_dest_id.warehouse_id
             picking_type = warehouse.manu_type_id
             if not picking_type:
@@ -408,9 +381,6 @@ class StockRule(models.Model):
         return date_planned
 
     def _get_lead_days(self, product, **values):
-        """Add the product and company manufacture delay to the cumulative delay
-        and cumulative description.
-        """
         delays, delay_description = super()._get_lead_days(product, **values)
         bypass_delay_description = self.env.context.get("bypass_delay_description")
         manufacture_rule = self.filtered(lambda r: r.action == "manufacture")
@@ -439,7 +409,6 @@ class StockRule(models.Model):
                 (_("Manufacturing Lead Time"), _("+ %d day(s)", manufacture_delay))
             )
         if bom.type == "normal":
-            # pre-production rules
             warehouse = self.location_dest_id.warehouse_id
             for wh in warehouse:
                 if wh.manufacture_steps != "mrp_one_step":

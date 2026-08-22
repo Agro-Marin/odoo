@@ -54,7 +54,7 @@ class ResPartner(models.Model):
             partner.static_map_url_is_valid = is_valid
 
     def action_event_view(self):
-        action = self.env["ir.actions.actions"]._for_xml_id("event.action_event_view")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("event.action_event_view")
         action['context'] = {}
         action['domain'] = [('registration_ids.partner_id', 'child_of', self.ids)]
         return action

@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from collections import defaultdict
 
 from odoo import Command, _, api, fields, models
@@ -79,7 +77,6 @@ class StockMove(models.Model):
         check_company=True,
         index="btree_not_null",
     )
-    # Quantities to process, in normalized UoMs
     bom_line_id = fields.Many2one("mrp.bom.line", "BoM Line", check_company=True)
     byproduct_id = fields.Many2one(
         "mrp.bom.byproduct",
@@ -140,7 +137,6 @@ class StockMove(models.Model):
     @api.depends("product_id", "bom_line_id", "bom_line_id.operation_id")
     def _compute_manual_consumption(self):
         for move in self:
-            # when computed for new_id in onchange, use value from _origin
             if move != move._origin:
                 move.manual_consumption = move._origin.manual_consumption
             elif not move.manual_consumption:
@@ -185,7 +181,6 @@ class StockMove(models.Model):
         for bom in self.bom_line_id.bom_id:
             if bom.type != "phantom":
                 continue
-            # mapped('id') to keep NewId
             line_ids = self.bom_line_id.filtered(
                 lambda line, bom=bom: line.bom_id == bom
             ).mapped("id")
@@ -358,11 +353,6 @@ class StockMove(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Enforce consistent values (i.e. match _get_move_raw_values/_get_move_finished_values) for:
-        - Manually added components/byproducts specifically values we can't set via view with "default_"
-        - Moves from a copied MO
-        - Backorders
-        """
         if self.env.context.get("force_manual_consumption"):
             for vals in vals_list:
                 if "quantity" in vals:
@@ -392,7 +382,6 @@ class StockMove(models.Model):
                     if mo.state in ["progress", "to_close"] and mo.qty_producing > 0:
                         values["picked"] = True
                     continue
-                # produced products + byproducts
                 values["location_id"] = mo.production_location_id.id
                 values["date"] = mo.date_end
                 values["date_deadline"] = mo.date_deadline
@@ -404,10 +393,6 @@ class StockMove(models.Model):
 
     def write(self, vals):
         if "product_id" in vals:
-            # A finished production move whose product changes while it is live must be
-            # replaced (copy + confirm + unlink), not edited in place. Evaluate the
-            # guard per record: `self.filtered` avoids a singleton crash when several
-            # finished/by-product moves change product at once.
             move_to_unlink = self.filtered(
                 lambda m: (
                     m.product_id.id != vals.get("product_id")
@@ -430,8 +415,6 @@ class StockMove(models.Model):
                 lambda move: move.product_uom_qty != vals["quantity"]
             )
         if "product_uom_qty" in vals and "move_line_ids" in vals:
-            # first update lines then product_uom_qty as the later will unreserve
-            # so possibly unlink lines
             move_line_vals = vals.pop("move_line_ids")
             super().write({"move_line_ids": move_line_vals})
         old_demand = {move.id: move.product_uom_qty for move in self}
@@ -441,9 +424,6 @@ class StockMove(models.Model):
         if "product_uom_qty" in vals and not self.env.context.get(
             "no_procurement", False
         ):
-            # when updating consumed qty need to update related pickings
-            # context no_procurement means we don't want the qty update to modify stock i.e create new pickings
-            # ex. when splitting MO to backorders we don't want to move qty from pre prod to stock in 2/3 step config
             self.filtered(
                 lambda m: (
                     m.raw_material_production_id.state
@@ -481,10 +461,8 @@ class StockMove(models.Model):
                     to_assign |= move
             proc_move.add(move.id)
 
-        # Save quantity on each move before assignment
         before_assign_qties = {move.id: move.quantity for move in to_assign}
         to_assign._action_assign()
-        # Compute the delta (newly assigned quantity) per move
         delta_qties = {
             move.id: (
                 move.quantity - before_assign_qties.get(move.id, 0)
@@ -548,17 +526,11 @@ class StockMove(models.Model):
     def _action_confirm(self, merge=True, merge_into=False, create_proc=True):
         moves = self.action_explode()
         merge_into = merge_into and merge_into.action_explode()
-        # we go further with the list of ids potentially changed by action_explode
         return super(StockMove, moves)._action_confirm(
             merge=merge, merge_into=merge_into, create_proc=create_proc
         )
 
     def _action_done(self, cancel_backorder=False):
-        # Explode kit moves that bypassed action_explode in _action_confirm, 'draft' ones
-        # included: when _action_done() is called directly (e.g. scrap) they would only be
-        # exploded inside stock's _action_done, but stock_account._action_done — which sits
-        # between mrp and stock in the MRO — captures moves_out first and then raises
-        # MissingError once the kit move is unlinked mid-execution.
         moves_to_explode = self.filtered(
             lambda m: m.product_id.is_kits and m.state not in ("cancel", "done")
         )
@@ -573,10 +545,6 @@ class StockMove(models.Model):
         )
 
     def action_explode(self):
-        """Explode the kit moves of `self` into their component moves."""
-        # in order to explode a move, we must have a picking_type_id on that move because otherwise the move
-        # won't be assigned to a picking and it would be weird to explode a move into several if they aren't
-        # all grouped in the same picking.
         moves_ids_to_return = OrderedSet()
         moves_ids_to_unlink = OrderedSet()
         phantom_moves_vals_list = []
@@ -623,7 +591,6 @@ class StockMove(models.Model):
                 never_attribute_values=move.never_product_template_attribute_value_ids,
             )
             phantom_moves_vals_list += move._generate_all_phantom_moves(lines)
-            # delete the move with original product which is not relevant anymore
             moves_ids_to_unlink.add(move.id)
 
         if phantom_moves_vals_list:
@@ -671,10 +638,6 @@ class StockMove(models.Model):
 
     def _action_cancel(self):
         res = super()._action_cancel()
-        # `.get`, not `not in`: tested for presence, `with_context(skip_mo_check=False)`
-        # skipped the check, which is the opposite of what it says. Every other
-        # skip flag in this module (`skip_activity`, `skip_backorder`,
-        # `skip_consumption`, `skip_confirm`) is read for truth.
         if not self.env.context.get("skip_mo_check"):
             mo_to_cancel = self.mapped("raw_material_production_id").filtered(
                 lambda p: all(m.state == "cancel" for m in p.move_raw_ids)
@@ -816,7 +779,6 @@ class StockMove(models.Model):
     def _should_bypass_set_qty_producing(self):
         if self.state in ("done", "cancel"):
             return True
-        # Do not update extra product quantities
         return self.product_uom_id.is_zero(self.product_uom_qty)
 
     def _prepare_move_line_vals(self, quantity=None, reserved_quant=None):
@@ -850,15 +812,6 @@ class StockMove(models.Model):
         ]
 
     def _compute_kit_quantities(self, product_id, kit_qty, kit_bom, filters):
-        """Computes the quantity delivered or received when a kit is sold or purchased.
-        A ratio 'qty_processed/qty_needed' is computed for each component, and the lowest one is kept
-        to define the kit's quantity delivered or received.
-        :param product_id: The kit itself a.k.a. the finished product
-        :param kit_qty: The quantity from the order line
-        :param kit_bom: The kit's BoM
-        :param filters: Dict of lambda expression to define the moves to consider and the ones to ignore
-        :return: The quantity delivered or received
-        """
         qty_ratios = []
         kit_qty /= kit_bom.product_qty
         _boms, bom_sub_lines = kit_bom.explode(product_id, kit_qty)
@@ -872,20 +825,14 @@ class StockMove(models.Model):
                 return move.product_qty
 
         for bom_line, bom_line_data in bom_sub_lines:
-            # skip service since we never deliver them
             if bom_line.product_id.type == "service":
                 continue
             if bom_line.product_uom_id.is_zero(bom_line_data["qty"]):
-                # BoMs allow components with 0 qty (optional ones): skip them to avoid a
-                # division by zero.
                 continue
             bom_line_moves = self.filtered(
                 lambda m, bom_line=bom_line: m.bom_line_id == bom_line
             )
             if bom_line_moves:
-                # We compute the quantities needed of each components to make one kit.
-                # Then, we collect every relevant moves related to a specific component
-                # to know how many are considered delivered.
                 uom_qty_per_kit = bom_line_data["qty"] / (bom_line_data["original_qty"])
                 qty_per_kit = bom_line.product_uom_id._compute_quantity(
                     uom_qty_per_kit / kit_bom.product_qty,
@@ -894,7 +841,6 @@ class StockMove(models.Model):
                 )
                 if not qty_per_kit:
                     continue
-                # Due to multi-step only the last move of each chain should be considered
                 incoming_moves = bom_line_moves.filtered(filters["incoming_moves"])
                 final_incoming_moves = incoming_moves - incoming_moves.move_orig_ids
                 qty_incoming = sum(final_incoming_moves.mapped(get_qty))
@@ -902,16 +848,12 @@ class StockMove(models.Model):
                 final_outgoing_moves = outgoing_moves - outgoing_moves.move_orig_ids
                 qty_outgoing = sum(final_outgoing_moves.mapped(get_qty))
                 qty_processed = qty_incoming - qty_outgoing
-                # We compute a ratio to know how many kits we can produce with this quantity of that specific component
                 qty_ratios.append(
                     bom_line.product_id.uom_id.round(qty_processed / qty_per_kit)
                 )
             else:
                 return 0.0
         if qty_ratios:
-            # Now that we have every ratio by components, we keep the lowest one to know how many kits we can produce
-            # with the quantities delivered of each component. We use the floor division here because a 'partial kit'
-            # doesn't make sense.
             return min(qty_ratios) // 1
         else:
             return 0.0
@@ -930,7 +872,6 @@ class StockMove(models.Model):
                     lambda m: m.product_id in self.product_id
                 )
             )
-        # this will include sibling pickings as a result of merging MOs
         for picking in self.move_dest_ids.raw_material_production_id.picking_ids:
             candidate_moves_set.add(picking.move_ids)
 
@@ -946,14 +887,6 @@ class StockMove(models.Model):
         return domain
 
     def _get_production_assignation_domain(self):
-        # Through `move_ids`, explicitly: this is a domain on `stock.picking`,
-        # and what it asks is "does this transfer already carry a move of my
-        # production group". It used to be spelled `production_group_id`, a
-        # `related="move_ids.production_group_id"` field on `stock.picking`.
-        # Searching a related through a one2many means "any", which is right
-        # here -- but *reading* it means "whichever move sorts first", so the
-        # field quietly answered a different question depending on how it was
-        # used. Naming the path leaves only the meaning that is wanted.
         return [("move_ids.production_group_id", "=", self.production_group_id.id)]
 
     def action_view_reference(self):
@@ -974,13 +907,6 @@ class StockMove(models.Model):
 
     @api.model
     def _determine_is_manual_consumption(self, bom_line):
-        """Whether a component is consumed by hand rather than backflushed.
-
-        `bool` on purpose: the value is written into `manual_consumption`, a
-        Boolean field, and the bare `and` chain handed it a `mrp.bom.line()` or
-        an `mrp.routing.workcenter(5,)` instead, leaving the callers to rely on
-        the ORM coercing whatever it got.
-        """
         return bool(bom_line and bom_line.operation_id)
 
     def _get_relevant_state_among_moves(self):

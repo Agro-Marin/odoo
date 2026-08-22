@@ -162,7 +162,7 @@ class ProjectTask(models.Model):
     # through this attribute so no rotting method needs re-implementing.
     _track_duration_last_update_field = "date_last_status_change"
 
-    def _get_versioned_fields(self) -> list[str]:
+    def _get_fields_versioned(self) -> list[str]:
         return [ProjectTask.description.name]
 
     @api.model
@@ -173,7 +173,7 @@ class ProjectTask(models.Model):
             return project.partner_id.id
         return False
 
-    def _get_default_step_id(self) -> int | bool:
+    def _default_step_id(self) -> int | bool:
         """Gives default step_id"""
         project_id = self.env.context.get("default_project_id")
         if not project_id:
@@ -385,7 +385,7 @@ class ProjectTask(models.Model):
         ondelete="restrict",
         tracking=True,
         index=True,
-        default=_get_default_step_id,
+        default=_default_step_id,
         group_expand="_read_group_step_ids",
         domain="[('project_ids', '=', project_id)]",
     )
@@ -1107,12 +1107,12 @@ class ProjectTask(models.Model):
             return NotImplemented
         return [("state", "in", searched_states)]
 
-    def _get_rotting_depends_fields(self) -> list[str]:
+    def _get_fields_rotting_depends(self) -> list[str]:
         # project.task's rotting additionally depends on is_closed (see the
         # _get_rotting_domain override). The renamed last-update field is handled
         # by the mixin through _track_duration_last_update_field, so the rest of
         # the rotting machinery no longer needs re-implementing here.
-        return super()._get_rotting_depends_fields() + ["is_closed"]
+        return super()._get_fields_rotting_depends() + ["is_closed"]
 
     def _get_rotting_domain(self) -> list:
         return super()._get_rotting_domain() & Domain("is_closed", "=", False)
@@ -1415,7 +1415,7 @@ class ProjectTask(models.Model):
             Dependency.create(vals_list)
 
     @api.model
-    def _get_recurrence_fields(self) -> list[str]:
+    def _get_fields_recurrence(self) -> list[str]:
         return [
             "repeat_interval",
             "repeat_unit",
@@ -1425,7 +1425,7 @@ class ProjectTask(models.Model):
 
     @api.depends("recurring_task")
     def _compute_repeat(self) -> None:
-        rec_fields = self._get_recurrence_fields()
+        rec_fields = self._get_fields_recurrence()
         defaults = self.default_get(rec_fields)
         for task in self:
             for f in rec_fields:
@@ -2485,9 +2485,9 @@ class ProjectTask(models.Model):
     def _load_records_create(self, vals_list: list[ValuesType]) -> Self:
         for vals in vals_list:
             if vals.get("recurring_task"):
-                rec_fields = vals.keys() & self._get_recurrence_fields()
+                rec_fields = vals.keys() & self._get_fields_recurrence()
                 if not vals.get("recurrence_id") and not rec_fields:
-                    default_val = self.default_get(self._get_recurrence_fields())
+                    default_val = self.default_get(self._get_fields_recurrence())
                     vals.update(**default_val)
             project_id = vals.get("project_id")
             if project_id:
@@ -2770,7 +2770,7 @@ class ProjectTask(models.Model):
         if project_id and "step_id" not in vals:
             # 1) Allows keeping the batch creation of tasks
             # 2) Ensure the defaults are correct (and computed once by project),
-            # by using default get (instead of _get_default_step_id or _step_find),
+            # by using default get (instead of _default_step_id or _step_find),
             if project_id not in default_stage:
                 default_stage[project_id] = (
                     self.with_context(default_project_id=project_id)
@@ -2784,7 +2784,7 @@ class ProjectTask(models.Model):
         if vals.get("step_id"):
             additional_vals["date_last_status_change"] = fields.Datetime.now()
         # recurrence
-        rec_fields = vals.keys() & self._get_recurrence_fields()
+        rec_fields = vals.keys() & self._get_fields_recurrence()
         if rec_fields and vals.get("recurring_task") is True:
             rec_values = {rec_field: vals[rec_field] for rec_field in rec_fields}
             recurrence = self.env["project.task.recurrence"].create(rec_values)
@@ -2940,7 +2940,7 @@ class ProjectTask(models.Model):
         # because "following" is only defined relative to one occurrence.
         self.ensure_one()
 
-        rule_fields = vals.keys() & set(self._get_recurrence_fields())
+        rule_fields = vals.keys() & set(self._get_fields_recurrence())
         if rule_fields and scope != "all":
             # The repeat_* fields live on the one shared recurrence record, so
             # writing them reaches every occurrence whatever this field says.
@@ -2984,7 +2984,7 @@ class ProjectTask(models.Model):
         plain = {
             fname: value
             for fname, value in vals.items()
-            if fname not in shifted and fname not in self._get_recurrence_fields()
+            if fname not in shifted and fname not in self._get_fields_recurrence()
         }
         if plain:
             targets.write(plain)
@@ -3002,7 +3002,7 @@ class ProjectTask(models.Model):
     def _write_sync_recurrence(self, vals: dict[str, Any]) -> None:
         """Mirror the recurrence fields onto the recurrence record, creating or
         dropping it as ``recurring_task`` is turned on and off."""
-        rec_fields = vals.keys() & self._get_recurrence_fields()
+        rec_fields = vals.keys() & self._get_fields_recurrence()
         if rec_fields:
             rec_values = {rec_field: vals[rec_field] for rec_field in rec_fields}
             for task in self:
@@ -3160,7 +3160,7 @@ class ProjectTask(models.Model):
     # Resource reservation integration (contracts from mixin.resource.scheduling)
     # ------------------------------------------------------------------
 
-    def _get_reservation_date_fields(self):
+    def _get_fields_reservation_date(self):
         """Return (start_field, end_field) names for reservation sync."""
         return ("planned_date_begin", "date_end")
 
@@ -3178,7 +3178,7 @@ class ProjectTask(models.Model):
         False and the sync would wipe the existing reservations.
         """
         self.ensure_one()
-        start_field, end_field = self._get_reservation_date_fields()
+        start_field, end_field = self._get_fields_reservation_date()
         if not start_field or not end_field:
             return []
         date_start = self[start_field]
@@ -3209,7 +3209,7 @@ class ProjectTask(models.Model):
             )
         return vals_list
 
-    def _get_sync_trigger_fields(self):
+    def _get_fields_sync_trigger(self):
         """Assignees, allocation and name changes also trigger a reservation sync.
 
         ``name`` is a trigger because the reservation label is built from
@@ -3217,7 +3217,7 @@ class ProjectTask(models.Model):
         carrying the old title.  The sync helper skips no-op writes, so a
         rename only rewrites the ``name`` column of the linked reservations.
         """
-        triggers = super()._get_sync_trigger_fields()
+        triggers = super()._get_fields_sync_trigger()
         triggers |= {"user_ids", "allocated_percentage", "name"}
         return triggers
 
@@ -3315,7 +3315,7 @@ class ProjectTask(models.Model):
             action_name = self.env._("Schedule")
 
         context = {"search_default_my_schedule": 0}
-        start_field, end_field = self._get_reservation_date_fields()
+        start_field, end_field = self._get_fields_reservation_date()
         anchor = (start_field and self[start_field]) or (end_field and self[end_field])
         if anchor:
             context["initial_date"] = anchor
@@ -3748,11 +3748,11 @@ class ProjectTask(models.Model):
             res.update(super(ProjectTask, leftover)._notify_get_reply_to_addresses())
         return res
 
-    def _find_internal_users_from_address_mail(
+    def _get_internal_users_from_address_mail(
         self, emails: list[str], project_id: int | bool = False
     ) -> tuple[list[int], list[str], list[str]]:
         sanitized_email_dict = self._mail_cc_sanitized_raw_dict(emails)
-        matched_partners = self.env["res.partner"]._find_or_create_from_emails(
+        matched_partners = self.env["res.partner"]._get_or_create_from_emails(
             sanitized_email_dict.keys(), no_create=True
         )
         partners = self.env["res.partner"].concat(*matched_partners)
@@ -3820,7 +3820,7 @@ class ProjectTask(models.Model):
                 internal_users,
                 partner_emails_without_users,
                 unmatched_partner_emails,
-            ) = self._find_internal_users_from_address_mail(
+            ) = self._get_internal_users_from_address_mail(
                 msg_dict.get("to"), defaults.get("project_id")
             )
             # set only internal users as assignees
@@ -4027,7 +4027,7 @@ class ProjectTask(models.Model):
             [("id", "child_of", self.id), ("id", "!=", self.id)]
         )
         if subtasks.project_id == self.project_id:
-            action = self.env["ir.actions.act_window"]._for_xml_id(
+            action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
                 "project.project_sharing_project_task_action_sub_task"
             )
             if len(subtasks) == 1:
@@ -4052,7 +4052,7 @@ class ProjectTask(models.Model):
     def action_project_sharing_open_blocking(self) -> dict:
         self.ensure_one()
         blockings = self.successor_ids
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "project.project_sharing_project_task_action_blocking_tasks"
         )
         if len(blockings) == 1:
@@ -4098,7 +4098,7 @@ class ProjectTask(models.Model):
         )
         # If all the recurrent tasks are in the same project, open the list view in sharing mode.
         if recurrent_tasks.project_id == self.project_id:
-            action = self.env["ir.actions.act_window"]._for_xml_id(
+            action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
                 "project.project_sharing_project_task_recurring_tasks_action"
             )
             action.update(
@@ -4120,7 +4120,7 @@ class ProjectTask(models.Model):
 
     def action_open_ratings(self) -> dict:
         self.ensure_one()
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "project.rating_rating_action_task"
         )
         if self.rating_count == 1:
@@ -4512,7 +4512,7 @@ class ProjectTask(models.Model):
                     "email",
                     "im_status",
                     "name",
-                    *partners._get_store_mention_fields(),
+                    *partners._get_fields_store_mention(),
                 ],
             )
             .get_result()

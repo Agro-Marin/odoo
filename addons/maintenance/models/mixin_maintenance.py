@@ -14,7 +14,11 @@ class MixinMaintenance(models.AbstractModel):
     maintenance_team_id = fields.Many2one('maintenance.team', string='Maintenance Team', compute='_compute_maintenance_team_id', store=True, readonly=False, check_company=True, index='btree_not_null')
     technician_user_id = fields.Many2one('res.users', string='Technician', tracking=True)
     maintenance_ids = fields.One2many('maintenance.request')  # needs to be extended in order to specify inverse_name !
-    maintenance_count = fields.Integer(compute='_compute_maintenance_count', string="Maintenance Count", store=True)
+    maintenance_count = fields.Count(
+        "maintenance_ids",
+        string="Maintenance Count",
+        store=True,
+    )
     maintenance_open_count = fields.Integer(compute='_compute_maintenance_count', string="Current Maintenance", store=True)
     expected_mtbf = fields.Integer(string='Expected MTBF', help='Expected Mean Time Between Failure')
     mtbf = fields.Integer(compute='_compute_maintenance_request', string='MTBF', help='Mean Time Between Failure, computed based on done corrective maintenances.')
@@ -40,5 +44,4 @@ class MixinMaintenance(models.AbstractModel):
     @api.depends('maintenance_ids.stage_id.done', 'maintenance_ids.archive')
     def _compute_maintenance_count(self):
         for record in self:
-            record.maintenance_count = len(record.maintenance_ids)
             record.maintenance_open_count = len(record.maintenance_ids.filtered(lambda mr: not mr.stage_id.done and not mr.archive))

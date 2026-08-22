@@ -87,7 +87,7 @@ class ProductAttribute(models.Model):
     product_tmpl_ids = fields.Many2many(
         comodel_name="product.template",
         string="Related Products",
-        compute="_compute_products",
+        compute="_compute_product_tmpl_ids",
         store=True,
     )
     count_product_tmpl = fields.Integer(
@@ -163,7 +163,7 @@ class ProductAttribute(models.Model):
             pa.count_product_tmpl = res.get(pa.id, 0)
 
     @api.depends("attribute_line_ids.active", "attribute_line_ids.product_tmpl_id")
-    def _compute_products(self):
+    def _compute_product_tmpl_ids(self):
         templates_by_attribute = {
             attribute.id: templates
             for attribute, templates in self.env[

@@ -5,25 +5,15 @@ from odoo.tools.translate import _
 class AccountAnalyticAccount(models.Model):
     _inherit = "account.analytic.account"
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
 
     purchase_order_count = fields.Integer(
         string="Purchase Order Count",
         compute="_compute_purchase_order_count",
     )
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
 
     @api.depends("line_ids")
     def _compute_purchase_order_count(self):
-        # Drives a single form smart button (analytic_account_views.xml), so it
-        # is computed one record at a time — the per-account search_count is
-        # fine here. If this field is ever exposed in a list/kanban, batch it by
-        # plan_id first (a raw-SQL join would be needed, which bypasses ir.rule).
         for account in self:
             account.purchase_order_count = (
                 self.env["purchase.order"].search_count(
@@ -40,9 +30,6 @@ class AccountAnalyticAccount(models.Model):
                 else 0
             )
 
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
 
     def action_view_purchase_orders(self):
         self.ensure_one()

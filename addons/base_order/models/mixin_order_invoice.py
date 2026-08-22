@@ -303,7 +303,7 @@ class MixinOrderInvoice(models.AbstractModel):
             invoices = self.mapped("invoice_ids")
 
         direction = "out" if self._get_order_type() == "sale" else "in"
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             f"account.action_move_{direction}_invoice_type",
         )
 
@@ -574,7 +574,7 @@ class MixinOrderInvoice(models.AbstractModel):
         ``bypass_locked_check`` because the link re-states an attachment the
         ``create`` above already made — it adds nothing a user could see, so it
         must not trip the locked-order guard. Down payments are precisely a flow
-        that runs *after* confirmation, and ``_validate_write_locked_order``
+        that runs *after* confirmation, and ``_check_write_locked_order``
         rejects every x2many write on a locked order without inspecting it.
         """
         self.ensure_one()

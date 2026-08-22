@@ -17,7 +17,6 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
     def setUpClass(cls):
         super().setUpClass()
 
-        # Replace PaymentCommon defaults by SaleCommon ones
         cls.currency = cls.sale_order.currency_id
         cls.partner = cls.sale_order.partner_invoice_id
 
@@ -29,8 +28,6 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
 
     @mute_logger("odoo.http", "werkzeug")
     def test_payment_amount_must_not_be_less_than_prepayment_amount(self):
-        """Test that accessing the portal page with a payment amount below prepayment amount raises
-        an error."""
         res = self._make_http_get_request(
             f"/my/orders/{self.sale_order.id}",
             params={
@@ -41,8 +38,6 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         self.assertEqual(res.status_code, 404)
 
     def test_is_down_payment_when_prepayment_amount_is_less_than_order_total(self):
-        """Test that we are in the downpayment case when the prepayment amount is less than the
-        order total."""
         self.sale_order.prepayment_percent = 0.5
         self.assertTrue(
             CustomerPortal()._determine_is_down_payment(
@@ -51,8 +46,6 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         )
 
     def test_is_not_down_payment_when_prepayment_amount_equals_order_total(self):
-        """Test that we are not in the downpayment case when the prepayment amount equals the order
-        total."""
         self.sale_order.prepayment_percent = 1.0
         self.assertFalse(
             CustomerPortal()._determine_is_down_payment(
@@ -61,8 +54,6 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         )
 
     def test_is_down_payment_when_link_amount_is_less_than_order_total(self):
-        """Test that we are in the downpayment case when the link amount is less than the order
-        total."""
         self.assertTrue(
             CustomerPortal()._determine_is_down_payment(
                 self.sale_order, "whatever", self.sale_order.amount_total * 0.5
@@ -70,7 +61,6 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         )
 
     def test_is_not_down_payment_when_link_amount_equals_order_total(self):
-        """Test that we are not in the downpayment case when the link amount equals the order total."""
         self.assertFalse(
             CustomerPortal()._determine_is_down_payment(
                 self.sale_order, "whatever", self.sale_order.amount_total
@@ -80,10 +70,8 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
     def test_downpayment_amount_equals_link_amount_when_higher_than_prepayment_amount(
         self,
     ):
-        """Test that the payment link's amount is used for the transaction when that amount is
-        higher than the prepayment amount and the user chose to pay a down payment."""
         self.sale_order.prepayment_percent = (
-            0.5  # This should be ignored when the link is higher.
+            0.5
         )
         link_amount = self.sale_order.amount_total * 0.7
         with MockRequest(self.env):
@@ -95,8 +83,6 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
     def test_downpayment_amount_equals_prepayment_amount_when_less_than_order_total(
         self,
     ):
-        """Test that the payment link's amount is used for the transaction when that amount is
-        higher than the prepayment amount and the user chose to pay a down payment."""
         self.sale_order.prepayment_percent = 0.5
         with MockRequest(self.env):
             tx_values = CustomerPortal()._get_payment_values(
@@ -109,8 +95,6 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         )
 
     def test_downpayment_amount_equals_prepayment_amount_when_no_link_amount(self):
-        """Test that the prepayment amount is used for the transaction when no payment amount is
-        specified in the link and the user chose to pay a down payment."""
         self.sale_order.prepayment_percent = 0.5
         with MockRequest(self.env):
             tx_values = CustomerPortal()._get_payment_values(
@@ -120,8 +104,6 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         self.assertEqual(tx_values["amount"], prepayment_amount)
 
     def test_payment_amount_equals_link_amount_when_order_is_confirmed(self):
-        """Test that the payment link's amount is used for the transaction when the order is
-        confirmed."""
         self.sale_order.action_confirm()
         payment_amount = self.sale_order.amount_total * 0.5
         with MockRequest(self.env):
@@ -133,8 +115,6 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
     def test_payment_amount_equals_order_total_when_no_link_amount_and_order_is_confirmed(
         self,
     ):
-        """Test that the order total is used for the transaction when no payment amount is specified
-        in the link and the order is confirmed."""
         self.sale_order.action_confirm()
         with MockRequest(self.env):
             tx_values = CustomerPortal()._get_payment_values(
@@ -143,10 +123,8 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         self.assertEqual(tx_values["amount"], self.sale_order.amount_total)
 
     def test_full_amount_equals_order_total(self):
-        """Test that the order total is used for the transaction when the user chose to pay the full
-        amount."""
         self.sale_order.prepayment_percent = (
-            0.5  # This should not impact the 'full amount' option.
+            0.5
         )
         with MockRequest(self.env):
             tx_values = CustomerPortal()._get_payment_values(
@@ -157,9 +135,6 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         self.assertEqual(tx_values["amount"], self.sale_order.amount_total)
 
     def test_confirmed_transactions_comfirms_so_with_multiple_transaction(self):
-        """Test that a confirmed transaction confirms a SO even if one or more non-confirmed
-        transactions are linked."""
-        # Create the payment
         self.amount = self.sale_order.amount_total
         self._create_transaction(
             flow="redirect",
@@ -181,22 +156,13 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         self.assertEqual(self.sale_order.state, "done")
 
     def test_auto_confirm_and_auto_invoice(self):
-        """
-        Assuming that the automatic invoice setting is activated, we expect
-        that after the payment is post processed:
-        - invoice created
-        - SO confirmed
-        - Two emails sent: SO confirmation and default invoice email template
-        """
-        # Set automatic invoice
         self.env["ir.config_parameter"].sudo().set_param(
             "sale.automatic_invoice", "True"
         )
 
-        # Create the payment
         self.amount = self.sale_order.amount_total
         self.partner.email = (
-            "customer@example.com"  # make sure partner on SO has email set
+            "customer@example.com"
         )
         tx = self._create_transaction(
             flow="redirect", sale_order_ids=[self.sale_order.id], state="done"
@@ -214,15 +180,6 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         self.assertTrue(self._new_mails.filtered(lambda x: "Invoice" in x.subject))
 
     def test_auto_confirm_and_auto_invoice_custom_mail_template(self):
-        """
-        Assuming that the automatic invoice setting is activated and a custom
-        email template for invoicing was selected, we expect that after the
-        payment is post processed:
-        - invoice created
-        - SO confirmed
-        - Two emails sent: SO confirmation and invoice email using the custom template
-        """
-        # Set automatic invoice
         self.env["ir.config_parameter"].sudo().set_param(
             "sale.automatic_invoice", "True"
         )
@@ -239,10 +196,9 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
             "sale.default_invoice_email_template", custom_template.id
         )
 
-        # Create the payment
         self.amount = self.sale_order.amount_total
         self.partner.email = (
-            "customer@example.com"  # make sure partner on SO has email set
+            "customer@example.com"
         )
         tx = self._create_transaction(
             flow="redirect", sale_order_ids=[self.sale_order.id], state="done"
@@ -262,17 +218,6 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         )
 
     def test_auto_confirm_and_auto_invoice_custom_mail_template_unlinked(self):
-        """
-        Assuming that the automatic invoice setting is activated and a custom
-        email template for invoicing was selected. If the custom email template
-        gets unlinked, the system parameter still stores the id, but code
-        should fall back to default invoice email template. We expect that after the
-        payment is post processed:
-        - invoice created
-        - SO confirmed
-        - Two emails sent: SO confirmation and invoice email using the DEFAULT template
-        """
-        # Set automatic invoice
         self.env["ir.config_parameter"].sudo().set_param(
             "sale.automatic_invoice", "True"
         )
@@ -290,10 +235,9 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         )
         custom_template.unlink()
 
-        # Create the payment
         self.amount = self.sale_order.amount_total
         self.partner.email = (
-            "customer@example.com"  # make sure partner on SO has email set
+            "customer@example.com"
         )
         tx = self._create_transaction(
             flow="redirect", sale_order_ids=[self.sale_order.id], state="done"
@@ -311,17 +255,13 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         self.assertTrue(self._new_mails.filtered(lambda x: "Invoice" in x.subject))
 
     def test_auto_done_and_auto_invoice(self):
-        # Set automatic invoice
         self.env["ir.config_parameter"].sudo().set_param(
             "sale.automatic_invoice", "True"
         )
-        # Lock the sale orders when confirmed - add group directly to the sale order's
-        # create_uid (not to implied_ids, as that doesn't properly invalidate caches)
         self.sale_order.create_uid.group_ids += self.env.ref(
             "sale.group_auto_done_setting"
         )
 
-        # Create the payment
         self.amount = self.sale_order.amount_total
         tx = self._create_transaction(
             flow="redirect", sale_order_ids=[self.sale_order.id], state="done"
@@ -336,12 +276,10 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         self.assertTrue(tx.invoice_ids.is_move_sent)
 
     def test_so_partial_payment_no_invoice(self):
-        # Set automatic invoice
         self.env["ir.config_parameter"].sudo().set_param(
             "sale.automatic_invoice", "True"
         )
 
-        # Create the payment
         self.amount = self.sale_order.amount_total / 10.0
         tx = self._create_transaction(
             flow="redirect", sale_order_ids=[self.sale_order.id], state="done"
@@ -354,15 +292,12 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         self.assertFalse(self.sale_order.invoice_ids)
 
     def test_already_confirmed_so_payment(self):
-        # Set automatic invoice
         self.env["ir.config_parameter"].sudo().set_param(
             "sale.automatic_invoice", "True"
         )
 
-        # Confirm order before payment
         self.sale_order.action_confirm()
 
-        # Create the payment
         self.amount = self.sale_order.amount_total
         tx = self._create_transaction(
             flow="redirect", sale_order_ids=[self.sale_order.id], state="done"
@@ -373,13 +308,10 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         self.assertTrue(self.sale_order.invoice_ids)
 
     def test_invoice_is_final(self):
-        """Test that invoice generated from a payment are always final"""
-        # Set automatic invoice
         self.env["ir.config_parameter"].sudo().set_param(
             "sale.automatic_invoice", "True"
         )
 
-        # Create the payment
         self.amount = self.sale_order.amount_total
         tx = self._create_transaction(
             flow="redirect",
@@ -424,7 +356,6 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         msg = "The created account payment shouldn't be reconciled as there are no invoice yet."
         self.assertFalse(partial_tx_pending.payment_id.is_reconciled, msg=msg)
 
-        # Add some noisy transactions
         self._create_transaction(
             flow="direct",
             sale_order_ids=[self.sale_order.id],
@@ -477,7 +408,6 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         self.assertEqual(second_invoice.transaction_ids.state, "pending", msg=msg)
 
     def test_downpayment_confirm_sale_order_sufficient_amount(self):
-        """Paying down payments can confirm an order if amount is enough."""
         self.sale_order.prepayment_percent = 0.1
         order_amount = self.sale_order.amount_total
 
@@ -493,10 +423,6 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         self.assertTrue(self.sale_order.state == "done")
 
     def test_downpayment_automatic_invoice(self):
-        """
-        Down payment invoices should be created when a down payment confirms
-        the order and automatic invoice is checked.
-        """
         self.sale_order.prepayment_percent = 0.2
         self.env["ir.config_parameter"].sudo().set_param(
             "sale.automatic_invoice", "True"
@@ -521,16 +447,12 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         url = self._build_url(f"/my/orders/{self.sale_order.id}/transaction")
         route_kwargs = {
             "access_token": self.sale_order._portal_ensure_token(),
-            "partner_id": self.partner.id,  # This should be rejected.
+            "partner_id": self.partner.id,
         }
         with self.assertRaises(JsonRpcException, msg="odoo.exceptions.ValidationError"):
             self.make_jsonrpc_request(url, route_kwargs)
 
     def test_partial_payment_confirm_order(self):
-        """
-        Test that a sale order can be confirmed through partial payments and that
-        correct mails are sent each time.
-        """
         self.amount = self.sale_order.amount_total / 2
 
         with patch(
@@ -624,7 +546,6 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         with mute_logger("odoo.addons.sale.models.payment_transaction"):
             tx.with_user(portal_user).sudo()._post_process()
 
-        # Verify invoice was created and sent successfully
         invoice = sale_order.invoice_ids[0]
         self.assertTrue(invoice.is_move_sent, "Invoice should be marked as sent")
         invoice_sent_mail = invoice.message_ids[0]
@@ -634,7 +555,6 @@ class TestSalePayment(AccountPaymentCommon, MailCase, PaymentHttpCommon, SaleCom
         )
 
     def test_refund_message_author_is_logged_in_user_for_sale_order(self):
-        """Ensure that the chatter message author is the user processing the refund."""
         self.provider.support_refund = "full_only"
 
         tx = self._create_transaction(

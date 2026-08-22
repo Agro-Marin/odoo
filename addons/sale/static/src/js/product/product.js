@@ -19,7 +19,7 @@ export class Product extends Component {
         price: Number,
         quantity: Number,
         uom: { type: Object, optional: true },
-        available_uoms: { type: Object, optional: true },
+        available_uoms: { type: Array, element: Object, optional: true },
         attribute_lines: Object,
         optional: Boolean,
         imageURL: { type: String, optional: true },
@@ -94,7 +94,10 @@ export class Product extends Component {
         return _t("Packaging");
     }
 
-    async selectUoM(event) {
-        this.env.setUoM(this.props.product_tmpl_id, parseInt(event.target.value));
+    selectUoM(event) {
+        return this.env.setUoM(
+            this.props.product_tmpl_id,
+            parseInt(event.target.value),
+        );
     }
 }

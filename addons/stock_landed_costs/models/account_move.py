@@ -35,7 +35,7 @@ class AccountMove(models.Model):
                 'split_method': l.product_id.split_method_landed_cost or 'equal',
             }) for l in landed_costs_lines],
         })
-        action = self.env["ir.actions.actions"]._for_xml_id("stock_landed_costs.action_stock_landed_cost")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("stock_landed_costs.action_stock_landed_cost")
         return dict(action, view_mode='form', res_id=landed_costs.id, views=[(False, 'form')])
 
     def action_view_landed_costs(self):

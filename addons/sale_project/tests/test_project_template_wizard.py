@@ -57,7 +57,7 @@ class TestProjectTemplateCreateWizard(TestSaleProjectCommon):
                 "template_id": self.project_template.id,
             }
         )
-        self.assertNotIn("partner_id", wizard._get_template_whitelist_fields())
+        self.assertNotIn("partner_id", wizard._get_fields_template_whitelist())
 
         self.project_template.allow_billable = True
         wizard_billable = self.Wizard.create(
@@ -66,7 +66,7 @@ class TestProjectTemplateCreateWizard(TestSaleProjectCommon):
                 "template_id": self.project_template.id,
             }
         )
-        self.assertIn("partner_id", wizard_billable._get_template_whitelist_fields())
+        self.assertIn("partner_id", wizard_billable._get_fields_template_whitelist())
 
     def test_open_template_view_propagates_sale_defaults(self):
         """Sale defaults reach the action context when opened from a SO."""

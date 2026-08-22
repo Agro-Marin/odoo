@@ -44,7 +44,6 @@ class ProductCatalogController(Controller):
         :return: A dict with the following structure:
             {
                 product.id: {
-                    'productId': int
                     'quantity': float (optional)
                     'price': float
                     'uomDisplayName': string

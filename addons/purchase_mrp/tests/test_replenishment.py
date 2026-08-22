@@ -155,12 +155,12 @@ class TestReplenishment(TestStockCommon):
         }])
 
         # Check if proper placeholders are calculated for a recordset with multiple records
-        (orderpointA | orderpointB)._compute_rules()
+        (orderpointA | orderpointB)._compute_rule_ids()
         self.assertEqual(orderpointA.route_id_placeholder, 'Manufacture')
         self.assertEqual(orderpointB.route_id_placeholder, 'Buy')
 
         # Reverse the order of records: the results should be the same
-        (orderpointB | orderpointA)._compute_rules()
+        (orderpointB | orderpointA)._compute_rule_ids()
 
         self.assertEqual(orderpointA.route_id_placeholder, 'Manufacture')
         self.assertEqual(orderpointB.route_id_placeholder, 'Buy')

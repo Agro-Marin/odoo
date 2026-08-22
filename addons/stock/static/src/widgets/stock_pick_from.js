@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
+import { isTerminalState, leafPackageName } from "@stock/utils/stock_state";
 import { registry } from "@web/core/registry";
 import {
     buildM2OFieldDescription,
@@ -19,28 +20,30 @@ export class StockPickFrom extends Component {
             ...props,
             value: props.value || {
                 id: false,
-                display_name: this._quant_display_name(),
+                display_name: this._quantDisplayName(),
             },
         };
     }
 
-    _quant_display_name() {
+    /** The characteristics of the quant this line draws from, as one label. */
+    _quantDisplayName() {
         const data = this.props.record.data;
-        const name_parts = [data.location_id?.display_name];
+        const parts = [data.location_id?.display_name];
         if (data.lot_id) {
-            name_parts.push(data.lot_id?.display_name || data.lot_name);
+            parts.push(data.lot_id?.display_name || data.lot_name);
         }
         if (data.package_id) {
-            let packageName = data.package_id?.display_name;
-            if (packageName && ["done", "cancel"].includes(data.state)) {
-                packageName = packageName.split(" > ").pop();
-            }
-            name_parts.push(packageName);
+            const packageName = data.package_id?.display_name;
+            parts.push(
+                isTerminalState(data.state)
+                    ? leafPackageName(packageName)
+                    : packageName,
+            );
         }
         if (data.owner_id) {
-            name_parts.push(data.owner_id?.display_name);
+            parts.push(data.owner_id?.display_name);
         }
-        return name_parts.filter(Boolean).join(" - ");
+        return parts.filter(Boolean).join(" - ");
     }
 }
 

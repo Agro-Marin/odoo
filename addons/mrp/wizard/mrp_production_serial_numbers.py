@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command
@@ -37,10 +35,6 @@ class MrpProductionSerials(models.TransientModel):
                 continue
             wizard.lot_name = wizard.production_id.lot_producing_ids[:1].name
             if not wizard.lot_name:
-                # `next_serial` is that whole expression now: it previews the product's
-                # own sequence, prefix interpolated, and falls back to the stock-wide
-                # one. The branch it replaces hand-built the same string two ways --
-                # neither of which survived a sequence with date ranges.
                 wizard.lot_name = wizard.production_id.product_id.next_serial
 
     @api.depends("production_id")
@@ -57,7 +51,7 @@ class MrpProductionSerials(models.TransientModel):
         )
         self.serial_numbers = "\n".join(
             list(dict.fromkeys(lot_names))
-        )  # remove duplicate lot names
+        )
 
     def action_generate_serial_numbers(self):
         self.ensure_one()
@@ -67,7 +61,7 @@ class MrpProductionSerials(models.TransientModel):
             )
             self.serial_numbers = "\n".join([lot["lot_name"] for lot in lots])
             self._onchange_serial_numbers()
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mrp.action_assign_serial_numbers"
         )
         action["res_id"] = self.id

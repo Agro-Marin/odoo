@@ -66,7 +66,7 @@ class EventQuestion(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_answered_question(self):
-        if self.env['event.registration.answer'].search_count([('question_id', 'in', self.ids)]):
+        if self.env['event.registration.answer'].search_count([('question_id', 'in', self.ids)], limit=1):
             raise UserError(_('You cannot delete a question that has already been answered by attendees. You can archive it instead.'))
 
     @api.ondelete(at_uninstall=False)
@@ -82,7 +82,7 @@ class EventQuestion(models.Model):
         - A list view showing textual answers values for text_box questions.
         """
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id("event.action_event_registration_report")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("event.action_event_registration_report")
         action['context'] = {'search_default_question_id': self.id}
         if event_id := self.env.context.get('search_default_event_id'):
             action['context'].update(search_default_event_id=event_id)
@@ -97,6 +97,6 @@ class EventQuestion(models.Model):
 
     def action_event_view(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id("event.action_event_view")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("event.action_event_view")
         action['domain'] = [('question_ids', 'in', self.ids)]
         return action

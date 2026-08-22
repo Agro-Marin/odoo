@@ -25,7 +25,9 @@ export class StockReportSearchModel extends SearchModel {
                 { context: this.context },
             );
         } catch (error) {
-            console.warn("Could not load the warehouses of the search panel", error);
+            // An empty filter panel and a failed one look identical to the user,
+            // so say which one this is rather than degrading in silence.
+            console.warn("[stock] could not load the warehouse filter:", error);
             this.warehouses = [];
         }
     }

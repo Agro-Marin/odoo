@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 import json
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -23,7 +22,6 @@ class MrpWorkcenter(models.Model):
     _inherit = ["mixin.mail.thread", "mixin.resource"]
     _check_company_auto = True
 
-    # resource
     name = fields.Char(
         "Work Center", related="resource_id.name", store=True, readonly=False
     )
@@ -148,7 +146,6 @@ class MrpWorkcenter(models.Model):
     def _compute_display_name(self):
         super()._compute_display_name()
         for workcenter in self:
-            # Show the red icon(workcenter is blocked) only when the Gantt view is accessed from MRP > Planning > Planning by Workcenter.
             if (
                 self.env.context.get("group_by")
                 and self.env.context.get("show_workcenter_status")
@@ -169,9 +166,6 @@ class MrpWorkcenter(models.Model):
 
     def _compute_kanban_dashboard_graph(self):
         week_range, date_start, date_stop = self._get_week_range_and_first_last_days()
-        # Asked once and passed down: both callees needed to know whether these
-        # workcenters have any work order at all, and each ran its own
-        # `search_count` for it on every dashboard render.
         has_workorder = bool(
             self.env["mrp.workorder"].search_count(
                 [("workcenter_id", "in", self.ids)], limit=1
@@ -187,13 +181,6 @@ class MrpWorkcenter(models.Model):
             wc.kanban_dashboard_graph = json.dumps(load_graph_data[wc.id])
 
     def _get_week_range_and_first_last_days(self):
-        """We calculate the delta between today and the previous monday, then add it to
-        the delta between monday and the previous first day of the week as configured in
-        the language settings, modulo 7 so we do not land on the first day of the week
-        from 2 weeks ago.
-
-        E.g. today Thursday, weeks starting Tuesday: (3 + 6) % 7 = 2 days ago.
-        """
         week_range = {}
         locale = get_lang(self.env).code
         today = datetime.today()
@@ -231,13 +218,6 @@ class MrpWorkcenter(models.Model):
                 )
             )
         if not has_workorder:
-            # Illustrative bars for a workcenter that has never been used, so the
-            # dashboard shows the shape of the chart rather than an empty frame.
-            # The payload carries `is_sample_data: True` and the UI says so.
-            # Derived from the workcenter and the week rather than drawn at
-            # random: this is a non-stored compute, so `randint` produced a
-            # different chart on every read, and two users looking at the same
-            # fresh workcenter saw different numbers.
             for wc in self:
                 load_data[wc] = {
                     week_start: wc._get_sample_week_load(index)
@@ -260,18 +240,10 @@ class MrpWorkcenter(models.Model):
             load_data[r[0]].update({r[1]: load_in_hours})
         return load_data
 
-    # Default maximum load per week used for the illustrative chart, in hours.
     SAMPLE_WEEK_LOAD_LIMIT = 40
 
     def _get_sample_week_load(self, week_index):
-        """A stable illustrative load for week `week_index` of the dashboard.
-
-        Any function of (workcenter, week) that varies plausibly will do; what
-        matters is that it returns the same answer every time it is asked.
-        """
         self.ensure_one()
-        # A short fixed cycle, offset per workcenter so a row of cards does not
-        # show the same chart five times.
         shape = (0.35, 0.8, 1.25, 0.6, 1.0)
         return round(
             self.SAMPLE_WEEK_LOAD_LIMIT
@@ -325,7 +297,6 @@ class MrpWorkcenter(models.Model):
         MrpWorkorder = self.env["mrp.workorder"]
         result = {wid: {} for wid in self._ids}
         result_duration_expected = dict.fromkeys(self._ids, 0)
-        # Count Late Workorder
         data = MrpWorkorder._read_group(
             [
                 ("workcenter_id", "in", self.ids),
@@ -336,7 +307,6 @@ class MrpWorkcenter(models.Model):
             ["__count"],
         )
         count_data = {workcenter.id: count for workcenter, count in data}
-        # Count All, Pending, Ready, Progress Workorder
         res = MrpWorkorder._read_group(
             [("workcenter_id", "in", self.ids)],
             ["workcenter_id", "state"],
@@ -362,9 +332,6 @@ class MrpWorkcenter(models.Model):
 
     @api.depends("time_ids", "time_ids.date_end", "time_ids.loss_type")
     def _compute_working_state(self):
-        # We search for a productivity line associated to this workcenter having no `date_end`.
-        # If we do not find one, the workcenter is not currently being used. If we find one, according
-        # to its `type_loss`, the workcenter is either being used or blocked.
         time_log_by_workcenter = {}
         for time_log in self.env["mrp.workcenter.productivity"].search(
             [
@@ -379,17 +346,13 @@ class MrpWorkcenter(models.Model):
         for workcenter in self:
             time_log = time_log_by_workcenter.get(workcenter._origin)
             if not time_log:
-                # the workcenter is not being used
                 workcenter.working_state = "normal"
             elif time_log.loss_type in ("productive", "performance"):
-                # the productivity line has a `loss_type` that means the workcenter is being used
                 workcenter.working_state = "done"
             else:
-                # the workcenter is blocked
                 workcenter.working_state = "blocked"
 
     def _compute_blocked_time(self):
-        # FIXME: productivity loss type should be only losses, probably count other time logs differently
         data = self.env["mrp.workcenter.productivity"]._read_group(
             [
                 (
@@ -411,7 +374,6 @@ class MrpWorkcenter(models.Model):
             workcenter.blocked_time = count_data.get(workcenter.id, 0.0) / 60.0
 
     def _compute_productive_time(self):
-        # FIXME: productivity loss type should be only losses, probably count other time logs differently
         data = self.env["mrp.workcenter.productivity"]._read_group(
             [
                 (
@@ -517,7 +479,6 @@ class MrpWorkcenter(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        # resource_type is 'human' by default; workcenters are 'material'
         return super(
             MrpWorkcenter, self.with_context(default_resource_type="material")
         ).create(vals_list)
@@ -529,7 +490,7 @@ class MrpWorkcenter(models.Model):
 
     def action_show_operations(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id("mrp.mrp_routing_action")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("mrp.mrp_routing_action")
         action["domain"] = [("workcenter_id", "=", self.id)]
         action["context"] = {
             "default_workcenter_id": self.id,
@@ -537,10 +498,10 @@ class MrpWorkcenter(models.Model):
         return action
 
     def action_work_order(self):
-        return self.env["ir.actions.actions"]._for_xml_id("mrp.action_work_orders")
+        return self.env["ir.actions.actions"]._get_action_dict_by_xml_id("mrp.action_work_orders")
 
     def action_work_order_alternatives(self):
-        action = self.env["ir.actions.actions"]._for_xml_id("mrp.mrp_workorder_todo")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("mrp.mrp_workorder_todo")
         action["domain"] = [
             "|",
             ("workcenter_id", "in", self.alternative_workcenter_ids.ids),
@@ -549,15 +510,6 @@ class MrpWorkcenter(models.Model):
         return action
 
     def _get_unavailability_intervals(self, start_datetime, end_datetime):
-        """Get the unavailabilities intervals for the workcenters in `self`.
-
-        Return the list of unavailabilities (a tuple of datetimes) indexed
-        by workcenter id.
-
-        :param start_datetime: filter unavailability with only slots after this start_datetime
-        :param end_datetime: filter unavailability with only slots before this end_datetime
-        :rtype: dict
-        """
         unavailability_ressources = self.resource_id._get_unavailable_intervals(
             start_datetime, end_datetime
         )
@@ -573,21 +525,6 @@ class MrpWorkcenter(models.Model):
         reservations_to_ignore=False,
         extra_leaves_slots=None,
     ):
-        """Get the first available interval for the workcenter in `self`.
-
-        The available interval is disjoint with all other reservations on this
-        workcenter, but can overlap the time-off of the related calendar.
-        Return the first available interval (start datetime, end datetime) or, if there
-        is none within the planning horizon, a tuple error (False, 'error message'). The
-        horizon is `mrp.workcenter_max_planning_iterations` fortnights, 700 days by default.
-
-        :param float duration: minutes needed to make the workorder
-        :param start_datetime: begin the search at this datetime
-        :param forward: forward scheduling (search from start_datetime up to the horizon), or backward (from start_datetime to now)
-        :param reservations_to_ignore: reservations to exclude when re-planning
-        :param extra_leaves_slots: extra time slots (start, stop) to consider
-        :rtype: tuple
-        """
         self.ensure_one()
         if extra_leaves_slots is None:
             extra_leaves_slots = []
@@ -622,7 +559,7 @@ class MrpWorkcenter(models.Model):
         now = localized(fields.Datetime.now())
         delta = timedelta(days=14)
         start_interval, stop_interval = None, None
-        for n in range(max_planning_iterations):  # 14 days each, 50 default = 700 days
+        for n in range(max_planning_iterations):
             if forward:
                 date_start = start_datetime + delta * n
                 date_stop = date_start + delta
@@ -657,7 +594,7 @@ class MrpWorkcenter(models.Model):
                     ):
                         (_start, start, _records) = conflict._items[
                             0
-                        ]  # restart available interval at conflicting interval stop
+                        ]
                         interval_minutes = (stop - start).total_seconds() / 60
                         start_interval, remaining = (
                             start if interval_minutes else None,
@@ -672,7 +609,6 @@ class MrpWorkcenter(models.Model):
                         )
                     remaining -= interval_minutes
             else:
-                # same process but starting from end on reversed intervals
                 date_stop = start_datetime - delta * n
                 date_start = date_stop - delta
                 available_intervals = get_available_intervals(date_start, date_stop)[
@@ -707,7 +643,7 @@ class MrpWorkcenter(models.Model):
                     ):
                         (stop, _stop, _records) = conflict._items[
                             0
-                        ]  # restart available interval at conflicting interval start
+                        ]
                         interval_minutes = (stop - start).total_seconds() / 60
                         stop_interval, remaining = (
                             stop if interval_minutes else None,
@@ -726,7 +662,6 @@ class MrpWorkcenter(models.Model):
         return False, "No available slot 700 days after the planned start"
 
     def action_view_schedule(self):
-        """Open the reservation calendar filtered to this workcenter's resource."""
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",
@@ -752,7 +687,7 @@ class MrpWorkcenter(models.Model):
                         filtered_workcenters,
                     ),
                     "type": "warning",
-                    "sticky": True,  # True/False will display for few seconds if false
+                    "sticky": True,
                     "next": {"type": "ir.actions.act_window_close"},
                 },
             }
@@ -786,12 +721,6 @@ class MrpWorkcenter(models.Model):
 class MrpWorkcenterTag(models.Model):
     _name = "mrp.workcenter.tag"
     _description = "Work Center Tag"
-    # `name`, `active`, `color` and `code` come from the mixin, flat: work
-    # center tags do not nest. `name` becomes translatable in the process,
-    # which is why the old `unique(name)` goes -- over a jsonb column it
-    # compares whole translation documents and enforces nothing once a second
-    # language is active. The mixin indexes the source term instead, and
-    # identity moves to `code`.
     _inherit = ["mixin.tag"]
 
 
@@ -801,7 +730,6 @@ class MrpWorkcenterProductivityLossType(models.Model):
     _rec_name = "loss_type"
 
     def _compute_display_name(self):
-        """Capitalize the loss type for display, `loss_type` values being lower case."""
         for rec in self:
             rec.display_name = rec.loss_type.title()
 
@@ -836,11 +764,6 @@ class MrpWorkcenterProductivityLoss(models.Model):
     )
 
     def _convert_to_duration(self, date_start, date_stop, workcenter=False):
-        """Convert a date range into a duration in minutes.
-        If the productivity type is not from an employee (extra hours are allow)
-        and the workcenter has a calendar, convert the dates into a duration based on
-        working hours.
-        """
         duration = 0
         for productivity_loss in self:
             if (
@@ -866,7 +789,7 @@ class MrpWorkcenterProductivity(models.Model):
     _rec_name = "loss_id"
     _check_company_auto = True
 
-    def _get_default_company_id(self):
+    def _default_company_id(self):
         company_id = False
         if self.env.context.get("default_company_id"):
             company_id = self.env.context["default_company_id"]
@@ -897,7 +820,7 @@ class MrpWorkcenterProductivity(models.Model):
         "res.company",
         required=True,
         index=True,
-        default=lambda self: self._get_default_company_id(),
+        default=lambda self: self._default_company_id(),
     )
     workorder_id = fields.Many2one(
         "mrp.workorder", "Work Order", check_company=True, index=True
@@ -957,7 +880,6 @@ class MrpWorkcenterProductivity(models.Model):
         workorders = self.workorder_id
         if not workorders:
             return
-        # One grouped query for the whole set: this ran once per work order.
         open_by_workorder_user = self.env["mrp.workcenter.productivity"]._read_group(
             [("workorder_id", "in", workorders.ids), ("date_end", "=", False)],
             ["workorder_id", "user_id"],

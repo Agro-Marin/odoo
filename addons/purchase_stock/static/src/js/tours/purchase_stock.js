@@ -4,7 +4,7 @@ import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 
 patch(PurchaseAdditionalTourSteps.prototype, {
-    _get_purchase_stock_steps: function () {
+    getPurchaseStockSteps() {
         return [
             {
                 trigger: ".o-form-buttonbox button[name='action_view_picking']",

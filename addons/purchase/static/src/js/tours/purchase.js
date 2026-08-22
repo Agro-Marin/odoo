@@ -2,28 +2,25 @@
 import PurchaseAdditionalTourSteps from "@purchase/js/tours/purchase_steps";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+import { session } from "@web/session";
 import { stepUtils } from "@web_tour/tour_utils";
+
+// Same notion of "enterprise" the tour framework itself uses for
+// `isActive: ["enterprise"]`, so the two cannot disagree.
+const isEnterprise = (session.server_version_info || "").at(-1) === "e";
 
 registry.category("web_tour.tours").add("purchase_tour", {
     url: "/odoo",
     steps: () => [
         stepUtils.showAppsMenuItem(),
         {
-            isActive: ["community"],
+            // One step, not a community/enterprise pair that differed only in
+            // where the tooltip is anchored.
             trigger: '.o_app[data-menu-xmlid="purchase.menu_purchase_root"]',
             content: _t(
                 "Let's try the Purchase app to manage the flow from purchase to reception and invoice control.",
             ),
-            tooltipPosition: "right",
-            run: "click",
-        },
-        {
-            isActive: ["enterprise"],
-            trigger: '.o_app[data-menu-xmlid="purchase.menu_purchase_root"]',
-            content: _t(
-                "Let's try the Purchase app to manage the flow from purchase to reception and invoice control.",
-            ),
-            tooltipPosition: "bottom",
+            tooltipPosition: isEnterprise ? "bottom" : "right",
             run: "click",
         },
         {
@@ -131,6 +128,6 @@ registry.category("web_tour.tours").add("purchase_tour", {
             run: "click",
         },
         ...stepUtils.statusbarButtonsSteps("Confirm", _t("Confirm your purchase.")),
-        ...new PurchaseAdditionalTourSteps()._get_purchase_stock_steps(),
+        ...new PurchaseAdditionalTourSteps().getPurchaseStockSteps(),
     ],
 });

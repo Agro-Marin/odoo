@@ -10,16 +10,12 @@ class PurchaseReport(models.Model):
     _auto = False
     _order = "date_order desc, price_total desc"
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
 
     order_reference = fields.Reference(
         string="Order",
         selection=[("purchase.order", "Purchase Order")],
         aggregator="count_distinct",
     )
-    # company_id is inherited from order.report.mixin.
     currency_id = fields.Many2one(
         comodel_name="res.currency",
         string="Currency",
@@ -97,17 +93,8 @@ class PurchaseReport(models.Model):
         help="Amount of time between date planned and order by date for each purchase order line.",
     )
 
-    # ------------------------------------------------------------
-    # REGISTRY METHODS
-    # ------------------------------------------------------------
 
-    def _get_select_fields(self) -> dict:
-        """Registry of fields for the SELECT clause.
-
-        :return: order-preserving mapping of field name (without AS clause) to
-            SQL expression (may be a multi-line string)
-        :rtype: dict
-        """
+    def _get_fields_select(self) -> dict:
         return {
             "id": "MIN(l.id)",
             "order_reference": "CONCAT('purchase.order', ',', o.id)",
@@ -178,20 +165,12 @@ class PurchaseReport(models.Model):
         }
 
     def _get_from_tables(self) -> list:
-        """Registry of tables and joins for the FROM clause.
-
-        :return: list of ``(table_name, alias, join_type, on_condition)`` tuples.
-            ``table_name`` is a table name or SQL object (subqueries/CTEs);
-            ``join_type`` is ``None`` for the base table or ``'LEFT JOIN'`` /
-            ``'INNER JOIN'`` etc.; ``on_condition`` is ``None`` for the base table.
-        :rtype: list
-        """
         currency_table = self.env["res.currency"]._get_simple_currency_table(
             self.env.companies,
         )
 
         return [
-            ("purchase_order_line", "l", None, None),  # Base table
+            ("purchase_order_line", "l", None, None),
             ("purchase_order", "o", "LEFT JOIN", "l.order_id=o.id"),
             ("res_partner", "partner", "LEFT JOIN", "o.partner_id=partner.id"),
             (
@@ -207,13 +186,7 @@ class PurchaseReport(models.Model):
             ("uom_uom", "product_uom_id", "LEFT JOIN", "t.uom_id=product_uom_id.id"),
         ]
 
-    def _get_group_by_fields(self) -> list:
-        """Registry of fields for the GROUP BY clause.
-
-        :return: field expressions for the GROUP BY clause; these are all the
-            non-aggregated fields from the SELECT clause
-        :rtype: list
-        """
+    def _get_fields_group_by(self) -> list:
         return [
             "o.company_id",
             "o.user_id",

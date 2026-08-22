@@ -14,8 +14,8 @@ class MrpWorkorder(models.Model):
         self._create_or_update_analytic_entry()
         return res
 
-    def _set_duration(self):
-        res = super()._set_duration()
+    def _inverse_duration(self):
+        res = super()._inverse_duration()
         self._create_or_update_analytic_entry()
         return res
 

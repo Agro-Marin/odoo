@@ -9,7 +9,7 @@ class StockLot(models.Model):
     _inherit = 'stock.lot'
 
     repair_line_ids = fields.Many2many('repair.order', string="Repair Orders", compute="_compute_repair_line_ids")
-    repair_part_count = fields.Integer('Repair part count', compute="_compute_repair_line_ids")
+    repair_part_count = fields.Count("repair_line_ids", 'Repair part count')
     in_repair_count = fields.Integer('In repair count', compute="_compute_in_repair_count")
     repaired_count = fields.Integer('Repaired count', compute='_compute_repaired_count')
 
@@ -26,7 +26,6 @@ class StockLot(models.Model):
                 repair_orders[rl_id] |= repair_line.repair_id
         for lot in self:
             lot.repair_line_ids = repair_orders[lot.id]
-            lot.repair_part_count = len(lot.repair_line_ids)
 
     def _compute_in_repair_count(self):
         lot_data = self.env['repair.order']._read_group([('lot_id', 'in', self.ids), ('state', 'not in', ('done', 'cancel'))], ['lot_id'], ['__count'])
@@ -41,7 +40,7 @@ class StockLot(models.Model):
             lot.repaired_count = result.get(lot.id, 0)
 
     def action_lot_open_repairs(self):
-        action = self.env["ir.actions.actions"]._for_xml_id("repair.action_repair_order_tree")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("repair.action_repair_order_tree")
         action.update({
             'domain': [('lot_id', '=', self.id)],
             'context': {

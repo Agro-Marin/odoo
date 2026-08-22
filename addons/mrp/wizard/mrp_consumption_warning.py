@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import api, fields, models
 
 
@@ -8,7 +6,7 @@ class MrpConsumptionWarning(models.TransientModel):
     _description = "Wizard in case of consumption in warning/strict and more component has been used for a MO (related to the bom)"
 
     mrp_production_ids = fields.Many2many("mrp.production")
-    mrp_production_count = fields.Integer(compute="_compute_mrp_production_count")
+    mrp_production_count = fields.Count("mrp_production_ids")
 
     consumption = fields.Selection(
         [
@@ -21,11 +19,6 @@ class MrpConsumptionWarning(models.TransientModel):
     mrp_consumption_warning_line_ids = fields.One2many(
         "mrp.consumption.warning.line", "mrp_consumption_warning_id"
     )
-
-    @api.depends("mrp_production_ids")
-    def _compute_mrp_production_count(self):
-        for wizard in self:
-            wizard.mrp_production_count = len(wizard.mrp_production_ids)
 
     @api.depends("mrp_consumption_warning_line_ids.consumption")
     def _compute_consumption(self):
@@ -63,11 +56,8 @@ class MrpConsumptionWarning(models.TransientModel):
                     )
                     if qty_compare_result != 0:
                         move.quantity = qty_expected
-                    # move should be set to picked to correctly consume the product
                     move.picked = True
-                    # in case multiple lines with same product => set others to 0 since we have no way to know how to distribute the qty done
                     line.product_expected_qty_uom = 0
-                # move was deleted before confirming MO or force deleted somehow
                 if not line.product_uom_id.is_zero(line.product_expected_qty_uom):
                     missing_move_vals.append(
                         {

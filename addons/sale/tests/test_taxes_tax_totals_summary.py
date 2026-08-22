@@ -125,9 +125,6 @@ class TestTaxesTaxTotalsSummarySale(TestTaxCommonSale, TestTaxesTaxTotalsSummary
                 self.assert_sale_order_tax_totals_summary(sale_order, expected_values)
 
     def test_apply_mixed_epd_discount(self):
-        """
-        When applying an epd - mixed payment term, the tax should be computed based on the discounted untaxed amount.
-        """
         tax_a = self.percent_tax(15.0)
         early_payment_term = self.env["account.payment.term"].create(
             {
@@ -174,9 +171,6 @@ class TestTaxesTaxTotalsSummarySale(TestTaxCommonSale, TestTaxesTaxTotalsSummary
         )
 
     def test_apply_mixed_epd_discount_fixed_tax(self):
-        """
-        When applying an epd - mixed payment term, the fixed tax amount should be the same.
-        """
         tax_a = self.fixed_tax(20.0)
         early_payment_term = self.env["account.payment.term"].create(
             {
@@ -223,9 +217,6 @@ class TestTaxesTaxTotalsSummarySale(TestTaxCommonSale, TestTaxesTaxTotalsSummary
         )
 
     def test_apply_mixed_epd_discount_percent_and_fixed_tax(self):
-        """
-        When applying an epd - mixed payment term, the percent tax should be computed based on the discounted untaxed amount.
-        """
         tax_a = self.percent_tax(15.0)
         tax_b = self.fixed_tax(20.0)
         early_payment_term = self.env["account.payment.term"].create(

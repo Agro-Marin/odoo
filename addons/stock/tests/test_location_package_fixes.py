@@ -1,5 +1,3 @@
-"""Regression tests for location/putaway/package/lot/product peripheral-model fixes."""
-
 from psycopg.errors import UniqueViolation
 
 from odoo.exceptions import UserError, ValidationError
@@ -106,8 +104,6 @@ class TestLocationPackageFixes(TestStockCommon):
         )
 
     def test_check_new_product_policy_without_products_context(self):
-        """The 'same' policy must answer, not crash, when neither a product nor
-        the `products` context key is provided (package flows)."""
         package_type = self.env["stock.package.type"].create({"name": "Tote"})
         category = self.env["stock.storage.category"].create(
             {"name": "Same-product category", "allow_new_product": "same"}
@@ -230,9 +226,6 @@ class TestLocationPackageFixes(TestStockCommon):
         self.assertFalse(package_type.sequence_id)
 
     def test_scrap_location_default_designation(self):
-        """The flagless scrap default is the company's lowest-id inventory-loss
-        location; a dedicated location is designated through the company-scoped
-        external id, not by its (locale-dependent) name."""
         company = self.env.company
         adjustment = self.StockLocationObj.search(
             [("company_id", "=", company.id), ("usage", "=", "inventory")],

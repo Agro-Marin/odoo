@@ -39,7 +39,7 @@ class StockPutawayRule(models.Model):
         comodel_name="stock.location",
         string="When product arrives in",
         required=True,
-        default=lambda self: self._default_location_id(),
+        default=lambda self: self._default_location_in_id(),
         check_company=True,
         domain="[('child_ids', '!=', False)]",
         ondelete="cascade",
@@ -69,7 +69,7 @@ class StockPutawayRule(models.Model):
     storage_category_id = fields.Many2one(
         comodel_name="stock.storage.category",
         string="Storage Category",
-        compute="_compute_storage_category",
+        compute="_compute_storage_category_id",
         store=True,
         readonly=False,
         check_company=True,
@@ -96,7 +96,7 @@ class StockPutawayRule(models.Model):
         return super().write(vals)
 
     @api.depends("sublocation")
-    def _compute_storage_category(self):
+    def _compute_storage_category_id(self):
         for rule in self:
             if rule.sublocation != "closest_location":
                 rule.storage_category_id = False
@@ -132,7 +132,7 @@ class StockPutawayRule(models.Model):
             return self.env.context.get("active_id")
         return None
 
-    def _default_location_id(self):
+    def _default_location_in_id(self):
         if self.env.context.get("active_model") == "stock.location":
             return self.env.context.get("active_id")
         if not self.env.user.has_group("stock.group_stock_multi_warehouses"):

@@ -4,12 +4,6 @@ from odoo.tests import TransactionCase, new_test_user
 
 
 class TestGenerateLotNames(TransactionCase):
-    """Focused unit tests for `stock.lot.generate_lot_names`, the pure string/re
-    series generator behind serial-number generation. It was previously exercised
-    only through full confirmed moves; these call it directly (no move machinery)
-    so the fiddly increment/padding/fallback edge cases are pinned cheaply.
-    """
-
     def _names(self, base, count):
         return [
             d["lot_name"] for d in self.env["stock.lot"].generate_lot_names(base, count)
@@ -115,10 +109,6 @@ class StockGenerateCommon(TransactionCase):
                 self.assertEqual(line_vals[checked_field], checked_vals[checked_field])
 
     def test_generate_01_sn(self):
-        """Creates a move with 5 move lines, then asks for generates 5 Serial
-        Numbers. Checks move has 5 new move lines with each a SN, and the 5
-        original move lines are still unchanged.
-        """
         nbre_of_lines = 5
         move = self.get_new_move(nbre_of_lines)
         move._do_unreserve()
@@ -131,9 +121,6 @@ class StockGenerateCommon(TransactionCase):
             self.assertEqual(move_line.lot_name, generated_numbers.pop(0))
 
     def test_generate_02_prefix_suffix(self):
-        """Generates some Serial Numbers and checks the prefix and/or suffix
-        are correctly used.
-        """
         nbre_of_lines = 10
         move = self.get_new_move(nbre_of_lines)
         move._do_unreserve()
@@ -210,7 +197,6 @@ class StockGenerateCommon(TransactionCase):
             self.assertEqual(move_line.lot_name, generated_numbers.pop(0))
 
     def test_generate_03_raise_exception(self):
-        """Tries to generate some SN but with invalid initial number."""
         move = self.get_new_move(3)
         with self.assertRaises(ValidationError):
             move._generate_serial_numbers("code-xxx", 0)
@@ -222,10 +208,6 @@ class StockGenerateCommon(TransactionCase):
         )
 
     def test_generate_04_generate_in_multiple_time(self):
-        """Generates a Serial Number for each move lines (except the last one)
-        but with multiple assignments, and checks the generated Serial Numbers
-        are what we expect.
-        """
         nbre_of_lines = 10
         move = self.get_new_move(nbre_of_lines)
         move._do_unreserve()
@@ -253,9 +235,6 @@ class StockGenerateCommon(TransactionCase):
             self.assertEqual(move_line.lot_name, False)
 
     def test_generate_with_putaway(self):
-        """Checks the `location_dest_id` of generated move lines is correclty
-        set in fonction of defined putaway rules.
-        """
         nbre_of_lines = 4
         shelf_location = self.env["stock.location"].create(
             {
@@ -291,14 +270,6 @@ class StockGenerateCommon(TransactionCase):
             self.assertEqual(move_line.location_dest_id.id, shelf_location.id)
 
     def test_generate_with_putaway_02(self):
-        """
-        Suppose a tracked-by-USN product P
-        Sub locations in WH/Stock + Storage Category
-        The Storage Category adds a capacity constraint (max 1 x P / Location)
-        - Plan a receipt with 2 x P
-        - Receive 4 x P
-        -> The test ensures that the destination locations are correct
-        """
         stock_location = self.warehouse.lot_stock_id
         self.env.user.write(
             {"group_ids": [(4, self.env.ref("stock.group_stock_multi_locations").id)]}
@@ -380,11 +351,6 @@ class StockGenerateCommon(TransactionCase):
         )
 
     def test_receipt_import_lots(self):
-        """This test ensure that with use_existing_lots is True on the picking type, the 'Import Serial/lots'
-        action generate new lots or use existing lots that are available.
-        It also tests that lot_id is set instead of lot_name so that the frontend correctly
-        shows the lots in the lot column.
-        """
         product_lot = self.env["product.product"].create(
             {
                 "name": "Tracked by Lots",
@@ -441,11 +407,6 @@ class StockGenerateCommon(TransactionCase):
         )
 
     def test_receipt_generate_serial_numbers(self):
-        """This test ensures that with use_existing_lots is True on the picking type, the 'Generate Serial/Lots'
-        action and 'Assign Serial Numbers' action generate new serials and use existing serials that are available.
-        It also tests that lot_id is set instead of lot_name so that the frontend correctly
-        shows the lots in the lot column.
-        """
         product_lot = self.env["product.product"].create(
             {
                 "name": "Tracked by Lots",
@@ -547,10 +508,6 @@ class StockGenerateCommon(TransactionCase):
         )
 
     def test_sequence_serial_numbers_access_rights(self):
-        """
-        This test ensures that when a user has access to generating serial numbers,
-        no Sequence access error is raised.
-        """
         receipt_picking = self.env["stock.picking"].create(
             {
                 "picking_type_id": self.warehouse.in_type_id.id,
@@ -671,9 +628,6 @@ class StockGenerateCommon(TransactionCase):
         )
 
     def test_import_mode_does_not_advance_sequence(self):
-        """Import mode (pasted names) must not advance the lot sequence, even
-        when the pasted `first_lot` happens to match the sequence's next char.
-        """
         action_context = {
             "default_location_id": self.location.id,
             "default_location_dest_id": self.location_dest.id,

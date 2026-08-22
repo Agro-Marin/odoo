@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { Component } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
@@ -12,17 +12,36 @@ class ButtonWithNotification extends Component {
         method: String,
         title: String,
     };
+
     setup() {
         this.orm = useService("orm");
         this.notification = useService("notification");
+        // The bound method sends mail. Without an in-flight guard a double
+        // click sent the reminder twice, and the ORM does not dedup mutating
+        // calls (`orm.dedup` is opt-in and refuses them outright).
+        this.state = useState({ pending: false });
+    }
+
+    /** @returns {boolean} */
+    get isDisabled() {
+        return this.state.pending || Boolean(this.props.readonly);
     }
 
     async onClick() {
-        const result = await this.orm.call(
-            this.props.record.resModel,
-            this.props.method,
-            [this.props.record.resId],
-        );
+        if (this.isDisabled) {
+            return;
+        }
+        this.state.pending = true;
+        let result;
+        try {
+            result = await this.orm.call(
+                this.props.record.resModel,
+                this.props.method,
+                [this.props.record.resId],
+            );
+        } finally {
+            this.state.pending = false;
+        }
         // The backend method may legitimately return nothing (e.g. the action
         // could not be performed); never assume a payload is present.
         if (result?.toast_message) {

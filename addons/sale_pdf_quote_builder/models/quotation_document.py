@@ -60,7 +60,7 @@ class QuotationDocument(models.Model):
         for doc in self:
             if doc.datas and not doc.mimetype.endswith('pdf'):
                 raise ValidationError(_("Only PDF documents can be used as header or footer."))
-            utils._ensure_document_not_encrypted(doc.ir_attachment_id._read_prefix())
+            utils._ensure_document_not_encrypted(doc.ir_attachment_id._get_content_prefix())
 
     # === COMPUTE METHODS === #
 

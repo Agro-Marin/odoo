@@ -36,7 +36,15 @@ export class ProductTemplateAttributeLine {
                         id: ptav.id,
                         name: ptav.name,
                         price_extra: ptav.price_extra,
-                        custom_value: productConfiguratorPtal.customValue,
+                        // `customValue` is scoped to the PTAL, but it belongs to the one
+                        // PTAV that asked for it. A `multi` attribute can have several
+                        // values selected alongside its `is_custom` one; copying the
+                        // value onto all of them made `selectedCustomPtavs` emit a
+                        // `product.attribute.custom.value` per selected PTAV, which the
+                        // server then prints as an extra line on the order line.
+                        custom_value: ptav.is_custom
+                            ? productConfiguratorPtal.customValue
+                            : undefined,
                     }),
             );
         return new ProductTemplateAttributeLine({
@@ -62,7 +70,20 @@ export class ProductTemplateAttributeLine {
      * @return {Boolean} Whether this PTAL has selected custom PTAVs.
      */
     get hasSelectedCustomPtav() {
-        return this.selected_ptavs.some((ptav) => ptav.custom_value);
+        return !!this.selectedCustomPtav;
+    }
+
+    /**
+     * Return the selected PTAV carrying a custom value, if any.
+     *
+     * A PTAL has at most one, by design. Reading it by lookup rather than as
+     * `selected_ptavs[0]` is what makes a `multi` attribute work: its custom value is
+     * rarely the first of several selected values.
+     *
+     * @return {ProductTemplateAttributeValue|undefined} The custom PTAV, if any.
+     */
+    get selectedCustomPtav() {
+        return this.selected_ptavs.find((ptav) => ptav.custom_value);
     }
 
     /**
@@ -75,8 +96,9 @@ export class ProductTemplateAttributeLine {
             .map((ptav) => ptav.name)
             .join(", ");
         let ptalDisplayName = `${this.name}: ${selectedPtavNames}`;
-        if (this.hasSelectedCustomPtav) {
-            ptalDisplayName += ` (${this.selected_ptavs[0].custom_value})`;
+        const customPtav = this.selectedCustomPtav;
+        if (customPtav) {
+            ptalDisplayName += ` (${customPtav.custom_value})`;
         }
         return ptalDisplayName;
     }

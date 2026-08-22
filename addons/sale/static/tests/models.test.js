@@ -95,14 +95,80 @@ test("PTAL.fromProductConfiguratorPtal maps configurator shape", () => {
         create_variant: "no_variant",
         selected_attribute_value_ids: [12],
         customValue: "custom",
+        // `is_custom` is part of every configurator payload: the controller reads it in
+        // `_get_basic_product_information` and `Product` declares it non-optional.
         attribute_values: [
-            { id: 11, name: "Red", price_extra: 1 },
-            { id: 12, name: "Blue", price_extra: 2 },
+            { id: 11, name: "Red", price_extra: 1, is_custom: false },
+            { id: 12, name: "Blue", price_extra: 2, is_custom: true },
         ],
     });
     expect(ptal.name).toBe("Color");
     expect(ptal.selected_ptavs.map((p) => p.id)).toEqual([12]);
     expect(ptal.selected_ptavs[0].custom_value).toBe("custom");
+});
+
+test("PTAL.fromProductConfiguratorPtal: multi-select keeps the custom value on its own PTAV", () => {
+    // `multi` is constrained to `no_variant` (product_attribute.py), i.e. exactly the
+    // lines the combo configurator shows, and one of its values may be `is_custom`.
+    // Attributing the PTAL-level custom value to every selected value made the server
+    // create a `product.attribute.custom.value` per selection, each of which it prints
+    // as its own line in the order line description.
+    const ptal = ProductTemplateAttributeLine.fromProductConfiguratorPtal({
+        id: 5,
+        attribute: { name: "Toppings" },
+        create_variant: "no_variant",
+        selected_attribute_value_ids: [11, 13],
+        customValue: "extra spicy",
+        attribute_values: [
+            { id: 11, name: "Cheese", price_extra: 1, is_custom: false },
+            { id: 12, name: "Ham", price_extra: 2, is_custom: false },
+            { id: 13, name: "Other", price_extra: 0, is_custom: true },
+        ],
+    });
+    expect(ptal.selected_ptavs.map((p) => [p.id, p.custom_value])).toEqual([
+        [11, undefined],
+        [13, "extra spicy"],
+    ]);
+    expect(ptal.selectedCustomPtav.id).toBe(13);
+    // The custom value is not the first selected value: reading `selected_ptavs[0]`
+    // would have shown "Toppings: Cheese, Other (undefined)".
+    expect(ptal.ptalDisplayName).toBe("Toppings: Cheese, Other (extra spicy)");
+
+    const product = new ProductProduct({
+        id: 7,
+        product_tmpl_id: 3,
+        display_name: "Pizza",
+        image_src: "",
+        description: "",
+        ptals: [],
+    });
+    product.ptals = [ptal];
+    expect(product.selectedCustomPtavs).toEqual([{ id: 13, value: "extra spicy" }]);
+});
+
+test("ProductCombo.isEmpty separates 'no items' from 'configurable'", () => {
+    // The server filters out combo items whose product is archived, so `combo_items`
+    // can arrive empty. `isConfigurable` alone calls that configurable, which renders a
+    // heading with no cards and blocks `areAllCombosSelected` forever.
+    const empty = new ProductCombo({ id: 1, name: "c", combo_items: [] });
+    expect(empty.isEmpty).toBe(true);
+    expect(empty.isConfigurable).toBe(true);
+
+    const populated = new ProductCombo({
+        id: 2,
+        name: "d",
+        combo_items: [
+            {
+                id: 1,
+                extra_price: 0,
+                is_preselected: false,
+                is_selected: false,
+                is_configurable: true,
+                product: { id: 1, product_tmpl_id: 1, display_name: "a", ptals: [] },
+            },
+        ],
+    });
+    expect(populated.isEmpty).toBe(false);
 });
 
 test("ProductComboItem.totalExtraPrice = item extra + no_variant extras", () => {

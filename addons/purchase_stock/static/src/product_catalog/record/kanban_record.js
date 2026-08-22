@@ -1,12 +1,14 @@
 /** @odoo-module native */
-import { ProductCatalogKanbanRecord } from "@product/product_catalog/kanban_record";
+import { PurchaseProductCatalogKanbanRecord } from "@purchase/product_catalog/kanban_record";
 
 import { ProductCatalogPurchaseSuggestOrderLine } from "./purchase_order_line.js";
 
-export class ProductCatalogPurchaseSuggestKanbanRecord extends ProductCatalogKanbanRecord {
+export class ProductCatalogPurchaseSuggestKanbanRecord extends PurchaseProductCatalogKanbanRecord {
     /* Hides suggest line if suggest_qty == qty in PO */
     getRecordClasses(...args) {
-        const classes = super.getRecordClasses(args) || "";
+        // Spread, not the rest-array itself: `super.getRecordClasses([...])`
+        // handed the base a single array argument instead of the original ones.
+        const classes = super.getRecordClasses(...args) || "";
         const catalogData = this.productCatalogData || {};
 
         if (

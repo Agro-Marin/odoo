@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 import json
 from collections import defaultdict
 from datetime import timedelta
@@ -16,14 +14,7 @@ from odoo.tools.date_utils import sum_intervals
 class MrpWorkorder(models.Model):
     _name = "mrp.workorder"
     _description = "Work Order"
-    # Projection only. A work order declines ``mixin.resource.allocation``:
-    # its time is workcenter capacity in minutes, set by the routing, not a
-    # share of a person's day.
     _inherit = ["mixin.resource.scheduling"]
-    # ``reservation_id`` used to sit between ``sequence`` and ``date_start``,
-    # ordering planned work by the creation order of its bookings. It is no
-    # longer a column -- the ledger link is the reverse One2many -- and
-    # ``date_start``, already the next key, is the meaningful one anyway.
     _order = "sequence, date_start, id"
 
     def _default_sequence(self):
@@ -32,7 +23,6 @@ class MrpWorkorder(models.Model):
     def _read_group_workcenter_id(self, workcenters, domain):
         workcenter_ids = self.env.context.get("default_workcenter_id")
         if not workcenter_ids:
-            # bypass ir.model.access checks, but search with ir.rules
             search_domain = self.env["ir.rule"]._compute_domain(workcenters._name)
             workcenter_ids = workcenters.sudo()._search(
                 search_domain, order=workcenters._order
@@ -52,7 +42,7 @@ class MrpWorkorder(models.Model):
     )
     working_state = fields.Selection(
         string="Workcenter Status", related="workcenter_id.working_state"
-    )  # technical: used in views only
+    )
     product_id = fields.Many2one(related="production_id.product_id")
     product_tracking = fields.Selection(related="product_id.tracking")
     product_uom_id = fields.Many2one(related="production_id.product_uom_id")
@@ -73,10 +63,10 @@ class MrpWorkorder(models.Model):
         readonly=True,
         related="production_id.reservation_state",
         store=True,
-    )  # Technical: used in views and domains only
+    )
     production_state = fields.Selection(
         string="Production State", readonly=True, related="production_id.state"
-    )  # Technical: used in views only
+    )
     production_bom_id = fields.Many2one("mrp.bom", related="production_id.bom_id")
     qty_production = fields.Float(
         "Original Production Quantity",
@@ -86,7 +76,7 @@ class MrpWorkorder(models.Model):
     company_id = fields.Many2one(related="production_id.company_id")
     qty_producing = fields.Float(
         compute="_compute_qty_producing",
-        inverse="_set_qty_producing",
+        inverse="_inverse_qty_producing",
         string="Currently Produced Quantity",
         digits="Product Unit",
     )
@@ -129,10 +119,6 @@ class MrpWorkorder(models.Model):
         compute="_compute_reservation_id",
         help="Resource reservation booking this workcenter time slot.",
     )
-    # Plain columns now: the work order's dates are the source of truth and the
-    # ledger mirrors them. They used to be computed *from* the reservation with
-    # an inverse writing back, which made the booking authoritative and every
-    # planning path responsible for creating one by hand.
     date_start = fields.Datetime("Start", copy=False)
     date_end = fields.Datetime("End", copy=False)
     duration_expected = fields.Float(
@@ -141,11 +127,11 @@ class MrpWorkorder(models.Model):
         compute="_compute_duration_expected",
         readonly=False,
         store=True,
-    )  # in minutes
+    )
     duration = fields.Float(
         "Real Duration",
         compute="_compute_duration",
-        inverse="_set_duration",
+        inverse="_inverse_duration",
         readonly=False,
         store=True,
         copy=False,
@@ -180,7 +166,6 @@ class MrpWorkorder(models.Model):
         check_company=True,
         index="btree_not_null",
     )
-    # Should be used differently as BoM can change in the meantime
     move_raw_ids = fields.One2many(
         "stock.move",
         "workorder_id",
@@ -218,7 +203,7 @@ class MrpWorkorder(models.Model):
     )
     is_user_working = fields.Boolean(
         "Is the Current User Working", compute="_compute_working_users"
-    )  # technical: is the current user working
+    )
     working_user_ids = fields.One2many(
         "res.users",
         string="Working user on this work order.",
@@ -230,16 +215,13 @@ class MrpWorkorder(models.Model):
         compute="_compute_working_users",
     )
     costs_hour = fields.Float(string="Cost per hour", default=0.0, aggregator="avg")
-    # Technical field to store the hourly cost of workcenter at time of work order completion (i.e. to keep a consistent cost).
     cost_mode = fields.Selection(
         [("actual", "Actual"), ("estimated", "Estimated")], default="actual"
     )
-    # Technical field to store the cost_mode of a workorder in case it is changed on the operation_id later on.
-    # This field should only be changed once at MO confirmation and should reflect the cost_mode of the operation_id.
 
     scrap_ids = fields.One2many("stock.scrap", "workorder_id")
     scrap_count = fields.Integer(
-        compute="_compute_scrap_move_count", string="Scrap Move"
+        compute="_compute_scrap_count", string="Scrap Move"
     )
     production_date = fields.Datetime(
         "Production Date", compute="_compute_production_date", store=True
@@ -295,7 +277,7 @@ class MrpWorkorder(models.Model):
             if wo.state == "progress":
                 wo.button_pending()
             elif wo.state in ("done", "cancel") and state == "progress":
-                wo.write({"state": "ready"})  # Middle step to solve further conflict
+                wo.write({"state": "ready"})
             ids_to_update.append(wo.id)
 
         wo_to_update = self.browse(ids_to_update)
@@ -405,14 +387,14 @@ class MrpWorkorder(models.Model):
         for workorder in self:
             workorder.qty_producing = workorder.production_id.qty_producing
 
-    def _set_qty_producing(self):
+    def _inverse_qty_producing(self):
         for workorder in self:
             if workorder.qty_producing not in (
                 0,
                 workorder.production_id.qty_producing,
             ):
                 workorder.production_id.qty_producing = workorder.qty_producing
-                workorder.production_id._set_qty_producing(False)
+                workorder.production_id._inverse_qty_producing(False)
 
     @api.depends(
         "blocked_by_workorder_ids.qty_produced",
@@ -446,38 +428,14 @@ class MrpWorkorder(models.Model):
 
     @api.depends("reservation_ids")
     def _compute_reservation_id(self):
-        """The work order's single booking, for readers that want it directly.
-
-        A work order books one workcenter for one window, so the ledger's
-        reverse One2many holds at most one row. Kept as a convenience over
-        ``reservation_ids[:1]`` rather than a stored column, so there is only
-        one link to the ledger and it cannot fall out of step with it.
-        """
         for workorder in self:
             workorder.reservation_id = workorder.reservation_ids[:1]
 
-    # ------------------------------------------------------------------
-    # Resource reservation integration
-    # ------------------------------------------------------------------
 
-    def _get_reservation_date_fields(self):
+    def _get_fields_reservation_date(self):
         return ("date_start", "date_end")
 
     def _get_reservation_vals_list(self):
-        """Mirror the planned window onto the workcenter's resource.
-
-        A cancelled work order books nothing: it has released the workcenter
-        even though its dates are kept for the record. Returning no rows is
-        what makes the mixin delete the booking, which is why
-        ``action_cancel`` no longer unlinks one by hand.
-
-        ``soft`` on every path. ``hard`` would make a work order's enforcement
-        depend on which code created its booking, and it contradicts the rest
-        of the module -- ``_get_conflicted_workorder_ids`` and the "Planned at
-        the same time as other workorder(s)" popover exist to *report* overlaps,
-        and ``action_replan`` to resolve them, none of which is reachable if an
-        overlap cannot be stored.
-        """
         self.ensure_one()
         resource = self.workcenter_id.resource_id
         if not self.date_start or not self.date_end or not resource:
@@ -495,8 +453,8 @@ class MrpWorkorder(models.Model):
             }
         ]
 
-    def _get_sync_trigger_fields(self):
-        return super()._get_sync_trigger_fields() | {"workcenter_id", "state"}
+    def _get_fields_sync_trigger(self):
+        return super()._get_fields_sync_trigger() | {"workcenter_id", "state"}
 
     @api.constrains("blocked_by_workorder_ids")
     def _check_no_cyclic_dependencies(self):
@@ -519,22 +477,14 @@ class MrpWorkorder(models.Model):
                 )
 
     def unlink(self):
-        # Removes references to workorder to avoid Validation Error
         (self.mapped("move_raw_ids") | self.mapped("move_finished_ids")).write(
             {"workorder_id": False}
         )
-        # The scheduling mixin's unlink removes the ledger rows.
         mo_dirty = self.production_id.filtered(
             lambda mo: mo.state in ("confirmed", "progress", "to_close")
         )
 
         for workorder in self:
-            # Link, don't assign. Assigning a recordset to an x2many *replaces*
-            # it, so relinking around the work order being deleted overwrote its
-            # predecessors' successor lists with its own: with B blocking both A
-            # and C, deleting A emptied B's successors and left C unblocked.
-            # Linking splices the deleted node out without touching its
-            # siblings' edges.
             workorder.blocked_by_workorder_ids.needed_by_workorder_ids = [
                 Command.link(needed_by.id)
                 for needed_by in workorder.needed_by_workorder_ids
@@ -542,8 +492,6 @@ class MrpWorkorder(models.Model):
 
         self.end_all()
         res = super().unlink()
-        # We need to go through `_action_confirm` for all workorders of the current productions to
-        # make sure the links between them are correct (`next_work_order_id` could be obsolete now).
         mo_dirty.workorder_ids._action_confirm()
         return res
 
@@ -569,21 +517,11 @@ class MrpWorkorder(models.Model):
         for workorder in self:
             if workorder.state in ("done", "cancel"):
                 continue
-            # Recompute the duration expected if the qty_producing has been changed:
-            # compare with the origin record if it happens during an onchange
             qty_changed = workorder.qty_producing != workorder.qty_production or (
                 workorder._origin != workorder
                 and workorder._origin.qty_producing
                 and workorder.qty_producing != workorder._origin.qty_producing
             )
-            # ``_get_duration_expected`` resolves setup/cleanup through
-            # ``workcenter_id._get_capacity(product_id, ...)``, so the stored
-            # value describes one specific product.  Changing the manufacturing
-            # order's product left it describing the *previous* one — the
-            # generic capacity kept applying after a product with its own
-            # ``mrp.workcenter.capacity`` was selected.  Restricted to records
-            # that already exist so that creating a work order still honours an
-            # explicitly supplied duration.
             product_changed = (
                 workorder._origin
                 and workorder._origin.product_id != workorder.product_id
@@ -597,7 +535,7 @@ class MrpWorkorder(models.Model):
             order.duration = order.get_duration()
             order.duration_unit = round(
                 order.duration / max(order.qty_produced, 1), 2
-            )  # rounding 2 because it is a time
+            )
             if order.duration_expected:
                 order.duration_percent = max(
                     -2147483648,
@@ -613,20 +551,10 @@ class MrpWorkorder(models.Model):
 
     @api.depends("time_ids.date_start", "time_ids.date_end", "duration")
     def _compute_duration_live(self):
-        """`duration`, plus whatever a still-running timer has accrued.
-
-        The stored `duration` only moves when a timer row changes, so while one
-        is open it under-reports by however long the work order has been
-        running. The timer widget used to close that gap with a
-        `mrp.workorder.get_duration` RPC *per record*, which on a list of work
-        orders in progress meant one HTTP round trip per row. Reading it as a
-        field folds the same answer into the read the list already performs.
-        """
         for workorder in self:
             workorder.duration_live = workorder.get_duration()
 
-    def _set_duration(self):
-
+    def _inverse_duration(self):
         def _float_duration_to_second(duration):
             minutes = duration // 1
             seconds = (duration % 1) * 60
@@ -647,8 +575,6 @@ class MrpWorkorder(models.Model):
                 date_start = enddate - timedelta(
                     seconds=_float_duration_to_second(delta_duration)
                 )
-                # If existing entries would overlap with the new one, push the new entry
-                # to start exactly where the latest existing entry ends.
                 end_dates = order.time_ids.filtered("date_end").mapped("date_end")
                 if end_dates:
                     latest_end = max(end_dates)
@@ -661,14 +587,12 @@ class MrpWorkorder(models.Model):
                     order.duration_expected >= new_order_duration
                     or old_order_duration >= order.duration_expected
                 ):
-                    # either only productive or only performance (i.e. reduced speed) time respectively
                     self.env["mrp.workcenter.productivity"].create(
                         order._prepare_timeline_vals(
                             new_order_duration, date_start, enddate
                         )
                     )
                 else:
-                    # split between productive and performance (i.e. reduced speed) times
                     maxdate = fields.Datetime.from_string(enddate) - relativedelta(
                         minutes=new_order_duration - order.duration_expected
                     )
@@ -710,7 +634,6 @@ class MrpWorkorder(models.Model):
                 order.progress = 0
 
     def _compute_working_users(self):
-        """Checks whether the current user is working, all the users currently working and the last user that worked."""
         for order in self:
             no_date_end_times = order.time_ids.filtered(
                 lambda time: not time.date_end
@@ -741,7 +664,7 @@ class MrpWorkorder(models.Model):
             else:
                 order.is_user_working = False
 
-    def _compute_scrap_move_count(self):
+    def _compute_scrap_count(self):
         data = self.env["stock.scrap"]._read_group(
             [("workorder_id", "in", self.ids)], ["workorder_id"], ["__count"]
         )
@@ -809,9 +732,6 @@ class MrpWorkorder(models.Model):
         return None
 
     def write(self, vals):
-        # A copy: the steps below derive values from `values`, and mutating the
-        # caller's dict made `write` hand back a different `date_end` /
-        # `duration_expected` than the one it was given.
         values = dict(vals)
         self._check_write_qty_produced(values)
         self._check_write_production_id(values)
@@ -825,7 +745,6 @@ class MrpWorkorder(models.Model):
         return res
 
     def _check_write_qty_produced(self, values):
-        """A produced quantity can only be set on a live work order, and never negative."""
         if "qty_produced" not in values:
             return
         for workorder in self:
@@ -839,7 +758,6 @@ class MrpWorkorder(models.Model):
                 raise UserError(_("The quantity produced must be positive."))
 
     def _check_write_production_id(self, values):
-        """A work order stays on the manufacturing order it was created for."""
         if "production_id" in values and any(
             values["production_id"] != workorder.production_id.id for workorder in self
         ):
@@ -848,11 +766,6 @@ class MrpWorkorder(models.Model):
             )
 
     def _update_write_workcenter(self, values):
-        """Move each reservation to the new workcenter's resource.
-
-        :return: the new workcenter (or False) and the work orders whose
-            duration has to be recomputed once the write has landed.
-        """
         if "workcenter_id" not in values:
             return False, self.browse()
         new_workcenter = self.env["mrp.workcenter"].browse(values["workcenter_id"])
@@ -870,21 +783,6 @@ class MrpWorkorder(models.Model):
         return new_workcenter, workorders_with_new_workcenter
 
     def _get_write_date_vals(self, values, new_workcenter):
-        """Per-record `date_end` / `duration_expected` implied by a date write.
-
-        Both are derived from the work order's own workcenter calendar and its
-        own span, so they cannot travel in the dict shared by the whole
-        recordset: the value computed for the last record used to overwrite the
-        one computed for every other, and a single `super().write()` then
-        applied it to all of them -- multi-editing the start date of two planned
-        work orders collapsed their durations onto one value.
-
-        Propagating the manufacturing order's own dates belongs to the same
-        walk, because the end date it has to follow is the work order's
-        recomputed one rather than the raw request.
-
-        :return: {work order id: vals} for the records that derive anything
-        """
         if "date_start" not in values and "date_end" not in values:
             return {}
         derived_vals = {}
@@ -910,7 +808,6 @@ class MrpWorkorder(models.Model):
         return derived_vals
 
     def _get_derived_date_vals(self, values, date_start, date_end, new_workcenter):
-        """The one date field this work order derives from the other, if any."""
         self.ensure_one()
         if "duration_expected" in values or self.env.context.get(
             "bypass_duration_calculation"
@@ -923,12 +820,6 @@ class MrpWorkorder(models.Model):
                 )
             }
         if date_start and not date_end:
-            # A start with no end is not a schedule -- it books nothing, and
-            # the work order shows an open-ended pill. This case used to be
-            # handled by the `date_start` inverse (`_set_dates`), which the
-            # projection contract replaced; deriving it here keeps planning a
-            # work order by its start alone working, which is what a Gantt drop
-            # and a multi-edit of the start date both do.
             return {
                 "date_end": self._calculate_date_finished(
                     date_start=date_start, new_workcenter=new_workcenter
@@ -943,7 +834,6 @@ class MrpWorkorder(models.Model):
         return {}
 
     def _update_production_dates(self, values, derived):
-        """Follow the first work order's start and the last one's end."""
         self.ensure_one()
         workorders = self.production_id.workorder_ids
         if self == workorders[:1] and values.get("date_start"):
@@ -951,7 +841,6 @@ class MrpWorkorder(models.Model):
                 {"date_start": fields.Datetime.to_datetime(values["date_start"])}
             )
         if self == workorders[-1:] and "date_end" in values:
-            # This work order's own recomputed end, not the raw request.
             propagated_end = derived.get("date_end", values["date_end"])
             if propagated_end:
                 self.production_id.with_context(force_date=True).write(
@@ -959,12 +848,6 @@ class MrpWorkorder(models.Model):
                 )
 
     def _write_grouped_by_derived_vals(self, values, derived_vals):
-        """One write per distinct set of derived values.
-
-        Records deriving nothing share the plain `values` group. Grouping rather
-        than writing each record separately keeps both dates moving together,
-        which the reservation's own span constraint requires.
-        """
         if not derived_vals:
             return super().write(values)
         groups = defaultdict(self.browse)
@@ -980,7 +863,6 @@ class MrpWorkorder(models.Model):
         return res
 
     def _post_write_qty_produced(self, values):
-        """Carry the lowest produced quantity onto the order's other work orders."""
         if "qty_produced" not in values:
             return
         productions = self.production_id.filtered(
@@ -994,10 +876,9 @@ class MrpWorkorder(models.Model):
                 production.workorder_ids.filtered(
                     lambda w: w.state != "done"
                 ).qty_producing = min_workorder_qty
-        self._set_qty_producing()
+        self._inverse_qty_producing()
 
     def _post_write_workcenter(self, workorders, new_workcenter):
-        """Recompute what the new workcenter's capacity and calendar decide."""
         for workorder in workorders:
             workorder.duration_expected = workorder._get_duration_expected()
             if workorder.date_start:
@@ -1009,22 +890,14 @@ class MrpWorkorder(models.Model):
     def create(self, vals_list):
         res = super().create(vals_list)
 
-        # A work order created with a start and no end: the `date_start`
-        # inverse used to fill this in, and inverses run on create too. Done
-        # before anything else below so the ledger row the scheduling mixin
-        # has just written gets the full window, not an open-ended one.
         for workorder in res:
             if workorder.date_start and not workorder.date_end:
                 workorder.date_end = workorder._calculate_date_finished()
 
-        # resequence the workorders if necessary
         for mo in res.mapped("production_id"):
             if len(set(mo.workorder_ids.mapped("sequence"))) != len(mo.workorder_ids):
                 mo._resequence_workorders()
 
-        # Auto-confirm manually added workorders.
-        # We need to go through `_action_confirm` for all workorders of the current productions to
-        # make sure the links between them are correct.
         if self.env.context.get("skip_confirm"):
             return res
         to_confirm = res.filtered(
@@ -1048,23 +921,18 @@ class MrpWorkorder(models.Model):
 
     def _plan_workorder(self, replan=False):
         self.ensure_one()
-        # Plan workorder after its predecessors
         date_start = max(self.production_id.date_start, fields.Datetime.now())
         for workorder in self.blocked_by_workorder_ids:
             workorder._plan_workorder(replan)
             if workorder.date_end and workorder.date_end > date_start:
                 date_start = workorder.date_end
-        # Plan only suitable workorders
         if self.state not in ["blocked", "ready"]:
             return
         if self.date_start:
             if replan:
-                # The new window is written below; the mixin reconciles the
-                # booking to match rather than leaving a stale one behind.
                 pass
             else:
                 return
-        # Consider workcenter and alternatives
         workcenters = self.workcenter_id | self.workcenter_id.alternative_workcenter_ids
         best_date_finished = None
         vals = {}
@@ -1073,7 +941,6 @@ class MrpWorkorder(models.Model):
                 raise UserError(
                     _("There is no defined calendar on workcenter %s.", workcenter.name)
                 )
-            # Compute theoretical duration
             if self.workcenter_id == workcenter:
                 duration_expected = self.duration_expected
             else:
@@ -1083,42 +950,26 @@ class MrpWorkorder(models.Model):
             from_date, to_date = workcenter._get_first_available_slot(
                 date_start, duration_expected
             )
-            # If the workcenter is unavailable, try planning on the next one
             if not from_date:
                 continue
-            # Check if this workcenter is better than the previous ones
             if to_date and (best_date_finished is None or to_date < best_date_finished):
                 best_date_start = from_date
                 best_date_finished = to_date
-                # The winning workcenter travels in `vals`; it used to be kept
-                # separately only to build the reservation by hand.
                 vals = {
                     "workcenter_id": workcenter.id,
                     "duration_expected": duration_expected,
                 }
-        # If none of the workcenter are available, raise
         if best_date_finished is None:
             raise UserError(
                 _(
                     "Impossible to plan the workorder. Please check the workcenter availabilities."
                 )
             )
-        # Writing the window books it: the scheduling mixin projects these
-        # dates onto the chosen workcenter's resource. `vals` already carries
-        # `workcenter_id` when the planner picked an alternative, and both are
-        # sync triggers, so one write reconciles the ledger.
         vals["date_start"] = best_date_start
         vals["date_end"] = best_date_finished
         self.write(vals)
 
     def _cal_cost(self, date=False):
-        """Returns the total labour cost of the workorder.
-
-        Workorders costed as estimated use the expected duration rather than the time
-        actually spent, in which case `date` has no effect.
-
-        :param datetime date: Only calculate for time_ids that ended before this date
-        """
         total = 0
         for workorder in self:
             if workorder._should_estimate_cost():
@@ -1175,8 +1026,6 @@ class MrpWorkorder(models.Model):
                 "date_start": date_start,
             }
             if not wo.reservation_ids:
-                # Starting an unplanned work order books it from now for its
-                # expected duration; the mixin creates the ledger row.
                 vals["date_end"] = date_start + relativedelta(
                     minutes=wo.duration_expected
                 )
@@ -1232,11 +1081,6 @@ class MrpWorkorder(models.Model):
         return True
 
     def end_previous(self, doall=False):
-        """Close the open time lines of these work orders.
-
-        :param doall: close every open time line on the open work orders; when
-            False, only the current user's most recent one
-        """
         domain = [("workorder_id", "in", self.ids), ("date_end", "=", False)]
         if not doall:
             domain.append(("user_id", "=", self.env.user.id))
@@ -1257,24 +1101,12 @@ class MrpWorkorder(models.Model):
         return True
 
     def action_cancel(self):
-        # No unlink here: `state` is a sync trigger and
-        # `_get_reservation_vals_list` returns nothing for a cancelled work
-        # order, so writing the state below releases the workcenter.
         self.end_all()
         return self.filtered(lambda wo: wo.state != "cancel").write({"state": "cancel"})
 
     def action_replan(self):
-        """Replan a work order.
-
-        Replans every "ready" or "blocked" work order of the linked manufacturing orders.
-        """
         for production in self.production_id:
             production._plan_workorders(replan=True)
-        # Invalidate conflict-dependent popover for all workorders on affected
-        # workcenters: _compute_json_popover uses a cross-record SQL query
-        # (_get_conflicted_workorder_ids) whose result changes when any
-        # workorder on the same workcenter is rescheduled — a dependency that
-        # @api.depends cannot express.
         self.invalidate_model(["show_json_popover", "json_popover"])
         return True
 
@@ -1306,13 +1138,13 @@ class MrpWorkorder(models.Model):
 
     def action_view_move_scrap(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id("stock.action_stock_scrap")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("stock.action_stock_scrap")
         action["domain"] = [("workorder_id", "=", self.id)]
         return action
 
     def action_open_wizard(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mrp.mrp_workorder_mrp_production_form"
         )
         action["res_id"] = self.id
@@ -1348,14 +1180,6 @@ class MrpWorkorder(models.Model):
             self.production_bom_id.product_qty or 1,
         )
         if not self.operation_id:
-            # ``duration_expected`` currently holds ``old_setup + old_cleanup +
-            # working``, so the working part can only be recovered by stripping
-            # the capacity that produced it.  Subtracting the *new* setup and
-            # cleanup instead silently rolled the difference into the working
-            # time and handed back the very same total: switching a
-            # manufacturing order to a product with its own
-            # ``mrp.workcenter.capacity`` left the generic setup/cleanup in
-            # place (30 stayed 30 instead of becoming 15).
             previous = self._origin if self._origin.workcenter_id else self
             _capacity, old_setup, old_cleanup = previous.workcenter_id._get_capacity(
                 previous.product_id,
@@ -1392,7 +1216,6 @@ class MrpWorkorder(models.Model):
             qty_production / capacity, precision_digits=0, rounding_method="UP"
         )
         if alternative_workcenter:
-            # TODO : find a better alternative : the settings of workcenter can change
             duration_expected_working = (
                 (self.duration_expected - setup - cleanup)
                 * self.workcenter_id.time_efficiency
@@ -1423,12 +1246,6 @@ class MrpWorkorder(models.Model):
         )
 
     def _get_conflicted_workorder_ids(self):
-        """Get conflicted workorder(s) with self.
-
-        Conflict means having two workorders in the same time in the same workcenter.
-
-        :return: defaultdict with key as workorder id of self and value as related conflicted workorder
-        """
         self.flush_model(["state", "date_start", "date_end", "workcenter_id"])
         sql = """
             SELECT wo1.id, wo2.id
@@ -1463,7 +1280,6 @@ class MrpWorkorder(models.Model):
         }
 
     def _prepare_timeline_vals(self, duration, date_start, date_end=False):
-        # Need a loss in case of the real time exceeding the expected
         if not self.duration_expected or duration <= self.duration_expected:
             loss_id = self.env["mrp.workcenter.productivity.loss"].search(
                 [("loss_type", "=", "productive")], limit=1
@@ -1491,7 +1307,7 @@ class MrpWorkorder(models.Model):
             "loss_id": loss_id[0].id,
             "date_start": date_start.replace(microsecond=0),
             "date_end": date_end.replace(microsecond=0) if date_end else date_end,
-            "user_id": self.env.user.id,  # FIXME: can be inconsistent with company_id
+            "user_id": self.env.user.id,
             "company_id": self.company_id.id,
         }
 
@@ -1512,7 +1328,6 @@ class MrpWorkorder(models.Model):
             self.qty_producing = quantity
 
     def get_working_duration(self):
-        """Get the additional duration for 'open times' i.e. productivity lines with no date_end."""
         self.ensure_one()
         duration = 0
         now = self.env.cr.now()
@@ -1521,7 +1336,6 @@ class MrpWorkorder(models.Model):
         return duration
 
     def _intervals_duration(self, intervals):
-        """Return merged interval duration (minutes). Overlapping intervals are counted once."""
         if not intervals:
             return 0.0
         duration = 0
@@ -1571,6 +1385,5 @@ class MrpWorkorder(models.Model):
         )
 
     def _set_cost_mode(self):
-        """This should only be called once when the MO is confirmed."""
         for workorder in self:
             workorder.cost_mode = workorder.operation_id.cost_mode or "actual"

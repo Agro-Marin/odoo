@@ -12,7 +12,7 @@ from odoo.exceptions import UserError
 class StockPicking(models.Model):
     _inherit = 'stock.picking'
 
-    def _default_weight_uom(self):
+    def _default_weight_uom_name(self):
         return self.env['product.template']._get_weight_uom_name_from_ir_config_parameter()
 
     def _compute_weight_uom_name(self):
@@ -23,12 +23,12 @@ class StockPicking(models.Model):
     delivery_type = fields.Selection(related='carrier_id.delivery_type', readonly=True)
     allowed_carrier_ids = fields.Many2many('delivery.carrier', compute='_compute_allowed_carrier_ids')
     carrier_id = fields.Many2one("delivery.carrier", string="Carrier", domain="[('id', 'in', allowed_carrier_ids)]", check_company=True)
-    weight = fields.Float(compute='_cal_weight', digits='Stock Weight', store=True, help="Total weight of the products in the picking.", compute_sudo=True)
+    weight = fields.Float(compute='_compute_weight', digits='Stock Weight', store=True, help="Total weight of the products in the picking.", compute_sudo=True)
     carrier_tracking_ref = fields.Char(string='Tracking Reference', copy=False)
     carrier_tracking_url = fields.Char(string='Tracking URL', compute='_compute_carrier_tracking_url')
-    weight_uom_name = fields.Char(string='Weight unit of measure label', compute='_compute_weight_uom_name', readonly=True, default=_default_weight_uom)
-    is_return_picking = fields.Boolean(compute='_compute_return_picking')
-    return_label_ids = fields.One2many('ir.attachment', compute='_compute_return_label')
+    weight_uom_name = fields.Char(string='Weight unit of measure label', compute='_compute_weight_uom_name', readonly=True, default=_default_weight_uom_name)
+    is_return_picking = fields.Boolean(compute='_compute_is_return_picking')
+    return_label_ids = fields.One2many('ir.attachment', compute='_compute_return_label_ids')
     destination_country_code = fields.Char(related='partner_id.country_id.code', string="Destination Country")
     integration_level = fields.Selection(related='carrier_id.integration_level')
 
@@ -44,14 +44,14 @@ class StockPicking(models.Model):
             picking.carrier_tracking_url = picking.carrier_id.get_tracking_link(picking) if picking.carrier_id and picking.carrier_tracking_ref else False
 
     @api.depends('carrier_id', 'move_ids')
-    def _compute_return_picking(self):
+    def _compute_is_return_picking(self):
         for picking in self:
             if picking.carrier_id and picking.carrier_id.can_generate_return:
                 picking.is_return_picking = any(m.origin_returned_move_id and m.location_dest_usage == 'internal' for m in picking.move_ids)
             else:
                 picking.is_return_picking = False
 
-    def _compute_return_label(self):
+    def _compute_return_label_ids(self):
         for picking in self:
             if picking.carrier_id:
                 picking.return_label_ids = self.env['ir.attachment'].search([('res_model', '=', 'stock.picking'), ('res_id', '=', picking.id), ('name', '=like', '%s%%' % picking.carrier_id.get_return_label_prefix())])
@@ -66,7 +66,7 @@ class StockPicking(models.Model):
             return False
 
     @api.depends('move_ids.weight')
-    def _cal_weight(self):
+    def _compute_weight(self):
         for picking in self:
             picking.weight = sum(move.weight for move in picking.move_ids if move.state != 'cancel')
 
@@ -128,7 +128,7 @@ class StockPicking(models.Model):
         res = self.carrier_id.send_shipping(self)[0]
         if self.carrier_id.free_over and self.sale_id:
             amount_without_delivery = self.sale_id._compute_amount_total_without_delivery()
-            if self.carrier_id._compute_currency(self.sale_id, amount_without_delivery, 'pricelist_to_company') >= self.carrier_id.amount:
+            if self.carrier_id._compute_currency_id(self.sale_id, amount_without_delivery, 'pricelist_to_company') >= self.carrier_id.amount:
                 res['exact_price'] = 0.0
         self.carrier_price = self.carrier_id._apply_margins(res['exact_price'], self.sale_id)
         if res['tracking_number']:
@@ -206,7 +206,7 @@ class StockPicking(models.Model):
             for tracker in carrier_trackers:
                 msg += Markup('<a href="%s">%s</a><br/>') % (tracker[1], tracker[0])
             self.message_post(body=msg)
-            return self.env["ir.actions.actions"]._for_xml_id("stock_delivery.act_delivery_trackers_url")
+            return self.env["ir.actions.actions"]._get_action_dict_by_xml_id("stock_delivery.act_delivery_trackers_url")
 
         return {
             'type': 'ir.actions.act_url',

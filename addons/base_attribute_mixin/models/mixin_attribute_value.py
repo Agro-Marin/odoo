@@ -22,7 +22,7 @@ class MixinAttributeValue(models.AbstractModel):
         default=10,
     )
     color = fields.Integer(
-        default=lambda self: self._get_default_color(),
+        default=lambda self: self._default_color(),
     )
 
     _name_src_uniq = name_uniq_index(
@@ -30,7 +30,7 @@ class MixinAttributeValue(models.AbstractModel):
         message="A value with this name already exists for this attribute.",
     )
 
-    def _get_default_color(self):
+    def _default_color(self):
         """Spread values over the palette instead of collapsing them onto one.
 
         A fixed default gives every value of every attribute the same colour,

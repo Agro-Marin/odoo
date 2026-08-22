@@ -5,7 +5,6 @@ from odoo.tests import HttpCase, tagged
 @tagged("post_install", "-at_install")
 class TestReportBom(HttpCase):
     def test_mrp_report_bom_variant_selection(self):
-        # Enable Manage Product Variants group so the variant selector is rendered.
         self.env.ref("base.user_admin").write(
             {
                 "group_ids": [(4, self.env.ref("product.group_product_variant").id)],

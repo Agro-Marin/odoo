@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { formatCurrency } from "@web/core/currency";
-import { formatFloat } from "@web/core/formatters";
+import { formatFieldFloat } from "@web/core/formatters";
 import { _t } from "@web/core/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { SIZES } from "@web/ui/viewport";
@@ -100,8 +100,8 @@ export class ProjectRightSidePanel extends Component {
         return costs.data.length || revenues.data.length;
     }
 
-    formatFloat(value) {
-        return formatFloat(value, { digits: [false, 1] });
+    formatFieldFloat(value) {
+        return formatFieldFloat(value, { digits: [false, 1] });
     }
 
     formatMonetary(value, options = {}) {

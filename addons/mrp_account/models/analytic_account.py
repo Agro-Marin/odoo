@@ -8,21 +8,11 @@ class AccountAnalyticAccount(models.Model):
     _description = 'Analytic Account'
 
     production_ids = fields.Many2many('mrp.production')
-    production_count = fields.Integer("Manufacturing Orders Count", compute='_compute_production_count')
+    production_count = fields.Count("production_ids", "Manufacturing Orders Count")
     bom_ids = fields.Many2many('mrp.bom')
-    bom_count = fields.Integer("BoM Count", compute='_compute_bom_count')
+    bom_count = fields.Count("bom_ids", "BoM Count")
     workcenter_ids = fields.Many2many('mrp.workcenter')
     workorder_count = fields.Integer("Work Order Count", compute='_compute_workorder_count')
-
-    @api.depends('production_ids')
-    def _compute_production_count(self):
-        for account in self:
-            account.production_count = len(account.production_ids)
-
-    @api.depends('bom_ids')
-    def _compute_bom_count(self):
-        for account in self:
-            account.bom_count = len(account.bom_ids)
 
     @api.depends('workcenter_ids.order_ids', 'production_ids.workorder_ids')
     def _compute_workorder_count(self):

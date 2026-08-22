@@ -1,9 +1,6 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
-
 {
     "name": "Manufacturing",
-    "version": "2.3",
+    "version": "2.4",
     "website": "https://www.odoo.com/app/manufacturing",
     "category": "Supply Chain/Manufacturing",
     "sequence": 55,
@@ -39,7 +36,7 @@
         "views/mrp_unbuild_views.xml",
         "views/res_config_settings_views.xml",
         "views/stock_scrap_views.xml",
-        "wizard/stock_replenishment_info.xml",  # needs views/mrp_workcenter_views.xml to load first
+        "wizard/stock_replenishment_info.xml",
         "report/report_deliveryslip.xml",
         "report/mrp_report_bom_structure.xml",
         "report/mrp_report_mo_overview.xml",
@@ -65,8 +62,6 @@
             "mrp/static/tests/tours/**/*",
         ],
         "web.assets_unit_tests": [
-            # Not `tests/**/*`: that also swallows `tests/tours/`, which belongs
-            # to `web.assets_tests` and was being loaded into both bundles.
             "mrp/static/tests/**/*",
             ("remove", "mrp/static/tests/tours/**/*"),
         ],

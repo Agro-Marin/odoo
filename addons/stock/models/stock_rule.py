@@ -17,8 +17,6 @@ _logger = logging.getLogger(__name__)
 
 
 class StockRule(models.Model):
-    """A rule describes what a procurement should do: produce, buy, move, ..."""
-
     _name = "stock.rule"
     _description = "Stock Rule"
     _order = "sequence, id"
@@ -193,23 +191,17 @@ class StockRule(models.Model):
 
     @api.onchange("picking_type_id")
     def _onchange_picking_type(self):
-        """Default the source/destination locations from the picking type."""
         self.location_src_id = self.picking_type_id.default_location_src_id.id
         self.location_dest_id = self.picking_type_id.default_location_dest_id.id
 
     @api.onchange("route_id", "company_id")
     def _onchange_route(self):
-        """Ensure that the rule's company is the same as the route's company."""
         if self.route_id.company_id:
             self.company_id = self.route_id.company_id
         if self.picking_type_id.warehouse_id.company_id != self.route_id.company_id:
             self.picking_type_id = False
 
     def _get_message_values(self):
-        """Return the source, destination and picking_type applied on a stock
-        rule. The purpose of this function is to avoid code duplication in
-        _get_message_dict functions since it often requires those data.
-        """
         source = (self.location_src_id and self.location_src_id.display_name) or _(
             "Source Location"
         )
@@ -227,12 +219,6 @@ class StockRule(models.Model):
         return source, destination, direct_destination, operation
 
     def _get_message_dict(self):
-        """Return a dict with the different possible message used for the
-        rule message. It has one entry per stock.rule action, except
-        'pull_push' which is built by combining the 'pull' and 'push'
-        messages in `_compute_action_message`. This function is overridden
-        in mrp and purchase_stock in order to complete the dictionary.
-        """
         message_dict = {}
         source, destination, direct_destination, operation = self._get_message_values()
         if self.action in ("push", "pull", "pull_push"):
@@ -283,7 +269,6 @@ class StockRule(models.Model):
         "location_dest_from_rule",
     )
     def _compute_action_message(self):
-        """Generate a message describing the rule's purpose for the end user."""
         action_rules = self.filtered(lambda rule: rule.action)
         for rule in action_rules:
             message_dict = rule._get_message_dict()
@@ -298,21 +283,9 @@ class StockRule(models.Model):
         self.picking_type_code_domain = []
 
     def _get_push_new_date(self, move):
-        """Return the move's date shifted by the rule's lead time."""
         return fields.Datetime.to_string(move.date + relativedelta(days=self.delay))
 
     def _run_push(self, move):
-        """Apply a push rule on a move.
-
-        If the rule is 'no step added' the move's destination location is
-        modified in place. If the rule is 'manual operation' a new move is
-        generated to cover the leg defined by the rule.
-
-        Not called from `run`: called directly by `stock_move._push_apply`.
-
-        :return: the move that continues the push chain, as a ``stock.move``
-            recordset (empty when the push adds no step).
-        """
         self.ensure_one()
         new_date = self._get_push_new_date(move)
         if self.auto == "transparent":
@@ -415,8 +388,7 @@ class StockRule(models.Model):
             moves._action_confirm()
         return True
 
-    def _get_custom_move_fields(self):
-        """Override to add fields from the procurement `values` to the move values."""
+    def _get_fields_custom_move(self):
         return []
 
     def _get_stock_move_values(
@@ -430,15 +402,6 @@ class StockRule(models.Model):
         company_id,
         values,
     ):
-        """Return the values used to create a stock move from a procurement.
-
-        Assumes the procurement's rule has action 'pull' or 'pull_push'.
-
-        `location_dest_id` is the procurement's need location (i.e. the
-        `Procurement.location_id` positional field); it becomes the move's
-        `location_final_id`, while the move's own `location_dest_id` comes from
-        the rule/picking type.
-        """
         date_scheduled = fields.Datetime.to_string(
             fields.Datetime.from_string(values["date_planned"])
             - relativedelta(days=self.delay or 0)
@@ -504,19 +467,12 @@ class StockRule(models.Model):
         }
         if self.location_dest_from_rule:
             move_values["location_dest_id"] = self.location_dest_id.id
-        for field in self._get_custom_move_fields():
+        for field in self._get_fields_custom_move():
             if field in values:
                 move_values[field] = values.get(field)
         return move_values
 
     def _propagate_transit_partner(self, procurement):
-        """Tag the procurement's destination moves with the source warehouse's
-        partner when creating chained moves for an inter-warehouse transfer, so
-        the transit document shows the right counterparty.
-
-        Kept out of `_get_stock_move_values`, which prepares values and must not
-        write to records.
-        """
         self.ensure_one()
         move_dest = procurement.values.get("move_dest_ids")
         if not move_dest:
@@ -531,11 +487,6 @@ class StockRule(models.Model):
             )
 
     def _serialize_procurement_values(self, values):
-        """Serialize procurement values for storage on the move:
-        - BaseModel instances are converted to their IDs
-        - Datetime and Date values are converted to their ISO string
-        - Other values are kept as is
-        """
         serialized = {}
         for key, value in values.items():
             if isinstance(value, models.BaseModel):
@@ -547,14 +498,6 @@ class StockRule(models.Model):
         return serialized
 
     def _get_lead_days(self, product, **values):
-        """Returns the cumulative delay and its description encountered by a
-        procurement going through the rules in `self`.
-
-        :param product: the product of the procurement
-        :type product: :class:`~odoo.addons.product.models.product.ProductProduct`
-        :return: the cumulative delay and cumulative delay's description
-        :rtype: tuple[defaultdict(float), list[str, str]]
-        """
         _ = self.env._
         delays = defaultdict(float)
         delay_description = []
@@ -590,21 +533,6 @@ class StockRule(models.Model):
 
     @api.model
     def run(self, procurements, raise_user_error=True):
-        """Fulfil `procurements` with the help of stock rules.
-
-        Procurements are needs of products at a certain location. To fulfil
-        these needs, we need to create some sort of documents (`stock.move`
-        by default, but extensions of `_run_` methods allow to create every
-        type of documents).
-
-        :param procurements: the description of the procurement
-        :type procurements: list of `~odoo.addons.stock.models.stock_procurement.Procurement`
-        :param raise_user_error: will raise either an UserError or a ProcurementException
-        :type raise_user_error: bool, optional
-        :raises UserError: if `raise_user_error` is True and a procurement isn't fulfillable
-        :raises ProcurementException: if `raise_user_error` is False and a procurement isn't fulfillable
-        """
-
         def raise_exception(procurement_errors):
             if raise_user_error:
                 _dummy, errors = zip(*procurement_errors, strict=False)
@@ -674,25 +602,6 @@ class StockRule(models.Model):
         return True
 
     def _get_route_buckets(self, route_ids, packaging_uom_id, product_id, warehouse_id):
-        """Yield candidate route recordsets in resolution-priority order:
-        explicit routes, then the packaging's routes, then the product/category
-        routes, then the warehouse's routes.
-
-        This is the single definition of route precedence, shared by the
-        sequential resolver (`_search_rule`), the batched resolver
-        (`_search_rule_for_warehouses`) and the in-memory resolver
-        (`_get_rule`), so the four-tier fallback lives in exactly one place.
-        Empty buckets may be yielded; callers skip them.
-
-        Full resolution contract: a rule in an earlier bucket always beats any
-        rule in a later bucket. WITHIN a bucket, routes set directly on the
-        product take precedence over category/packaging/warehouse routes, then
-        routes are ordered by ascending route sequence and rules within a route
-        by ascending rule sequence — see `_sorted_bucket_routes`, shared by
-        `_search_rule` (push resolution) and `_extract_rule_from_dict` (pull
-        resolution) so both paths resolve the same rule for the same
-        configuration.
-        """
         if route_ids:
             yield route_ids
         if packaging_uom_id:
@@ -705,12 +614,6 @@ class StockRule(models.Model):
     def _get_valid_route_ids(
         self, route_ids, packaging_uom_id, product_id, warehouse_ids
     ):
-        """Set of route ids a rule may come from for this (routes, packaging,
-        product, warehouses) combination — the union of every bucket, with the
-        warehouse routes filtered per product. Shared by
-        `_search_rule_for_warehouses` (domain restriction) and the batched
-        resolution in `run()` (grouping key).
-        """
         valid_route_ids = set()
         no_warehouse = self.env["stock.warehouse"]
         for routes in self._get_route_buckets(
@@ -756,13 +659,6 @@ class StockRule(models.Model):
 
     @api.model
     def _sorted_bucket_routes(self, routes, product_id):
-        """Order the routes of one precedence bucket for rule resolution:
-        product-specific routes first, then ascending route sequence (id as
-        tiebreaker). Single definition of the intra-bucket ordering, shared by
-        the sequential resolver (`_search_rule`, push path) and the prefetched
-        one (`_extract_rule_from_dict`, pull path) so both resolve the same
-        rule for the same configuration.
-        """
         product_route_ids = set(product_id.route_ids.ids)
         return routes.sorted(
             key=lambda route: (
@@ -775,11 +671,6 @@ class StockRule(models.Model):
     def _search_rule(
         self, route_ids, packaging_uom_id, product_id, warehouse_id, domain
     ):
-        """First find a rule among the routes given in `route_ids`, then try
-        the packaging's routes, then the product's routes, finally fallback
-        on the warehouse's routes. Within a bucket, routes are tried in
-        `_sorted_bucket_routes` order (product routes first, then sequence).
-        """
         Rule = self.env["stock.rule"]
         domain = Domain(domain)
         if warehouse_id:
@@ -806,13 +697,6 @@ class StockRule(models.Model):
     def _extract_rule_from_dict(
         self, rule_dict, routes, warehouse_id, location_dest_id, product_id
     ):
-        """Pick a rule delivering to `location_dest_id` among `routes` from the
-        prefetched `rule_dict` (built by `_search_rule_for_warehouses`).
-
-        Routes are tried in `_sorted_bucket_routes` order (product routes
-        first, then ascending route/rule sequence). Returns an empty recordset
-        when none matches.
-        """
         for route in self._sorted_bucket_routes(routes, product_id):
             sub_dict = rule_dict.get((location_dest_id.id, route.id))
             if not sub_dict:
@@ -825,9 +709,6 @@ class StockRule(models.Model):
         return self.env["stock.rule"]
 
     def _get_rule_from_dict(self, rule_dict, product_id, location_dest_id, values):
-        """Return the best pull rule for `location_dest_id` from the prefetched
-        `rule_dict`, trying each route bucket in priority order.
-        """
         warehouse_id = values.get("warehouse_id", location_dest_id.warehouse_id)
         buckets = self._get_route_buckets(
             values.get("route_ids", self.env["stock.route"]),
@@ -845,10 +726,6 @@ class StockRule(models.Model):
 
     @api.model
     def _get_location_hierarchy(self, location_id):
-        """Return the leaf -> root location chain of `location_id` (leaf first),
-        reused for the rule search domain, the warehouse set and the fallback
-        walk of `_get_rule`.
-        """
         locations = location_id
         while locations[-1].location_id:
             locations |= locations[-1].location_id
@@ -856,9 +733,6 @@ class StockRule(models.Model):
 
     @api.model
     def _get_rule_from_hierarchy(self, rule_dict, product_id, locations, values):
-        """Walk the leaf -> root chain `locations`, returning the first pull rule
-        the prefetched `rule_dict` yields (empty recordset when none matches).
-        """
         intercomp_transit = self.env.ref(
             "stock.stock_location_inter_company", raise_if_not_found=False
         )
@@ -881,9 +755,6 @@ class StockRule(models.Model):
 
     @api.model
     def _get_rule(self, product_id, location_id, values):
-        """Find a pull rule for the location_id, fallback on the parent
-        locations if it could not be found.
-        """
         Rule = self.env["stock.rule"]
         if not location_id:
             return Rule
@@ -900,18 +771,6 @@ class StockRule(models.Model):
 
     @api.model
     def _get_rules_batch(self, procurements):
-        """Resolve the pull rule of every procurement in `procurements`, returning
-        a list of rules aligned with the input.
-
-        Procurements sharing (hierarchy root, company, warehouse, applicable
-        route set) share one prefetched rule dict — one
-        `_search_rule_for_warehouses` read-group per group instead of one per
-        procurement, which is what `run()` needs when the scheduler feeds it
-        hundreds of procurements targeting the same warehouse. The applicable
-        route set (and the explicit routes' companies) is part of the key so a
-        group's merged search stays exactly equivalent to the per-procurement
-        one.
-        """
         Rule = self.env["stock.rule"]
         rules = [Rule] * len(procurements)
         groups = defaultdict(list)
@@ -991,7 +850,6 @@ class StockRule(models.Model):
 
     @api.model
     def _get_push_rule(self, product_id, location_dest_id, values):
-        """Find a push rule for the location_dest_id, with a fallback to the parent locations if none could be found."""
         found_rule = self.env["stock.rule"]
         location = location_dest_id
         while (not found_rule) and location:
@@ -1071,16 +929,10 @@ class StockRule(models.Model):
 
     @api.model
     def _get_scheduler_tasks_to_do(self):
-        """Number of task to be executed by the stock scheduler. This number will be given in log
-        message to know how many tasks succeeded."""
         return 3
 
     @api.model
     def run_scheduler(self, use_new_cursor=False, company_id=False):
-        """Call the scheduler in order to check the running procurements (super method), to check the minimum stock rules
-        and the availability of moves. This function is intended to be run for all the companies at the same time, so
-        we run functions as SUPERUSER to avoid intercompanies and access rights issues.
-        """
         try:
             self._run_scheduler_tasks(
                 use_new_cursor=use_new_cursor, company_id=company_id

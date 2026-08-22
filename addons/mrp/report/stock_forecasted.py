@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import models
 
 
@@ -55,8 +53,8 @@ class StockForecasted_Product_Product(models.AbstractModel):
 
         in_domain = domain + [
             ("location_dest_id", "in", wh_location_ids)
-        ]  # Pending incoming quantity.
-        out_domain = domain + [  # Pending outgoing quantity.
+        ]
+        out_domain = domain + [
             ("raw_material_production_id", "!=", False),
             ("location_id", "in", wh_location_ids),
         ]

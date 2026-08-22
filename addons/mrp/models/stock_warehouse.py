@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError
 
@@ -102,7 +100,7 @@ class StockWarehouse(models.Model):
                 manufacture_route.warehouse_ids = [Command.unlink(warehouse.id)]
 
     def _create_or_update_route(self):
-        manufacture_route = self._find_or_create_global_route(
+        manufacture_route = self._get_or_create_global_route(
             "mrp.route_warehouse0_manufacture", _("Manufacture")
         )
         for warehouse in self:
@@ -220,7 +218,7 @@ class StockWarehouse(models.Model):
                         "procure_method": "make_to_order",
                         "company_id": self.company_id.id,
                         "picking_type_id": self.manu_type_id.id,
-                        "route_id": self._find_or_create_global_route(
+                        "route_id": self._get_or_create_global_route(
                             "mrp.route_warehouse0_manufacture", _("Manufacture")
                         ).id,
                     },
@@ -240,7 +238,7 @@ class StockWarehouse(models.Model):
                         "company_id": self.company_id.id,
                         "action": "pull",
                         "auto": "manual",
-                        "route_id": self._find_or_create_global_route(
+                        "route_id": self._get_or_create_global_route(
                             "stock.route_warehouse0_mto", _("Replenish on Order (MTO)")
                         ).id,
                         "location_dest_id": production_location.id,
@@ -261,7 +259,7 @@ class StockWarehouse(models.Model):
                         "company_id": self.company_id.id,
                         "action": "pull",
                         "auto": "manual",
-                        "route_id": self._find_or_create_global_route(
+                        "route_id": self._get_or_create_global_route(
                             "stock.route_warehouse0_mto", _("Replenish on Order (MTO)")
                         ).id,
                         "name": self._format_rulename(
@@ -280,14 +278,11 @@ class StockWarehouse(models.Model):
         )
         return rules
 
-    def _get_location_step_fields(self):
-        return super()._get_location_step_fields() + ["manufacture_steps"]
+    def _get_fields_location_step(self):
+        return super()._get_fields_location_step() + ["manufacture_steps"]
 
     def _get_locations_values(self, vals, code=False):
         values = super()._get_locations_values(vals, code=code)
-        # Same resolution as the base: `vals`, else this warehouse's own value,
-        # else the default — never `default_get` alone, which rebuilt an existing
-        # warehouse's pbm/sam locations against `mrp_one_step`.
         def_values = self._get_location_step_values(vals)
         manufacture_steps = def_values["manufacture_steps"]
         code = vals.get("code") or code or ""
@@ -313,9 +308,6 @@ class StockWarehouse(models.Model):
 
     def _get_sequence_values(self, name=False, code=False):
         values = super()._get_sequence_values(name=name, code=code)
-        # Honor the name/code params (as the base does) so a warehouse rename or
-        # recode propagates to these sequences; `_update_name_and_code` calls
-        # this before super().write(), so self.name/self.code are still stale.
         name = name or self.name
         code = code or self.code
         values.update(
@@ -464,9 +456,3 @@ class StockWarehouse(models.Model):
             {"active": new_manufacture_step != "mrp_one_step"}
         )
         self.mapped("sam_loc_id").write({"active": new_manufacture_step == "pbm_sam"})
-
-    # No `_update_name_and_code` override: `manufacture_pull_id` is named by
-    # `_format_rulename` from the warehouse *code*, so the former
-    # `.replace(warehouse.name, ...)` here never matched. The base now renames
-    # every rule carrying `warehouse_id`, this one included, when the code
-    # changes.

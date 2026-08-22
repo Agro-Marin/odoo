@@ -8,7 +8,7 @@ class EventTypeBooth(models.Model):
     _name = 'event.type.booth'
     _description = 'Event Booth Template'
 
-    def _get_default_booth_category(self):
+    def _default_booth_category_id(self):
         """Assign booth category by default if only one exists"""
         category_id = self.env['event.booth.category'].search([])
         if category_id and len(category_id) == 1:
@@ -20,7 +20,7 @@ class EventTypeBooth(models.Model):
         ondelete='cascade', required=True, index=True)
     booth_category_id = fields.Many2one(
         'event.booth.category', string='Booth Category', index=True,
-        default=_get_default_booth_category, ondelete='restrict', required=True)
+        default=_default_booth_category_id, ondelete='restrict', required=True)
 
     @api.model
     def _get_event_booth_fields_whitelist(self):

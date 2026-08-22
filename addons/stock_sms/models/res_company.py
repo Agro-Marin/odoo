@@ -6,7 +6,7 @@ from odoo import fields, models
 class ResCompany(models.Model):
     _inherit = "res.company"
 
-    def _default_confirmation_sms_picking_template(self):
+    def _default_stock_sms_confirmation_template_id(self):
         try:
             return self.env.ref('stock_sms.sms_template_data_stock_delivery').id
         except ValueError:
@@ -15,6 +15,6 @@ class ResCompany(models.Model):
     stock_sms_confirmation_template_id = fields.Many2one(
         'sms.template', string="SMS Template",
         domain="[('model', '=', 'stock.picking')]",
-        default=_default_confirmation_sms_picking_template,
+        default=_default_stock_sms_confirmation_template_id,
         help="SMS sent to the customer once the order is delivered.")
     has_received_warning_stock_sms = fields.Boolean()

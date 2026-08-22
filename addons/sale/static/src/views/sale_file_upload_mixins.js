@@ -36,11 +36,16 @@ export const saleFileUploadRenderer = (Renderer) =>
         setup() {
             super.setup();
             this.dropZoneTitle = _t("Import a request for quotation from a customer");
-            this.dropZoneDescription = _t(`
-            If your customer runs on Odoo 18 or higher, customer data and sales order lines
-            will be automatically created. Any other pdf containing an attached
-            UBL-RequestForQuotation file will work as well.
-        `);
+            // One flat msgid. The template literal that used to be here carried its own
+            // newlines and source indentation into the catalogue, so every translation
+            // was invalidated by any reindent of this file — and the rendered text
+            // depended on where the string happened to sit in the source.
+            this.dropZoneDescription = _t(
+                "If your customer runs on Odoo 18 or higher, customer data and sales" +
+                    " order lines will be automatically created. Any other pdf" +
+                    " containing an attached UBL-RequestForQuotation file will work" +
+                    " as well.",
+            );
         }
     };
 

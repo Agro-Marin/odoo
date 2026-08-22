@@ -4,8 +4,6 @@ from odoo.tests import TransactionCase, tagged
 
 @tagged("post_install", "-at_install")
 class TestExpenseReinvoicePrice(TransactionCase):
-    """Price at which a vendor cost is re-invoiced to the customer."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -47,37 +45,30 @@ class TestExpenseReinvoicePrice(TransactionCase):
         )
 
     def test_sales_price_policy_charges_the_catalog_price(self):
-        """With the sales-price policy the customer pays the list price."""
         line = self._bill_line(self._product("sales_price"))
         self.assertEqual(line._sale_get_invoice_price(self.order), 100.0)
 
     def test_cost_policy_charges_what_was_actually_paid(self):
-        """With the cost policy the customer pays the incurred amount."""
         line = self._bill_line(self._product("cost"), quantity=2, price=60.0)
         self.assertEqual(line._sale_get_invoice_price(self.order), 60.0)
 
     def test_cost_policy_divides_the_total_by_the_quantity(self):
-        """The re-invoiced unit price comes from amount over quantity."""
         line = self._bill_line(self._product("cost"), quantity=4, price=25.0)
         self.assertEqual(line._sale_get_invoice_price(self.order), 25.0)
 
     def test_zero_quantity_never_divides(self):
-        """A zero-quantity line prices at zero instead of dividing (boundary)."""
         line = self._bill_line(self._product("cost"), quantity=0, price=60.0)
         self.assertEqual(line._sale_get_invoice_price(self.order), 0.0)
 
     def test_line_with_a_policy_is_reinvoiceable(self):
-        """A cost carrying a re-invoice policy is picked up for the order."""
         line = self._bill_line(self._product("cost"))
         self.assertTrue(line._sale_can_be_reinvoice())
 
     def test_line_without_a_policy_is_not_reinvoiceable(self):
-        """A product with no policy is never re-invoiced (negative)."""
         line = self._bill_line(self._product("no"))
         self.assertFalse(line._sale_can_be_reinvoice())
 
     def test_line_already_tied_to_an_order_is_not_reinvoiced_twice(self):
-        """A cost already linked to a sale line is never charged again."""
         product = self._product("cost")
         line = self._bill_line(product)
         order_line = self.env["sale.order.line"].create(

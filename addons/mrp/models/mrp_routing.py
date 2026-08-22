@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.tools import float_is_zero, float_round
@@ -146,13 +144,8 @@ class MrpRoutingWorkcenter(models.Model):
                 limit=operation.time_mode_batch,
                 order="date_end desc, id desc",
             )
-            # To compute the time_cycle, we can take the total duration of previous operations
-            # but for the quantity, we will take in consideration the qty_produced like if the capacity was 1.
-            # So producing 50 in 00:10 with capacity 2, for the time_cycle, we assume it is 25 in 00:10
-            # When recomputing the expected duration, the capacity is used again to divide the qty to produce
-            # so that if we need 50 with capacity 2, it will compute the expected of 25 which is 00:10
-            total_duration = 0  # Can be 0 since it's not an invalid duration for BoM
-            cycle_number = 0  # stays 0 without data, hence the guard below
+            total_duration = 0
+            cycle_number = 0
             for item in data:
                 total_duration += item["duration"]
                 (capacity, _setup, _cleanup) = item["workcenter_id"]._get_capacity(
@@ -303,11 +296,7 @@ class MrpRoutingWorkcenter(models.Model):
         }
 
     def _skip_operation_line(self, product, never_attribute_values=False):
-        """Control if a operation should be processed, can be inherited to add
-        custom control.
-        """
         self.ensure_one()
-        # skip operation line if archived
         if not self.active:
             return True
         if not product or product._name == "product.template":

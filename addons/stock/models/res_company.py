@@ -21,7 +21,7 @@ class ResCompany(models.Model):
     stock_mail_confirmation_template_id = fields.Many2one(
         comodel_name="mail.template",
         string="Email Template confirmation picking",
-        default=lambda self: self._default_confirmation_mail_template(),
+        default=lambda self: self._default_stock_mail_confirmation_template_id(),
         domain="[('model', '=', 'stock.picking')]",
         help="Email sent to the customer once the order is done.",
     )
@@ -93,31 +93,14 @@ class ResCompany(models.Model):
 
     @api.model
     def _all_companies(self):
-        """Every company, archived ones included.
-
-        Provisioning must cover archived companies too: they still own records and
-        may be reactivated later, so the ``create_missing_*`` backfills need them.
-        """
         return self.env["res.company"].with_context(active_test=False).search([])
 
     @api.model
     def _companies_without(self, companies_having):
-        """Return the companies not present in ``companies_having``.
-
-        Shared by the ``create_missing_*`` backfills, which each provision a
-        resource only for the companies that lack it.
-        """
         return self._all_companies() - companies_having
 
     @api.model
     def _companies_with_property(self, model_name, field_name):
-        """Companies that already resolve a default for the given property.
-
-        A default with no ``company_id`` covers every company, so its presence means
-        all are covered. Mapping ``company_id`` alone would drop that global default
-        (``False`` -> empty recordset) and let the ``create_missing_*`` backfills
-        duplicate a resource companies already resolve globally.
-        """
         field = self.env["ir.model.fields"]._get(model_name, field_name)
         defaults = self.env["ir.default"].sudo()
         global_default = defaults.search_count(
@@ -128,14 +111,6 @@ class ResCompany(models.Model):
         return defaults.search([("field_id", "=", field.id)]).mapped("company_id")
 
     def _create_transit_location(self):
-        """Create a per-company transit location for resupply routes between
-        warehouses of the same company, avoiding the accounting entries a
-        cross-company transfer would trigger.
-
-        ``self`` may hold several companies (the ``create_missing_*`` backfills call
-        these helpers on a multi-company recordset), so create in one batch and pair
-        results back with ``zip``.
-        """
         locations = self.env["stock.location"].create(
             [
                 {
@@ -155,12 +130,6 @@ class ResCompany(models.Model):
         return locations
 
     def _create_property_location(self, name, usage, property_field):
-        """Create one ``stock.location`` per company in ``self`` and register it as
-        that company's default for the ``product.template`` property ``property_field``.
-
-        Backs the inventory-loss and production locations, which differ only in
-        name, usage and target property. ``self`` may be a multi-company recordset.
-        """
         locations = self.env["stock.location"].create(
             [
                 {
@@ -207,15 +176,6 @@ class ResCompany(models.Model):
         )
 
     def _create_warehouse(self):
-        """Ensure every company in ``self`` owns its primary warehouse and return
-        one warehouse per company, in ``self`` order (recordset-capable).
-
-        The single seam through which a company acquires a warehouse, so the
-        provisioning contract lives in one place. Idempotent: a company that already
-        owns a warehouse keeps it instead of getting a duplicate (which would hit
-        unique(name, company_id)), so callers need not know whether one was already
-        provisioned.
-        """
         Warehouse = self.env["stock.warehouse"]
         warehouse_by_company = {}
         for warehouse in Warehouse.with_context(active_test=False).search(
@@ -250,12 +210,6 @@ class ResCompany(models.Model):
 
     @api.model
     def bootstrap_first_warehouse(self):
-        """Bootstrap a warehouse for the first company when the database has none yet.
-
-        One-shot, not a per-company backfill: provisions a single warehouse only
-        when none exists at all. Every other warehouse comes from an explicit
-        ``_create_warehouse`` caller.
-        """
         if self.env["stock.warehouse"].search_count([], limit=1):
             return
         self.env["res.company"].search([], limit=1)._create_warehouse()
@@ -292,12 +246,7 @@ class ResCompany(models.Model):
 
     @api.model
     def create_missing_mail_template(self):
-        """Backfill the delivery-confirmation mail template on companies that lack
-        it (new companies get it from the field default). Invoked from
-        ``data/mail_template_data.xml`` because the template is defined after
-        ``data/stock_data.xml`` in the manifest, so it can't ride with the other
-        ``create_missing_*`` calls there."""
-        template_id = self._default_confirmation_mail_template()
+        template_id = self._default_stock_mail_confirmation_template_id()
         if not template_id:
             return
         self._all_companies().filtered(
@@ -313,22 +262,12 @@ class ResCompany(models.Model):
         self._create_scrap_sequence()
 
     def _create_per_company_picking_types(self):
-        """Extension point: modules that ship company-specific picking types
-        (e.g. dropshipping) override this."""
+        pass
 
     def _create_per_company_rules(self):
-        """Extension point: modules that ship company-specific stock rules override this."""
+        pass
 
     def _set_per_company_inter_company_locations(self, inter_company_location):
-        """Point the stock customer/supplier properties of each company in ``self``
-        and every other company at the shared inter-company transit location, in
-        both directions. Only relevant once multi-company is enabled.
-
-        Archived companies are included (``_all_companies``): a dormant company
-        still owns records and may be reactivated, and without this wiring its
-        cross-company transfers would route through the default customer/supplier
-        locations instead of the shared transit location.
-        """
         if not self.env.user.has_group("base.group_multi_company"):
             return
         all_companies = self._all_companies()
@@ -342,7 +281,7 @@ class ResCompany(models.Model):
                     other_company
                 )._set_stock_property_locations(inter_company_location)
 
-    def _default_confirmation_mail_template(self):
+    def _default_stock_mail_confirmation_template_id(self):
         template = self.env.ref(
             "stock.mail_template_data_delivery_confirmation", raise_if_not_found=False
         )

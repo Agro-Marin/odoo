@@ -306,14 +306,14 @@ class StockScrap(models.Model):
         )
 
     def action_get_stock_picking(self):
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "stock.action_picking_tree_all"
         )
         action["domain"] = [("id", "=", self.picking_id.id)]
         return action
 
     def action_get_stock_move_lines(self):
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "stock.stock_move_line_action"
         )
         action["domain"] = [("move_id", "in", self.move_ids.ids)]
@@ -326,7 +326,7 @@ class StockScrap(models.Model):
         if not self._should_check_available_qty():
             return True
 
-        precision = self.env["decimal.precision"].precision_get("Product Unit")
+        precision = self.env["decimal.precision"].get_precision("Product Unit")
         available_qty = self.with_context(
             location=self.location_id.id,
             lot_id=self.lot_id.id,

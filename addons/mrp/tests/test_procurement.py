@@ -1,4 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
 from datetime import timedelta
 from json import loads
 
@@ -11,27 +10,18 @@ from odoo.addons.mrp.tests.common import TestMrpCommon
 
 class TestProcurement(TestMrpCommon):
     def test_procurement(self):
-        """This test case when create production order check procurement is create"""
-        # Update BOM
         self.bom_3.bom_line_ids.filtered(
             lambda x: x.product_id == self.product_5
         ).unlink()
         self.bom_1.bom_line_ids.filtered(
             lambda x: x.product_id == self.product_1
         ).unlink()
-        # Update route
         self.warehouse_1.mto_pull_id.route_id.active = True
         self.warehouse_1.mto_pull_id.procure_method = "make_to_order"
         self.warehouse_1.manufacture_mto_pull_id.procure_method = "make_to_order"
         route_manufacture = self.warehouse_1.manufacture_pull_id.route_id.id
         route_mto = self.warehouse_1.mto_pull_id.route_id.id
         self.product_4.write({"route_ids": [(6, 0, [route_manufacture, route_mto])]})
-        # Create production order
-        # -------------------------
-        # Product6 Unit 24
-        #    Product4 8 Dozen
-        #    Product2 12 Unit
-        # -----------------------
 
         production_form = Form(self.env["mrp.production"])
         production_form.product_id = self.product_6
@@ -42,11 +32,8 @@ class TestProcurement(TestMrpCommon):
         production_product_6.action_confirm()
         production_product_6.action_assign()
 
-        # check production state is Confirmed
         self.assertEqual(production_product_6.state, "confirmed")
 
-        # Check procurement for product 4 created or not.
-        # Check it created a purchase order
 
         move_raw_product4 = production_product_6.move_raw_ids.filtered(
             lambda x: x.product_id == self.product_4
@@ -57,19 +44,12 @@ class TestProcurement(TestMrpCommon):
                 ("move_dest_ids", "=", move_raw_product4[0].id),
             ]
         )
-        # produce product
         self.assertEqual(
             produce_product_4.reservation_state,
             "confirmed",
             "Consume material not available",
         )
 
-        # Create production order
-        # -------------------------
-        # Product 4  96 Unit
-        #    Product2 48 Unit
-        # ---------------------
-        # Update Inventory
         self.env["stock.quant"].with_context(inventory_mode=True).create(
             {
                 "product_id": self.product_2.id,
@@ -92,22 +72,16 @@ class TestProcurement(TestMrpCommon):
             "Consume material not available",
         )
 
-        # produce product4
-        # ---------------
 
         mo_form = Form(produce_product_4)
         mo_form.qty_producing = produce_product_4.product_qty
         produce_product_4 = mo_form.save()
-        # Check procurement and Production state for product 4.
         produce_product_4.button_mark_done()
         self.assertEqual(
             produce_product_4.state, "done", "Production order should be in state done"
         )
 
-        # Produce product 6
-        # ------------------
 
-        # Update Inventory
         self.env["stock.quant"].with_context(inventory_mode=True).create(
             {
                 "product_id": self.product_2.id,
@@ -117,7 +91,6 @@ class TestProcurement(TestMrpCommon):
         ).action_apply_inventory()
         production_product_6.action_assign()
 
-        # ------------------------------------
 
         self.assertEqual(
             production_product_6.reservation_state,
@@ -127,7 +100,6 @@ class TestProcurement(TestMrpCommon):
         mo_form = Form(production_product_6)
         mo_form.qty_producing = production_product_6.product_qty
         production_product_6 = mo_form.save()
-        # Check procurement and Production state for product 6.
         production_product_6.button_mark_done()
         self.assertEqual(
             production_product_6.state,
@@ -141,8 +113,6 @@ class TestProcurement(TestMrpCommon):
         )
 
     def test_procurement_2(self):
-        """Check that a manufacturing order create the right procurements when the route are set on
-        a parent category of a product"""
         all_categ_id = self.env["product.category"].create(
             {
                 "name": "All",
@@ -155,20 +125,15 @@ class TestProcurement(TestMrpCommon):
             }
         )
 
-        # set the product of `self.bom_1` to this child category
         for bom_line_id in self.bom_1.bom_line_ids:
-            # check that no routes are defined on the product
             self.assertEqual(len(bom_line_id.product_id.route_ids), 0)
-            # set the category of the product to a child category
             bom_line_id.product_id.categ_id = child_categ_id
 
-        # set the MTO route to the parent category (all)
         mto_route = self.warehouse_1.mto_pull_id.route_id
         mto_route.active = True
         mto_route.product_categ_selectable = True
         all_categ_id.write({"route_ids": [(6, 0, [mto_route.id])]})
 
-        # create MO, but check it raises error as components are in make to order and not everyone has
         with self.assertRaises(UserError):
             production_form = Form(self.env["mrp.production"])
             production_form.product_id = self.product_4
@@ -271,9 +236,6 @@ class TestProcurement(TestMrpCommon):
         self.assertEqual(mo.move_raw_ids.quantity, 3.0)
 
     def test_link_date_mo_moves(self):
-        """Check link of shedule date for manufaturing with date stock move."""
-
-        # create a product with manufacture route
         product_1 = self.env["product.product"].create(
             {
                 "name": "AAA",
@@ -302,8 +264,6 @@ class TestProcurement(TestMrpCommon):
             }
         )
 
-        # create a move for product_1 from stock to output and reserve to trigger the
-        # rule
         move_dest = self.env["stock.move"].create(
             {
                 "product_id": product_1.id,
@@ -337,7 +297,6 @@ class TestProcurement(TestMrpCommon):
 
         mo = mo_form.save()
 
-        # Confirming mo create finished move
         move_orig = self.env["stock.move"].search(
             [("move_dest_ids", "in", move_dest.ids)], limit=1
         )
@@ -360,7 +319,6 @@ class TestProcurement(TestMrpCommon):
         )
 
     def test_finished_move_cancellation(self):
-        """Check state of finished move on cancellation of raw moves."""
         product_bottle = self.env["product.product"].create(
             {
                 "name": "Plastic Bottle",
@@ -418,9 +376,6 @@ class TestProcurement(TestMrpCommon):
         )
 
     def test_procurement_with_empty_bom(self):
-        """Ensure that a procurement request using a product with an empty BoM
-        will create an empty MO in draft state that can be completed afterwards.
-        """
         route_manufacture = self.warehouse_1.manufacture_pull_id.route_id.id
         route_mto = self.warehouse_1.mto_pull_id.route_id.id
         product = self.env["product.product"].create(
@@ -472,15 +427,10 @@ class TestProcurement(TestMrpCommon):
         self.assertEqual(move_dest.quantity, 10.0)
 
     def test_mtso_with_empty_bom(self):
-        """Test to ensure that a Manufacturing Order is created in 'draft' state
-        via MTSO route when BoM has no components or operations.
-        """
         route_manufacture = self.warehouse_1.manufacture_pull_id.route_id
-        # Set up MTSO route.
         route_mto = self.warehouse_1.mto_pull_id.route_id
         route_mto.rule_ids.procure_method = "mts_else_mto"
 
-        # Create a product with a BoM that has no components or operations.
         product = self.env["product.product"].create(
             {
                 "name": "Product",
@@ -515,7 +465,6 @@ class TestProcurement(TestMrpCommon):
             ]
         )
 
-        # Check that the MO is created and remains in 'draft' state.
         production = self.env["mrp.production"].search(
             [("product_id", "=", product.id)]
         )
@@ -531,15 +480,6 @@ class TestProcurement(TestMrpCommon):
         )
 
     def test_auto_assign(self):
-        """When auto reordering rule exists, check for when:
-        1. There is not enough of a manufactured product to assign (reserve for) a picking => auto-create 1st MO
-        2. There is not enough of a manufactured component to assign the created MO => auto-create 2nd MO
-        3. Add an extra manufactured component (not in stock) to 1st MO => auto-create 3rd MO
-        4. When 2nd MO is completed => auto-assign to 1st MO
-        5. When 1st MO is completed => auto-assign to picking
-        6. Additionally check that a MO that has component in stock auto-reserves when MO is confirmed (since default setting = 'at_confirm')
-        7. Check daily demand fluctuations for products entering or leaving production."""
-
         self.picking_type_out.reservation_method = "at_confirm"
         route_manufacture = self.warehouse_1.manufacture_pull_id.route_id
 
@@ -591,7 +531,6 @@ class TestProcurement(TestMrpCommon):
             }
         )
 
-        # extra manufactured component added to 1st MO after it is already confirmed
         product_4 = self.env["product.product"].create(
             {
                 "name": "Flavor Enchancer",
@@ -619,7 +558,6 @@ class TestProcurement(TestMrpCommon):
             }
         )
 
-        # setup auto orderpoints (reordering rules)
         self.env["stock.warehouse.orderpoint"].create(
             {
                 "name": "Cake RR",
@@ -661,7 +599,6 @@ class TestProcurement(TestMrpCommon):
         graph_data = loads(info_p2.json_replenishment_graph)
         self.assertEqual(graph_data["daily_demand"], 0.0)
 
-        # create picking output to trigger creating MO for reordering product_1
         pick_output = self.env["stock.picking"].create(
             {
                 "name": "Cake Delivery Order",
@@ -682,7 +619,7 @@ class TestProcurement(TestMrpCommon):
                 ],
             }
         )
-        pick_output.action_confirm()  # should trigger orderpoint to create and confirm 1st MO
+        pick_output.action_confirm()
         pick_output.action_assign()
 
         info_p2._compute_json_replenishment_graph()
@@ -705,7 +642,6 @@ class TestProcurement(TestMrpCommon):
             "Quantity to produce should be picking demand + reordering rule max qty",
         )
 
-        # 2nd MO for product_2 should have been created and confirmed when 1st MO for product_1 was confirmed
         mo2 = self.env["mrp.production"].search(
             [("product_id", "=", product_2.id), ("state", "=", "confirmed")]
         )
@@ -725,12 +661,11 @@ class TestProcurement(TestMrpCommon):
             mo.move_raw_ids.quantity, 15, "Components should have been auto-reserved"
         )
 
-        # add new component to 1st MO
         mo_form = Form(mo)
         with mo_form.move_raw_ids.new() as line:
             line.product_id = product_4
             line.product_uom_qty = 1
-        mo_form.save()  # should trigger orderpoint to create and confirm 3rd MO
+        mo_form.save()
 
         mo3 = self.env["mrp.production"].search(
             [("product_id", "=", product_4.id), ("state", "=", "confirmed")]
@@ -757,8 +692,6 @@ class TestProcurement(TestMrpCommon):
             "Completed products should have been auto-reserved in picking",
         )
 
-        # make sure next MO auto-reserves components now that they are in stock since
-        # default reservation_method = 'at_confirm'
         mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = product_1
         mo_form.bom_id = bom1
@@ -778,13 +711,6 @@ class TestProcurement(TestMrpCommon):
         )
 
     def test_check_update_qty_mto_chain(self):
-        """Simulate a mto chain with a manufacturing order. Updating the
-        initial demand should also impact the initial move and the linked
-        manufacturing order.
-        Secondary test: set the MTO route company-specific and ensure that make
-        sure no new routes have been created
-        """
-
         def create_run_procurement(product, product_qty, values=None):
             if not values:
                 values = {
@@ -807,17 +733,14 @@ class TestProcurement(TestMrpCommon):
             )
 
         vendor = self.env["res.partner"].create({"name": "Roger"})
-        # This needs to be tried with MTO route activated
         mto_route = self.warehouse_1.mto_pull_id.route_id
         mto_route.action_unarchive()
         mto_route.rule_ids.procure_method = "make_to_order"
-        # Setup for the secondary test
         routes_count = self.env["stock.route"].search_count([])
         mto_route.rule_ids.search(
             [("company_id", "not in", (False, self.env.company.id))]
         ).unlink()
         mto_route.company_id = self.env.company
-        # Define products requested for this BoM.
         product = self.env["product.product"].create(
             {
                 "name": "product",
@@ -853,7 +776,6 @@ class TestProcurement(TestMrpCommon):
                 "name": "reference",
             }
         )
-        # Create initial procurement that will generate the initial move and its picking.
         create_run_procurement(
             product,
             10,
@@ -874,14 +796,12 @@ class TestProcurement(TestMrpCommon):
         )
         self.assertTrue(manufacturing_order, "No manufacturing order created.")
 
-        # Check manufacturing order data.
         self.assertEqual(
             manufacturing_order.product_qty,
             10,
             "The manufacturing order qty should be the same as the move.",
         )
 
-        # Create procurement to decrease quantity in the initial move but not in the related MO.
         create_run_procurement(
             product,
             -5.00,
@@ -902,7 +822,6 @@ class TestProcurement(TestMrpCommon):
             "The demand on the manufacturing order should not have been decreased.",
         )
 
-        # Create procurement without reference to increase quantity on the initial move and should create a new MO for the missing qty.
         create_run_procurement(product, 2.00)
         self.assertEqual(
             customer_move.product_uom_qty,
@@ -923,7 +842,6 @@ class TestProcurement(TestMrpCommon):
             "A new MO should have been created for missing demand.",
         )
 
-        # Secondary test
         self.assertEqual(self.env["stock.route"].search_count([]), routes_count)
 
     def test_rr_with_dependance_between_bom(self):
@@ -1030,12 +948,6 @@ class TestProcurement(TestMrpCommon):
         self.assertEqual(mo3.product_qty, 50)
 
     def test_several_boms_same_finished_product(self):
-        """
-        Suppose a product with two BoMs, each one based on a different operation type
-        This test ensures that, when running the scheduler, the generated MOs are based
-        on the correct BoMs
-        """
-        # Required for `picking_type_id` to be visible in the view
         self.env.user.group_ids += self.env.ref("stock.group_adv_location")
 
         stock_location01 = self.stock_location
@@ -1132,10 +1044,6 @@ class TestProcurement(TestMrpCommon):
         )
 
     def test_update_mo_component_qty(self):
-        """After Confirming MO, updating component qty should run procurement
-        to update orig move qty
-        """
-        # 2 steps Manufacture
         self.warehouse_1.manufacture_steps = "pbm"
         mo, *_ = self.generate_mo(qty_final=2, qty_base_1=1, qty_base_2=2)
         self.assertEqual(mo.state, "confirmed", "MO should be confirmed at this point")
@@ -1150,7 +1058,6 @@ class TestProcurement(TestMrpCommon):
             [4, 2],
             "Comp moves should have same qty as MO",
         )
-        # decrease comp2 qty, should reflect in picking
         mo.move_raw_ids[0].product_uom_qty = 2
         self.assertEqual(
             mo.picking_ids.move_ids[0].product_uom_qty,
@@ -1158,7 +1065,6 @@ class TestProcurement(TestMrpCommon):
             "Comp2 move should have same qty as MO",
         )
 
-        # add a third component, should reflect in picking
         comp3 = self.env["product.product"].create(
             {
                 "name": "Comp3",
@@ -1178,7 +1084,6 @@ class TestProcurement(TestMrpCommon):
             3,
             "Comp3 move should have same qty as MO",
         )
-        # change its qty
         mo.move_raw_ids[2].product_uom_qty = 4
         self.assertEqual(
             mo.picking_ids.move_ids[2].product_uom_qty,
@@ -1186,13 +1091,11 @@ class TestProcurement(TestMrpCommon):
             "Comp3 move should have same qty as MO",
         )
 
-        # increase qty to produce
         wiz = self.env["change.production.qty"].create(
             {"mo_id": mo.id, "product_qty": 4}
         )
         wiz.change_prod_qty()
         self.assertEqual(mo.product_qty, 4, "MO qty to produce should be 4")
-        # each move qty should be doubled
         self.assertEqual(
             mo.picking_ids.move_ids.mapped("product_uom_qty"),
             [4, 4, 8],
@@ -1200,10 +1103,6 @@ class TestProcurement(TestMrpCommon):
         )
 
     def test_update_merged_mo_component_qty(self):
-        """After Confirming two MOs merge then and change their component qtys,
-        Procurements should run and any new moves should be merged with old ones
-        """
-        # 2 steps Manufacture
         self.warehouse_1.manufacture_steps = "pbm"
 
         super_product = self.env["product.product"].create(
@@ -1238,7 +1137,6 @@ class TestProcurement(TestMrpCommon):
                 ],
             }
         )
-        # MO 1
         mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = super_product
         mo_form.bom_id = bom
@@ -1246,7 +1144,6 @@ class TestProcurement(TestMrpCommon):
         mo_1 = mo_form.save()
         mo_1.action_confirm()
 
-        # MO 2
         mo_form = Form(self.env["mrp.production"])
         mo_form.product_id = super_product
         mo_form.bom_id = bom
@@ -1267,10 +1164,8 @@ class TestProcurement(TestMrpCommon):
             [1, 2],
             "Comp moves should have same qty as old MO",
         )
-        # increase Comp1 qty by 1 in MO
         mo.move_raw_ids[0].product_uom_qty = 3
 
-        # any required qty is added to first picking by procurement
         self.assertEqual(
             sum(
                 mo.picking_ids.move_ids.filtered(
@@ -1280,7 +1175,6 @@ class TestProcurement(TestMrpCommon):
             3,
         )
 
-        # add new comp3
         comp3 = self.env["product.product"].create(
             {
                 "name": "Comp3",
@@ -1308,16 +1202,11 @@ class TestProcurement(TestMrpCommon):
             "Comp3 move should have same qty as MO",
         )
 
-        # increase qty to produce
         wiz = self.env["change.production.qty"].create(
             {"mo_id": mo.id, "product_qty": 4}
         )
         wiz.change_prod_qty()
         self.assertEqual(mo.product_qty, 4, "MO qty to produce should be 4")
-        # extra quantities are all added to first picking moves
-        # comp1 (2 + 3 extra) = 5
-        # comp2 (2 + 4 extra) = 6
-        # comp3 (2 + 2 extra) = 4
         self.assertEqual(
             sorted(mo.picking_ids.move_ids.mapped("product_uom_qty")),
             [1, 2, 4, 5, 6],
@@ -1325,12 +1214,6 @@ class TestProcurement(TestMrpCommon):
         )
 
     def test_pbm_and_additionnal_components(self):
-        """
-        2-steps manufacturring.
-        When adding a new component to a confirmed MO, it should add an SM in
-        the PBM picking. Also, it should be possible to define the to-consume
-        qty of the new line even if the MO is locked
-        """
         self.warehouse_1.manufacture_steps = "pbm"
 
         mo_form = Form(self.env["mrp.production"])
@@ -1359,17 +1242,10 @@ class TestProcurement(TestMrpCommon):
         self.assertRecordValues(mo.picking_ids.move_ids, expected_vals)
 
     def test_consecutive_pickings(self):
-        """Test that when we generate several procurements for a product in a raw
-        we do not create demand for the same quantities several times"""
-
-        # Make the workcenter continuously available so the MO's date_end is
-        # `date_start + duration_expected` (15 work-hours) instead of a span that
-        # depends on the working calendar and the day of week the test runs on.
         self.full_availability()
 
         route_manufacture = self.warehouse_1.manufacture_pull_id.route_id
 
-        # Create a product with manufacture route
         product_1 = self.env["product.product"].create(
             {
                 "name": "AAA",
@@ -1411,7 +1287,6 @@ class TestProcurement(TestMrpCommon):
             }
         )
 
-        # Create 3 pickings and confirm them one by one
         bob = self.env["res.partner"].create(
             {
                 "name": "Bob",
@@ -1449,8 +1324,6 @@ class TestProcurement(TestMrpCommon):
             self.assertEqual(delta_hours(mo[i - 1].date_end - mo[i - 1].date_start), 15)
 
     def test_mo_split_with_batch_size_mto(self):
-        """Check the MO is split with the correct product_qty when we apply a batch size in BoM
-        and run the procurement using a MTO, MTSO, or replenishment."""
         self.route_mto.write({"active": True})
         self.product_4.route_ids = [
             Command.link(self.route_mto.id),
@@ -1493,16 +1366,8 @@ class TestProcurement(TestMrpCommon):
         )
 
     def test_update_mo_producing_qty_with_mtso_rule_and_some_available_stock(self):
-        """
-        We set up for 3 step manufacturing and have some component in stock in pre-prod location.
-        We set the pre-prod -> prod rule to MTSO.
-        When confirming a MO, we expect a procurement for the missing component from stock to pre-prod.
-        When updating the producing quantity on the MO, we expect the procurement to be updated to match the demand.
-        """
         warehouse = self.env["stock.warehouse"].search([], limit=1)
-        # 3 steps Manufacture
         warehouse.write({"manufacture_steps": "pbm_sam"})
-        # Set the pre-prod -> prod rule to 'mts_else_mto'
         pre_prod_to_prod_rule = warehouse.pbm_route_id.rule_ids.filtered(
             lambda r: "Pre-Production" in r.location_src_id.name
         )
@@ -1520,7 +1385,6 @@ class TestProcurement(TestMrpCommon):
                 ],
             }
         )
-        # Update component stock in pre-prod
         self.env["stock.quant"].with_context(inventory_mode=True).create(
             {
                 "product_id": self.productB.id,
@@ -1547,7 +1411,6 @@ class TestProcurement(TestMrpCommon):
         )
         self.assertTrue(replenishment)
 
-        # Update producing quantity through the wizard
         update_quantity_wizard = self.env["change.production.qty"].create(
             {
                 "mo_id": mo.id,
@@ -1558,10 +1421,6 @@ class TestProcurement(TestMrpCommon):
         self.assertEqual(replenishment.product_uom_qty, 7)
 
     def test_update_mo_producing_qty_mto_chain(self):
-        """
-        Test that an MTO child MO correctly handles UoM conversions between the component UoM and
-        the child MO UoM when the source MO's production quantity is updated.
-        """
         self.productA.write({"uom_id": self.uom_dozen})
 
         self.route_mto.write({"active": True})

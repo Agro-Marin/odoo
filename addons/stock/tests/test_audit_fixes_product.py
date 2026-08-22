@@ -1,5 +1,3 @@
-"""Regression tests for the product/reports/wizards audit fixes (2026-07-17)."""
-
 from odoo import fields
 from odoo.exceptions import UserError
 from odoo.fields import Command
@@ -35,16 +33,12 @@ class TestAuditFixesProduct(TransactionCase):
         )
 
     def test_replenishment_info_bare_wizard_computes(self):
-        """A wizard without orderpoint/location must compute its JSON fields to
-        False instead of crashing with 'Compute method failed to assign'."""
         wizard = self.env["stock.replenishment.info"].create({})
         self.assertFalse(wizard.json_replenishment_graph)
         self.assertFalse(wizard.json_lead_days)
         self.assertFalse(wizard.wh_replenishment_option_ids)
 
     def test_replenishment_info_options_created_on_create(self):
-        """Warehouse replenishment options are real records created alongside
-        the wizard (not from inside a compute)."""
         resupplied_wh = self.env["stock.warehouse"].create(
             {
                 "name": "Resupplied WH",
@@ -74,8 +68,6 @@ class TestAuditFixesProduct(TransactionCase):
         self.assertEqual(options.product_id, self.product)
 
     def test_quantities_owner_context_scopes_moves(self):
-        """The `owners` context must scope the move-based quantity fields
-        (incoming/outgoing/virtual), not only the quant-based ones."""
         owner = self.env["res.partner"].create({"name": "Quant Owner"})
         other = self.env["res.partner"].create({"name": "Other Owner"})
         self.env["stock.quant"]._update_available_quantity(
@@ -125,8 +117,6 @@ class TestAuditFixesProduct(TransactionCase):
         self.assertEqual(product_unowned.qty_outgoing, 0)
 
     def test_inverse_qty_available_batches(self):
-        """Setting qty_available on several products at once applies a single
-        batched inventory adjustment covering all of them."""
         product_2 = self.env["product.product"].create(
             {"name": "Audit Fix Product 2", "is_storable": True},
         )
@@ -143,8 +133,6 @@ class TestAuditFixesProduct(TransactionCase):
         self.assertEqual(quants.mapped("quantity"), [4, 4])
 
     def test_is_storable_flip_scoped_clean_reservations(self):
-        """Flipping is_storable only realigns the transitioning products'
-        quants; unrelated products' (stale) reservations are left alone."""
         bystander = self.env["product.product"].create(
             {"name": "Bystander", "is_storable": True},
         )
@@ -260,8 +248,6 @@ class TestAuditFixesProduct(TransactionCase):
             self.env["stock.forecasted_product_product"]._get_report_data()
 
     def test_forecasted_report_header_matches_lines_warehouse(self):
-        """Header quantities must be computed for the same warehouse as the
-        report lines (the resolved one), not under the ambient context."""
         warehouse_2 = self.env["stock.warehouse"].create(
             {"name": "Second WH", "code": "SWH"},
         )
@@ -279,8 +265,6 @@ class TestAuditFixesProduct(TransactionCase):
         self.assertEqual(res["product"][self.product.id]["quantity_on_hand"], 7)
 
     def test_forecasted_report_survives_rule_loop(self):
-        """A misconfigured rule cycle on one product must not kill the whole
-        report; the affected product simply gets no lead time."""
         route = self.env["stock.route"].create(
             {
                 "name": "Looping route",
@@ -308,8 +292,6 @@ class TestAuditFixesProduct(TransactionCase):
         self.assertFalse(res["product"][self.product.id]["leadtime"])
 
     def test_prepare_report_line_read_gating(self):
-        """read=False lines keep the resolved documents (consumed by mrp's MO
-        overview) but skip the UI-only formatting."""
         picking = self.env["stock.picking"].create(
             {
                 "picking_type_id": self.warehouse.in_type_id.id,
@@ -395,9 +377,6 @@ class TestAuditFixesProduct(TransactionCase):
             )
 
     def test_search_qty_available_new_positive_only(self):
-        """The quant-only fast path only ever serves searches that 0 does not
-        match (zero-matching ones are pre-routed); it must keep returning the
-        right positive matches."""
         self.env["stock.quant"]._update_available_quantity(
             self.product,
             self.stock_location,
@@ -415,10 +394,6 @@ class TestAuditFixesProduct(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestAuditProductMultiCompany(TransactionCase):
-    """Company-creating tests run post-install: ``res.company.create``
-    provisions payment providers whose selection fields need the full
-    registry (e.g. ``delivery``'s ``custom_mode`` extension)."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -503,8 +478,6 @@ class TestAuditProductMultiCompany(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestAuditLotPreview(TransactionCase):
     def test_preview_next_lot_does_not_consume(self):
-        """The generator dialog preview must match the next real draw without
-        advancing the sequence (legends interpolated server-side)."""
         product = self.env["product.product"].create(
             {"name": "Preview Product", "is_storable": True, "tracking": "serial"},
         )

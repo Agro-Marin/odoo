@@ -111,7 +111,7 @@ class StockReturnPicking(models.TransientModel):
         comodel_name="stock.return.picking.line",
         inverse_name="wizard_id",
         string="Moves",
-        compute="_compute_moves_locations",
+        compute="_compute_product_return_moves",
         store=True,
         readonly=False,
         precompute=True,
@@ -119,7 +119,7 @@ class StockReturnPicking(models.TransientModel):
     company_id = fields.Many2one(related="picking_id.company_id")
 
     @api.depends("picking_id")
-    def _compute_moves_locations(self):
+    def _compute_product_return_moves(self):
         for wizard in self:
             if not wizard.picking_id:
                 wizard.product_return_moves = [Command.clear()]
@@ -244,7 +244,6 @@ class StockReturnPicking(models.TransientModel):
         }
 
     def action_create_returns_all(self):
-        """Create a return matching the total delivered quantity and open it."""
         self.ensure_one()
         for return_move in self.product_return_moves:
             stock_move = return_move.move_id
@@ -267,8 +266,6 @@ class StockReturnPicking(models.TransientModel):
         return self.action_create_returns()
 
     def action_create_exchanges(self):
-        """Create a return for the active picking, then create a return of
-        the return for the exchange picking and open it."""
         action = self.action_create_returns()
         if self.picking_id.picking_type_id.code == "incoming":
             return_picking = self.env["stock.picking"].browse([action["res_id"]])

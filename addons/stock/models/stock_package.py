@@ -86,7 +86,7 @@ class StockPackage(models.Model):
         compute="_compute_owner_id",
         compute_sudo=True,
         readonly=True,
-        search="_search_owner",
+        search="_search_owner_id",
     )
     parent_package_id = fields.Many2one(
         comodel_name="stock.package",
@@ -528,7 +528,7 @@ class StockPackage(models.Model):
         __, all_children_ids = packages._get_all_children_package_dest_ids()
         return [("id", "in", all_children_ids)]
 
-    def _search_owner(self, operator, value):
+    def _search_owner_id(self, operator, value):
         if operator in Domain.NEGATIVE_OPERATORS:
             return NotImplemented
         return Domain("quant_ids.owner_id", operator, value)
@@ -587,11 +587,6 @@ class StockPackage(models.Model):
         return package._post_put_in_pack_hook()
 
     def action_remove_package(self):
-        """Removes all packages in self from the destination container tree.
-        For move lines directly linked to a package (through result_package_id):
-        - If the entire package is moved, remove the move lines entirely from the picking.
-        - Otherwise, just unset the package as the line's destination package.
-        """
         all_package_dest_ids = self._get_all_package_dest_ids()
         all_move_line_ids = set(self.move_line_ids.ids)
         move_line_ids_to_unlink = set()
@@ -635,7 +630,7 @@ class StockPackage(models.Model):
         return True
 
     def action_view_picking(self):
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.action_picking_tree_all"
         )
         domain = [
@@ -648,9 +643,6 @@ class StockPackage(models.Model):
         return action
 
     def _apply_dest_to_package(self, processed_package_ids=None):
-        """Move packages into their ``package_dest_id`` container (or detach them
-        if none), ensuring the container's quants aren't split across locations.
-        """
         packages_todo = self
         if processed_package_ids:
             packages_todo = packages_todo.filtered(
@@ -705,9 +697,6 @@ class StockPackage(models.Model):
             )
 
     def _apply_package_dest_for_entire_packs(self, allowed_package_ids=None):
-        """When a package is added to a picking and its whole container is added
-        too, treat the container as added — unless it's a reusable package.
-        """
         for container, packages in self.grouped("parent_package_id").items():
             if (
                 container.child_package_ids == packages
@@ -743,17 +732,6 @@ class StockPackage(models.Model):
         return res
 
     def _get_weight_by_picking(self, picking_ids):
-        """Weight of each package in ``self`` restricted to each given picking's
-        own move lines, including the current dest children of the package.
-
-        Batched over pickings: the recursive dest-children walk and the move-line
-        aggregation run once for the whole (packages x pickings) set, so callers
-        computing weights for many pickings (e.g. `_compute_shipping_weight` on a
-        batch validation) do not pay one walk and two grouped queries per picking.
-
-        :param picking_ids: iterable of `stock.picking` ids.
-        :return: dict mapping ``(package, picking_id)`` to its weight.
-        """
         picking_ids = list(picking_ids)
         package_weights = defaultdict(float)
         children_by_dest_pack, all_pack_ids = self._get_all_children_package_dest_ids()
@@ -794,14 +772,6 @@ class StockPackage(models.Model):
         return res
 
     def _get_all_children_package_dest_ids(self):
-        """All descendant packages having a package in self as their
-        ``package_dest_id``, recursively. Done manually since the model has a
-        single _parent field (parent_package_id).
-
-        :returns: tuple(dict mapping each package in self to its dest-descendant
-            ids, list of self's ids plus all those descendant ids)
-        """
-
         def fetch_next_children(packages):
             if packages.child_package_dest_ids:
                 return set(packages.ids) | fetch_next_children(
@@ -821,12 +791,6 @@ class StockPackage(models.Model):
         return all_children_by_pack, all_children_ids
 
     def _get_all_package_dest_ids(self):
-        """Self and all its parent destination packages, recursively. Done
-        manually since the model has a single _parent field (parent_package_id).
-
-        :returns: list of self's ids and all parent ids.
-        """
-
         def fetch_next_parents(packages):
             if packages.package_dest_id:
                 return set(packages.ids) | fetch_next_parents(packages.package_dest_id)
@@ -836,7 +800,6 @@ class StockPackage(models.Model):
         return list(fetch_next_parents(self))
 
     def unpack(self):
-        """Unpacks quants directly inside the container, and removes contained packages from this package."""
         self.child_package_ids.parent_package_id = False
         if self.quant_ids:
             quants = self.quant_ids
@@ -856,7 +819,7 @@ class StockPackage(models.Model):
         if self.move_line_ids._should_display_put_in_pack_wizard(
             package_id, package_type_id, package_name, from_package_wizard
         ):
-            action = self.env["ir.actions.actions"]._for_xml_id(
+            action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
                 "stock.action_put_in_pack_wizard"
             )
             action["context"] = {
@@ -872,8 +835,7 @@ class StockPackage(models.Model):
         return self
 
     def _check_move_lines_map_quant(self, move_lines):
-        """Checks that self's contained quants and move_lines carry matching quantities per product and lot."""
-        precision_digits = self.env["decimal.precision"].precision_get("Product Unit")
+        precision_digits = self.env["decimal.precision"].get_precision("Product Unit")
 
         def _keys_groupby(record):
             return record.product_id, record.lot_id

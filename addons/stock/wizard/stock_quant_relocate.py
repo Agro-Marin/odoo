@@ -94,7 +94,7 @@ class StockQuantRelocate(models.TransientModel):
     @api.depends("dest_package_id_domain")
     def _compute_dest_package_id(self):
         for wizard in self:
-            if wizard.dest_package_id and not wizard.dest_package_id.search_count(
+            if wizard.dest_package_id and not wizard.dest_package_id.search(
                 [("id", "=", wizard.dest_package_id.id)]
                 + literal_eval(wizard.dest_package_id_domain),
                 limit=1,

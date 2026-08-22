@@ -16,7 +16,7 @@ class StockRule(models.Model):
                 values[0]['partner_id'] = move.raw_material_production_id.subcontractor_id.id
         return super()._prepare_purchase_order_vals(company_id, origins, values)
 
-    def _make_po_get_domain(self, company_id, values, partner):
+    def _prepare_po_get_domain(self, company_id, values, partner):
         """Keep a dropshipped order from merging with one bound elsewhere.
 
         Only where an order can carry a destination at all: `dest_address_id` is a
@@ -27,7 +27,7 @@ class StockRule(models.Model):
         opened its own purchase order instead of adding to the draft already waiting --
         the same condition as the compute, so the two cannot drift apart.
         """
-        domain = super()._make_po_get_domain(company_id, values, partner)
+        domain = super()._prepare_po_get_domain(company_id, values, partner)
         carries_destination = (
             self.picking_type_id.default_location_dest_id.usage == 'customer'
         )

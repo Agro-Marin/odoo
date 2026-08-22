@@ -34,7 +34,7 @@
                     <tr t-attf-class="#{line.is_late and 'table-warning' or ''} #{groupClass(line.product.id)} collapseGroup_#{line.product.id}" >
                         <t t-if="skip_row > 0" t-set="skip_row" t-value="skip_row - 1"/>
                         <t t-if="!skip_row or skip_row == 0">
-                            <t t-if="mergesLinesData[line_index]" t-set="skip_row" t-value="mergesLinesData[line_index]['rowcount']"/>
+                            <t t-if="mergedRows[line_index]" t-set="skip_row" t-value="mergedRows[line_index]['rowcount']"/>
                             <td t-attf-rowspan="#{skip_row > 0 and skip_row}"/>
                             <td t-attf-rowspan="#{skip_row > 0 and skip_row}">
                                 <t t-if="line.document_in">
@@ -45,7 +45,7 @@
                                         class="fw-bold"/>
                                     <span t-else="" t-out="line.document_in.name" class="fw-bold"/>
                                     <span t-if="line.receipt_date">:
-                                        <t t-out="incomingSentence(line, skip_row > 0 ? mergesLinesData[line_index].tot_qty : line.quantity)"/>
+                                        <t t-out="incomingSentence(line, skip_row > 0 ? mergedRows[line_index].tot_qty : line.quantity)"/>
                                     </span>
                                 </t>
                                 <t t-elif="line.in_transit">
@@ -93,14 +93,14 @@
                                     t-on-click.prevent="() => this._unreserve(line.move_out.id)">
                                     Unreserve
                                 </a>
-                                <button t-elif="line.replenishment_filled or AvailableOnHandTotalQty[line.product.id] &gt; 0"
+                                <button t-elif="line.replenishment_filled or availableOnHandTotalQty[line.product.id] &gt; 0"
                                     class="btn btn-sm btn-secondary"
                                     name="reserve_link"
                                     t-att-disabled="opGuard.busy"
                                     t-on-click="() => this._reserve(line.move_out.id)">
                                     Reserve
-                                    <t t-if="AvailableOnHandTotalQty[line.product.id] &gt; 0 and !isOnHand(line)">
-                                        (<t t-out="_formatFloat(Math.min(AvailableOnHandTotalQty[line.product.id], line.quantity))"/> <t t-out="line.uom_id.display_name"/>)
+                                    <t t-if="availableOnHandTotalQty[line.product.id] &gt; 0 and !isOnHand(line)">
+                                        (<t t-out="_formatFloat(Math.min(availableOnHandTotalQty[line.product.id], line.quantity))"/> <t t-out="line.uom_id.display_name"/>)
                                     </t>
                                 </button>
                             </t>

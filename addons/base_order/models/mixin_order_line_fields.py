@@ -292,18 +292,18 @@ class MixinOrderLineFields(models.AbstractModel):
         """Validate writes and track quantity changes on confirmed orders.
 
         Dispatches to validation methods registered via
-        ``_get_validate_write_vals_methods()``, captures done-line quantity
+        ``_get_check_write_guards()``, captures done-line quantity
         changes before the write, then posts them after.
         """
-        self._validate_write_vals(vals)
-        tracked = [f for f in self._get_tracked_qty_fields() if f in vals]
+        self._check_write_guards(vals)
+        tracked = [f for f in self._get_fields_tracked_qty() if f in vals]
         changes = self._collect_qty_changes(vals, tracked) if tracked else {}
         result = super().write(vals)
         for field_name, field_changes in changes.items():
             self._post_quantity_changes(field_name, field_changes)
         return result
 
-    def _get_tracked_qty_fields(self):
+    def _get_fields_tracked_qty(self):
         """Quantity fields whose changes are tracked on confirmed orders.
 
         Sale tracks ``product_qty``; purchase also tracks ``qty_transferred``.
@@ -315,7 +315,7 @@ class MixinOrderLineFields(models.AbstractModel):
 
         :return: ``{field_name: [{"line", "old_qty", "new_qty"}, ...]}``
         """
-        precision = self.env["decimal.precision"].precision_get("Product Unit")
+        precision = self.env["decimal.precision"].get_precision("Product Unit")
         changes = defaultdict(list)
         for field_name in tracked_fields:
             for line in self:
@@ -510,20 +510,20 @@ class MixinOrderLineFields(models.AbstractModel):
 
     # ─── Write Validation ──────────────────────────────────────────
 
-    def _validate_write_vals(self, write_vals):
+    def _check_write_guards(self, write_vals):
         """Run all registered write validators."""
-        for method_name in self._get_validate_write_vals_methods():
+        for method_name in self._get_check_write_guards():
             getattr(self, method_name)(write_vals)
 
-    def _get_validate_write_vals_methods(self):
+    def _get_check_write_guards(self):
         """Return validator method names for write operations.
 
         Override in child models to add model-specific validators.
-        Sale adds ``'_validate_write_product_and_uom'``.
+        Sale adds ``'_check_write_product_and_uom'``.
         """
         return [
-            "_validate_write_display_type",
-            "_validate_write_locked_order",
+            "_check_write_display_type",
+            "_check_write_locked_order",
         ]
 
     def _is_display_type_change_allowed(self, line, new_type):
@@ -533,7 +533,7 @@ class MixinOrderLineFields(models.AbstractModel):
         """
         return False
 
-    def _validate_write_display_type(self, write_vals):
+    def _check_write_display_type(self, write_vals):
         """Prevent changing ``display_type`` on existing lines."""
         if "display_type" not in write_vals:
             return
@@ -571,13 +571,13 @@ class MixinOrderLineFields(models.AbstractModel):
             ),
         )
 
-    def _validate_write_locked_order(self, write_vals):
+    def _check_write_locked_order(self, write_vals):
         """Prevent modification of protected fields on locked orders."""
         locked_lines = self.filtered(lambda l: l.locked)
         if not locked_lines:
             return
 
-        protected_fields = self._get_protected_fields()
+        protected_fields = self._get_fields_protected()
         protected_fields_modified = list(set(protected_fields) & set(write_vals.keys()))
         if not protected_fields_modified:
             return
@@ -609,7 +609,7 @@ class MixinOrderLineFields(models.AbstractModel):
                 ),
             )
 
-    def _get_protected_fields(self):
+    def _get_fields_protected(self):
         """Fields that should not be modified on a locked order."""
         return [
             "product_id",
@@ -844,17 +844,17 @@ class MixinOrderLineFields(models.AbstractModel):
 
     # ─── Analytic Validation ───────────────────────────────────────
 
-    def _lines_to_validate_analytic_distribution(self):
+    def _lines_to_check_analytic_distribution(self):
         """Lines whose analytic distribution must be validated.
 
         Sale overrides to only validate draft lines.
         """
         return self.filtered(lambda line: not line.display_type)
 
-    def _validate_analytic_distribution(self):
+    def _check_analytic_distribution(self):
         """Validate the analytic distribution of the relevant lines."""
         business_domain = f"{self._get_order_type()}_order"
-        for line in self._lines_to_validate_analytic_distribution():
+        for line in self._lines_to_check_analytic_distribution():
             line._validate_distribution(
                 product=line.product_id.id,
                 business_domain=business_domain,

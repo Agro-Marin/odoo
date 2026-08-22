@@ -5,6 +5,7 @@ import {
     getChildProducts,
     getCombination,
     getParentsCombination,
+    getVariantCombination,
     isPossibleCombination,
 } from "@sale/js/product_configurator_dialog/product_configurator_utils";
 
@@ -115,6 +116,85 @@ test("checkExclusions: archived n-1 match disables the remaining value", () => {
     checkExclusions([p], p);
     expect(valueById(p, 22).excluded).toBe(true);
     expect(valueById(p, 12).excluded).toBe(false);
+});
+
+// --- archived combinations vs `no_variant` lines -------------------------------
+// Regression for the A/B measured against a real database: the SAME archived variant
+// is greyed out on a template that has only variant attributes, and was NOT greyed out
+// once the template also carried a `no_variant` attribute — because the client compared
+// `archived_combinations` (variant PTAVs only, server-side) against the full
+// combination (which includes the `no_variant` selection). The consequence was a sale
+// order line, and a confirmable order, on an archived product variant.
+
+// Color(always): red=11/blue=12, selecting red. Engraving(no_variant): none=31/text=32,
+// selecting none. The archived variant is "blue", i.e. [12].
+function makeMixedProduct(overrides = {}) {
+    return {
+        product_tmpl_id: 1,
+        attribute_lines: [
+            {
+                id: 1,
+                create_variant: "always",
+                selected_attribute_value_ids: [11],
+                attribute_values: [{ id: 11 }, { id: 12 }],
+            },
+            {
+                id: 2,
+                create_variant: "no_variant",
+                selected_attribute_value_ids: [31],
+                attribute_values: [{ id: 31 }, { id: 32 }],
+            },
+        ],
+        exclusions: {},
+        parent_exclusions: {},
+        archived_combinations: [],
+        ...overrides,
+    };
+}
+
+test("getVariantCombination excludes no_variant selections, getCombination keeps them", () => {
+    const p = makeMixedProduct();
+    // The server routes need the no_variant selection (pricing, naming, variant
+    // creation); the archived-combination comparison must not see it.
+    expect(getCombination(p)).toEqual([11, 31]);
+    expect(getVariantCombination(p)).toEqual([11]);
+});
+
+test("checkExclusions: archived variant is disabled despite a no_variant line", () => {
+    const p = makeMixedProduct({ archived_combinations: [[12]] });
+    checkExclusions([p], p);
+    expect(valueById(p, 12).excluded).toBe(true);
+    expect(valueById(p, 11).excluded).toBe(false);
+    // The no_variant values are untouched: they take no part in variant identity.
+    expect(valueById(p, 31).excluded).toBe(false);
+    expect(valueById(p, 32).excluded).toBe(false);
+});
+
+test("checkExclusions: current selection matching an archived variant, with a no_variant line", () => {
+    const p = makeMixedProduct({ archived_combinations: [[11]] });
+    checkExclusions([p], p);
+    expect(valueById(p, 11).excluded).toBe(true);
+});
+
+test("checkExclusions: a multi line's extra selections do not break the match either", () => {
+    // `multi` implies `no_variant`, and selects several values at once - which inflated
+    // the combination by more than one and defeated both branches.
+    const p = makeMixedProduct({ archived_combinations: [[12]] });
+    p.attribute_lines[1].selected_attribute_value_ids = [31, 32];
+    checkExclusions([p], p);
+    expect(valueById(p, 12).excluded).toBe(true);
+});
+
+test("checkExclusions tolerates a parent product without parent_exclusions", () => {
+    // `if (parentCombination)` guarded an array - always truthy - while dereferencing
+    // `parentExclusions`, so a product with a parent and no parent_exclusions threw.
+    const parent = makeProduct({ product_tmpl_id: 1 });
+    const child = makeProduct({
+        product_tmpl_id: 2,
+        parent_product_tmpl_id: 1,
+        parent_exclusions: undefined,
+    });
+    expect(() => checkExclusions([parent, child], child)).not.toThrow();
 });
 
 test("checkExclusions recurses into child products", () => {

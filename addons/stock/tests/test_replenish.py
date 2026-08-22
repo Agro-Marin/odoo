@@ -8,9 +8,6 @@ from odoo.addons.stock.tests.common import TestStockCommon
 
 class TestStockReplenish(TestStockCommon):
     def test_base_delay(self):
-        """Open the replenish view and check if delay is taken into account
-        in the base date computation
-        """
         push_location = self.env["stock.location"].create(
             {
                 "location_id": self.stock_location.location_id.id,
@@ -101,12 +98,6 @@ class TestStockReplenish(TestStockCommon):
         self.assertEqual(wizard._values["quantity"], 1)
 
     def test_replenish_notifies_the_replenished_product(self):
-        """``_get_record_to_notify`` must return the move created for *this*
-        product. ``cr.now()`` is the transaction timestamp, so every move
-        written in the transaction matches ``write_date >= now``; without a
-        product filter the arbitrary (lowest-id) match could be an unrelated
-        move, notifying the wrong document.
-        """
         warehouse = self.warehouse_1
         route = self.env["stock.route"].create(
             {

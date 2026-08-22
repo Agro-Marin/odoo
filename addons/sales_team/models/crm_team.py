@@ -12,7 +12,7 @@ class CrmTeam(models.Model):
     _order = "sequence ASC, create_date DESC, id DESC"
     _check_company_auto = True
 
-    def _get_default_color(self):
+    def _default_color(self):
         return random.randint(1, 11)
 
     def _get_default_team_id(self, user_id=False, domain=False):
@@ -119,7 +119,7 @@ class CrmTeam(models.Model):
 
         return team
 
-    def _get_default_favorite_user_ids(self):
+    def _default_favorite_user_ids(self):
         return [(6, 0, [self.env.uid])]
 
     # description
@@ -182,7 +182,7 @@ class CrmTeam(models.Model):
     color = fields.Integer(
         string="Color Index",
         help="The color of the channel",
-        default=_get_default_color,
+        default=_default_color,
     )
     favorite_user_ids = fields.Many2many(
         "res.users",
@@ -190,7 +190,7 @@ class CrmTeam(models.Model):
         "team_id",
         "user_id",
         string="Favorite Members",
-        default=_get_default_favorite_user_ids,
+        default=_default_favorite_user_ids,
     )
     is_favorite = fields.Boolean(
         string="Show on dashboard",

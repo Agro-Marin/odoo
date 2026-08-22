@@ -9,9 +9,6 @@ class PurchaseBillMatch(models.Model):
     _rec_names_search = ["name", "reference"]
     _order = "date desc, name desc"
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
 
     company_id = fields.Many2one(
         comodel_name="res.company",
@@ -55,9 +52,6 @@ class PurchaseBillMatch(models.Model):
         readonly=True,
     )
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
 
     @api.depends("currency_id", "reference", "amount", "purchase_order_id")
     def _compute_display_name(self):
@@ -71,30 +65,17 @@ class PurchaseBillMatch(models.Model):
             name += ": " + formatLang(self.env, amount, currency_obj=doc.currency_id)
             doc.display_name = name
 
-    # ------------------------------------------------------------
-    # QUERY METHODS
-    # ------------------------------------------------------------
 
     @property
     def _table_query(self):
-        """Generate SQL UNION query combining vendor bills and purchase orders.
-
-        :return: combined query over posted vendor bills, purchase orders
-            awaiting invoicing, and any sources added via
-            ``_get_additional_queries``. Vendor bills carry positive IDs and
-            purchase orders negative IDs to avoid collision.
-        :rtype: SQL
-        """
         queries = [
             self._query_vendor_bills(),
             self._query_purchase_orders(),
         ]
 
-        # Hook for other modules to add additional queries
         additional_queries = self._get_additional_queries()
         queries.extend(additional_queries)
 
-        # Build UNION ALL query
         if len(queries) == 1:
             return queries[0]
 
@@ -106,20 +87,10 @@ class PurchaseBillMatch(models.Model):
 
     @api.model
     def _get_additional_queries(self):
-        """Hook for inheriting modules to add data sources to the UNION.
-
-        :return: SQL queries to append to the purchase.bill.match view.
-        :rtype: list[SQL]
-        """
         return []
 
     @api.model
     def _query_vendor_bills(self):
-        """Select posted vendor bills from account_move.
-
-        :return: query for posted vendor bills (in_invoice, in_refund).
-        :rtype: SQL
-        """
         return SQL(
             """
             SELECT
@@ -136,11 +107,6 @@ class PurchaseBillMatch(models.Model):
 
     @api.model
     def _select_vendor_bills(self):
-        """Define field selection for vendor bills.
-
-        :return: field list for vendor bill selection.
-        :rtype: SQL
-        """
         return SQL(
             """
             am.id,
@@ -158,20 +124,10 @@ class PurchaseBillMatch(models.Model):
 
     @api.model
     def _from_vendor_bills(self):
-        """Define FROM clause for vendor bills.
-
-        :return: FROM clause for vendor bill selection.
-        :rtype: SQL
-        """
         return SQL("account_move am")
 
     @api.model
     def _where_vendor_bills(self):
-        """Define WHERE clause for vendor bills.
-
-        :return: conditions for selecting posted vendor bills.
-        :rtype: SQL
-        """
         return SQL(
             """
             am.move_type IN ('in_invoice', 'in_refund')
@@ -181,13 +137,6 @@ class PurchaseBillMatch(models.Model):
 
     @api.model
     def _query_purchase_orders(self):
-        """Select purchase orders awaiting invoicing.
-
-        :return: query for purchase orders in state 'done' whose invoice_state
-            is 'to do', 'no', or 'partial'. Uses negative IDs to prevent
-            collision with vendor bill IDs.
-        :rtype: SQL
-        """
         return SQL(
             """
             SELECT
@@ -204,11 +153,6 @@ class PurchaseBillMatch(models.Model):
 
     @api.model
     def _select_purchase_orders(self):
-        """Define field selection for purchase orders.
-
-        :return: field list for purchase order selection.
-        :rtype: SQL
-        """
         return SQL(
             """
             -po.id AS id,
@@ -226,25 +170,10 @@ class PurchaseBillMatch(models.Model):
 
     @api.model
     def _from_purchase_orders(self):
-        """Define FROM clause for purchase orders.
-
-        :return: FROM clause for purchase order selection.
-        :rtype: SQL
-        """
         return SQL("purchase_order po")
 
     @api.model
     def _where_purchase_orders(self):
-        """Define WHERE clause for purchase orders.
-
-        :return: conditions for selecting POs awaiting invoicing.
-        :rtype: SQL
-        """
-        # Over-invoiced POs are already covered here: an over-billed line has
-        # qty_to_invoice < 0 and is classified 'to do' (credit note needed), so
-        # its PO shows up via 'to do'. The 'over done' invoice_state is currently
-        # unreachable in purchase.order.line._compute_invoice_state, so it is not
-        # listed. 'done' (fully invoiced) is excluded: nothing left to bill.
         return SQL(
             """
             po.state = 'done'

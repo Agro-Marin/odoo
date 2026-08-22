@@ -144,7 +144,7 @@ class MaintenanceRequest(models.Model):
     _order = "id desc"
     _check_company_auto = True
 
-    def _default_stage(self):
+    def _default_stage_id(self):
         return self.env['maintenance.stage'].search([], limit=1)
 
     def _creation_subtype(self):
@@ -175,7 +175,7 @@ class MaintenanceRequest(models.Model):
                                    ondelete='restrict', index=True, check_company=True)
     user_id = fields.Many2one('res.users', string='Technician', compute='_compute_user_id', store=True, readonly=False, tracking=True)
     stage_id = fields.Many2one('maintenance.stage', string='Stage', ondelete='restrict', tracking=True,
-                               group_expand='_read_group_stage_ids', default=_default_stage, copy=False)
+                               group_expand='_read_group_stage_ids', default=_default_stage_id, copy=False)
     priority = fields.Selection([('0', 'Very Low'), ('1', 'Low'), ('2', 'Normal'), ('3', 'High')], string='Priority')
     color = fields.Integer('Color Index')
     close_date = fields.Date('Close Date', help="Date the maintenance was finished. ")
@@ -304,7 +304,7 @@ class MaintenanceRequest(models.Model):
                     request.copy({
                         'schedule_date': schedule_date,
                         'schedule_end': schedule_end,
-                        'stage_id': request._default_stage().id,
+                        'stage_id': request._default_stage_id().id,
                     })
         res = super(MaintenanceRequest, self).write(vals)
         if vals.get('owner_user_id') or vals.get('user_id'):

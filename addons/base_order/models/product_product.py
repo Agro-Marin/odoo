@@ -158,7 +158,15 @@ class ProductProduct(models.Model):
         :param int to_uom_id: id of the ``uom.uom`` to move the lines to
         :raise UserError: if a line uses a unit other than the product's own
         """
-        for uom, product, lines in self.env[line_model]._read_group(
+        # `.sudo()`, as `_has_order_lines_for` above it: rewriting the unit on
+        # dependent order lines is a consequence of a product change the caller
+        # is entitled to make, not a read they are asking for. A product manager
+        # with no sales rights could otherwise not change a unit at all -- the
+        # `_read_group` raised AccessError on sale.order.line before the loop
+        # ever ran. The write it leads to stays narrow by construction: the
+        # branch below REFUSES any line whose unit is not the product's own, so
+        # nothing is rewritten except lines that already agree with it.
+        for uom, product, lines in self.env[line_model].sudo()._read_group(
             [("product_id", "in", self.ids)],
             ["product_uom_id", "product_id"],
             ["id:recordset"],

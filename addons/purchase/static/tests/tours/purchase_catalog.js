@@ -73,5 +73,22 @@ registry.category("web_tour.tours").add("test_catalog_vendor_uom", {
             unitPrice: "2.00",
             totalPrice: "$ 1.55",
         }),
+
+        // Same race, the other exit: bump the quantity and leave immediately
+        // through the breadcrumb instead of the button. The card's write is
+        // debounced 500ms, so the order form must still show 2.00 -- it is the
+        // action service, not the catalog's own handler, that has to wait.
+        ...purchaseForm.openCatalog(),
+        ...productCatalog.addProduct("Crab Juice"),
+        ...productCatalog.goBackToOrderViaBreadcrumb(),
+        {
+            // A waiting trigger, not an immediate read: the restored form
+            // renders its cached record before its reload returns, so the value
+            // arrives a beat later. What must never happen is that it stays at
+            // 1.00 -- that is the write being lost, which is what this guards.
+            content: "The quantity written just before leaving survives the trip",
+            trigger:
+                ".o_form_renderer .o_field_x2many tbody tr.o_data_row td[name='product_qty']:contains(2.00)",
+        },
     ],
 });

@@ -28,8 +28,11 @@ export class PurchaseSuggestCatalogKanbanController extends ProductCatalogKanban
 
     // Reloads catalog with suggestions
     async _kanbanReload() {
-        this.env.searchModel.searchPanelInfo.shouldReload = true; // Changing suggestion might change categories available
-        await this.env.searchModel._notify(); // Reload through searchModel with ctx (without double reload)
+        // Changing the suggestion can change which categories exist, and that is
+        // invisible to the search domain -- so ask for the sections explicitly
+        // rather than waiting for a domain change that will not come. One
+        // reload, through the model's own notification path.
+        await this.env.searchModel.invalidateSections();
         await this._computeTotalEstimatedPrice();
     }
 
@@ -40,7 +43,7 @@ export class PurchaseSuggestCatalogKanbanController extends ProductCatalogKanban
         const lineCountChange = await this.model.orm.call(
             "purchase.order",
             "action_purchase_order_suggest",
-            [this.props.context.product_catalog_order_id],
+            [this.props.context.order_id],
             { context: searchModel.globalContext },
         );
         searchModel.toggleFilters(["suggested", "products_in_purchase_order"], true);

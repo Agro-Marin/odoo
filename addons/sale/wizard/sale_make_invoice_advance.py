@@ -20,20 +20,18 @@ class SaleAdvancePaymentInv(models.TransientModel):
         help="A standard invoice is issued with all the order lines ready for invoicing,"
         "according to their invoicing policy (based on ordered or delivered quantity).",
     )
-    count = fields.Integer(string="Order Count", compute="_compute_count")
+    count = fields.Count("sale_order_ids", string="Order Count")
     sale_order_ids = fields.Many2many(
         comodel_name="sale.order",
         default=lambda self: self.env.context.get("active_ids"),
     )
 
-    # Down Payment logic
     has_down_payments = fields.Boolean(
         string="Has down payments",
         compute="_compute_has_down_payments",
     )
     deduct_down_payments = fields.Boolean(string="Deduct down payments", default=True)
 
-    # New Down Payment
     amount = fields.Float(
         string="Down Payment",
         help="The percentage of amount to be invoiced in advance.",
@@ -54,11 +52,10 @@ class SaleAdvancePaymentInv(models.TransientModel):
     )
     amount_taxinc_invoiced = fields.Monetary(
         string="Already invoiced",
-        compute="_compute_invoice_amounts",
+        compute="_compute_amount_taxinc_invoiced",
         help="Only confirmed down payments are considered.",
     )
 
-    # UI
     display_draft_invoice_warning = fields.Boolean(
         compute="_compute_display_draft_invoice_warning"
     )
@@ -69,14 +66,6 @@ class SaleAdvancePaymentInv(models.TransientModel):
         " and same delivery address.",
     )
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
-
-    @api.depends("sale_order_ids")
-    def _compute_count(self):
-        for wizard in self:
-            wizard.count = len(wizard.sale_order_ids)
 
     @api.depends("sale_order_ids")
     def _compute_has_down_payments(self):
@@ -85,8 +74,6 @@ class SaleAdvancePaymentInv(models.TransientModel):
                 wizard.sale_order_ids.line_ids.filtered("is_downpayment")
             )
 
-    # next computed fields are only used for down payments invoices and therefore should only
-    # have a value when 1 unique SO is invoiced through the wizard
     @api.depends("sale_order_ids")
     def _compute_currency_id(self):
         self.currency_id = False
@@ -110,15 +97,12 @@ class SaleAdvancePaymentInv(models.TransientModel):
             wizard.display_draft_invoice_warning = "draft" in invoice_states
 
     @api.depends("sale_order_ids")
-    def _compute_invoice_amounts(self):
+    def _compute_amount_taxinc_invoiced(self):
         for wizard in self:
             wizard.amount_taxinc_invoiced = sum(
                 wizard.sale_order_ids._origin.mapped("amount_taxinc_invoiced")
             )
 
-    # ------------------------------------------------------------
-    # ONCHANGE METHODS
-    # ------------------------------------------------------------
 
     @api.onchange("advance_payment_method")
     def _onchange_advance_payment_method(self):
@@ -127,9 +111,6 @@ class SaleAdvancePaymentInv(models.TransientModel):
             return {"value": {"amount": amount}}
         return None
 
-    # ------------------------------------------------------------
-    # CONSTRAINT METHODS
-    # ------------------------------------------------------------
 
     def _check_amount_is_positive(self):
         for wizard in self:
@@ -146,9 +127,6 @@ class SaleAdvancePaymentInv(models.TransientModel):
                     _("The percentage of the down payment cannot exceed 100%%.")
                 )
 
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
 
     def create_invoices(self):
         self._check_amount_is_positive()
@@ -168,9 +146,6 @@ class SaleAdvancePaymentInv(models.TransientModel):
             ],
         }
 
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
     def _create_invoices(self, sale_orders):
         self.ensure_one()
@@ -194,7 +169,7 @@ class SaleAdvancePaymentInv(models.TransientModel):
             if self.advance_payment_method == "percentage":
                 amount_type = "percent"
                 amount = self.amount
-            else:  # self.advance_payment_method == 'fixed':
+            else:
                 amount_type = "fixed"
                 amount = self.fixed_amount
 
@@ -206,13 +181,11 @@ class SaleAdvancePaymentInv(models.TransientModel):
                 computation_key=f"down_payment,{self.id}",
             )
 
-            # Update the sale order.
             order._create_down_payment_section_line_if_needed()
             so_lines = order._create_down_payment_lines_from_base_lines(
                 down_payment_base_lines
             )
 
-            # Create the invoice.
             invoice_values = self.with_context(
                 accounts=[
                     base_line["account_id"]
@@ -225,7 +198,6 @@ class SaleAdvancePaymentInv(models.TransientModel):
             )
             invoice_sudo = self.env["account.move"].sudo().create(invoice_values)
 
-            # Unsudo the invoice after creation if not already sudoed
             invoice = invoice_sudo.sudo(self.env.su)
             poster = (self.env.user._is_internal() and self.env.user.id) or SUPERUSER_ID
             invoice.with_user(poster).message_post_with_source(
@@ -241,14 +213,7 @@ class SaleAdvancePaymentInv(models.TransientModel):
 
             return invoice
 
-    # TODO: add accounts to method params in master
     def _prepare_down_payment_invoice_values(self, order, so_lines):
-        """Prepare the values to create a down payment invoice.
-
-        :param order:       The current sale order.
-        :param so_lines:    The "fake" down payment SO lines created on the sale order.
-        :return:            The values to create a new invoice.
-        """
         self.ensure_one()
         accounts = self.env.context.get("accounts")
         return {
@@ -266,13 +231,6 @@ class SaleAdvancePaymentInv(models.TransientModel):
         }
 
     def _prepare_down_payment_invoice_line_values(self, order, so_line, account):
-        """Prepare the invoice line values to be part of a down payment invoice.
-
-        :param order:   The current sale order.
-        :param so_line: The "fake" down payment SO line created on the sale order.
-        :param account: The down payment account to use.
-        :return:        The values to create a new invoice line.
-        """
         self.ensure_one()
         self = self.with_context(lang=order._get_lang())
 
@@ -288,10 +246,6 @@ class SaleAdvancePaymentInv(models.TransientModel):
         )
 
     def _get_down_payment_account(self, product):
-        """Retrieve the down payment account to use.
-        :param product: A product.
-        :return: An accounting account or None if not found.
-        """
         product_account = product.product_tmpl_id.get_product_accounts(
             fiscal_pos=self.sale_order_ids.fiscal_position_id
         )

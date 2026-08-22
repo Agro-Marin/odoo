@@ -1,7 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from collections import defaultdict
 
-from odoo import _, api, fields, models
+from odoo import _, fields, models
 from odoo.tools import float_round
 
 
@@ -11,16 +11,11 @@ class MrpProduction(models.Model):
     extra_cost = fields.Float(copy=False, string='Extra Unit Cost')
     show_valuation = fields.Boolean(compute='_compute_show_valuation')
     wip_move_ids = fields.Many2many('account.move', 'wip_move_production_rel', 'production_id', 'move_id', copy=False)
-    wip_move_count = fields.Integer("WIP Journal Entry Count", compute='_compute_wip_move_count')
+    wip_move_count = fields.Count("wip_move_ids", "WIP Journal Entry Count")
 
     def _compute_show_valuation(self):
         for order in self:
             order.show_valuation = any(m.state == 'done' for m in order.move_finished_ids)
-
-    @api.depends('wip_move_ids')
-    def _compute_wip_move_count(self):
-        for account in self:
-            account.wip_move_count = len(account.wip_move_ids)
 
     def write(self, vals):
         res = super().write(vals)

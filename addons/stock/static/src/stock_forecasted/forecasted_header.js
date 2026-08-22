@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component, markup } from "@odoo/owl";
-import { formatFloat } from "@web/core/formatters";
+import { formatFieldFloat } from "@web/core/formatters";
 import { formatDate } from "@web/core/l10n/dates";
 import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/translation";
@@ -15,7 +15,7 @@ export class ForecastedHeader extends Component {
         this.action = useService("action");
 
         this._formatFloat = (num) =>
-            formatFloat(num, { digits: [false, this.props.docs.precision] });
+            formatFieldFloat(num, { digits: [false, this.props.docs.precision] });
         this.leadTimeData = this._computeLeadTime();
     }
 
@@ -78,32 +78,28 @@ export class ForecastedHeader extends Component {
         });
     }
 
-    get quantityOnHand() {
+    /** Sum one figure across every product the report covers. */
+    _total(field) {
         return Object.values(this.products).reduce(
-            (sum, product) => sum + product.quantity_on_hand,
+            (sum, product) => sum + product[field],
             0,
         );
+    }
+
+    get quantityOnHand() {
+        return this._total("quantity_on_hand");
     }
 
     get incomingQty() {
-        return Object.values(this.products).reduce(
-            (sum, product) => sum + product.qty_incoming,
-            0,
-        );
+        return this._total("qty_incoming");
     }
 
     get outgoingQty() {
-        return Object.values(this.products).reduce(
-            (sum, product) => sum + product.qty_outgoing,
-            0,
-        );
+        return this._total("qty_outgoing");
     }
 
     get virtualAvailable() {
-        return Object.values(this.products).reduce(
-            (sum, product) => sum + product.qty_available_virtual,
-            0,
-        );
+        return this._total("qty_available_virtual");
     }
 
     get uom() {

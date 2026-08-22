@@ -8,7 +8,7 @@ class EventType(models.Model):
     _description = 'Event Template'
     _order = 'sequence, id'
 
-    def _default_event_mail_type_ids(self):
+    def _default_event_type_mail_ids(self):
         return [(0, 0,
                  {'interval_nbr': 0,
                   'interval_unit': 'now',
@@ -48,7 +48,7 @@ class EventType(models.Model):
     # communication
     event_type_mail_ids = fields.One2many(
         'event.type.mail', 'event_type_id', string='Mail Schedule',
-        default=_default_event_mail_type_ids)
+        default=_default_event_type_mail_ids)
     # ticket reports
     ticket_instructions = fields.Html('Ticket Instructions', translate=True,
         help="This information will be printed on your tickets.")

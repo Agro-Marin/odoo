@@ -22,7 +22,7 @@ class StockRequestCount(models.TransientModel):
     quant_ids = fields.Many2many(comodel_name="stock.quant")
     show_expected_quantity = fields.Boolean(
         compute="_compute_show_expected_quantity",
-        inverse="_set_show_expected_quantity",
+        inverse="_inverse_show_expected_quantity",
         help="If the user can see the expected quantity or not",
     )
 
@@ -36,7 +36,7 @@ class StockRequestCount(models.TransientModel):
         for record in self:
             record.show_expected_quantity = show_quantity_count
 
-    def _set_show_expected_quantity(self):
+    def _inverse_show_expected_quantity(self):
         for record in self:
             if record.show_expected_quantity:
                 self.env["ir.config_parameter"].sudo().set_param(

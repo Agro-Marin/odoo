@@ -7,7 +7,7 @@
             <Layout display="{ controlPanel: {} }">
                 <t t-set-slot="control-panel-always-buttons">
                     <button t-on-click="onClickPrint" type="button" class="btn btn-primary" title="Print">Print</button>
-                    <select name="formats" id="formats" class="form-select border-1 w-auto">
+                    <select name="formats" id="formats" t-ref="format" class="form-select border-1 w-auto">
                         <option value="pdf">pdf</option>
                         <option value="csv">csv</option>
                         <option value="xlsx">xlsx</option>
@@ -48,6 +48,7 @@
                                     Quantities
                                 </span>
                                 <input type="number"
+                                    t-ref="qtyInput"
                                     class="form-control add-quantity-input"
                                     value="1"
                                     min="1"/>
@@ -63,7 +64,7 @@
                                             <t class="me-2" t-esc="qty"/>
                                             <i class="oi oi-close ms-1 opacity-50 opacity-100-hover text-900 cursor-pointer"
                                             title="Remove quantity"
-                                            t-on-click="onClickRemoveQty"/>
+                                            t-on-click="() => this.onClickRemoveQty(qty)"/>
                                         </span>
                                     </t>
                                 </span>

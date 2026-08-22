@@ -151,7 +151,7 @@ class ProductTemplate(models.Model):
         string="Cost",
         min_display_digits="Product Price",
         compute="_compute_standard_price",
-        inverse="_set_standard_price",
+        inverse="_inverse_standard_price",
         search="_search_standard_price",
         groups="base.group_user",
         help="""Value of the product (automatically computed in AVCO).
@@ -164,7 +164,7 @@ class ProductTemplate(models.Model):
         digits="Volume",
         compute="_compute_volume",
         store=True,
-        inverse="_set_volume",
+        inverse="_inverse_volume",
     )
     volume_uom_name = fields.Char(
         string="Volume unit of measure label",
@@ -175,7 +175,7 @@ class ProductTemplate(models.Model):
         digits="Stock Weight",
         compute="_compute_weight",
         store=True,
-        inverse="_set_weight",
+        inverse="_inverse_weight",
     )
     weight_uom_name = fields.Char(
         string="Weight unit of measure label",
@@ -215,23 +215,23 @@ class ProductTemplate(models.Model):
         string="Product",
         compute="_compute_product_variant_id",
     )
-    product_variant_count = fields.Integer(
+    product_variant_count = fields.Count(
+        "product_variant_ids",
         string="# Product Variants",
-        compute="_compute_product_variant_count",
     )
 
     # related to display product product information if is_product_variant
     barcode = fields.Char(
         string="Barcode",
         compute="_compute_barcode",
-        inverse="_set_barcode",
+        inverse="_inverse_barcode",
         search="_search_barcode",
     )
     default_code = fields.Char(
         string="Internal Reference",
         compute="_compute_default_code",
         store=True,
-        inverse="_set_default_code",
+        inverse="_inverse_default_code",
     )
 
     pricelist_rule_ids = fields.One2many(
@@ -664,11 +664,6 @@ class ProductTemplate(models.Model):
     def _compute_volume_uom_name(self):
         self.volume_uom_name = self._get_volume_uom_name_from_ir_config_parameter()
 
-    @api.depends("product_variant_ids.product_tmpl_id")
-    def _compute_product_variant_count(self):
-        for template in self:
-            template.product_variant_count = len(template.product_variant_ids)
-
     @api.depends("product_variant_ids.default_code")
     def _compute_default_code(self):
         self._compute_template_field_from_variant_field("default_code")
@@ -732,19 +727,19 @@ class ProductTemplate(models.Model):
                 if len(archived_variants) == 1:
                     archived_variants[fname] = template[fname]
 
-    def _set_standard_price(self):
+    def _inverse_standard_price(self):
         self._set_product_variant_field("standard_price")
 
-    def _set_volume(self):
+    def _inverse_volume(self):
         self._set_product_variant_field("volume")
 
-    def _set_weight(self):
+    def _inverse_weight(self):
         self._set_product_variant_field("weight")
 
-    def _set_barcode(self):
+    def _inverse_barcode(self):
         self._set_product_variant_field("barcode")
 
-    def _set_default_code(self):
+    def _inverse_default_code(self):
         self._set_product_variant_field("default_code")
 
     def _inverse_import_attribute_values(self):
@@ -872,7 +867,7 @@ class ProductTemplate(models.Model):
             raise ValidationError(
                 _("Labels cannot be printed for products of service type")
             )
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "product.action_view_label_layout"
         )
         action["context"] = {"default_product_tmpl_ids": self.ids}

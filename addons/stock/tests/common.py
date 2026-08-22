@@ -5,36 +5,6 @@ from odoo.addons.product.tests.common import ProductVariantsCommon
 
 
 class TestStockCommon(ProductVariantsCommon):
-    """
-    This class provides some common resources for stock tests. Most notably, it
-    provides a dedicated warehouse: `warehouse_1`, along with its own:
-    * picking types:
-      * `picking_type_in`
-      * `picking_type_out`
-      * `picking_type_int`
-    * locations:
-      * `stock_location`
-      * `pack_location`
-      * `output_location`
-      * `shelf_1` and `shelf_2` sublocations
-    * routes:
-      * `route_mto`
-
-    It also provides references to some resources that are currently globally
-    available, but might be replaced by custom stock data in the future:
-    * `customer_location`
-    * `supplier_location`
-    * `inter_company_location`
-    * various product UoMs
-
-    There are also dedicated products, users, custom UoMs etc. provided by this
-    class. See the code below for more details.
-
-    Whenever possible, classes inheriting from this one should use the provided
-    references instead of obtaining global objects on their own. That's because,
-    in the future, stock tests will be using a dedicated set of test data.
-    """
-
     def _create_move(self, product, src_location, dst_location, **values):
         Move = self.env["stock.move"].with_user(self.user_stock_manager)
         move = Move.new(

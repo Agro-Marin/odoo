@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
+import { readJsonField } from "@stock/utils/json_field";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -14,6 +15,12 @@ export class PopoverWidgetField extends Component {
     static template = "stock.popoverButton";
     static components = { Popover: PopoverComponent };
     static props = { ...standardFieldProps };
+    // What the payload falls back to. A subclass that only wants a different
+    // look overrides these rather than the getters below -- StockRescheduling
+    // used to re-implement both bodies verbatim to change two literals.
+    static defaultColor = "text-primary";
+    static defaultIcon = "fa-circle-info";
+
     setup() {
         this.popover = usePopover(this.constructor.components.Popover, {
             position: this.jsonValue.position || "top",
@@ -21,20 +28,16 @@ export class PopoverWidgetField extends Component {
     }
 
     get jsonValue() {
-        const raw = this.props.record.data[this.props.name];
-        if (raw !== this._rawValue) {
-            this._rawValue = raw;
-            this._jsonValue = JSON.parse(raw || "{}");
-        }
-        return this._jsonValue;
+        return readJsonField(this);
     }
 
     get color() {
-        return this.jsonValue.color || "text-primary";
+        return this.jsonValue.color || this.constructor.defaultColor;
     }
 
     get icon() {
-        const rawIcon = this.jsonValue.icon || "fa-circle-info";
+        const rawIcon = this.jsonValue.icon || this.constructor.defaultIcon;
+        // A payload may name a full Font Awesome class pair or just the glyph.
         return rawIcon.includes(" ") ? rawIcon : `fa-solid ${rawIcon}`;
     }
 

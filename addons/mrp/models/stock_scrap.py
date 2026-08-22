@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import _, api, fields, models
 
 
@@ -14,7 +12,7 @@ class StockScrap(models.Model):
     )
     workorder_id = fields.Many2one(
         "mrp.workorder", "Work Order", index="btree_not_null", check_company=True
-    )  # Not to restrict or prefer quants, but informative
+    )
     product_is_kit = fields.Boolean(related="product_id.is_kits")
     product_template = fields.Many2one(related="product_id.product_tmpl_id")
     bom_id = fields.Many2one(

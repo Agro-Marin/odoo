@@ -15,7 +15,7 @@ class ProductTemplateAttributeValue(models.Model):
     _description = "Product Template Attribute Value"
     _order = "attribute_line_id, product_attribute_value_id, id"
 
-    def _get_default_color(self):
+    def _default_color(self):
         return randint(1, 11)
 
     # Not just `active` because we always want to show the values except in
@@ -83,7 +83,7 @@ class ProductTemplateAttributeValue(models.Model):
     display_type = fields.Selection(
         related="product_attribute_value_id.display_type",
     )
-    color = fields.Integer(string="Color", default=_get_default_color)
+    color = fields.Integer(string="Color", default=_default_color)
     image = fields.Image(related="product_attribute_value_id.image")
 
     _attribute_value_unique = models.Constraint(

@@ -77,13 +77,17 @@ export class SaleOrderLineListRenderer extends ProductLabelSectionAndNoteListRen
      * @override
      */
     buildRowApi() {
+        // Every entry resolves its record. The template asks `getPreviousRecords` whether
+        // to show "Move Up" and `moveCombo` to perform it, for the same row in the same
+        // dropdown; routing only one of them through `resolveRowRecord` meant the
+        // decision and the action could read different datapoints.
         const rec = (record) => this.resolveRowRecord(record);
         return {
             ...super.buildRowApi(),
-            isCombo: (record) => this.isCombo(record),
+            isCombo: (record) => this.isCombo(rec(record)),
             getComboColumns: () => this.comboColumns,
-            getPreviousRecords: (record) => this.getPreviousRecords(record),
-            getNextRecords: (record) => this.getNextRecords(record),
+            getPreviousRecords: (record) => this.getPreviousRecords(rec(record)),
+            getNextRecords: (record) => this.getNextRecords(rec(record)),
             moveCombo: (record, direction) => this.moveCombo(rec(record), direction),
             onDeleteRecord: (record) => this.onDeleteRecord(rec(record)),
         };

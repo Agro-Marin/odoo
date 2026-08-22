@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import fields, models, api
+from odoo import fields, models
 
 
 class CrmLead(models.Model):
@@ -13,15 +13,12 @@ class CrmLead(models.Model):
         'event.registration', string="Source Registrations",
         groups='event.group_event_registration_desk',
         help="Registrations triggering the rule that created this lead")
-    registration_count = fields.Integer(
-        string="# Registrations", compute='_compute_registration_count',
+    registration_count = fields.Count(
+        "registration_ids",
+        string="# Registrations",
         groups='event.group_event_registration_desk',
-        help="Counter for the registrations linked to this lead")
-
-    @api.depends('registration_ids')
-    def _compute_registration_count(self):
-        for record in self:
-            record.registration_count = len(record.registration_ids)
+        help="Counter for the registrations linked to this lead",
+    )
 
     def _merge_dependences(self, opportunities):
         super()._merge_dependences(opportunities)

@@ -35,7 +35,7 @@ class ProjectUpdate(models.Model):
             if "progress" in fields and not result.get("progress"):
                 result["progress"] = project.last_update_id.progress
             if "description" in fields and not result.get("description"):
-                result["description"] = self._build_description(project)
+                result["description"] = self._prepare_description(project)
             if "status" in fields and not result.get("status"):
                 # `to_define` is not an option for self.status, here we actually want to default to `on_track`
                 # the goal of `to_define` is for a project to start without an actual status.
@@ -150,7 +150,7 @@ class ProjectUpdate(models.Model):
     # Build default description
     # ---------------------------------
     @api.model
-    def _build_description(self, project: Any) -> str:
+    def _prepare_description(self, project: Any) -> str:
         return self.env["ir.qweb"]._render(
             "project.project_update_default_description",
             self._get_template_values(project),

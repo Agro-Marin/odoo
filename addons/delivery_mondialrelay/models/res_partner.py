@@ -38,10 +38,10 @@ class ResPartner(models.Model):
             })
         return partner
 
-    def _avatar_get_placeholder_path(self):
+    def _get_avatar_placeholder_path(self):
         if self.is_mondialrelay:
             return "delivery_mondialrelay/static/src/img/truck_mr.png"
-        return super()._avatar_get_placeholder_path()
+        return super()._get_avatar_placeholder_path()
 
     def _filter_editable_by_current_customer(self, **kwargs):
         # A Mondial Relay pickup point is a carrier-owned address mirrored onto

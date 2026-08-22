@@ -54,8 +54,11 @@
             "purchase/static/src/views/*.js",
             "purchase/static/src/js/tours/purchase.js",
             "purchase/static/src/js/tours/purchase_steps.js",
-            "purchase/static/src/**/*.xml",
-            "purchase/static/src/**/*.scss",
+            "purchase/static/src/components/**/*.xml",
+            "purchase/static/src/product_catalog/**/*.xml",
+            "purchase/static/src/toaster_button/*.xml",
+            "purchase/static/src/views/*.xml",
+            "purchase/static/src/views/*.scss",
         ],
         "web.assets_frontend": [
             "purchase/static/src/interactions/**/*",
@@ -63,6 +66,9 @@
         ],
         "web.assets_tests": [
             "purchase/static/tests/tours/**/*",
+        ],
+        "web.assets_unit_tests": [
+            "purchase/static/tests/**/*.test.js",
         ],
     },
     "author": "Odoo S.A.",

@@ -9,7 +9,7 @@ class ProductLabelLayout(models.TransientModel):
     _inherit = "product.label.layout"
 
     @api.model
-    def _get_zpl_label_placeholder(self):
+    def _default_zpl_preview(self):
         with file_open("stock/static/img/zpl_label_placeholder.png", "rb") as f:
             return base64.b64encode(f.read())
 
@@ -37,7 +37,7 @@ class ProductLabelLayout(models.TransientModel):
     )
     zpl_preview = fields.Image(
         string="ZPL Preview",
-        default=_get_zpl_label_placeholder,
+        default=_default_zpl_preview,
         readonly=True,
     )
 

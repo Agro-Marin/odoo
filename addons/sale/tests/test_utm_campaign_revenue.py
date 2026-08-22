@@ -4,8 +4,6 @@ from odoo.tests import TransactionCase, tagged
 
 @tagged("post_install", "-at_install")
 class TestUtmCampaignRevenue(TransactionCase):
-    """Quotation count and invoiced revenue attributed to a campaign."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -58,7 +56,6 @@ class TestUtmCampaignRevenue(TransactionCase):
         return invoice
 
     def test_quotation_count_per_campaign(self):
-        """Each campaign counts only the quotations that carry it."""
         self._quotation()
         self._quotation()
         self._quotation(campaign=self.other_campaign)
@@ -69,35 +66,29 @@ class TestUtmCampaignRevenue(TransactionCase):
         self.assertEqual(self.other_campaign.quotation_count, 1)
 
     def test_campaign_without_quotations_counts_zero(self):
-        """An unused campaign reports no quotations (boundary)."""
         self.assertEqual(self.other_campaign.quotation_count, 0)
 
     def test_invoiced_amount_counts_posted_invoices(self):
-        """Revenue follows what was invoiced, paid or not."""
         self._invoice(amount=100.0)
         self.campaign.invalidate_recordset(["invoiced_amount"])
         self.assertEqual(self.campaign.invoiced_amount, 100.0)
 
     def test_draft_invoices_are_not_counted(self):
-        """A draft invoice contributes nothing until it is posted."""
         self._invoice(amount=250.0, post=False)
         self.campaign.invalidate_recordset(["invoiced_amount"])
         self.assertEqual(self.campaign.invoiced_amount, 0.0)
 
     def test_refunds_reduce_the_revenue(self):
-        """A credit note gives back what it refunds."""
         self._invoice(amount=100.0)
         self._invoice(amount=40.0, move_type="out_refund")
         self.campaign.invalidate_recordset(["invoiced_amount"])
         self.assertEqual(self.campaign.invoiced_amount, 60.0)
 
     def test_campaign_without_invoices_reports_zero(self):
-        """A campaign nobody invoiced reports zero revenue (boundary)."""
         self.other_campaign.invalidate_recordset(["invoiced_amount"])
         self.assertEqual(self.other_campaign.invoiced_amount, 0)
 
     def test_quotation_redirect_is_scoped_to_the_campaign(self):
-        """The quotations button filters and prefills the campaign."""
         action = self.campaign.action_redirect_to_quotations()
         self.assertIn(("campaign_id", "=", self.campaign.id), action["domain"])
         self.assertEqual(
@@ -106,7 +97,6 @@ class TestUtmCampaignRevenue(TransactionCase):
         )
 
     def test_invoiced_redirect_lists_only_live_invoices(self):
-        """The revenue button opens the campaign's non-draft invoices."""
         invoice = self._invoice(amount=100.0)
         action = self.campaign.action_redirect_to_invoiced()
         domain = {item[0]: item[2] for item in action["domain"] if len(item) == 3}

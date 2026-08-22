@@ -932,7 +932,7 @@ class TestRepair(TestRepairCommon):
 
     def test_search_date_category(self):
         """
-        Test that the search_date_category field search functionality works correctly.
+        Test that the date_category field search functionality works correctly.
         """
         self.env['repair.order'].search([]).unlink()
         repair_order = self.env['repair.order'].create({
@@ -941,7 +941,7 @@ class TestRepair(TestRepairCommon):
             'picking_type_id': self.stock_warehouse.repair_type_id.id,
         })
         repair_order.action_validate()
-        repairs = self.env['repair.order'].search([('search_date_category', 'in', ['yesterday', 'today'])])
+        repairs = self.env['repair.order'].search([('date_category', 'in', ['yesterday', 'today'])])
         self.assertEqual(len(repairs), 1)
 
     def test_sale_order_line_discount_on_repair_order(self):

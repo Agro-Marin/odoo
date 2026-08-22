@@ -12,20 +12,6 @@ class StockTraceabilityReport(models.TransientModel):
 
     @api.model
     def _get_move_lines(self, move_lines, line_id=None):
-        """Walk the upstream move-line chain feeding ``move_lines``.
-
-        ``line_id`` selects how deep to traverse:
-
-        * ``None`` -- follow the chain to its end. Used only to test whether
-          *any* upstream exists (see :meth:`_has_upstream_move_lines`, which is
-          the cheaper way to ask that question).
-        * anything else -- return only the first upstream generation. This is
-          the lazy, one-level unfold the web client performs: each returned
-          line is itself unfoldable to go one level deeper.
-
-        ``move_lines`` may be a single record or a recordset; the seed is
-        excluded from the result.
-        """
         lines_seen = move_lines
         lines_todo = deque(move_lines)
         while lines_todo:
@@ -59,12 +45,6 @@ class StockTraceabilityReport(models.TransientModel):
 
     @api.model
     def _has_upstream_move_lines(self, move_line):
-        """Whether ``move_line`` has any traceable upstream line.
-
-        Equivalent to ``bool(self._get_move_lines(move_line))`` but stops at the
-        first hit instead of materialising the whole chain -- this only feeds
-        the ``unfoldable`` flag, so a full walk per rendered line is wasteful.
-        """
         if move_line.move_id.move_orig_ids:
             return bool(
                 move_line.move_id.move_orig_ids.move_line_ids.filtered(
@@ -149,7 +129,6 @@ class StockTraceabilityReport(models.TransientModel):
 
     @api.model
     def _quantity_to_str(self, from_uom, to_uom, qty):
-        """workaround to apply the float rounding logic of t-esc on data prepared server side"""
         qty = from_uom._compute_quantity_report(qty, to_uom, rounding_method="HALF-UP")
         return self.env["ir.qweb.field.float"].value_to_html(
             qty, {"decimal_precision": "Product Unit"}
@@ -167,9 +146,6 @@ class StockTraceabilityReport(models.TransientModel):
 
     @api.model
     def _get_partner_names(self, move_line):
-        """Return partner name instead of source or destination location based on
-        whether the product is incoming or outgoing.
-        """
         source_name = move_line.location_id.display_name
         destination_name = move_line.location_dest_id.display_name
         partner_name = move_line.picking_partner_id.name
@@ -181,7 +157,7 @@ class StockTraceabilityReport(models.TransientModel):
         return source_name, destination_name
 
     @api.model
-    def _make_dict_move(self, level, parent_id, move_line, unfoldable=False):
+    def _prepare_dict_move(self, level, parent_id, move_line, unfoldable=False):
         res_model, res_id, ref = self._get_reference(move_line)
         is_used = self._get_linked_move_lines(move_line)[1]
         location_source, location_destination = self._get_partner_names(move_line)
@@ -217,13 +193,6 @@ class StockTraceabilityReport(models.TransientModel):
 
     @api.model
     def _final_vals_to_lines(self, final_vals):
-        """Turn the intermediate move dicts into client rows.
-
-        Row ``id`` is a per-response sequence (1..N): the web client only uses
-        it as an OWL ``t-key`` within a sibling group and hands it straight back
-        as ``line_id`` on unfold, so it only has to be truthy and locally
-        unique -- not globally unique across requests.
-        """
         return [
             {
                 "id": counter,
@@ -258,11 +227,6 @@ class StockTraceabilityReport(models.TransientModel):
 
     @api.model
     def _get_linked_move_lines(self, move_line):
-        """Return ``(produced_or_consumed_lines, is_used)`` for this operation.
-
-        Base stock has no produce/consume concept; ``mrp`` and ``repair``
-        override this to inject their linkage.
-        """
         return False, False
 
     @api.model
@@ -290,7 +254,7 @@ class StockTraceabilityReport(models.TransientModel):
                 )
             )
             final_vals.append(
-                self._make_dict_move(
+                self._prepare_dict_move(
                     level, parent_id=line_id, move_line=line, unfoldable=unfoldable
                 )
             )
@@ -298,27 +262,10 @@ class StockTraceabilityReport(models.TransientModel):
 
     @api.model
     def _get_line_allowed_models(self):
-        """Models the client may reference in the interactive (JSON-RPC) report.
-
-        ``get_lines``/``_lines`` dereference client-supplied ``model_name`` values
-        via ``env[model].browse(...)``; restrict them to the models the report
-        actually traverses -- the same guarding ``_get_pdf_line_allowed_models``
-        applies to the printed path. Extension modules that add report entry
-        points MUST extend this set in their own override (e.g. ``mrp`` for
-        ``mrp.production``); the base module must not reference models it does
-        not ship (``env[model]`` on an uninstalled model raises a KeyError 500).
-        """
         return {"stock.lot", "stock.move.line", "stock.picking"}
 
     @api.model
     def _get_pdf_line_allowed_models(self):
-        """Models the client may reference in printed traceability lines.
-
-        ``get_pdf_lines`` dereferences client-supplied ``model_name`` values;
-        restrict them to the models the report actually renders (every row
-        built by ``_make_dict_move`` is a ``stock.move.line``). Extension
-        modules that legitimately print other models must extend this set.
-        """
         return {"stock.move.line"}
 
     def get_pdf_lines(self, line_data=None):
@@ -336,7 +283,7 @@ class StockTraceabilityReport(models.TransientModel):
                 continue
             move_line = self.env[model_name].browse(model_id)
             final_vals.append(
-                self._make_dict_move(
+                self._prepare_dict_move(
                     level,
                     parent_id=parent_id,
                     move_line=move_line,
@@ -379,7 +326,7 @@ class StockTraceabilityReport(models.TransientModel):
         )
 
         IrReport = self.env["ir.actions.report"]
-        body_with_header = IrReport._inject_header_footer_html(
+        body_with_header = IrReport._add_html_header_footer(
             body, header=header.decode()
         )
         return IrReport._render_html_to_pdf(

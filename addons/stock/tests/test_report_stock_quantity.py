@@ -202,9 +202,6 @@ class TestReportStockQuantity(tests.TransactionCase):
         self.assertEqual(orderpoint.qty_to_order, 0.0)
 
     def test_inter_warehouse_transfer(self):
-        """
-        Ensure that the report correctly processes the inter-warehouses SM
-        """
         product = self.env["product.product"].create(
             {
                 "name": "SuperProduct",
@@ -288,11 +285,6 @@ class TestReportStockQuantity(tests.TransactionCase):
             )
 
     def test_past_date_quantity_with_multistep_delivery(self):
-        """
-        Verify that available quantities are correctly computed at different past dates
-        when using multi-step receipt/delivery.
-        """
-
         def get_inv_qty_at_date(product_id, inv_datetime):
             inventory_at_date_wizard = self.env["stock.quantity.history"].create(
                 {"inventory_datetime": inv_datetime}
@@ -424,10 +416,6 @@ class TestReportStockQuantity(tests.TransactionCase):
             self.assertEqual(qty, expected_qties)
 
     def test_transfer_where_qty_done_differs_from_demand(self):
-        """
-        Verify that available quantities are correctly computed at different past dates
-        when the qty_done of a transfer differs from the demand.
-        """
         today = self.move1.date
         self.move2._action_cancel()
         product = self.product1

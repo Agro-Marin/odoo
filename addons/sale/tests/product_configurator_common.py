@@ -11,7 +11,6 @@ class TestProductConfiguratorCommon(UomCommon, HttpCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Setup attributes and attributes values
         cls.product_attribute_1 = cls.env["product.attribute"].create(
             {
                 "name": "Legs",
@@ -56,7 +55,6 @@ class TestProductConfiguratorCommon(UomCommon, HttpCase):
             }
         )
 
-        # Create product template
         cls.product_product_custo_desk = cls.env["product.template"].create(
             {
                 "name": "Customizable Desk (TEST)",
@@ -85,12 +83,10 @@ class TestProductConfiguratorCommon(UomCommon, HttpCase):
             }
         )
 
-        # Apply a price_extra for the attribute Aluminium
         cls.product_product_custo_desk.attribute_line_ids[0].product_template_value_ids[
             1
         ].price_extra = 50.40
 
-        # Add a Custom attribute
         product_attribute_value_custom = cls.env["product.attribute.value"].create(
             {
                 "name": "Custom",
@@ -103,10 +99,8 @@ class TestProductConfiguratorCommon(UomCommon, HttpCase):
             {"value_ids": [(4, product_attribute_value_custom.id)]}
         )
 
-        # Disable the aluminium + black product
         cls.product_product_custo_desk.product_variant_ids[3].active = False
 
-        # Setup a first optional product
         img_path = "product/static/img/product_product_11-image.jpg"
         img_content = base64.b64encode(file_open(img_path, "rb").read())
         cls.product_product_conf_chair = cls.env["product.template"].create(
@@ -135,7 +129,6 @@ class TestProductConfiguratorCommon(UomCommon, HttpCase):
             (4, cls.product_product_conf_chair.id)
         ]
 
-        # Setup a second optional product
         cls.product_product_conf_chair_floor_protect = cls.env[
             "product.template"
         ].create(

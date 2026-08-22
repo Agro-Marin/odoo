@@ -10,7 +10,6 @@ class TestSaleOrderStateMachine(SaleCommon):
     def _other_pricelist(self):
         return self.env["product.pricelist"].create({"name": "Other PL"})
 
-    # --- per-state frozen fields ---
 
     def test_pricelist_frozen_when_done(self):
         self.sale_order.action_confirm()
@@ -24,7 +23,6 @@ class TestSaleOrderStateMachine(SaleCommon):
         self.sale_order.pricelist_id = pricelist
         self.assertEqual(self.sale_order.pricelist_id, pricelist)
 
-    # --- transitions ---
 
     def test_legal_transition_draft_to_done(self):
         self.sale_order.write({"state": "done"})
@@ -52,7 +50,7 @@ class TestSaleOrderStateMachine(SaleCommon):
 
     def test_noop_state_write_allowed(self):
         self.assertEqual(self.sale_order.state, "draft")
-        self.sale_order.write({"state": "draft"})  # no-op, must not raise
+        self.sale_order.write({"state": "draft"})
         self.assertEqual(self.sale_order.state, "draft")
 
     def test_action_methods_still_work(self):
@@ -63,7 +61,6 @@ class TestSaleOrderStateMachine(SaleCommon):
         self.sale_order.action_draft()
         self.assertEqual(self.sale_order.state, "draft")
 
-    # --- locked guard ---
 
     def _lock(self, order):
         order.action_confirm()
@@ -77,17 +74,16 @@ class TestSaleOrderStateMachine(SaleCommon):
 
     def test_locked_allows_priority(self):
         self._lock(self.sale_order)
-        self.sale_order.priority = "1"  # allow-listed, must not raise
+        self.sale_order.priority = "1"
         self.assertEqual(self.sale_order.priority, "1")
 
     def test_locked_allows_unlock(self):
         self._lock(self.sale_order)
-        self.sale_order.action_unlock()  # writes locked=False
+        self.sale_order.action_unlock()
         self.assertFalse(self.sale_order.locked)
 
     def test_locked_allows_framework_write(self):
         self._lock(self.sale_order)
-        # posting a chatter message writes message-related fields; must not raise
         self.sale_order.message_post(body="hello on a locked order")
 
     def test_locked_bypass_context(self):
@@ -99,19 +95,12 @@ class TestSaleOrderStateMachine(SaleCommon):
 
     def test_action_lock_not_self_blocked(self):
         self.sale_order.action_confirm()
-        self.sale_order.action_lock()  # writing locked=True must not raise
+        self.sale_order.action_lock()
         self.assertTrue(self.sale_order.locked)
 
 
 @tagged("post_install", "-at_install")
 class TestSaleMassCancel(SaleCommon):
-    """The mass-cancel wizard must honour the same guards as action_cancel.
-
-    The wizard used to call ``_action_cancel()`` directly, which skips
-    ``_can_cancel`` and therefore ``_can_cancel_except_locked`` — a locked SO in
-    the selection was cancelled silently from the list view.
-    """
-
     def _make_so(self, confirm=False):
         order = self.env["sale.order"].create(
             {
@@ -133,13 +122,11 @@ class TestSaleMassCancel(SaleCommon):
         )
 
     def test_mass_cancel_drafts(self):
-        """Plain draft quotations cancel cleanly."""
         orders = self._make_so() | self._make_so()
         self._wizard(orders).action_mass_cancel()
         self.assertEqual(set(orders.mapped("state")), {"cancel"})
 
     def test_mass_cancel_blocks_locked_order(self):
-        """A locked SO in the selection must not be silently cancelled."""
         locked = self._make_so(confirm=True)
         locked.action_lock()
         with self.assertRaises(UserError):
@@ -147,7 +134,6 @@ class TestSaleMassCancel(SaleCommon):
         self.assertEqual(locked.state, "done", "Locked SO must survive mass-cancel")
 
     def test_mass_cancel_skips_already_cancelled(self):
-        """A mixed selection cancels the live orders and skips cancelled ones."""
         live = self._make_so()
         already = self._make_so()
         already.action_cancel()

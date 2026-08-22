@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
+import { isTerminalState, leafPackageName } from "@stock/utils/stock_state";
 import { registry } from "@web/core/registry";
 import {
     buildM2OFieldDescription,
@@ -51,7 +52,7 @@ export class StockPackageMany2One extends Component {
     };
 
     get isDone() {
-        return ["done", "cancel"].includes(this.props.record?.data?.state);
+        return isTerminalState(this.props.record?.data?.state);
     }
 
     get m2oProps() {
@@ -75,7 +76,7 @@ export class StockPackageMany2One extends Component {
         if (this.isDone && displayVal?.display_name) {
             return {
                 ...displayVal,
-                display_name: displayVal.display_name.split(" > ").pop(),
+                display_name: leafPackageName(displayVal.display_name),
             };
         }
         return displayVal;

@@ -28,19 +28,19 @@ class CrmLead(models.Model):
 
     def action_sale_quotations_new(self):
         if not self.partner_id:
-            return self.env["ir.actions.actions"]._for_xml_id("sale_crm.crm_quotation_partner_action")
+            return self.env["ir.actions.actions"]._get_action_dict_by_xml_id("sale_crm.crm_quotation_partner_action")
         else:
             return self.action_new_quotation()
 
     def action_new_quotation(self):
-        action = self.env["ir.actions.actions"]._for_xml_id("sale_crm.sale_action_quotations_new")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("sale_crm.sale_action_quotations_new")
         action['context'] = self._prepare_opportunity_quotation_context()
         action['context']['search_default_opportunity_id'] = self.id
         return action
 
     def action_view_sale_quotation(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id("sale.action_quotations_with_onboarding")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("sale.action_quotations_with_onboarding")
         action['context'] = self._prepare_opportunity_quotation_context()
         action['context']['search_default_draft'] = 1
         action['domain'] = Domain.AND([[('opportunity_id', '=', self.id)], self._get_action_view_sale_quotation_domain()])
@@ -52,7 +52,7 @@ class CrmLead(models.Model):
 
     def action_view_sale_order(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id("sale.action_sale_order")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("sale.action_sale_order")
         action['context'] = {
             'search_default_partner_id': self.partner_id.id,
             'default_partner_id': self.partner_id.id,

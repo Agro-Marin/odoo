@@ -399,7 +399,7 @@ class TestUom(UomCommon):
         """`rounding` is a compute with no `@api.depends` (it reads a
         `decimal.precision` row, not a field), so nothing invalidated it when
         the precision changed. A cached `rounding` then disagreed with
-        `precision_get` for the rest of the transaction: `_compute_quantity`
+        `get_precision` for the rest of the transaction: `_compute_quantity`
         (reads `rounding`) and `round` (reads the precision) returned different
         numbers for the same input, and which one you got depended on whether
         the unit was already in cache.

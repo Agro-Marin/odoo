@@ -234,12 +234,12 @@
                 <filter string="Cancelled" name="filter_cancel" domain="[('state', '=', 'cancel')]"/>
                 <filter string="Returned" name="returned" domain="[('picking_id', '!=', False), ('picking_id.state', '=', 'done')]"/>
                 <separator/>
-                <filter invisible="1" name="before" string="Before" domain="[('search_date_category', '=', 'before')]"/>
-                <filter invisible="1" name="yesterday" string="Yesterday" domain="[('search_date_category', '=', 'yesterday')]"/>
-                <filter invisible="1" name="today" string="Today" domain="[('search_date_category', '=', 'today')]"/>
-                <filter invisible="1" name="day_1" string="Tomorrow" domain="[('search_date_category', '=', 'day_1')]"/>
-                <filter invisible="1" name="day_2" string="The day after tomorrow" domain="[('search_date_category', '=', 'day_2')]"/>
-                <filter invisible="1" name="after" string="After" domain="[('search_date_category', '=', 'after')]"/>
+                <filter invisible="1" name="before" string="Before" domain="[('date_category', '=', 'before')]"/>
+                <filter invisible="1" name="yesterday" string="Yesterday" domain="[('date_category', '=', 'yesterday')]"/>
+                <filter invisible="1" name="today" string="Today" domain="[('date_category', '=', 'today')]"/>
+                <filter invisible="1" name="day_1" string="Tomorrow" domain="[('date_category', '=', 'day_1')]"/>
+                <filter invisible="1" name="day_2" string="The day after tomorrow" domain="[('date_category', '=', 'day_2')]"/>
+                <filter invisible="1" name="after" string="After" domain="[('date_category', '=', 'after')]"/>
                 <filter string="Ready" name="ready" domain="[('state', '=', 'confirmed'), ('is_parts_available', '=', True)]" invisible="True"/>
                 <filter string="Late" name="filter_late" domain="[('state', '=', 'confirmed'), ('schedule_date', '&lt;', 'today')]"/>
                 <filter name="filter_create_date" date="create_date"/>

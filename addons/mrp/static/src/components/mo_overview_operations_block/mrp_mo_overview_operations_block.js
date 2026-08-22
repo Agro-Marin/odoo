@@ -1,6 +1,10 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
-import { formatFloat, formatFloatTime, formatMonetary } from "@web/core/formatters";
+import {
+    formatFieldFloat,
+    formatFloatTime,
+    formatMonetary,
+} from "@web/core/formatters";
 import { useBus } from "@web/core/utils/hooks";
 
 import { SHOW_OPTIONS } from "../mo_overview_display_filter/mrp_mo_overview_display_filter.js";
@@ -96,7 +100,7 @@ export class MoOverviewOperationsBlock extends Component {
     get totalQuantity() {
         // Float for Hours when displaying done productions, FloatTime for Minutes otherwise.
         return this.props.summary?.done
-            ? formatFloat(this.props.summary.quantity, {
+            ? formatFieldFloat(this.props.summary.quantity, {
                   digits: [false, this.props.operations[0].uom_precision || undefined],
               })
             : formatFloatTime(this.props.summary.quantity);

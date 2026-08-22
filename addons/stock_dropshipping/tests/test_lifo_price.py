@@ -41,7 +41,7 @@ class TestLifoPrice(ValuationReconciliationTestCommon):
         #     <field name="lst_price" class="oe_inline" widget='monetary' options="{'currency_field': 'currency_id', 'field_digits': True}"/>
         # </field>
         # @api.onchange('lst_price')
-        # def _set_product_lst_price(self):
+        # def _inverse_lst_price(self):
         #     ...
         #         product.write({'list_price': value})
         product_form.lst_price = 100.0

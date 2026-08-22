@@ -5,15 +5,6 @@ from odoo.addons.stock.tests.common import TestStockCommon
 
 @tagged("post_install", "-at_install")
 class TestMoveReservation(TestStockCommon):
-    """Branch-covering characterization of `stock.move._action_assign`.
-
-    Each test pins the reservation outcome (move state + resulting move lines)
-    of one distinct code path, so the method can be refactored with confidence:
-    MTS full / partial / none, reservation-bypass receipts (plain and serial),
-    lot-tracked partial, chained moves fed by a done origin, UoM conversion, and
-    the ``force_qty`` path.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -167,7 +158,6 @@ class TestMoveReservation(TestStockCommon):
         return sum(quants.mapped("reserved_quantity"))
 
     def test_write_moves_reservation_with_source_location(self):
-        """Changing a reserved line's source location moves the reservation with it."""
         loc_a, loc_b = self.env["stock.location"].create(
             [
                 {
@@ -194,9 +184,6 @@ class TestMoveReservation(TestStockCommon):
         self.assertEqual((self._reserved(p, loc_a), self._reserved(p, loc_b)), (0, 5))
 
     def test_write_source_location_and_result_package_together(self):
-        """Regression: writing `location_id` and `result_package_id` in the same call
-        must still re-sync the source reservation (it used to be silently skipped,
-        stranding the reservation at the old location)."""
         loc_a, loc_b = self.env["stock.location"].create(
             [
                 {
@@ -229,9 +216,6 @@ class TestMoveReservation(TestStockCommon):
 
 @tagged("post_install", "-at_install")
 class TestMoveLineFallbackMoveCreation(TestStockCommon):
-    """Move lines created directly on a picking get a stock.move; the creation is
-    batched. Same-product lines share one new move, distinct products each get one."""
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

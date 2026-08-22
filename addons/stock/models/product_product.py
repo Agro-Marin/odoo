@@ -21,8 +21,6 @@ _logger = logging.getLogger(__name__)
 
 
 class QuantityScope(NamedTuple):
-    """What one quantity computation reads, before anything is read."""
-
     quant: Domain
     expired_quant: Domain | None
     move_in_todo: Domain
@@ -33,8 +31,6 @@ class QuantityScope(NamedTuple):
 
 
 class QuantityReads(NamedTuple):
-    """The raw grouped sums behind the quantity fields, keyed by product id."""
-
     quants: dict
     expired_unreserved: dict
     moves_in: dict
@@ -75,7 +71,7 @@ class ProductProduct(models.Model):
         digits="Product Unit",
         compute="_compute_quantities",
         compute_sudo=False,
-        search="_search_virtual_available",
+        search="_search_qty_available_virtual",
         help="Forecast quantity (computed as Quantity On Hand "
         "- Outgoing + Incoming)\n"
         "In a context with a single Stock Location, this includes "
@@ -91,7 +87,7 @@ class ProductProduct(models.Model):
         digits="Product Unit",
         compute="_compute_quantities",
         compute_sudo=False,
-        search="_search_free_qty",
+        search="_search_qty_free",
         help="Available quantity (computed as Quantity On Hand "
         "- reserved quantity)\n"
         "In a context with a single Stock Location, this includes "
@@ -107,7 +103,7 @@ class ProductProduct(models.Model):
         digits="Product Unit",
         compute="_compute_quantities",
         compute_sudo=False,
-        search="_search_incoming_qty",
+        search="_search_qty_incoming",
         help="Quantity of planned incoming products.\n"
         "In a context with a single Stock Location, this includes "
         "goods arriving to this Location, or any of its children.\n"
@@ -122,7 +118,7 @@ class ProductProduct(models.Model):
         digits="Product Unit",
         compute="_compute_quantities",
         compute_sudo=False,
-        search="_search_outgoing_qty",
+        search="_search_qty_outgoing",
         help="Quantity of planned outgoing products.\n"
         "In a context with a single Stock Location, this includes "
         "goods leaving this Location, or any of its children.\n"
@@ -220,18 +216,6 @@ class ProductProduct(models.Model):
 
     @api.model
     def fields_get(self, allfields=None, attributes=None):
-        """Relabel the quantity fields to match the location the context scopes them to.
-
-        The scope itself accepts an id, a name to match, or a list of either
-        (`_get_domain_locations`), so the labels resolve the value the same way rather
-        than only understanding a bare id -- a list or a name used to filter the numbers
-        while leaving them labelled "Quantity On Hand".
-
-        Only an unambiguous single location can name a column, so a scope resolving to
-        several is left with the generic labels. A *bad* value is skipped rather than
-        raised on, unlike the scope path: labels are cosmetic, and breaking view loading
-        over a stray context key is worse than not relabelling.
-        """
         res = super().fields_get(allfields, attributes)
         context_location = self.env.context.get("location") or self.env.context.get(
             "search_location",
@@ -291,18 +275,6 @@ class ProductProduct(models.Model):
         "stock_move_ids.move_line_ids.date",
     )
     def _compute_count_moves(self):
-        """Count this product's done receipt/delivery lines over the last 12 months.
-
-        The dependency names ``stock.move.line``, which is what the read-groups below
-        actually read. Declaring ``stock_move_ids.state`` instead was right often enough
-        to hide the gap -- validating a picking writes the move's state and does refresh
-        the count -- but the value follows the *line's* state and date, and backdating a
-        line of an already-done move left it stale.
-
-        ``picking_code`` is deliberately absent: it is a non-stored related on the
-        picking type, so it cannot carry a dependency, and a picking type's code does not
-        change under a done move.
-        """
         one_year_ago = fields.Datetime.now() - relativedelta(years=1)
 
         def _counts_by_product(picking_code):
@@ -382,13 +354,6 @@ class ProductProduct(models.Model):
         "search_location",
         "search_warehouse",
         "allowed_company_ids",
-        # Read further down the chain, and every one of them changes the answer:
-        # `strict` and `skip_in_progress` in `_get_domain_locations_new`,
-        # `with_expiration` and `fresh_qty_forecast` in `_expired_quant_domain`.
-        # Left out of the cache key, one scope answered with the other's value --
-        # whichever was computed first, in either direction. The template's roll-up
-        # declares the same four: it reads these fields, so the key has to match or
-        # the narrow read is served the wide answer one level down.
         "strict",
         "skip_in_progress",
         "with_expiration",
@@ -398,21 +363,6 @@ class ProductProduct(models.Model):
         "stock_move_ids.product_qty", "stock_move_ids.state", "stock_move_ids.quantity"
     )
     def _compute_quantities(self):
-        """Fill the five quantity fields for every product in ``self``.
-
-        Services have no quantities and are left out of the computation, so they are
-        zeroed directly; every other product is written once, from the values
-        ``_prepare_quantities_vals`` returned.
-
-        The whole set is rebound through ``skip_qty_available_update`` because
-        ``qty_available`` is the one field with an inverse, which would otherwise post an
-        inventory adjustment for a value this method just computed.
-
-        ``type`` is read with prefetching off so that filtering services out does not
-        drag every other field of the set along; the caller's own setting is then
-        restored rather than hardcoded back on, since ``_search_product_quantity``
-        deliberately turns it off.
-        """
         prefetch_fields = self.env.context.get("prefetch_fields", True)
         guarded = self.with_context(skip_qty_available_update=True)
         products = (
@@ -433,38 +383,11 @@ class ProductProduct(models.Model):
             product.update(res[product.id])
 
     def _inverse_qty_available(self):
-        """Apply a manual on-hand adjustment from the product form.
-
-        Skipped when the write comes from ``_compute_quantities`` itself.
-
-        The adjustment lands in each product's *own* company, not the active one:
-        pairing a company-B product with company-A's stock location fails the
-        multi-company check with a message that blames the warehouse setup. Products are
-        therefore grouped by company and one warehouse resolved per group, which also
-        avoids a search per product.
-
-        ``_warehouse_redirect_warning`` raises a redirect to the warehouse
-        configuration; it falls through only during module installation (registry not
-        ready), where the adjustment is skipped rather than crashing on a False
-        location.
-        """
         if self.env.context.get("skip_qty_available_update", False):
             return
         self._apply_qty_available([product.qty_available for product in self])
 
     def _apply_qty_available(self, quantities):
-        """Adjust on-hand quantities for the whole set in one inventory adjustment.
-
-        Takes the quantities explicitly instead of reading ``qty_available`` back, so
-        a caller that never wrote the field -- ``product.template.create`` -- reaches
-        the same batched path rather than one adjustment per distinct value.
-
-        When the context scopes quantities to a location or a warehouse, the adjustment
-        lands *there*: `_compute_quantities` reads through that scope, so writing outside
-        it made the field disagree with itself -- setting 9 under one warehouse put the
-        stock in another and left the scoped value reading 0. See
-        `_resolve_inventory_location`.
-        """
         products_to_update = self.browse()
         quantities_to_apply = []
         for product, quantity in zip(self, quantities, strict=True):
@@ -488,8 +411,6 @@ class ProductProduct(models.Model):
             quantities_to_apply.append(quantity)
         if not products_to_update:
             return
-        # Resolved only once there is something to adjust, so a set of services under an
-        # ambiguous scope stays the no-op it has always been rather than raising.
         scoped_location = self._resolve_inventory_location()
         quantity_by_product = dict(
             zip(products_to_update, quantities_to_apply, strict=True)
@@ -536,18 +457,6 @@ class ProductProduct(models.Model):
         quants._apply_inventory()
 
     def _resolve_inventory_location(self):
-        """The single internal location an on-hand adjustment should target, or empty.
-
-        Empty means "the context named no scope" -- the caller then falls back to one
-        warehouse per product company, which is the only sensible answer when nothing
-        says otherwise and the products may span companies.
-
-        A scope naming several internal locations has **no** correct answer: the value
-        being written is a total over all of them, and splitting it across them is a
-        guess. That raises rather than silently picking one, which is what the previous
-        behaviour amounted to. A warehouse scope is the exception -- it names one place
-        by construction, its `lot_stock_id` -- so the common case still works.
-        """
         location_ids = self._scope_location_ids()
         if location_ids is None:
             return self.env["stock.location"].browse()
@@ -555,8 +464,6 @@ class ProductProduct(models.Model):
         warehouses = locations.warehouse_id
         if len(locations) == 1 and locations.usage == "internal":
             return locations
-        # A warehouse scope resolves to that warehouse's view location, whose stock
-        # location is the unambiguous target.
         if len(warehouses) == 1 and locations == warehouses.view_location_id:
             return warehouses.lot_stock_id
         raise UserError(
@@ -572,12 +479,6 @@ class ProductProduct(models.Model):
         )
 
     def _search_qty_available(self, operator, value):
-        # The quant-only fast path answers only "on hand, now, whoever owns it". A date
-        # window or an owner filter changes the answer, so those fall through to the full
-        # pass -- but only when they carry a value. `to_date=False` is "no cutoff", which
-        # is what the fast path already computes; testing key *presence* abandoned it for
-        # a context that asked for nothing. `owners` stays a presence test: an empty list
-        # is a real filter there, selecting the stock that has no owner.
         if not (
             self.env.context.get("from_date")
             or self.env.context.get("to_date")
@@ -597,16 +498,16 @@ class ProductProduct(models.Model):
                 return [("id", "in", product_ids)]
         return self._search_product_quantity(operator, value, "qty_available")
 
-    def _search_virtual_available(self, operator, value):
+    def _search_qty_available_virtual(self, operator, value):
         return self._search_product_quantity(operator, value, "qty_available_virtual")
 
-    def _search_incoming_qty(self, operator, value):
+    def _search_qty_incoming(self, operator, value):
         return self._search_product_quantity(operator, value, "qty_incoming")
 
-    def _search_outgoing_qty(self, operator, value):
+    def _search_qty_outgoing(self, operator, value):
         return self._search_product_quantity(operator, value, "qty_outgoing")
 
-    def _search_free_qty(self, operator, value):
+    def _search_qty_free(self, operator, value):
         return self._search_product_quantity(operator, value, "qty_free")
 
     def _search_product_quantity(self, operator, value, field):
@@ -650,13 +551,6 @@ class ProductProduct(models.Model):
     def _search_qty_available_new(
         self, operator, value, lot_id=False, owner_id=False, package_id=False
     ):
-        """Optimized method which doesn't search on stock.moves, only on stock.quants.
-
-        Caller invariant: zero-matching searches (any `(operator, value)` that 0
-        satisfies) are pre-routed to `_search_product_quantity` by
-        `_search_qty_available`, so quant-less products — whose on-hand is 0 —
-        can never match here and only products with quants need to be examined.
-        """
         op = PY_OPERATORS.get(operator)
         if not op:
             return NotImplemented
@@ -697,7 +591,7 @@ class ProductProduct(models.Model):
         return None
 
     def action_view_orderpoints(self):
-        action = self.env["ir.actions.actions"]._for_xml_id("stock.action_orderpoint")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("stock.action_orderpoint")
         context = action.get("context") or {}
         action["context"] = (
             literal_eval(context) if isinstance(context, str) else dict(context)
@@ -723,7 +617,7 @@ class ProductProduct(models.Model):
 
     def action_view_stock_move_lines(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.stock_move_line_action"
         )
         action["domain"] = [("product_id", "=", self.id)]
@@ -741,7 +635,7 @@ class ProductProduct(models.Model):
         )
 
     def action_view_storage_category_capacity(self):
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.action_stock_storage_category_capacity"
         )
         action["context"] = {
@@ -757,18 +651,13 @@ class ProductProduct(models.Model):
         return action
 
     def preview_next_lot(self):
-        """Interpolated preview of this product's next lot/serial value.
-
-        Read-only single-RPC helper for the serial generator dialog: never
-        consumes a sequence number (see ``ir.sequence.preview_next``).
-        """
         self.ensure_one()
         sequence = self.lot_sequence_id
         return sequence.preview_next() if sequence else False
 
     def action_view_product_lot(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.action_stock_lot_form_2"
         )
         action["domain"] = [
@@ -809,18 +698,12 @@ class ProductProduct(models.Model):
 
     def action_product_forecast_report(self):
         self.ensure_one()
-        return self.env["ir.actions.actions"]._for_xml_id(
+        return self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.stock_forecasted_product_product_action"
         )
 
     @api.model
     def _normalize_quantities_to_date(self, to_date):
-        """Normalize a ``to_date`` input to a datetime, and say whether it is past.
-
-        A bare date -- or the ten-character string the web client sends for one --
-        means "the whole of that day", so it widens to that day's last microsecond
-        rather than to its midnight, which would drop the day's own moves.
-        """
         original_value = to_date
         to_date = fields.Datetime.to_datetime(to_date)
         if (
@@ -833,16 +716,6 @@ class ProductProduct(models.Model):
     def _narrow_quantity_domains(
         self, quant, move_in, move_out, lot_id, owner_id, package_id
     ):
-        """Apply the lot / owner / package scope to the quant and move domains.
-
-        A table of triples rather than one domain applied three times, because each
-        filter reads a different field on each side: a move carries its lot and its
-        owner on its *lines*, its restricting partner on itself, and no package at all.
-
-        ``None`` means "not filtered"; ``False`` is a real value and selects the
-        records with no lot / owner / package -- which is why every test here is
-        against ``None`` rather than truthiness.
-        """
         if lot_id is not None:
             quant &= Domain([("lot_id", "=", lot_id)])
             move_in &= Domain([("move_line_ids.lot_id", "=", lot_id)])
@@ -870,18 +743,6 @@ class ProductProduct(models.Model):
         to_date=False,
         location_domains=None,
     ):
-        """Assemble the domains one quantity computation reads, without querying.
-
-        Split out of `_prepare_quantities_vals` so the scope can be asserted directly:
-        it is the half that carries the lot/owner/package/date semantics, and it needs
-        no database to be right.
-
-        :param location_domains: the `_get_domain_locations` triple, when the caller
-            has already resolved it. Resolving it costs a warehouse or location search,
-            and a quantity *search* needs the very same triple to build its candidate
-            set, so passing it through halves that work.
-        :return: a `QuantityScope`.
-        """
         domain_quant_loc, domain_move_in_loc, domain_move_out_loc = (
             location_domains or self._get_domain_locations()
         )
@@ -936,19 +797,6 @@ class ProductProduct(models.Model):
         )
 
     def _expired_quant_domain(self, domain_quant, to_date):
-        """Narrow ``domain_quant`` to stock already expired at the cutoff.
-
-        ``product_expiry`` opts in by setting ``with_expiration``; without it there is
-        no expiry notion and this returns ``None`` -- deliberately not ``Domain.FALSE``,
-        so "no expiry filter" stays distinguishable from "a filter matching nothing".
-
-        The cutoff is the ``to_date`` *parameter*, not ``context['to_date']``. The two
-        normally agree, because callers pass the context value straight through, but an
-        override that rewrites the parameter -- ``purchase_stock`` does, for its demand
-        suggestion -- must not be silently ignored here while every other window in the
-        scope honours it. The parameter is also already normalised to a datetime, where
-        the context still holds whatever the caller happened to set.
-        """
         if not self.env.context.get("with_expiration"):
             return None
         max_date = (
@@ -959,7 +807,6 @@ class ProductProduct(models.Model):
         return domain_quant & Domain([("removal_date", "<=", max_date)])
 
     def _read_quantities(self, scope):
-        """Run `scope`'s grouped reads. The only method here that touches the database."""
         Move = self.env["stock.move"]
         Quant = self.env["stock.quant"]
         moves_in_res = {
@@ -1029,16 +876,6 @@ class ProductProduct(models.Model):
         to_date=False,
         location_domains=None,
     ):
-        """Map each product id to its five quantity values.
-
-        Three phases, each separately overridable: `_prepare_quantities_scope` decides
-        *what* to read, `_read_quantities` reads it, and the loop below turns the raw
-        sums into per-product, UoM-rounded values.
-
-        Products with nothing to read need no special case: every lookup below defaults
-        to zero, so they fall through the same arithmetic to the same five zeros a
-        short-circuit would have written.
-        """
         scope = self._prepare_quantities_scope(
             lot_id,
             owner_id,
@@ -1086,24 +923,6 @@ class ProductProduct(models.Model):
         return res
 
     def _get_quantity_search_candidates(self, location_domains=None):
-        """Products whose on-hand/forecast quantity fields can be non-zero: those with
-        quants or moves in the relevant locations.
-
-        A superset is safe (extras compute to 0 and are filtered out) but a subset
-        drops matches, so any override letting a product be non-zero without its own
-        quants/moves (e.g. mrp phantom-BoM kits, sourced from components) MUST extend
-        this set.
-
-        The second consumer of that contract is the *complement*: a zero-matching search
-        returns `("id", "not in", <these ids>)` for everything not examined. That is why
-        the ids are materialised in Python rather than left as a subquery over quants and
-        moves -- a subquery cannot see an override, so a stocked kit would fall into the
-        complement and be matched by `qty_available <= 0`. Measured: the subquery form is
-        ~13% faster and answers `True` there, where this one correctly answers `False`.
-
-        :param location_domains: the `_get_domain_locations` triple, when the caller
-            has already resolved it.
-        """
         domain_quant_loc, domain_move_in_loc, domain_move_out_loc = (
             location_domains or self._get_domain_locations()
         )
@@ -1122,18 +941,10 @@ class ProductProduct(models.Model):
         return self.env["product.product"].browse(product_ids)
 
     def _get_components(self):
-        """The storable products this one resolves to. Itself, unless it is a kit.
-
-        Returns a recordset: `mrp` overrides it to explode a phantom BoM, and the
-        callers compare it against the product itself.
-        """
         self.ensure_one()
         return self
 
     def _get_description(self, picking_type_id):
-        """Outgoing pickings always use the product name; others use the product
-        description if set, falling back to the name.
-        """
         self.ensure_one()
         if picking_type_id.code == "outgoing":
             return self.display_name
@@ -1144,7 +955,6 @@ class ProductProduct(models.Model):
         )
 
     def _get_picking_description(self, picking_type_id):
-        """Return the receipt/delivery/internal description matching the picking type."""
         self.ensure_one()
         return {
             "incoming": self.description_pickingin,
@@ -1156,11 +966,6 @@ class ProductProduct(models.Model):
         return self.env["stock.route"]
 
     def _resolve_context_record_ids(self, model, values) -> set[int]:
-        """Resolve context values -- ids, names to match, or a mix -- to existing ids.
-
-        See `_get_domain_locations` for why booleans raise and why missing ids are
-        dropped rather than allowed to reach a `browse`.
-        """
         Model = self.env[model]
         ids = set()
         domains = []
@@ -1186,23 +991,6 @@ class ProductProduct(models.Model):
         return existing
 
     def _get_domain_locations(self):
-        """Resolve the 'location'/'search_location' and 'warehouse_id'/'search_warehouse'
-        context keys into location domains; falls back to all stock locations of the
-        current companies' warehouses when none are given.
-
-        Each key takes an id, a name to match, or a list of either. Two input rules are
-        load-bearing, because these values arrive from a context nobody validates:
-
-        - A boolean is rejected outright. ``isinstance(True, int)`` holds, so an
-          unguarded int test lets it through to the recursive CTE as ``id = ANY(true)``,
-          which Postgres answers with a raw ``UndefinedFunction: operator does not
-          exist: integer = boolean``.
-        - Ids that no longer exist are dropped, with a warning. That keeps every
-          unresolvable filter on one path -- an empty scope, hence zero quantities --
-          instead of a ``MissingError`` from whichever branch dereferences the browsed
-          record first, which is what made a stale id silent alone but fatal alongside
-          ``warehouse_id``.
-        """
         location_ids = self._scope_location_ids()
         if location_ids is None:
             location_ids = set(
@@ -1214,15 +1002,6 @@ class ProductProduct(models.Model):
         return self._get_domain_locations_new(location_ids)
 
     def _scope_location_ids(self) -> set[int] | None:
-        """The locations the context scopes quantities to, or ``None`` for no scope.
-
-        Split out of `_get_domain_locations` because the *write* half of
-        `qty_available` needs the same answer: a scope the compute honours has to be a
-        scope the inverse honours, or the field does not round-trip. Returning ``None``
-        rather than the default set keeps "the caller asked for nothing" distinguishable
-        from "the caller asked for every warehouse", which is the distinction
-        `_resolve_inventory_location` turns on.
-        """
         Location = self.env["stock.location"]
         Warehouse = self.env["stock.warehouse"]
         _search_ids = self._resolve_context_record_ids
@@ -1257,18 +1036,6 @@ class ProductProduct(models.Model):
         return None
 
     def _get_domain_locations_new(self, location_ids) -> tuple[Domain, Domain, Domain]:
-        """Return (quant, move-in, move-out) domains for a set of locations.
-
-        ``strict`` matches the given locations exactly; otherwise the scope widens to
-        their descendants, via a recursive CTE rather than an ``id`` list, so the
-        location tree is not materialised into the outer query.
-
-        ``skip_in_progress`` drops the ``location_final_id`` reasoning that treats a
-        not-yet-done move by where it will end up. It is a no-op under ``strict`` **by
-        construction, not by omission**: the strict branch never introduces that
-        reasoning, so its ordinary return is already the tuple the shortcut builds.
-        Pinned by ``test_strict_scope_already_skips_in_progress``.
-        """
         if not location_ids:
             return (Domain.FALSE,) * 3
         locations = self.env["stock.location"].browse(location_ids)
@@ -1331,12 +1098,6 @@ class ProductProduct(models.Model):
         )
 
     def _descendant_locations_query(self, locations) -> Query:
-        """A subquery yielding ``locations`` and everything below them.
-
-        A recursive CTE rather than resolving the tree in Python: the alternative is a
-        ``child_of`` that searches the children and injects every id into the outer
-        query.
-        """
         return Query(
             locations.env,
             "descendants",
@@ -1430,22 +1191,6 @@ class ProductProduct(models.Model):
         ) & Domain.OR(or_domains)
 
     def _restamp_uom(self, model, to_uom_id):
-        """Point every ``model`` record of these products at ``to_uom_id``.
-
-        Restamping is only meaningful while each record still carries the product's
-        current UoM -- the quantities are not converted -- so anything already recorded
-        in a different unit aborts the change.
-
-        The unit being left is read from the *template*, never from ``product.uom_id``.
-        `product.template.write` calls this before writing itself, so the template still
-        holds the old unit -- but assigning on a **variant** goes through the related
-        field, and the ORM has already put the new unit in the variant's cache by the
-        time it determines that inverse. Read from the variant, the guard compared every
-        existing record against the unit being moved *to*, so it fired on the one case it
-        exists to allow: `product.uom_id = new` raised for any product with a single move
-        while `product.product_tmpl_id.uom_id = new` restamped it and passed. Same read as
-        `base_order._update_uom_on_order_lines`, which is this method for order lines.
-        """
         for uom, product, records in self.env[model]._read_group(
             [("product_id", "in", self.ids)],
             ["product_uom_id", "product_id"],
@@ -1469,19 +1214,6 @@ class ProductProduct(models.Model):
         return super()._update_uom(to_uom_id)
 
     def _filter_to_unlink(self):
-        """Exclude products the database will refuse to delete.
-
-        `_unlink_or_archive` recovers from a refusal -- it retries inside a savepoint
-        and halves the batch -- so missing one here costs correctness nothing. It costs
-        query count: a single blocked product turns one statement into a binary search
-        over the batch. `stock.quant.product_id` and `stock.move.product_id` both
-        restrict on delete, and having stock history is the norm rather than the
-        exception, so both belong here alongside lots.
-
-        Only the lot read needs `active_test=False`, and it genuinely needs it: an
-        archived lot still restricts the delete. Quants and moves carry no `active`
-        field, so the key would be a no-op there.
-        """
         domain = [("product_id", "in", self.ids)]
         grouped = (
             self.env["stock.lot"]
@@ -1496,9 +1228,6 @@ class ProductProduct(models.Model):
         )._filter_to_unlink()
 
     def _get_allowed_uoms(self):
-        """UoMs selectable for this product: its own UoM, its packaging UoMs,
-        and its vendors' purchase UoMs. Single source for the scrap and
-        replenish wizards' ``allowed_uom_ids`` computes."""
         return self.uom_id | self.uom_ids | self.seller_ids.product_uom_id
 
     def _trigger_uom_warning(self):

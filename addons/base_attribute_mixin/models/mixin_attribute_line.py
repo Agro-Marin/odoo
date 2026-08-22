@@ -29,10 +29,7 @@ class MixinAttributeLine(models.AbstractModel):
     active = fields.Boolean(
         default=True,
     )
-    value_count = fields.Integer(
-        compute="_compute_value_count",
-        store=True,
-    )
+    value_count = fields.Count("value_ids", store=True)
 
     def _subject_label(self):
         """Name the record this line hangs off, for error messages.
@@ -43,11 +40,6 @@ class MixinAttributeLine(models.AbstractModel):
         ``self.product_tmpl_id.display_name``.
         """
         return ""
-
-    @api.depends("value_ids")
-    def _compute_value_count(self):
-        for line in self:
-            line.value_count = len(line.value_ids)
 
     @api.constrains("active", "attribute_id", "value_ids")
     def _check_values(self):

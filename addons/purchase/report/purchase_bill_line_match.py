@@ -4,16 +4,11 @@ from odoo.tools import SQL
 
 
 class PurchaseBillLineMatch(models.Model):
-    """Line-level matching view between Purchase Order lines and Vendor Bill lines."""
-
     _name = "purchase.bill.line.match"
     _description = "Purchase Order Line & Vendor Bill Line Matching"
     _auto = False
     _order = "product_id, aml_id, pol_id"
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
 
     company_id = fields.Many2one(
         comodel_name="res.company",
@@ -97,9 +92,6 @@ class PurchaseBillLineMatch(models.Model):
         compute="_compute_amount_untaxed_fields",
     )
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
 
     def _compute_amount_untaxed_fields(self):
         for line in self:
@@ -138,9 +130,6 @@ class PurchaseBillLineMatch(models.Model):
                 line.aml_id.price_unit if line.aml_id else line.pol_id.price_unit
             )
 
-    # ------------------------------------------------------------
-    # ONCHANGE METHODS
-    # ------------------------------------------------------------
 
     @api.onchange("product_uom_price")
     def _inverse_product_uom_price(self):
@@ -156,16 +145,10 @@ class PurchaseBillLineMatch(models.Model):
             if line.aml_id:
                 line.aml_id.quantity = line.product_uom_qty
             else:
-                # Setting product_qty on the POL recomputes price_unit (e.g. from
-                # supplier pricelist quantity breaks); save and restore the previous
-                # price so the user's price is not reverted.
                 previous_price_unit = line.pol_id.price_unit
                 line.pol_id.product_qty = line.product_uom_qty
                 line.pol_id.price_unit = previous_price_unit
 
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
 
     def action_open_line(self):
         self.ensure_one()
@@ -182,7 +165,6 @@ class PurchaseBillLineMatch(models.Model):
 
     @api.model
     def _action_create_bill_from_po_lines(self, partner, po_lines):
-        """Create a new vendor bill with the selected PO lines and returns an action to open it"""
         if len(po_lines.currency_id) == 1:
             currency = po_lines.currency_id
         elif len(po_lines.company_id) == 1:
@@ -200,7 +182,7 @@ class PurchaseBillLineMatch(models.Model):
         return bill._get_records_action()
 
     def action_match_lines(self):
-        if not self.pol_id:  # we need POL(s) to either match or create bill
+        if not self.pol_id:
             raise UserError(
                 _(
                     "You must select at least one Purchase Order line to match or create bill."
@@ -208,7 +190,7 @@ class PurchaseBillLineMatch(models.Model):
             )
         if (
             not self.aml_id
-        ):  # select POL(s) without AML -> create a draft bill with the POL(s)
+        ):
             return self._action_create_bill_from_po_lines(self.partner_id, self.pol_id)
 
         pol_by_product = self.pol_id.grouped("product_id")
@@ -216,27 +198,20 @@ class PurchaseBillLineMatch(models.Model):
         residual_purchase_order_lines = self.pol_id
         residual_account_move_lines = self.aml_id
 
-        # Match all matchable POL-AML lines and remove them from the residual group
         for product, po_lines in pol_by_product.items():
             matching_bill_lines = aml_by_product.get(product)
             if not matching_bill_lines:
                 continue
 
             if len(po_lines) <= 1:
-                # Single PO line for this product: link all matching bill lines to it
                 po_line = po_lines[0]
                 matching_bill_lines.purchase_line_ids = [Command.link(po_line.id)]
                 residual_purchase_order_lines -= po_line
                 residual_account_move_lines -= matching_bill_lines
             else:
-                # Multiple PO lines for the same product: match 1:1 by price,
-                # then by order, to avoid merging lines with different prices.
                 remaining_po = list(po_lines)
                 remaining_aml = list(matching_bill_lines)
 
-                # Pass 1: match on price_unit within currency precision.
-                # Exact float '==' would drop pairs that differ only by
-                # rounding dust and mis-route them to the positional Pass 2.
                 for pol in list(remaining_po):
                     currency = (
                         pol.currency_id
@@ -255,7 +230,6 @@ class PurchaseBillLineMatch(models.Model):
                             remaining_aml.remove(aml)
                             break
 
-                # Pass 2: match remaining lines by order
                 for pol, aml in zip(
                     list(remaining_po), list(remaining_aml), strict=False
                 ):
@@ -264,11 +238,9 @@ class PurchaseBillLineMatch(models.Model):
                     residual_account_move_lines -= aml
 
         if len(residual_bill := self.aml_id.move_id) == 1:
-            # Delete all unmatched selected AML
             if residual_account_move_lines:
                 residual_account_move_lines.unlink()
 
-            # Add all remaining POL to the residual bill
             residual_bill._add_purchase_order_lines(residual_purchase_order_lines)
         return None
 
@@ -298,17 +270,9 @@ class PurchaseBillLineMatch(models.Model):
             "context": context,
         }
 
-    # ------------------------------------------------------------
-    # QUERY METHODS
-    # ------------------------------------------------------------
 
     @property
     def _table_query(self):
-        """Combine PO lines and vendor bill lines into a unified matching view.
-
-        :return: UNION ALL of PO lines (positive ids) and bill lines (negative ids)
-        :rtype: SQL
-        """
         return SQL(
             "%s UNION ALL %s",
             self._query_po_line(),
@@ -317,11 +281,6 @@ class PurchaseBillLineMatch(models.Model):
 
     @api.model
     def _query_po_line(self):
-        """Select confirmed purchase order lines awaiting invoicing.
-
-        :return: query for uninvoiced, over-invoiced, or invoiced-downpayment PO lines
-        :rtype: SQL
-        """
         return SQL(
             """
             SELECT
@@ -338,11 +297,6 @@ class PurchaseBillLineMatch(models.Model):
 
     @api.model
     def _select_po_line(self):
-        """Define field selection for purchase order lines.
-
-        :return: field list for PO line selection
-        :rtype: SQL
-        """
         return SQL(
             """
             pol.id,
@@ -365,11 +319,6 @@ class PurchaseBillLineMatch(models.Model):
 
     @api.model
     def _from_po_line(self):
-        """Define FROM clause for purchase order lines.
-
-        :return: FROM clause joining PO line to its PO
-        :rtype: SQL
-        """
         return SQL(
             """
             purchase_order_line pol
@@ -379,11 +328,6 @@ class PurchaseBillLineMatch(models.Model):
 
     @api.model
     def _where_po_line(self):
-        """Build WHERE clause for purchase order line selection.
-
-        :return: conditions selecting uninvoiced, over-invoiced, or downpayment PO lines
-        :rtype: SQL
-        """
         return SQL(
             """
             (
@@ -410,11 +354,6 @@ class PurchaseBillLineMatch(models.Model):
 
     @api.model
     def _query_am_line(self):
-        """Select vendor bill product lines not yet linked to a purchase order.
-
-        :return: query for unlinked account move lines (ids negated to avoid collision with PO line ids)
-        :rtype: SQL
-        """
         return SQL(
             """
             SELECT
@@ -431,11 +370,6 @@ class PurchaseBillLineMatch(models.Model):
 
     @api.model
     def _select_am_line(self):
-        """Define field selection for account move lines.
-
-        :return: field list for account move line selection
-        :rtype: SQL
-        """
         return SQL(
             """
             -aml.id AS id,
@@ -458,11 +392,6 @@ class PurchaseBillLineMatch(models.Model):
 
     @api.model
     def _from_am_line(self):
-        """Define FROM clause for account move lines.
-
-        :return: FROM clause joining account move line to its move
-        :rtype: SQL
-        """
         return SQL(
             """
             account_move_line aml
@@ -472,11 +401,6 @@ class PurchaseBillLineMatch(models.Model):
 
     @api.model
     def _where_am_line(self):
-        """Build WHERE clause for account move line selection.
-
-        :return: conditions selecting unlinked vendor bill lines
-        :rtype: SQL
-        """
         return SQL(
             """
             aml.display_type = 'product'

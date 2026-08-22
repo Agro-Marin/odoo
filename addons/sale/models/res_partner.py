@@ -5,9 +5,6 @@ from odoo.fields import Domain
 class ResPartner(models.Model):
     _inherit = "res.partner"
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
 
     sale_order_ids = fields.One2many(
         comodel_name="sale.order",
@@ -21,9 +18,6 @@ class ResPartner(models.Model):
     )
     sale_warn_msg = fields.Text(string="Message for Sales Order")
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
 
     def _compute_sale_order_count(self):
         self._compute_order_count(
@@ -45,11 +39,10 @@ class ResPartner(models.Model):
         )
 
     def _compute_credit_to_invoice(self):
-        # EXTENDS 'account'
         super()._compute_credit_to_invoice()
 
         if not (commercial_partners := self.commercial_partner_id & self):
-            return  # nothing to compute
+            return
 
         company = self.env.company
 
@@ -82,17 +75,11 @@ class ResPartner(models.Model):
             )
             partner.commercial_partner_id.credit_to_invoice += credit_company_currency
 
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
     @api.model
     def _get_sale_order_domain_count(self):
         return []
 
-    # ------------------------------------------------------------
-    # VALIDATIONS
-    # ------------------------------------------------------------
 
     def _has_order(self, partner_domain):
         self.ensure_one()
@@ -114,7 +101,6 @@ class ResPartner(models.Model):
         return bool(sale_order)
 
     def _can_edit_country(self):
-        """Can't edit `country_id` if there is (non draft) issued SO."""
         return super()._can_edit_country() and not self._has_order(
             [
                 "|",
@@ -124,7 +110,6 @@ class ResPartner(models.Model):
         )
 
     def can_edit_vat(self):
-        """Can't edit `vat` if there is (non draft) issued SO."""
         return super().can_edit_vat() and not self._has_order(
             [("partner_id", "child_of", self.commercial_partner_id.id)],
         )

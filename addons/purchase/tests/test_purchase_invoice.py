@@ -123,8 +123,6 @@ class TestPurchaseToInvoiceCommon(AccountTestInvoicingCommon):
 @tagged("post_install", "-at_install")
 class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
     def test_vendor_bill_delivered(self):
-        """Test if a order of product invoiced by delivered quantity can be
-        correctly invoiced."""
         purchase_order = (
             self.env["purchase.order"]
             .with_context(tracking_disable=True)
@@ -187,8 +185,6 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
             self.assertEqual(line.qty_invoiced, 0.0)
 
     def test_vendor_bill_ordered(self):
-        """Test if a order of product invoiced by ordered quantity can be
-        correctly invoiced."""
         purchase_order = (
             self.env["purchase.order"]
             .with_context(tracking_disable=True)
@@ -245,8 +241,6 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
             self.assertEqual(line.qty_invoiced, 10)
 
     def test_vendor_bill_delivered_return(self):
-        """Test when return product, a order of product invoiced by delivered
-        quantity can be correctly invoiced."""
         purchase_order = (
             self.env["purchase.order"]
             .with_context(tracking_disable=True)
@@ -306,8 +300,6 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
             self.assertEqual(line.qty_invoiced, 5)
 
     def test_vendor_bill_ordered_return(self):
-        """Test when return product, a order of product invoiced by ordered
-        quantity can be correctly invoiced."""
         purchase_order = (
             self.env["purchase.order"]
             .with_context(tracking_disable=True)
@@ -360,10 +352,6 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
             self.assertEqual(line.qty_invoiced, 10)
 
     def test_vendor_severals_bills_and_multicurrency(self):
-        """
-        This test ensures that, when adding several PO to a bill, if they are expressed with different
-        currency, the amount of each AML is converted to the bill's currency
-        """
         PurchaseOrderLine = self.env["purchase.order.line"]
         PurchaseBillMatch = self.env["purchase.bill.match"]
         ResCurrencyRate = self.env["res.currency.rate"]
@@ -477,10 +465,6 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
         self.assertEqual(move.amount_total, 0.01)
 
     def test_vendor_bill_analytic_account_model_change(self):
-        """Tests whether, when an analytic account rule is set, and user changes manually the analytic account on
-        the po, it is the same that is mentioned in the bill.
-        """
-        # Required for `analytic.group_analytic_accounting` to be visible in the view
         self.env.user.group_ids += self.env.ref("analytic.group_analytic_accounting")
         analytic_plan = self.env["account.analytic.plan"].create({"name": "Plan Test"})
         analytic_account_default = self.env["account.analytic.account"].create(
@@ -585,12 +569,6 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
         )
 
     def test_purchase_order_to_invoice_analytic_rule_with_account_prefix(self):
-        """
-        Test whether, when an analytic plan is set within the scope (applicability) of purchase
-        and with an account prefix set in the distribution model,
-        the default analytic account is correctly set during the conversion from po to invoice.
-        An additional analytic account set manually in another plan is also passed to the invoice.
-        """
         self.env.user.group_ids += self.env.ref("analytic.group_analytic_accounting")
         analytic_plan_default = self.env["account.analytic.plan"].create(
             {
@@ -608,7 +586,6 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
         analytic_account_default = self.env["account.analytic.account"].create(
             {"name": "default", "plan_id": analytic_plan_default.id}
         )
-        # Create an additional analytic account in another plan
         analytic_plan_2 = self.env["account.analytic.plan"].create(
             {"name": "Plan Test"}
         )
@@ -634,7 +611,6 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
         self.assertFalse(
             po.line_ids.analytic_distribution, "There should be no analytic set."
         )
-        # Add another analytic account to the line. It should be passed to the invoice
         po.line_ids.analytic_distribution = analytic_distribution_manual
         po.action_confirm()
         po.line_ids.qty_transferred = 1
@@ -650,8 +626,6 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
         )
 
     def test_sequence_invoice_lines_from_multiple_purchases(self):
-        """Test if the invoice lines are sequenced by purchase order when creating an invoice
-        from multiple selected po's"""
         purchase_orders = self.env["purchase.order"]
 
         for _ in range(3):
@@ -703,8 +677,6 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
             )
 
     def test_sequence_autocomplete_invoice(self):
-        """Test if the invoice lines are sequenced by purchase order when using the autocomplete
-        feature on a bill to add lines from po's"""
         purchase_orders = self.env["purchase.order"]
 
         for _ in range(3):
@@ -769,10 +741,6 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
             )
 
     def test_partial_billing_interaction_with_invoicing_switch_threshold(self):
-        """Let's say you create a partial bill 'B' for a given PO. Now if you change the
-        'Invoicing Switch Threshold' such that the bill date of 'B' is before the new threshold,
-        the PO should still take bill 'B' into account.
-        """
         if not self.env["ir.module.module"].search(
             [("name", "=", "account_accountant"), ("state", "=", "installed")]
         ):
@@ -828,9 +796,6 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
         self.assertEqual(line.qty_invoiced, 10)
 
     def test_on_change_quantity_price_unit(self):
-        """When a user changes the quantity of a product in a purchase order it
-        should only update the unit price if PO line has no invoice line."""
-
         supplierinfo_vals = {
             "partner_id": self.partner_a.id,
             "price": 10.0,
@@ -852,7 +817,6 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
             10.0, po_line.price_unit, "Unit price should be set to 10.0 for 1 quantity"
         )
 
-        # Ensure price unit is updated when changing quantity on a un-confirmed PO
         supplierinfo.write({"min_qty": 2, "price": 20.0})
         po_line.write({"product_qty": 2})
         self.assertEqual(
@@ -861,7 +825,6 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
 
         po.action_confirm()
 
-        # Ensure price unit is updated when changing quantity on a confirmed PO
         supplierinfo.write({"min_qty": 3, "price": 30.0})
         po_line.write({"product_qty": 3})
         self.assertEqual(
@@ -870,7 +833,6 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
 
         po.create_invoice()
 
-        # Ensure price unit is NOT updated when changing quantity on PO confirmed and line linked to an invoice line
         supplierinfo.write({"min_qty": 4, "price": 40.0})
         po_line.write({"product_qty": 4})
         self.assertEqual(
@@ -889,14 +851,12 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
             "Unit price should be reset to 235.0 since the supplier supplies minimum of 4 quantities",
         )
 
-        # Ensure price unit is updated when changing quantity on PO confirmed and line NOT linked to an invoice line
         po_line.write({"product_qty": 4})
         self.assertEqual(
             40.0, po_line.price_unit, "Unit price should be set to 40.0 for 4 quantity"
         )
 
     def test_supplier_discounted_price(self):
-        """Check the lower price (discount included) is used."""
         uom_dozen = self.env.ref("uom.product_uom_dozen")
         supplierinfo_common_vals = {
             "partner_id": self.partner_a.id,
@@ -908,18 +868,18 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
                 {
                     **supplierinfo_common_vals,
                     "price": 100.0,
-                    "discount": 0,  # Real price by unit: 100.00
+                    "discount": 0,
                 },
                 {
                     **supplierinfo_common_vals,
                     "price": 120.0,
-                    "discount": 20,  # Real price by unit: 96.00
+                    "discount": 20,
                 },
                 {
                     **supplierinfo_common_vals,
                     "min_qty": 10,
                     "price": 140.0,
-                    "discount": 50,  # Real price by unit: 70.00
+                    "discount": 50,
                 },
             ]
         )
@@ -944,7 +904,6 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
         self.assertEqual(96.0, po_line.price_unit_discounted_taxexc)
         self.assertEqual(96.0, po_line.price_subtotal)
 
-        # Increase the PO line quantity: it should take another price if min. qty. is reached.
         po_form = Form(po)
         with po_form.line_ids.edit(0) as po_line_form:
             po_line_form.product_uom_id = uom_dozen
@@ -960,8 +919,6 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
         self.assertEqual(2520.0, po_line.price_subtotal, "840.0 * 3 = 2520.0")
 
     def test_invoice_line_name_has_product_name(self):
-        """Testing that when invoicing a sales order, the invoice line name ALWAYS contains the product name."""
-        # Create a purchase order with different descriptions
         po = (
             self.env["purchase.order"]
             .with_context(tracking_disable=True)
@@ -1019,13 +976,11 @@ class TestPurchaseToInvoice(TestPurchaseToInvoiceCommon):
             }
         )
 
-        # Invoice the purchase order
         po.action_confirm()
         po.line_ids.qty_transferred = 4
         po.create_invoice()
         inv = po.invoice_ids
 
-        # Check the invoice line names
         self.assertEqual(
             inv.invoice_line_ids[0].name,
             f"{pol_prod_no_redundancy.product_id.display_name}\n{pol_prod_no_redundancy.name}",
@@ -1108,7 +1063,6 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
         )
 
     def test_subset_match_from_edi_full(self):
-        """An invoice totally matches a purchase order line by line"""
         po = self.init_purchase(
             confirm=True, products=[self.product_order, self.service_order]
         )
@@ -1133,7 +1087,6 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
         self.assertEqual(invoice.amount_total, po.amount_total)
 
     def test_subset_match_from_edi_partial_po(self):
-        """A line of the invoice totally matches a 1-line purchase order"""
         po = self.init_purchase(confirm=True, products=[self.product_order])
         invoice = self.init_invoice(
             "in_invoice",
@@ -1155,7 +1108,6 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
             self.assertTrue(line in invoice_lines.purchase_line_ids)
 
     def test_subset_match_from_edi_partial_inv(self):
-        """An invoice totally matches some purchase order line"""
         po = self.init_purchase(
             confirm=True, products=[self.product_order, self.service_order]
         )
@@ -1177,7 +1129,6 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
             self.assertTrue(line.purchase_line_ids & po.line_ids)
 
     def test_subset_match_from_edi_same_unit_price(self):
-        """An invoice matches some purchase order line by unit price"""
         po = self.init_purchase(
             confirm=True, products=[self.product_order_var_name, self.product_order]
         )
@@ -1199,7 +1150,6 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
             self.assertTrue(line.purchase_line_ids & po.line_ids)
 
     def test_subset_match_from_edi_and_diff_unit_price(self):
-        """An invoice matches some purchase order line but not another one because of a unit price difference"""
         po = self.init_purchase(
             confirm=True, products=[self.product_order_var_name, self.product_order]
         )
@@ -1226,9 +1176,6 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
                 self.assertFalse(line.purchase_line_ids & po.line_ids)
 
     def test_subset_not_match_non_invoice_lines(self):
-        """Test that a purchase line with a line of 0 as unit price won't match
-        with a non-invoice-lines (not an invoice_line_ids)
-        """
         uom_unit = self.env.ref("uom.product_uom_unit")
         product_order_zero_price = self.env["product.product"].create(
             {
@@ -1306,7 +1253,7 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
             "in_invoice", partner=self.partner_a, products=[self.product_order]
         )
 
-        self.env["account.move.line"].flush_model()  # necessary to get the bill lines
+        self.env["account.move.line"].flush_model()
         match_lines = self.env["purchase.bill.line.match"].search(
             [("partner_id", "=", self.partner_a.id)]
         )
@@ -1316,13 +1263,11 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
 
         match_lines.action_match_lines()
         self.assertEqual(bill.invoice_line_ids.purchase_line_ids, po.line_ids)
-        # Post the bill to have qty_invoiced computed (only posted invoices are counted)
         bill.invoice_date = fields.Date.today()
         bill.action_post()
         self.assertEqual(po.line_ids.qty_invoiced, bill.invoice_line_ids.quantity)
 
     def test_manual_matching_restrict_no_pol(self):
-        """raises when there's no POL found"""
         with self.assertRaisesRegex(
             UserError, "must select at least one Purchase Order line"
         ):
@@ -1332,7 +1277,6 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
             match_lines.action_match_lines()
 
     def test_manual_matching_allow_multi_bill(self):
-        """test matching with multiple bills"""
         po = self.init_purchase(
             partner=self.partner_a,
             confirm=True,
@@ -1362,7 +1306,7 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
         match_lines = self.env["purchase.bill.line.match"].search(
             [("partner_id", "=", self.partner_a.id)]
         )
-        match_lines.action_match_lines()  # Match by product and leave residual bill and po lines unmatched because multiple bills
+        match_lines.action_match_lines()
 
         self.assertIn(po.line_ids[0], bill_1.invoice_line_ids[0].purchase_line_ids)
         self.assertIn(po.line_ids[0], bill_2.invoice_line_ids[0].purchase_line_ids)
@@ -1379,7 +1323,7 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
         )
         self.assertEqual(len(match_lines), 2)
 
-        match_lines.action_match_lines()  # Can't match by product but delete residual bill line and create new bill line for residual po line as only one bill
+        match_lines.action_match_lines()
         self.assertIn(po.line_ids[2], bill_2.invoice_line_ids[1].purchase_line_ids)
         self.env["purchase.order.line"].flush_model()
         match_lines = self.env["purchase.bill.line.match"].search(
@@ -1388,7 +1332,6 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
         self.assertEqual(len(match_lines), 0)
 
     def test_manual_matching_create_bill(self):
-        """Selecting POL without AML will create bill with the selected POL as the lines"""
         prev_moves = self.env["account.move"].search([])
         self.init_purchase(
             confirm=True, products=[self.product_order, self.product_order_var_name]
@@ -1412,7 +1355,6 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
         )
 
     def test_manual_matching_multi_po(self):
-        """All POL are matched/added into the bill, and all unmatched AML are discarded"""
         po_1 = self.init_purchase(
             confirm=True, products=[self.product_order, self.product_order_var_name]
         )
@@ -1457,7 +1399,6 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
             [("partner_id", "=", self.partner_a.id)]
         )
 
-        # Use wizard to create a new PO
         action = match_lines.action_add_to_po()
         wizard = (
             self.env["bill.to.po.wizard"]
@@ -1496,7 +1437,6 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
             [("partner_id", "=", self.partner_a.id)]
         )
 
-        # Use wizard to add lines to existing PO
         match_lines.action_add_to_po()
         wizard = (
             self.env["bill.to.po.wizard"]
@@ -1516,11 +1456,6 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
         )
 
     def test_onchange_partner_currency(self):
-        """
-        Test that the currency of the Bill is correctly set when the partner is changed
-        as well as the currency of the Bill lines
-        """
-
         vendor_eur = self.env["res.partner"].create(
             {
                 "name": "Vendor EUR",
@@ -1588,12 +1523,6 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
         )
 
     def test_onchange_partner_no_currency(self):
-        """
-        Test that the currency of the Bill is correctly set when the partner is changed
-        as well as the currency of the Bill lines even if the partner has no property_purchase_currency_id set
-        or when and the `default_currency_id` is defined in the context
-        """
-
         vendor_a = self.env["res.partner"].create(
             {
                 "name": "Vendor A with No Currency",
@@ -1662,10 +1591,6 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
         )
 
     def test_invoice_user_id_on_bill(self):
-        """
-        Test that the invoice_user_id field is set to the PO's user when creating a vendor bill
-        from a PO or when using Auto-Complete feature of a vendor bill.
-        """
         group_purchase_user = self.env.ref("purchase.group_purchase_user")
         group_employee = self.env.ref("base.group_user")
         group_partner_manager = self.env.ref("base.group_partner_manager")
@@ -1712,12 +1637,10 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
         po2 = po1.copy()
         po1.action_confirm()
         po2.action_confirm()
-        # creating bill from PO
         po1.line_ids.qty_transferred = 1
         po1.create_invoice()
         invoice1 = po1.invoice_ids
         self.assertEqual(invoice1.invoice_user_id, purchase_user)
-        # creating bill with Auto_complete feature
         move_form = Form(
             self.env["account.move"].with_context(default_move_type="in_invoice")
         )
@@ -1728,9 +1651,6 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
         self.assertEqual(invoice2.invoice_user_id, purchase_user)
 
     def test_create_invoice_from_multiple_purchase_orders(self):
-        """Test that invoices can be created from purchase orders with different
-        vendors without raising errors and with correct vendor mapping per invoice.
-        """
         purchase_orders = (
             self.env["purchase.order"]
             .with_context(tracking_disable=True)
@@ -1778,9 +1698,6 @@ class TestInvoicePurchaseMatch(TestPurchaseToInvoiceCommon):
         )
 
     def test_link_bill_origin_to_purchase_orders(self):
-        """
-        Test if the corresponding purchase orders are linked if the bill when there is multiple origin purchase orders
-        """
         po = self.init_purchase(confirm=True, products=[self.product_order])
         po_2 = self.init_purchase(confirm=True, products=[self.service_order])
 

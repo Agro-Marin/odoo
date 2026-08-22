@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component, onWillStart, useEffect, useRef } from "@odoo/owl";
+import { readJsonField } from "@stock/utils/json_field";
 import { getColor } from "@web/core/colors/colors";
 import { Chart, loadChartJS } from "@web/core/lib/chartjs";
 import { registry } from "@web/core/registry";
@@ -10,12 +11,7 @@ export class JsonPopOver extends Component {
     static template = "";
     static props = { ...standardFieldProps };
     get jsonValue() {
-        const raw = this.props.record.data[this.props.name];
-        if (raw !== this._jsonRaw) {
-            this._jsonRaw = raw;
-            this._jsonValue = JSON.parse(raw || "{}");
-        }
-        return this._jsonValue;
+        return readJsonField(this);
     }
 }
 

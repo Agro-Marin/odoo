@@ -59,20 +59,25 @@ class ProjectGate(models.Model):
     )
     criteria_met_count = fields.Integer(
         "Criteria Met",
-        compute="_compute_criteria_counts",
+        compute="_compute_criteria_met_count",
         export_string_translation=False,
     )
-    criteria_total_count = fields.Integer(
+    criteria_total_count = fields.Count(
+        "criterion_ids",
         "Total Criteria",
-        compute="_compute_criteria_counts",
         export_string_translation=False,
     )
 
-    @api.depends("criterion_ids", "criterion_ids.met")
-    def _compute_criteria_counts(self) -> None:
-        """Count total and met criteria per gate."""
+    @api.depends("criterion_ids.met")
+    def _compute_criteria_met_count(self) -> None:
+        """Count the MET criteria per gate.
+
+        The total is `fields.Count("criterion_ids")` and no longer computed
+        here: `len(gate.criterion_ids)` is exactly what that field declares, and
+        splitting narrows this compute's dependency to the `met` flag it
+        actually reads.
+        """
         for gate in self:
-            gate.criteria_total_count = len(gate.criterion_ids)
             gate.criteria_met_count = len(gate.criterion_ids.filtered("met"))
 
     @api.constrains("milestone_id", "project_id")

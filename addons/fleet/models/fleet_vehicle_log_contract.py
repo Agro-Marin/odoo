@@ -23,7 +23,7 @@ class FleetVehicleLogContract(models.Model):
     date = fields.Date(help='Date when the cost has been executed')
     company_id = fields.Many2one('res.company', 'Company', default=lambda self: self.env.company)
     currency_id = fields.Many2one('res.currency', related='company_id.currency_id')
-    name = fields.Char(string='Name', compute='_compute_contract_name', store=True, readonly=False)
+    name = fields.Char(string='Name', compute='_compute_name', store=True, readonly=False)
     active = fields.Boolean(default=True)
     user_id = fields.Many2one(
         comodel_name='res.users',
@@ -38,8 +38,8 @@ class FleetVehicleLogContract(models.Model):
         self.compute_next_year_date(fields.Date.context_today(self)),
         tracking=True,
         help='Date when the coverage of the contract expirates (by default, one year after begin date)')
-    days_left = fields.Integer(compute='_compute_days_left', string='Warning Date')
-    expires_today = fields.Boolean(compute='_compute_days_left')
+    days_left = fields.Integer(compute='_compute_expiration', string='Warning Date')
+    expires_today = fields.Boolean(compute='_compute_expiration')
     has_open_contract = fields.Boolean(compute='_compute_has_open_contract')
     insurer_id = fields.Many2one('res.partner', 'Vendor')
     purchaser_id = fields.Many2one(related='vehicle_id.driver_id', string='Driver')
@@ -65,7 +65,7 @@ class FleetVehicleLogContract(models.Model):
     service_ids = fields.Many2many('fleet.service.type', string="Included Services")
 
     @api.depends('vehicle_id.name', 'cost_subtype_id')
-    def _compute_contract_name(self):
+    def _compute_name(self):
         for record in self:
             name = record.vehicle_id.name
             if name and record.cost_subtype_id.name:
@@ -84,7 +84,7 @@ class FleetVehicleLogContract(models.Model):
             log_contract.has_open_contract = log_contract.vehicle_id in open_contracts.vehicle_id
 
     @api.depends('expiration_date', 'state')
-    def _compute_days_left(self):
+    def _compute_expiration(self):
         """return a dict with as value for each contract an integer
         if contract is in an open state and is overdue, return 0
         if contract is in a closed state, return -1

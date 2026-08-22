@@ -15,8 +15,6 @@ class TestAccruedSaleOrders(TestSaleCommon):
 
         cls.other_currency = cls.setup_other_currency("EUR")
         cls.alt_inc_account = cls.company_data["default_account_revenue"].copy()
-        # set 'invoice_policy' to 'transferred' to take 'qty_transferred' into account when computing 'amount_taxexc_to_invoice'
-        # set 'type' to 'service' to allow manualy set 'qty_transferred' even with sale_stock installed
         cls.product_a.update(
             {
                 "type": "service",
@@ -101,35 +99,26 @@ class TestAccruedSaleOrders(TestSaleCommon):
         )
 
     def test_accrued_order(self):
-        # self.wizard = self.wizard.with_context(accrual_entry_date=fields.Date.today())
         self.wizard.date = fields.Date.today()
-        # nothing to invoice : no entries to be created
         with self.assertRaises(UserError):
             self.wizard.create_entries()
 
-        # 5 qty of each product invoiceable
         self.sale_order.line_ids.qty_transferred = 5
-        # Call accrual wizard at today date because calling in the past will
-        # re-compute delivred and invoiced quantities for this date and thus
-        # generate nothing since there was no delivered quantity at this time.
         account_move = self.env["account.move"].search(
             self.wizard.create_entries()["domain"]
         )
         self.assertRecordValues(
             account_move.line_ids,
             [
-                # reverse move lines
                 {"account_id": self.account_revenue.id, "debit": 5000, "credit": 0},
                 {"account_id": self.alt_inc_account.id, "debit": 1000, "credit": 0},
                 {"account_id": self.wizard.account_id.id, "debit": 0, "credit": 6000},
-                # move lines
                 {"account_id": self.account_revenue.id, "debit": 0, "credit": 5000},
                 {"account_id": self.alt_inc_account.id, "debit": 0, "credit": 1000},
                 {"account_id": self.wizard.account_id.id, "debit": 6000, "credit": 0},
             ],
         )
 
-        # delivered products invoiced, nothing to invoice left
         invoices = self.sale_order._create_invoices()
         invoices.action_post()
         with self.assertRaises(UserError):
@@ -137,17 +126,13 @@ class TestAccruedSaleOrders(TestSaleCommon):
         self.assertTrue(self.wizard.display_amount)
 
     def test_multi_currency_accrued_order(self):
-        # 5 qty of each product billeable
         self.sale_order.line_ids.qty_transferred = 5
-        # self.sale_order.line_ids.product_uom_qty = 5
-        # set currency != company currency
         self.sale_order.currency_id = self.other_currency
         self.assertRecordValues(
             self.env["account.move"]
             .search(self.wizard.create_entries()["domain"])
             .line_ids,
             [
-                # reverse move lines
                 {
                     "account_id": self.account_revenue.id,
                     "debit": 5000 / 2,
@@ -166,7 +151,6 @@ class TestAccruedSaleOrders(TestSaleCommon):
                     "credit": 6000 / 2,
                     "amount_currency": 0.0,
                 },
-                # move lines
                 {
                     "account_id": self.account_revenue.id,
                     "debit": 0,
@@ -196,7 +180,6 @@ class TestAccruedSaleOrders(TestSaleCommon):
             .search(self.wizard.create_entries()["domain"])
             .line_ids,
             [
-                # reverse move lines
                 {
                     "account_id": self.account_revenue.id,
                     "debit": 10000.0,
@@ -221,7 +204,6 @@ class TestAccruedSaleOrders(TestSaleCommon):
                         str(self.analytic_account_b.id): 33.33,
                     },
                 },
-                # move lines
                 {
                     "account_id": self.account_revenue.id,
                     "debit": 0.0,
@@ -277,11 +259,9 @@ class TestAccruedSaleOrders(TestSaleCommon):
             .search(self.wizard.create_entries()["domain"])
             .line_ids,
             [
-                # reverse move lines
                 {"account_id": self.account_revenue.id, "debit": 5000, "credit": 0},
                 {"account_id": self.alt_inc_account.id, "debit": 1000, "credit": 0},
                 {"account_id": self.wizard.account_id.id, "debit": 0, "credit": 6000},
-                # move lines
                 {"account_id": self.account_revenue.id, "debit": 0, "credit": 5000},
                 {"account_id": self.alt_inc_account.id, "debit": 0, "credit": 1000},
                 {"account_id": self.wizard.account_id.id, "debit": 6000, "credit": 0},

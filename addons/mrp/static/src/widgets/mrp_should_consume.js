@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { onMounted, onPatched, useRef, useState } from "@odoo/owl";
-import { formatFloat } from "@web/core/formatters";
+import { formatFieldFloat } from "@web/core/formatters";
 import { registry } from "@web/core/registry";
 import { FloatField, floatField } from "@web/fields/basic/float/float_field";
 
@@ -38,7 +38,7 @@ export class MrpShouldConsumeOwl extends FloatField {
     }
 
     get shouldConsumeQty() {
-        return formatFloat(this.record.data.should_consume_qty, {
+        return formatFieldFloat(this.record.data.should_consume_qty, {
             ...this.fields.should_consume_qty,
             ...this.nodeOptions,
         });

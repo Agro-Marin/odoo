@@ -1,7 +1,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from collections import defaultdict
-from random import randint
 
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
@@ -16,7 +15,6 @@ MAP_REPAIR_TO_PICKING_LOCATIONS = {
     'recycle_location_id': 'default_recycle_location_dest_id',
 }
 
-
 class RepairOrder(models.Model):
     """ Repair Orders """
     _name = 'repair.order'
@@ -28,6 +26,7 @@ class RepairOrder(models.Model):
         'mixin.date.category',
     ]
     _order = 'priority desc, create_date desc'
+    _date_category_field = 'schedule_date'
     _check_company_auto = True
 
     @api.model
@@ -70,16 +69,6 @@ class RepairOrder(models.Model):
         'Under Warranty',
         help='If ticked, the sales price will be set to 0 for all products transferred from the repair order.')
     schedule_date = fields.Datetime("Scheduled Date", default=fields.Datetime.now, index=True, required=True, copy=False)
-    search_date_category = fields.Selection([
-        ('before', 'Before'),
-        ('yesterday', 'Yesterday'),
-        ('today', 'Today'),
-        ('day_1', 'Tomorrow'),
-        ('day_2', 'The day after tomorrow'),
-        ('after', 'After')],
-        string='Date Category', store=False,
-        search='_search_date_category', readonly=True
-    )
     repair_properties = fields.Properties('Properties', definition='picking_type_id.repair_properties_definition', copy=True)
 
     # Product To Repair
@@ -96,10 +85,10 @@ class RepairOrder(models.Model):
     allowed_uom_ids = fields.Many2many('uom.uom', compute='_compute_allowed_uom_ids')
     product_uom_id = fields.Many2one(
         'uom.uom', 'Unit', domain="[('id', 'in', allowed_uom_ids)]",
-        compute='compute_product_uom_id', store=True, precompute=True, readonly=False)
+        compute='_compute_product_uom_id', store=True, precompute=True, readonly=False)
     lot_id = fields.Many2one(
         'stock.lot', 'Lot/Serial',
-        compute="compute_lot_id", store=True,
+        compute="_compute_lot_id", store=True,
         domain="[('id', 'in', allowed_lot_ids)]", check_company=True,
         help="Products repaired are all belonging to this lot")
     tracking = fields.Selection(string='Product Tracking', related="product_id.tracking", readonly=False)
@@ -244,7 +233,7 @@ class RepairOrder(models.Model):
             repair.allowed_lot_ids = self.env['stock.lot'].search(domain)
 
     @api.depends('product_id', 'product_id.uom_id')
-    def compute_product_uom_id(self):
+    def _compute_product_uom_id(self):
         for repair in self:
             if not repair.product_id:
                 repair.product_uom_id = False
@@ -252,7 +241,7 @@ class RepairOrder(models.Model):
                 repair.product_uom_id = repair.product_id.uom_id
 
     @api.depends('product_id', 'lot_id', 'lot_id.product_id', 'picking_id')
-    def compute_lot_id(self):
+    def _compute_lot_id(self):
         for repair in self:
             if (repair.product_id and repair.lot_id and repair.lot_id.product_id != repair.product_id) or not repair.product_id:
                 repair.lot_id = False
@@ -344,14 +333,6 @@ class RepairOrder(models.Model):
                 repair.state in ('confirmed', 'under_repair') and
                 any(not move.picked and move.product_uom_qty and move.state in ['confirmed', 'partially_available'] for move in repair.move_ids)
             )
-
-    def _search_date_category(self, operator, value):
-        if operator != 'in':
-            return NotImplemented
-        return Domain.OR(
-            self.date_category_to_domain('schedule_date', item)
-            for item in value
-        )
 
     @api.onchange('product_uom_id')
     def onchange_product_uom(self):
@@ -508,7 +489,7 @@ class RepairOrder(models.Model):
         @return: True
         """
 
-        precision = self.env['decimal.precision'].precision_get('Product Unit')
+        precision = self.env['decimal.precision'].get_precision('Product Unit')
         product_move_vals = []
 
         # Cancel moves with 0 quantity
@@ -609,7 +590,7 @@ class RepairOrder(models.Model):
             raise UserError(_("You can not enter negative quantities."))
         if not self.product_id or not self.product_id.is_storable:
             return self._action_repair_confirm()
-        precision = self.env['decimal.precision'].precision_get('Product Unit')
+        precision = self.env['decimal.precision'].get_precision('Product Unit')
         available_qty_owner = sum(self.env['stock.quant'].search([
             ('product_id', '=', self.product_id.id),
             ('location_id', '=', self.product_location_src_id.id),
@@ -777,19 +758,12 @@ class RepairOrder(models.Model):
         kwargs['notify_author_mention'] = kwargs.get('notify_author_mention', True)
         return super().message_post(**kwargs)
 
-
 class RepairTags(models.Model):
     """ Tags of Repair's tasks """
     _name = 'repair.tags'
     _description = "Repair Tags"
-
-    def _get_default_color(self):
-        return randint(1, 11)
-
-    name = fields.Char('Tag Name', required=True)
-    color = fields.Integer(string='Color Index', default=_get_default_color)
-
-    _name_uniq = models.Constraint(
-        'unique (name)',
-        'Tag name already exists!',
-    )
+    # `name` (translated, unique on the source term), `active`, `color` and
+    # `code` come from the mixin, whose index replaces the `unique (name)`
+    # constraint this model declared -- that one compares whole jsonb documents
+    # once `name` is translatable. Flat: repair tags do not nest.
+    _inherit = ['mixin.tag']

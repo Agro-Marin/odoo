@@ -74,7 +74,6 @@ class TestVirtualAvailable(TestStockCommon):
         self.assertAlmostEqual(5.0, prod_context.qty_available_virtual)
 
     def test_free_quantity(self):
-        """Test the value of product.qty_free. Free_qty = qty_on_hand - qty_reserved"""
         self.assertAlmostEqual(40.0, self.product_3.qty_free)
         self.picking_out.action_confirm()
         self.picking_out_2.action_confirm()
@@ -87,7 +86,6 @@ class TestVirtualAvailable(TestStockCommon):
         self.assertAlmostEqual(40.0, self.product_3.qty_free)
 
     def test_archive_product_1(self):
-        """`qty_available` and `qty_available_virtual` are computed on archived products"""
         self.assertTrue(self.product_3.active)
         self.assertAlmostEqual(40.0, self.product_3.qty_available)
         self.assertAlmostEqual(40.0, self.product_3.qty_available_virtual)
@@ -96,7 +94,6 @@ class TestVirtualAvailable(TestStockCommon):
         self.assertAlmostEqual(40.0, self.product_3.qty_available_virtual)
 
     def test_archive_product_2(self):
-        """Archiving a product should archive its reordering rules"""
         self.assertTrue(self.product_3.active)
         orderpoint_form = Form(self.env["stock.warehouse.orderpoint"])
         orderpoint_form.product_id = self.product_3
@@ -109,8 +106,6 @@ class TestVirtualAvailable(TestStockCommon):
         self.assertFalse(orderpoint.active)
 
     def test_change_product_company(self):
-        """Checks we can't change the product's company if this product has
-        quant in another company."""
         company1 = self.env.ref("base.main_company")
         company2 = self.env["res.company"].create({"name": "Second Company"})
         product = self.env["product.product"].create(
@@ -137,8 +132,6 @@ class TestVirtualAvailable(TestStockCommon):
         product.company_id = company2.id
 
     def test_change_product_company_02(self):
-        """Checks we can't change the product's company if this product has
-        stock move line in another company."""
         company1 = self.env.ref("base.main_company")
         company2 = self.env["res.company"].create({"name": "Second Company"})
         product = self.env["product.product"].create(
@@ -173,8 +166,6 @@ class TestVirtualAvailable(TestStockCommon):
             product.company_id = company2.id
 
     def test_change_product_company_exclude_vendor_and_customer_location(self):
-        """Checks we can change product company where only exist single company
-        and exist quant in vendor/customer location"""
         company1 = self.env.ref("base.main_company")
         product = self.env["product.product"].create(
             {
@@ -229,10 +220,6 @@ class TestVirtualAvailable(TestStockCommon):
         self.assertEqual(product, result)
 
     def test_search_qty_available_with_lot_owner_package_context(self):
-        """The quant-only fast path (`_search_qty_available_new`) must handle
-        `lot_id`/`owner_id`/`package_id` context keys. It used to call `.append()`
-        on a `Domain`, raising AttributeError as soon as any of them was set.
-        """
         Product = self.env["product.product"]
         owner = self.user_stock_user.partner_id
 
@@ -259,18 +246,9 @@ class TestVirtualAvailable(TestStockCommon):
         )
 
     def test_search_qty_available_unsupported_operator(self):
-        """An operator the quant-only path can't evaluate (e.g. `ilike`) must fall
-        back to the move-aware search instead of leaking `NotImplemented`.
-        """
         self.env["product.product"].search([("qty_available", "ilike", "3")])
 
     def test_search_qty_available_includes_zero_non_storable(self):
-        """A `qty_available` search must include non-storable and service products
-        whose on-hand is 0 whenever 0 satisfies the operator — matching the field's
-        own (`filtered_domain`) semantics and the dated-search path. Regression: the
-        quant-only fast path restricted its zero-set to `is_storable` products, so
-        these were silently dropped.
-        """
         nonstore = self.env["product.product"].create(
             {"name": "Zero nonstore", "type": "consu", "is_storable": False}
         )
@@ -289,11 +267,6 @@ class TestVirtualAvailable(TestStockCommon):
             )
 
     def test_search_product_quantity_candidate_set(self):
-        """The forecast/free-quantity searches compute the field only for products with
-        quants or moves and treat every other product as 0. Results must still match the
-        field's own semantics: stocked products matched by value, unstocked products
-        (value 0) matched only when 0 satisfies the operator.
-        """
         Product = self.env["product.product"]
         stocked = Product.create({"name": "SPQ stocked", "is_storable": True})
         self.env["stock.quant"].create(
@@ -319,15 +292,6 @@ class TestVirtualAvailable(TestStockCommon):
             )
 
     def test_search_product_template(self):
-        """
-        Suppose a variant V01 that can not be deleted because it is used by a
-        lot [1]. Then, the variant's template T is changed: we add a dynamic
-        attribute. Because of [1], V01 is archived. This test ensures that
-        `name_search` still finds T.
-        Then, we create a new variant V02 of T. This test also ensures that
-        calling `name_search` with a negative operator will exclude T from the
-        result.
-        """
         self._enable_variants()
         template = self.env["product.template"].create(
             {
@@ -527,9 +491,6 @@ class TestVirtualAvailable(TestStockCommon):
         self.picking_out.button_validate()
 
     def test_qty_available_values_on_product(self):
-        """
-        Test that qty_available can be set to 0.0 on a product
-        """
         product = self.env["product.product"].create(
             {
                 "name": "Test Qty Available Product",
@@ -548,10 +509,6 @@ class TestVirtualAvailable(TestStockCommon):
         self.assertEqual(product.qty_available, 0.0)
 
     def test_template_qty_available_location_context(self):
-        """A template's quantity fields aggregate its variants', so they must be
-        cached against the same context keys. Regression: the template compute only
-        declared ``warehouse_id``, so reading ``qty_available`` under one location
-        returned the value cached under a previously-read location."""
         template = self.env["product.template"].create(
             {"name": "Ctx Template", "type": "consu", "is_storable": True}
         )
@@ -575,10 +532,6 @@ class TestVirtualAvailable(TestStockCommon):
         )
 
     def test_copy_multiple_templates_sharing_attribute_value(self):
-        """Copying several templates in one call must keep each template's variants
-        separate even when they share an attribute value. Regression: a global
-        attribute-value map grafted storage-category capacities onto the wrong copy
-        and crashed on the (product, category) uniqueness constraint."""
         attribute = self.env["product.attribute"].create({"name": "Ctx Color"})
         red, blue = self.env["product.attribute.value"].create(
             [

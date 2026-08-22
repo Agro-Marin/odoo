@@ -14,13 +14,7 @@ class EventRegistration(models.Model):
     lead_ids = fields.Many2many(
         'crm.lead', string='Leads', copy=False, readonly=True,
         groups='sales_team.group_sale_salesman')
-    lead_count = fields.Integer(
-        '# Leads', compute='_compute_lead_count', compute_sudo=True)
-
-    @api.depends('lead_ids')
-    def _compute_lead_count(self):
-        for record in self:
-            record.lead_count = len(record.lead_ids)
+    lead_count = fields.Count("lead_ids", '# Leads', compute_sudo=True)
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -104,7 +98,7 @@ class EventRegistration(models.Model):
 
     def _update_leads(self, new_vals, lead_tracked_vals):
         """ Update leads linked to some registrations. Update is based depending
-        on updated fields, see ``_get_lead_contact_fields()`` and ``_get_lead_
+        on updated fields, see ``_get_fields_lead_contact()`` and ``_get_lead_
         description_fields()``. Main heuristic is
 
           * check attendee-based leads, for each registration recompute contact
@@ -133,19 +127,19 @@ class EventRegistration(models.Model):
             if 'partner_id' in new_vals:
                 new_vals.update(**dict(
                     (field, registration[field])
-                    for field in self._get_lead_contact_fields()
+                    for field in self._get_fields_lead_contact()
                     if field != 'partner_id')
                 )
 
             lead_values = {}
             # update contact fields: valid for all leads of registration
-            upd_contact_fields = [field for field in self._get_lead_contact_fields() if field in new_vals.keys()]
+            upd_contact_fields = [field for field in self._get_fields_lead_contact() if field in new_vals.keys()]
             if any(new_vals[field] != old_vals[field] for field in upd_contact_fields):
                 lead_values = registration._get_lead_contact_values()
 
             # update description fields: each lead has to be updated, otherwise
             # update in batch
-            upd_description_fields = [field for field in self._get_lead_description_fields() if field in new_vals.keys()]
+            upd_description_fields = [field for field in self._get_fields_lead_description() if field in new_vals.keys()]
             if any(new_vals[field] != old_vals[field] for field in upd_description_fields):
                 for lead in leads_attendee:
                     lead_values['description'] = "%s<br/>%s" % (
@@ -302,7 +296,7 @@ class EventRegistration(models.Model):
             not rewrite partner values from registration values.
 
         Tracked values are therefore the union of those two field sets. """
-        tracked_fields = list(set(self._get_lead_contact_fields()) | set(self._get_lead_description_fields()))
+        tracked_fields = list(set(self._get_fields_lead_contact()) | set(self._get_fields_lead_description()))
         return dict(
             (registration.id,
              dict((field, self._convert_value(registration[field], field)) for field in tracked_fields)
@@ -352,14 +346,14 @@ class EventRegistration(models.Model):
     # ------------------------------------------------------------
 
     @api.model
-    def _get_lead_contact_fields(self):
+    def _get_fields_lead_contact(self):
         """ Get registration fields linked to lead contact. Those are used notably
         to see if an update of lead is necessary or to fill contact values
         in ``_get_lead_contact_values())`` """
         return ['name', 'email', 'phone', 'partner_id']
 
     @api.model
-    def _get_lead_description_fields(self):
+    def _get_fields_lead_description(self):
         """ Get registration fields linked to lead description. Those are used
         notably to see if an update of lead is necessary or to fill description
         in ``_get_lead_description())`` """

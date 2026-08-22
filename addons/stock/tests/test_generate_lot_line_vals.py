@@ -1,16 +1,3 @@
-"""Direct coverage for `stock.move.action_generate_lot_line_vals`.
-
-The Generate/Import Serials-Lots dialog's server side had no Python test at all: its
-only coverage was two Chrome tours (`test_generate_serial_1` / `_2`) and a HOOT test
-that mounts `GenerateDialog` as a bare component and mocks this RPC away. So the method
-was exercised end to end or not at all — and when the tour asset bundle breaks, it is not
-at all.
-
-It is an RPC entry point taking a client-supplied context, mode, count and free text, so
-what wants pinning is exactly what a tour is worst at showing: the bounds, the rejected
-inputs, and the shape of what comes back.
-"""
-
 from odoo.exceptions import UserError
 
 from odoo.addons.stock.models.stock_move import GENERATED_LOT_VALS_MAX
@@ -55,7 +42,6 @@ class TestGenerateLotLineVals(TestStockCommon):
         )
 
     def test_generate_lots_splits_quantity_with_a_leftover(self):
-        """`count` is the quantity *per lot* in lot mode, not the number of lots."""
         vals = self.env["stock.move"].action_generate_lot_line_vals(
             self._context(self.lot_product, "lot", default_quantity=10),
             "generate",
@@ -116,7 +102,6 @@ class TestGenerateLotLineVals(TestStockCommon):
             )
 
     def test_serial_count_is_bounded(self):
-        """The cap must fire *before* the list is built: `count` is client-supplied."""
         with self.assertRaises(UserError):
             self.env["stock.move"].action_generate_lot_line_vals(
                 self._context(self.serial_product, "serial"),
@@ -127,7 +112,6 @@ class TestGenerateLotLineVals(TestStockCommon):
             )
 
     def test_lot_split_count_is_bounded(self):
-        """Same cap on the split: a huge quantity over a tiny per-lot size."""
         with self.assertRaises(UserError):
             self.env["stock.move"].action_generate_lot_line_vals(
                 self._context(

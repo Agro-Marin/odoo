@@ -70,12 +70,18 @@ export class ProductProduct {
     /**
      * Return the selected custom PTAVs.
      *
+     * This feeds `serializeComboItem`, i.e. the `product.attribute.custom.value` rows the
+     * server creates. It must therefore name only the PTAVs that actually carry a custom
+     * value: flat-mapping every selected PTAV of a PTAL that has one attributed the
+     * value to that PTAL's other selections too, and the server prints one order-line
+     * description entry per row it receives.
+     *
      * @return {{id: Number, value: String}[]} The selected custom PTAVs.
      */
     get selectedCustomPtavs() {
         return this.ptals
-            .filter((ptal) => ptal.hasSelectedCustomPtav)
-            .flatMap((ptal) => ptal.selected_ptavs)
+            .map((ptal) => ptal.selectedCustomPtav)
+            .filter(Boolean)
             .map((ptav) => ({
                 id: ptav.id,
                 value: ptav.custom_value,

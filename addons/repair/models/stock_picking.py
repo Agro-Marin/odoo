@@ -144,7 +144,7 @@ class StockPickingType(models.Model):
                 picking_type.default_recycle_location_dest_id = stock_location.id
 
     def get_repair_stock_picking_action_picking_type(self):
-        action = self.env["ir.actions.actions"]._for_xml_id('repair.action_picking_repair')
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id('repair.action_picking_repair')
         if self:
             action['display_name'] = self.display_name
         return action
@@ -170,12 +170,7 @@ class StockPicking(models.Model):
     _inherit = 'stock.picking'
 
     repair_ids = fields.One2many('repair.order', 'picking_id')
-    nbr_repairs = fields.Integer('Number of repairs linked to this picking', compute='_compute_nbr_repairs')
-
-    @api.depends('repair_ids')
-    def _compute_nbr_repairs(self):
-        for picking in self:
-            picking.nbr_repairs = len(picking.repair_ids)
+    nbr_repairs = fields.Count("repair_ids", 'Number of repairs linked to this picking')
 
     def action_repair_return(self):
         self.ensure_one()

@@ -258,7 +258,7 @@ class StockMove(models.Model):
     def action_adjust_valuation(self):
         if len(self) != 1:
             raise UserError(_("You can only adjust valuation for one move at a time."))
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "stock_account.product_value_action"
         )
         product = self.product_id if len(self.product_id) == 1 else False

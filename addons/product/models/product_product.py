@@ -50,7 +50,7 @@ class ProductProduct(models.Model):
     )
     code = fields.Char(
         string="Reference",
-        compute="_compute_product_code",
+        compute="_compute_code",
     )
     barcode = fields.Char(
         string="Barcode",
@@ -73,15 +73,15 @@ class ProductProduct(models.Model):
     price_extra = fields.Float(
         string="Variant Price Extra",
         min_display_digits="Product Price",
-        compute="_compute_product_price_extra",
+        compute="_compute_price_extra",
         help="This is the sum of the extra price of all attributes",
     )
     # lst_price: catalog value + extra, context dependent (uom)
     lst_price = fields.Float(
         string="Public Price",
         min_display_digits="Product Price",
-        compute="_compute_product_lst_price",
-        inverse="_set_product_lst_price",
+        compute="_compute_lst_price",
+        inverse="_inverse_lst_price",
         help="The sale price is managed from the product template. Click on the 'Configure Variants' button to set the extra attribute prices.",
     )
 
@@ -228,7 +228,7 @@ class ProductProduct(models.Model):
     image_1920 = fields.Image(
         string="Image",
         compute="_compute_image_1920",
-        inverse="_set_image_1920",
+        inverse="_inverse_image_1920",
     )
     image_1024 = fields.Image(string="Image 1024", compute="_compute_image_1024")
     image_512 = fields.Image(string="Image 512", compute="_compute_image_512")
@@ -523,7 +523,7 @@ class ProductProduct(models.Model):
         self.is_product_variant = True
 
     @api.depends("product_template_attribute_value_ids.price_extra")
-    def _compute_product_price_extra(self):
+    def _compute_price_extra(self):
         for product in self:
             product.price_extra = sum(
                 product.product_template_attribute_value_ids.mapped("price_extra"),
@@ -531,7 +531,7 @@ class ProductProduct(models.Model):
 
     @api.depends("list_price", "price_extra")
     @api.depends_context("uom")
-    def _compute_product_lst_price(self):
+    def _compute_lst_price(self):
         to_uom = None
         if "uom" in self.env.context:
             to_uom = self.env["uom.uom"].browse(self.env.context["uom"])
@@ -542,7 +542,7 @@ class ProductProduct(models.Model):
             # only the base price left the attribute extra unscaled: a 100 + 10
             # product read 1210 per dozen where `_compute_price('list_price',
             # uom=dozen)` -- the same quantity by another route -- returned 1320,
-            # and `_set_product_lst_price` (which does convert the sum) could
+            # and `_inverse_lst_price` (which does convert the sum) could
             # not round-trip its own field.
             price = product.list_price + product.price_extra
             if to_uom:
@@ -556,7 +556,7 @@ class ProductProduct(models.Model):
         "seller_ids.product_code",
         "seller_ids.product_id",
     )
-    def _compute_product_code(self):
+    def _compute_code(self):
         read_access = self.env["ir.model.access"].check(
             "product.supplierinfo",
             "read",
@@ -768,7 +768,7 @@ class ProductProduct(models.Model):
                 )
             )
 
-    def _set_image_1920(self):
+    def _inverse_image_1920(self):
         return self._set_template_field("image_1920", "image_variant_1920")
 
     @api.model
@@ -986,7 +986,7 @@ class ProductProduct(models.Model):
         return [("id", "in", product_ids)]
 
     @api.onchange("lst_price")
-    def _set_product_lst_price(self):
+    def _inverse_lst_price(self):
         for product in self:
             if self.env.context.get("uom"):
                 uom = self.env["uom.uom"].browse(self.env.context["uom"])
@@ -1080,7 +1080,7 @@ class ProductProduct(models.Model):
             raise ValidationError(
                 self.env._("Labels cannot be printed for products of service type"),
             )
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "product.action_view_label_layout",
         )
         action["context"] = {"default_product_ids": self.ids}
@@ -1257,7 +1257,7 @@ class ProductProduct(models.Model):
         self.ensure_one()
         if not date:
             date = fields.Date.context_today(self)
-        precision = self.env["decimal.precision"].precision_get("Product Unit")
+        precision = self.env["decimal.precision"].get_precision("Product Unit")
 
         sellers_filtered = self._prepare_sellers(params)
         matching_ids = []

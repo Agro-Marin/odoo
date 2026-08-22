@@ -1081,13 +1081,13 @@ class ProjectCustomerPortal(CustomerPortal):
         if not request.env.user._is_internal():
             IrAttachment = IrAttachment.sudo()
 
-        values = IrAttachment._check_contents(
+        values = IrAttachment._prepare_contents(
             {
                 "name": name,
                 "datas": data,
                 "res_model": "project.task",
                 "res_id": res_id,
-                "access_token": IrAttachment._generate_access_token(),
+                "access_token": IrAttachment._prepare_access_token(),
             }
         )
 

@@ -1,10 +1,3 @@
-"""Regression tests for the review-driven correctness fixes.
-
-Each test here was written to FAIL against the pre-fix code (verified on a
-disposable DB) and pass after the fix, so they double as mutation guards for the
-specific defects they cover. Grouped in one file for greppability.
-"""
-
 import datetime
 
 from odoo import fields
@@ -17,9 +10,6 @@ from odoo.addons.stock.tests.common import TestStockCommon
 @tagged("post_install", "-at_install")
 class TestReviewCompoundingFixes(TestStockCommon):
     def test_reserved_release_not_dropped_in_multirow_group(self):
-        """stock_quant: releasing more than the strategy-first row's own reserved
-        quantity must not be clamped away, or a phantom reservation is stranded on
-        the sibling row (H1)."""
         Quant = self.env["stock.quant"]
         loc = self.env["stock.location"].create(
             {"name": "H1_loc", "usage": "internal", "location_id": self.stock_location.id}
@@ -48,9 +38,6 @@ class TestReviewCompoundingFixes(TestStockCommon):
         self.assertEqual(total, 0.0, "the release of 5 must bring group reserved to 0")
 
     def test_deadline_date_counts_two_step_receipt(self):
-        """stock_orderpoint: a receipt routed through a 2-step reception (dest=Input,
-        final=Stock) must be visible to the deadline walk, exactly like a 1-step
-        receipt straight to Stock (H2)."""
         company = self.env.company
         company.horizon_days = 60
         wh = self.warehouse_1
@@ -101,8 +88,6 @@ class TestReviewCompoundingFixes(TestStockCommon):
         )
 
     def test_button_validate_skips_cancelled_picking(self):
-        """stock_picking: validating a batch that includes a cancelled picking must
-        not misclassify it as a zero-quantity transfer (M2)."""
         prod = self.env["product.product"].create(
             {"name": "M2_prod", "type": "consu", "is_storable": True}
         )
@@ -122,8 +107,6 @@ class TestReviewCompoundingFixes(TestStockCommon):
         pick.button_validate()
 
     def test_traceability_get_lines_rejects_foreign_model(self):
-        """stock_traceability: the JSON-RPC entry must not dereference an arbitrary
-        client-supplied model (M4)."""
         report = self.env["stock.traceability.report"]
         partner = self.env.ref("base.partner_admin")
         res = report.get_lines(line_id=1, model_name="res.partner", model_id=partner.id)
@@ -132,8 +115,6 @@ class TestReviewCompoundingFixes(TestStockCommon):
         self.assertNotIn("res.partner", report._get_line_allowed_models())
 
     def test_qty_available_not_aliased_across_search_locations(self):
-        """product_product: qty_available must not alias across two search_location
-        scopes read in one transaction (M6)."""
         Loc = self.env["stock.location"]
         la = Loc.create({"name": "M6_A", "usage": "internal", "location_id": self.stock_location.id})
         lb = Loc.create({"name": "M6_B", "usage": "internal", "location_id": self.stock_location.id})
@@ -151,8 +132,6 @@ class TestReviewCompoundingFixes(TestStockCommon):
         self.assertEqual(qb, 7.0, "second read must reflect location B, not A's cache")
 
     def test_scrap_cannot_be_validated_twice(self):
-        """stock_scrap: re-validating a done scrap must be refused, not silently
-        duplicate the inventory loss (M7)."""
         prod = self.env["product.product"].create(
             {"name": "M7_prod", "type": "consu", "is_storable": True}
         )
@@ -171,8 +150,6 @@ class TestReviewCompoundingFixes(TestStockCommon):
         self.assertEqual(scrap.name, first_name)
 
     def test_lot_batch_relocate_each_single_location(self):
-        """stock_lot: batch-writing location_id on several lots, each in its own single
-        location, must not raise the single-location error (M9)."""
         prod = self.env["product.product"].create(
             {"name": "M9_prod", "type": "consu", "is_storable": True, "tracking": "lot"}
         )
@@ -193,8 +170,6 @@ class TestReviewCompoundingFixes(TestStockCommon):
         self.assertEqual(lot2.location_id, loc_c)
 
     def test_serial_prefix_does_not_hijack_foreign_sequence(self):
-        """product_template: a serial prefix matching a foreign document sequence must
-        not repoint lot generation at that sequence (M10)."""
         foreign = self.env["ir.sequence"].create(
             {"name": "Foreign", "code": "sale.order", "prefix": "ZZHIJACK/", "padding": 5}
         )
@@ -208,8 +183,6 @@ class TestReviewCompoundingFixes(TestStockCommon):
         self.assertEqual(tmpl.lot_sequence_id.code, "stock.lot.serial")
 
     def test_contained_quant_search_negative_operator(self):
-        """stock_package: a package that DOES contain a quant must not match a
-        'not in [that quant]' search (M11)."""
         prod = self.env["product.product"].create(
             {"name": "M11_prod", "type": "consu", "is_storable": True}
         )
@@ -229,8 +202,6 @@ class TestReviewCompoundingFixes(TestStockCommon):
         )
 
     def test_reception_assign_rejects_done_out(self):
-        """report_stock_reception: action_assign must refuse a non-assignable (done)
-        out move instead of mutating it (M3)."""
         report = self.env["report.stock.report_reception"]
         prod = self.env["product.product"].create(
             {"name": "M3_prod", "type": "consu", "is_storable": True}
@@ -262,8 +233,6 @@ class TestReviewCompoundingFixes(TestStockCommon):
             report.action_assign([out_move.id], [5.0], [[in_move.id]])
 
     def test_date_done_does_not_redate_scrap_moves(self):
-        """stock_picking.write: setting date_done must not re-date a done scrap
-        (inventory-dest) move on the picking (L9)."""
         prod = self.env["product.product"].create(
             {"name": "L9_prod", "type": "consu", "is_storable": True}
         )
@@ -296,9 +265,6 @@ class TestReviewCompoundingFixes(TestStockCommon):
         )
 
     def test_lot_filtered_quant_cache_not_authoritative_for_unseeded_lot(self):
-        """stock_quant._QuantsCache: a lot-filtered cache must not claim coverage for a
-        lot it never scanned; the gather must fall back to search and find real stock
-        (D7)."""
         Quant = self.env["stock.quant"]
         prod = self.env["product.product"].create(
             {"name": "D7_prod", "type": "consu", "is_storable": True, "tracking": "lot"}

@@ -12,7 +12,7 @@ class TestProjectEmbeddedActionSettings(TestProjectCommon):
                 "password": "test_password",
             }
         )
-        cls.user_settings = cls.env["res.users.settings"]._find_or_create_for_user(
+        cls.user_settings = cls.env["res.users.settings"]._get_or_create_for_user(
             cls.user
         )
         cls.window_action = cls.env["ir.actions.act_window"].create(

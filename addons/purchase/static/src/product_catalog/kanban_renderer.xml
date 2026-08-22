@@ -1,22 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <templates xml:space="preserve">
-    <t t-name="PurchaseProductCatalogKanbanRenderer" t-inherit="web.KanbanRenderer" t-inherit-mode="primary">
-        <t t-if="showNoContentHelper" position="replace">
-            <t t-if="showNoContentHelper">
-                <div class="o_view_nocontent" role="alert">
-                    <div class="o_nocontent_help">
-                        <p class="o_view_nocontent_smiling_face">
-                            No Products for the selected Vendor.
-                        </p>
-                        <p>
-                            Try removing the top filter to broaden your search
-                            <br/>
-                            <button class="mt-2 btn btn-primary" t-on-click="this.createProduct">Create a product</button>
-                        </p>
-                    </div>
-                </div>
-            </t>
-        </t>
+    <!--
+        Inherits the *product catalog* renderer, not `web.KanbanRenderer`. Both
+        happen to change only the no-content helper today, so the two produced
+        the same DOM - but inheriting the wrong base meant any second change to
+        product's catalog template would silently never reach purchase.
+    -->
+    <t t-name="purchase.ProductCatalogKanbanRenderer" t-inherit="ProductCatalogKanbanRenderer" t-inherit-mode="primary">
+        <xpath expr="//div[hasclass('o_nocontent_help')]" position="replace">
+            <div class="o_nocontent_help">
+                <p class="o_view_nocontent_smiling_face">
+                    No Products for the selected Vendor.
+                </p>
+                <p>
+                    Try removing the top filter to broaden your search
+                    <br/>
+                    <button class="mt-2 btn btn-primary" t-on-click="this.createProduct">Create a product</button>
+                </p>
+            </div>
+        </xpath>
     </t>
 </templates>

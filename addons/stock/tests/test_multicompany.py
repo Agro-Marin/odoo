@@ -4,9 +4,6 @@ from odoo.tests import Form, TransactionCase
 
 
 class TestCompanyProvisioning(TransactionCase):
-    """Backfills that provision a per-company resource only for companies that
-    lack it (``create_missing_*`` on res.company)."""
-
     def _inventory_default_field(self):
         return self.env["ir.model.fields"]._get(
             "product.template", "property_stock_inventory"
@@ -25,8 +22,6 @@ class TestCompanyProvisioning(TransactionCase):
         )
 
     def test_companies_with_property_treats_global_default_as_all(self):
-        """A global default (no company_id) covers every company, so no company
-        should be reported as missing the property."""
         company = self.env["res.company"].create({"name": "Prov Co"})
         field = self._inventory_default_field()
         self.env["ir.default"].sudo().search([("field_id", "=", field.id)]).unlink()
@@ -53,8 +48,6 @@ class TestCompanyProvisioning(TransactionCase):
         )
 
     def test_create_missing_skips_company_covered_by_global_default(self):
-        """Regression: the backfill must not create a duplicate inventory-loss
-        location for a company already covered by a global default."""
         company = self.env["res.company"].create({"name": "Prov Co"})
         field = self._inventory_default_field()
         self.env["ir.default"].sudo().search([("field_id", "=", field.id)]).unlink()
@@ -77,9 +70,6 @@ class TestCompanyProvisioning(TransactionCase):
         )
 
     def test_backfill_covers_archived_company(self):
-        """An archived company lacking a resource must still be provisioned: it
-        owns records and may be reactivated later. The company enumeration used by
-        the ``create_missing_*`` backfills therefore ignores the active flag."""
         company = self.env["res.company"].create({"name": "Archived Co"})
         company.internal_transit_location_id = False
         company.active = False
@@ -97,10 +87,6 @@ class TestCompanyProvisioning(TransactionCase):
 
 
 class TestCompanyStockProvisioning(TransactionCase):
-    """What ``res.company.create`` provisions, the shared partner stock-property
-    helper, the idempotence of the ``create_missing_*`` backfills, and the
-    delivery text-confirmation gate."""
-
     def test_create_provisions_locations_sequence_and_partner(self):
         company = self.env["res.company"].create({"name": "Prov Co"})
         self.assertTrue(
@@ -194,21 +180,16 @@ class TestCompanyStockProvisioning(TransactionCase):
         )
 
     def test_horizon_days_rejects_negative(self):
-        """A negative horizon would push the replenishment horizon date into the
-        past and make reordering rules under-forecast demand."""
         company = self.env["res.company"].create({"name": "Horizon Co"})
         with self.assertRaises(ValidationError):
             company.horizon_days = -1
 
     def test_horizon_days_allows_zero(self):
-        """'0 days' is the just-in-time floor and must be accepted."""
         company = self.env["res.company"].create({"name": "Horizon Zero Co"})
         company.horizon_days = 0
         self.assertEqual(company.horizon_days, 0)
 
     def test_create_missing_mail_template_backfills_and_is_idempotent(self):
-        """The mail-template backfill provisions companies that lack the template
-        (including archived ones) and never overwrites an existing value."""
         template = self.env.ref("stock.mail_template_data_delivery_confirmation")
         active = self.env["res.company"].create({"name": "Tmpl Active"})
         archived = self.env["res.company"].create({"name": "Tmpl Archived"})
@@ -291,12 +272,6 @@ class TestMultiCompany(TransactionCase):
         )
 
     def test_orderpoint_lead_horizon_uses_own_company_horizon(self):
-        """`lead_horizon_date` must be computed from the orderpoint's *own* company
-        horizon, not the active `env.company`'s. `run_scheduler` runs under the cron
-        user's company, so resolving the horizon off `env.company` gave every other
-        company's orderpoints the wrong forecast window (over/under-ordering).
-        Regression for the empty-recordset `get_horizon_days()` in `_get_lead_days`.
-        """
         self.company_a.horizon_days = 10
         self.company_b.horizon_days = 40
         product = self.env["product.product"].create(
@@ -322,9 +297,6 @@ class TestMultiCompany(TransactionCase):
         )
 
     def test_picking_type_1(self):
-        """As a user of Company A, check it is not possible to use a warehouse of Company B in a
-        picking type of Company A.
-        """
         picking_type_company_a = self.env["stock.picking.type"].search(
             [("company_id", "=", self.company_a.id)], limit=1
         )
@@ -332,9 +304,6 @@ class TestMultiCompany(TransactionCase):
             picking_type_company_a.warehouse_id = self.warehouse_b
 
     def test_picking_type_2(self):
-        """As a user of Company A, check it is not possible to change the company on an existing
-        picking type of Company A to Company B.
-        """
         picking_type_company_a = self.env["stock.picking.type"].search(
             [("company_id", "=", self.company_a.id)], limit=1
         )
@@ -342,9 +311,6 @@ class TestMultiCompany(TransactionCase):
             picking_type_company_a.with_user(self.user_a).company_id = self.company_b
 
     def test_putaway_1(self):
-        """As a user of Company A, create a putaway rule with locations of Company A and set the
-        company to Company B before saving. Check it is not possible.
-        """
         stock_location_a_1 = (
             self.env["stock.location"]
             .with_user(self.user_a)
@@ -364,9 +330,6 @@ class TestMultiCompany(TransactionCase):
             putaway_form.save()
 
     def test_putaway_2(self):
-        """As a user of Company A, check it is not possible to change the company on an existing
-        putaway rule to Company B.
-        """
         stock_location_a_1 = (
             self.env["stock.location"]
             .with_user(self.user_a)
@@ -392,16 +355,12 @@ class TestMultiCompany(TransactionCase):
             putaway_rule.company_id = self.company_b
 
     def test_company_1(self):
-        """Check it is not possible to use the internal transit location of Company B on Company A."""
         with self.assertRaises(UserError):
             self.company_a.internal_transit_location_id = (
                 self.company_b.internal_transit_location_id
             )
 
     def test_partner_1(self):
-        """On a partner without company, as a user of Company B, check it is not possible to use a
-        location limited to Company A as `property_stock_supplier` or `property_stock_customer`.
-        """
         shared_partner = self.env["res.partner"].create(
             {
                 "name": "Shared Partner",
@@ -414,10 +373,6 @@ class TestMultiCompany(TransactionCase):
             ).property_stock_customer = self.stock_location_a
 
     def test_partner_2(self):
-        """On the partners of companies A and B:
-        - As a user of Company A, the customer/vendor location of Company B should be the inter-company location
-        - As a user of Company B, the customer/vendor location of Company A should be the inter-company location
-        """
         inter_company_loc = self.env.ref("stock.stock_location_inter_company")
         self.assertEqual(
             self.company_a.partner_id.with_user(self.user_b).property_stock_customer,
@@ -437,13 +392,6 @@ class TestMultiCompany(TransactionCase):
         )
 
     def test_partner_3_intercompany_wiring_covers_archived_company(self):
-        """Regression: creating a company must wire its inter-company transit
-        property against archived companies too, in both directions — the wiring
-        enumerates with ``_all_companies`` (archived included), not an active-only
-        search. Otherwise a company archived at creation time, then reactivated,
-        would route cross-company transfers through the default customer/supplier
-        locations instead of the shared inter-company transit location.
-        """
         inter_company_loc = self.env.ref("stock.stock_location_inter_company")
         archived = self.env["res.company"].create({"name": "Archived Co"})
         archived.active = False
@@ -462,10 +410,6 @@ class TestMultiCompany(TransactionCase):
         )
 
     def test_inventory_1(self):
-        """Create a quant (inventory adjustment) in Company A for a product limited to Company A and
-        as a user of company B, apply the inventory adjustment and set its counted quantity to 10
-        before validating. The quant and stock moves should belong to Company A.
-        """
         product = self.env["product.product"].create(
             {
                 "is_storable": True,
@@ -495,9 +439,6 @@ class TestMultiCompany(TransactionCase):
         self.assertEqual(last_move_id.location_id.company_id, self.company_a)
 
     def test_inventory_2(self):
-        """Try to create a quant (inventory adjustment) in Company A and check it is not possible to use
-        products limited to Company B in it.
-        """
         product = self.env["product.product"].create(
             {
                 "name": "product limited to company b",
@@ -518,9 +459,6 @@ class TestMultiCompany(TransactionCase):
             )
 
     def test_picking_1(self):
-        """As a user of Company A, create a picking and use a picking type of Company B, check the
-        create picking belongs to Company B.
-        """
         picking_type_company_b = self.env["stock.picking.type"].search(
             [("company_id", "=", self.company_b.id)], limit=1
         )
@@ -530,14 +468,10 @@ class TestMultiCompany(TransactionCase):
         self.assertEqual(picking.company_id, self.company_b)
 
     def test_location_1(self):
-        """Check it is not possible to set a location of Company B under a location of Company A."""
         with self.assertRaises(UserError):
             self.stock_location_b.location_id = self.stock_location_a
 
     def test_lot_2(self):
-        """Validate a picking of Company A receiving lot1 while being logged into Company B. Check
-        the lot is created in Company A since the product belongs to Company A.
-        """
         product = self.env["product.product"].create(
             {
                 "is_storable": True,
@@ -583,9 +517,6 @@ class TestMultiCompany(TransactionCase):
         self.assertEqual(created_serial.company_id, self.company_a)
 
     def test_lot_3(self):
-        """Checks that with a lot created in company A, it's not possible to create the same lot without
-        a company from company B, while it's possible to create it with company B set as its company.
-        """
         product = self.env["product.product"].create(
             {
                 "type": "consu",
@@ -626,8 +557,6 @@ class TestMultiCompany(TransactionCase):
         self.assertTrue(lot_b)
 
     def test_orderpoint_1(self):
-        """As a user of company A, create an orderpoint for company B. Check itsn't possible to
-        use a warehouse of companny A"""
         self.user_a.group_ids += self.env.ref("stock.group_stock_multi_locations")
         product = self.env["product.product"].create(
             {
@@ -647,9 +576,6 @@ class TestMultiCompany(TransactionCase):
         self.assertEqual(orderpoint.company_id, self.company_b)
 
     def test_orderpoint_2(self):
-        """As a user of Company A, check it is not possible to change the company on an existing
-        orderpoint to Company B.
-        """
         self.user_a.group_ids += self.env.ref("stock.group_stock_multi_locations")
         product = self.env["product.product"].create(
             {
@@ -703,8 +629,6 @@ class TestMultiCompany(TransactionCase):
         self.assertEqual(orderpoint.warehouse_id, warehouse_a2)
 
     def test_product_1(self):
-        """As an user of Company A, checks we can or cannot create new product
-        depending of its `company_id`."""
         self.user_a.group_ids += self.env.ref("product.group_product_manager")
         product_form = Form(self.env["product.template"].with_user(self.user_a))
         product_form.name = "Paramite Pie"
@@ -734,10 +658,6 @@ class TestMultiCompany(TransactionCase):
         self.assertEqual(product.responsible_id.id, self.user_b.id)
 
     def test_warehouse_1(self):
-        """As a user of Company A, on its main warehouse, see it is impossible to change the
-        company_id, to use a view location of another company, to set a picking type to one
-        of another company
-        """
         with self.assertRaises(UserError):
             self.warehouse_a.company_id = self.company_b.id
         with self.assertRaises(UserError):
@@ -746,9 +666,6 @@ class TestMultiCompany(TransactionCase):
             self.warehouse_a.pick_type_id = self.warehouse_b.pick_type_id
 
     def test_move_1(self):
-        """See it is not possible to confirm a stock move of Company A with a picking type of
-        Company B.
-        """
         product = self.env["product.product"].create(
             {"name": "p1", "is_storable": True}
         )
@@ -772,9 +689,6 @@ class TestMultiCompany(TransactionCase):
             move._action_confirm()
 
     def test_move_2(self):
-        """See it is not possible to confirm a stock move of Company A with a destination location
-        of Company B.
-        """
         product = self.env["product.product"].create(
             {"name": "p1", "is_storable": True}
         )
@@ -798,9 +712,6 @@ class TestMultiCompany(TransactionCase):
             move._action_confirm()
 
     def test_move_3(self):
-        """See it is not possible to confirm a stock move of Company A with a product restricted to
-        Company B.
-        """
         product = self.env["product.product"].create(
             {
                 "name": "p1",
@@ -828,11 +739,6 @@ class TestMultiCompany(TransactionCase):
             move._action_confirm()
 
     def test_intercom_lot_push(self):
-        """Create a push rule to transfer products received in inter company
-        transit location to company b. Move a lot product from company a to the
-        transit location. Check the move created by the push rule is not chained
-        with previous move, and no product are reserved from inter-company
-        transit."""
         supplier_location = self.env.ref("stock.stock_location_suppliers")
         intercom_location = self.env.ref("stock.stock_location_inter_company")
         intercom_location.write({"active": True})
@@ -968,9 +874,6 @@ class TestMultiCompany(TransactionCase):
         )
 
     def test_intercom_lot_pull(self):
-        """Use warehouse of company a to resupply warehouse of company b. Check
-        pull rule works correctly in two companies and moves are chained all the way through.
-        """
         customer_location = self.env.ref("stock.stock_location_customers")
         supplier_location = self.env.ref("stock.stock_location_suppliers")
         intercom_location = self.env.ref("stock.stock_location_inter_company")
@@ -1104,10 +1007,6 @@ class TestMultiCompany(TransactionCase):
         self.assertEqual(lot_a.name, "lot a")
 
     def test_intercom_pull_and_cancel(self):
-        """Create a pull flow between company a and b.
-        Then cancel the delivery in company a and ensure the
-        delivery in company b is cancelled as well.
-        """
         intercom_location = self.env.ref("stock.stock_location_inter_company")
         intercom_location.write({"active": True})
         self.warehouse_a.resupply_wh_ids = [(6, 0, [self.warehouse_b.id])]

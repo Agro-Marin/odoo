@@ -26,14 +26,6 @@ class TestSaleReportCurrencyRate(SaleCommon):
         )
 
     def test_sale_report_foreign_currency(self):
-        """
-        Test that amounts are correctly converted between currencies.
-        There are two different conversions to take into account:
-        - currency of the sale order pricelist -> currency of the sale order company
-        - currency of sale order company -> currency of the current user company
-        Adjustment between past and present rates must also be taken into account.
-        """
-
         companies = self.usd_cmp + self.eur_cmp
         today = fields.Date.today()
         past_day = fields.Date.to_date("2020-01-01")
@@ -41,7 +33,6 @@ class TestSaleReportCurrencyRate(SaleCommon):
         eur = self.eur_cmp.currency_id
         ars = self._enable_currency("ARS")
 
-        # Create corresponding pricelists and rates.
         pricelists = self.env["product.pricelist"].create(
             [
                 {"name": "Pricelist (USD)", "currency_id": usd.id, "company_id": False},
@@ -128,7 +119,6 @@ class TestSaleReportCurrencyRate(SaleCommon):
 
         self.assertEqual(self.product.currency_id, usd)
 
-        # Needed to get conversion rates between companies.
         currency_rates = (
             (companies + self.env.company)
             .mapped("currency_id")
@@ -137,11 +127,10 @@ class TestSaleReportCurrencyRate(SaleCommon):
 
         sale_orders = self.env["sale.order"]
         expected_reported_amount = (
-            0  # The total amount of all sale orders in the report.
+            0
         )
-        qty = 0  # to add variety to the data
+        qty = 0
 
-        # Create sale orders
         for company in companies:
             SaleOrder = self.env["sale.order"].with_company(company)
             for date in (past_day, today):
@@ -184,9 +173,6 @@ class TestSaleReportCurrencyRate(SaleCommon):
                         .rate
                     )
 
-                    # To find the total amount we convert the price of the product from its currency
-                    # to the currency of the so company and then from it to the currency of the so
-                    # pricelist.
                     price_for_so_company = (
                         self.product.list_price / expected_product_currency_rate
                     )
@@ -199,8 +185,6 @@ class TestSaleReportCurrencyRate(SaleCommon):
                     )
                     self.assertAlmostEqual(order.amount_total, expected_amount_total)
 
-                    # The amount in the report is converted first to the currency of the company and
-                    # then to the currency of the current company (self.env.company).
                     current_company_rate = currency_rates[
                         self.env.company.currency_id.id
                     ]
@@ -210,7 +194,6 @@ class TestSaleReportCurrencyRate(SaleCommon):
                         order.amount_total / order.currency_rate * conversion_rate
                     )
 
-        # The report should show the amount in the current (in this case usd) company currency.
         report_lines = (
             self.env["sale.report"]
             .sudo()
@@ -230,7 +213,6 @@ class TestSaleReportCurrencyRate(SaleCommon):
         self.assertAlmostEqual(price_total, expected_reported_amount)
 
     def test_sale_report_with_downpayment(self):
-        """Checks that downpayment lines are used in the calculation of amounts invoiced and to invoice"""
         order = self.env["sale.order"].create(
             {
                 "partner_id": self.partner.id,

@@ -3828,7 +3828,7 @@ class TestStockValuation(TestStockValuationCommon):
         )
         self.assertEqual(self.product_avco_auto.standard_price, 10)
         self.assertRecordValues(
-            invoice.journal_line_ids,
+            invoice.line_ids,
             [
                 {
                     "account_id": self.category_avco_auto.property_account_income_categ_id.id,

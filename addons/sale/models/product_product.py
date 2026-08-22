@@ -4,24 +4,17 @@ from odoo import _, api, fields, models
 class ProductProduct(models.Model):
     _inherit = "product.product"
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
 
     sales_count = fields.Float(
         string="Sold",
         digits="Product Unit",
         compute="_compute_sales_count",
     )
-    # Catalog related fields
     is_in_sale_order = fields.Boolean(
         compute="_compute_is_in_sale_order",
         search="_search_is_in_sale_order",
     )
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
 
     def _compute_sales_count(self):
         self._compute_ordered_qty(
@@ -36,18 +29,12 @@ class ProductProduct(models.Model):
     def _compute_is_in_sale_order(self):
         self._compute_is_in_order("sale.order.line", "is_in_sale_order")
 
-    # ------------------------------------------------------------
-    # SEARCH METHODS
-    # ------------------------------------------------------------
 
     def _search_is_in_sale_order(self, operator, value):
         if operator != "in":
             return NotImplemented
         return self._search_is_in_order("sale.order.line")
 
-    # ------------------------------------------------------------
-    # ONCHANGE METHODS
-    # ------------------------------------------------------------
 
     @api.onchange("type")
     def _onchange_type(self):
@@ -62,13 +49,10 @@ class ProductProduct(models.Model):
             }
         return None
 
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
 
     @api.readonly
     def action_view_sales(self):
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "sale.action_sale_report_all_channels_sales",
         )
         action["domain"] = [
@@ -84,9 +68,6 @@ class ProductProduct(models.Model):
         }
         return action
 
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
     def _filter_to_unlink(self):
         domain = [("product_id", "in", self.ids)]

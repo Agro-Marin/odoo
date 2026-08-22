@@ -7,16 +7,6 @@ from odoo.addons.stock.tests.common import TestStockCommon
 
 @tagged("post_install", "-at_install")
 class TestAuditFixesV2(TestStockCommon):
-    """Regression tests for the second stock audit batch.
-
-    Each test pins one confirmed finding so a re-introduction fails loudly:
-    cancelled/done sibling moves poisoning picking availability (and its
-    search), the "Return All" negative-quantity floor, the move-line ACL
-    tightening (plain internal users are read-only), and the serial-number
-    source-location recommendation using proper ancestry (`_child_of`) instead
-    of a `parent_path` substring match.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -51,7 +41,6 @@ class TestAuditFixesV2(TestStockCommon):
         return picking
 
     def test_cancelled_sibling_move_availability(self):
-        """A picking whose only shortage is a *cancelled* move is Available."""
         self.env["stock.quant"]._update_available_quantity(
             self.p_avail, self.stock_location, 100
         )
@@ -72,7 +61,6 @@ class TestAuditFixesV2(TestStockCommon):
         self.assertFalse(matched, "cancel-only shortage must not match the late search")
 
     def test_done_sibling_move_availability(self):
-        """A *done* sibling move (forecast 0) must not flag the picking late."""
         self.env["stock.quant"]._update_available_quantity(
             self.p_avail, self.stock_location, 100
         )
@@ -93,9 +81,6 @@ class TestAuditFixesV2(TestStockCommon):
         )
 
     def test_return_all_never_negative(self):
-        """Over-returning then "Return All" floors the quantity at 0 instead of
-        creating a negative-demand move (it raises a clean "nothing to return").
-        """
         self.env["stock.quant"]._update_available_quantity(
             self.p_avail, self.stock_location, 100
         )
@@ -138,7 +123,6 @@ class TestAuditFixesV2(TestStockCommon):
         )
 
     def test_move_line_plain_user_read_only(self):
-        """A base.group_user with no stock role cannot create move lines."""
         user = self.env["res.users"].create(
             {
                 "name": "Plain V2",
@@ -159,7 +143,6 @@ class TestAuditFixesV2(TestStockCommon):
             )
 
     def test_sn_recommendation_uses_child_of(self):
-        """`_child_of` must reject a substring `parent_path` false positive."""
         Location = self.env["stock.location"]
         parent = Location.create({"name": "SN Parent", "usage": "internal"})
         child = Location.create(

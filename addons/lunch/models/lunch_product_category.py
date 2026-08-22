@@ -15,7 +15,7 @@ class LunchProductCategory(models.Model):
     _description = 'Lunch Product Category'
 
     @api.model
-    def _default_image(self):
+    def _default_image_1920(self):
         with file_open('lunch/static/img/lunch.png', 'rb') as f:
             return base64.b64encode(f.read())
 
@@ -24,7 +24,7 @@ class LunchProductCategory(models.Model):
     currency_id = fields.Many2one('res.currency', related='company_id.currency_id')
     product_count = fields.Integer(compute='_compute_product_count', help="The number of products related to this category")
     active = fields.Boolean(string='Active', default=True)
-    image_1920 = fields.Image(default=_default_image)
+    image_1920 = fields.Image(default=_default_image_1920)
 
     def _compute_product_count(self):
         product_data = self.env['lunch.product']._read_group([('category_id', 'in', self.ids)], ['category_id'], ['__count'])

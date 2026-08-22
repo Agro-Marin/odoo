@@ -6,7 +6,7 @@ from odoo.addons.sales_team.tests.common import SalesTeamCommon
 
 
 class SaleCommon(
-    ProductCommon,  # BaseCommon, UomCommon
+    ProductCommon,
     SalesTeamCommon,
 ):
     @classmethod
@@ -15,7 +15,6 @@ class SaleCommon(
 
         cls.env.company.country_id = cls.quick_ref("base.us")
 
-        # Not defined in product common because only used in sale
         cls.group_discount_per_so_line = cls.quick_ref(
             "sale.group_discount_per_so_line"
         )
@@ -79,7 +78,6 @@ class TestSaleCommon(AccountTestInvoicingCommon):
 
         company_data.update(
             {
-                # Users
                 "default_user_salesman": cls.env["res.users"].create(
                     {
                         "name": "default_user_salesman",
@@ -94,7 +92,6 @@ class TestSaleCommon(AccountTestInvoicingCommon):
                         "company_id": company.id,
                     }
                 ),
-                # Products
                 "product_service_delivery": cls.env["product.product"]
                 .with_company(company)
                 .create(

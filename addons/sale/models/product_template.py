@@ -9,9 +9,6 @@ class ProductTemplate(models.Model):
     _inherit = "product.template"
     _check_company_auto = True
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
 
     service_type = fields.Selection(
         selection=[("manual", "Manually set quantities on order")],
@@ -73,19 +70,12 @@ class ProductTemplate(models.Model):
         compute="_compute_sales_count",
     )
 
-    # ------------------------------------------------------------
-    # CONSTRAINT METHODS
-    # ------------------------------------------------------------
 
     @api.constrains("company_id")
     def _check_sale_product_company(self):
-        """Ensure the product is not being restricted to a single company while
-        having been sold in another one in the past, as this could cause issues."""
         products_by_compagny = defaultdict(lambda: self.env["product.template"])
         for product in self:
             if not product.product_variant_ids or not product.company_id:
-                # No need to check if the product has just being created (`product_variant_ids` is
-                # still empty) or if we're writing `False` on its company (should always work.)
                 continue
             products_by_compagny[product.company_id] |= product
 
@@ -153,9 +143,6 @@ class ProductTemplate(models.Model):
                     ),
                 )
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
 
     @api.depends("purchase_ok")
     def _compute_visible_expense_policy(self):
@@ -174,10 +161,8 @@ class ProductTemplate(models.Model):
 
     @api.depends("product_variant_ids.sales_count")
     def _compute_sales_count(self):
-        # Batch every variant's sales_count into a single sale.report read_group
-        # (shared active_test=False env cache) instead of one query per template.
         variants = self.with_context(active_test=False).product_variant_ids
-        variants.mapped("sales_count")  # single batched read_group
+        variants.mapped("sales_count")
         count_by_variant = {variant.id: variant.sales_count for variant in variants}
         for template in self:
             template.sales_count = template.uom_id.round(
@@ -205,9 +190,6 @@ class ProductTemplate(models.Model):
     def _compute_product_tooltip(self):
         super()._compute_product_tooltip()
 
-    # ------------------------------------------------------------
-    # ONCHANGE METHODS
-    # ------------------------------------------------------------
 
     @api.onchange("type")
     def _onchange_type(self):
@@ -221,13 +203,10 @@ class ProductTemplate(models.Model):
             }
         return res
 
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
 
     @api.readonly
     def action_view_sales(self):
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "sale.action_sale_report_all_channels_sales"
         )
         action["domain"] = [("product_tmpl_id", "in", self.ids)]
@@ -264,11 +243,6 @@ class ProductTemplate(models.Model):
         return []
 
     def get_single_product_variant(self):
-        """Method used by the product configurator to check if the product is configurable or not.
-
-        We need to open the product configurator if the product:
-        - is configurable (see has_configurable_attributes)
-        - has optional products"""
         res = super().get_single_product_variant()
         if res.get("product_id", False):
             has_optional_products = False
@@ -291,15 +265,8 @@ class ProductTemplate(models.Model):
 
     @api.model
     def _get_saleable_tracking_types(self):
-        """Return list of salealbe service_tracking types.
-
-        :rtype: list
-        """
         return ["no"]
 
-    ####################################
-    # Product/combo configurator hooks #
-    ####################################
 
     @api.model
     def _get_configurator_display_price(
@@ -311,21 +278,6 @@ class ProductTemplate(models.Model):
         pricelist,
         **kwargs,
     ):
-        """Return the specified product's display price, to be used by the product and combo
-        configurators.
-
-        This is a hook meant to customize the display price computation in overriding modules.
-
-        :param product.product|product.template product_or_template: The product for which to get
-            the price.
-        :param int quantity: The quantity of the product.
-        :param datetime date: The date to use to compute the price.
-        :param res.currency currency: The currency to use to compute the price.
-        :param product.pricelist pricelist: The pricelist to use to compute the price.
-        :param dict kwargs: Locally unused data passed to `_get_configurator_price`.
-        :rtype: tuple(float, int or False)
-        :return: The specified product's display price (and the applied pricelist rule)
-        """
         return self._get_configurator_price(
             product_or_template,
             quantity,
@@ -345,31 +297,6 @@ class ProductTemplate(models.Model):
         pricelist,
         **kwargs,
     ):
-        """Return the specified product's price, to be used by the product and combo configurators.
-
-        This is a hook meant to customize the price computation in overriding modules.
-
-        This hook has been extracted from `_get_configurator_display_price` because the price
-        computation can be overridden in 2 ways:
-
-        - Either by transforming super's price (e.g. in `website_sale`, we apply taxes to the
-          price),
-        - Or by computing a different price (e.g. in `sale_subscription`, we ignore super when
-          computing subscription prices).
-        In some cases, the order of the overrides matters, which is why we need 2 separate methods
-        (e.g. in `website_sale_subscription`, we must compute the subscription price before applying
-        taxes).
-
-        :param product.product|product.template product_or_template: The product for which to get
-            the price.
-        :param int quantity: The quantity of the product.
-        :param datetime date: The date to use to compute the price.
-        :param res.currency currency: The currency to use to compute the price.
-        :param product.pricelist pricelist: The pricelist to use to compute the price.
-        :param dict kwargs: Locally unused data passed to `_get_product_price`.
-        :rtype: tuple(float, int or False)
-        :return: The specified product's price (and the applied pricelist rule)
-        """
         return pricelist._get_product_price_rule(
             product_or_template,
             quantity=quantity,
@@ -389,20 +316,6 @@ class ProductTemplate(models.Model):
         uom=None,
         **kwargs,
     ):
-        """Return additional data about the specified product.
-
-        This is a hook meant to append module-specific data in overriding modules.
-
-        :param product.product|product.template product_or_template: The product for which to get
-            additional data.
-        :param datetime date: The date to use to compute prices.
-        :param res.currency currency: The currency to use to compute prices.
-        :param product.pricelist pricelist: The pricelist to use to compute prices.
-        :param uom.uom uom: The uom to use to compute prices.
-        :param dict kwargs: Locally unused data passed to overrides.
-        :rtype: dict
-        :return: A dict containing additional data about the specified product.
-        """
         return {}
 
     def _prepare_tooltip(self):

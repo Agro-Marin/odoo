@@ -38,13 +38,11 @@ class TestPurchaseDownpayment(TestPurchaseToInvoiceCommon):
         )
         self.assertEqual(po_dp_line.sequence, po_dp_section_line.sequence + 1)
 
-        # This is not the normal flow, but we test the deduction of the downpayment
         generated_bill = po.create_invoice()
 
         self.assertRecordValues(
             generated_bill.invoice_line_ids,
             [
-                # pylint: disable=C0326
                 {
                     "product_id": self.product_order.id,
                     "display_type": "product",
@@ -69,7 +67,6 @@ class TestPurchaseDownpayment(TestPurchaseToInvoiceCommon):
             ],
         )
 
-        # Normal flow: New bill with negative down payment line
         final_bill = generated_bill.copy()
         generated_bill.action_cancel()
         generated_bill.unlink()
@@ -82,7 +79,6 @@ class TestPurchaseDownpayment(TestPurchaseToInvoiceCommon):
         )
         match_lines.action_match_lines()
 
-        # Post the bill - invoice_state only counts posted invoices
         final_bill.action_post()
 
         self.assertEqual(po.invoice_state, "done")
@@ -104,7 +100,6 @@ class TestPurchaseDownpayment(TestPurchaseToInvoiceCommon):
         )
 
     def test_product_supplierinfo_downpayment(self):
-        """Check that the creation of a downpayment does not affect already existing lines"""
         self.product_a.seller_ids = [
             Command.create(
                 {"partner_id": self.partner_a.id, "price": 750.0, "min_qty": 10}
@@ -147,7 +142,6 @@ class TestPurchaseDownpayment(TestPurchaseToInvoiceCommon):
         self.assertEqual(product_line.price_unit, 800.0)
 
     def test_downpayment_in_accrued_expense_entry(self):
-        """Check that the downpayment is not included in the accrued expense entry"""
         po = self.init_purchase(confirm=True, products=[self.product_order])
 
         self.init_invoice("in_invoice", amounts=[1600.00], post=True)
@@ -179,7 +173,6 @@ class TestPurchaseDownpayment(TestPurchaseToInvoiceCommon):
             )
         )
 
-        # Receive 1 qty to have something to accrual.
         po.line_ids.qty_transferred = 1
 
         self.assertRecordValues(
@@ -187,14 +180,12 @@ class TestPurchaseDownpayment(TestPurchaseToInvoiceCommon):
             .search(accrued_wizard.create_entries()["domain"])
             .line_ids,
             [
-                # reverse move lines
                 {"account_id": account_expense.id, "debit": 0, "credit": 235.0},
                 {
                     "account_id": accrued_wizard.account_id.id,
                     "debit": 235.0,
                     "credit": 0,
                 },
-                # move lines
                 {"account_id": account_expense.id, "debit": 235.0, "credit": 0},
                 {
                     "account_id": accrued_wizard.account_id.id,

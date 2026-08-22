@@ -1,10 +1,23 @@
 /** @odoo-module native */
-import { useSubEnv } from "@odoo/owl";
+import { onWillDestroy, useSubEnv } from "@odoo/owl";
 import { rpc } from "@web/core/network";
+import { registry } from "@web/core/registry";
 import { useDebounced } from "@web/core/utils/timing";
 import { KanbanRecord } from "@web/views/kanban";
 
 import { ProductCatalogOrderLine } from "./order_line/order_line.js";
+
+/**
+ * Order-line components by order model, e.g. `"purchase.order"`.
+ *
+ * A module that ships its own line component registers it here instead of
+ * patching `orderLineComponent` with one more `res_model` comparison: the
+ * lookup stays O(1), the set of extensions is enumerable from this module, and
+ * two modules cannot silently race to answer for the same model.
+ */
+export const productCatalogOrderLines = registry.category(
+    "product_catalog_order_lines",
+);
 
 export class ProductCatalogKanbanRecord extends KanbanRecord {
     static template = "ProductCatalogKanbanRecord";
@@ -20,9 +33,18 @@ export class ProductCatalogKanbanRecord extends KanbanRecord {
         });
         this._pendingUpdate = Promise.resolve();
 
+        // Leaving the catalog has to outlast the debounce above.
+        // `execBeforeUnmount` does fire the pending write, but nothing awaits
+        // it, so a card touched less than 500ms before leaving had its write
+        // still in flight while the order form was already reloading -- and the
+        // line the user just added was simply absent. Register a flush the
+        // controller awaits in `beforeLeave`, which every exit goes through.
+        this.env.productCatalogPendingUpdates?.add(this);
+        onWillDestroy(() => this.env.productCatalogPendingUpdates?.delete(this));
+
         useSubEnv({
             currencyId: this.props.record.context.product_catalog_currency_id,
-            orderId: this.props.record.context.product_catalog_order_id,
+            orderId: this.props.record.context.order_id,
             orderResModel: this.props.record.context.product_catalog_order_model,
             digits: this.props.record.context.product_catalog_digits,
             displayUoM: this.props.record.context.display_uom,
@@ -38,7 +60,10 @@ export class ProductCatalogKanbanRecord extends KanbanRecord {
     }
 
     get orderLineComponent() {
-        return ProductCatalogOrderLine;
+        return productCatalogOrderLines.get(
+            this.env.orderResModel,
+            ProductCatalogOrderLine,
+        );
     }
 
     get productCatalogData() {
@@ -64,6 +89,18 @@ export class ProductCatalogKanbanRecord extends KanbanRecord {
     async _updateQuantity() {
         const price = await this._updateQuantityAndGetPrice();
         this.productCatalogData.price = parseFloat(price);
+    }
+
+    /**
+     * Run any debounced quantity write now and resolve once it has landed.
+     *
+     * @returns {Promise<any>}
+     */
+    flushPendingUpdate() {
+        // `cancel(true)` runs the pending call synchronously, which reassigns
+        // `_pendingUpdate` to the resulting request before this returns.
+        this.debouncedUpdateQuantity.cancel(true);
+        return this._pendingUpdate;
     }
 
     _updateQuantityAndGetPrice() {
@@ -100,7 +137,9 @@ export class ProductCatalogKanbanRecord extends KanbanRecord {
         if (this.productCatalogData.readOnly) {
             return;
         }
-        this.productCatalogData.quantity = quantity || 0;
+        // A catalog line is never negative: removing more than is on the order
+        // takes the product off it, it does not owe any back.
+        this.productCatalogData.quantity = Math.max(0, quantity || 0);
         this.debouncedUpdateQuantity();
     }
 
@@ -138,6 +177,6 @@ export class ProductCatalogKanbanRecord extends KanbanRecord {
      * Decrease the quantity of the product on the order line.
      */
     decreaseQuantity() {
-        this.updateQuantity(parseFloat(this.productCatalogData.quantity - 1));
+        this.updateQuantity(this.productCatalogData.quantity - 1);
     }
 }

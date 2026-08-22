@@ -27,7 +27,7 @@ class FleetVehicle(models.Model):
     _order = 'license_plate asc, acquisition_date asc'
     _rec_names_search = ['name', 'driver_id.name']
 
-    def _get_default_state(self):
+    def _default_state_id(self):
         state = self.env.ref('fleet.fleet_vehicle_state_new_request', raise_if_not_found=False)
         return state if state and state.id else False
 
@@ -35,7 +35,7 @@ class FleetVehicle(models.Model):
         current_year = datetime.now().year
         return [(str(i), i) for i in range(1970, current_year + 1)]
 
-    name = fields.Char(compute="_compute_vehicle_name", store=True)
+    name = fields.Char(compute="_compute_name", store=True)
     description = fields.Html("Vehicle Description")
     active = fields.Boolean('Active', default=True, tracking=True)
     manager_id = fields.Many2one(
@@ -76,7 +76,7 @@ class FleetVehicle(models.Model):
     contract_date_start = fields.Date(string="First Contract Date", default=fields.Date.today, tracking=True)
     color = fields.Char(help='Color of the vehicle', compute='_compute_color', store=True, readonly=False)
     state_id = fields.Many2one('fleet.vehicle.state', 'State',
-        default=_get_default_state, group_expand='_read_group_expand_full',
+        default=_default_state_id, group_expand='_read_group_expand_full',
         tracking=True,
         help='Current state of the vehicle', ondelete="set null")
     location = fields.Char(help='Location of the vehicle (garage, ...)')
@@ -87,7 +87,7 @@ class FleetVehicle(models.Model):
     doors = fields.Integer('Number of Doors', help='Number of doors of the vehicle',
         compute='_compute_doors', store=True, readonly=False)
     tag_ids = fields.Many2many('fleet.vehicle.tag', 'fleet_vehicle_vehicle_tag_rel', 'vehicle_tag_id', 'tag_id', 'Tags', copy=False)
-    odometer = fields.Float(compute='_get_odometer', inverse='_set_odometer', string='Last Odometer',
+    odometer = fields.Float(compute='_compute_odometer', inverse='_inverse_odometer', string='Last Odometer',
         help='Odometer measure of the vehicle at the moment of this log')
     odometer_unit = fields.Selection([
         ('kilometers', 'km'),
@@ -112,11 +112,11 @@ class FleetVehicle(models.Model):
     co2_standard = fields.Char('Emission Standard', compute='_compute_co2_standard', store=True, readonly=False,
         help="Emission Standard specifies the regulatory test procedure \
             or guideline under which a vehicle's emissions are measured.")
-    category_id = fields.Many2one('fleet.vehicle.model.category', 'Category', compute='_compute_category', store=True, readonly=False)
+    category_id = fields.Many2one('fleet.vehicle.model.category', 'Category', compute='_compute_category_id', store=True, readonly=False)
     image_128 = fields.Image(related='model_id.image_128', readonly=True)
     contract_renewal_due_soon = fields.Boolean(compute='_compute_contract_reminder', search='_search_contract_renewal_due_soon',
         string='Has Contracts to renew')
-    contract_renewal_overdue = fields.Boolean(compute='_compute_contract_reminder', search='_search_get_overdue_contract_reminder',
+    contract_renewal_overdue = fields.Boolean(compute='_compute_contract_reminder', search='_search_contract_renewal_overdue',
         string='Has Contracts Overdue')
     contract_state = fields.Selection(
         [('futur', 'Incoming'),
@@ -168,7 +168,7 @@ class FleetVehicle(models.Model):
             vehicle.update(write_vals)
 
     @api.depends('model_id')
-    def _compute_category(self):
+    def _compute_category_id(self):
         self._load_fields_from_model(['category_id'])
 
     @api.depends('model_id')
@@ -232,7 +232,7 @@ class FleetVehicle(models.Model):
         self._load_fields_from_model(['color'])
 
     @api.depends('model_id.brand_id.name', 'model_id.name', 'license_plate')
-    def _compute_vehicle_name(self):
+    def _compute_name(self):
         for record in self:
             record.name = (record.model_id.brand_id.name or '') + '/' + (record.model_id.name or '') + '/' + (record.license_plate or _('No Plate'))
 
@@ -244,7 +244,7 @@ class FleetVehicle(models.Model):
             else:
                 record.co2_emission_unit = 'g/mi'
 
-    def _get_odometer(self):
+    def _compute_odometer(self):
         FleetVehicalOdometer = self.env['fleet.vehicle.odometer']
         for record in self:
             vehicle_odometer = FleetVehicalOdometer.search([('vehicle_id', 'in', record.ids)], limit=1, order='value desc')
@@ -253,7 +253,7 @@ class FleetVehicle(models.Model):
             else:
                 record.odometer = 0
 
-    def _set_odometer(self):
+    def _inverse_odometer(self):
         self.env['fleet.vehicle.odometer'].create([
             {
                 'value': vehicle.odometer,
@@ -345,7 +345,7 @@ class FleetVehicle(models.Model):
             ('state', 'in', ['open', 'expired']),
         ])]
 
-    def _search_get_overdue_contract_reminder(self, operator, value):
+    def _search_contract_renewal_overdue(self, operator, value):
         if operator != 'in':
             return NotImplemented
         today = fields.Date.context_today(self)
@@ -471,7 +471,7 @@ class FleetVehicle(models.Model):
         xml_id = self.env.context.get('xml_id')
         if xml_id:
 
-            res = self.env['ir.actions.act_window']._for_xml_id('fleet.%s' % xml_id)
+            res = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('fleet.%s' % xml_id)
             res.update(
                 context=dict(self.env.context, default_vehicle_id=self.id, group_by=False),
                 domain=[('vehicle_id', '=', self.id)]
@@ -486,7 +486,7 @@ class FleetVehicle(models.Model):
         self.ensure_one()
         copy_context = dict(self.env.context)
         copy_context.pop('group_by', None)
-        res = self.env['ir.actions.act_window']._for_xml_id('fleet.fleet_vehicle_costs_action')
+        res = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('fleet.fleet_vehicle_costs_action')
         res.update(
             context=dict(copy_context, default_vehicle_id=self.id, search_default_parent_false=True),
             domain=[('vehicle_id', '=', self.id)]
@@ -524,7 +524,7 @@ class FleetVehicle(models.Model):
 
     def action_open_odometer_report(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id('fleet.fleet_vehicle_odometer_reporting_action')
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id('fleet.fleet_vehicle_odometer_reporting_action')
         action.update({
             'domain': [('vehicle_id', '=', self.id)],
             'context': {'search_default_groupby_date': True},

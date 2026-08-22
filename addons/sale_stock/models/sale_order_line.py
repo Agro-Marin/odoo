@@ -269,7 +269,7 @@ class SaleOrderLine(models.Model):
                 with contextlib.suppress(UserError):
                     mto_route = self.env[
                         "stock.warehouse"
-                    ]._find_or_create_global_route(
+                    ]._get_or_create_global_route(
                         "stock.route_warehouse0_mto",
                         _("Replenish on Order (MTO)"),
                         create=False,
@@ -457,7 +457,7 @@ class SaleOrderLine(models.Model):
         if self.env.context.get("skip_procurement"):
             return True
 
-        precision = self.env["decimal.precision"].precision_get("Product Unit")
+        precision = self.env["decimal.precision"].get_precision("Product Unit")
         procurements = []
         for line in self:
             line = line.with_company(line.company_id)
@@ -775,7 +775,7 @@ class SaleOrderLine(models.Model):
         )
 
     def _update_line_quantity(self, values):
-        precision = self.env["decimal.precision"].precision_get("Product Unit")
+        precision = self.env["decimal.precision"].get_precision("Product Unit")
         line_products = self.filtered(lambda l: l.product_id.type == "consu")
         if (
             line_products.mapped("qty_transferred")

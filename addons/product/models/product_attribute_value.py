@@ -149,7 +149,7 @@ class ProductAttributeValue(models.Model):
 
     # === COMPUTE METHODS === #
 
-    # _get_default_color and _compute_display_name (qualifying a value with its
+    # _default_color and _compute_display_name (qualifying a value with its
     # attribute, suppressed by `show_attribute=False`) now live on
     # mixin.attribute.value -- neither was product-specific.
 

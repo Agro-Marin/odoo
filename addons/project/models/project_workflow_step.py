@@ -29,7 +29,7 @@ class ProjectWorkflowStep(models.Model):
     _inherit = ["mixin.project.pm"]
     _order = "sequence, id"
 
-    def _get_default_project_ids(self) -> list[int] | None:
+    def _default_project_ids(self) -> list[int] | None:
         """Return the current project as default when created from a project context."""
         default_project_id = self.env.context.get("default_project_id")
         return [default_project_id] if default_project_id else None
@@ -43,7 +43,7 @@ class ProjectWorkflowStep(models.Model):
         "step_id",
         "project_id",
         string="Projects",
-        default=lambda self: self._get_default_project_ids(),
+        default=lambda self: self._default_project_ids(),
         help=(
             "Projects that use this workflow step. Steps can be shared across "
             "projects with similar processes to consolidate reporting."
@@ -145,7 +145,7 @@ class ProjectWorkflowStep(models.Model):
 
         The guard also got the one case that mattered wrong: it inspected
         ``vals["project_ids"]``, while the Kanban "add column" button supplies
-        the project through the field *default* (``_get_default_project_ids``
+        the project through the field *default* (``_default_project_ids``
         reading ``default_project_id``). Every column added from a project
         board therefore came out owned *and* attached — the exact state the
         old ``write`` refused to produce.

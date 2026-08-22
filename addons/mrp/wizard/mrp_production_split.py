@@ -1,5 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-
 from odoo import Command, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.tools import float_round
@@ -32,7 +30,7 @@ class MrpProductionSplit(models.TransientModel):
         "mrp.production.split.line",
         "mrp_production_split_id",
         "Split Details",
-        compute="_compute_details",
+        compute="_compute_production_detailed_vals_ids",
         store=True,
         readonly=False,
     )
@@ -55,10 +53,6 @@ class MrpProductionSplit(models.TransientModel):
                 bom_id.batch_size if bom_id.enable_batch_size else wizard.product_qty
             )
 
-    # A batch size can be typed freely, and the split detail lines are built
-    # one per batch: a small enough value against a large order asks for an
-    # unbounded number of records in a single compute. Refuse instead of
-    # building it.
     MAX_SPLITS = 1000
 
     @api.depends("max_batch_size")
@@ -72,16 +66,6 @@ class MrpProductionSplit(models.TransientModel):
                 precision_digits=0,
                 rounding_method="UP",
             )
-            # Refuse here rather than in an @api.constrains. `max_batch_size` and
-            # `num_splits` are computed, non-stored and have no inverse, so a
-            # constraint on them only ever validates a direct write() — the ORM
-            # says as much at registry load ("@constrains parameter is not
-            # writeable"). The wizard's own form never takes that path: it edits
-            # the field through onchange, which runs this compute and then
-            # `_compute_details`, so the records the bound exists to prevent were
-            # already built by the time a constraint could object. This compute is
-            # the one place every path (onchange, create, write) passes through,
-            # and it sits upstream of the build.
             if num_splits > wizard.MAX_SPLITS:
                 raise ValidationError(
                     wizard.env._(
@@ -96,7 +80,7 @@ class MrpProductionSplit(models.TransientModel):
             wizard.num_splits = num_splits
 
     @api.depends("num_splits")
-    def _compute_details(self):
+    def _compute_production_detailed_vals_ids(self):
         for wizard in self:
             commands = [Command.clear()]
             if wizard.num_splits <= 0 or not wizard.production_id:
@@ -146,7 +130,7 @@ class MrpProductionSplit(models.TransientModel):
         if self.production_split_multi_id:
             saved_production_split_multi_id = self.production_split_multi_id.id
             self.production_split_multi_id.production_ids = [Command.unlink(self.id)]
-            action = self.env["ir.actions.actions"]._for_xml_id(
+            action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
                 "mrp.action_mrp_production_split_multi"
             )
             action["res_id"] = saved_production_split_multi_id
@@ -154,7 +138,7 @@ class MrpProductionSplit(models.TransientModel):
         return None
 
     def action_prepare_split(self):
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mrp.action_mrp_production_split"
         )
         action["res_id"] = self.id
@@ -163,7 +147,7 @@ class MrpProductionSplit(models.TransientModel):
     def action_return_to_list(self):
         self.production_detailed_vals_ids = [Command.clear()]
         self.max_batch_size = 0
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mrp.action_mrp_production_split_multi"
         )
         action["res_id"] = self.production_split_multi_id.id

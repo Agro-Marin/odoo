@@ -108,12 +108,12 @@ class LoyaltyRule(models.Model):
                 ('code', 'in', mapped_codes),
                 ('id', 'not in', self.ids),
                 ('active', '=', True),
-            ]):
+            ], limit=1):
             raise ValidationError(_("The promo code must be unique."))
         # Prevent coupons and programs from sharing a code
         if self.env['loyalty.card'].search_count([
             ('code', 'in', mapped_codes), ('active', '=', True)
-        ]):
+        ], limit=1):
             raise ValidationError(_("A coupon with the same code was found."))
 
     @api.depends('mode')

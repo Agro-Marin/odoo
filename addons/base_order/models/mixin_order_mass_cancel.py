@@ -17,17 +17,12 @@ class MixinOrderMassCancel(models.AbstractModel):
     # FIELDS
     # ------------------------------------------------------------
 
-    orders_count = fields.Integer(compute="_compute_orders_count")
+    orders_count = fields.Count("order_ids")
     has_confirmed_order = fields.Boolean(compute="_compute_has_confirmed_order")
 
     # ------------------------------------------------------------
     # COMPUTE METHODS
     # ------------------------------------------------------------
-
-    @api.depends("order_ids")
-    def _compute_orders_count(self):
-        for wizard in self:
-            wizard.orders_count = len(wizard.order_ids)
 
     @api.depends("order_ids")
     def _compute_has_confirmed_order(self):

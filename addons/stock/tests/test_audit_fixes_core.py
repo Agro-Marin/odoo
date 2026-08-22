@@ -7,18 +7,6 @@ from odoo.addons.stock.tests.common import TestStockCommon
 
 @tagged("post_install", "-at_install")
 class TestAuditFixesCore(TestStockCommon):
-    """Regression tests for the 2026-07-17 stock audit fixes on the core engine
-    (stock.move / stock.move.line / stock.quant).
-
-    Each test pins one confirmed finding so a re-introduction fails loudly:
-    duplicate-serial onchange off-by-one (#3), exact reference-set picking
-    assignation (#4), reservation hot-path gathers (#5), destination-only
-    writes not resyncing reservations (#6), product-UoM zero guards (#8),
-    MTO-chain preservation in _free_reservation (#9), scoped zero-quant
-    cleanup (#10), batched done-line reassign (#11), pure _compute_picked
-    (#12), and the low-severity core group.
-    """
-
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -33,12 +21,6 @@ class TestAuditFixesCore(TestStockCommon):
         )
 
     def _spy_calls(self, module, klass, method):
-        """Patch `method` on the given model class with a counting wrapper.
-
-        Returns the calls dict; restore happens via cleanup. Mirrors the spy
-        pattern of test_quant_improvements (registry classes inherit from the
-        module class, so patching the module class intercepts all calls).
-        """
         orig = getattr(klass, method)
         calls = {"n": 0}
 
@@ -74,11 +56,6 @@ class TestAuditFixesCore(TestStockCommon):
         return picking
 
     def _mto_chain(self, product, qty=5.0):
-        """A done receipt move feeding an assigned MTO delivery move.
-
-        :return: (origin move, delivery move) -- the delivery is reserved for
-            `qty` at `stock_location` and keeps its MTO chain intact.
-        """
         receipt = self.env["stock.picking"].create(
             {
                 "picking_type_id": self.picking_type_in.id,
@@ -123,7 +100,6 @@ class TestAuditFixesCore(TestStockCommon):
         return m_in, m_out
 
     def _force_outgoing_done(self, product, qty):
-        """Validate an outgoing move of `qty` with forced (unreserved) quantities."""
         move = self.env["stock.move"].create(
             {
                 "product_id": product.id,
@@ -189,13 +165,6 @@ class TestAuditFixesCore(TestStockCommon):
         self.assertFalse(res.get("warning"))
 
     def test_picking_assignation_reference_set_coverage(self):
-        """A move only joins a picking whose reference set it fully covers: the
-        union after assignment equals the move's own set, so a picking never
-        ends up serving an origin the joining move does not belong to (the old
-        any-overlap match did exactly that, wiping partners / concatenating
-        origins). Moves carrying *more* references than the picking (e.g. from
-        a merged origin document) must still land in the pre-merge picking.
-        """
         ref1, ref2, ref3 = self.env["stock.reference"].create(
             [{"name": "AUD-REF-1"}, {"name": "AUD-REF-2"}, {"name": "AUD-REF-3"}]
         )
@@ -241,8 +210,6 @@ class TestAuditFixesCore(TestStockCommon):
         return self._spy_calls(_sq, _sq.StockQuant, "_gather"), None
 
     def test_update_reserved_quantity_single_gather(self):
-        """A quant reservation update gathers once: the returned availability is
-        summed from the gathered/locked quants instead of a second search."""
         self.Quant._update_available_quantity(self.productC, self.stock_location, 20.0)
         self.env.flush_all()
         calls, _ = self._gather_spy()
@@ -252,10 +219,6 @@ class TestAuditFixesCore(TestStockCommon):
         )
 
     def test_action_assign_gather_scaling(self):
-        """`_action_assign` gathers at most twice per move: once to pick the
-        quants to reserve, once when each created line syncs its reservation
-        (served from the threaded quants cache). The removed third gather was
-        the per-line availability re-gather."""
         n = 6
         products = self.ProductObj.create(
             [{"name": f"aud-scale-{i}", "is_storable": True} for i in range(n)]
@@ -274,8 +237,6 @@ class TestAuditFixesCore(TestStockCommon):
         )
 
     def test_reserve_new_move_lines_grouped(self):
-        """Freshly created lines sharing (product, location, lot, package,
-        owner) reserve with a single quant update."""
         import odoo.addons.stock.models.stock_quant as _sq
 
         self.Quant._update_available_quantity(self.productE, self.stock_location, 10.0)
@@ -601,8 +562,6 @@ class TestAuditFixesCore(TestStockCommon):
         )
 
     def test_delivery_slip_aggregation_no_prefix_collision(self):
-        """An aggregation key that is a textual prefix of another must not
-        absorb the other group's ordered quantities."""
         self.Quant._update_available_quantity(self.productB, self.stock_location, 4.0)
         picking = self._out_picking_with_moves(self.productB, qty=4.0)
         move1 = picking.move_ids
@@ -665,10 +624,6 @@ class TestAuditFixesCore(TestStockCommon):
 
 @tagged("post_install", "-at_install")
 class TestAuditQuantTasksScope(TestStockCommon):
-    """`_quant_tasks` must propagate its recordset to the three scoped
-    maintenance tasks; the former @api.model decorator silently dropped the
-    records and forced every call global."""
-
     def test_quant_tasks_propagates_recordset(self):
         from odoo.addons.stock.models import stock_quant as _sq
 

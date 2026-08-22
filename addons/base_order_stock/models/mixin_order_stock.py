@@ -145,7 +145,7 @@ class MixinOrderStock(models.AbstractModel):
         :param pickings: recordset of ``stock.picking``
         :returns: action dict
         """
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.action_picking_tree_all",
         )
         if len(pickings) == 1:

@@ -16,17 +16,6 @@ _logger = logging.getLogger(__name__)
 
 
 class _LeastPackagesPriorityQueue:
-    """Min-heap frontier for the least_packages removal-strategy A* search.
-
-    Module-level so it is defined once (not rebuilt per
-    _run_least_packages_removal_strategy_astar() call) and is unit-testable.
-
-    Entries are ``(priority, insertion_index, item)``. The monotonic
-    ``insertion_index`` breaks priority ties by FIFO insertion order so the heap
-    never compares the ``item`` nodes: a node's ``taken_packages`` mixes ``None``
-    and ``int`` package keys, and ``None < int`` raises ``TypeError`` on Python 3.
-    """
-
     def __init__(self):
         self.elements = []
         self._counter = 0
@@ -43,31 +32,12 @@ class _LeastPackagesPriorityQueue:
 
 
 class _LeastPackagesNode(typing.NamedTuple):
-    """A node of the least_packages A* search."""
-
     count_remaining: float
     taken_packages: tuple
     next_index: int
 
 
 def _least_packages_search(qty_by_package, qty):
-    """A* search for the fewest packages (each unpackaged unit counts as one)
-    whose available quantity covers ``qty``.
-
-    Pure and side-effect free, so it is unit-testable in isolation of the ORM.
-
-    :param qty_by_package: list of ``(key, available_qty)`` where ``key`` is a
-        ``stock.package`` id or ``None`` for a virtual single unit. Must be grouped
-        by ``available_qty`` (singles last, as
-        ``_run_least_packages_removal_strategy_astar`` builds it): the loop below
-        dedups adjacent equal amounts, so the grouping is what makes "one branch per
-        distinct amount" correct. Order is not relied on for heap safety --
-        ``_LeastPackagesPriorityQueue``'s insertion-index tie-breaker avoids
-        comparing nodes' ``None``/``int`` package keys.
-    :param qty: quantity to cover.
-    :return: the winning node's ``taken_packages`` tuple -- an exact cover if one
-        exists, else the best partial/over cover found.
-    """
     size = len(qty_by_package)
 
     def heuristic(node):
@@ -124,26 +94,6 @@ def _least_packages_search(qty_by_package, qty):
 
 
 class _ReservationLedger:
-    """Reservations decided during one ``_action_assign`` run but not yet written.
-
-    ``_action_assign`` used to persist each move's reservation before it looked at the
-    next move, so "how much is left" was a question the database answered. Batching
-    those writes removes that: between the decision and the flush the database still
-    shows the stock as free, and every later move in the same run would claim it
-    again. This ledger is what carries the information instead -- a take is recorded
-    the moment it is decided, and every availability question in the same run
-    subtracts it.
-
-    It also holds the move line values, and that pairing is the point: a take
-    recorded without its line over-reserves, and a line kept without its take
-    double-reserves. Keeping both on one object makes the two impossible to
-    separate by accident, and lets the whole batch be created in a single call.
-
-    Pure and DB-free, like :func:`_distribute_reservation` and
-    :func:`_least_packages_search`: it holds numbers and opaque values, so the
-    arithmetic that decides who gets the last unit is unit-testable without an ORM.
-    """
-
     __slots__ = ("_pending", "move_line_vals")
 
     def __init__(self, move_line_vals=None):
@@ -151,21 +101,16 @@ class _ReservationLedger:
         self.move_line_vals = move_line_vals if move_line_vals is not None else []
 
     def pending(self, quant):
-        """Quantity of `quant` already claimed in this run but not yet written."""
         return self._pending.get(quant.id, 0.0)
 
     def take(self, quant, quantity):
-        """Record a decided-but-unwritten claim on `quant`."""
         self._pending[quant.id] += quantity
 
     def total_pending(self):
-        """Everything claimed and not yet written -- for logging and assertions."""
         return sum(self._pending.values())
 
 
 class _ReservationCandidate(typing.NamedTuple):
-    """One candidate row offered to :func:`_distribute_reservation`."""
-
     handle: object
     on_hand: float
     reserved: float
@@ -173,47 +118,6 @@ class _ReservationCandidate(typing.NamedTuple):
 
 
 def _distribute_reservation(candidates, quantity, precision_digits):
-    """Distribute a signed ``quantity`` across pre-ordered reservation ``candidates``.
-
-    Pure and DB-free (like :func:`_least_packages_search`): operates on plain numbers
-    and opaque ``handle`` values only, so this allocation arithmetic -- the trickiest
-    in the model -- is unit-testable with hand-built inputs.
-
-    :param candidates: list of :class:`_ReservationCandidate` already ordered by the
-        removal strategy. ``handle`` is echoed back verbatim; ``key`` groups
-        interchangeable candidates so stock already over-reserved into negative
-        available is absorbed first, before the rest of that group over-reserves too.
-    :param quantity: quantity to reserve, in the candidates' UoM. **Strictly
-        positive**; a non-positive value returns no allocation. Reserving never takes
-        more than is left, so the run converges to zero without crossing it.
-
-        This used to accept a signed quantity and carry a second branch that
-        released. Nothing ever called it: releases go through
-        ``_update_reserved_quantity`` -> ``_update_available_quantity``, which locks a
-        row and clamps there, and ``_get_reserve_quantity`` -- the only caller --
-        returns early on ``quantity <= 0``. The branch was also wrong, which is how a
-        second release algorithm nothing exercised stays wrong: against a candidate
-        holding a *negative* ``reserved`` (a state ``_update_available_quantity``
-        deliberately persists) ``min(cand.reserved, abs(quantity))`` went negative and
-        it emitted a **positive** delta while releasing, then drove ``quantity``
-        further from zero. Deleted rather than repaired, so there is one release path
-        instead of two that disagree.
-
-        ``quantity`` is the *only* bound on the run, and that is deliberate. Two
-        clamps already make it sufficient: the caller caps it to real availability
-        (``_get_reserve_quantity`` -> ``_sum_available_quantity``), and each
-        allocation below is capped by that candidate's own post-absorption slack.
-        A second "running budget" argument used to be threaded in as well, sized as
-        ``sum(positive on_hand) - sum(all reserved)``. That total is *not* the
-        availability ``quantity`` was capped to -- it nets a negative-available
-        quant against unrelated keys instead of dropping it -- so on a set holding
-        one over-reserved quant it came out smaller than the true availability and
-        broke the loop early, silently reserving less than the caller had already
-        established was there.
-    :param precision_digits: 'Product Unit' decimal precision; every comparison rounds
-        to it, matching ``uom.compare`` / ``uom.is_zero``.
-    :return: list of ``(handle, amount)`` pairs with ``amount`` positive.
-    """
     reserved = []
     if float_compare(quantity, 0, precision_digits=precision_digits) <= 0:
         return reserved
@@ -245,26 +149,6 @@ def _distribute_reservation(candidates, quantity, precision_digits):
 
 
 class _QuantsCache:
-    """Keyed quant cache for the reservation gather path, with coverage tracking.
-
-    It behaves like the ``defaultdict(recordset)`` it replaced for the keyed reads
-    and writes that ``_gather`` and quant ``create`` perform (``cache[key]`` returns
-    an empty recordset on a miss; ``cache[key] |= quant`` accumulates), but it also
-    records which ``(product, location)`` subtree the build scan covered.
-
-    That lets a strict ``_gather`` tell a *genuine* miss -- a product/location the
-    scan never looked at, e.g. because the caller seeded an incomplete cache -- from a
-    *covered-but-empty* result. On a genuine miss it must fall back to a DB search;
-    without this, a miss silently returned an empty recordset, which reads as "no
-    stock" and causes silent under-reservation.
-
-    A build scan may also be *lot-filtered* (``_action_done`` seeds only the lots it is
-    about to consume, plus untracked stock). Such a cache is authoritative only for
-    those lots: a gather for any other lot must fall back to the search, since that
-    lot's quants were never scanned and a miss would wrongly read as "no stock". Pass
-    ``lot_scope`` to record the authoritative lot set (``None`` = unfiltered).
-    """
-
     __slots__ = ("_data", "_empty", "_location_paths", "_lot_scope", "_product_ids")
 
     def __init__(self, empty, product_ids=(), location_paths=(), lot_scope=None):
@@ -281,8 +165,6 @@ class _QuantsCache:
         self._data[key] = value
 
     def covers(self, product_id, location_id, lot_id=None):
-        """Whether the build scan fully covered this product/location (and lot), so a
-        missing key means genuinely no quant rather than an un-scanned pair."""
         if product_id.id not in self._product_ids:
             return False
         path = location_id.parent_path or ""
@@ -440,7 +322,7 @@ class StockQuant(models.Model):
         string="Inventoried Quantity",
         digits="Product Unit",
         compute="_compute_inventory_quantity_auto_apply",
-        inverse="_inverse_inventory_quantity",
+        inverse="_inverse_inventory_quantity_auto_apply",
         groups="stock.group_stock_manager",
     )
     inventory_diff_quantity = fields.Float(
@@ -525,10 +407,6 @@ class StockQuant(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Override to handle "inventory mode": create/update the matching quant as
-        superuser when the conditions are met.
-        """
-
         def _add_to_cache(quant):
             if "quants_cache" in self.env.context:
                 self.env.context["quants_cache"][
@@ -568,14 +446,6 @@ class StockQuant(models.Model):
         return self.env["stock.quant"].union(*results)
 
     def _create_inventory_quant(self, vals, allowed_fields):
-        """Create or update the single quant an inventory-mode ``create`` row targets.
-
-        Split out of :meth:`create` so its batch loop reads as a clean "inventory
-        rows one at a time / plain rows batched" split. ``vals`` is consumed in place
-        (inventory-quantity keys are popped). Returns ``(quant, created)`` where
-        ``created`` is ``True`` only when a brand-new quant was inserted (so the
-        caller knows whether to seed ``quants_cache``).
-        """
         if any(
             not field.startswith("x_") and field not in allowed_fields for field in vals
         ):
@@ -637,7 +507,6 @@ class StockQuant(models.Model):
         return quant, created
 
     def write(self, vals):
-        """Override to handle the "inventory mode" and create the inventory move."""
         forbidden_fields = self._get_forbidden_fields_write()
         if self._is_inventory_mode() and any(
             field in vals for field in forbidden_fields
@@ -666,14 +535,6 @@ class StockQuant(models.Model):
             self._apply_inventory()
 
     def _stock_user_domain(self, domain):
-        """Return field-``domain`` expression ``domain`` for stock users, ``"[]"``
-        otherwise.
-
-        The three quant pickers below only constrain their choices for stock users
-        in inventory mode; everyone else gets the unrestricted ``"[]"``. Factored so
-        the ``has_group`` guard lives in one place instead of being re-spelled (and
-        drifting) across each field.
-        """
         return domain if self.env.user.has_group("stock.group_stock_user") else "[]"
 
     def _domain_location_id(self):
@@ -712,15 +573,6 @@ class StockQuant(models.Model):
 
     @api.depends("product_id", "location_id", "lot_id", "package_id", "owner_id")
     def _compute_last_count_date(self):
-        """We look at the stock move lines associated with every quant to get the last count date.
-
-        The depends covers the characteristics this keys on. It cannot cover the
-        move lines themselves -- the value comes from a `_read_group` over
-        `stock.move.line`, not from a field path -- so a count booked later in the
-        same transaction still needs an explicit invalidation to show up. Without any
-        depends at all the value never refreshed, not even when the quant was
-        re-pointed at another product or location.
-        """
         self.last_count_date = False
         date_by_quant = self._read_move_line_dates(is_inventory=True)
         for quant in self:
@@ -730,25 +582,11 @@ class StockQuant(models.Model):
         "product_id", "location_id", "lot_id", "package_id", "owner_id", "in_date"
     )
     def _compute_date_last_movement(self):
-        """Age each quant from the last move line that was not a count.
-
-        The counterpart to ``_compute_last_count_date`` over the other half of the
-        move lines: counting stock is not moving it, so a warehouse running
-        diligent cycle counts must not read as a warehouse with no dormant stock.
-
-        The dependencies cover the quant's own identity only -- a move line
-        landing after the field was read does not invalidate it within the same
-        transaction, exactly as for ``last_count_date``.
-        """
         now = fields.Datetime.now()
         date_by_quant = self._read_move_line_dates(is_inventory=False)
         for quant in self:
             date_last_movement = date_by_quant.get(quant._move_line_match_key())
             quant.date_last_movement = date_last_movement
-            # A quant cannot have sat still longer than it has existed, so
-            # `in_date` is the floor when no move line matches -- a quant born of
-            # an inventory adjustment, or one whose history predates a data
-            # import. That floor is why this needs no "never moved" sentinel.
             dates = [d for d in (date_last_movement, quant.in_date) if d]
             quant.days_since_last_movement = (now - max(dates)).days if dates else 0
 
@@ -791,7 +629,6 @@ class StockQuant(models.Model):
 
     @api.depends("location_id", "lot_id", "package_id", "owner_id")
     def _compute_display_name(self):
-        """name that will be displayed in the detailed operation"""
         for record in self:
             if record.env.context.get("formatted_display_name"):
                 name = f"{record.location_id.name}"
@@ -815,10 +652,7 @@ class StockQuant(models.Model):
                     name.append(record.owner_id.name)
                 record.display_name = " - ".join(name)
 
-    def _inverse_inventory_quantity(self):
-        """Inverse method to create stock move when `inventory_quantity` is set
-        (`inventory_quantity` is only accessible in inventory mode).
-        """
+    def _inverse_inventory_quantity_auto_apply(self):
         if not self._is_inventory_mode():
             return
         quant_to_inventory = self.env["stock.quant"]
@@ -847,12 +681,6 @@ class StockQuant(models.Model):
     def _search_days_since_last_movement(self, operator, value):
         if operator not in ("<", "<=", ">", ">="):
             return NotImplemented
-        # SQL translation of `_compute_date_last_movement` (kept as the single
-        # Python source of truth for the value): the compute is a correlated
-        # lookup per quant, and materialising every quant in the database to
-        # filter it in Python is not a search. Only "age >= n" is expressed --
-        # on whole days the other three operators are that one shifted by a day,
-        # negated, or both.
         days = int(value) + 1 if operator in ("<=", ">") else int(value)
         threshold = fields.Datetime.subtract(fields.Datetime.now(), days=days)
         self.env["stock.quant"].flush_model(
@@ -879,8 +707,6 @@ class StockQuant(models.Model):
                 "owner_id",
             ]
         )
-        # `stock.move.line.is_inventory` is related and unstored, so the flag
-        # only exists on the move -- hence the join the ORM domain hides.
         self.env["stock.move"].flush_model(["is_inventory"])
         rows = self.env.execute_query(
             SQL(
@@ -919,7 +745,7 @@ class StockQuant(models.Model):
                 "quantity",
             ]
         )
-        digits = self.env["decimal.precision"].precision_get("Product Unit")
+        digits = self.env["decimal.precision"].get_precision("Product Unit")
         rows = self.env.execute_query(
             SQL(
                 """SELECT id FROM stock_quant
@@ -934,7 +760,6 @@ class StockQuant(models.Model):
         return [("id", "in", [row[0] for row in rows])]
 
     def _search_on_hand(self, operator, value):
-        """Handle the "on_hand" filter, indirectly calling `_get_domain_locations`."""
         if operator != "in":
             return NotImplemented
         return self.env["product.product"]._get_domain_locations()[0]
@@ -1017,7 +842,7 @@ class StockQuant(models.Model):
 
     def action_view_stock_moves(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "stock.stock_move_line_action"
         )
         domain = (
@@ -1046,7 +871,6 @@ class StockQuant(models.Model):
 
     @api.model
     def action_view_inventory(self):
-        """Similar to _get_quants_action except specific for inventory adjustments (i.e. inventory counts)."""
         self = self._set_view_context()
         if (
             not self.env["ir.config_parameter"]
@@ -1226,12 +1050,8 @@ class StockQuant(models.Model):
         else:
             self.user_id = self.env.user.id
 
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
     def _move_line_match_key(self):
-        """The identity a move line is matched on by ``_read_move_line_dates``."""
         self.ensure_one()
         return (
             self.location_id.id,
@@ -1242,15 +1062,6 @@ class StockQuant(models.Model):
         )
 
     def _read_move_line_dates(self, is_inventory):
-        """Map each quant's identity to the date of the last done move line on it.
-
-        :param bool is_inventory: ``True`` selects inventory adjustments (the
-            counting history behind ``last_count_date``), ``False`` real
-            movements (``date_last_movement``). The two sets are disjoint and a
-            caller wants one or the other, never their union.
-        :return: ``{_move_line_match_key(): datetime}``, with no entry for a
-            quant no move line matches.
-        """
         if not self:
             return {}
         groups = self.env["stock.move.line"]._read_group(
@@ -1285,10 +1096,6 @@ class StockQuant(models.Model):
             ["date:max"],
         )
 
-        # A move line can be the last one for a quant on either end of the move
-        # (source/dest location) reached through either package slot (package/result
-        # package): the 2x2 cross product below is those four (location, package)
-        # tuples. Keep the newest date per tuple.
         date_by_quant = {}
         for (
             product,
@@ -1309,11 +1116,6 @@ class StockQuant(models.Model):
         return date_by_quant
 
     def _update_next_inventory_date(self):
-        """Set ``inventory_date`` on every quant in ``self`` to its location's next
-        scheduled count date, resolving each location's date only once. The caller
-        decides which quants qualify (``_compute_inventory_date`` filters to
-        uncounted internal/transit quants; ``_apply_inventory`` reschedules all).
-        """
         date_by_location = {
             loc: loc._get_next_inventory_date() for loc in self.location_id
         }
@@ -1325,7 +1127,6 @@ class StockQuant(models.Model):
         return False
 
     def _load_records_create(self, values):
-        """Add default location if import file did not fill it"""
         company_user = self.env.company
         warehouse = self.env["stock.warehouse"].search(
             [("company_id", "=", company_user.id)], limit=1
@@ -1338,7 +1139,6 @@ class StockQuant(models.Model):
         )._load_records_create(values)
 
     def _load_records_write(self, values):
-        """Set inventory_mode so write() restricts the fields editable by import."""
         return super(
             StockQuant, self.with_context(inventory_mode=True)
         )._load_records_write(values)
@@ -1369,7 +1169,6 @@ class StockQuant(models.Model):
 
     @api.model
     def _get_forbidden_fields_write(self):
-        """Returns a list of fields user can't edit when he want to edit a quant in `inventory_mode`."""
         return ["product_id", "location_id", "lot_id", "package_id", "owner_id"]
 
     def _run_least_packages_removal_strategy_astar(self, domain, qty):
@@ -1407,31 +1206,6 @@ class StockQuant(models.Model):
             return domain
 
     def _least_packages_domain(self, taken_packages, domain):
-        """Build the search domain covering the packages/singles selected by
-        :func:`_least_packages_search`.
-
-        Unpackaged singles are resolved to concrete quant ids in a single query.
-
-        ``single_count`` counts selected *unit slots*: the A* sized it from the
-        unpackaged group's **available** sum, expanding it into one ``(None, 1)`` entry
-        per available unit. Redeeming those slots must therefore also count available
-        units. Taking the first ``single_count`` *records* instead -- as this did --
-        assumes every loose quant carries at least one available unit, which a fully
-        reserved, fractional or negative quant does not. Being older, such a quant sorts
-        to the head of the FIFO order below, so it consumed a slot, supplied nothing,
-        and pushed the quants that do hold stock out of the candidate set: the gather
-        then saw only empty quants and reserved zero while availability reported the
-        full amount. Accumulate availability instead, and skip what cannot contribute.
-
-        The A* fixes the loose-unit *count*, not which quants, so walk the FIFO-oldest
-        singles (``in_date, id``) -- matching the ``least_packages`` removal order.
-        Slicing the tail would restrict the candidate set to the *newest* loose quants
-        and strand older stock the final strategy-ordered gather could never reconsider.
-
-        Over-covering on the unpackaged side stays harmless: the reservation loop caps
-        consumption at the requested quantity, and the package set is pinned exactly by
-        ``package_id in [...]`` below, so no extra package is ever opened.
-        """
         single_count = sum(1 for pkg in taken_packages if pkg[0] is None)
         selected_single_items = []
         if single_count:
@@ -1465,32 +1239,6 @@ class StockQuant(models.Model):
         strict=False,
         qty=0,
     ):
-        """Return the quants matching the given characteristics, ordered by the
-        location/product removal strategy.
-
-        Despite the historic name, this does **not** filter ``self``: it always
-        resolves the candidate set from scratch -- by searching, or (for a strict,
-        non-``least_packages`` gather inside a ``quants_cache`` context) from the
-        pre-grouped cache. ``self`` is used only for ``env``/model access. A caller
-        holding a gathered recordset must not assume passing it as ``self`` narrows the
-        result (see ``_get_reserve_quantity``, which reuses its gather explicitly).
-
-        This is an **extension point** overridden in sibling repos (e.g. agromarin's
-        ``marin`` and ``stock_blocked_location``). Its public signature must stay
-        stable: any per-call optimisation the reservation path needs is threaded via
-        the private ``_gather_removal_strategy`` context key below, never as a new
-        positional/keyword argument -- so an override with a fixed signature (or one
-        forwarding ``**kwargs``) can never be broken by a caller passing a hint it does
-        not declare. (A ``removal_strategy=`` kwarg here once crashed those overrides
-        with ``TypeError`` on every reservation; the guard test in
-        ``test_quant_improvements`` locks the signature down.)
-
-        The context key holds a pre-resolved removal strategy for this
-        product/location: resolving it walks the product category + location parent
-        chain, so the reservation path (which gathers/measures the same characteristics
-        up to three times) resolves once and threads the result. Absent the key it is
-        resolved here.
-        """
         removal_strategy = self.env.context.get(
             "_gather_removal_strategy"
         ) or self._get_removal_strategy(product_id, location_id)
@@ -1548,11 +1296,6 @@ class StockQuant(models.Model):
         return res.sorted(lambda q: not q.lot_id)
 
     def _apply_inventory(self, date=None):
-        # `from_inverse_qty` marks an adjustment that came from writing a product's
-        # on-hand rather than from counting: a zero difference there means nothing was
-        # counted, so it raises no move (see the loop below). Whole-set effects have to
-        # honour that too -- re-saving a product form already at 0 otherwise stamped
-        # `last_inventory_date` on the whole stock location with no move behind it.
         if self.env.context.get("from_inverse_qty") and not any(
             quant.product_uom_id.compare(quant.inventory_diff_quantity, 0)
             for quant in self
@@ -1646,14 +1389,6 @@ class StockQuant(models.Model):
         owner_id=None,
         in_date=None,
     ):
-        """Increase or decrease `quantity` or `reserved_quantity` of a set of quants for a given
-        product_id/location_id/lot_id/package_id/owner_id.
-
-        :param datetime in_date: Should only be passed when calls to this method are done in
-                                 order to move a quant. When creating a tracked quant, the
-                                 current datetime will be used.
-        :return: tuple (available_quantity, in_date as a datetime)
-        """
         if not (quantity or reserved_quantity):
             raise ValidationError(_("Quantity or Reserved Quantity should be set."))
         self = self.sudo()
@@ -1755,15 +1490,6 @@ class StockQuant(models.Model):
         package_id=None,
         owner_id=None,
     ):
-        """Increase or decrease `reserved_quantity` of a set of quants for a given
-        product_id/location_id/lot_id/package_id/owner_id.
-
-        This always operates strictly (the exact characteristics tuple); reservation
-        never needs the non-strict, child-location gather. It used to take a ``strict``
-        flag that was never forwarded to `_update_available_quantity` (which hardcodes a
-        strict gather), so it silently did nothing -- dropped to stop callers relying on
-        a no-op.
-        """
         self._update_available_quantity(
             product_id,
             location_id,
@@ -1775,18 +1501,6 @@ class StockQuant(models.Model):
 
     @api.model
     def _unlink_zero_quants(self, products=None, locations=None):
-        """_update_available_quantity may leave quants with no
-        quantity and no reserved_quantity. It used to directly unlink
-        these zero quants but this proved to hurt the performance as
-        this method is often called in batch and each unlink invalidate
-        the cache. We defer the calls to unlink in this method.
-
-        :param products, locations: optional recordsets scoping the cleanup to
-            these product/location ids for model-level callers that know the
-            touched scope but hold no quant recordset (e.g. the same-package
-            path of ``stock.move._action_done``). Ignored when ``self`` holds
-            records (the recordset defines the scope then).
-        """
         self.env["stock.quant"].flush_model(
             ["quantity", "reserved_quantity", "inventory_quantity", "user_id"]
         )
@@ -1821,23 +1535,6 @@ class StockQuant(models.Model):
 
     @api.model
     def _clean_reservations(self, products=None, locations=None):
-        """Realign quants' `reserved_quantity` with the sum still reserved by active
-        move lines.
-
-        Like its `_quant_tasks` siblings (`_merge_quants`, `_unlink_zero_quants`),
-        a call on a recordset scopes the realignment to the touched
-        product/location pairs instead of scanning the whole table; model-level
-        callers (empty self) still run global unless they pass an explicit
-        `products`/`locations` scope.
-
-        :param products, locations: optional recordsets scoping the realignment
-            for model-level callers that know the touched scope but hold no
-            quant recordset. Unlike the recordset form, a products-only scope
-            also covers (product, location) pairs with no quant row yet — the
-            creation loop below provisions their reserved quants (needed by
-            e.g. the consumable→storable flip, where open move lines predate
-            any quant). Ignored when ``self`` holds records.
-        """
         quant_domain = Domain("reserved_quantity", "!=", 0)
         move_line_domain = Domain(
             [
@@ -1939,7 +1636,6 @@ class StockQuant(models.Model):
         self._unlink_zero_quants()
 
     def _set_view_context(self):
-        """Adds context when opening quants related views."""
         if not self.env.user.has_group("stock.group_stock_multi_locations"):
             company_user = self.env.company
             warehouse = self.env["stock.warehouse"].search(
@@ -1956,15 +1652,6 @@ class StockQuant(models.Model):
         return self
 
     def get_aggregate_barcodes(self):
-        """Generates and aggregates quants' barcodes. This method uses the config parameters
-        `stock.agg_barcode_max_length` to determine the length limit of a single aggregate barcode
-        (400 by default) and `stock.barcode_separator` to determine which character to use to
-        separate individual encodings (this method can't work without this parameter and will return
-        an empty list.) Depending on the number of quants, those parameters and the length of their
-        barcode encodings, there can be one or more aggregate barcodes.
-
-        :return: list
-        """
         agg_barcode_max_length = int(
             self.env["ir.config_parameter"]
             .sudo()
@@ -2039,28 +1726,6 @@ class StockQuant(models.Model):
         strict=False,
         allow_negative=False,
     ):
-        """Return the available quantity, i.e. the sum of `quantity` minus the sum of
-        `reserved_quantity`, for the set of quants sharing the combination of `product_id,
-        location_id` if `strict` is set to False or sharing the *exact same characteristics*
-        otherwise.
-        This method is called in the following usecases:
-            - when a stock move checks its availability
-            - when a stock move actually assign
-            - when editing a move line, to check if the new value is forced or not
-            - when validating a move line with some forced values and have to potentially unlink an
-              equivalent move line in another picking
-        In the two first usecases, `strict` should be set to `False`, as we don't know what exact
-        quants we'll reserve, and the characteristics are meaningless in this context.
-        In the last ones, `strict` should be set to `True`, as we work on a specific set of
-        characteristics.
-
-        Always resolves the candidate set with a fresh ``_gather``. A caller that just
-        gathered the same characteristics reuses them via :meth:`_sum_available_quantity`
-        instead of passing them here -- keeping this method's signature stable for the
-        sibling-repo overrides that extend it (see :meth:`_gather`).
-
-        :return: available quantity as a float
-        """
         quants = self.sudo()._gather(
             product_id,
             location_id,
@@ -2080,17 +1745,6 @@ class StockQuant(models.Model):
     def _get_on_hand_shortfall(
         self, product_id, location_id, lot_id, package_id=None, owner_id=None
     ):
-        """How far below zero the *on-hand* of ``lot_id``'s quants has gone, as a
-        positive number (0.0 when non-negative).
-
-        Deliberately not derived from availability: ``_get_available_quantity`` and
-        ``_update_available_quantity`` both report on-hand *minus reserved*, which is
-        negative for a merely fully-reserved quant that holds plenty of stock. Callers
-        repairing a negative on-hand need the on-hand, so they ask for it here.
-
-        The strict gather matches ``lot_id IN (False, lot)``, so the untracked rows are
-        excluded explicitly -- they are the source the repair draws *from*.
-        """
         quants = self.sudo()._gather(
             product_id,
             location_id,
@@ -2109,16 +1763,6 @@ class StockQuant(models.Model):
     def _sum_available_quantity(
         self, quants, product_id, lot_id=None, strict=False, allow_negative=False
     ):
-        """Sum on-hand-minus-reserved over an already-``_gather``-ed ``quants`` set.
-
-        Split out of :meth:`_get_available_quantity` so :meth:`_get_reserve_quantity`
-        can reuse the recordset it just gathered without a second identical search --
-        *without* threading that recordset through ``_get_available_quantity``, which is
-        an extension point overridden in sibling repos. Only reuse ``quants`` when it is
-        the *full* gather for these characteristics: a ``least_packages`` gather is
-        narrowed to the chosen packages and would under-report availability, so its
-        caller re-gathers instead.
-        """
         quants = quants.sudo()
         ledger = self.env.context.get("reservation_ledger")
         if product_id.tracking == "none":
@@ -2187,20 +1831,10 @@ class StockQuant(models.Model):
         return Domain.AND(domains)
 
     def _reservation_key(self):
-        """The tuple of characteristics that identifies interchangeable quants for
-        reservation (everything but product/quantity). Shared so callers group quants
-        consistently instead of re-spelling the tuple.
-        """
         self.ensure_one()
         return (self.location_id, self.lot_id, self.package_id, self.owner_id)
 
     def _get_gs1_barcode(self, gs1_quantity_rules_ai_by_uom=False):
-        """Generates a GS1 barcode for the quant's properties (product, quantity and LN/SN.)
-
-        :param gs1_quantity_rules_ai_by_uom: contains the products' GS1 AI paired with the UoM id
-        :type gs1_quantity_rules_ai_by_uom: dict
-        :return: str
-        """
         self.ensure_one()
         gs1_quantity_rules_ai_by_uom = gs1_quantity_rules_ai_by_uom or {}
         barcode = ""
@@ -2234,25 +1868,10 @@ class StockQuant(models.Model):
 
     @api.model
     def _get_inventory_fields_create(self):
-        """Returns a list of fields user can edit when he want to create a quant in `inventory_mode`."""
         return ["product_id", "owner_id"] + self._get_inventory_fields_countable()
 
     @api.model
     def _get_inventory_fields_countable(self):
-        """The count-related fields an inventory-mode ``create`` may carry.
-
-        Named for what it is. It used to be ``_get_inventory_fields_write``, which
-        `write()` never consulted -- that path gates on the *deny*-list
-        ``_get_forbidden_fields_write`` instead, so this list's only consumer is
-        ``_get_inventory_fields_create`` above. Modules extending it (stock_account's
-        ``accounting_date``, stock_barcode's ``dummy_id``) were widening a write
-        allowlist that does not exist; under the deny-list those fields were never
-        blocked on write in the first place.
-
-        Note ``lot_id``/``location_id``/``package_id`` are also in the deny-list, so
-        they are writable only at creation time -- which is exactly what this list is
-        for.
-        """
         return [
             "inventory_quantity",
             "inventory_quantity_auto_apply",
@@ -2274,15 +1893,6 @@ class StockQuant(models.Model):
         package_id=False,
         package_dest_id=False,
     ):
-        """Called when user manually set a new quantity (via `inventory_quantity`)
-        just before creating the corresponding stock move.
-
-        :param location_id: `stock.location`
-        :param location_dest_id: `stock.location`
-        :param package_id: `stock.package`
-        :param package_dest_id: `stock.package`
-        :return: dict with all values needed to create a new `stock.move` with its move line.
-        """
         self.ensure_one()
 
         res = {
@@ -2324,12 +1934,6 @@ class StockQuant(models.Model):
 
     @api.model
     def _get_quants_action(self, extend=False):
-        """Returns an action to open (non-inventory adjustment) quant view.
-        Depending of the context (user have right to be inventory mode or not),
-        the list view will be editable or readonly.
-
-        :param extend: If True, enables form, graph and pivot views. False by default.
-        """
         if (
             not self.env["ir.config_parameter"]
             .sudo()
@@ -2340,7 +1944,7 @@ class StockQuant(models.Model):
         ctx["inventory_report_mode"] = True
         ctx.pop("group_by", None)
 
-        action = self.env["ir.actions.act_window"]._for_xml_id(
+        action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "stock.stock_quant_action"
         )
         action["domain"] = [
@@ -2461,17 +2065,6 @@ class StockQuant(models.Model):
 
     @api.model
     def _get_removal_strategy_sort_key(self, removal_strategy):
-        """Python equivalent of :meth:`_get_removal_strategy_order` for the
-        ``_gather`` quants-cache fast path.
-
-        Returns ``(key, reverse)`` for :meth:`recordset.sorted` when the strategy's
-        SQL ordering can be replicated in Python, or ``None`` when it cannot --
-        ``_gather`` then bypasses the cache and searches, so cache and search paths
-        always return quants in the same order. Modules adding removal strategies
-        (i.e. overriding :meth:`_get_removal_strategy_order`) should override this
-        hook symmetrically; leaving it alone is safe (their strategies simply skip
-        the cache fast path).
-        """
         if removal_strategy in ("fifo", "least_packages"):
             return (lambda q: (q.in_date, q.id)), False
         if removal_strategy == "lifo":
@@ -2491,16 +2084,6 @@ class StockQuant(models.Model):
         owner_id=None,
         strict=False,
     ):
-        """Get the quantity available to reserve for the set of quants
-        sharing the combination of `product_id, location_id` if `strict` is set to False or sharing
-        the *exact same characteristics* otherwise. `self` is never consulted: the
-        candidate set is always resolved from scratch by `_gather` (see its docstring).
-        Typically, this method is called before the `stock.move.line` creation to know the reserved_qty that could be used.
-        It's also called by `stock.move._update_reserved_quantity_vals` to find the quants to reserve.
-
-        :return: a list of tuples (quant, quantity_reserved) showing on which quant the reservation
-            could be done and how much the system is able to reserve on it
-        """
         self = self.sudo()
 
         removal_strategy = self._get_removal_strategy(product_id, location_id)
@@ -2556,7 +2139,7 @@ class StockQuant(models.Model):
         if product_id.uom_id.compare(quantity, 0) <= 0:
             return []
 
-        precision_digits = self.env["decimal.precision"].precision_get("Product Unit")
+        precision_digits = self.env["decimal.precision"].get_precision("Product Unit")
         ledger = self.env.context.get("reservation_ledger")
         candidates = [
             _ReservationCandidate(
@@ -2581,11 +2164,6 @@ class StockQuant(models.Model):
 
     @api.model
     def _merge_quants(self):
-        """In a situation where one transaction is updating a quant via
-        `_update_available_quantity` and another concurrent one calls this function with the same
-        argument, we'll create a new quant in order for these transactions to not rollback. This
-        method will find and deduplicate these quants.
-        """
         params = []
         query = """WITH
                         dupes AS (
@@ -2636,15 +2214,6 @@ class StockQuant(models.Model):
         unpack=False,
         up_to_parent_packages=False,
     ):
-        """Directly move a stock.quant to another location and/or package by creating a stock.move.
-
-        :param location_dest_id: `stock.location` destination location for the quants
-        :param package_dest_id: `stock.package` destination package for the quants
-        :param message: String to fill the reference field on the generated stock.move
-        :param unpack: set to True when needing to unpack the quant
-        :param up_to_parent_packages: `stock.package` that are the upper limit to keep the parents
-        """
-
         def set_parent_package(all_quants, package, limit_ids):
             if not package.parent_package_id or (limit_ids and package.id in limit_ids):
                 return None
@@ -2677,7 +2246,6 @@ class StockQuant(models.Model):
         moves._action_done()
 
     def check_quantity(self):
-        """Ensure no serial number is present more than once at a given location."""
         sn_quants = self.filtered(
             lambda q: (
                 q.product_id.tracking == "serial"
@@ -2727,25 +2295,6 @@ class StockQuant(models.Model):
         source_location_id=None,
         ref_doc_location_id=None,
     ):
-        """Checks for duplicate serial numbers (SN) when assigning a SN (i.e. no source_location_id)
-        and checks for potential incorrect location selection of a SN when using a SN (i.e.
-        source_location_id). Returns warning message of all locations the SN is located at and
-        (optionally) a recommended source location of the SN (when using SN from incorrect location).
-        This function is designed to be used by onchange functions across differing situations including,
-        but not limited to scrap, incoming picking SN encoding, and outgoing picking SN selection.
-
-        :param product_id: `product.product` product to check SN for
-        :param lot_id: `stock.lot` SN to check
-        :param company_id: `res.company` company to check against (i.e. we ignore duplicate SNs across
-            different companies for lots defined with a company)
-        :param source_location_id: `stock.location` optional source location if using the SN rather
-            than assigning it
-        :param ref_doc_location_id: `stock.location` optional reference document location for
-            determining recommended location. This is param expected to only be used when a
-            `source_location_id` is provided.
-        :return: tuple(message, recommended_location) If not None, message is a string expected to be
-            used in warning message dict and recommended_location is a `location_id`
-        """
         message = None
         recommended_location = None
         if product_id.tracking == "serial":
@@ -2774,7 +2323,6 @@ class StockQuant(models.Model):
                         serial_number=lot_id.name,
                         location_list=sn_locations.mapped("display_name"),
                     )
-
                 elif source_location_id and source_location_id not in sn_locations:
                     recommended_location = self.env["stock.location"]
                     if ref_doc_location_id:
@@ -2812,19 +2360,11 @@ class StockQuant(models.Model):
 
     @api.model
     def _is_inventory_mode(self):
-        """Used to control whether a quant was written on or created during an
-        "inventory session", meaning a mode where we need to create the stock.move
-        record necessary to be consistent with the `inventory_quantity` field.
-        """
         return self.env.context.get("inventory_mode") and self.env.user.has_group(
             "stock.group_stock_user"
         )
 
     def _is_outdated(self):
-        """A quant is outdated when a counted quantity has been set and the on-hand
-        quantity has since drifted away from it. Single source of truth shared by
-        _compute_is_outdated and _search_is_outdated.
-        """
         self.ensure_one()
         return bool(
             self.inventory_quantity_set
@@ -2843,5 +2383,4 @@ class StockQuant(models.Model):
         package_id=False,
         owner_id=False,
     ):
-        """Hook for other modules to skip reservation clean-up for specific products."""
         return False

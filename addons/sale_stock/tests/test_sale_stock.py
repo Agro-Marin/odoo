@@ -4285,7 +4285,7 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         self.assertEqual(len(sol.move_ids), 2)
 
         documents = (
-            self.env["stock.activity.mixin"]
+            self.env["mixin.stock.activity"]
             .sudo()
             ._log_activity_get_documents({sol: (10.0, 12.0)}, "move_ids", "UP")
         )

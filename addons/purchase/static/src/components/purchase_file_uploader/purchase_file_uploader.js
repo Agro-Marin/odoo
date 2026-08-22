@@ -1,11 +1,19 @@
 /** @odoo-module native */
 import { DocumentFileUploader } from "@account/components/document_file_uploader/document_file_uploader";
-import { markup } from "@odoo/owl";
 import { WarningDialog } from "@web/components/errors";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 
+/**
+ * Upload vendor bills against one or more purchase orders.
+ *
+ * Everything about the upload itself — attachment creation, `default_*` context
+ * stripping, per-file notifications, markup of server-provided help, navigating
+ * to the resulting action — is inherited. Only three things are purchase's own:
+ * the model, the method the attachments are handed to, and the single-vendor
+ * check below.
+ */
 export class PurchaseFileUploader extends DocumentFileUploader {
     static template = "purchase.DocumentFileUploader";
     static props = {
@@ -22,9 +30,26 @@ export class PurchaseFileUploader extends DocumentFileUploader {
         return "purchase.order";
     }
 
-    async getIds() {
+    /**
+     * Purchase creates the bill through ``action_create_invoice_from_file``
+     * bound to the selected orders, not through the generic
+     * ``create_document_from_attachment`` the account base uses.
+     */
+    getUploadMethod() {
+        return "action_create_invoice_from_file";
+    }
+
+    /**
+     * `record.resId`, not `record.data.id`: `parseServerValues` drops any server
+     * key that is not an active field, so `data.id` resolves only while the
+     * purchase order form happens to declare `<field name="id" invisible="1"/>`.
+     * `resId` is populated regardless, and this returns a list either way.
+     *
+     * @returns {Promise<number[]>}
+     */
+    async getUploadIds() {
         if (this.props.record) {
-            return this.props.record.data.id;
+            return [this.props.record.resId];
         }
         return this.props.list.getResIds(true);
     }
@@ -43,43 +68,7 @@ export class PurchaseFileUploader extends DocumentFileUploader {
                     "You can only upload a bill for a single vendor at a time.",
                 ),
             });
-            return false;
         }
-    }
-
-    /**
-     * Purchase creates the vendor bill through ``action_create_invoice_from_file``
-     * (bound to the selected order ids as ``self``) rather than the generic
-     * ``create_document_from_attachment`` used by the account base. Attachment
-     * creation, ``default_*`` context cleaning and notification/markup handling
-     * are all inherited from :class:`DocumentFileUploader`.
-     */
-    async onUploadComplete() {
-        const ids = await this.getIds();
-        let action;
-        try {
-            action = await this.orm.call(
-                this.getResModel(),
-                "action_create_invoice_from_file",
-                [ids, this.attachmentIdsToProcess],
-                { context: { ...this.extraContext, ...this.env.searchModel.context } },
-            );
-        } finally {
-            // ensures attachments are cleared on success as well as on error
-            this.attachmentIdsToProcess = [];
-        }
-        // Mirror the account base: surface any per-file notifications and render
-        // server-provided help as markup before navigating to the action.
-        if (action.context?.notifications) {
-            for (const [file, msg] of Object.entries(action.context.notifications)) {
-                this.notification.add(msg, { title: file, type: "info", sticky: true });
-            }
-            delete action.context.notifications;
-        }
-        if (action.help?.length) {
-            action.help = markup(action.help);
-        }
-        this.action.doAction(action);
     }
 }
 

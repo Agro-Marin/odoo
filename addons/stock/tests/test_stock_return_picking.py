@@ -88,9 +88,6 @@ class TestReturnPicking(TestStockCommon):
         return_line.quantity = 1
 
     def test_return_picking_SN_pack(self):
-        """
-        Test returns of pickings with serial tracked products put in packs
-        """
         product_serial = self.env["product.product"].create(
             {
                 "name": "Tracked by SN",
@@ -161,7 +158,6 @@ class TestReturnPicking(TestStockCommon):
         )
 
     def test_return_location(self):
-        """test default return location are taken into account"""
         self.env["stock.quant"]._update_available_quantity(
             self.productA, self.stock_location, 100
         )
@@ -196,9 +192,6 @@ class TestReturnPicking(TestStockCommon):
         self.assertEqual(return_picking.location_dest_id, out_move.location_id)
 
     def test_return_incoming_picking(self):
-        """
-        Test returns of incoming pickings have the same partner assigned to them
-        """
         partner = self.env["res.partner"].create({"name": "Jean"})
         receipt = self.env["stock.picking"].create(
             {
@@ -239,10 +232,6 @@ class TestReturnPicking(TestStockCommon):
         )
 
     def test_stock_return_for_exchange(self):
-        """
-        Test the stock return for exchange by creating a picking with moves and
-        create a return exchange.
-        """
         product_serial = self.env["product.product"].create(
             {
                 "name": "Tracked by SN",
@@ -316,17 +305,6 @@ class TestReturnPicking(TestStockCommon):
         self.assertEqual(exchange_picking.move_ids.show_lot_actions, True)
 
     def test_return_picking_with_different_uom(self):
-        """
-        Ensure that the return picking uses the same UoM as the original stock move.
-
-        - A product has 'kg' as its default UoM.
-        - A stock move is created using 'g' as the UoM with a quantity of 1000 g.
-        - A return is initiated for this move.
-
-        Expected behavior:
-        - The return picking move should use 'g' as the UoM (same as the original move),
-          not the product's default UoM ('kg').
-        """
         receipt = self.PickingObj.create(
             {
                 "partner_id": self.partner.id,
@@ -368,8 +346,6 @@ class TestReturnPicking(TestStockCommon):
         self.assertEqual(return_picking.state, "done")
 
     def test_product_quantities_in_return_for_exchange(self):
-        """Ensure that on-hand and forecast quantities are correctly computed
-        whe doing an exchange on an incoming picking."""
         original_picking = self.PickingObj.create(
             {
                 "picking_type_id": self.picking_type_in.id,

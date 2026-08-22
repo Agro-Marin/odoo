@@ -217,7 +217,7 @@ class SaleOrder(models.Model):
                 return True
         elif not claimable_rewards:
             return True
-        return self.env['ir.actions.actions']._for_xml_id('sale_loyalty.sale_loyalty_reward_wizard_action')
+        return self.env['ir.actions.actions']._get_action_dict_by_xml_id('sale_loyalty.sale_loyalty_reward_wizard_action')
 
     def action_view_gift_cards(self):
         self.ensure_one()
@@ -1508,14 +1508,14 @@ class SaleOrder(models.Model):
             coupon = apply_result.get('coupon', self.env['loyalty.card'])
         return self._get_claimable_rewards(forced_coupons=coupon)
 
-    def _validate_order(self):
+    def _confirm_order(self):
         """
         Override of sale to create invoice for zero amount order. If the order total is zero and
         automatic invoicing is enabled, it creates and posts an invoice.
 
         :return: None
         """
-        super()._validate_order()
+        super()._confirm_order()
         if self.amount_total or not self.reward_amount:
             return
         auto_invoice = self.env['ir.config_parameter'].get_param('sale.automatic_invoice')

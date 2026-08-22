@@ -42,7 +42,7 @@ class ResUsersSettings(models.Model):
             embedded_actions_settings_dict.update(
                 manager_configs_sudo.copy(
                     {"user_setting_id": self.id}
-                )._embedded_action_settings_format()
+                )._format_embedded_action_settings()
             )
 
         return embedded_actions_settings_dict

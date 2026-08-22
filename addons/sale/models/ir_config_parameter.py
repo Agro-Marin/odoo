@@ -23,11 +23,6 @@ class IrConfigParameter(models.Model):
         return super().unlink()
 
     def _sale_sync_linked_crons(self, unlink=False):
-        """Synchronize Sales-related crons' `active` field based on linked configuration parameters.
-
-        :param bool unlink: Whether this sync is triggered by parameter deletion.
-        :return: None
-        """
         param_cron_mapping = self._get_param_cron_mapping()
         for config in self.filtered(lambda c: c.key in param_cron_mapping):
             linked_cron_xmlid = param_cron_mapping[config.key]
@@ -35,9 +30,4 @@ class IrConfigParameter(models.Model):
                 linked_cron.active = False if unlink else str2bool(config.value)
 
     def _get_param_cron_mapping(self):
-        """Return a mapping of config parameters to linked crons' XMLIDs.
-
-        :return: The config-cron mapping.
-        :rtype: dict
-        """
         return const.PARAM_CRON_MAPPING

@@ -169,7 +169,7 @@ class TestBatchPicking(TransactionCase):
 
     def test_creation_from_pickings(self):
         """ Select all the picking_ids and create a wave from them """
-        action = self.env['ir.actions.actions']._for_xml_id('stock_picking_batch.stock_add_to_wave_action_stock_picking')
+        action = self.env['ir.actions.actions']._get_action_dict_by_xml_id('stock_picking_batch.stock_add_to_wave_action_stock_picking')
         action['context'] = {'active_model': 'stock.picking', 'active_ids': self.all_pickings.ids}
         self.assertEqual(action.get('res_model'), 'stock.add.to.wave')
         wizard_form = Form.from_action(self.env, action)
@@ -213,7 +213,7 @@ class TestBatchPicking(TransactionCase):
             ('is_wave', '=', True)
         ])
 
-        action = self.env['ir.actions.actions']._for_xml_id('stock_picking_batch.stock_add_to_wave_action_stock_picking')
+        action = self.env['ir.actions.actions']._get_action_dict_by_xml_id('stock_picking_batch.stock_add_to_wave_action_stock_picking')
         action['context'] = {'active_model': 'stock.picking', 'active_ids': self.all_pickings.ids}
         self.assertEqual(action.get('res_model'), 'stock.add.to.wave')
         wizard_form = Form.from_action(self.env, action)

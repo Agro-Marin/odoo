@@ -6,11 +6,7 @@ class ProductTemplate(models.Model):
     _inherit = "product.template"
     _check_company_auto = True
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
 
-    # purchase_method
     bill_policy = fields.Selection(
         selection=[
             ("ordered", "On ordered quantities"),
@@ -31,9 +27,6 @@ class ProductTemplate(models.Model):
         compute="_compute_purchased_product_qty",
     )
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
 
     def _compute_purchased_product_qty(self):
         for template in self.with_context(active_test=False):
@@ -59,12 +52,9 @@ class ProductTemplate(models.Model):
             else:
                 product.bill_policy = default_bill_policy
 
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
 
     def action_view_po(self):
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "purchase.action_purchase_history"
         )
         action["domain"] = [
@@ -79,9 +69,6 @@ class ProductTemplate(models.Model):
         action["display_name"] = _("Purchase History for %s", self.display_name)
         return action
 
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
     def _get_backend_root_menu_ids(self):
         return super()._get_backend_root_menu_ids() + [

@@ -16,9 +16,6 @@ _logger = logging.getLogger(__name__)
 class AccountMove(models.Model):
     _inherit = "account.move"
 
-    # ------------------------------------------------------------
-    # FIELDS
-    # ------------------------------------------------------------
 
     purchase_vendor_bill_id = fields.Many2one(
         comodel_name="purchase.bill.match",
@@ -51,13 +48,9 @@ class AccountMove(models.Model):
         help="Internal warning for the partner or the products as set by the user.",
     )
 
-    # ------------------------------------------------------------
-    # CRUD METHODS
-    # ------------------------------------------------------------
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Post a chatter note on the bill when it is created from one or more purchase orders."""
         moves = super().create(vals_list)
         for move in moves:
             if move.reversed_entry_id:
@@ -73,11 +66,6 @@ class AccountMove(models.Model):
         return moves
 
     def write(self, vals):
-        """Post a chatter note on the bill when its linked purchase order(s) change."""
-        # A move's purchase links (account.move.line.purchase_line_ids) can only
-        # change through a line_ids/invoice_line_ids write here; skip the double
-        # m2m traversal on every other account.move write (state, ref, date,
-        # reconciliation, ...) — one of the hottest write paths in accounting.
         if not ({"line_ids", "invoice_line_ids"} & vals.keys()):
             return super().write(vals)
         old_purchases = [
@@ -85,8 +73,6 @@ class AccountMove(models.Model):
         ]
         res = super().write(vals)
         for i, move in enumerate(self):
-            # Reversals inherit their source's PO links; don't spam "modified
-            # from" on them (mirrors the guard in create()).
             if move.reversed_entry_id:
                 continue
             new_purchases = move.mapped("line_ids.purchase_line_ids.order_id")
@@ -101,22 +87,13 @@ class AccountMove(models.Model):
                 move.message_post(body=message)
         return res
 
-    # ------------------------------------------------------------
-    # COMPUTE METHODS
-    # ------------------------------------------------------------
 
     @api.depends("move_type", "partner_id")
-    def _compute_invoice_default_user(self):
-        """Extend to set buyer for vendor bills (mirrors sale behavior).
-
-        For purchase documents, sets the buyer from the linked purchase order
-        or the partner's default buyer.
-        """
-        super()._compute_invoice_default_user()
+    def _compute_invoice_user_id(self):
+        super()._compute_invoice_user_id()
         for move in self:
             if move.is_purchase_document(include_receipts=True):
                 if not move.invoice_user_id or move.invoice_user_id == self.env.user:
-                    # Get buyer from linked purchase orders or partner default
                     purchase_orders = move.line_ids.purchase_line_ids.order_id
                     move.invoice_user_id = (
                         purchase_orders[:1].user_id
@@ -185,20 +162,9 @@ class AccountMove(models.Model):
                     warnings.add(product.display_name + " - " + product_msg)
             move.purchase_warning_text = "\n".join(warnings)
 
-    # ------------------------------------------------------------
-    # ONCHANGE METHODS
-    # ------------------------------------------------------------
 
     @api.onchange("purchase_vendor_bill_id", "purchase_id")
     def _onchange_purchase_auto_complete(self):
-        r"""Load from either an old purchase order, either an old vendor bill.
-
-        When setting a 'purchase.bill.match' in 'purchase_vendor_bill_id':
-        * If it's a vendor bill, 'invoice_vendor_bill_id' is set and the loading is done by '_onchange_invoice_vendor_bill'.
-        * If it's a purchase order, 'purchase_id' is set and this method will load lines.
-
-        /!\ All this not-stored fields must be empty at the end of this function.
-        """
         if self.purchase_vendor_bill_id.vendor_bill_id:
             self.invoice_vendor_bill_id = self.purchase_vendor_bill_id.vendor_bill_id
             self._onchange_invoice_vendor_bill()
@@ -209,7 +175,6 @@ class AccountMove(models.Model):
         if not self.purchase_id:
             return
 
-        # Copy data from PO
         invoice_vals = self.purchase_id.with_company(
             self.purchase_id.company_id,
         )._prepare_invoice_vals()
@@ -224,25 +189,22 @@ class AccountMove(models.Model):
         new_currency_id = (
             self.currency_id if has_invoice_lines else invoice_vals.get("currency_id")
         )
-        del invoice_vals["company_id"]  # avoid recomputing the currency
+        del invoice_vals["company_id"]
         if self.move_type == invoice_vals["move_type"]:
             del invoice_vals[
                 "move_type"
-            ]  # no need to be updated if it's same value, to avoid recomputes
+            ]
         self.update(invoice_vals)
         self.currency_id = new_currency_id
 
-        # Copy purchase lines.
         po_lines = self.purchase_id.line_ids - self.invoice_line_ids.mapped(
             "purchase_line_ids",
         )
         self._add_purchase_order_lines(po_lines)
 
-        # Compute invoice_origin.
         origins = set(self.invoice_line_ids.mapped("purchase_line_ids.order_id.name"))
         self.invoice_origin = ",".join(list(origins))
 
-        # Copy company_id (only changes if the id is of a child company (branch))
         if self.company_id != self.purchase_id.company_id:
             self.company_id = self.purchase_id.company_id
 
@@ -282,9 +244,6 @@ class AccountMove(models.Model):
 
         return res
 
-    # ------------------------------------------------------------
-    # ACTION METHODS
-    # ------------------------------------------------------------
 
     def action_purchase_matching(self):
         self.ensure_one()
@@ -310,7 +269,7 @@ class AccountMove(models.Model):
     def action_view_source_purchase_orders(self):
         self.ensure_one()
         source_orders = self.line_ids.purchase_line_ids.order_id
-        result = self.env["ir.actions.act_window"]._for_xml_id(
+        result = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
             "purchase.action_purchase_order_2",
         )
         if len(source_orders) > 1:
@@ -324,18 +283,11 @@ class AccountMove(models.Model):
             result = {"type": "ir.actions.act_window_close"}
         return result
 
-    # ------------------------------------------------------------
-    # HELPER METHODS
-    # ------------------------------------------------------------
 
     def _add_purchase_order_lines(self, purchase_order_lines):
-        """Creates new invoice lines from purchase order lines"""
         if not purchase_order_lines:
             return
         self.ensure_one()
-        # This path sizes the new lines from `qty_to_invoice` without going
-        # through `_prepare_aml_vals_list`, so the boundary guard is invoked
-        # here explicitly.
         purchase_order_lines._assert_invoiced_uom_convertible()
         new_line_ids = self.env["account.move.line"]
 
@@ -353,15 +305,6 @@ class AccountMove(models.Model):
         from_ocr=False,
         timeout=10,
     ):
-        """Finds related purchase orders that (partially) match the vendor bill and links the matching lines on this
-        vendor bill.
-
-        :param po_references: a list of potential purchase order references/names
-        :param partner_id: the vendor id matched on the vendor bill
-        :param amount_total: the total amount of the vendor bill
-        :param from_ocr: indicates whether this vendor bill was created from an OCR scan (less reliable)
-        :param timeout: the max time the line matching algorithm can take before timing out
-        """
         self.ensure_one()
 
         method, matched_po_lines, matched_inv_lines = self._match_purchase_orders(
@@ -373,15 +316,8 @@ class AccountMove(models.Model):
         )
 
         if method in ("total_match", "po_match"):
-            # The purchase order reference(s) and total amounts match perfectly or there is only one purchase order
-            # reference that matches with an OCR invoice. We replace the invoice lines with the purchase order lines.
             self._set_purchase_orders(matched_po_lines.order_id, force_write=True)
-
         elif method == "subset_total_match":
-            # A subset of the referenced purchase order lines matches the total amount of this invoice.
-            # We keep the invoice lines, but add all the lines from the partially matched purchase orders:
-            #   * "naively" matched purchase order lines keep their quantity
-            #   * unmatched purchase order lines are added with their quantity set to 0
             self._set_purchase_orders(matched_po_lines.order_id, force_write=False)
 
             with self._get_edi_creation() as invoice:
@@ -394,11 +330,7 @@ class AccountMove(models.Model):
                 invoice.invoice_line_ids = [
                     Command.update(line.id, {"quantity": 0}) for line in unmatched_lines
                 ]
-
         elif method == "subset_match":
-            # A subset of the referenced purchase order lines matches a subset of the invoice lines.
-            # We add the purchase order lines, but adjust the quantity to the quantities in the invoice.
-            # The original invoice lines that correspond with a purchase order line are removed.
             self._set_purchase_orders(matched_po_lines.order_id, force_write=False)
 
             with self._get_edi_creation() as invoice:
@@ -412,8 +344,6 @@ class AccountMove(models.Model):
                     Command.delete(line.id) for line in unmatched_lines
                 ]
 
-                # We remove the original matched invoice lines and apply their quantities and taxes to the matched
-                # purchase order lines.
                 inv_and_po_lines = list(
                     map(
                         lambda line: (
@@ -436,7 +366,6 @@ class AccountMove(models.Model):
                     Command.delete(inv_line.id) for dummy, inv_line in inv_and_po_lines
                 ]
 
-                # If there are lines left not linked to a purchase order, we add a header
                 unmatched_lines = invoice.invoice_line_ids.filtered(
                     lambda l: not l.purchase_line_ids,
                 )
@@ -455,25 +384,11 @@ class AccountMove(models.Model):
             self.invoice_origin = False
 
     def _find_matching_po_and_inv_lines(self, po_lines, inv_lines, timeout):
-        """Finds purchase order lines that match some of the invoice lines.
-
-        We try to find a purchase order line for every invoice line matching on the unit price and having at least
-        the same quantity to invoice.
-
-        :param po_lines: list of purchase order lines that can be matched
-        :param inv_lines: list of invoice lines to be matched
-        :param timeout: how long this function can run before we consider it too long
-        :return: a tuple (list, list) containing:
-            * matched 'purchase.order.line'
-            * tuple of purchase order line ids and their matched 'account.move.line'
-        """
-        # Sort the invoice lines by unit price and quantity to speed up matching
         invoice_lines = sorted(
             inv_lines,
             key=lambda line: (line.price_unit, line.quantity),
             reverse=True,
         )
-        # Sort the purchase order lines by unit price and remaining quantity to speed up matching
         purchase_lines = sorted(
             po_lines,
             key=lambda line: (line.price_unit, line.product_qty - line.qty_invoiced),
@@ -484,18 +399,13 @@ class AccountMove(models.Model):
         try:
             start_time = time.time()
             for invoice_line in invoice_lines:
-                # There are no purchase order lines left. We are done matching.
                 if not purchase_lines:
                     break
-                # A dict of purchase lines mapping to a diff score for the name
                 purchase_line_candidates = {}
                 for purchase_line in purchase_lines:
                     if time.time() - start_time > timeout:
                         raise TimeoutError
 
-                    # The lists are sorted by unit price descendingly.
-                    # When the unit price of the purchase line is lower than the unit price of the invoice line,
-                    # we cannot get a match anymore.
                     if purchase_line.price_unit < invoice_line.price_unit:
                         break
 
@@ -504,12 +414,6 @@ class AccountMove(models.Model):
                         and invoice_line.quantity
                         <= purchase_line.product_qty - purchase_line.qty_invoiced
                     ):
-                        # The current purchase line is a possible match for the current invoice line.
-                        # We calculate the name match ratio and continue with other possible matches.
-                        #
-                        # We could match on more fields coming from an EDI invoice, but that requires extending the
-                        # account.move.line model with the extra matching fields and extending the EDI extraction
-                        # logic to fill these new fields.
                         purchase_line_candidates[purchase_line] = (
                             difflib.SequenceMatcher(
                                 None,
@@ -519,56 +423,31 @@ class AccountMove(models.Model):
                         )
 
                 if len(purchase_line_candidates) > 0:
-                    # We take the best match based on the name.
                     purchase_line_match = max(
                         purchase_line_candidates,
                         key=purchase_line_candidates.get,
                     )
                     if purchase_line_match:
-                        # We found a match. We remove the purchase order line so it does not get matched twice.
                         purchase_lines.remove(purchase_line_match)
                         matched_po_lines.append(purchase_line_match)
                         matched_inv_lines.append((purchase_line_match.id, invoice_line))
 
             return (matched_po_lines, matched_inv_lines)
-
         except TimeoutError:
             _logger.warning("Timed out during search of matching purchase order lines")
             return ([], [])
 
     def _find_matching_subset_po_lines(self, po_lines_with_amount, goal_total, timeout):
-        """Finds the purchase order lines adding up to the goal amount.
-
-        The problem of finding the subset of `po_lines_with_amount` which sums up to `goal_total` reduces to
-        the 0-1 Knapsack problem. The dynamic programming approach to solve this problem is most of the time slower
-        than this because identical sub-problems don't arise often enough. It returns the list of purchase order lines
-        which sum up to `goal_total` or an empty list if multiple or no solutions were found.
-
-        :param po_lines_with_amount: a dict (str: float|recordset) containing:
-            * line: an `purchase.order.line`
-            * amount_to_invoice: the remaining amount to be invoiced of the line
-        :param goal_total: the total amount to match with a subset of purchase order lines
-        :param timeout: the max time the line matching algorithm can take before timing out
-        :return: list of `purchase.order.line` whose remaining sum matches `goal_total`
-        """
-
         def find_matching_subset_po_lines(lines, goal):
             if time.time() - start_time > timeout:
                 raise TimeoutError
             solutions = []
             for i, line in enumerate(lines):
                 if line["amount_to_invoice"] < goal - const.BILLING_MATCH_TOLERANCE:
-                    # The amount to invoice of the current purchase order line is less than the amount we still need on
-                    # the vendor bill.
-                    # We try finding purchase order lines that match the remaining vendor bill amount minus the amount
-                    # to invoice of the current purchase order line. We only look in the purchase order lines that we
-                    # haven't passed yet.
                     sub_solutions = find_matching_subset_po_lines(
                         lines[i + 1 :],
                         goal - line["amount_to_invoice"],
                     )
-                    # We add all possible sub-solutions' purchase order lines in a tuple together with our current
-                    # purchase order line.
                     solutions.extend(
                         (line["line"], *solution) for solution in sub_solutions
                     )
@@ -577,12 +456,8 @@ class AccountMove(models.Model):
                     <= line["amount_to_invoice"]
                     <= goal + const.BILLING_MATCH_TOLERANCE
                 ):
-                    # The amount to invoice of the current purchase order line matches the remaining vendor bill amount.
-                    # We add this purchase order line to our list of solutions.
                     solutions.append([line["line"]])
                 if len(solutions) > 1:
-                    # More than one solution was found. We can't know for sure which is the correct one, so we don't
-                    # return any solution.
                     return []
             return solutions
 
@@ -611,25 +486,6 @@ class AccountMove(models.Model):
         from_ocr,
         timeout,
     ):
-        """Tries to match open purchase order lines with this invoice given the information we have.
-
-        :param po_references: a list of potential purchase order references/names
-        :param partner_id: the vendor id inferred from the vendor bill
-        :param amount_total: the total amount of the vendor bill
-        :param from_ocr: indicates whether this vendor bill was created from an OCR scan (less reliable)
-        :param timeout: the max time the line matching algorithm can take before timing out
-        :return: tuple (str, recordset, dict) containing:
-            * the match method:
-                * `total_match`: purchase order reference(s) and total amounts match perfectly
-                * `subset_total_match`: a subset of the referenced purchase orders' lines matches the total amount of
-                    this invoice (OCR only)
-                * `po_match`: only the purchase order reference matches (OCR only)
-                * `subset_match`: a subset of the referenced purchase orders' lines matches a subset of the invoice
-                    lines based on unit prices (EDI only)
-                * `no_match`: no result found
-            * recordset of `purchase.order.line` containing purchase order lines matched with an invoice line
-            * list of tuple containing every `purchase.order.line` id and its related `account.move.line`
-        """
         common_domain = [
             ("company_id", "=", self.company_id.id),
             ("state", "=", "done"),
@@ -638,24 +494,17 @@ class AccountMove(models.Model):
 
         matching_purchase_orders = self.env["purchase.order"]
 
-        # We have purchase order references in our vendor bill and a total amount.
         if po_references and amount_total:
-            # We first try looking for purchase orders whose names match one of the purchase order references in the
-            # vendor bill.
             matching_purchase_orders |= self.env["purchase.order"].search(
                 common_domain + [("name", "in", po_references)],
             )
 
             if not matching_purchase_orders:
-                # If not found, we try looking for purchase orders whose `partner_ref` field matches one of the
-                # purchase order references in the vendor bill.
                 matching_purchase_orders |= self.env["purchase.order"].search(
                     common_domain + [("partner_ref", "in", po_references)],
                 )
 
             if matching_purchase_orders:
-                # We found matching purchase orders and are extracting all purchase order lines together with their
-                # amounts still to be invoiced.
                 po_lines = [
                     line
                     for line in matching_purchase_orders.line_ids
@@ -664,9 +513,6 @@ class AccountMove(models.Model):
                 po_lines_with_amount = [
                     {
                         "line": line,
-                        # Clamp at 0: an over-invoiced line (qty_invoiced >
-                        # product_qty) would otherwise inject a negative amount
-                        # and corrupt the total-match test and the subset knapsack.
                         "amount_to_invoice": max(
                             0.0, 1 - line.qty_invoiced / line.product_qty
                         )
@@ -675,9 +521,6 @@ class AccountMove(models.Model):
                     for line in po_lines
                 ]
 
-                # If the sum of all remaining amounts to be invoiced for these purchase orders' lines is within a
-                # tolerance from the vendor bill total, we have a total match. We return all purchase order lines
-                # summing up to this vendor bill's total (could be from multiple purchase orders).
                 if (
                     amount_total - const.BILLING_MATCH_TOLERANCE
                     < sum(line["amount_to_invoice"] for line in po_lines_with_amount)
@@ -686,8 +529,6 @@ class AccountMove(models.Model):
                     return "total_match", matching_purchase_orders.line_ids, None
 
                 if from_ocr:
-                    # The invoice comes from an OCR scan.
-                    # We try to match the invoice total with purchase order lines.
                     matching_po_lines = self._find_matching_subset_po_lines(
                         po_lines_with_amount,
                         amount_total,
@@ -699,13 +540,8 @@ class AccountMove(models.Model):
                             self.env["purchase.order.line"].union(*matching_po_lines),
                             None,
                         )
-                    # We did not find a match for the invoice total.
-                    # We return all purchase order lines based only on the purchase order reference(s) in the
-                    # vendor bill.
                     return "po_match", matching_purchase_orders.line_ids, None
 
-                # We have an invoice from an EDI document, so we try to match individual invoice lines with
-                # individual purchase order lines from referenced purchase orders.
                 matching_po_lines, matching_inv_lines = (
                     self._find_matching_po_and_inv_lines(
                         po_lines,
@@ -715,15 +551,12 @@ class AccountMove(models.Model):
                 )
 
                 if matching_po_lines:
-                    # We found a subset of purchase order lines that match a subset of the vendor bill lines.
-                    # We return the matching purchase order lines and vendor bill lines.
                     return (
                         "subset_match",
                         self.env["purchase.order.line"].union(*matching_po_lines),
                         matching_inv_lines,
                     )
 
-        # As a last resort we try matching a purchase order by vendor and total amount.
         if partner_id and amount_total:
             purchase_id_domain = common_domain + [
                 ("partner_id", "child_of", [partner_id]),
@@ -734,19 +567,11 @@ class AccountMove(models.Model):
                 purchase_id_domain,
             )
             if len(matching_purchase_orders) == 1:
-                # We found exactly one match on vendor and total amount (within tolerance).
-                # We return all purchase order lines of the purchase order whose total amount matched our vendor bill.
                 return "total_match", matching_purchase_orders.line_ids, None
 
-        # We couldn't find anything, so we return no lines.
         return ("no_match", matching_purchase_orders.line_ids, None)
 
     def _set_purchase_orders(self, purchase_orders, force_write=True):
-        """Link the given purchase orders to this vendor bill and add their lines as invoice lines.
-
-        :param purchase_orders: a list of purchase orders to be linked to this vendor bill
-        :param force_write: whether to delete all existing invoice lines before adding the vendor bill lines
-        """
         with self.env.cr.savepoint():
             with self._get_edi_creation() as invoice:
                 if force_write and invoice.line_ids:
