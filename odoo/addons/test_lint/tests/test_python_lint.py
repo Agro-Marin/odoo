@@ -46,6 +46,27 @@ FLOORS = {
     # in the falling direction too, which is why the improvement is banked in the
     # same change that produced it.
     #
+    # 400 -> 399, and this unit is not this branch's work: `deb97078d7f`
+    # (stock.move's method split and the reservation helpers) removed it and did not
+    # re-floor, so `test_batch_queries` was failing in the falling direction from
+    # that commit onward. Measured in two clean worktrees, `deb97078d7f` and the
+    # commit before this note, with stock, purchase_stock and mrp installed so the
+    # scan sees the same surface: both report 399. Re-floored here rather than left
+    # red, with the attribution rather than a guess at which loop it was.
+    #
+    # 402 -> 400, two units, both the replenishment report's.
+    # `stock_orderpoint._compute_rules` called `product._get_total_routes()` inside
+    # its per-record loop, and each override answered with an unbounded
+    # `stock.rule` search whose result does not depend on the product; the batched
+    # `_get_total_routes_by_product` searches once for the recordset.
+    # `_compute_replenishment_uom_id_placeholder` called
+    # `_get_replenishment_multiple_alternative` per record, whose mrp override ran a
+    # `_bom_find` and whose purchase_stock override ran `_get_dates_info` for each
+    # one; `_get_replenishment_multiple_alternative_map` resolves both in batch.
+    # Measured on 300 orderpoints carrying real routes, vendors and BoMs, the whole
+    # 16-column list read went 983 queries to 77. Queries removed, not findings
+    # hidden: the loops the scanner was pointing at are gone.
+    #
     # 403 -> 402. The unit was already gone when this was measured: a clean
     # worktree of HEAD reports 402 against the committed 403, so `test_batch_queries`
     # had been failing in the falling direction for every commit since whichever
@@ -66,6 +87,26 @@ FLOORS = {
     # the call inside a `for`. It was never an N+1 to begin with: that loop is
     # over document *models*, of which a message batch has one or two, not over
     # records. A finding removed, not a query.
+    #
+    # 399 -> 396 is stock.warehouse, and all three are queries that stopped being
+    # run: `_update_name_and_code` and `_update_extra_picking_type_sequences` each
+    # walked the warehouse's operation types one at a time to rebuild a reference
+    # sequence payload that `stock.picking.type._prepare_sequence_vals` already
+    # owns, and `_unlink_except_in_use` called the per-record `_check_archivable`
+    # once per warehouse after batching the very lookup that feeds it. Measured on
+    # a worktree carrying only this change, so the count is this change's alone.
+    #
+    # 396 -> 395, and the unit is the scanner losing sight of a query rather than
+    # a query going away -- said plainly because the opposite reading would be a
+    # win this change did not earn. `mrp._update_uom` ran `_read_group` lexically
+    # inside a `for model, ... in (...)` loop over mrp.bom, mrp.bom.line and
+    # mrp.production, which is what E8507 matches. The loop body is now a call to
+    # the shared `product.product._restamp_uom`, so the three read_groups still
+    # happen -- they are three different models and cannot be one query -- but no
+    # query sits inside a loop for the scanner to see. Diffed finding-by-finding
+    # between two worktrees at the same commit: one removal,
+    # `addons/mrp/models/product.py:787`, and no additions; the three other moved
+    # lines are the same findings shifted by edits above them.
     "n-plus-one-query": 394,
     "gettext-developer-error": 52,
     "config-chainmap-patch": 0,

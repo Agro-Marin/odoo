@@ -155,6 +155,29 @@ env:
   CERTIFICATE_INSTALL: certificate
   CERTIFICATE_TEST_TAGS: /certificate
 
+  # stock, added 2026-08-22 — the same hole as mrp's, one layer down. `mrp`
+  # installs stock and exercises it as a consumer, but selects `/mrp`, so no
+  # workflow has ever run a single one of stock's own 1337 tests. The cost is
+  # on the books here too: e46c890c065 landed test_orderpoint_audit.py with two
+  # tests that could not pass in a stock-only registry -- they searched for a
+  # `buy` rule, an action `purchase_stock` adds to the selection, got an empty
+  # recordset, and asserted on behaviour that lives in an override stock does
+  # not carry. They were red from the commit that added them and stayed red,
+  # because nothing ran them.
+  #
+  # stock sits under mrp, purchase_stock, sale_stock, point_of_sale and the
+  # whole delivery ring, so its own suite is the cheapest place to catch a
+  # regression that would otherwise surface as a failure in a dependent module.
+  #
+  # Its own database, same reasoning as the three suites above.
+  STOCK_INSTALL: stock
+  # The 8 HttpCase tours are excluded rather than skipped silently: `--no-http`
+  # below turns each into a success that never ran, and the count gate cannot
+  # tell that apart from a narrowed tag. They are the same deferral as base's
+  # TestIrModelFieldsTranslation -- re-include both once the runner has a
+  # confirmed headless Chrome, at which point the floor moves to 1345.
+  STOCK_TEST_TAGS: /stock,-:TestStockPickingTour,-:TestStockReportTour
+
 jobs:
   base-smoke:
     name: base suite (PostgreSQL 18)
@@ -369,6 +392,44 @@ jobs:
           echo "certificate tests run: $RAN (floor: 35)"
           if [ "$RAN" -lt 35 ]; then
             echo "::error::only $RAN certificate tests ran, below the floor of 35 —"
+            echo "::error::something was skipped rather than failed."
+            exit 1
+          fi
+
+      - name: Run stock suite
+        # Its own database (ci_stock), same reasoning as the three above.
+        # It runs after mrp only because the steps are appended in the order the
+        # lanes were added; the two are independent. When both go red the stock
+        # line is the one that names the defect -- mrp installs stock, so a stock
+        # regression reaches mrp as collateral.
+        run: |
+          set -o pipefail
+          python odoo-bin \
+            --addons-path=odoo/addons,addons \
+            -d ci_stock \
+            --db_host=localhost --db_port=5432 --db_user=odoo --db_password=odoo \
+            --db-template=template0 \
+            -i "${STOCK_INSTALL}" \
+            --test-enable --test-tags "${STOCK_TEST_TAGS}" \
+            --stop-after-init \
+            --max-cron-threads=0 --no-http \
+            --log-level=test --logfile=/dev/stdout | tee /tmp/stock-suite.log
+
+      - name: Assert the stock suite actually ran
+        # Same guard as the suites above. 1337 tests today under this tag
+        # expression, measured on a stock-only install; the floor sits well
+        # under it so that a narrowed tag or a module that failed to install
+        # fails loudly, rather than a single deleted test doing it.
+        run: |
+          RAN=$(grep -oE '[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests' /tmp/stock-suite.log \
+                | tail -1 | grep -oE 'of [0-9]+ tests' | grep -oE '[0-9]+')
+          if [ -z "$RAN" ]; then
+            echo "::error::no test-result summary in the log — stock did not report a count"
+            exit 1
+          fi
+          echo "stock tests run: $RAN (floor: 1200)"
+          if [ "$RAN" -lt 1200 ]; then
+            echo "::error::only $RAN stock tests ran, below the floor of 1200 —"
             echo "::error::something was skipped rather than failed."
             exit 1
           fi
