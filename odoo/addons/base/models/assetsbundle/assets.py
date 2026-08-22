@@ -113,9 +113,9 @@ class WebAsset:
         return self._content
 
     def _raw_source(self) -> str:
-        return self.inline or self._fetch_content()
+        return self.inline or self._get_content()
 
-    def _fetch_content(self) -> str:
+    def _get_content(self) -> str:
         try:
             self._resolve_attachment()
             if self._filename:
@@ -172,9 +172,9 @@ class JavascriptAsset(WebAsset):
         minified = minify_js(content, label=self.url or self.name)
         return self.with_header(minified if minified is not None else content)
 
-    def _fetch_content(self) -> str:
+    def _get_content(self) -> str:
         try:
-            return super()._fetch_content()
+            return super()._get_content()
         except AssetError as e:
             return self.generate_error(str(e))
 
@@ -241,45 +241,10 @@ class StylesheetAsset(WebAsset):
         r"""(?!['"]|/|https?://|data:|\#\{str|\#(?!\{))"""
         r"""(?P<body>[^'")\s]*)(?P=q)""",
     )
-    """Match a ``url(…)`` whose body is a *relative path* needing rewriting.
-
-    Carried no leading ``(?<!")`` guard since string protection moved into
-    :func:`_rewrite_css_outside_strings`. That lookbehind used to keep the
-    rewrite out of ``content: "…url(x)…"``; the scanner now consumes string
-    literals as opaque spans, so the only thing it could still do was refuse a
-    genuine ``url()`` that happened to abut a closing quote
-    (``background:"x"url(y.png)``), leaving that reference relative to the
-    bundle URL — a silent 404.
-
-    The lookahead skips what must be left alone:
-
-    * an already-absolute or protocol-relative href, and a ``data:`` payload;
-    * ``#{str…}`` — an interpolation calling ``str-replace``/``str-slice``,
-      whose arguments carry ``)`` and spaces that ``body`` cannot span;
-    * ``#`` NOT followed by ``{`` — a same-document reference
-      (``clip-path: url(#clip)``, ``mask: url(#m)``, ``behavior:
-      url(#default#VML)``). Prefixing one with the stylesheet's directory
-      resolves it to nothing and silently drops the effect.
-
-    ``#{`` itself must still MATCH: the rewrite runs on Sass *source*, and the
-    common shape is a path whose leading segment is interpolated
-    (``url("#{$lato-font-path}/Lato-Reg-webfont.eot")``, where
-    ``$lato-font-path`` is ``"./lato"``). Skipping those leaves a URL relative
-    to the *bundle* URL, so every Lato/Google web font 404s.
-    """
     rx_charset = re.compile(r'(@charset "[^"]+";)')
     _CSS_TOKEN_RE = _CSS_STRING_OR_COMMENT
     _SOURCE_TOKEN_RE = _CSS_STRING_OR_COMMENT
     _IDENT_CHAR = re.compile(r"[\w-]")
-    """Characters that can continue an identifier, a number or a dimension.
-
-    A CSS comment is not whitespace, so dropping one usually joins nothing —
-    ``.a/*x*/.b`` really is ``.a.b``. But between two of THESE characters the
-    comment is the only thing keeping two tokens apart, and deleting it fuses
-    them: ``@media/*c*/screen`` became the single at-keyword ``@mediascreen``
-    and the browser dropped the whole block; ``1px/*c*/2px`` became the invalid
-    dimension ``1px2px``. Only that case substitutes a space.
-    """
 
     def __init__(
         self, *args: Any, rtl: bool = False, autoprefix: bool = False, **kw: Any
@@ -297,9 +262,9 @@ class StylesheetAsset(WebAsset):
             f"{self.url or self.inline},{self.last_modified},{direction},{autoprefixed}"
         )
 
-    def _fetch_content(self) -> str:
+    def _get_content(self) -> str:
         try:
-            content = super()._fetch_content()
+            content = super()._get_content()
             web_dir = posixpath.dirname(self.url)
 
             def _rewrite_import(match: re.Match[str]) -> str:
@@ -407,7 +372,6 @@ class ScssStylesheetAsset(PreprocessedCSS):
         )
 
     _sass_syntax = "scss"
-    """Dart Sass syntax identifier; see :class:`SassStylesheetAsset`."""
 
     def minify(self) -> str:
         return self.with_header()

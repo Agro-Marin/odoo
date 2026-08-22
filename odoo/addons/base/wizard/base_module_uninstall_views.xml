@@ -21,12 +21,20 @@
                             <templates>
                                 <t t-name="card" class="flex-row align-items-center">
                                     <aside>
-                                        <field name="icon" widget="image_url" options="{'size': [50, 50]}" alt="Icon" />
+                                        <field
+                                            name="icon"
+                                            widget="image_url"
+                                            options="{'size': [50, 50]}"
+                                            alt="Icon" />
                                     </aside>
                                     <main t-att-title="record.shortdesc.value">
-                                        <field class="fw-bold fs-5 mb-0" name="shortdesc" />
+                                        <field
+                                            class="fw-bold fs-5 mb-0"
+                                            name="shortdesc" />
                                         <p class="text-muted small my-1 lh-sm">
-                                            <field groups="!base.group_no_one" name="summary" />
+                                            <field
+                                                groups="!base.group_no_one"
+                                                name="summary" />
                                             <code groups="base.group_no_one">
                                                 <field name="name" />
                                             </code>
@@ -44,8 +52,17 @@
                     </list>
                 </field>
                 <footer>
-                    <button string="Uninstall" class="btn-secondary" type="object" name="action_uninstall" data-hotkey="q" />
-                    <button string="Discard" class="btn-primary" special="cancel" data-hotkey="x" />
+                    <button
+                        string="Uninstall"
+                        class="btn-secondary"
+                        type="object"
+                        name="action_uninstall"
+                        data-hotkey="q" />
+                    <button
+                        string="Discard"
+                        class="btn-primary"
+                        special="cancel"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>

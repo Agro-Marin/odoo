@@ -6,6 +6,7 @@ import requests
 from weasyprint.urls import URLFetcher
 
 from odoo.exceptions import AccessError, UserError
+from odoo.libs.json import loads as json_loads
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
@@ -13,7 +14,7 @@ from odoo.tools import mute_logger
 from odoo.addons.base.models.ir_actions_report import (
     PDF_OPTIONS_DATA_KEY,
     OdooURLFetcher,
-    _is_blocked_fetch_host,
+    _is_fetch_host_blocked,
 )
 
 
@@ -22,7 +23,7 @@ class TestReportUrlFetcher(TransactionCase):
     def setUp(self):
         super().setUp()
         self.report = self.env["ir.actions.report"]
-        self.fetcher = self.report._build_url_fetcher()
+        self.fetcher = self.report._prepare_url_fetcher()
         self.addCleanup(self.fetcher.cleanup)
 
     @mute_logger("odoo.addons.base.models.ir_actions_report")
@@ -94,10 +95,10 @@ class TestReportUrlFetcher(TransactionCase):
             "fe80::1",
         ):
             with self.subTest(host=host):
-                self.assertTrue(_is_blocked_fetch_host(host))
+                self.assertTrue(_is_fetch_host_blocked(host))
         for host in ("8.8.8.8", "93.184.216.34", "cdn.example.com", None, ""):
             with self.subTest(host=host):
-                self.assertFalse(_is_blocked_fetch_host(host))
+                self.assertFalse(_is_fetch_host_blocked(host))
 
     def test_loopback_names_are_blocked_without_resolving(self):
         for host in (
@@ -110,12 +111,12 @@ class TestReportUrlFetcher(TransactionCase):
             "db.localhost.",
         ):
             with self.subTest(host=host):
-                self.assertTrue(_is_blocked_fetch_host(host))
+                self.assertTrue(_is_fetch_host_blocked(host))
 
     def test_names_needing_resolution_stay_unblocked(self):
         for host in ("localtest.me", "internal.corp.example.com"):
             with self.subTest(host=host):
-                self.assertFalse(_is_blocked_fetch_host(host))
+                self.assertFalse(_is_fetch_host_blocked(host))
 
     @mute_logger("odoo.addons.base.models.ir_actions_report")
     def test_fetch_refuses_private_ip(self):
@@ -234,7 +235,7 @@ class TestReportAuditFixes(TransactionCase):
         with self.assertLogs(
             "odoo.addons.base.models.ir_actions_report", level="WARNING"
         ) as capture:
-            png = self.env["ir.actions.report"].barcode("I2of5", "not-numeric")
+            png = self.env["ir.actions.report"].prepare_barcode("I2of5", "not-numeric")
         self.assertTrue(png.startswith(b"\x89PNG"))
         self.assertTrue(
             any("falling back to Code128" in line for line in capture.output)
@@ -436,7 +437,7 @@ class TestValidActionReportsDomainGuard(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestWeasyPrintFailureObservability(TransactionCase):
     def test_layout_failure_logs_traceback(self):
-        engine = self.env["ir.actions.report"]._build_weasyprint_engine()
+        engine = self.env["ir.actions.report"]._prepare_weasyprint_engine()
         with (
             patch(
                 "odoo.addons.base.models.ir_actions_report.weasyprint.HTML",
@@ -460,7 +461,7 @@ class TestHtmlToImageTestMode(TransactionCase):
         registry_cls = type(self.env["ir.actions.report"])
         with patch.object(
             registry_cls,
-            "_build_url_fetcher",
+            "_prepare_url_fetcher",
             side_effect=AssertionError("must not render in test mode"),
         ) as fetcher_mock:
             result = self.env["ir.actions.report"]._render_html_to_image(
@@ -476,7 +477,7 @@ class TestHtmlToImageTestMode(TransactionCase):
         fetcher_cm.__exit__ = MagicMock(return_value=False)
         with (
             patch.object(
-                registry_cls, "_build_url_fetcher", return_value=fetcher_cm
+                registry_cls, "_prepare_url_fetcher", return_value=fetcher_cm
             ) as fetcher_mock,
             patch(
                 "odoo.addons.base.models.ir_actions_report.weasyprint.HTML",
@@ -509,7 +510,7 @@ class TestAssociatedViewMissingActionRef(TransactionCase):
         )
 
     def test_returns_action_data_when_action_ref_exists(self) -> None:
-        data = self.report.associated_view()
+        data = self.report.action_view_qweb_views()
         self.assertIsInstance(data, dict)
         matching_view, other_view = self.env["ir.ui.view"].create(
             [
@@ -526,11 +527,11 @@ class TestAssociatedViewMissingActionRef(TransactionCase):
             [("module", "=", "base"), ("name", "=", "action_ui_view")]
         )
         imd.unlink()
-        self.assertFalse(self.report.associated_view())
+        self.assertFalse(self.report.action_view_qweb_views())
 
     def test_returns_false_when_report_name_has_no_module_part(self) -> None:
         self.report.report_name = "audit_no_module_part"
-        self.assertFalse(self.report.associated_view())
+        self.assertFalse(self.report.action_view_qweb_views())
 
 
 @tagged("post_install", "-at_install")
@@ -574,7 +575,7 @@ class TestXmlidLookupCacheOrderingAfterWrite(TransactionCase):
 class TestFetcherHttpFallback(TransactionCase):
     def setUp(self):
         super().setUp()
-        self.fetcher = self.env["ir.actions.report"]._build_url_fetcher()
+        self.fetcher = self.env["ir.actions.report"]._prepare_url_fetcher()
         self.addCleanup(self.fetcher.cleanup)
 
     @mute_logger("odoo.addons.base.models.ir_actions_report")
@@ -589,11 +590,13 @@ class TestFetcherHttpFallback(TransactionCase):
             raise ValueError("audit: stop here")
 
         with (
-            patch.object(OdooURLFetcher, "_do_get", staticmethod(failing_get)),
+            patch.object(
+                OdooURLFetcher, "_get_http_response", staticmethod(failing_get)
+            ),
             patch.object(URLFetcher, "fetch", fake_super_fetch),
             self.assertRaises(ValueError),
         ):
-            self.fetcher._fetch_via_http("/web/image/1", "/web/image/1")
+            self.fetcher._get_via_http("/web/image/1", "/web/image/1")
         parsed = urlparse(seen["url"])
         self.assertTrue(
             parsed.scheme and parsed.netloc,
@@ -610,7 +613,7 @@ class TestFetcherHttpFallback(TransactionCase):
             captured.update(kwargs)
             return b"\x89PNG-audit"
 
-        with patch.object(registry_cls, "barcode", fake_barcode):
+        with patch.object(registry_cls, "prepare_barcode", fake_barcode):
             response = self.fetcher._resolve_barcode(
                 "/report/barcode/QR/audit?barBorder=0",
                 "/report/barcode/QR/audit",
@@ -632,14 +635,14 @@ class TestReportFetcherOrigin(TransactionCase):
     def _route(self, fetcher, url):
         seen = {}
 
-        def do_get(target, cookies, verify=True):
+        def fake_http_response(target, cookies, verify=True):
             seen["local"] = verify
             response = MagicMock()
             response.headers = {"Content-Type": "image/png"}
             response.content = b"x"
             return response
 
-        fetcher._do_get = do_get
+        fetcher._get_http_response = fake_http_response
         with patch.object(
             URLFetcher, "fetch", lambda self, u, headers=None: MagicMock()
         ):
@@ -693,3 +696,75 @@ class TestReportFetcherOrigin(TransactionCase):
         ):
             self._route(fetcher, "http://169.254.169.254/latest/meta-data/")
         fetcher.cleanup()
+
+
+@tagged("post_install", "-at_install")
+class TestMergePdfsErrorPolicy(TransactionCase):
+
+    def setUp(self):
+        super().setUp()
+        self.report = self.env["ir.actions.report"]
+        self.valid = self.report._render_html_to_pdf(
+            ["<html><body><p>valid</p></body></html>"]
+        )
+
+    def test_default_policy_aborts_and_names_the_corrupt_stream_as_cause(self):
+        with self.assertRaises(UserError) as caught:
+            self.report._merge_pdfs([io.BytesIO(self.valid), io.BytesIO(b"not a pdf")])
+        self.assertIsNotNone(
+            caught.exception.__cause__,
+            "the reader failure is the cause of the UserError and must be chained; "
+            "raising inside a helper left it as an implicit __context__ instead",
+        )
+
+    def test_a_policy_that_returns_none_carries_on(self):
+        collected = []
+
+        def collect(error, error_stream):
+            collected.append(error_stream)
+
+        merged = self.report._merge_pdfs(
+            [io.BytesIO(self.valid), io.BytesIO(b"not a pdf")], collect
+        )
+        self.assertEqual(len(collected), 1, "the corrupt stream must reach the policy")
+        self.assertTrue(
+            merged.getvalue().startswith(b"%PDF"),
+            "a policy that declines to abort must still get the surviving pages",
+        )
+
+    def test_the_builder_returns_the_error_rather_than_raising_it(self):
+        error = self.report._prepare_merge_pdfs_error()
+        self.assertIsInstance(
+            error,
+            UserError,
+            "_prepare_*_error builds the exception; the caller writes the raise",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestLayoutConfiguratorAction(TransactionCase):
+
+    def setUp(self):
+        super().setUp()
+        self.report = self.env["ir.actions.report"].search([], limit=1)
+        self.env.company.external_report_layout_id = False
+
+    def test_a_company_without_a_layout_gets_the_configurator_first(self):
+        action = self.report.report_action([])
+        self.assertEqual(action["type"], "ir.actions.act_window")
+        context = action.get("context")
+        if isinstance(context, str):
+            context = json_loads(context)
+        inner = context.get("report_action")
+        self.assertIsNotNone(
+            inner,
+            "the configurator carries the report action under the literal key "
+            "'report_action', which web/models/base_document_layout.py reads back",
+        )
+        self.assertEqual(inner["type"], "ir.actions.report")
+        self.assertTrue(inner["close_on_report_download"])
+
+    def test_discard_logo_check_returns_the_report_action_itself(self):
+        action = self.report.with_context(discard_logo_check=True).report_action([])
+        self.assertEqual(action["type"], "ir.actions.report")
+        self.assertEqual(action["report_name"], self.report.report_name)

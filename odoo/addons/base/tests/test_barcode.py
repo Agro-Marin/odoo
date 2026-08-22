@@ -45,7 +45,7 @@ class TestBarcode(TransactionCase):
 
     def test_barcode_fallback_to_code128(self):
         Report = self.env["ir.actions.report"]
-        result = Report.barcode("EAN8", "ABCDEFGH")
+        result = Report.prepare_barcode("EAN8", "ABCDEFGH")
         self.assertTrue(result, "barcode fallback to Code128 should produce output")
         self.assertTrue(
             result[:4] == b"\x89PNG",
@@ -54,13 +54,13 @@ class TestBarcode(TransactionCase):
 
     def test_barcode_fallback_preserves_humanreadable(self):
         Report = self.env["ir.actions.report"]
-        result = Report.barcode("EAN8", "ABCDEFGH", humanreadable=1)
+        result = Report.prepare_barcode("EAN8", "ABCDEFGH", humanreadable=1)
         self.assertTrue(result, "barcode with humanreadable should produce output")
 
     def test_barcode_tolerates_string_bool_options(self):
         Report = self.env["ir.actions.report"]
         for value in ("true", "yes", "on", "1", "false", "0", "", "garbage"):
-            result = Report.barcode(
+            result = Report.prepare_barcode(
                 "Code128", "HELLO", quiet=value, humanreadable=value
             )
             self.assertEqual(

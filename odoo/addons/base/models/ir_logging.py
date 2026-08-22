@@ -8,7 +8,6 @@ from odoo.models import GC_UNLINK_LIMIT
 _logger = logging.getLogger(__name__)
 
 DEFAULT_LOGGING_RETENTION_DAYS = 180
-"""Default value (days) for the ``base.logging_retention_days`` parameter."""
 
 
 class IrLogging(models.Model):

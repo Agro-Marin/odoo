@@ -32,7 +32,9 @@
                         <field name="css_margins" />
                         <field name="disable_shrinking" />
                         <field name="dpi" />
-                        <field name="report_ids" widget="many2many_tags"
+                        <field
+                            name="report_ids"
+                            widget="many2many_tags"
                             options="{'not_delete': True}" />
                     </group>
                 </sheet>

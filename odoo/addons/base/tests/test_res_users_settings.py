@@ -11,8 +11,8 @@ class TestResUsersSettingsOwnership(TransactionCase):
         cls.user_a = new_test_user(cls.env, login="ruset_a", groups="base.group_user")
         cls.user_b = new_test_user(cls.env, login="ruset_b", groups="base.group_user")
         Settings = cls.env["res.users.settings"]
-        cls.settings_a = Settings._find_or_create_for_user(cls.user_a)
-        cls.settings_b = Settings._find_or_create_for_user(cls.user_b)
+        cls.settings_a = Settings._get_or_create_for_user(cls.user_a)
+        cls.settings_b = Settings._get_or_create_for_user(cls.user_b)
         cls._writable_field = next(
             (
                 name
@@ -52,7 +52,7 @@ class TestResUsersSettingsChangeDetection(TransactionCase):
         super().setUpClass()
         cls.user_a = new_test_user(cls.env, login="rusetcd_a", groups="base.group_user")
         cls.user_b = new_test_user(cls.env, login="rusetcd_b", groups="base.group_user")
-        cls.settings_a = cls.env["res.users.settings"]._find_or_create_for_user(
+        cls.settings_a = cls.env["res.users.settings"]._get_or_create_for_user(
             cls.user_a
         )
 
@@ -107,7 +107,7 @@ class TestResUsersSettingsWriteOnlyChanges(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.user = new_test_user(cls.env, login="rusetwoc", groups="base.group_user")
-        cls.settings = cls.env["res.users.settings"]._find_or_create_for_user(cls.user)
+        cls.settings = cls.env["res.users.settings"]._get_or_create_for_user(cls.user)
 
     def _find_writable_field(self, types):
         Settings = self.env["res.users.settings"]
@@ -172,7 +172,7 @@ class TestResUsersSettingsRowLifecycle(TransactionCase):
         user.invalidate_recordset()
         self.assertFalse(user.res_users_settings_id)
         self.assertTrue(
-            self.env["res.users.settings"]._find_or_create_for_user(user),
+            self.env["res.users.settings"]._get_or_create_for_user(user),
             "the accessor the web client boots through must close it",
         )
 
@@ -204,6 +204,23 @@ class TestResUsersSettingsRowLifecycle(TransactionCase):
             user.invalidate_recordset()
             self.assertTrue(user.res_users_settings_id, f"{name} made no row")
             self.assertEqual(user[name], value, f"{name} was written to nothing")
+
+    def test_a_settings_write_does_not_answer_a_readonly_cursor_with_nothing(self):
+        name, value = next(iter(self._writable_settings_values()))
+        user = new_test_user(self.env, login="rusetlc_ro", groups="base.group_portal")
+        self.assertFalse(user.res_users_settings_id)
+
+        cursor = self.env.cr
+        was_readonly = cursor._readonly
+        cursor._readonly = True
+        try:
+            user.write({name: value})
+        finally:
+            cursor._readonly = was_readonly
+
+        user.invalidate_recordset()
+        self.assertTrue(user.res_users_settings_id, f"{name} made no row")
+        self.assertEqual(user[name], value, f"{name} was written to nothing")
 
     def test_a_settings_value_survives_create(self):
         for name, value in self._writable_settings_values():

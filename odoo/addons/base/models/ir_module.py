@@ -275,18 +275,18 @@ class IrModuleModule(models.Model):
         readonly=True,
     )
     menus_by_module = fields.Text(
-        string="Menus", compute="_compute_views_by_module", store=True
+        string="Menus", compute="_compute_records_by_module", store=True
     )
     reports_by_module = fields.Text(
-        string="Reports", compute="_compute_views_by_module", store=True
+        string="Reports", compute="_compute_records_by_module", store=True
     )
     views_by_module = fields.Text(
-        string="Views", compute="_compute_views_by_module", store=True
+        string="Views", compute="_compute_records_by_module", store=True
     )
     application = fields.Boolean("Application", readonly=True)
     icon = fields.Char("Icon URL")
-    icon_image = fields.Binary(string="Icon", compute="_compute_icon_image")
-    icon_flag = fields.Char(string="Flag", compute="_compute_icon_image")
+    icon_image = fields.Binary(string="Icon", compute="_compute_icon_display")
+    icon_flag = fields.Char(string="Flag", compute="_compute_icon_display")
     to_buy = fields.Boolean("Odoo Enterprise Module", default=False)
     has_iap = fields.Boolean(compute="_compute_has_iap")
     data_file_checksums = fields.Json(readonly=True, prefetch=False)
@@ -370,7 +370,7 @@ class IrModuleModule(models.Model):
             )
 
     @api.depends("name", "state")
-    def _compute_views_by_module(self) -> None:
+    def _compute_records_by_module(self) -> None:
         IrModelData = self.env["ir.model.data"].with_context(active_test=True)
         dmodels = ["ir.ui.view", "ir.actions.report", "ir.ui.menu"]
 
@@ -425,7 +425,7 @@ class IrModuleModule(models.Model):
             )
 
     @api.depends("icon")
-    def _compute_icon_image(self) -> None:
+    def _compute_icon_display(self) -> None:
         self.icon_image = ""
         self.icon_flag = ""
         for module in self:
@@ -479,7 +479,7 @@ class IrModuleModule(models.Model):
         self.env.registry.clear_cache("stable")
         return super().unlink()
 
-    def _get_modules_to_load_domain(self) -> list[tuple[str, str, str]]:
+    def _get_domain_modules_to_load(self) -> list[tuple[str, str, str]]:
         return [("state", "=", "installed")]
 
     @api.model
@@ -761,6 +761,8 @@ class IrModuleModule(models.Model):
             )
             raise RuntimeError(msg)
 
+        self.env.cr.execute("SET LOCAL lock_timeout = '3s'")
+
         if self.search_count(
             [("state", "in", ("to install", "to upgrade", "to remove"))],
             limit=1,
@@ -772,8 +774,9 @@ class IrModuleModule(models.Model):
                 )
             )
         try:
-            self.env.cr.execute("LOCK ir_module_module IN EXCLUSIVE MODE NOWAIT")
+            self.env.cr.execute("LOCK ir_module_module IN EXCLUSIVE MODE")
         except psycopg.OperationalError:
+            self.env.cr.rollback()
             raise UserError(
                 _(
                     "Odoo is currently processing another module operation.\n"
@@ -782,8 +785,9 @@ class IrModuleModule(models.Model):
             ) from None
 
         try:
-            self.env.cr.execute("SELECT FROM ir_cron FOR UPDATE NOWAIT")
+            self.env.cr.execute("SELECT FROM ir_cron FOR UPDATE")
         except psycopg.OperationalError:
+            self.env.cr.rollback()
             raise UserError(
                 _(
                     "Odoo is currently processing a scheduled action.\n"
@@ -1313,8 +1317,8 @@ class IrModuleModuleDependency(models.Model):
     depend_id = fields.Many2one(
         "ir.module.module",
         "Dependency",
-        compute="_compute_depend",
-        search="_search_depend",
+        compute="_compute_depend_id",
+        search="_search_depend_id",
     )
     state = fields.Selection(DEP_STATES, string="Status", compute="_compute_state")
 
@@ -1329,7 +1333,7 @@ class IrModuleModuleDependency(models.Model):
     )
 
     @api.depends("name")
-    def _compute_depend(self) -> None:
+    def _compute_depend_id(self) -> None:
         names = {dep.name for dep in self}
         mods = self.env["ir.module.module"].search([("name", "in", names)])
 
@@ -1337,7 +1341,7 @@ class IrModuleModuleDependency(models.Model):
         for dep in self:
             dep.depend_id = name_mod.get(dep.name)
 
-    def _search_depend(
+    def _search_depend_id(
         self, operator: str, value: Any
     ) -> list[tuple[str, str, Any]] | NotImplementedType:
         if operator == "any" and isinstance(value, Domain | list | tuple):
@@ -1384,8 +1388,8 @@ class IrModuleModuleExclusion(models.Model):
     exclusion_id = fields.Many2one(
         "ir.module.module",
         "Exclusion Module",
-        compute="_compute_exclusion",
-        search="_search_exclusion",
+        compute="_compute_exclusion_id",
+        search="_search_exclusion_id",
     )
     state = fields.Selection(DEP_STATES, string="Status", compute="_compute_state")
 
@@ -1395,7 +1399,7 @@ class IrModuleModuleExclusion(models.Model):
     )
 
     @api.depends("name")
-    def _compute_exclusion(self) -> None:
+    def _compute_exclusion_id(self) -> None:
         names = {excl.name for excl in self}
         mods = self.env["ir.module.module"].search([("name", "in", names)])
 
@@ -1403,7 +1407,7 @@ class IrModuleModuleExclusion(models.Model):
         for excl in self:
             excl.exclusion_id = name_mod.get(excl.name)
 
-    def _search_exclusion(
+    def _search_exclusion_id(
         self, operator: str, value: Any
     ) -> list[tuple[str, str, Any]] | NotImplementedType:
         if operator == "any" and isinstance(value, Domain | list | tuple):

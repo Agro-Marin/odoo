@@ -16,7 +16,10 @@
                             <small invisible="not scope">Scope: <field name="scope" /></small>
                             <small>Expires on: <field name="expiration_date" /></small>
                         </div>
-                        <button name="remove" type="object" string="Delete"
+                        <button
+                            name="remove"
+                            type="object"
+                            string="Delete"
                             class="btn btn-secondary ms-auto mb-auto my-auto" />
                     </t>
                 </templates>

@@ -434,7 +434,7 @@ ZeroDivisionError: division by zero"""
                 "selection_value": selection_value.id,
             }
         )
-        action._set_selection_value()
+        action._inverse_selection_value()
         self.assertEqual(action.value, selection_value.value)
         context = {
             "active_model": "res.country",
@@ -913,10 +913,6 @@ ZeroDivisionError: division by zero"""
                 "odoo.addons.base.models.ir_actions_server", level="WARNING"
             ) as log_catcher:
                 self.env.cr.postcommit.run()
-        # Asserted on what the line has to TELL an operator rather than on its
-        # exact wording: it names the action, and says the delivery will not be
-        # retried. The message used to be "Webhook call failed: <err>", which
-        # identified neither the action nor the receiver.
         output = "\n".join(log_catcher.output)
         self.assertIn(self.action.name, output, "the action must be identifiable")
         self.assertIn(
@@ -1103,8 +1099,25 @@ ZeroDivisionError: division by zero"""
                 "update_path": "totally_not_a_field",
             }
         )
-        self.assertEqual(action._get_relation_chain("update_path"), ([], ""))
+        self.assertEqual(action._get_relation_chain("update_path"), [])
         self.assertFalse(action.update_field_id)
+
+    def test_b3b_relation_chain_label_reads_as_a_path(self):
+        action = self.action.copy(
+            {
+                "model_id": self.res_partner_model.id,
+                "state": "object_write",
+                "update_path": "country_id.name",
+            }
+        )
+        chain = action._get_relation_chain("update_path")
+        self.assertEqual([field.name for field in chain], ["country_id", "name"])
+        self.assertEqual(
+            action._get_relation_chain_label(chain),
+            " > ".join(field.get_description(self.env)["string"] for field in chain),
+        )
+        self.assertIn(" > ", action._get_relation_chain_label(chain))
+        self.assertEqual(action._get_relation_chain_label([]), "")
 
     def test_b4_empty_path_segment_raises_clear_error_on_save(self):
         with self.assertRaises(ValidationError) as cm:
@@ -1390,7 +1403,7 @@ class TestActionsReadAndXmlId(common.TransactionCase):
         action = self._action_on_a_model_that_generates_a_placeholder(False)
         self.assertEqual(action._get_action_dict()["help"], self.PLACEHOLDER)
 
-    def test_for_xml_id_valid_window(self):
+    def test_get_action_dict_by_xml_id_valid_window(self):
         action = self.env["ir.actions.act_window"].create(
             {
                 "name": "XmlIdWindow",
@@ -1400,20 +1413,22 @@ class TestActionsReadAndXmlId(common.TransactionCase):
         self.env["ir.model.data"].create(
             {
                 "module": "base",
-                "name": "test_for_xml_id_valid_window_action",
+                "name": "test_action_dict_by_xml_id_window_action",
                 "model": "ir.actions.act_window",
                 "res_id": action.id,
             }
         )
-        xml_id = "base.test_for_xml_id_valid_window_action"
-        result = self.env["ir.actions.act_window"]._for_xml_id(xml_id)
+        xml_id = "base.test_action_dict_by_xml_id_window_action"
+        result = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(xml_id)
         self.assertIsInstance(result, dict)
-        readable = action._get_readable_fields()
+        readable = action._get_fields_readable()
         self.assertTrue(set(result.keys()).issubset(readable))
 
-    def test_for_xml_id_non_action_raises(self):
+    def test_get_action_dict_by_xml_id_non_action_raises(self):
         with self.assertRaises(ValidationError):
-            self.env["ir.actions.actions"]._for_xml_id("base.model_res_partner")
+            self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
+                "base.model_res_partner"
+            )
 
     def test_get_action_dict_act_url_no_invalid_field_warning(self):
         action = self.env["ir.actions.act_url"].create(
@@ -1423,7 +1438,7 @@ class TestActionsReadAndXmlId(common.TransactionCase):
         with self.assertNoLogs("odoo.models", "WARNING"):
             result = action._get_action_dict()
         self.assertNotIn("close", result)
-        self.assertTrue(set(result) <= action._get_readable_fields())
+        self.assertTrue(set(result) <= action._get_fields_readable())
         self.assertTrue(set(result) <= set(action._fields))
 
     def test_get_action_dict_window_close_no_invalid_field_warning(self):
@@ -1566,7 +1581,7 @@ class TestActionsBindings(common.TransactionCase):
         ]
         self.assertEqual(ordered, ["Alpha action", "Zeta action"])
 
-    def test_cache_invalidating_fields_cover_binding_inputs(self):
+    def test_fields_invalidating_when_cached_cover_binding_inputs(self):
         binding_inputs = {
             "name",
             "type",
@@ -1578,7 +1593,9 @@ class TestActionsBindings(common.TransactionCase):
             "sequence",
             "domain",
         }
-        invalidating = self.env["ir.actions.actions"]._cache_invalidating_fields()
+        invalidating = self.env[
+            "ir.actions.actions"
+        ]._get_fields_invalidating_when_cached()
         missing = binding_inputs - invalidating
         self.assertFalse(
             missing,

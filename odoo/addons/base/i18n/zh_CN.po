@@ -25308,7 +25308,7 @@ msgid "EU One Stop Shop (OSS) Reports"
 msgstr "EU One Stop Shop (OSS) Reports"
 
 #. module: base
-#: model:ir.model.constraint,message:base.constraint_ir_model_obj_name_uniq
+#: model:ir.model.constraint,message:base.constraint_ir_model_model_uniq
 msgid "Each model must have a unique name."
 msgstr "每个模型必须有一个唯一的名称。"
 

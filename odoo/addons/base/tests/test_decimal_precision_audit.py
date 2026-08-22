@@ -17,20 +17,20 @@ class TestDecimalPrecisionAudit(TransactionCase):
         with self.assertRaises(ValidationError):
             precision.write({"digits": -1})
 
-    def test_precision_get_unknown_application_warns(self):
+    def test_get_precision_unknown_application_warns(self):
         Precision = self.env["decimal.precision"]
         name = "audit_dp_unknown_application"
         self.env.registry.clear_cache("stable")
         with self.assertLogs(
             "odoo.addons.base.models.decimal_precision", "WARNING"
         ) as capture:
-            self.assertEqual(Precision.precision_get(name), 2)
+            self.assertEqual(Precision.get_precision(name), 2)
         self.assertIn(name, capture.output[0])
 
-    def test_precision_get_reflects_write(self):
+    def test_get_precision_reflects_write(self):
         Precision = self.env["decimal.precision"]
         name = "audit_dp_cache"
         precision = Precision.create({"name": name, "digits": 2})
-        self.assertEqual(Precision.precision_get(name), 2)
+        self.assertEqual(Precision.get_precision(name), 2)
         precision.write({"digits": 5})
-        self.assertEqual(Precision.precision_get(name), 5)
+        self.assertEqual(Precision.get_precision(name), 5)

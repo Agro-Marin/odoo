@@ -700,10 +700,6 @@ class TestUrlValidate(BaseCase):
             with self.subTest(case=case):
                 self.assertEqual(validate_url(case), truth)
 
-        # A path, query or fragment on its own has no host for a scheme to attach
-        # to. These used to come back as "http:///index.html" and friends — an
-        # empty authority, which resolves nowhere — so they stay relative and the
-        # caller joins them to the base URL it owns.
         self.assertEqual(validate_url("/index.html"), "/index.html")
         self.assertEqual(validate_url("?debug=1"), "?debug=1")
         self.assertEqual(

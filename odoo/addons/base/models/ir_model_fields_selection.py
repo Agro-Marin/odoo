@@ -291,7 +291,7 @@ class IrModelFieldsSelection(models.Model):
         return result
 
     @api.ondelete(at_uninstall=False)
-    def _unlink_if_manual(self) -> None:
+    def _unlink_except_base_field(self) -> None:
         if self.pool.ready and any(
             selection.field_id.state != "manual" for selection in self
         ):

@@ -80,13 +80,6 @@ class CssPipeline:
     )
     rx_css_split = re.compile(r"/\*! odoo-split:([a-f0-9-]+) \*/")
     rx_css_import = re.compile(r"(@import[^;{]+;?)")
-    """One ``@import`` rule in *compiled* CSS, for hoisting or commenting out.
-
-    Lives here rather than on :class:`AssetsBundle` with the two passes that
-    read it: hoisting is a CSS-spec obligation (``@import`` must precede every
-    rule), not bundle orchestration, and the bundle held the pattern only so
-    :meth:`sourcemap_bundle` could reach back through ``self._bundle`` for it.
-    """
 
     _RTLCSS_TIMEOUT_S: int = 60
 
@@ -238,30 +231,8 @@ class CssPipeline:
             return ""
 
     _compiled_cache: OrderedDict[tuple, str] = OrderedDict()
-    _COMPILED_CACHE_SIZE = 8
+    _COMPILED_CACHE_SIZE = 32
     _compiled_cache_lock = threading.Lock()
-    """Guards the LRU bookkeeping of :attr:`_compiled_cache`, never a compile.
-
-    ``get`` then ``move_to_end`` is not one operation: with the threaded server
-    (``workers = 0``) another request can evict the key in between, and
-    ``move_to_end`` on a gone key raises ``KeyError``. Nothing on the way out
-    catches it — :meth:`compile_css` catches ``CompileError`` /
-    ``SassCompileError``, and ``web.controllers.binary.content_assets`` only
-    ``ValueError`` — so it surfaces as a 500 on the bundle URL (verified by
-    injecting the ``KeyError``: it propagates out of ``AssetsBundle.css()``
-    untouched). Page rendering is not exposed; ``get_links`` versions a bundle
-    from checksums without compiling it.
-
-    The window is narrow — it did not reproduce under the GIL in 32k contended
-    iterations, even at ``setswitchinterval(1e-6)`` — but it is a real
-    interleaving, and the guard costs a lock acquisition per lookup.
-
-    Deliberately NOT held across ``transform``: compiling ``web.assets_web``'s
-    638 KB of concatenated SCSS measures 0.61 s through embedded Dart Sass on
-    this machine, and serialising that would cost far more than the duplicated
-    work two threads racing on a cold key can do. Both compute, both store the
-    same bytes.
-    """
 
     @classmethod
     def _memoized_transform(
@@ -292,30 +263,6 @@ class CssPipeline:
     _RX_APPEARANCE = re.compile(
         r"(?<=[{;\s])appearance\s*:\s*(?P<value>[\w-]+)(?P<important>\s*!important)?"
     )
-    """Match one ``appearance`` declaration, consuming neither side of it.
-
-    The declaration boundary is a zero-width lookbehind and the trailing ``;``
-    stays out of the match, so consecutive declarations both match. The
-    previous form consumed a leading ``[{; \\t]`` AND the trailing ``;``, which
-    left the next declaration with no boundary character of its own: in the
-    compressed output ``.b{appearance:auto;appearance:textfield}`` only the
-    first of the two was prefixed. Expanded output happened to escape this —
-    Sass indents with spaces, so a space remained as the lead — which is why
-    the gap only ever showed in production builds.
-
-    Widening the class to ``\\s`` also covers an unindented hand-written
-    ``.a{\\nappearance:none}``, which the old ``[{; \\t]`` missed outright.
-
-    No stylesheet in this tree currently hits either case (verified: old and
-    new match the same 7 declarations in ``web.assets_frontend`` and the same
-    13 in ``web.assets_web``, in both debug and production) — this closes a
-    latent gap rather than fixing observed output.
-
-    The lookbehind is what keeps the match to declarations: a selector
-    (``.appearance:hover``) or an attribute (``[appearance]``) is preceded by
-    ``.``/``[``, and an already-prefixed ``-webkit-appearance`` by ``-`` —
-    none of which are in ``[{;\\s]``.
-    """
 
     @classmethod
     def _autoprefix_css(cls, source: str) -> str:

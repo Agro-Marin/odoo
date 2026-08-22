@@ -326,6 +326,15 @@ class IrModelFields(models.Model):
                         related_field=self.related,
                     )
                 )
+            if index < last and not field.store:
+                raise ValidationError(
+                    _(
+                        'Field "%(field_name)s" in related path "%(related_field)s" is not '
+                        "stored. Non-stored fields cannot be used in related fields.",
+                        field_name=name,
+                        related_field=self.related,
+                    )
+                )
         return field
 
     @api.constrains("related")
@@ -488,7 +497,7 @@ class IrModelFields(models.Model):
             return (table, f"{rel1}_id", f"{rel2}_id")
 
     @api.onchange("ttype", "model_id", "relation")
-    def _onchange_ttype(self) -> None:
+    def _onchange_relation_definition(self) -> None:
         if self.ttype == "many2many" and self.model_id and self.relation:
             if self.relation not in self.env:
                 return
@@ -777,7 +786,8 @@ class IrModelFields(models.Model):
                             ("ttype", "=", "many2one"),
                             ("model", "=", vals["relation"]),
                             ("name", "=", vals["relation_field"]),
-                        ]
+                        ],
+                        limit=1,
                     )
                 ):
                     raise UserError(
@@ -791,7 +801,7 @@ class IrModelFields(models.Model):
         self.env.registry.clear_cache("stable")
 
         res = super().create(vals_list)
-        res._ensure_group_xmlids()
+        res._add_missing_group_xml_ids()
 
         model_names = OrderedSet(res.mapped("model"))
         if any(model in self.pool for model in model_names):
@@ -799,10 +809,10 @@ class IrModelFields(models.Model):
 
         return res
 
-    def _ensure_group_xmlids(self) -> None:
+    def _add_missing_group_xml_ids(self) -> None:
         groups = self.filtered(lambda field: field.state == "manual").groups
         if groups:
-            groups.sudo()._ensure_xml_id()
+            groups.sudo()._add_missing_xml_ids()
 
     def write(self, vals: dict[str, Any]) -> bool:
         if not self:
@@ -907,7 +917,7 @@ class IrModelFields(models.Model):
                     )
 
         if "groups" in vals:
-            self._ensure_group_xmlids()
+            self._add_missing_group_xml_ids()
 
         if column_rename or patched_models:
             reload_schema(self.env, OrderedSet(self.mapped("model")), patched_models)
@@ -942,7 +952,7 @@ class IrModelFields(models.Model):
             model_string = IrModel._get(field.model).name
             field.display_name = f"{field.field_description} ({model_string})"
 
-    def _reflect_field_params(self, field: Any, model_id: int) -> dict[str, Any]:
+    def _prepare_field_vals(self, field: Any, model_id: int) -> dict[str, Any]:
         translate = next(
             (k for k, v in FIELD_TRANSLATE.items() if v == field.translate),
             "standard",
@@ -1013,7 +1023,7 @@ class IrModelFields(models.Model):
         for model_name in model_names:
             model_id = self.env["ir.model"]._get_id(model_name)
             rows.extend(
-                self._reflect_field_params(field, model_id)
+                self._prepare_field_vals(field, model_id)
                 for field in self.env[model_name]._fields.values()
             )
         if not rows:
@@ -1089,7 +1099,7 @@ class IrModelFields(models.Model):
     def _get_manual_field_data(self, model_name: str) -> dict[str, Any]:
         return self._all_manual_field_data().get(model_name, {})
 
-    def _instantiate_attrs(self, field_data: dict[str, Any]) -> dict[str, Any] | None:
+    def _prepare_field_attrs(self, field_data: dict[str, Any]) -> dict[str, Any] | None:
         attrs = {
             "manual": True,
             "string": field_data["field_description"],

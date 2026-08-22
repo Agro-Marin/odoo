@@ -64,15 +64,15 @@ _LOOPBACK_SUFFIX = ".localhost"
 _DEFAULT_PORTS = {"http": 80, "https": 443}
 
 
-def _effective_port(parsed: Any) -> int:
+def _get_port_effective(parsed: Any) -> int:
     return parsed.port or _DEFAULT_PORTS.get(parsed.scheme or "http", 80)
 
 
-def _verifies_tls(url: str) -> bool:
+def _is_tls_verification_required(url: str) -> bool:
     return urlparse(url).hostname not in _LOOPBACK_HOSTS
 
 
-def _is_blocked_fetch_host(hostname: str | None) -> bool:
+def _is_fetch_host_blocked(hostname: str | None) -> bool:
     if not hostname:
         return False
     host = hostname.strip("[]").lower().rstrip(".")
@@ -106,7 +106,7 @@ def _coerce_bool(value: Any, default: bool) -> bool:
     return default
 
 
-def _inject_page_css(html: str, css: str) -> str:
+def _add_page_css(html: str, css: str) -> str:
     html_str = str(html)
     style_tag = f'<style type="text/css">{css}</style>'
     if "</head>" in html_str:
@@ -114,15 +114,15 @@ def _inject_page_css(html: str, css: str) -> str:
     return f"{style_tag}{html_str}"
 
 
-def _css_string_escape(text: str) -> str:
+def _escape_css_string(text: str) -> str:
     collapsed = " ".join(str(text).split())
     return collapsed.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def _watermark_css(text: str) -> str:
+def _prepare_watermark_css(text: str) -> str:
     return (
         "\nbody::before {"
-        f' content: "{_css_string_escape(text)}";'
+        f' content: "{_escape_css_string(text)}";'
         " position: fixed;"
         " top: 50%; left: 50%;"
         " transform: translate(-50%, -50%) rotate(-35deg);"
@@ -182,7 +182,7 @@ _WEASY_CSS_CACHE_MAX = 32
 
 _IMMUTABLE_ASSET_CSS_RE = re.compile(r"^/web/assets/(?!debug/)[^/]+/")
 
-_NATIVE_MERGE_MAX_BODIES = 50
+_NATIVE_MERGE_MAX = 50
 
 PDF_OPTIONS_DATA_KEY = "__pdf_options__"
 _PDF_OPTION_KEYS = (
@@ -245,7 +245,7 @@ class _WeasySharedState:
                 self._css_cache[key] = parse()
             return self._css_cache[key]
 
-    def reset_for_tests(self) -> None:
+    def clear_for_tests(self) -> None:
         with self._lock:
             self._font_config = None
             self._image_cache.clear()
@@ -392,7 +392,7 @@ class OdooURLFetcher(URLFetcher):
 
     def _is_same_origin(self, parsed: Any) -> bool:
         base = self._parsed_base
-        if _effective_port(parsed) != _effective_port(base):
+        if _get_port_effective(parsed) != _get_port_effective(base):
             return False
         if parsed.hostname == base.hostname:
             return True
@@ -408,7 +408,7 @@ class OdooURLFetcher(URLFetcher):
 
         is_local = not parsed.hostname or self._is_same_origin(parsed)
         if not is_local:
-            if _is_blocked_fetch_host(parsed.hostname):
+            if _is_fetch_host_blocked(parsed.hostname):
                 _logger.warning(
                     "WeasyPrint refused a report resource pointing at a "
                     "private/reserved host (possible SSRF): %s",
@@ -439,9 +439,9 @@ class OdooURLFetcher(URLFetcher):
             if result:
                 return result
 
-        return self._fetch_via_http(url, path)
+        return self._get_via_http(url, path)
 
-    def _find_asset_attachment(self, path: str) -> Any:
+    def _get_asset_attachment(self, path: str) -> Any:
         return (
             self._env["ir.attachment"]
             .sudo()
@@ -457,17 +457,17 @@ class OdooURLFetcher(URLFetcher):
         )
 
     @staticmethod
-    def _asset_blob_present(attachment: Any) -> bool:
+    def _has_asset_blob(attachment: Any) -> bool:
         if not attachment:
             return False
         if attachment.store_fname:
-            backend = attachment._backend_for_key(attachment.store_fname)
+            backend = attachment._get_storage_backend_for_key(attachment.store_fname)
             return bool(backend.read(attachment.store_fname, 1))
         return bool(attachment.db_datas)
 
-    def asset_checksum(self, url: str) -> str | None:
-        attachment = self._find_asset_attachment(urlparse(url).path or "")
-        if not self._asset_blob_present(attachment):
+    def get_asset_checksum(self, url: str) -> str | None:
+        attachment = self._get_asset_attachment(urlparse(url).path or "")
+        if not self._has_asset_blob(attachment):
             return None
         return attachment.checksum or None
 
@@ -481,9 +481,9 @@ class OdooURLFetcher(URLFetcher):
         debug_assets = unique == "debug"
 
         if not debug_assets:
-            attachment = self._find_asset_attachment(path)
+            attachment = self._get_asset_attachment(path)
             if attachment and attachment.raw:
-                return self._make_response(
+                return self._prepare_fetcher_response(
                     url, attachment.raw, attachment.mimetype or "text/css"
                 )
 
@@ -505,7 +505,7 @@ class OdooURLFetcher(URLFetcher):
             elif asset_type == "js" and bundle.javascripts:
                 attachment = bundle.js()
             if attachment and attachment.raw:
-                return self._make_response(
+                return self._prepare_fetcher_response(
                     url, attachment.raw, attachment.mimetype or "text/css"
                 )
         except Exception:
@@ -527,7 +527,9 @@ class OdooURLFetcher(URLFetcher):
                 continue
             if candidate.is_file():
                 mime = mimetypes.guess_type(candidate)[0] or "application/octet-stream"
-                return self._make_response(url, Path(candidate).read_bytes(), mime)
+                return self._prepare_fetcher_response(
+                    url, Path(candidate).read_bytes(), mime
+                )
         return None
 
     def _resolve_web_image(
@@ -539,8 +541,10 @@ class OdooURLFetcher(URLFetcher):
         try:
             model, res_id, field, width, height = self._parse_image_url(path, query)
             ir_binary = self._env["ir.binary"]
-            record = ir_binary._find_record(res_model=model, res_id=res_id, field=field)
-            stream = ir_binary._get_image_stream_from(
+            record = ir_binary._get_record(
+                res_model=model, res_id=res_id, field_name=field
+            )
+            stream = ir_binary._get_stream_image_from_record(
                 record,
                 field,
                 width=width,
@@ -548,7 +552,9 @@ class OdooURLFetcher(URLFetcher):
             )
             data = stream.read()
             if data:
-                return self._make_response(url, data, stream.mimetype or "image/png")
+                return self._prepare_fetcher_response(
+                    url, data, stream.mimetype or "image/png"
+                )
         except Exception:
             _logger.debug("Local image resolution failed for %s", path, exc_info=True)
         return None
@@ -589,14 +595,14 @@ class OdooURLFetcher(URLFetcher):
             barcode_bytes = (
                 self._env["ir.actions.report"]
                 .sudo()
-                .barcode(
+                .prepare_barcode(
                     barcode_type,
                     value,
                     **kwargs,
                 )
             )
             if barcode_bytes:
-                return self._make_response(url, barcode_bytes, "image/png")
+                return self._prepare_fetcher_response(url, barcode_bytes, "image/png")
         except Exception:
             _logger.debug("Local barcode resolution failed for %s", path, exc_info=True)
         return None
@@ -639,20 +645,22 @@ class OdooURLFetcher(URLFetcher):
 
         return model, res_id, field, width, height
 
-    def _fetch_via_http(self, url: str, path: str) -> URLFetcherResponse:
+    def _get_via_http(self, url: str, path: str) -> URLFetcherResponse:
         parsed = urlparse(url)
         full_url = url if parsed.hostname else f"{self._base_url}{path}"
         try:
             cookies = (
                 {"session_id": self._session_cookie} if self._session_cookie else {}
             )
-            resp = self._do_get(full_url, cookies, verify=_verifies_tls(full_url))
+            resp = self._get_http_response(
+                full_url, cookies, verify=_is_tls_verification_required(full_url)
+            )
             try:
                 resp.raise_for_status()
                 content_type = resp.headers.get(
                     "Content-Type", "application/octet-stream"
                 )
-                return self._make_response(url, resp.content, content_type)
+                return self._prepare_fetcher_response(url, resp.content, content_type)
             finally:
                 resp.close()
         except Exception:
@@ -662,7 +670,7 @@ class OdooURLFetcher(URLFetcher):
             return super().fetch(full_url)
 
     @staticmethod
-    def _do_get(
+    def _get_http_response(
         url: str, cookies: dict[str, str], verify: bool = True
     ) -> requests.Response:
         current_test = modules.module.current_test
@@ -684,7 +692,7 @@ class OdooURLFetcher(URLFetcher):
             current_test.http_request_key = saved_key
 
     @staticmethod
-    def _make_response(
+    def _prepare_fetcher_response(
         url: str, body: bytes, content_type: str = "application/octet-stream"
     ) -> URLFetcherResponse:
         return URLFetcherResponse(
@@ -697,7 +705,7 @@ class WeasyPrintEngine:
         self,
         fetcher_factory: Callable[[], OdooURLFetcher],
         merge_pdfs: Callable[[list[io.BytesIO]], io.BytesIO],
-        native_merge_max: int = _NATIVE_MERGE_MAX_BODIES,
+        native_merge_max: int = _NATIVE_MERGE_MAX,
     ) -> None:
         self._fetcher_factory = fetcher_factory
         self._merge_pdfs = merge_pdfs
@@ -728,7 +736,9 @@ class WeasyPrintEngine:
         ):
             parsed_css_by_url: dict[str, Any] = {}
             processed = [
-                self._process_body_html(body, page_css, parsed_css_by_url, fetcher)
+                self._prepare_body_and_stylesheets(
+                    body, page_css, parsed_css_by_url, fetcher
+                )
                 for body in bodies
             ]
 
@@ -775,10 +785,10 @@ class WeasyPrintEngine:
                         processed, fetcher, pdf_options=pdf_options
                     )
                 _logger.exception("WeasyPrint PDF serialization failed")
-                raise self._pdf_render_error(str(ve)) from None
+                raise self._prepare_pdf_render_error(str(ve)) from None
             except Exception as e:
                 _logger.exception("WeasyPrint PDF serialization failed")
-                raise self._pdf_render_error(str(e)) from None
+                raise self._prepare_pdf_render_error(str(e)) from None
 
     def _render_and_serialize_body(
         self,
@@ -802,17 +812,17 @@ class WeasyPrintEngine:
                     html_str, fetcher, body_css, pdf_options
                 )
             _logger.exception("WeasyPrint PDF serialization failed")
-            raise self._pdf_render_error(str(ve)) from None
+            raise self._prepare_pdf_render_error(str(ve)) from None
         return buf.getvalue()
 
-    def _process_body_html(
+    def _prepare_body_and_stylesheets(
         self,
         body: str,
         page_css: str,
         parsed_css_by_url: dict[str, Any],
         fetcher: OdooURLFetcher | None = None,
     ) -> tuple[str, list]:
-        html_with_css = _inject_page_css(body, page_css)
+        html_with_css = _add_page_css(body, page_css)
         body_css = []
         strip_urls = set()
         for css_url in _RE_CSS_LINK.findall(html_with_css):
@@ -843,7 +853,7 @@ class WeasyPrintEngine:
 
         try:
             if _IMMUTABLE_ASSET_CSS_RE.match(css_url):
-                checksum = fetcher.asset_checksum(css_url)
+                checksum = fetcher.get_asset_checksum(css_url)
                 if checksum:
                     return _weasy_state.get_parsed_css((css_url, checksum), parse)
             return parse()
@@ -865,7 +875,7 @@ class WeasyPrintEngine:
             )
         except Exception as e:
             _logger.exception("WeasyPrint layout failed")
-            raise self._pdf_render_error(str(e)) from None
+            raise self._prepare_pdf_render_error(str(e)) from None
 
     @staticmethod
     def _serialize_documents(
@@ -900,7 +910,7 @@ class WeasyPrintEngine:
         streams = [io.BytesIO(pdf) for pdf in tolerant_pdfs]
         return self._merge_pdfs(streams).getvalue()
 
-    def _pdf_render_error(self, detail: str) -> UserError:
+    def _prepare_pdf_render_error(self, detail: str) -> UserError:
         message = _(
             "PDF rendering failed. Please check the report template.\n\nDetails: %s",
             detail,
@@ -1015,25 +1025,25 @@ class IrActionsReport(models.Model):
             return NotImplemented
         return Domain("model", "in", model_records.mapped("model"))
 
-    def _menu_access_model_field(self) -> str:
+    def _get_field_target_model(self) -> str:
         return "model"
 
-    def _get_readable_fields(self) -> frozenset[str]:
-        return super()._get_readable_fields() | {
+    def _get_fields_readable(self) -> frozenset[str]:
+        return super()._get_fields_readable() | {
             "report_name",
             "report_type",
             "domain",
         }
 
-    def _get_client_only_keys(self) -> frozenset[str]:
-        return super()._get_client_only_keys() | {
+    def _get_keys_client_only(self) -> frozenset[str]:
+        return super()._get_keys_client_only() | {
             "target",
             "context",
             "data",
             "close_on_report_download",
         }
 
-    def associated_view(self) -> dict[str, Any] | bool:
+    def action_view_qweb_views(self) -> dict[str, Any] | bool:
         self.ensure_one()
         action_ref = self.env.ref("base.action_ui_view", raise_if_not_found=False)
         if not action_ref or len(self.report_name.split(".")) < 2:
@@ -1067,7 +1077,7 @@ class IrActionsReport(models.Model):
             for record in records
         }
 
-    def _retrieve_attachments(self, records: Any) -> dict[int, Any]:
+    def _get_attachments(self, records: Any) -> dict[int, Any]:
         self.ensure_one()
         names_by_id = {
             res_id: name
@@ -1089,9 +1099,6 @@ class IrActionsReport(models.Model):
             if res_id not in result and attachment.name == names_by_id.get(res_id):
                 result[res_id] = attachment
         return result
-
-    def retrieve_attachment(self, record: Any) -> Any | None:
-        return self._retrieve_attachments(record).get(record.id)
 
     def get_paperformat(self) -> Any:
         return self.paperformat_id or self.env.company.paperformat_id
@@ -1122,7 +1129,7 @@ class IrActionsReport(models.Model):
     }
 
     @api.model
-    def _paperformat_to_css(
+    def _prepare_paperformat_css(
         self,
         paperformat_id: Any,
         landscape: bool = False,
@@ -1132,7 +1139,7 @@ class IrActionsReport(models.Model):
         for dead_attr in ("data-report-header-spacing", "data-report-dpi"):
             if dead_attr in args:
                 _logger.warning(
-                    "_paperformat_to_css: %r is a wkhtmltopdf-specific attribute "
+                    "_prepare_paperformat_css: %r is a wkhtmltopdf-specific attribute "
                     "with no WeasyPrint equivalent and is silently ignored. "
                     "Remove it from the report template to suppress this warning.",
                     dead_attr,
@@ -1172,7 +1179,7 @@ class IrActionsReport(models.Model):
                 return float(raw)
             except TypeError, ValueError:
                 _logger.warning(
-                    "_paperformat_to_css: %r=%r is not a valid number; "
+                    "_prepare_paperformat_css: %r=%r is not a valid number; "
                     "falling back to the paperformat value %r.",
                     attr,
                     raw,
@@ -1200,11 +1207,11 @@ class IrActionsReport(models.Model):
             f"}}\n" + (f".header {{ {header_border} }}\n" if header_border else "")
         )
 
-    def _build_url_fetcher(self) -> OdooURLFetcher:
+    def _prepare_url_fetcher(self) -> OdooURLFetcher:
         return OdooURLFetcher(self.env)
 
     @api.model
-    def _native_merge_max_bodies(self) -> int:
+    def _get_native_merge_max(self) -> int:
         param = (
             self.env["ir.config_parameter"]
             .sudo()
@@ -1217,17 +1224,17 @@ class IrActionsReport(models.Model):
                 _logger.warning(
                     "Invalid report.weasyprint_native_merge_max=%r; using default %d.",
                     param,
-                    _NATIVE_MERGE_MAX_BODIES,
+                    _NATIVE_MERGE_MAX,
                 )
-        return _NATIVE_MERGE_MAX_BODIES
+        return _NATIVE_MERGE_MAX
 
     @api.model
-    def _build_weasyprint_engine(self) -> WeasyPrintEngine:
+    def _prepare_weasyprint_engine(self) -> WeasyPrintEngine:
         report_model = self.env["ir.actions.report"]
         return WeasyPrintEngine(
-            fetcher_factory=report_model._build_url_fetcher,
+            fetcher_factory=report_model._prepare_url_fetcher,
             merge_pdfs=report_model._merge_pdfs,
-            native_merge_max=report_model._native_merge_max_bodies(),
+            native_merge_max=report_model._get_native_merge_max(),
         )
 
     def _prepare_weasyprint_html(
@@ -1356,7 +1363,7 @@ class IrActionsReport(models.Model):
         return bool(res_ids and len(res_ids) != len(set(res_ids)))
 
     @staticmethod
-    def _build_pdf_options(
+    def _prepare_pdf_options(
         pdf_variant: str | None = None,
         attachments: list[Any] | None = None,
         xmp_metadata: list[bytes | str] | None = None,
@@ -1415,19 +1422,19 @@ class IrActionsReport(models.Model):
 
         report = self._get_report(report_ref) if report_ref else None
         paperformat_id = report.get_paperformat() if report else self.get_paperformat()
-        page_css = self._paperformat_to_css(
+        page_css = self._prepare_paperformat_css(
             paperformat_id,
             landscape=landscape,
             specific_paperformat_args=specific_paperformat_args,
         )
         watermark = self.env.context.get("report_watermark")
         if watermark:
-            page_css += _watermark_css(watermark)
-        pdf_options = self._build_pdf_options(
+            page_css += _prepare_watermark_css(watermark)
+        pdf_options = self._prepare_pdf_options(
             pdf_variant, attachments, xmp_metadata, dpi, jpeg_quality
         )
         start = perf_counter()
-        engine = self._build_weasyprint_engine()
+        engine = self._prepare_weasyprint_engine()
         result = engine.render(bodies, page_css, split=_split, pdf_options=pdf_options)
         if engine._captured_warnings:
             _logger.debug(
@@ -1470,11 +1477,11 @@ class IrActionsReport(models.Model):
         _weasy_state.evict_image_cache_if_full()
 
         output_images = []
-        with self._build_url_fetcher() as fetcher:
+        with self._prepare_url_fetcher() as fetcher:
             for body in bodies:
                 try:
                     pdf_bytes = weasyprint.HTML(
-                        string=_inject_page_css(body, page_css),
+                        string=_add_page_css(body, page_css),
                         url_fetcher=fetcher,
                     ).write_pdf(
                         font_config=_weasy_state.get_font_config(),
@@ -1498,7 +1505,7 @@ class IrActionsReport(models.Model):
         return output_images
 
     @staticmethod
-    def _inject_header_footer_html(
+    def _add_html_header_footer(
         body: str, header: str | None = None, footer: str | None = None
     ) -> str:
         body = str(body)
@@ -1558,7 +1565,7 @@ class IrActionsReport(models.Model):
         raise ValueError(f"Fetching report {report_ref!r}: report not found")
 
     @api.model
-    def barcode(self, barcode_type: str, value: str, **kwargs: Any) -> bytes:
+    def prepare_barcode(self, barcode_type: str, value: str, **kwargs: Any) -> bytes:
         defaults = {
             "width": (600, int),
             "height": (100, int),
@@ -1621,7 +1628,7 @@ class IrActionsReport(models.Model):
             )
         else:
             if mask_name:
-                available_masks = self.get_available_barcode_masks()
+                available_masks = self._get_barcode_masks_available()
                 mask_to_apply = available_masks.get(mask_name)
                 if mask_to_apply:
                     try:
@@ -1637,7 +1644,7 @@ class IrActionsReport(models.Model):
         return barcode.asString("png")
 
     @api.model
-    def get_available_barcode_masks(self) -> dict[str, Callable]:
+    def _get_barcode_masks_available(self) -> dict[str, Callable]:
         return {}
 
     def _render_template(
@@ -1661,21 +1668,21 @@ class IrActionsReport(models.Model):
         )
         return view_obj._render_template(template, values).encode()
 
-    def _handle_merge_pdfs_error(
+    def _prepare_merge_pdfs_error(
         self,
         error: Exception | None = None,
         error_stream: io.BytesIO | None = None,
-    ) -> None:
-        raise UserError(_("Odoo is unable to merge the generated PDFs."))
+    ) -> UserError:
+        return UserError(_("Odoo is unable to merge the generated PDFs."))
 
     @api.model
     def _merge_pdfs(
         self,
         streams: list[io.BytesIO],
-        handle_error: Callable | None = None,
+        on_stream_error: Callable | None = None,
     ) -> io.BytesIO:
-        if handle_error is None:
-            handle_error = self._handle_merge_pdfs_error
+        if on_stream_error is None:
+            on_stream_error = self._prepare_merge_pdfs_error
         writer = PdfFileWriter()
         for stream in streams:
             try:
@@ -1687,12 +1694,14 @@ class IrActionsReport(models.Model):
                 NotImplementedError,
                 ValueError,
             ) as e:
-                handle_error(error=e, error_stream=stream)
+                to_raise = on_stream_error(error=e, error_stream=stream)
+                if to_raise is not None:
+                    raise to_raise from e
         result_stream = io.BytesIO()
         try:
             writer.write(result_stream)
         except PdfReadError:
-            raise UserError(_("Odoo is unable to merge the generated PDFs.")) from None
+            raise self._prepare_merge_pdfs_error() from None
         return result_stream
 
     @api.model
@@ -1738,16 +1747,7 @@ class IrActionsReport(models.Model):
             attachments_by_id = {}
             if wants_attachment:
                 attachment_names = report_sudo._get_attachment_filenames(records)
-                if (
-                    type(report_sudo).retrieve_attachment
-                    is IrActionsReport.retrieve_attachment
-                ):
-                    attachments_by_id = report_sudo._retrieve_attachments(records)
-                else:
-                    attachments_by_id = {
-                        record.id: report_sudo.retrieve_attachment(record)
-                        for record in records
-                    }
+                attachments_by_id = report_sudo._get_attachments(records)
             for record in records:
                 res_id = record.id
                 if res_id in collected_streams:
@@ -1986,9 +1986,7 @@ class IrActionsReport(models.Model):
                         attachment_names,
                     )
 
-        def custom_handle_merge_pdfs_error(
-            error: Exception, error_stream: io.BytesIO
-        ) -> None:
+        def add_merge_pdfs_error(error: Exception, error_stream: io.BytesIO) -> None:
             error_record_ids.append(stream_to_ids[error_stream])
 
         stream_to_ids = {
@@ -2001,13 +1999,13 @@ class IrActionsReport(models.Model):
             pdf_content = streams_to_merge[0].getvalue()
         else:
             with self._merge_pdfs(
-                streams_to_merge, custom_handle_merge_pdfs_error
+                streams_to_merge, add_merge_pdfs_error
             ) as pdf_merged_stream:
                 pdf_content = pdf_merged_stream.getvalue()
 
         if error_record_ids:
             if not any(error_record_ids):
-                self._handle_merge_pdfs_error()
+                raise self._prepare_merge_pdfs_error()
             action = {
                 "type": "ir.actions.act_window",
                 "name": _("Problematic record(s)"),
@@ -2148,16 +2146,16 @@ class IrActionsReport(models.Model):
             and config
             and not discard_logo_check
         ):
-            return self._action_configure_external_report_layout(report_action)
+            return self._prepare_layout_configurator_action(report_action)
 
         return report_action
 
-    def _action_configure_external_report_layout(
+    def _prepare_layout_configurator_action(
         self,
         report_action: dict[str, Any],
         xml_id: str = "web.action_base_document_layout_configurator",
     ) -> dict[str, Any]:
-        action = self.env["ir.actions.actions"]._for_xml_id(xml_id)
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(xml_id)
         py_ctx = json_loads(action.get("context", {}))
         report_action["close_on_report_download"] = True
         py_ctx["report_action"] = report_action
@@ -2187,7 +2185,7 @@ class IrActionsReport(models.Model):
         return valid_action_report_ids
 
     @api.model
-    def _prepare_local_attachments(self, attachments: Any) -> Any:
+    def _migrate_attachments_to_local(self, attachments: Any) -> Any:
         for attachment in attachments:
             if attachment._is_remote_source():
                 try:

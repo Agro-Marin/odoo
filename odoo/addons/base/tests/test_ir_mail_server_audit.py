@@ -22,8 +22,8 @@ from odoo.tools import config, email_domain_extract, email_normalize, mute_logge
 from odoo.addons.base.models.ir_mail_server import (
     MailDeliveryError,
     OutgoingEmailError,
+    _check_hostname_callback,
     _log_smtp_debug,
-    _verify_check_hostname_callback,
 )
 
 _IR_MAIL_SERVER_LOGGER = "odoo.addons.base.models.ir_mail_server"
@@ -261,34 +261,34 @@ class TestMailServerOnchangeEncryption(TransactionCase):
     def test_default_port_follows_encryption(self):
         server = self._new_server("none", 25)
         server.smtp_encryption = "ssl"
-        server._onchange_encryption()
+        server._onchange_smtp_encryption()
         self.assertEqual(server.smtp_port, 465)
         server.smtp_encryption = "none"
-        server._onchange_encryption()
+        server._onchange_smtp_encryption()
         self.assertEqual(server.smtp_port, 25)
         server.smtp_encryption = "ssl_strict"
-        server._onchange_encryption()
+        server._onchange_smtp_encryption()
         self.assertEqual(server.smtp_port, 465)
         server.smtp_encryption = "starttls_strict"
-        server._onchange_encryption()
+        server._onchange_smtp_encryption()
         self.assertEqual(server.smtp_port, 25)
 
     def test_custom_port_survives_toggle(self):
         server = self._new_server("none", 2525)
         server.smtp_encryption = "ssl"
-        server._onchange_encryption()
+        server._onchange_smtp_encryption()
         self.assertEqual(server.smtp_port, 2525)
         server.smtp_encryption = "starttls"
-        server._onchange_encryption()
+        server._onchange_smtp_encryption()
         self.assertEqual(server.smtp_port, 2525)
 
     def test_starttls_submission_port_survives_ssl_toggle(self):
         server = self._new_server("starttls", 587)
         server.smtp_encryption = "ssl_strict"
-        server._onchange_encryption()
+        server._onchange_smtp_encryption()
         self.assertEqual(server.smtp_port, 587)
         server.smtp_encryption = "starttls"
-        server._onchange_encryption()
+        server._onchange_smtp_encryption()
         self.assertEqual(server.smtp_port, 587)
 
 
@@ -443,7 +443,7 @@ class TestEnvelopeOnlyHeaders(TransactionCase):
         self.assertIsNone(message["Return-Path"])
 
     def test_falsy_header_value_emits_no_header(self):
-        message = self.IrMailServer._build_email__(
+        message = self.IrMailServer._prepare_email__(
             email_from="sender@example.com",
             email_to="rcpt@example.com",
             subject="Subject",
@@ -536,7 +536,7 @@ class TestFromFilterIndex(TransactionCase):
                 },
             ]
         )
-        found, _email_from = self.IrMailServer.sudo()._find_mail_server(
+        found, _email_from = self.IrMailServer.sudo()._get_mail_server(
             "someone@elsewhere.example.com", servers
         )
         self.assertEqual(
@@ -845,7 +845,7 @@ class TestPrepareEmailMessageIsNonDestructive(TransactionCase):
             self.sent.append((smtp_from, smtp_to_list))
 
     def _message(self):
-        return self.env["ir.mail_server"]._build_email__(
+        return self.env["ir.mail_server"]._prepare_email__(
             "sender@example.com",
             "to@example.com",
             "Subject",
@@ -914,7 +914,7 @@ class TestFindMailServerOrdering(TransactionCase):
         )
         expected = self.servers[0]
         for _attempt in range(2):
-            server, _from = self.IrMailServer.sudo()._find_mail_server(
+            server, _from = self.IrMailServer.sudo()._get_mail_server(
                 "someone@shared.example.com"
             )
             self.assertEqual(server, expected)
@@ -927,7 +927,7 @@ class TestFindMailServerOrdering(TransactionCase):
     def test_sequence_still_wins_over_id(self):
         self.servers[-1].sequence = 1
         self.assertEqual(
-            self.IrMailServer.sudo()._find_mail_server("someone@shared.example.com")[0],
+            self.IrMailServer.sudo()._get_mail_server("someone@shared.example.com")[0],
             self.servers[-1],
         )
 
@@ -976,7 +976,7 @@ class TestConnectionTestErrorClassification(TransactionCase):
 
     def _message_for(self, exc):
         with self.assertNoLogs(_IR_MAIL_SERVER_LOGGER, logging.WARNING):
-            return str(self.IrMailServer._connection_test_error(exc, self.server))
+            return str(self.IrMailServer._prepare_connection_test_error(exc, self.server))
 
     def test_connection_refused_is_reported_as_a_reachability_problem(self):
         message = self._message_for(ConnectionRefusedError(111, "Connection refused"))
@@ -1154,7 +1154,7 @@ class TestDetachedCopyIsolation(TransactionCase):
         cls.IrMailServer = cls.env["ir.mail_server"]
 
     def _multipart(self):
-        return self.IrMailServer._build_email__(
+        return self.IrMailServer._prepare_email__(
             "a@example.com",
             "to@example.com",
             "Sub",
@@ -1252,14 +1252,14 @@ class TestConnectionErrorDispatchMatrix(TransactionCase):
             with self.subTest(exception=type(exc).__name__):
                 with self.assertNoLogs(_IR_MAIL_SERVER_LOGGER, logging.WARNING):
                     message = str(
-                        self.IrMailServer._connection_test_error(exc, self.server)
+                        self.IrMailServer._prepare_connection_test_error(exc, self.server)
                     )
                 self.assertIn(expected, message)
 
     @mute_logger(_IR_MAIL_SERVER_LOGGER)
     def test_unclassified_error_still_falls_through_with_a_warning(self):
         message = str(
-            self.IrMailServer._connection_test_error(ValueError("boom"), self.server)
+            self.IrMailServer._prepare_connection_test_error(ValueError("boom"), self.server)
         )
         self.assertIn("Connection Test Failed", message)
 
@@ -1291,7 +1291,7 @@ class TestNotificationsEmailNormalization(TransactionCase):
     def _find(self, notifications_email):
         return self.IrMailServer.with_context(
             domain_notifications_email=notifications_email
-        )._find_mail_server("stranger@nowhere.example.com")
+        )._get_mail_server("stranger@nowhere.example.com")
 
     def test_uppercase_domain_selects_the_notifications_server(self):
         server, email_from = self._find("notifications@Example.COM")
@@ -1645,13 +1645,13 @@ class TestResolvedServerIsNotResolvedTwice(TransactionCase):
 
     def test_resolving_is_skipped_when_the_caller_already_resolved(self):
         calls = []
-        real = type(self.IrMailServer)._find_mail_server
+        real = type(self.IrMailServer)._get_mail_server
 
         def counting(self, *args, **kwargs):
             calls.append(1)
             return real(self, *args, **kwargs)
 
-        with patch.object(type(self.IrMailServer), "_find_mail_server", counting):
+        with patch.object(type(self.IrMailServer), "_get_mail_server", counting):
             self._connect(resolve_server=False)
             self.assertEqual(calls, [], "the batch's verdict was second-guessed")
             self._connect()
@@ -1728,7 +1728,7 @@ class TestVerifyHostnameCallback(TransactionCase):
         return X509.from_cryptography(builder.sign(key, hashes.SHA256()))
 
     def _verify(self, certificate, hostname, err_depth=0):
-        return _verify_check_hostname_callback(
+        return _check_hostname_callback(
             None, certificate, 0, err_depth, 0, hostname=hostname
         )
 
@@ -1759,7 +1759,7 @@ class TestVerifyHostnameCallback(TransactionCase):
     def test_a_failed_openssl_check_is_refused_before_any_matching(self):
         certificate = self._certificate("irrelevant", ["smtp.example.com"])
         self.assertFalse(
-            _verify_check_hostname_callback(
+            _check_hostname_callback(
                 None, certificate, 10, 0, 0, hostname="smtp.example.com"
             )
         )

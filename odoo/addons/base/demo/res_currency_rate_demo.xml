@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="1">
+
     <record id="rateUSD" model="res.currency.rate" forcecreate="0">
         <field name="rate">1.0</field>
         <field name="currency_id" ref="USD" />

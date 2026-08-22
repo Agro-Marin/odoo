@@ -1231,6 +1231,7 @@
         <field name="code">mz</field>
         <field name="currency_id" ref="MZN" />
         <field name="phone_code" eval="258" />
+        <field name="vat_label">NUIT</field>
     </record>
 
     <record id="na" model="res.country">

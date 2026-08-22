@@ -1,3 +1,6 @@
+import importlib.util
+import pathlib
+
 from psycopg.errors import IntegrityError
 
 from odoo.exceptions import UserError, ValidationError
@@ -5,7 +8,8 @@ from odoo.tests.common import TransactionCase, tagged
 from odoo.tools import mute_logger
 from odoo.tools.safe_eval import safe_eval
 
-from odoo.addons.base.models.ir_actions import _safe_eval_dict
+import odoo.addons.base
+from odoo.addons.base.models.ir_actions import _eval_dict_or_default
 
 
 @tagged("post_install", "-at_install")
@@ -49,14 +53,14 @@ class TestIrActionsBindingsCacheOnCreate(TransactionCase):
 
 
 class TestSafeEvalDict(TransactionCase):
-    def test_safe_eval_dict_degrades(self):
-        self.assertEqual(_safe_eval_dict("{'a': 1}", {}, {}), {"a": 1})
-        self.assertEqual(_safe_eval_dict(False, {}, {"d": 1}), {})
+    def test_eval_dict_or_default_degrades(self):
+        self.assertEqual(_eval_dict_or_default("{'a': 1}", {}, {}), {"a": 1})
+        self.assertEqual(_eval_dict_or_default(False, {}, {"d": 1}), {})
         sentinel = {"d": 1}
-        self.assertIs(_safe_eval_dict("1/0", {}, sentinel), sentinel)
-        self.assertIs(_safe_eval_dict("[(", {}, sentinel), sentinel)
-        self.assertIs(_safe_eval_dict("[1, 2]", {}, sentinel), sentinel)
-        self.assertEqual(_safe_eval_dict("{'u': uid}", {"uid": 7}, {}), {"u": 7})
+        self.assertIs(_eval_dict_or_default("1/0", {}, sentinel), sentinel)
+        self.assertIs(_eval_dict_or_default("[(", {}, sentinel), sentinel)
+        self.assertIs(_eval_dict_or_default("[1, 2]", {}, sentinel), sentinel)
+        self.assertEqual(_eval_dict_or_default("{'u': uid}", {"uid": 7}, {}), {"u": 7})
 
 
 @tagged("post_install", "-at_install")
@@ -112,7 +116,7 @@ class TestEmbeddedActionsGroupIdsConvention(TransactionCase):
         self.assertNotIn("groups_ids", fields)
         self.assertIn(
             "group_ids",
-            self.env["ir.embedded.actions"]._get_readable_fields(),
+            self.env["ir.embedded.actions"]._get_fields_readable(),
         )
 
 
@@ -131,7 +135,7 @@ class TestIrActionsUnenforcedReferences(TransactionCase):
             and field.comodel_name
             in ("ir.actions.actions", "ir.actions.act_window_close")
         }
-        swept = {(m, f) for m, f, __ in Actions._unenforced_reference_fields()}
+        swept = {(m, f) for m, f, __ in Actions._get_fields_ondelete_unenforced()}
         self.assertEqual(swept, declared)
 
     def test_no_real_foreign_key_backs_those_fields(self):
@@ -295,7 +299,7 @@ class TestIrActionsReadableFieldsAreFields(TransactionCase):
         for name in self._action_models():
             model = self.env[name]
             virtual = sorted(
-                f for f in model._get_readable_fields() if f not in model._fields
+                f for f in model._get_fields_readable() if f not in model._fields
             )
             self.assertFalse(virtual, "%s lists non-fields %s" % (name, virtual))
 
@@ -303,7 +307,7 @@ class TestIrActionsReadableFieldsAreFields(TransactionCase):
         for name in self._action_models():
             model = self.env[name]
             stored = sorted(
-                k for k in model._get_client_only_keys() if k in model._fields
+                k for k in model._get_keys_client_only() if k in model._fields
             )
             self.assertFalse(stored, "%s lists real fields %s" % (name, stored))
 
@@ -321,7 +325,7 @@ class TestIrActionsReadableFieldsAreFields(TransactionCase):
         action = self.env["ir.actions.act_window"].create(
             {"name": "audit-order", "res_model": "res.partner"}
         )
-        readable = action._get_readable_fields()
+        readable = action._get_fields_readable()
         keys = list(action._get_action_dict())
         self.assertEqual(set(keys), set(readable))
         self.assertEqual(keys, list(action.sudo().read(sorted(readable))[0]))
@@ -375,7 +379,7 @@ class TestIrActionsTodoOpenState(TransactionCase):
         todo = self.env["ir.actions.todo"].create({"action_id": server_action.id})
         result = todo.action_launch()
         self.assertEqual(todo.state, "done")
-        self.assertLessEqual(set(result), server_action._get_readable_fields())
+        self.assertLessEqual(set(result), server_action._get_fields_readable())
         self.assertNotIn("code", result)
 
     def test_unlink_keeps_open_menu_and_deletes_the_rest(self):
@@ -475,7 +479,7 @@ class TestIrActionsUnlinkIsAtomic(TransactionCase):
         Actions = self.env.registry["ir.actions.actions"]
         self.patch(
             Actions,
-            "_unenforced_reference_fields",
+            "_get_fields_ondelete_unenforced",
             lambda records: (
                 ("ir.actions.todo", "action_id", "cascade"),
                 ("res.users", "action_id", "restrict"),
@@ -498,7 +502,7 @@ class TestIrActionsUnlinkIsAtomic(TransactionCase):
             ondelete
             for __, __, ondelete in self.env[
                 "ir.actions.actions"
-            ]._unenforced_reference_fields()
+            ]._get_fields_ondelete_unenforced()
         }
         self.assertNotIn(None, policies)
         self.assertLessEqual(policies, {"cascade", "restrict", "set null"})
@@ -762,7 +766,7 @@ class TestIrActionsTableInheritanceRoot(TransactionCase):
 
     def test_many2many_relations_to_the_root_are_swept_on_unlink(self):
         Actions = self.env["ir.actions.actions"]
-        roots = Actions._root_model_names()
+        roots = Actions._get_model_names_in_root_table()
         declared = {
             (field.relation, column)
             for model_name, model in self.env.registry.items()
@@ -775,11 +779,11 @@ class TestIrActionsTableInheritanceRoot(TransactionCase):
             )
             if end in roots
         }
-        self.assertEqual(set(Actions._unenforced_reference_relations()), declared)
+        self.assertEqual(set(Actions._get_relations_ondelete_unenforced()), declared)
 
     def test_no_foreign_key_backs_either_end_of_such_a_relation(self):
         Actions = self.env["ir.actions.actions"]
-        for relation, column in Actions._unenforced_reference_relations():
+        for relation, column in Actions._get_relations_ondelete_unenforced():
             with self.subTest(relation=relation, column=column):
                 self.env.cr.execute(
                     """
@@ -847,8 +851,8 @@ class TestIrActionsPathUniquenessAcrossSubtypes(TransactionCase):
             for name, model in self.env.registry.items()
             if not model._abstract and model._table_inheritance_root == "ir_actions"
         }
-        self.assertEqual(Actions._inheritance_tree_model_names(), expected)
-        self.assertLessEqual(Actions._root_model_names(), expected)
+        self.assertEqual(Actions._get_model_names_in_tree(), expected)
+        self.assertLessEqual(Actions._get_model_names_in_root_table(), expected)
         self.assertIn("ir.actions.act_window", expected)
 
 
@@ -856,7 +860,7 @@ class TestIrActionsPathUniquenessAcrossSubtypes(TransactionCase):
 class TestIrActionsUnenforcedReferencesOwnership(TransactionCase):
     def test_only_owned_columns_are_swept(self):
         Actions = self.env["ir.actions.actions"]
-        roots = Actions._root_model_names()
+        roots = Actions._get_model_names_in_root_table()
         expected = {
             (model_name, field.name, field.ondelete)
             for model_name, model in self.env.registry.items()
@@ -867,12 +871,12 @@ class TestIrActionsUnenforcedReferencesOwnership(TransactionCase):
             and not field.related
             and field.comodel_name in roots
         }
-        self.assertEqual(set(Actions._unenforced_reference_fields()), expected)
+        self.assertEqual(set(Actions._get_fields_ondelete_unenforced()), expected)
 
     def test_no_related_or_unstored_field_is_swept(self):
         for model_name, field_name, ondelete in self.env[
             "ir.actions.actions"
-        ]._unenforced_reference_fields():
+        ]._get_fields_ondelete_unenforced():
             field = self.env[model_name]._fields[field_name]
             with self.subTest(field=f"{model_name}.{field_name}"):
                 self.assertTrue(field.store)
@@ -884,7 +888,7 @@ class TestIrActionsUnenforcedReferencesOwnership(TransactionCase):
             ondelete
             for __, __, ondelete in self.env[
                 "ir.actions.actions"
-            ]._unenforced_reference_fields()
+            ]._get_fields_ondelete_unenforced()
         }
         self.assertLessEqual(policies, {"restrict", "cascade", "set null"})
 
@@ -998,13 +1002,14 @@ class TestIrActionsMenuAclCacheInvalidation(TransactionCase):
     def test_every_subtype_declares_its_destination_model_field(self):
         Actions = self.env["ir.actions.actions"]
         declared = {}
-        for model_name in Actions._inheritance_tree_model_names():
-            field_name = self.env[model_name]._menu_access_model_field()
+        for model_name in Actions._get_model_names_in_tree():
+            field_name = self.env[model_name]._get_field_target_model()
             if field_name:
                 declared[model_name] = field_name
                 with self.subTest(model=model_name):
                     self.assertIn(
-                        field_name, self.env[model_name]._unconditional_clear_fields()
+                        field_name,
+                        self.env[model_name]._get_fields_invalidating_always(),
                     )
         self.assertEqual(
             declared,
@@ -1018,19 +1023,19 @@ class TestIrActionsMenuAclCacheInvalidation(TransactionCase):
 
     def test_the_declared_field_is_a_real_field_of_that_subtype(self):
         Actions = self.env["ir.actions.actions"]
-        for model_name in Actions._inheritance_tree_model_names():
+        for model_name in Actions._get_model_names_in_tree():
             model = self.env[model_name]
-            field_name = model._menu_access_model_field()
+            field_name = model._get_field_target_model()
             if field_name:
                 with self.subTest(model=model_name):
                     self.assertIn(field_name, model._fields)
 
     def test_a_client_action_gates_on_res_model_like_the_others(self):
         self.assertEqual(
-            self.env["ir.actions.client"]._menu_access_model_field(), "res_model"
+            self.env["ir.actions.client"]._get_field_target_model(), "res_model"
         )
         self.assertIn(
-            "res_model", self.env["ir.actions.client"]._unconditional_clear_fields()
+            "res_model", self.env["ir.actions.client"]._get_fields_invalidating_always()
         )
 
     def test_an_uncached_field_still_skips_the_clear(self):
@@ -1059,7 +1064,7 @@ class TestIrActionsTypeMatchesItsModel(TransactionCase):
 
     def test_the_default_type_is_the_model_name_for_every_subtype(self):
         Actions = self.env["ir.actions.actions"]
-        for name in Actions._inheritance_tree_model_names():
+        for name in Actions._get_model_names_in_tree():
             if name == "ir.actions.actions":
                 continue
             with self.subTest(model=name):
@@ -1114,8 +1119,8 @@ class TestIrActionsUnlinkFollowsTheStorage(TransactionCase):
 
     def test_each_subtype_table_maps_back_to_its_model(self):
         Actions = self.env["ir.actions.actions"]
-        by_table = Actions._tree_model_names_by_table()
-        for name in Actions._inheritance_tree_model_names():
+        by_table = Actions._get_model_names_by_table()
+        for name in Actions._get_model_names_in_tree():
             with self.subTest(model=name):
                 self.assertIn(name, by_table[self.env[name]._table])
 
@@ -1123,7 +1128,7 @@ class TestIrActionsUnlinkFollowsTheStorage(TransactionCase):
         Actions = self.env["ir.actions.actions"]
         ambiguous = {
             table: names
-            for table, names in Actions._tree_model_names_by_table().items()
+            for table, names in Actions._get_model_names_by_table().items()
             if len(names) > 1
         }
         self.assertEqual(list(ambiguous), [Actions._table])
@@ -1181,7 +1186,7 @@ class TestIrActionsReferenceSweep(TransactionCase):
 
     def test_the_sweep_covers_every_reference_that_can_name_an_action(self):
         Actions = self.env["ir.actions.actions"]
-        tree = Actions._inheritance_tree_model_names()
+        tree = Actions._get_model_names_in_tree()
         expected = {
             (model_name, field.name)
             for model_name, model in self.env.registry.items()
@@ -1194,7 +1199,7 @@ class TestIrActionsReferenceSweep(TransactionCase):
                 or any(value in tree for value, __ in field.selection)
             )
         }
-        self.assertEqual(set(Actions._unenforced_reference_selections()), expected)
+        self.assertEqual(set(Actions._get_selections_ondelete_unenforced()), expected)
         self.assertIn(("ir.ui.menu", "action"), expected)
 
     def test_a_reference_that_can_never_name_an_action_is_not_swept(self):
@@ -1202,7 +1207,7 @@ class TestIrActionsReferenceSweep(TransactionCase):
             model
             for model, __ in self.env[
                 "ir.actions.actions"
-            ]._unenforced_reference_selections()
+            ]._get_selections_ondelete_unenforced()
         }
         for model_name, model in self.env.registry.items():
             for field in model._fields.values():
@@ -1220,7 +1225,7 @@ class TestIrActionsReferenceSweep(TransactionCase):
 @tagged("post_install", "-at_install")
 class TestIrActionsViewTypeVocabulary(TransactionCase):
     def test_the_comma_separated_fields_and_the_lines_share_one_vocabulary(self):
-        allowed = self.env["ir.actions.actions"]._window_view_types()
+        allowed = self.env["ir.actions.actions"]._get_view_types_for_window()
         line_modes = set(
             self.env["ir.actions.act_window.view"]
             ._fields["view_mode"]
@@ -1231,7 +1236,7 @@ class TestIrActionsViewTypeVocabulary(TransactionCase):
     def test_that_vocabulary_is_still_the_view_types_minus_the_unrenderable(self):
         from odoo.addons.base.models.ir_actions import NON_WINDOW_VIEW_TYPES
 
-        allowed = self.env["ir.actions.actions"]._window_view_types()
+        allowed = self.env["ir.actions.actions"]._get_view_types_for_window()
         view_types = set(self.env["ir.ui.view"]._fields["type"].get_values(self.env))
         self.assertEqual(allowed, view_types - set(NON_WINDOW_VIEW_TYPES))
         self.assertNotIn("search", allowed)
@@ -1274,7 +1279,7 @@ class TestIrActionsViewTypeVocabulary(TransactionCase):
                 self.env.invalidate_all()
 
     def test_every_shipped_action_uses_a_renderable_view_type(self):
-        allowed = self.env["ir.actions.actions"]._window_view_types()
+        allowed = self.env["ir.actions.actions"]._get_view_types_for_window()
         offenders = []
         for action in self.env["ir.actions.act_window"].search([]):
             for field_name in ("view_mode", "mobile_view_mode"):
@@ -1335,8 +1340,8 @@ class TestMenuActionReferenceIsJunkTolerant(TransactionCase):
     def test_the_gating_map_does_not_depend_on_what_menus_point_at(self):
         Actions = self.env["ir.actions.actions"]
         gating = {
-            name: self.env[name]._menu_access_model_field()
-            for name in Actions._inheritance_tree_model_names()
+            name: self.env[name]._get_field_target_model()
+            for name in Actions._get_model_names_in_tree()
         }
         self.assertEqual(
             {name: field for name, field in gating.items() if field},
@@ -1439,7 +1444,7 @@ class TestIrActionsPathReservation(TransactionCase):
             (model, field)
             for model, field, __ in self.env[
                 "ir.actions.actions"
-            ]._unenforced_reference_fields()
+            ]._get_fields_ondelete_unenforced()
         }
         self.assertIn(("ir.actions.path", "action_id"), swept)
 
@@ -1539,7 +1544,7 @@ class TestIrActionsAsConcrete(TransactionCase):
         self.env.flush_all()
         for action in made:
             with self.subTest(model=action._name):
-                concrete = Actions.browse(action.id)._as_concrete()
+                concrete = Actions.browse(action.id)._get_action_concrete()
                 self.assertEqual(concrete._name, action._name)
                 self.assertEqual(concrete.id, action.id)
 
@@ -1553,7 +1558,9 @@ class TestIrActionsAsConcrete(TransactionCase):
             [action.id],
         )
         self.env.invalidate_all()
-        concrete = self.env["ir.actions.actions"].browse(action.id)._as_concrete()
+        concrete = (
+            self.env["ir.actions.actions"].browse(action.id)._get_action_concrete()
+        )
         self.assertEqual(concrete._name, "ir.actions.act_window")
 
 
@@ -1695,3 +1702,50 @@ class TestActionCreateDoesNotEditItsArgument(TransactionCase):
         snapshot = dict(vals)
         menu.write(vals)
         self.assertEqual(vals, snapshot, "ir.ui.menu.write edited its argument")
+
+
+@tagged("post_install", "-at_install")
+class TestForXmlIdMigration(TransactionCase):
+
+    def _rewrite(self):
+        path = (
+            pathlib.Path(odoo.addons.base.__file__).parent
+            / "migrations"
+            / "1.8"
+            / "pre-migration.py"
+        )
+        spec = importlib.util.spec_from_file_location("_base_migration_1_8", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def test_the_script_is_still_where_the_loader_looks_for_it(self):
+        module = self._rewrite()
+        self.assertEqual(module._OLD, "_for_xml_id")
+        self.assertEqual(module._NEW, "_get_action_dict_by_xml_id")
+        self.assertIn(("ir_act_server", "code"), module._COLUMNS)
+
+    def test_the_rewrite_moves_a_call_and_spares_every_longer_name(self):
+        module = self._rewrite()
+        cr = self.env.cr
+        cr.execute("CREATE TEMP TABLE audit_mig (code text) ON COMMIT DROP")
+        cases = {
+            "env['a']._for_xml_id('m.x')": "env['a']._get_action_dict_by_xml_id('m.x')",
+            "_get_tax_ids_for_xml_id(env, 'x')": "_get_tax_ids_for_xml_id(env, 'x')",
+            "env['a']._for_xml_idx()": "env['a']._for_xml_idx()",
+            "def test_for_xml_id_valid(self):": "def test_for_xml_id_valid(self):",
+            "env['a']._get_action_dict_by_xml_id('m.x')": (
+                "env['a']._get_action_dict_by_xml_id('m.x')"
+            ),
+        }
+        for planted in cases:
+            cr.execute("INSERT INTO audit_mig (code) VALUES (%s)", (planted,))
+        module._rewrite(cr, "audit_mig", "code")
+        module._rewrite(cr, "audit_mig", "code")
+        cr.execute("SELECT code FROM audit_mig")
+        got = sorted(row[0] for row in cr.fetchall())
+        self.assertEqual(got, sorted(cases.values()))
+
+    def test_a_missing_column_is_a_no_op_rather_than_an_error(self):
+        module = self._rewrite()
+        module._rewrite(self.env.cr, "table_that_does_not_exist", "code")

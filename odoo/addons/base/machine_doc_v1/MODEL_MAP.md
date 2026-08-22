@@ -26,9 +26,9 @@ Base action model. All action types inherit from this.
 
 **Key Methods:**
 - `get_bindings(model_name)` — Retrieve bound actions for a model
-- `_for_xml_id(full_xml_id)` — Get action record by XML ID
+- `_get_action_dict_by_xml_id(full_xml_id)` — Read the action with this XML ID as a client-ready dict
 - `_get_action_dict()` — Return action data dict for webclient
-- `_get_readable_fields()` — Fields safe for web access
+- `_get_fields_readable()` — Fields safe for web access
 
 #### IrActionsAct_Window — `ir.actions.act_window` (`_name`, inherits `ir.actions.actions`)
 
@@ -118,7 +118,7 @@ Report actions — renders QWeb templates to PDF/HTML/text via WeasyPrint.
 - `attachment` (Char) — Save prefix expression
 
 **Key Methods:**
-- `retrieve_attachment(record)` — Get cached report attachment
+- `_get_attachment(record)` — Get cached report attachment
 - `get_paperformat()` — Get paper format (self or company default)
 - `_render_html_to_pdf(bodies, report_ref, landscape, ...)` — WeasyPrint PDF rendering
 - `_render_html_to_image(bodies, width, height, ...)` — WeasyPrint PNG rendering
@@ -287,7 +287,7 @@ Model-level access control lists.
 - `_get_access_groups(model_name, access_mode)` — Get group expression (ormcache)
 - `_get_allowed_models(mode)` — Models accessible to current user (ormcache)
 - `group_names_with_access(model_name, access_mode)` — Visible group names with access
-- `_make_access_error(model, mode)` — Build detailed AccessError message
+- `_prepare_access_error(model, mode)` — Build detailed AccessError message
 
 #### IrModelConstraint — `ir.model.constraint` (`_name`)
 
@@ -389,7 +389,7 @@ View definitions — the core UI building block.
 
 **Key Methods:**
 - `apply_inheritance_specs(source, specs_tree, pre_locate)` — Apply XPath inheritance spec
-- `_validate_view(arch)` — Validate arch (groups, fields, actions)
+- `_check_view(arch)` — Validate arch (groups, fields, actions)
 - `_render_template(arch_tree, values, ...)` — Render arch through QWeb
 
 ### models/ir_ui_view_base.py
@@ -465,11 +465,11 @@ Asset bundle management — controls JS/CSS/SCSS file inclusion.
 - `active` (Boolean, default=True), `sequence` (Integer, default=16)
 
 **Key Methods:**
-- `_get_asset_paths(bundle, assets_params)` — Fetch all asset paths for bundle
+- `_get_asset_paths(bundle, assets_params)` — Resolved asset paths for a bundle
 - `_fill_asset_paths(bundle, asset_paths, ...)` — Recursively resolve includes
 - `_process_path(bundle, directive, target, ...)` — Apply directive
 - `_get_asset_bundle_url(filename, unique, ...)` — Generate asset URL
-- `_topological_sort(addons_tuple)` — Dependency-based addon ordering
+- `_get_addons_sorted_topologically(addons_tuple)` — Dependency-based addon ordering
 
 ---
 
@@ -540,10 +540,13 @@ Scheduled jobs — executes server actions on a recurring schedule.
 
 **Key Methods:**
 - `_process_jobs(db_name)` — Static: execute ready jobs
-- `_acquire_one_job(cr, job_id, include_not_ready)` — Lock job for execution (SELECT FOR UPDATE)
-- `_callback(cron_name, server_action_id)` — Run the server action
-- `_trigger(at)`, `_trigger_list(at_list)` — Schedule immediate execution
-- `_notifydb()` — Wake cron workers via pg_notify
+- `_run_jobs_until_deadline(cr, job_ids, deadline)` — Work through one pass's jobs, yielding on its time budget
+- `_run_job(cr, job)` — One job: consume its triggers, run it, record the outcome, reschedule
+- `_run_job_within_budget(job, deadline)` — Repeat the job's action while the budget allows; returns a `CompletionStatus`
+- `_acquire_job(cr, job_id, include_not_ready)` — Lock job for execution (SELECT FOR UPDATE)
+- `_run_server_action(cron_name, server_action_id)` — Run the server action
+- `_trigger(at)`, `_add_triggers(at_list)` — Schedule immediate execution
+- `_notify_trigger_channel()` — Wake cron workers via pg_notify
 - `method_direct_trigger()` — Run cron immediately (UI button)
 - `toggle(model, domain)` — Toggle active state conditionally
 
@@ -661,7 +664,7 @@ no filestore rewrite. `_gc_rehash_legacy_keys` converges old keys only if
   still on a legacy digest; no-op unless `rehash_legacy_keys_limit` is set
 - `_content_checksum(bin_data)` / `_file_store_path(checksum)` — content
   digest and the tagged store key derived from it
-- `_verify_content_collision()` — whether a dedup hit re-reads the stored
+- `_is_content_collision_check_enabled()` — whether a dedup hit re-reads the stored
   file; defaults on for sha1, off for BLAKE3, overridable by parameter
 - `_mimetype_from_values(values)` — Detect MIME type
 - `_postprocess_contents(values)` — Image auto-resizing
@@ -909,9 +912,9 @@ Code profiling with Speedscope output.
 Data import type conversion — converts external data formats to ORM field values.
 
 **Key Methods:**
-- `for_model(model, fromtype, savepoint)` — Returns converter function for model
-- `to_field(model, field, fromtype, savepoint)` — Field-specific converter
-- `db_id_for(model, field, subfield, value, savepoint)` — Find database ID by reference
+- `_get_converter_record(model, fromtype)` — converter callable for a whole record
+- `_resolve_converter_field(field, fromtype)` — converter callable for one field, or `None` when its type has none
+- `_get_db_id(field, subfield, value)` — database id a reference resolves to, plus warnings
 - `_str_to_boolean()`, `_str_to_integer()`, `_str_to_float()`, `_str_to_date()`, `_str_to_datetime()`, `_str_to_selection()`, `_str_to_many2one()`, `_str_to_many2many()`, `_str_to_one2many()`, `_str_to_json()`, `_str_to_properties()`
 
 ---
@@ -1080,7 +1083,7 @@ User accounts — inherits all partner fields.
 - `has_group(group_ext_id)` — Check if user belongs to group
 - `_change_password(new_passwd)` — Change password
 - `action_reset_password()` — Send password reset email
-- `_default_groups()` — Default groups (base.group_user + implied)
+- `_default_group_ids()` — Default groups (base.group_user + implied)
 
 ### models/res_users_apikeys.py
 

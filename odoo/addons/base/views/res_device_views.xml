@@ -13,7 +13,11 @@
                 <field name="last_activity" />
                 <field name="country" optional="hidden" />
                 <field name="city" optional="hidden" />
-                <button type="object" name="revoke" string="Revoke" class="btn btn-secondary" />
+                <button
+                    type="object"
+                    name="revoke"
+                    string="Revoke"
+                    class="btn btn-secondary" />
             </list>
         </field>
     </record>
@@ -22,24 +26,38 @@
         <field name="name">res.device.kanban</field>
         <field name="model">res.device</field>
         <field name="arch" type="xml">
-            <kanban create="0" can_open="0" default_order="is_current desc, last_activity desc">
+            <kanban
+                create="0"
+                can_open="0"
+                default_order="is_current desc, last_activity desc">
                 <field name="id" />
                 <field name="device_type" />
                 <field name="last_activity" />
                 <field name="is_current" />
                 <templates>
                     <t t-name="card" class="flex-row">
-                        <span t-if="record.device_type.raw_value === 'computer'"
-                            class="fa-solid fa-laptop fs-1 col-1 mx-auto" title="Computer"
-                            role="img" aria-label="Computer" />
-                        <span t-else="" class="fa-solid fa-mobile-screen-button fs-1 col-1 mx-auto"
-                            title="Mobile" role="img" aria-label="Mobile" />
+                        <span
+                            t-if="record.device_type.raw_value === 'computer'"
+                            class="fa-solid fa-laptop fs-1 col-1 mx-auto"
+                            title="Computer"
+                            role="img"
+                            aria-label="Computer" />
+                        <span
+                            t-else=""
+                            class="fa-solid fa-mobile-screen-button fs-1 col-1 mx-auto"
+                            title="Mobile"
+                            role="img"
+                            aria-label="Mobile" />
                         <div class="d-flex col-11">
                             <div class="d-flex flex-column ms-2">
                                 <div class="d-flex align-items-center">
-                                    <field name="display_name" string="Name" class="fw-bolder" />
+                                    <field
+                                        name="display_name"
+                                        string="Name"
+                                        class="fw-bolder" />
                                     <t t-if="record.is_current.raw_value">
-                                        <span class="ms-2 text-success o_status o_status_green" />
+                                        <span
+                                            class="ms-2 text-success o_status o_status_green" />
                                     </t>
                                     <span
                                         t-out="luxon.DateTime.fromISO(record.last_activity.raw_value).toRelative()"
@@ -49,7 +67,10 @@
                                 <field name="country" />
                                 <field name="city" />
                             </div>
-                            <button name="revoke" type="object" string="Log out"
+                            <button
+                                name="revoke"
+                                type="object"
+                                string="Log out"
                                 class="btn btn-secondary ms-auto mb-auto my-auto" />
                         </div>
                     </t>

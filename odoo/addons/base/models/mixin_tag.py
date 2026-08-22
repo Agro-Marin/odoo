@@ -8,66 +8,12 @@ _CODE_SEPARATORS = re.compile(r"[^A-Z0-9]+")
 
 
 class MixinTag(models.AbstractModel):
-    """A colour-coded label with a stable code: the flat tag.
-
-    ``mixin.catalog`` (translated unique name, archivable) plus the two things
-    every tag in the tree adds to it by hand: a colour index -- the same
-    ``randint(1, 11)`` default written out about thirty times -- and a ``code``
-    for anything that has to *match* the tag rather than display it.
-
-    Flat on purpose. This mixin used to be the hierarchical one, and its name
-    said nothing about that: a model inheriting "mixin.tag" silently acquired
-    ``_parent_store``, a ``parent_path`` column, a recursion constraint and a
-    name rule scoped to a parent it had never heard of. Nesting now lives in
-    :class:`mixin.tag.nested`, and the plain name means the plain thing.
-
-    Roughly seventeen tag models in the tree are flat; two are nested.
-
-    **When you need ``code``, and when you do not.** Not every name-based
-    lookup is unsafe, and the distinction is worth stating because the safe
-    case is the common one.
-
-    *Resolve-or-create is fine on ``name``.* Creating a tag writes the term
-    into every active language at once, so two callers running under different
-    languages converge on one row rather than making two::
-
-        es_MX creates "Periodo 2027"  ->  {"en_US": "Periodo 2027",
-                                           "es_MX": "Periodo 2027"}
-        en_US searches "Periodo 2027" ->  finds that same row
-
-    That pattern is self-consistent by construction, and a cron in ``en_US``
-    racing a user in ``es_MX`` does not duplicate.
-
-    *Looking up a tag you did not create is what needs ``code``.* Once anyone
-    edits the label, the term you were matching on may be gone -- and **how**
-    it was edited decides which languages lose it, which is why no single
-    "search in language X" rule saves you. Both paths measured on a tag created
-    as "3001" with ``es_MX`` active::
-
-        plain write in es_MX ("rename this tag")
-            {"en_US": "Periodo tres mil uno", "es_MX": "Periodo tres mil uno"}
-            search "3001" -> nothing, in either language
-
-        translation dialog (update_field_translations)
-            {"en_US": "3001", "es_MX": "Periodo tres mil uno"}
-            search "3001" -> found in en_US, nothing in es_MX
-
-    A plain write to a field carrying no distinct translations yet is taken as
-    correcting the term itself, so it moves every language; the dialog is taken
-    as translating, so it moves one. Pinning a lookup to the source term
-    therefore survives the second and not the first.
-
-    ``code`` survives both, because nothing about renaming a label touches it.
-    So: an import keyed on a label, a filter, a server action, an XML record
-    pointing at a tag someone else maintains -- those match on ``code``.
-    """
-
     _name = "mixin.tag"
     _inherit = ["mixin.catalog"]
     _description = "Tag (coloured label with a stable code)"
     _order = "name, id"
 
-    def _get_default_color(self):
+    def _default_color(self):
         return randint(1, 11)
 
     name = fields.Char(string="Tag Name")
@@ -76,7 +22,7 @@ class MixinTag(models.AbstractModel):
     )
     color = fields.Integer(
         string="Color",
-        default=_get_default_color,
+        default=_default_color,
         aggregator=False,
     )
     code = fields.Char(
@@ -92,10 +38,6 @@ class MixinTag(models.AbstractModel):
             "reader."
         ),
     )
-    # Plain UNIQUE over a plain column, which is the whole point of the field.
-    # `name` is `translate=True`, hence jsonb, hence a rule that has to index an
-    # expression over the source term and still only holds *within a parent*.
-    # Identity is a different question from display, and this is where it lives.
     _code_uniq = models.Constraint(
         "unique(code)",
         "A tag with this code already exists.",
@@ -103,26 +45,6 @@ class MixinTag(models.AbstractModel):
 
     @api.depends("name")
     def _compute_code(self):
-        """Derive a code from the name, once, for tags that have none.
-
-        ``readonly=False`` plus the "already has one" guard mean this only ever
-        *fills a blank*: a code set by a user or a data file is never
-        recomputed, and renaming a tag does not silently change the value other
-        records match against. The dependency on ``name`` exists to schedule the
-        compute for a new record, not to follow the name around afterwards.
-
-        Being stored and computed is also what backfills an existing database:
-        Odoo computes a newly added stored column for every row, so tags that
-        predate this field get a code from their name without a migration
-        script.
-
-        Collisions get a numeric suffix rather than being left to the UNIQUE.
-        Two different names can slug to one code -- "Hot!" and "Hot?", or the
-        same name under two parents, which the name rule allows on purpose --
-        and a create failing on a value the user never typed is a bad error.
-        Taken codes are read once per batch, which matters when a data file
-        loads a hundred tags at once.
-        """
         pending = self.filtered(lambda tag: not tag.code and tag.name)
         self.filtered(lambda tag: not tag.code and not tag.name).code = False
         if not pending:
@@ -147,10 +69,4 @@ class MixinTag(models.AbstractModel):
 
     @api.model
     def _code_from_name(self, name):
-        """Slug a display name into a code: upper case, ASCII-ish, underscores.
-
-        Reads whatever ``name`` returns for the current user, which is the
-        source term on create -- the record is being made in some language and
-        that is the one term it has.
-        """
         return _CODE_SEPARATORS.sub("_", (name or "").upper()).strip("_")[:64]

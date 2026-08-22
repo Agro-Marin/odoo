@@ -12,9 +12,7 @@
         <field name="sequence">20</field>
     </record>
 
-    <record
-        id="module_category_accounting_localizations"
-        model="ir.module.category">
+    <record id="module_category_accounting_localizations" model="ir.module.category">
         <field name="name">Localization</field>
         <field name="sequence">65</field>
         <field name="visible" eval="0" />
@@ -92,9 +90,7 @@
         <field name="sequence">11</field>
     </record>
 
-    <record
-        id="module_category_human_resources_appraisals"
-        model="ir.module.category">
+    <record id="module_category_human_resources_appraisals" model="ir.module.category">
         <field name="name">Appraisals</field>
         <field
             name="description">A user without any rights on Appraisals will be able to see the
@@ -145,9 +141,7 @@
         <field name="sequence">55</field>
     </record>
 
-    <record
-        id="module_category_internet_of_things_(iot)"
-        model="ir.module.category">
+    <record id="module_category_internet_of_things_(iot)" model="ir.module.category">
         <field name="name">Internet of Things (IoT)</field>
         <field name="sequence">60</field>
     </record>

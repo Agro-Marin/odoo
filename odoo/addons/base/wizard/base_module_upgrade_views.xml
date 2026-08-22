@@ -15,8 +15,18 @@
                 <separator string="Impacted Apps" />
                 <field name="module_info" />
                 <footer>
-                    <button name="upgrade_module" string="Confirm" type="object" class="btn-primary" data-hotkey="q" />
-                    <button string="Cancel" class="btn-secondary" name="upgrade_module_cancel" type="object" data-hotkey="x" />
+                    <button
+                        name="upgrade_module"
+                        string="Confirm"
+                        type="object"
+                        class="btn-primary"
+                        data-hotkey="q" />
+                    <button
+                        string="Cancel"
+                        class="btn-secondary"
+                        name="upgrade_module_cancel"
+                        type="object"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>
@@ -43,8 +53,17 @@
                         menus (Ctrl+T then Ctrl+R)."</span>
                 </div>
                 <footer>
-                    <button name="config" string="Start configuration" type="object" class="btn-primary" data-hotkey="q" />
-                    <button string="Cancel" class="btn-secondary" special="cancel" data-hotkey="x" />
+                    <button
+                        name="config"
+                        string="Start configuration"
+                        type="object"
+                        class="btn-primary"
+                        data-hotkey="q" />
+                    <button
+                        string="Cancel"
+                        class="btn-secondary"
+                        special="cancel"
+                        data-hotkey="x" />
                 </footer>
             </form>
         </field>

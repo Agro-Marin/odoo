@@ -146,10 +146,10 @@ class TestResConfigClassification(TransactionCase):
         selection_field = fields.Selection([("0", "No"), ("1", "Yes")])
         with self._patched_fields(module_fake_selection=selection_field):
             with self.assertRaises(TypeError):
-                Settings._get_classified_fields(["module_fake_selection"])
+                Settings._get_fields_classified(["module_fake_selection"])
         boolean_field = fields.Boolean()
         with self._patched_fields(module_fake_boolean=boolean_field):
-            classified = Settings._get_classified_fields(["module_fake_boolean"])
+            classified = Settings._get_fields_classified(["module_fake_boolean"])
         self.assertFalse(classified["module"])
 
     def test_group_selection_fields_still_accepted(self):
@@ -157,7 +157,7 @@ class TestResConfigClassification(TransactionCase):
         group_field = fields.Selection([("0", "No"), ("1", "Yes")])
         group_field.implied_group = "base.group_multi_currency"
         with self._patched_fields(group_fake_selection=group_field):
-            classified = Settings._get_classified_fields(["group_fake_selection"])
+            classified = Settings._get_fields_classified(["group_fake_selection"])
         self.assertEqual(len(classified["group"]), 1)
         name, groups, implied_group = classified["group"][0]
         self.assertEqual(name, "group_fake_selection")
@@ -167,7 +167,7 @@ class TestResConfigClassification(TransactionCase):
     def test_execute_classifies_fields_once(self):
         Settings = self.env["res.config.settings"]
         settings = Settings.create({})
-        original = Settings.__class__._get_classified_fields
+        original = Settings.__class__._get_fields_classified
         full_classifications = []
 
         def spy(model, fnames=None):
@@ -176,7 +176,7 @@ class TestResConfigClassification(TransactionCase):
             return original(model, fnames)
 
         with patch.object(
-            Settings.__class__, "_get_classified_fields", side_effect=spy, autospec=True
+            Settings.__class__, "_get_fields_classified", side_effect=spy, autospec=True
         ):
             settings.execute()
         self.assertEqual(

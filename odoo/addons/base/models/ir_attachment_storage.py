@@ -72,7 +72,7 @@ class AttachmentStorage:
         data = fileobj.read()
         if isinstance(data, str):
             data = data.encode()
-        checksum = model._content_checksum(data)
+        checksum = model._get_content_checksum(data)
         return {
             "checksum": checksum,
             "file_size": len(data),
@@ -117,12 +117,12 @@ class FileStorage(AttachmentStorage):
         if not data:
             return self._inline_datas_values(data)
         return {
-            "store_fname": self._model()._file_write(data, checksum),
+            "store_fname": self._model()._write_file(data, checksum),
             "db_datas": False,
         }
 
     def write_stream(self, fileobj: Any) -> dict[str, Any]:
-        fname, size, checksum = self._model()._file_write_stream(fileobj)
+        fname, size, checksum = self._model()._write_file_stream(fileobj)
         if not size:
             return {
                 "checksum": checksum,
@@ -140,17 +140,17 @@ class FileStorage(AttachmentStorage):
         return [("db_datas", "!=", False)]
 
     def read(self, key: str, size: int | None = None) -> bytes:
-        return self._model()._file_read(key, size=size)
+        return self._model()._read_file(key, size=size)
 
     def delete(self, key: str) -> None:
-        self._model()._file_delete(key)
+        self._model()._mark_for_gc(key)
 
     def autovacuum(self) -> bool | None:
         model = self._model()
         cr = self.env.cr
         cr.commit()
 
-        checklist = model._gc_checklist(limit=model._GC_MAX_ENTRIES)
+        checklist = model._get_gc_checklist(limit=model._GC_MAX_ENTRIES)
         if len(checklist) >= model._GC_MAX_ENTRIES:
             _logger.info(
                 "filestore gc: checklist cap reached (%d entries); the "
@@ -173,7 +173,7 @@ class FileStorage(AttachmentStorage):
     def to_stream(self, attachment: Any, stream: Stream) -> Stream:
         stream.type = "path"
         try:
-            stream.path = attachment._full_path(attachment.store_fname)
+            stream.path = attachment._get_full_path(attachment.store_fname)
         except ValueError:
             stream.path = None
         stat = None

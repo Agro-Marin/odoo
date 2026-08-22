@@ -140,10 +140,6 @@ _INTERPOLATION_FORMATS = {
     "isoweek": "%V",
 }
 
-# Width of what each format above emits. strftime zero-pads all of them, which is
-# what makes the table invertible: a fixed width per placeholder is enough to take
-# a string the pattern produced back apart. Kept beside the formats so the two
-# cannot drift.
 _INTERPOLATION_WIDTHS = {
     "year": 4,
     "month": 2,
@@ -161,7 +157,6 @@ _INTERPOLATION_WIDTHS = {
     "isoweek": 2,
 }
 
-# Same `range_` / `current_` prefixes `_InterpolationDict.__missing__` accepts.
 _INTERPOLATION_REGEXES = {
     prefix + name: rf"\d{{{width}}}"
     for name, width in _INTERPOLATION_WIDTHS.items()
@@ -204,7 +199,7 @@ class IrSequence(models.Model):
         return "ir_sequence_%03d" % self.id
 
     @api.depends("implementation", "number_next")
-    def _get_number_next_actual(self) -> None:
+    def _compute_number_next_actual(self) -> None:
         standard = self.filtered(
             lambda seq: seq.id and seq.implementation == "standard"
         )
@@ -222,7 +217,7 @@ class IrSequence(models.Model):
                     seq._pg_sequence_name(), seq.number_next
                 )
 
-    def _set_number_next_actual(self) -> None:
+    def _inverse_number_next_actual(self) -> None:
         for seq in self:
             val = seq.number_next_actual
             seq.write({"number_next": val if val is not None else 1})
@@ -248,8 +243,8 @@ class IrSequence(models.Model):
         help="Next number of this sequence",
     )
     number_next_actual = fields.Integer(
-        compute="_get_number_next_actual",
-        inverse="_set_number_next_actual",
+        compute="_compute_number_next_actual",
+        inverse="_inverse_number_next_actual",
         string="Actual Next Number",
         help="Next number that will be used. This number can be incremented "
         "frequently so the displayed value might already be obsolete",
@@ -434,46 +429,16 @@ class IrSequence(models.Model):
 
     @api.model
     def _get_interpolation_formats(self) -> dict[str, str]:
-        """Placeholder name -> strftime format interpolation substitutes for it.
-
-        The forward half of `_get_pattern_placeholders`, for callers that build a
-        reference themselves rather than drawing one from a sequence.
-        """
         return dict(_INTERPOLATION_FORMATS)
 
     @api.model
     def _get_pattern_placeholders(self) -> dict[str, str]:
-        """Placeholder name -> regex for what interpolating it can emit.
-
-        Override to declare placeholders a caller substitutes itself, on top of
-        the date ones every sequence understands.
-        """
         return dict(_INTERPOLATION_REGEXES)
 
     @api.model
     def _pattern_to_regex(
         self, pattern: str, placeholders: dict[str, str] | None = None
     ) -> str:
-        """Compile a prefix/suffix pattern into an anchored regex with named groups.
-
-        `_get_prefix_suffix` runs a pattern forward, turning `%(year)s` into a
-        year. This runs it backward, so a string the pattern could have produced
-        can be recognised and taken apart again — which is what validating a
-        user-typed reference, or recovering the date encoded in one, needs.
-
-        A placeholder used twice becomes a backreference rather than a second
-        group: one interpolation cannot yield two different values, so a string
-        where the two copies disagree is not one this pattern produced.
-
-        :param str pattern: pattern in `%(name)s` form, as `prefix`/`suffix` hold
-        :param dict placeholders: vocabulary to resolve against, name -> regex.
-            Defaults to `_get_pattern_placeholders`. Pass it when the caller
-            substitutes placeholders of its own: the vocabulary belongs to
-            whoever fills the pattern, not to this model.
-        :return: anchored regex, one named group per distinct placeholder
-        :rtype: str
-        :raises ValueError: if the pattern names a placeholder with no regex
-        """
         if placeholders is None:
             placeholders = self._get_pattern_placeholders()
         parts = ["^"]
@@ -658,7 +623,7 @@ class IrSequenceDate_Range(models.Model):
         return "ir_sequence_%03d_%03d" % (self.sequence_id.id, self.id)
 
     @api.depends("number_next", "sequence_id.implementation")
-    def _get_number_next_actual(self) -> None:
+    def _compute_number_next_actual(self) -> None:
         standard = self.filtered(
             lambda seq: seq.id and seq.sequence_id.implementation == "standard"
         )
@@ -674,7 +639,7 @@ class IrSequenceDate_Range(models.Model):
                     seq._pg_sequence_name(), seq.number_next
                 )
 
-    def _set_number_next_actual(self) -> None:
+    def _inverse_number_next_actual(self) -> None:
         for seq in self:
             val = seq.number_next_actual
             seq.write({"number_next": val if val is not None else 1})
@@ -691,8 +656,8 @@ class IrSequenceDate_Range(models.Model):
         help="Next number of this sequence",
     )
     number_next_actual = fields.Integer(
-        compute="_get_number_next_actual",
-        inverse="_set_number_next_actual",
+        compute="_compute_number_next_actual",
+        inverse="_inverse_number_next_actual",
         string="Actual Next Number",
         help="Next number that will be used. This number can be incremented "
         "frequently so the displayed value might already be obsolete",

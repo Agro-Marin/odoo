@@ -13,11 +13,11 @@ class ResetViewArchWizard(models.TransientModel):
 
     view_id = fields.Many2one("ir.ui.view", string="View")
     view_name = fields.Char(related="view_id.name", string="View Name")
-    has_diff = fields.Boolean(compute="_compute_arch_diff")
+    has_diff = fields.Boolean(compute="_compute_arch_comparison")
     arch_diff = fields.Html(
         string="Architecture Diff",
         readonly=True,
-        compute="_compute_arch_diff",
+        compute="_compute_arch_comparison",
         sanitize_tags=False,
     )
     reset_mode = fields.Selection(
@@ -31,7 +31,7 @@ class ResetViewArchWizard(models.TransientModel):
         required=True,
     )
     compare_view_id = fields.Many2one("ir.ui.view", string="Compare To View")
-    arch_to_compare = fields.Text("Arch To Compare To", compute="_compute_arch_diff")
+    arch_to_compare = fields.Text("Arch To Compare To", compute="_compute_arch_comparison")
 
     @api.model
     def default_get(self, fields: list[str]) -> dict[str, Any]:
@@ -50,7 +50,7 @@ class ResetViewArchWizard(models.TransientModel):
         return result
 
     @api.depends("reset_mode", "view_id", "compare_view_id")
-    def _compute_arch_diff(self) -> None:
+    def _compute_arch_comparison(self) -> None:
 
         def get_table_name(view_id):
             name = view_id.display_name

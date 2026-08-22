@@ -18,12 +18,6 @@ if TYPE_CHECKING:
 _lt = LazyTranslate(__name__)
 
 ACCESS_MODES = ("read", "write", "create", "unlink")
-"""The four CRUD access modes, in the order they are shown to users.
-
-The single definition of the vocabulary shared by ``ir.model.access`` and
-``ir.rule``: both store one ``perm_<mode>`` column per mode, both validate the
-mode they are handed, and both used to spell the set out for themselves.
-"""
 
 
 def check_access_mode(mode: str) -> None:
@@ -38,43 +32,6 @@ def access_mode_columns(alias: str) -> dict[str, SQL]:
 
 
 def unloaded_module_clause(registry: Any, model: str, alias: str) -> SQL:
-    """Exclude access rows whose defining module this registry has not loaded.
-
-    ``ir_model_access`` and ``ir_rule`` both hold rows for every *installed*
-    module, but during ``load_modules`` the registry holds only the modules
-    loaded so far. A row from a later module describes a security model that
-    does not exist yet from where the loader stands: ``hr``'s rule on
-    ``res.partner.bank`` traverses ``partner_id.employee_ids``, and with ``hr``
-    unloaded the domain optimizer rejected the whole search rather than the
-    rule.
-
-    **Both tables must use this, or neither.** They are two halves of one
-    answer -- the ACL says who may act on the model, the rule says on which
-    records -- and a module routinely ships a permissive ACL together with the
-    rule that bounds it. ``project_todo`` is the case in point: it grants every
-    internal user full CRUD on ``project.task`` (a to-do *is* a task) and
-    fences that in with ``[('project_id', '=', False), ...]``. Filtering the
-    rule while keeping the ACL handed every employee unrestricted create,
-    write and unlink on every task in the database for the whole of loading --
-    wider than the module ever intended, and invisible because each half looks
-    correct on its own.
-
-    Scope is deliberately narrow: it applies only while ``pool._init`` is set,
-    so a serving registry holds every installed module and the query is
-    unchanged. A row is skipped only if it has an xml id whose module is
-    absent, so one a user wrote by hand is never skipped. A module is added to
-    ``_init_modules`` before its own tests run, so no module loses its own
-    rows.
-
-    Callers must add ``pool._init`` to any cache key covering the result: the
-    loading-time set is partial and nothing clears those caches when loading
-    ends, so a partial answer could otherwise be served to a finished registry.
-
-    :param registry: the registry whose loading state decides the filter
-    :param model: ``'ir.rule'`` or ``'ir.model.access'`` -- the ``ir_model_data``
-        model name the rows are registered under
-    :param alias: the SQL alias the filtered table carries in the caller's query
-    """
     loaded_modules = list(registry._init_modules)
     if not registry._init or not loaded_modules:
         return SQL("")

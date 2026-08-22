@@ -74,7 +74,7 @@ class TestGetAddressFields(TransactionCase):
     def test_get_address_fields_default_format(self):
         country = self.env["res.country"].create({"name": "Arstotzka", "code": "AA"})
         self.assertEqual(
-            country.get_address_fields(),
+            country.get_fields_address(),
             ["street", "street2", "city", "state_code", "zip", "country_name"],
         )
 
@@ -83,7 +83,7 @@ class TestGetAddressFields(TransactionCase):
             {"name": "Arstotzka", "code": "AA", "address_format": False}
         )
         self.assertFalse(country.address_format)
-        self.assertEqual(country.get_address_fields(), [])
+        self.assertEqual(country.get_fields_address(), [])
 
     def test_get_address_fields_ignores_literal_parentheses(self):
         country = self.env["res.country"].create(
@@ -95,6 +95,6 @@ class TestGetAddressFields(TransactionCase):
             }
         )
         self.assertEqual(
-            country.get_address_fields(),
+            country.get_fields_address(),
             ["street", "zip", "city", "country_name"],
         )

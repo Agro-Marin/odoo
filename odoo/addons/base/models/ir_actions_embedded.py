@@ -21,20 +21,27 @@ class IrEmbeddedActions(models.Model):
         ondelete="cascade",
     )
     parent_res_id = fields.Integer(string="Active Parent Id")
-    parent_res_model = fields.Char(string="Active Parent Model", required=True)
+    parent_res_model = fields.Char(
+        string="Active Parent Model",
+        required=True,
+    )
     action_id = fields.Many2one(
         "ir.actions.actions",
         string="Action",
         ondelete="cascade",
     )
-    python_method = fields.Char(help="Python method returning an action")
+    python_method = fields.Char(
+        help="Python method returning an action",
+    )
     user_id = fields.Many2one(
         "res.users",
         string="User",
         ondelete="cascade",
         help="User specific embedded action. If empty, shared embedded action",
     )
-    is_deletable = fields.Boolean(compute="_compute_is_deletable")
+    is_deletable = fields.Boolean(
+        compute="_compute_is_deletable",
+    )
     default_view_mode = fields.Char(
         string="Default View",
         help="Default view (if none, default view of the action is taken)",
@@ -150,14 +157,14 @@ class IrEmbeddedActions(models.Model):
                     record.is_visible = False
 
     @api.ondelete(at_uninstall=False)
-    def _unlink_if_action_deletable(self) -> None:
+    def _unlink_except_default_action(self) -> None:
         for record in self:
             if not record.is_deletable:
                 raise UserError(
                     self.env._("You cannot delete a default embedded action")
                 )
 
-    def _get_readable_fields(self) -> frozenset[str]:
+    def _get_fields_readable(self) -> frozenset[str]:
         return frozenset(
             {
                 "name",

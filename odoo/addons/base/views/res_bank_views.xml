@@ -8,7 +8,9 @@
             <search string="Search Bank">
                 <field name="name" />
                 <separator />
-                <filter string="Archived" name="inactive"
+                <filter
+                    string="Archived"
+                    name="inactive"
                     domain="[('active', '=', False)]" />
             </search>
         </field>
@@ -32,7 +34,10 @@
         <field name="arch" type="xml">
             <form string="Bank">
                 <sheet>
-                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
+                    <widget
+                        name="web_ribbon"
+                        title="Archived"
+                        bg_color="text-bg-danger"
                         invisible="active" />
                     <group name="bank_details" col="4">
                         <field name="name" />
@@ -42,15 +47,30 @@
                         <group name="address_details">
                             <label for="street" string="Bank Address" />
                             <div class="o_address_format">
-                                <field name="street" placeholder="Street..."
+                                <field
+                                    name="street"
+                                    placeholder="Street..."
                                     class="o_address_street" />
-                                <field name="street2" placeholder="Street 2..."
+                                <field
+                                    name="street2"
+                                    placeholder="Street 2..."
                                     class="o_address_street" />
-                                <field name="city" placeholder="City" class="o_address_city" />
-                                <field name="state" class="o_address_state" placeholder="State"
+                                <field
+                                    name="city"
+                                    placeholder="City"
+                                    class="o_address_city" />
+                                <field
+                                    name="state"
+                                    class="o_address_state"
+                                    placeholder="State"
                                     options="{&quot;no_open&quot;: True}" />
-                                <field name="zip" placeholder="ZIP" class="o_address_zip" />
-                                <field name="country" placeholder="Country"
+                                <field
+                                    name="zip"
+                                    placeholder="ZIP"
+                                    class="o_address_zip" />
+                                <field
+                                    name="country"
+                                    placeholder="Country"
                                     class="o_address_country"
                                     options="{&quot;no_open&quot;: True, &quot;no_create&quot;: True}" />
                             </div>
@@ -86,13 +106,19 @@
         <field name="model">res.partner.bank</field>
         <field name="arch" type="xml">
             <search string="Bank Accounts">
-                <field name="bank_name"
+                <field
+                    name="bank_name"
                     filter_domain="['|', ('bank_name','ilike',self), ('acc_number','ilike',self)]"
                     string="Bank Name" />
-                <field name="company_id" invisible="context.get('company_hide', True)" />
+                <field
+                    name="company_id"
+                    invisible="context.get('company_hide', True)" />
                 <field name="partner_id" />
                 <separator />
-                <filter name="inactive" string="Archived" domain="[('active','=',False)]"
+                <filter
+                    name="inactive"
+                    string="Archived"
+                    domain="[('active','=',False)]"
                     help="Show inactive bank account" />
             </search>
         </field>
@@ -107,8 +133,14 @@
                 <field name="acc_number" />
                 <field name="partner_id" optional="hide" />
                 <field name="bank_name" string="Bank" optional="show" />
-                <field name="company_id" groups="base.group_multi_company" optional="hide" />
-                <field name="allow_out_payment" widget="boolean_toggle" optional="show" />
+                <field
+                    name="company_id"
+                    groups="base.group_multi_company"
+                    optional="hide" />
+                <field
+                    name="allow_out_payment"
+                    widget="boolean_toggle"
+                    optional="show" />
                 <field name="active" widget="boolean_toggle" optional="hide" />
             </list>
         </field>
@@ -121,7 +153,10 @@
         <field name="arch" type="xml">
             <form string="Bank account" name="bank_account_form">
                 <sheet>
-                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
+                    <widget
+                        name="web_ribbon"
+                        title="Archived"
+                        bg_color="text-bg-danger"
                         invisible="active" />
                     <group>
                         <group>
@@ -133,20 +168,30 @@
                         </group>
                         <group>
                             <field name="allow_out_payment" widget="boolean_toggle" />
-                            <field name="company_id" groups="base.group_multi_company"
+                            <field
+                                name="company_id"
+                                groups="base.group_multi_company"
                                 options="{'no_create': True}" />
-                            <field name="currency_id" groups="base.group_multi_currency"
+                            <field
+                                name="currency_id"
+                                groups="base.group_multi_currency"
                                 options="{'no_create': True}" />
                         </group>
                     </group>
                     <notebook>
                         <page string="Note" name="internal_notes">
-                            <field name="note" nolabel="1" placeholder="Internal notes..." />
+                            <field
+                                name="note"
+                                nolabel="1"
+                                placeholder="Internal notes..." />
                         </page>
                     </notebook>
                 </sheet>
                 <footer replace="0">
-                    <button name="action_archive_bank" type="object" string="Archive"
+                    <button
+                        name="action_archive_bank"
+                        type="object"
+                        string="Archive"
                         class="btn btn-secondary" />
                 </footer>
             </form>

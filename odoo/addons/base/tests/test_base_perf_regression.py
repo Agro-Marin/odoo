@@ -118,7 +118,7 @@ class TestBasePerfRegression(TransactionCase):
         partners = self.vat_partners
         self.env.invalidate_all()
         with self.assertQueryCount(10):
-            partners._compute_same_vat_partner_id()
+            partners._compute_same_identifier_partners()
 
     @warmup
     def test_selection_target_model_cached(self):

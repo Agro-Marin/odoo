@@ -23,7 +23,7 @@ class StubAssetFetcher:
     def __init__(self, checksum: str = "stub-checksum"):
         self.checksum = checksum
 
-    def asset_checksum(self, url: str) -> str | None:
+    def get_asset_checksum(self, url: str) -> str | None:
         return self.checksum
 
 
@@ -36,7 +36,7 @@ class TestReports(odoo.tests.TransactionCase):
                 Report._get_report(ref)
 
     def test_mixed_stylesheet_bodies_get_own_css(self):
-        engine = self.env["ir.actions.report"]._build_weasyprint_engine()
+        engine = self.env["ir.actions.report"]._prepare_weasyprint_engine()
         ltr = (
             '<html><head><link rel="stylesheet" href="/a/ltr.css"/></head>'
             "<body>x</body></html>"
@@ -48,8 +48,8 @@ class TestReports(odoo.tests.TransactionCase):
         ltr_css, rtl_css = object(), object()
         parsed_by_url = {"/a/ltr.css": ltr_css, "/a/rtl.css": rtl_css}
 
-        html0, css0 = engine._process_body_html(ltr, "", parsed_by_url)
-        html1, css1 = engine._process_body_html(rtl, "", parsed_by_url)
+        html0, css0 = engine._prepare_body_and_stylesheets(ltr, "", parsed_by_url)
+        html1, css1 = engine._prepare_body_and_stylesheets(rtl, "", parsed_by_url)
 
         self.assertEqual(css0, [ltr_css])
         self.assertEqual(css1, [rtl_css])
@@ -60,15 +60,15 @@ class TestReports(odoo.tests.TransactionCase):
             '<html><head><link rel="stylesheet" href="/a/keep.css"/></head>'
             "<body>z</body></html>"
         )
-        html2, css2 = engine._process_body_html(unknown, "", parsed_by_url)
+        html2, css2 = engine._prepare_body_and_stylesheets(unknown, "", parsed_by_url)
         self.assertEqual(css2, [])
         self.assertIn("/a/keep.css", html2)
 
     def test_asset_css_parsed_once_per_process(self):
         from odoo.addons.base.models import ir_actions_report as iar
 
-        engine = self.env["ir.actions.report"]._build_weasyprint_engine()
-        self.addCleanup(iar._weasy_state.reset_for_tests)
+        engine = self.env["ir.actions.report"]._prepare_weasyprint_engine()
+        self.addCleanup(iar._weasy_state.clear_for_tests)
 
         body = (
             "<html><head>"
@@ -79,10 +79,10 @@ class TestReports(odoo.tests.TransactionCase):
         debug_body = body.replace("/abc123/", "/debug/")
         sentinel = object()
         with patch.object(iar.weasyprint, "CSS", return_value=sentinel) as css_cls:
-            _html0, css0 = engine._process_body_html(
+            _html0, css0 = engine._prepare_body_and_stylesheets(
                 body, "", {}, fetcher=StubAssetFetcher()
             )
-            _html1, css1 = engine._process_body_html(
+            _html1, css1 = engine._prepare_body_and_stylesheets(
                 body, "", {}, fetcher=StubAssetFetcher()
             )
             self.assertEqual(css_cls.call_count, 1, "second render must hit the cache")
@@ -92,8 +92,12 @@ class TestReports(odoo.tests.TransactionCase):
                 css_cls.call_args.kwargs.get("font_config"),
                 "@font-face registration needs the shared font config at parse time",
             )
-            engine._process_body_html(debug_body, "", {}, fetcher=StubAssetFetcher())
-            engine._process_body_html(debug_body, "", {}, fetcher=StubAssetFetcher())
+            engine._prepare_body_and_stylesheets(
+                debug_body, "", {}, fetcher=StubAssetFetcher()
+            )
+            engine._prepare_body_and_stylesheets(
+                debug_body, "", {}, fetcher=StubAssetFetcher()
+            )
             self.assertEqual(css_cls.call_count, 3, "debug assets must not be cached")
 
     def test_render_entry_points_do_not_mutate_caller_data(self):
@@ -596,7 +600,7 @@ class TestReportsRendering(TestReportsRenderingCommon):
 
     def test_engine_split_and_bounded_merge_paths(self):
         report_model = self.env["ir.actions.report"]
-        engine = report_model._build_weasyprint_engine()
+        engine = report_model._prepare_weasyprint_engine()
         bodies = [
             f"<html><head></head><body><div>Doc {i}</div></body></html>"
             for i in range(3)
@@ -612,7 +616,7 @@ class TestReportsRendering(TestReportsRenderingCommon):
         self.env["ir.config_parameter"].sudo().set_param(
             "report.weasyprint_native_merge_max", "1"
         )
-        engine = report_model._build_weasyprint_engine()
+        engine = report_model._prepare_weasyprint_engine()
         merged = engine.render(bodies, page_css, split=False)
         self.assertTrue(merged.startswith(b"%PDF"))
         self.assertEqual(len(self._get_pdf_pages(merged)), 3)
@@ -801,7 +805,7 @@ class TestReportsRendering(TestReportsRenderingCommon):
         self.assertEqual(pages_contents, expected_pages_contents)
 
     def test_report_specific_paperformat_args(self):
-        css = self.env["ir.actions.report"]._paperformat_to_css(
+        css = self.env["ir.actions.report"]._prepare_paperformat_css(
             self.env["report.paperformat"].new(
                 {
                     "format": "A4",
@@ -829,7 +833,7 @@ class TestReportsRendering(TestReportsRenderingCommon):
         self.assertNotIn("running(page-header)", css)
         self.assertNotIn("running(page-footer)", css)
 
-    def test_paperformat_to_css_landscape_from_html_attribute(self):
+    def test_prepare_paperformat_css_landscape_from_html_attribute(self):
         Report = self.env["ir.actions.report"]
         pf = self.env["report.paperformat"].new(
             {
@@ -843,7 +847,7 @@ class TestReportsRendering(TestReportsRenderingCommon):
         )
         for truthy in ("True", "1"):
             with self.subTest(value=truthy):
-                css = Report._paperformat_to_css(
+                css = Report._prepare_paperformat_css(
                     pf,
                     landscape=False,
                     specific_paperformat_args={"data-report-landscape": truthy},
@@ -855,7 +859,7 @@ class TestReportsRendering(TestReportsRenderingCommon):
                 )
         for falsy in ("False", "0", "false", ""):
             with self.subTest(value=falsy):
-                css = Report._paperformat_to_css(
+                css = Report._prepare_paperformat_css(
                     pf,
                     landscape=False,
                     specific_paperformat_args={"data-report-landscape": falsy},
@@ -900,7 +904,7 @@ class TestReportsRendering(TestReportsRenderingCommon):
                 "Expected landscape orientation from data_report_landscape template variable",
             )
 
-    def test_paperformat_to_css_bad_margin(self):
+    def test_prepare_paperformat_css_bad_margin(self):
         Report = self.env["ir.actions.report"]
         pf = self.env["report.paperformat"].new(
             {
@@ -912,7 +916,7 @@ class TestReportsRendering(TestReportsRenderingCommon):
                 "orientation": "portrait",
             }
         )
-        css = Report._paperformat_to_css(
+        css = Report._prepare_paperformat_css(
             pf,
             landscape=False,
             specific_paperformat_args={
@@ -1069,7 +1073,7 @@ class TestAggregatePdfReports(odoo.tests.HttpCase):
 
         report = reports._get_report(report_ref)
         self.assertTrue(
-            report.retrieve_attachment(record_to_report),
+            report._get_attachments(record_to_report),
             "Attachment not generated",
         )
 
@@ -1080,5 +1084,5 @@ class TestAggregatePdfReports(odoo.tests.HttpCase):
         self.assertTrue(aggregate_report_content, "PDF not generated")
         for record in records:
             self.assertTrue(
-                report.retrieve_attachment(record), "Attachment not generated"
+                report._get_attachments(record), "Attachment not generated"
             )

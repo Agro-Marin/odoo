@@ -95,10 +95,6 @@ class IrModelAccess(models.Model):
             return group_definitions.universe
         return group_definitions.from_ids(accesses.group_id.ids)
 
-    # ``self.pool._init`` joins the key because the ACL set is partial while the
-    # registry is loading (see ``unloaded_module_clause``) and nothing clears
-    # this cache when loading ends -- without it, a loading-time answer could be
-    # served to a finished registry and leave a module's ACL silently unapplied.
     @tools.ormcache("self.env.user._get_group_ids()", "mode", "self.pool._init")
     def _get_allowed_models(self, mode: str = "read") -> frozenset[str]:
         self._check_access_mode(mode)
@@ -151,10 +147,10 @@ class IrModelAccess(models.Model):
 
         has_access = model in self._get_allowed_models(mode)
         if not has_access and raise_exception:
-            raise self._make_access_error(model, mode) from None
+            raise self._prepare_access_error(model, mode) from None
         return has_access
 
-    def _make_access_error(self, model: str, mode: str) -> AccessError:
+    def _prepare_access_error(self, model: str, mode: str) -> AccessError:
         _logger.info(
             "Access Denied by ACLs for operation: %s, uid: %s, model: %s",
             mode,

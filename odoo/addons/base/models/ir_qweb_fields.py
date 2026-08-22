@@ -160,7 +160,7 @@ class IrQwebFieldFloat(models.AbstractModel):
     def value_to_html(self, value: Any, options: dict[str, Any]) -> str:
         min_precision = options.get("min_precision")
         if "decimal_precision" in options:
-            precision = self.env["decimal.precision"].precision_get(
+            precision = self.env["decimal.precision"].get_precision(
                 options["decimal_precision"]
             )
         elif options.get("precision") is None:
@@ -794,7 +794,7 @@ class IrQwebFieldBarcode(models.AbstractModel):
         if not value.isascii():
             return nl2br(value)
         barcode_symbology = options.get("symbology", "Code128")
-        barcode = self.env["ir.actions.report"].barcode(
+        barcode = self.env["ir.actions.report"].prepare_barcode(
             barcode_symbology,
             value,
             **{

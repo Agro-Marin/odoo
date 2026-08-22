@@ -237,7 +237,7 @@ class IrModel(models.Model):
                     _("The value of 'Fold Field' should be a field name of the model.")
                 )
 
-    _obj_name_uniq = models.Constraint(
+    _model_uniq = models.Constraint(
         "UNIQUE (model)", "Each model must have a unique name."
     )
 
@@ -250,7 +250,7 @@ class IrModel(models.Model):
         self.env.cr.execute("SELECT id FROM ir_model WHERE model=%s", (name,))
         return result[0] if (result := self.env.cr.fetchone()) else None
 
-    def _drop_table(self) -> bool:
+    def _drop_table(self) -> None:
         for model in self:
             if (current_model := self.env.get(model.model)) is not None:
                 if current_model._abstract:
@@ -276,10 +276,9 @@ class IrModel(models.Model):
                     "The model %s could not be dropped because it did not exist in the registry.",
                     model.model,
                 )
-        return True
 
     @api.ondelete(at_uninstall=False)
-    def _unlink_if_manual(self) -> None:
+    def _unlink_except_module_data(self) -> None:
         for model in self:
             if model.state != "manual":
                 raise UserError(
@@ -368,7 +367,7 @@ class IrModel(models.Model):
         )
         return ir_model.id, ir_model.display_name
 
-    def _reflect_model_params(self, model: models.BaseModel) -> dict[str, Any]:
+    def _prepare_model_vals(self, model: models.BaseModel) -> dict[str, Any]:
         return {
             "model": model._name,
             "name": model._description,
@@ -392,8 +391,7 @@ class IrModel(models.Model):
             return
         id_cache_generation = self._get_id.__cache__.generation_of(self)
         rows = [
-            self._reflect_model_params(self.env[model_name])
-            for model_name in model_names
+            self._prepare_model_vals(self.env[model_name]) for model_name in model_names
         ]
         cols = list(unique(["model"] + list(rows[0])))
         expected = [tuple(row[col] for col in cols) for row in rows]
@@ -429,7 +427,7 @@ class IrModel(models.Model):
         self.env["ir.model.data"]._update_xmlids(data_list)
 
     @api.model
-    def _instantiate_attrs(self, model_data: dict[str, Any]) -> dict[str, Any]:
+    def _prepare_class_attrs(self, model_data: dict[str, Any]) -> dict[str, Any]:
         return {
             "_name": model_data["model"],
             "_description": model_data["name"],

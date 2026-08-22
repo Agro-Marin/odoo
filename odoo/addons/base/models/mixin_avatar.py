@@ -28,40 +28,40 @@ class MixinAvatar(models.AbstractModel):
     avatar_256 = fields.Image("Avatar 256", compute="_compute_avatar_256")
     avatar_128 = fields.Image("Avatar 128", compute="_compute_avatar_128")
 
-    def _compute_avatar(
-        self, avatar_field: _FieldName, image_field: _FieldName
-    ) -> None:
+
+    @api.depends(lambda self: [self._avatar_name_field, "image_1920"])
+    def _compute_avatar_1920(self) -> None:
+        self._update_avatar("avatar_1920", "image_1920")
+
+    @api.depends(lambda self: [self._avatar_name_field, "image_1024"])
+    def _compute_avatar_1024(self) -> None:
+        self._update_avatar("avatar_1024", "image_1024")
+
+    @api.depends(lambda self: [self._avatar_name_field, "image_512"])
+    def _compute_avatar_512(self) -> None:
+        self._update_avatar("avatar_512", "image_512")
+
+    @api.depends(lambda self: [self._avatar_name_field, "image_256"])
+    def _compute_avatar_256(self) -> None:
+        self._update_avatar("avatar_256", "image_256")
+
+    @api.depends(lambda self: [self._avatar_name_field, "image_128"])
+    def _compute_avatar_128(self) -> None:
+        self._update_avatar("avatar_128", "image_128")
+
+
+    def _update_avatar(self, avatar_field: _FieldName, image_field: _FieldName) -> None:
         for record in self:
             avatar = record[image_field]
             if not avatar:
                 name = record[record._avatar_name_field]
                 if record.id and name and name.strip():
-                    avatar = record._avatar_generate_svg()
+                    avatar = record._prepare_avatar_svg()
                 else:
-                    avatar = b64encode(record._avatar_get_placeholder())
+                    avatar = b64encode(record._get_avatar_placeholder())
             record[avatar_field] = avatar
 
-    @api.depends(lambda self: [self._avatar_name_field, "image_1920"])
-    def _compute_avatar_1920(self) -> None:
-        self._compute_avatar("avatar_1920", "image_1920")
-
-    @api.depends(lambda self: [self._avatar_name_field, "image_1024"])
-    def _compute_avatar_1024(self) -> None:
-        self._compute_avatar("avatar_1024", "image_1024")
-
-    @api.depends(lambda self: [self._avatar_name_field, "image_512"])
-    def _compute_avatar_512(self) -> None:
-        self._compute_avatar("avatar_512", "image_512")
-
-    @api.depends(lambda self: [self._avatar_name_field, "image_256"])
-    def _compute_avatar_256(self) -> None:
-        self._compute_avatar("avatar_256", "image_256")
-
-    @api.depends(lambda self: [self._avatar_name_field, "image_128"])
-    def _compute_avatar_128(self) -> None:
-        self._compute_avatar("avatar_128", "image_128")
-
-    def _avatar_generate_svg(self) -> bytes:
+    def _prepare_avatar_svg(self) -> bytes:
         self.ensure_one()
         initial = html_escape(self[self._avatar_name_field].strip()[0].upper())
         bgcolor = hsl_from_seed(
@@ -74,19 +74,19 @@ class MixinAvatar(models.AbstractModel):
         )
         return b64encode(
             (
-                "<?xml version='1.0' encoding='UTF-8' ?>"
-                "<svg height='180' width='180' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink'>"
-                f"<rect fill='{bgcolor}' height='180' width='180'/>"
-                f"<text fill='#ffffff' font-size='96' text-anchor='middle' x='90' y='125' font-family='sans-serif'>{initial}</text>"
+                '<?xml version="1.0" encoding="UTF-8" ?>'
+                '<svg height="180" width="180" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">'
+                f'<rect fill="{bgcolor}" height="180" width="180"/>'
+                f'<text fill="#ffffff" font-size="96" text-anchor="middle" x="90" y="125" font-family="sans-serif">{initial}</text>'
                 "</svg>"
             ).encode()
         )
 
-    def _avatar_get_placeholder_path(self) -> str:
+    def _get_avatar_placeholder_path(self) -> str:
         return "base/static/img/avatar_grey.png"
 
-    def _avatar_get_placeholder(self) -> bytes:
-        return _get_placeholder_image(self._avatar_get_placeholder_path())
+    def _get_avatar_placeholder(self) -> bytes:
+        return _get_placeholder_image(self._get_avatar_placeholder_path())
 
     def _get_avatar_128_access_token(self) -> str:
         self.ensure_one()

@@ -11,7 +11,6 @@ from odoo.http import request
 
 MENU_ITEM_SEPARATOR = "/"
 _MISSING = object()
-"""Sentinel telling "no ``web_icon`` key" from an explicit falsy one."""
 NUMBER_PARENS = re.compile(r"\((\d+)\)\s*$")
 
 
@@ -137,8 +136,8 @@ class IrUiMenu(models.Model):
         actions = self.env["ir.actions.actions"]
         MODEL_BY_TYPE = {
             model_name: field_name
-            for model_name in actions._inheritance_tree_model_names()
-            if (field_name := self.env[model_name]._menu_access_model_field())
+            for model_name in actions._get_model_names_in_tree()
+            if (field_name := self.env[model_name]._get_field_target_model())
         }
 
         def exists_actions(model_name, action_ids):

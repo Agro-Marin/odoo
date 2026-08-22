@@ -29,7 +29,7 @@ class DecimalPrecision(models.Model):
 
     @api.model
     @tools.ormcache("application", cache="stable")
-    def precision_get(self, application: str) -> int:
+    def get_precision(self, application: str) -> int:
         self.flush_model(["name", "digits"])
         self.env.cr.execute(
             "select digits from decimal_precision where name=%s", (application,)
@@ -60,7 +60,7 @@ class DecimalPrecision(models.Model):
         return res
 
     @api.onchange("digits")
-    def _onchange_digits_warning(self) -> dict[str, Any] | None:
+    def _onchange_digits(self) -> dict[str, Any] | None:
         if self.digits < self._origin.digits:
             return {
                 "warning": {

@@ -145,8 +145,6 @@ class IrRule(models.Model):
         return self.browse(v for (v,) in self.env.execute_query(sql))
 
     def _unloaded_module_rules_clause(self) -> SQL:
-        """See :func:`unloaded_module_clause` for why this exists, and why
-        ``ir.model.access`` applies the same filter."""
         return unloaded_module_clause(self.pool, "ir.rule", "r")
 
     @api.model
@@ -220,7 +218,7 @@ class IrRule(models.Model):
         self.env.registry.clear_cache()
         return res
 
-    def _make_access_error(self, operation: str, records: Any) -> AccessError:
+    def _prepare_access_error(self, operation: str, records: Any) -> AccessError:
         _logger.info(
             "Access Denied by record rules for operation: %s on record ids: %r, uid: %s, model: %s",
             operation,

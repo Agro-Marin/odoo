@@ -15,7 +15,7 @@ PNG_1x1_B64 = b"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYGAA
 
 @tagged("post_install", "-at_install")
 class TestIrBinaryNoRequest(TransactionCase):
-    def test_get_image_stream_from_without_request(self):
+    def test_get_stream_image_from_record_without_request(self):
         raw_png = base64.b64decode(PNG_1x1_B64)
         data_stream = Stream(
             type="data",
@@ -29,9 +29,9 @@ class TestIrBinaryNoRequest(TransactionCase):
 
         with (
             patch("odoo.addons.base.models.ir_binary.request", None),
-            patch.object(type(ir_binary), "_get_stream_from", return_value=data_stream),
+            patch.object(type(ir_binary), "_get_stream_from_record", return_value=data_stream),
         ):
-            stream = ir_binary._get_image_stream_from(
+            stream = ir_binary._get_stream_image_from_record(
                 partner, "image_1920", width=64, height=64
             )
 
@@ -62,10 +62,10 @@ class TestIrBinaryImageMissing(TransactionCase):
         with (
             patch("odoo.addons.base.models.ir_binary.request", None),
             patch.object(
-                type(ir_binary), "_get_stream_from", side_effect=raise_missing
+                type(ir_binary), "_get_stream_from_record", side_effect=raise_missing
             ),
         ):
-            stream = ir_binary._get_image_stream_from(partner, "image_1920")
+            stream = ir_binary._get_stream_image_from_record(partner, "image_1920")
 
         self.assertIsNotNone(stream)
         self.assertEqual(stream.type, "data")
@@ -79,11 +79,11 @@ class TestIrBinaryFindRecordAccess(TransactionCaseWithUserDemo):
         record = (
             self.env["ir.binary"]
             .with_user(self.user_demo)
-            ._find_record(
+            ._get_record(
                 res_model="res.partner",
                 res_id=partner.id,
                 access_token=token,
-                field="image_1920",
+                field_name="image_1920",
             )
         )
         self.assertTrue(record.env.su, "a valid field token must return a sudo record")
@@ -93,11 +93,11 @@ class TestIrBinaryFindRecordAccess(TransactionCaseWithUserDemo):
         record = (
             self.env["ir.binary"]
             .with_user(self.user_demo)
-            ._find_record(
+            ._get_record(
                 res_model="res.partner",
                 res_id=partner.id,
                 access_token="not-a-valid-tokeno0",
-                field="image_1920",
+                field_name="image_1920",
             )
         )
         self.assertFalse(
@@ -109,7 +109,7 @@ class TestIrBinaryFindRecordAccess(TransactionCaseWithUserDemo):
         self.user_demo.write({"group_ids": [Command.unlink(export_group.id)]})
         preset = self.env["ir.exports"].create({"name": "preset", "resource": "x"})
         with self.assertRaises(AccessError):
-            self.env["ir.binary"].with_user(self.user_demo)._find_record(
+            self.env["ir.binary"].with_user(self.user_demo)._get_record(
                 res_model="ir.exports", res_id=preset.id
             )
 
@@ -142,11 +142,11 @@ class TestIrBinaryImageBranches(TransactionCase):
         with (
             patch("odoo.addons.base.models.ir_binary.request", None),
             patch.object(
-                type(self._binary), "_get_stream_from", side_effect=raise_user_error
+                type(self._binary), "_get_stream_from_record", side_effect=raise_user_error
             ),
             self.assertLogs("odoo.addons.base.models.ir_binary", level="DEBUG") as cm,
         ):
-            stream = self._binary._get_image_stream_from(partner, "image_1920")
+            stream = self._binary._get_stream_image_from_record(partner, "image_1920")
         self.assertEqual(stream.type, "data")
         joined = "\n".join(cm.output)
         self.assertIn("image placeholder", joined)
@@ -163,20 +163,20 @@ class TestIrBinaryImageBranches(TransactionCase):
         with (
             patch("odoo.addons.base.models.ir_binary.request", fake_request),
             patch.object(
-                type(self._binary), "_get_stream_from", side_effect=raise_missing
+                type(self._binary), "_get_stream_from_record", side_effect=raise_missing
             ),
         ):
             with self.assertRaises(MissingError):
-                self._binary._get_image_stream_from(partner, "image_1920")
+                self._binary._get_stream_image_from_record(partner, "image_1920")
 
     def test_empty_stream_falls_back_to_placeholder(self):
         partner = self._partner("Audit IRB-C2 empty")
         empty = Stream(type="data", data=b"", mimetype="image/png", size=0)
         with (
             patch("odoo.addons.base.models.ir_binary.request", None),
-            patch.object(type(self._binary), "_get_stream_from", return_value=empty),
+            patch.object(type(self._binary), "_get_stream_from_record", return_value=empty),
         ):
-            stream = self._binary._get_image_stream_from(partner, "image_1920")
+            stream = self._binary._get_stream_image_from_record(partner, "image_1920")
         self.assertEqual(stream.type, "data")
         self.assertTrue(stream.size, "placeholder must carry actual bytes")
 
@@ -186,11 +186,11 @@ class TestIrBinaryImageBranches(TransactionCase):
             patch("odoo.addons.base.models.ir_binary.request", None),
             patch.object(
                 type(self._binary),
-                "_get_stream_from",
+                "_get_stream_from_record",
                 return_value=self._png_stream(etag="base-etag"),
             ),
         ):
-            stream = self._binary._get_image_stream_from(
+            stream = self._binary._get_stream_image_from_record(
                 partner, "image_1920", width=64, height=32, crop=True, quality=80
             )
         self.assertEqual(stream.etag, "base-etag-64x32-crop=True-quality=80")

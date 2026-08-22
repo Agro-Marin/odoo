@@ -79,7 +79,7 @@ class _FakeSMTP:
 class EmailConfigCase(TransactionCase):
     @config.patch(email_from="settings@example.com")
     def test_default_email_from(self):
-        message = self.env["ir.mail_server"]._build_email__(
+        message = self.env["ir.mail_server"]._prepare_email__(
             False,
             "recipient@example.com",
             "Subject",
@@ -91,13 +91,13 @@ class EmailConfigCase(TransactionCase):
         IrMailServer = self.env["ir.mail_server"]
         with config.patch(email_from=False):
             with self.assertRaises(OutgoingEmailError) as capture:
-                IrMailServer._build_email__(
+                IrMailServer._prepare_email__(
                     False, "recipient@example.com", "Subject", "Body"
                 )
         self.assertEqual(capture.exception.code, IrMailServer.NO_FOUND_FROM)
 
     def test_build_email_attachment_malformed_mimetype(self):
-        message = self.env["ir.mail_server"]._build_email__(
+        message = self.env["ir.mail_server"]._prepare_email__(
             "sender@example.com",
             "recipient@example.com",
             "Subject",
@@ -120,7 +120,7 @@ class EmailConfigCase(TransactionCase):
             ("From", "override@example.com"),
             ("Message-Id", "<pinned@example.com>"),
         ]:
-            message = IrMailServer._build_email__(
+            message = IrMailServer._prepare_email__(
                 "sender@example.com",
                 "recipient@example.com",
                 "Original Subject",
@@ -138,7 +138,7 @@ class EmailConfigCase(TransactionCase):
         IrMailServer = self.env["ir.mail_server"]
 
         with self.assertRaises(ValueError):
-            IrMailServer._build_email__(
+            IrMailServer._prepare_email__(
                 "sender@example.com",
                 "recipient@example.com",
                 "Subject\r\nBcc: attacker@example.com",
@@ -146,7 +146,7 @@ class EmailConfigCase(TransactionCase):
             )
 
         with self.assertRaises(ValueError):
-            IrMailServer._build_email__(
+            IrMailServer._prepare_email__(
                 "sender@example.com",
                 "recipient@example.com",
                 "Subject",
@@ -155,7 +155,7 @@ class EmailConfigCase(TransactionCase):
             )
 
         with self.assertRaises(ValueError):
-            IrMailServer._build_email__(
+            IrMailServer._prepare_email__(
                 "sender@example.com",
                 "recipient@example.com",
                 "Subject",
@@ -226,7 +226,7 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
             return original(self, from_filter)
 
         with patch.object(type(IrMailServer), "_parse_from_filter", counting):
-            IrMailServer.sudo()._find_mail_server(
+            IrMailServer.sudo()._get_mail_server(
                 "nobody@nomatch.example.org", mail_servers=servers
             )
 
@@ -295,7 +295,7 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
             "On 01/05/2016 10:24 AM, Raoul\nPoilvache wrote:\n\n* Test reply. The suite. *\n\n--\nRaoul Poilvache\n\nTop cool !!!\n\n--\nRaoul Poilvache",
         ]
         for body, expected in zip(bodies, expected_list, strict=False):
-            message = self.env["ir.mail_server"]._build_email__(
+            message = self.env["ir.mail_server"]._prepare_email__(
                 "john.doe@from.example.com",
                 "destinataire@to.example.com",
                 body=body,
@@ -417,7 +417,7 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
             strict=False,
         ):
             with self.subTest(email_from=email_from):
-                mail_server, mail_from = self.env["ir.mail_server"]._find_mail_server(
+                mail_server, mail_from = self.env["ir.mail_server"]._get_mail_server(
                     email_from=email_from
                 )
                 self.assertEqual(mail_server, expected_mail_server)
@@ -520,7 +520,7 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
             domain_bounce_address="bounce@context.example.com",
         )
         with self.mock_smtplib_connection():
-            mail_server, smtp_from = IrMailServer._find_mail_server(
+            mail_server, smtp_from = IrMailServer._get_mail_server(
                 email_from='"Name" <test@unknown_domain.com>'
             )
             self.assertEqual(mail_server, context_server)
@@ -701,7 +701,7 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
         eml_content = b"From: user@example.com\nTo: user2@example.com\nSubject: Test Email\n\nThis is a test email."
         attachments = [("test.eml", eml_content, "message/rfc822")]
 
-        message = IrMailServer._build_email__(
+        message = IrMailServer._prepare_email__(
             email_from="john.doe@from.example.com",
             email_to="destinataire@to.example.com",
             subject="Subject with .eml attachment",
@@ -735,7 +735,7 @@ class TestIrMailServer(TransactionCase, MockSmtplibCase):
         eml_content = "From: user@example.com\nTo: user2@example.com\nSubject: Test\n\nBody with é"
         attachments = [("test.eml", eml_content.encode(), "message/rfc822")]
 
-        message = IrMailServer._build_email__(
+        message = IrMailServer._prepare_email__(
             email_from="john.doe@from.example.com",
             email_to="destinataire@to.example.com",
             subject="Serialization test",

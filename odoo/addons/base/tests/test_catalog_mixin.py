@@ -7,13 +7,6 @@ from odoo.addons.base.models.mixin_catalog import no_name_uniq_index
 
 
 class TestCatalogMixin(TransactionCase):
-    """The mixin's contract, exercised through ``tag.tag``.
-
-    ``tag.tag`` is the concrete inheritor that ships with ``base``. It
-    re-scopes the uniqueness rule to ``parent_id``, which is what makes it
-    useful here: both halves of the contract -- the fields, and a re-scoped
-    rule winning over the inherited one -- are visible on it.
-    """
 
     @classmethod
     def setUpClass(cls):
@@ -22,7 +15,6 @@ class TestCatalogMixin(TransactionCase):
         cls.root = cls.Tag.create({"name": "Rootcat"})
 
     def test_name_keeps_mixin_attributes_through_partial_override(self):
-        """mixin.tag restates ``name`` for its label only."""
         field = self.Tag._fields["name"]
         self.assertTrue(field.required)
         self.assertTrue(field.translate)
@@ -34,7 +26,6 @@ class TestCatalogMixin(TransactionCase):
         self.assertEqual(field.help, "Archive a tag to hide it without deleting it.")
 
     def test_uniqueness_rule_is_inherited_and_rescoped(self):
-        """The inheritor's scope wins, and there is exactly one rule."""
         rules = [
             obj
             for name, obj in self.Tag._table_objects.items()
@@ -44,13 +35,6 @@ class TestCatalogMixin(TransactionCase):
         self.assertIn("parent_id", rules[0].get_definition(self.env.registry))
 
     def test_opt_out_produces_no_index_and_drops_an_existing_one(self):
-        """The escape hatch is an empty definition, not a missing declaration.
-
-        ``Index.apply_to_database`` drops whatever the table carries under the
-        name before it looks at the new definition, and returns without
-        creating one when that definition is empty -- so declaring the opt-out
-        also removes the rule from a database that already had it.
-        """
         rule = no_name_uniq_index()
         self.assertEqual(rule.get_definition(self.env.registry), "")
 
@@ -69,7 +53,6 @@ class TestCatalogMixin(TransactionCase):
 
     @mute_logger("odoo.sql_db")
     def test_null_scope_still_collides(self):
-        """NULLS NOT DISTINCT: two parentless records are compared, not skipped."""
         self.Tag.create({"name": "Loner"})
         with self.assertRaises(psycopg.errors.UniqueViolation):
             with self.cr.savepoint():
@@ -85,14 +68,6 @@ class TestCatalogMixin(TransactionCase):
 
     @mute_logger("odoo.sql_db")
     def test_translation_document_does_not_defeat_the_rule(self):
-        """The regression a plain ``UNIQUE(name)`` would let through.
-
-        The second record is created in another language, so Odoo writes both
-        the source term and that language into the jsonb column. Its whole
-        document therefore differs from the first record's, and a constraint
-        comparing documents would see no duplicate; the index compares the
-        source term and does.
-        """
         self.env["res.lang"]._activate_lang("es_MX")
         self.Tag.create({"name": "Whitefly"})
         self.env.flush_all()

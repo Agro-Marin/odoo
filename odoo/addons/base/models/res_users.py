@@ -47,13 +47,6 @@ LOGIN_FAILURES_PRUNE_THRESHOLD = 1000
 _RELATION_ONLY_COMMANDS = frozenset(
     {Command.UNLINK, Command.LINK, Command.CLEAR, Command.SET}
 )
-"""x2many commands that write the relation and never the comodel record.
-
-On a many2many these only add or drop rows of the relation table. On a
-one2many the same commands write the inverse column of the comodel row, so
-:meth:`ResUsers._escapes_own_record` rejects one2many outright rather than
-consulting this set.
-"""
 
 
 def _is_private_address(source: str | None) -> bool:
@@ -281,7 +274,7 @@ class ResUsers(models.Model):
         )
         return Domain("company_ids", "in", company_ids)
 
-    def _default_groups(self) -> Self:
+    def _default_group_ids(self) -> Self:
         groups = self.env.ref("base.group_user")
         default_group = self.env.ref(
             "base.default_user_group", raise_if_not_found=False
@@ -304,15 +297,15 @@ class ResUsers(models.Model):
     )
     login = fields.Char(required=True, help="Used to log into the system")
     password = fields.Char(
-        compute="_compute_password",
-        inverse="_set_password",
+        compute="_compute_passwords",
+        inverse="_inverse_password",
         copy=False,
         help="Keep empty if you don't want the user to be able to connect on the system.",
     )
     new_password = fields.Char(
         string="Set Password",
-        compute="_compute_password",
-        inverse="_set_new_password",
+        compute="_compute_passwords",
+        inverse="_inverse_new_password",
         help="Specify a value only when creating a user or if you're "
         "changing the user's password, otherwise leave empty. After "
         "a change of password, the user has to login again.",
@@ -391,7 +384,7 @@ class ResUsers(models.Model):
         "uid",
         "gid",
         string="Groups",
-        default=lambda s: s._default_groups(),
+        default=lambda s: s._default_group_ids(),
         help="Groups explicitly assigned to the user",
     )
     all_group_ids = fields.Many2many(
@@ -405,19 +398,19 @@ class ResUsers(models.Model):
     accesses_count = fields.Integer(
         "# Access Rights",
         help="Number of access rights that apply to the current user",
-        compute="_compute_accesses_count",
+        compute="_compute_access_counts",
         compute_sudo=True,
     )
     rules_count = fields.Integer(
         "# Record Rules",
         help="Number of record rules that apply to the current user",
-        compute="_compute_accesses_count",
+        compute="_compute_access_counts",
         compute_sudo=True,
     )
     groups_count = fields.Integer(
         "# Groups",
         help="Number of groups that apply to the current user",
-        compute="_compute_accesses_count",
+        compute="_compute_access_counts",
         compute_sudo=True,
     )
 
@@ -541,7 +534,7 @@ class ResUsers(models.Model):
         if not has_admin:
             raise ValidationError(_("You must have at least an administrator user."))
 
-    def _set_password(self) -> None:
+    def _inverse_password(self) -> None:
         ctx = self._crypt_context()
         for user in self:
             if user.password:
@@ -642,12 +635,12 @@ class ResUsers(models.Model):
             else _("Email")
         )
 
-    def _compute_password(self) -> None:
+    def _compute_passwords(self) -> None:
         for user in self:
             user.password = ""
             user.new_password = ""
 
-    def _set_new_password(self) -> None:
+    def _inverse_new_password(self) -> None:
         for user in self:
             if not user.new_password:
                 continue
@@ -724,7 +717,7 @@ class ResUsers(models.Model):
             user.tz_offset = offset
 
     @api.depends("all_group_ids")
-    def _compute_accesses_count(self) -> None:
+    def _compute_access_counts(self) -> None:
         all_groups = self.all_group_ids
         accesses_per_group = dict.fromkeys(all_groups.ids, 0)
         rules_per_group: dict[int, set[int]] = {gid: set() for gid in all_groups.ids}
@@ -777,13 +770,13 @@ class ResUsers(models.Model):
         return not self.env["res.users.settings"]._fields[target_name].required
 
     @api.onchange("login")
-    def on_change_login(self) -> None:
+    def _onchange_login(self) -> None:
         if self.login and tools.single_email_re.match(self.login):
             self.email = self.login
 
     @api.onchange("parent_id")
-    def onchange_parent_id(self) -> dict[str, Any] | None:
-        return self.partner_id.onchange_parent_id()
+    def _onchange_parent_id(self) -> dict[str, Any] | None:
+        return self.partner_id._onchange_parent_id()
 
     def onchange(
         self,
@@ -859,7 +852,7 @@ class ResUsers(models.Model):
             inactive.partner_id.active = False
         for user in users:
             if not user.image_1920 and not user.share and user.name:
-                user.image_1920 = user.partner_id._avatar_generate_svg()
+                user.image_1920 = user.partner_id._prepare_avatar_svg()
         if setting_vals:
             self.env["res.users.settings"].sudo().create(setting_vals)
         for user, settings in zip(users, deferred, strict=True):
@@ -898,9 +891,10 @@ class ResUsers(models.Model):
             self.partner_id.action_unarchive()
 
         if not self._settings_backed_fields().isdisjoint(vals):
-            settings = self.env["res.users.settings"]
+            settings = self.env["res.users.settings"].sudo()
             for user in self:
-                settings._find_or_create_for_user(user)
+                if not user.sudo().res_users_settings_ids:
+                    settings.create({"user_id": user.id})
 
         if self == self.env.user and vals:
             writeable = self._self_accessible_fields()[1]
@@ -921,7 +915,7 @@ class ResUsers(models.Model):
 
         if "group_ids" in vals and self.ids:
             self.env["ir.model.access"].call_cache_clearing_methods()
-        elif self._get_invalidation_fields() & vals.keys():
+        elif self._get_fields_invalidation() & vals.keys():
             self.env.registry.clear_cache()
 
         return res
@@ -1004,7 +998,7 @@ class ResUsers(models.Model):
         return self.env.ref("base.action_res_users_my").sudo().read()[0]
 
     @api.model
-    def _get_invalidation_fields(self) -> set[str]:
+    def _get_fields_invalidation(self) -> set[str]:
         return {
             "group_ids",
             "active",
@@ -1012,7 +1006,7 @@ class ResUsers(models.Model):
             "tz",
             "company_id",
             "company_ids",
-            *self._get_session_token_fields(),
+            *self._get_fields_session_token(),
         }
 
     @api.model
@@ -1087,7 +1081,7 @@ class ResUsers(models.Model):
             if key_expiration is not None and key_expiration <= fields.Datetime.now():
                 raise AccessDenied
 
-    def _get_session_token_fields(self) -> set[str]:
+    def _get_fields_session_token(self) -> set[str]:
         return {"id", "login", "password", "active"}
 
     def _get_session_token_query_params(self) -> dict[str, SQL]:
@@ -1096,7 +1090,7 @@ class ResUsers(models.Model):
         )
         fields = SQL(", ").join(
             SQL.identifier(self._table, fname)
-            for fname in sorted(self._get_session_token_fields())
+            for fname in sorted(self._get_fields_session_token())
             if not self._fields[fname].relational
         )
         return {

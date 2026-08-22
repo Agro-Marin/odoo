@@ -10,10 +10,10 @@ from odoo.addons.base.models.ir_asset_paths import (
     AssetPaths,
     BundleWalk,
     ResolvedPath,
-    _glob_static_file,
-    _reaches_root_without_symlink,
+    _get_static_files,
+    _is_reachable_without_symlink,
     can_aggregate,
-    fs2web,
+    fs_to_web,
     is_wildcard_glob,
 )
 
@@ -28,15 +28,15 @@ def paths_of(asset_paths):
 
 def make_walk(bundles, resolve=None, seed=(), seed_bundle="seed"):
 
-    def directives_for(bundle):
+    def prepare_directives(bundle):
         return [
             AssetDirective(directive, target, path, f"probe {directive} {path!r}")
             for directive, target, path in bundles.get(bundle, ())
         ]
 
-    walk = BundleWalk(resolve or (lambda path_def: [rp(path_def)]), directives_for)
+    walk = BundleWalk(resolve or (lambda path_def: [rp(path_def)]), prepare_directives)
     if seed:
-        walk.paths.append([rp(p) for p in seed], seed_bundle)
+        walk.paths.append_paths([rp(p) for p in seed], seed_bundle)
     return walk
 
 
@@ -82,59 +82,59 @@ class TestUrlClassification:
         assert is_wildcard_glob(path) is expected
 
     def test_fs2web_is_identity_on_posix(self):
-        assert fs2web("a/b/c.js") == "a/b/c.js"
+        assert fs_to_web("a/b/c.js") == "a/b/c.js"
 
 
 class TestAssetPathsBasics:
     def test_append_deduplicates_and_keeps_first_occurrence(self):
         ap = AssetPaths()
-        ap.append([rp("/a"), rp("/b")], "b1")
-        ap.append([rp("/b"), rp("/c")], "b2")
+        ap.append_paths([rp("/a"), rp("/b")], "b1")
+        ap.append_paths([rp("/b"), rp("/c")], "b2")
         assert paths_of(ap) == ["/a", "/b", "/c"]
         assert ap.list[1].bundle == "b1", "the first contributor keeps ownership"
 
     def test_memo_and_list_never_drift(self):
         ap = AssetPaths()
-        ap.append([rp("/a"), rp("/b"), rp("/c")], "b1")
-        ap.remove([rp("/b")], "b1")
-        ap.insert([rp("/d")], "b1", 0)
+        ap.append_paths([rp("/a"), rp("/b"), rp("/c")], "b1")
+        ap.remove_paths([rp("/b")], "b1")
+        ap.insert_paths([rp("/d")], "b1", 0)
         assert ap.memo == set(paths_of(ap))
 
     def test_index_of_first_scans_in_target_order(self):
         ap = AssetPaths()
-        ap.append([rp("/a"), rp("/b")], "b1")
-        assert ap.index_of_first(["/zzz", "/b", "/a"], "b1") == 1
+        ap.append_paths([rp("/a"), rp("/b")], "b1")
+        assert ap.get_index_of_first(["/zzz", "/b", "/a"], "b1") == 1
 
     def test_index_of_first_names_the_bundle_when_nothing_matches(self):
         ap = AssetPaths()
-        ap.append([rp("/a")], "b1")
+        ap.append_paths([rp("/a")], "b1")
         with pytest.raises(ValueError, match="b1"):
-            ap.index_of_first(["/x", "/y"], "b1")
+            ap.get_index_of_first(["/x", "/y"], "b1")
 
     def test_remove_all_present_is_silent(self, caplog):
         ap = AssetPaths()
-        ap.append([rp("/a"), rp("/b")], "b1")
-        ap.remove([rp("/a")], "b1")
+        ap.append_paths([rp("/a"), rp("/b")], "b1")
+        ap.remove_paths([rp("/a")], "b1")
         assert paths_of(ap) == ["/b"]
         assert not caplog.records
 
     def test_remove_partially_present_warns_but_removes(self, caplog):
         ap = AssetPaths()
-        ap.append([rp("/a"), rp("/b")], "b1")
-        ap.remove([rp("/a"), rp("/gone")], "b1")
+        ap.append_paths([rp("/a"), rp("/b")], "b1")
+        ap.remove_paths([rp("/a"), rp("/gone")], "b1")
         assert paths_of(ap) == ["/b"]
         assert any("/gone" in record.getMessage() for record in caplog.records)
 
     def test_remove_nothing_present_raises_when_strict(self):
         ap = AssetPaths()
-        ap.append([rp("/a")], "b1")
+        ap.append_paths([rp("/a")], "b1")
         with pytest.raises(ValueError, match="b1"):
-            ap.remove([rp("/gone")], "b1")
+            ap.remove_paths([rp("/gone")], "b1")
 
     def test_remove_nothing_present_is_a_noop_when_not_strict(self, caplog):
         ap = AssetPaths()
-        ap.append([rp("/a")], "b1")
-        ap.remove([rp("/gone")], "b1", strict=False)
+        ap.append_paths([rp("/a")], "b1")
+        ap.remove_paths([rp("/gone")], "b1", strict=False)
         assert paths_of(ap) == ["/a"]
         assert not caplog.records
 
@@ -142,42 +142,42 @@ class TestAssetPathsBasics:
 class TestAnchors:
     def test_a_new_anchor_sits_at_the_end(self):
         ap = AssetPaths()
-        ap.append([rp("/a"), rp("/b")], "b1")
-        assert ap.new_anchor().index == 2
+        ap.append_paths([rp("/a"), rp("/b")], "b1")
+        assert ap.add_anchor().index == 2
 
     def test_inserting_at_an_anchor_leaves_it_on_the_new_head(self):
         ap = AssetPaths()
-        ap.append([rp("/a")], "b1")
-        anchor = ap.new_anchor()
-        ap.insert([rp("/x")], "b2", anchor.index)
-        ap.insert([rp("/y")], "b2", anchor.index)
+        ap.append_paths([rp("/a")], "b1")
+        anchor = ap.add_anchor()
+        ap.insert_paths([rp("/x")], "b2", anchor.index)
+        ap.insert_paths([rp("/y")], "b2", anchor.index)
         assert paths_of(ap) == ["/a", "/y", "/x"], "later prepends go in front"
 
     def test_an_earlier_removal_drags_the_anchor_back(self):
         ap = AssetPaths()
-        ap.append([rp("/a"), rp("/b")], "parent")
-        anchor = ap.new_anchor()
+        ap.append_paths([rp("/a"), rp("/b")], "parent")
+        anchor = ap.add_anchor()
         assert anchor.index == 2
-        ap.remove([rp("/a")], "child")
+        ap.remove_paths([rp("/a")], "child")
         assert anchor.index == 1
-        ap.insert([rp("/x")], "child", anchor.index)
+        ap.insert_paths([rp("/x")], "child", anchor.index)
         assert paths_of(ap) == ["/b", "/x"], "prepend must not degrade to append"
 
     def test_release_stops_tracking_that_anchor_only(self):
         ap = AssetPaths()
-        ap.append([rp("/a")], "b1")
-        first, second = ap.new_anchor(), ap.new_anchor()
-        ap.release_anchor(first)
-        ap.insert([rp("/x")], "b2", 0)
+        ap.append_paths([rp("/a")], "b1")
+        first, second = ap.add_anchor(), ap.add_anchor()
+        ap.remove_anchor(first)
+        ap.insert_paths([rp("/x")], "b2", 0)
         assert first.index == 1, "a released anchor stops being maintained"
         assert second.index == 2, "a live one follows the shift"
         assert ap.anchors == [second]
 
     def test_released_anchors_are_matched_by_identity(self):
         ap = AssetPaths()
-        first, second = ap.new_anchor(), ap.new_anchor()
+        first, second = ap.add_anchor(), ap.add_anchor()
         assert first.index == second.index == 0
-        ap.release_anchor(second)
+        ap.remove_anchor(second)
         assert ap.anchors == [first]
 
     @pytest.mark.parametrize("seed", range(20))
@@ -190,16 +190,20 @@ class TestAnchors:
             before = set(paths_of(ap))
             operation = rng.choice(["open", "close", "append", "prepend", "remove"])
             if operation == "open":
-                frames.append([ap.new_anchor(), paths_of(ap)])
+                frames.append([ap.add_anchor(), paths_of(ap)])
             elif operation == "close" and frames:
-                ap.release_anchor(frames.pop()[0])
+                ap.remove_anchor(frames.pop()[0])
             elif operation == "append":
-                ap.append([rp(p) for p in rng.sample(names, 3)], "b")
+                ap.append_paths([rp(p) for p in rng.sample(names, 3)], "b")
             elif operation == "prepend" and frames:
                 anchor = frames[-1][0]
-                ap.insert([rp(p) for p in rng.sample(names, 3)], "b", anchor.index)
+                ap.insert_paths(
+                    [rp(p) for p in rng.sample(names, 3)], "b", anchor.index
+                )
             elif operation == "remove":
-                ap.remove([rp(p) for p in rng.sample(names, 3)], "b", strict=False)
+                ap.remove_paths(
+                    [rp(p) for p in rng.sample(names, 3)], "b", strict=False
+                )
 
             gone = before - set(paths_of(ap))
             for frame in frames:
@@ -224,7 +228,7 @@ class TestGlobStaticFile:
     def test_only_asset_extensions_are_returned(self, addon):
         found = [
             Path(p).name
-            for p, _m in _glob_static_file(str(addon / "src" / "*"), str(addon))
+            for p, _m in _get_static_files(str(addon / "src" / "*"), str(addon))
         ]
         assert found == ["a.js", "b.scss"]
 
@@ -232,18 +236,18 @@ class TestGlobStaticFile:
         (addon / "src" / "z.js").write_text("z")
         (addon / "src" / "0.js").write_text("0")
         found = [
-            p for p, _m in _glob_static_file(str(addon / "src" / "*.js"), str(addon))
+            p for p, _m in _get_static_files(str(addon / "src" / "*.js"), str(addon))
         ]
         assert found == sorted(found)
 
     def test_a_missing_literal_yields_nothing(self, addon):
-        assert _glob_static_file(str(addon / "src" / "nope.js"), str(addon)) == []
+        assert _get_static_files(str(addon / "src" / "nope.js"), str(addon)) == []
 
     def test_a_symlink_landing_inside_is_followed_and_reported_real(self, addon):
         (addon / "src" / "linked.js").symlink_to(addon / "src" / "a.js")
         found = [
             p
-            for p, _m in _glob_static_file(str(addon / "src" / "linked.js"), str(addon))
+            for p, _m in _get_static_files(str(addon / "src" / "linked.js"), str(addon))
         ]
         assert found == [str(addon / "src" / "a.js")]
 
@@ -253,21 +257,21 @@ class TestGlobStaticFile:
         (outside / "secret.js").write_text("s")
         (addon / "src" / "escape").symlink_to(outside)
         assert (
-            _glob_static_file(str(addon / "src" / "escape" / "*.js"), str(addon)) == []
+            _get_static_files(str(addon / "src" / "escape" / "*.js"), str(addon)) == []
         )
         assert any("links out of" in record.getMessage() for record in caplog.records)
 
     def test_a_link_and_its_target_collapse_to_one_entry(self, addon):
         (addon / "src" / "linked.js").symlink_to(addon / "src" / "a.js")
-        found = _glob_static_file(str(addon / "src" / "*.js"), str(addon))
+        found = _get_static_files(str(addon / "src" / "*.js"), str(addon))
         assert [p for p, _m in found] == [str(addon / "src" / "a.js")]
 
     def test_the_containment_memo_is_keyed_by_root(self, addon, tmp_path):
         memo: dict[tuple[str, str], bool] = {}
         directory = str(addon / "src")
-        assert _reaches_root_without_symlink(directory, str(addon), memo)
+        assert _is_reachable_without_symlink(directory, str(addon), memo)
         other_root = str(tmp_path / "another_addon" / "static")
-        assert not _reaches_root_without_symlink(directory, other_root, memo)
+        assert not _is_reachable_without_symlink(directory, other_root, memo)
         assert (str(addon), directory) in memo
         assert (other_root, directory) in memo
 

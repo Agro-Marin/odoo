@@ -43,30 +43,6 @@ MAX_FAIL_TIME = timedelta(hours=5)
 MIN_RUNS_PER_JOB = 10
 MIN_TIME_PER_JOB = 10
 RUN_BUDGET_RATIO = 0.8
-"""Fraction of the worker's real-time limit one cron *pass* may consume.
-
-The budget both servers police a cron worker with is charged to the whole call
--- the prefork master pings its watchdog once per ``process_work``, the threaded
-server stamps ``thread.start_time`` once per database -- while a pass runs
-*every* ready cron back to back.  Bounding the individual job instead left the
-pass itself unbounded: measured, six ready crons of two seconds each ran for
-12.1 s against a 5 s budget.
-
-What happens then differs by server and neither outcome is acceptable.
-``PreforkServer.process_timeout`` SIGKILLs the worker mid-job; the job is then
-charged a ``timed_out_counter``, and ``CONSECUTIVE_TIMEOUT_FOR_FAILURE`` of
-those make ``_process_job`` mark it failed *without executing it* -- which
-applies to exactly those crons that report no progress, i.e. every cron that
-does not call ``_commit_progress``.  ``ThreadedServer.run`` does not kill the
-thread at all: it reloads the whole server, aborting every in-flight HTTP
-request with it.
-
-So the ratio bounds the pass (:meth:`IrCron._pass_deadline`), which then caps
-each job inside it; the margin is what the last job needs to finish and the
-caller to reschedule.  Stopping between two jobs instead reschedules cleanly and
-NOTIFYs, so the deferred crons start a fresh pass with a fresh budget -- the
-shape ``IrJob._drain_deadline`` already used for the job queue.
-"""
 CONSECUTIVE_TIMEOUT_FOR_FAILURE = 3
 MIN_FAILURE_COUNT_BEFORE_DEACTIVATION = 5
 MIN_DELTA_BEFORE_DEACTIVATION = timedelta(days=7)
@@ -189,7 +165,7 @@ class IrCron(models.Model):
         for vals in vals_list:
             vals["usage"] = "ir_cron"
         if NOTIFY_CRON_CHANGES:
-            self.env.cr.postcommit.add(self._notifydb)
+            self.env.cr.postcommit.add(self._notify_trigger_channel)
         return super().create(vals_list)
 
     @api.model
@@ -204,11 +180,11 @@ class IrCron(models.Model):
         self.browse().check_access("write")
         self.env.invalidate_all(flush=True)
         cron_cr = self.env.cr
-        job = self._acquire_one_job(cron_cr, self.id, include_not_ready=True)
+        job = self._acquire_job(cron_cr, self.id, include_not_ready=True)
         if not job:
             raise UserError(self.env._("Job '%s' already executing", self.name))
 
-        self._process_job(cron_cr, job)
+        self._run_job(cron_cr, job)
         if exception := job.get("run_exception"):
             e = RuntimeError()
             e.__cause__ = exception
@@ -233,14 +209,14 @@ class IrCron(models.Model):
             with db_conn.cursor() as cron_cr:
                 cls = IrCron
                 cls._check_version(cron_cr)
-                jobs = cls._get_all_ready_jobs(cron_cr)
+                jobs = cls._get_jobs_ready(cron_cr)
                 if not jobs:
                     return
                 cls._check_modules_state(cron_cr, jobs)
-                cls._process_jobs_loop(
+                cls._run_jobs_until_deadline(
                     cron_cr,
                     job_ids=[job["id"] for job in jobs],
-                    deadline=cls._pass_deadline(),
+                    deadline=cls._get_deadline_pass(),
                 )
         except BadVersionError:
             _logger.warning(
@@ -269,12 +245,12 @@ class IrCron(models.Model):
                 threading.current_thread().dbname = previous_dbname
 
     @staticmethod
-    def _pass_deadline() -> float | None:
+    def _get_deadline_pass() -> float | None:
         budget = worker_real_time_budget()
         return time.monotonic() + budget * RUN_BUDGET_RATIO if budget else None
 
     @staticmethod
-    def _process_jobs_loop(
+    def _run_jobs_until_deadline(
         cron_cr: BaseCursor,
         *,
         job_ids: Iterable[int] = (),
@@ -293,7 +269,7 @@ class IrCron(models.Model):
                 notify_channel(CRON_TRIGGER_CHANNEL, db_name)
                 return True
             try:
-                job = IrCron._acquire_one_job(cron_cr, job_id)
+                job = IrCron._acquire_job(cron_cr, job_id)
             except _TRANSACTION_ROLLBACK_ERRORS:
                 cron_cr.rollback()
                 _logger.debug(
@@ -308,7 +284,7 @@ class IrCron(models.Model):
             _logger.debug("job %s acquired", job_id)
             registry = Registry(db_name).check_signaling()
             try:
-                registry[IrCron._name]._process_job(cron_cr, job, deadline=deadline)
+                registry[IrCron._name]._run_job(cron_cr, job, deadline=deadline)
                 cron_cr.commit()
             except Exception:
                 cron_cr.rollback()
@@ -331,7 +307,7 @@ class IrCron(models.Model):
             raise BadVersionError
 
     @staticmethod
-    def _modules_are_changing(cr: BaseCursor) -> bool:
+    def _is_any_module_changing(cr: BaseCursor) -> bool:
         cr.execute(
             "SELECT EXISTS (SELECT 1 FROM ir_module_module WHERE state LIKE %s)",
             ["to %"],
@@ -340,7 +316,7 @@ class IrCron(models.Model):
 
     @staticmethod
     def _check_modules_state(cr: BaseCursor, jobs: list[dict[str, Any]]) -> None:
-        if not IrCron._modules_are_changing(cr):
+        if not IrCron._is_any_module_changing(cr):
             return
 
         if not jobs:
@@ -355,7 +331,7 @@ class IrCron(models.Model):
         reset_modules_state(cr.dbname)
 
     @staticmethod
-    def _get_ready_sql_condition(cr: BaseCursor) -> SQL:
+    def _get_sql_condition_ready(cr: BaseCursor) -> SQL:
         return SQL(
             """
             active IS TRUE
@@ -372,7 +348,7 @@ class IrCron(models.Model):
         )
 
     @staticmethod
-    def _get_all_ready_jobs(cr: BaseCursor) -> list[dict[str, Any]]:
+    def _get_jobs_ready(cr: BaseCursor) -> list[dict[str, Any]]:
         cr.execute(
             SQL(
                 """
@@ -381,20 +357,20 @@ class IrCron(models.Model):
             WHERE %s
             ORDER BY failure_count, priority, id
         """,
-                IrCron._get_ready_sql_condition(cr),
+                IrCron._get_sql_condition_ready(cr),
             )
         )
         return cr.dictfetchall()
 
     @staticmethod
-    def _acquire_one_job(
+    def _acquire_job(
         cr: BaseCursor, job_id: int, *, include_not_ready: bool = False
     ) -> dict[str, Any] | None:
 
         where_clause = SQL("id = %s", job_id)
         if not include_not_ready:
             where_clause = SQL(
-                "%s AND %s", where_clause, IrCron._get_ready_sql_condition(cr)
+                "%s AND %s", where_clause, IrCron._get_sql_condition_ready(cr)
             )
         query = SQL(
             """
@@ -435,7 +411,7 @@ class IrCron(models.Model):
         _logger.warning(message)
 
     @classmethod
-    def _process_job(
+    def _run_job(
         cls,
         cron_cr: BaseCursor,
         job: dict[str, Any],
@@ -445,14 +421,14 @@ class IrCron(models.Model):
         env = api.Environment(cron_cr, job["user_id"], {})
         ir_cron = env[cls._name]
 
-        ir_cron._clear_schedule(job)
+        ir_cron._remove_triggers_due(job)
         failed_by_timeout = (
             job["timed_out_counter"] >= CONSECUTIVE_TIMEOUT_FOR_FAILURE
             and not job["done"]
         )
 
         if not failed_by_timeout:
-            status = cls._run_job(job, deadline=deadline)
+            status = cls._run_job_within_budget(job, deadline=deadline)
         else:
             status = CompletionStatus.FAILED
             cron_cr.execute(
@@ -468,16 +444,16 @@ class IrCron(models.Model):
         ir_cron._update_failure_count(job, status)
 
         if status in (CompletionStatus.FULLY_DONE, CompletionStatus.FAILED):
-            ir_cron._reschedule_later(job)
+            ir_cron._reschedule_job_later(job)
         elif status == CompletionStatus.PARTIALLY_DONE:
-            ir_cron._reschedule_asap(job)
+            ir_cron._reschedule_job_asap(job)
             if NOTIFY_CRON_CHANGES:
-                cron_cr.postcommit.add(ir_cron._notifydb)
+                cron_cr.postcommit.add(ir_cron._notify_trigger_channel)
         else:
             raise RuntimeError(f"unreachable {status=}")
 
     @staticmethod
-    def _classify_outcome(
+    def _resolve_completion_status(
         *, success: bool, done: int, remaining: int
     ) -> CompletionStatus | None:
         match (success, bool(done), bool(remaining)):
@@ -493,7 +469,7 @@ class IrCron(models.Model):
                 return None
 
     @staticmethod
-    def _should_continue_run(
+    def _can_keep_running(
         *,
         status: CompletionStatus | None,
         loop_count: int,
@@ -508,12 +484,12 @@ class IrCron(models.Model):
         return loop_count < MIN_RUNS_PER_JOB or now < end_time
 
     @staticmethod
-    def _run_deadline(start_time: float) -> float | None:
+    def _get_deadline_run(start_time: float) -> float | None:
         budget = worker_real_time_budget()
         return start_time + budget * RUN_BUDGET_RATIO if budget else None
 
     @classmethod
-    def _run_job(
+    def _run_job_within_budget(
         cls, job: dict[str, Any], *, deadline: float | None = None
     ) -> CompletionStatus:
         timed_out_counter = job["timed_out_counter"]
@@ -535,7 +511,7 @@ class IrCron(models.Model):
             loop_count = 0
             done, remaining = 0, 0
             hard_deadline = (
-                deadline if deadline is not None else cls._run_deadline(start_time)
+                deadline if deadline is not None else cls._get_deadline_run(start_time)
             )
             _logger.info("Job %r (%s) starting", job["cron_name"], job["id"])
 
@@ -547,7 +523,7 @@ class IrCron(models.Model):
                 )
                 status = CompletionStatus.FAILED
 
-            while cls._should_continue_run(
+            while cls._can_keep_running(
                 status=status,
                 loop_count=loop_count,
                 now=time.monotonic(),
@@ -559,7 +535,9 @@ class IrCron(models.Model):
 
                 success = False
                 try:
-                    cron._callback(job["cron_name"], job["ir_actions_server_id"])
+                    cron._run_server_action(
+                        job["cron_name"], job["ir_actions_server_id"]
+                    )
                     success = True
                 except Exception as exc:
                     _logger.exception(
@@ -571,7 +549,7 @@ class IrCron(models.Model):
                     job.setdefault("run_exception", exc)
                 finally:
                     done, remaining = progress.done, progress.remaining
-                    status = cls._classify_outcome(
+                    status = cls._resolve_completion_status(
                         success=success, done=done, remaining=remaining
                     )
                     if status is CompletionStatus.FULLY_DONE and progress.deactivate:
@@ -611,7 +589,7 @@ class IrCron(models.Model):
         return status
 
     @api.model
-    def _now(self) -> datetime:
+    def _get_now(self) -> datetime:
         return self.env.cr.now().replace(microsecond=0)
 
     @api.model
@@ -619,7 +597,7 @@ class IrCron(models.Model):
         self, job: dict[str, Any], status: CompletionStatus
     ) -> None:
         if status == CompletionStatus.FAILED:
-            now = self._now()
+            now = self._get_now()
             failure_count = job["failure_count"] + 1
             first_failure_date = job["first_failure_date"] or now
             active = job["active"]
@@ -672,8 +650,8 @@ class IrCron(models.Model):
         )
 
     @api.model
-    def _clear_schedule(self, job: dict[str, Any]) -> None:
-        now = self._now()
+    def _remove_triggers_due(self, job: dict[str, Any]) -> None:
+        now = self._get_now()
         self.env.cr.execute(
             """
             DELETE FROM ir_cron_trigger
@@ -684,7 +662,7 @@ class IrCron(models.Model):
         )
 
     @staticmethod
-    def _compute_next_call(
+    def _get_next_call(
         record: models.BaseModel,
         nextcall: datetime,
         now: datetime,
@@ -705,9 +683,9 @@ class IrCron(models.Model):
         return nextcall
 
     @api.model
-    def _reschedule_later(self, job: dict[str, Any]) -> None:
-        now = self._now()
-        nextcall = self._compute_next_call(
+    def _reschedule_job_later(self, job: dict[str, Any]) -> None:
+        now = self._get_now()
+        nextcall = self._get_next_call(
             self, job["nextcall"], now, job["interval_type"], job["interval_number"]
         )
         self.env.cr.execute(
@@ -721,8 +699,8 @@ class IrCron(models.Model):
         )
 
     @api.model
-    def _reschedule_asap(self, job: dict[str, Any]) -> None:
-        now = self._now()
+    def _reschedule_job_asap(self, job: dict[str, Any]) -> None:
+        now = self._get_now()
         self.env.cr.execute(
             """
             INSERT INTO ir_cron_trigger(call_at, cron_id)
@@ -731,7 +709,7 @@ class IrCron(models.Model):
             [now, job["id"]],
         )
 
-    def _callback(self, cron_name: str, server_action_id: int) -> None:
+    def _run_server_action(self, cron_name: str, server_action_id: int) -> None:
         self.ensure_one()
         try:
             if self.pool is not self.pool.check_signaling():
@@ -768,11 +746,11 @@ class IrCron(models.Model):
     def write(self, vals: dict[str, Any]) -> bool:
         self._lock_for_update_or_raise(allow_referencing=True)
         if ("nextcall" in vals or vals.get("active")) and NOTIFY_CRON_CHANGES:
-            self.env.cr.postcommit.add(self._notifydb)
+            self.env.cr.postcommit.add(self._notify_trigger_channel)
         return super().write(vals)
 
     @api.ondelete(at_uninstall=False)
-    def _unlink_unless_running(self) -> None:
+    def _unlink_except_running(self) -> None:
         self._lock_for_update_or_raise()
 
     @api.model
@@ -791,7 +769,7 @@ class IrCron(models.Model):
         self, at: datetime | Iterable[datetime] | None = None, *, coalesce: int = 0
     ) -> Any:
         if at is None:
-            at_list = [self._now()]
+            at_list = [self._get_now()]
         elif isinstance(at, datetime):
             at_list = [at]
         else:
@@ -809,11 +787,11 @@ class IrCron(models.Model):
                 for dt in at_list
             ]
 
-        return self._trigger_list(at_list)
+        return self._add_triggers(at_list)
 
-    def _trigger_list(self, at_list: list[datetime]) -> Any:
+    def _add_triggers(self, at_list: list[datetime]) -> Any:
         self.ensure_one()
-        now = self._now()
+        now = self._get_now()
 
         if not self.sudo().active:
             at_list = [at for at in at_list if at > now]
@@ -833,11 +811,11 @@ class IrCron(models.Model):
             )
 
         if min(at_list) <= now or NOTIFY_CRON_CHANGES:
-            self.env.cr.postcommit.add(self._notifydb)
+            self.env.cr.postcommit.add(self._notify_trigger_channel)
         return triggers
 
     @api.model
-    def _notifydb(self) -> None:
+    def _notify_trigger_channel(self) -> None:
         notify_channel(CRON_TRIGGER_CHANNEL, self.env.cr.dbname)
 
     def _add_progress(

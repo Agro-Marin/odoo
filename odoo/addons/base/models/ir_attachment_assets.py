@@ -3,6 +3,7 @@ from datetime import timedelta
 
 from odoo import api, fields, models
 from odoo.fields import Domain
+from odoo.tools.assets.constants import ESM_BRIDGE_REFRESH_DAYS
 
 _logger = logging.getLogger(__name__)
 
@@ -14,6 +15,8 @@ class IrAttachment(models.Model):
     _inherit = "ir.attachment"
 
     _ESM_GC_GRACE_DAYS = 7
+
+    _ESM_BRIDGE_GC_GRACE_DAYS = 90
 
     _ESM_GC_BATCH = 1000
 
@@ -49,17 +52,40 @@ class IrAttachment(models.Model):
             ]
         )
 
-    @api.autovacuum
-    def _gc_esm_assets(self) -> tuple[int, int]:
-        grace_days = (
+    @api.model
+    def _esm_bridge_gc_grace_days(self) -> int:
+        configured = (
             self.env["ir.config_parameter"]
             .sudo()
-            .get_param_int("web.esm.gc_grace_days", self._ESM_GC_GRACE_DAYS)
+            .get_param_int(
+                "web.esm.bridge_gc_grace_days", self._ESM_BRIDGE_GC_GRACE_DAYS
+            )
         )
-        grace_days = max(1, grace_days)
-        cutoff = fields.Datetime.now() - timedelta(days=grace_days)
+        return max(int(2 * ESM_BRIDGE_REFRESH_DAYS) + 1, configured)
 
-        aged = self._esm_generated_asset_domain() & Domain("write_date", "<", cutoff)
+    @api.model
+    def _esm_gc_grace_days(self) -> int:
+        return max(
+            1,
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param_int("web.esm.gc_grace_days", self._ESM_GC_GRACE_DAYS),
+        )
+
+    @api.autovacuum
+    def _gc_esm_assets(self) -> tuple[int, int]:
+        grace_days = self._esm_gc_grace_days()
+        cutoff = fields.Datetime.now() - timedelta(days=grace_days)
+        bridge_cutoff = fields.Datetime.now() - timedelta(
+            days=self._esm_bridge_gc_grace_days()
+        )
+        is_bridge = Domain("url", "=like", f"{ESM_BRIDGES_URL_PREFIX}%")
+        aged = self._esm_generated_asset_domain() & Domain.OR(
+            [
+                ~is_bridge & Domain("write_date", "<", cutoff),
+                is_bridge & Domain("write_date", "<", bridge_cutoff),
+            ]
+        )
         deleted_artifacts = deleted_bridges = 0
         offset = 0
         more = False
@@ -114,7 +140,7 @@ class IrAttachment(models.Model):
 
     @api.model
     def regenerate_assets_bundles(self) -> None:
-        self._check_admin_action()
+        self._check_admin_access()
         generated = self.search(self._generated_asset_domain())
         if generated:
             generated.unlink()

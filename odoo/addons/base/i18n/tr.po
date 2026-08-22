@@ -26688,7 +26688,7 @@ msgid "EU One Stop Shop (OSS) Reports"
 msgstr "AB Tek Durak Noktası (OSS) Raporları"
 
 #. module: base
-#: model:ir.model.constraint,message:base.constraint_ir_model_obj_name_uniq
+#: model:ir.model.constraint,message:base.constraint_ir_model_model_uniq
 msgid "Each model must have a unique name."
 msgstr "Her modelin benzersiz bir adı olmalıdır."
 

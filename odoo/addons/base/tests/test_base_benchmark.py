@@ -115,7 +115,7 @@ class TestBaseBenchmark(TransactionCase):
 
         self._run_benchmark(
             "compute_same_vat (20 partners)",
-            partners._compute_same_vat_partner_id,
+            partners._compute_same_identifier_partners,
         )
 
     def test_bench_compute_is_public(self):

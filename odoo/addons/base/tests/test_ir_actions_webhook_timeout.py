@@ -1,17 +1,3 @@
-"""The webhook action's timeout, and the log line an operator has to act on.
-
-`_run_action_webhook` sends an unauthenticated POST with a fixed one-second
-timeout, catches the resulting `ReadTimeout` and logs that the call "may or may
-not have failed". Neither the action nor the URL appeared in that message, so a
-silent non-delivery was indistinguishable from any other line in the log — and
-one second is short enough that a receiver which merely thinks for a moment hits
-it.
-
-The timeout is a field now, defaulting to the same 1 second so nothing changes
-for an action already configured. What changed is that it CAN be changed, and
-that both failure paths name what failed.
-"""
-
 from unittest.mock import patch
 
 import requests
@@ -35,9 +21,6 @@ class TestWebhookTimeout(TransactionCase):
                 "name": "notify",
                 "model_id": self.model.id,
                 "state": "webhook",
-                # A public host: `_webhook_url_blocked_reason` resolves DNS and
-                # refuses anything that is not globally routable, so a loopback
-                # URL never reaches the request at all.
                 "webhook_url": "https://example.com/hook",
                 **vals,
             }
@@ -75,7 +58,6 @@ class TestWebhookTimeout(TransactionCase):
 
     @mute_logger("odoo.addons.base.models.ir_actions_server")
     def test_a_refusal_is_an_error_and_says_it_will_not_retry(self):
-        """A connection failure is not ambiguous: it did not arrive."""
         action = self._action()
         with (
             patch.object(
@@ -99,12 +81,10 @@ class TestWebhookTimeout(TransactionCase):
         self.assertIn("after the transaction commits", str(caught.exception))
 
     def test_zero_is_refused_rather_than_meaning_no_timeout(self):
-        """requests treats timeout=0 as 'no timeout', which is the opposite."""
         with self.assertRaises(ValidationError):
             self._action(webhook_timeout=0)
 
     def test_the_ceiling_only_binds_webhook_actions(self):
-        """A code action has no webhook to time out."""
         action = self.env["ir.actions.server"].create(
             {
                 "name": "not a webhook",

@@ -17,7 +17,12 @@
                 <sheet>
                     <group invisible="state != 'finished'">
                         <h2 colspan="2">There are no more contacts to merge for this request</h2>
-                        <button name="%(action_partner_deduplicate)d" string="Deduplicate the other Contacts" class="oe_highlight" type="action" colspan="2" />
+                        <button
+                            name="%(action_partner_deduplicate)d"
+                            string="Deduplicate the other Contacts"
+                            class="oe_highlight"
+                            type="action"
+                            colspan="2" />
                     </group>
                     <p class="opacity-50" invisible="state != 'option'">
                         Select the list of fields used to search for
@@ -25,17 +30,22 @@
                         Odoo will propose you to merge only those having
                         all these fields in common. (not one of the fields).
                     </p>
-                    <group invisible="state not in ('selection', 'finished') or number_group == 0">
+                    <group
+                        invisible="state not in ('selection', 'finished') or number_group == 0">
                         <field name="number_group" />
                     </group>
-                    <group string="Search duplicates based on duplicated data in" invisible="state not in ('option',)">
+                    <group
+                        string="Search duplicates based on duplicated data in"
+                        invisible="state not in ('option',)">
                         <field name="group_by_email" />
                         <field name="group_by_name" />
                         <field name="group_by_is_company" />
                         <field name="group_by_vat" />
                         <field name="group_by_parent_id" />
                     </group>
-                    <group string="Exclude contacts having" invisible="state not in ('option',)">
+                    <group
+                        string="Exclude contacts having"
+                        invisible="state not in ('option',)">
                         <field name="exclude_contact" />
                         <field name="exclude_journal_item" />
                     </group>
@@ -43,7 +53,9 @@
                     <group invisible="state not in ('option', 'finished')">
                         <field name="maximum_group" readonly="state == 'finished'" />
                     </group>
-                    <separator string="Merge the following contacts" invisible="state in ('option', 'finished')" />
+                    <separator
+                        string="Merge the following contacts"
+                        invisible="state in ('option', 'finished')" />
                     <group invisible="state in ('option', 'finished')" col="1">
                         <p class="opacity-50">
                             Selected contacts will be merged together.
@@ -52,7 +64,11 @@
                             You can remove contacts from this list to avoid merging them.
                         </p>
                         <group col="2">
-                            <field name="dst_partner_id" domain="[('id', 'in', partner_ids or False)]" required="state == 'selection'" context="{'partner_show_db_id': True}" />
+                            <field
+                                name="dst_partner_id"
+                                domain="[('id', 'in', partner_ids or False)]"
+                                required="state == 'selection'"
+                                context="{'partner_show_db_id': True}" />
                         </group>
                         <field name="partner_ids" nolabel="1">
                             <list string="Partners">
@@ -67,13 +83,54 @@
                     </group>
                 </sheet>
                 <footer>
-                    <button name="action_merge" string="Merge Contacts" class="oe_highlight" type="object" data-hotkey="q" invisible="state in ('option', 'finished')" />
-                    <button name="action_skip" string="Skip these contacts" type="object" invisible="state != 'selection'" />
-                    <button name="action_start_manual_process" string="Merge with Manual Check" data-hotkey="w" type="object" class="oe_highlight" invisible="state != 'option'" />
-                    <button name="action_start_automatic_process" string="Merge Automatically" data-hotkey="l" type="object" class="oe_highlight" confirm="Are you sure to execute the automatic merge of your contacts?" invisible="state != 'option'" />
-                    <button name="action_update_all_process" string="Merge Automatically all process" type="object" data-hotkey="y" confirm="Are you sure to execute the list of automatic merges of your contacts?" invisible="state != 'option'" />
-                    <button special="cancel" data-hotkey="x" string="Cancel" type="object" class="btn btn-secondary oe_inline" invisible="state == 'finished'" />
-                    <button special="cancel" data-hotkey="x" string="Close" type="object" class="btn btn-secondary oe_inline" invisible="state != 'finished'" />
+                    <button
+                        name="action_merge"
+                        string="Merge Contacts"
+                        class="oe_highlight"
+                        type="object"
+                        data-hotkey="q"
+                        invisible="state in ('option', 'finished')" />
+                    <button
+                        name="action_skip"
+                        string="Skip these contacts"
+                        type="object"
+                        invisible="state != 'selection'" />
+                    <button
+                        name="action_start_manual_process"
+                        string="Merge with Manual Check"
+                        data-hotkey="w"
+                        type="object"
+                        class="oe_highlight"
+                        invisible="state != 'option'" />
+                    <button
+                        name="action_start_automatic_process"
+                        string="Merge Automatically"
+                        data-hotkey="l"
+                        type="object"
+                        class="oe_highlight"
+                        confirm="Are you sure to execute the automatic merge of your contacts?"
+                        invisible="state != 'option'" />
+                    <button
+                        name="action_update_all_process"
+                        string="Merge Automatically all process"
+                        type="object"
+                        data-hotkey="y"
+                        confirm="Are you sure to execute the list of automatic merges of your contacts?"
+                        invisible="state != 'option'" />
+                    <button
+                        special="cancel"
+                        data-hotkey="x"
+                        string="Cancel"
+                        type="object"
+                        class="btn btn-secondary oe_inline"
+                        invisible="state == 'finished'" />
+                    <button
+                        special="cancel"
+                        data-hotkey="x"
+                        string="Close"
+                        type="object"
+                        class="btn btn-secondary oe_inline"
+                        invisible="state != 'finished'" />
                 </footer>
             </form>
         </field>

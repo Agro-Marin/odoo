@@ -91,7 +91,7 @@ class TestBaseModuleWizards(TransactionCase):
             "toggling show_all must not change the lost-models set",
         )
 
-    def test_module_update_action_open_is_translatable(self):
+    def test_module_update_action_view_is_translatable(self):
         wizard = self.env["base.module.update"].with_user(self.admin).create({})
         action = wizard.action_module_open()
         self.assertEqual(action["res_model"], "ir.module.module")

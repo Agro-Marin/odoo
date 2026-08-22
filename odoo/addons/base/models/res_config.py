@@ -72,7 +72,7 @@ class ResConfigSettings(models.TransientModel):
         return result
 
     @api.model
-    def _get_classified_fields(self, fnames: Any = None) -> dict[str, Any]:
+    def _get_fields_classified(self, fnames: Any = None) -> dict[str, Any]:
         IrModule = self.env["ir.module.module"]
         IrModelData = self.env["ir.model.data"]
         Groups = self.env["res.groups"]
@@ -151,7 +151,7 @@ class ResConfigSettings(models.TransientModel):
 
         IrDefault = self.env["ir.default"]
         IrConfigParameter = self.env["ir.config_parameter"].sudo()
-        classified = self._get_classified_fields(fields)
+        classified = self._get_fields_classified(fields)
 
         for name, model, field in classified["default"]:
             value = IrDefault._get(model, field)
@@ -224,7 +224,7 @@ class ResConfigSettings(models.TransientModel):
 
         self = self.with_context(active_test=False)
         stash = self.env.cr.cache.get(SETTINGS_CLASSIFIED_CACHE_KEY)
-        classified = (stash or {}).get(self._name) or self._get_classified_fields()
+        classified = (stash or {}).get(self._name) or self._get_fields_classified()
         compared_names = [name for name, _model, _field in classified["default"]]
         compared_names += [name for name, _groups, _implied in classified["group"]]
         current_settings = self.default_get(compared_names)
@@ -278,7 +278,7 @@ class ResConfigSettings(models.TransientModel):
             raise AccessError(_("Only administrators can change the settings"))
 
         self = self.with_context(active_test=False)
-        classified = self._get_classified_fields()
+        classified = self._get_fields_classified()
 
         stash = self.env.cr.cache.setdefault(SETTINGS_CLASSIFIED_CACHE_KEY, {})
         stash[self._name] = classified
@@ -391,7 +391,7 @@ class ResConfigSettings(models.TransientModel):
         return super().create(vals_list)
 
     def action_open_template_user(self) -> dict[str, Any]:
-        action = self.env["ir.actions.actions"]._for_xml_id("base.action_res_users")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("base.action_res_users")
         try:
             template_user_id = literal_eval(
                 self.env["ir.config_parameter"]

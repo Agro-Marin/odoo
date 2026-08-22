@@ -88,9 +88,6 @@ class ResGroups(models.Model):
         compute="_compute_view_group_hierarchy",
     )
 
-    # nulls_distinct preserves what UNIQUE (privilege_id, name) did: groups
-    # with no privilege never collided by name, and base's own
-    # test_ir_embedded_actions creates two called "arbitrary_group".
     _name_src_uniq = name_uniq_index(
         "privilege_id",
         nulls_distinct=True,
@@ -101,12 +98,6 @@ class ResGroups(models.Model):
         "The api key duration cannot be a negative value.",
     )
 
-    """Groups are interpreted as sets: a group that implies another is a subset of
-    it. E.g. a manager group implies the user group (every manager is a user), so
-    its members gain all the implied groups' rights on top of their own.
-    Implication is transitive (a "developer employee" group implies employee, user,
-    timesheet...).
-    """
     implied_ids = fields.Many2many(
         "res.groups",
         "res_groups_implied_rel",
@@ -174,7 +165,7 @@ class ResGroups(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_settings_group(self) -> None:
-        classified = self.env["res.config.settings"]._get_classified_fields()
+        classified = self.env["res.config.settings"]._get_fields_classified()
         for _name, _groups, implied_group in classified["group"]:
             if implied_group.id in self.ids:
                 raise ValidationError(
@@ -283,7 +274,7 @@ class ResGroups(models.Model):
 
         return res
 
-    def _ensure_xml_id(self) -> dict[int, str]:
+    def _add_missing_xml_ids(self) -> dict[int, str]:
         result = self.get_external_id()
         missings = {
             group_id: f"__custom__.group_{group_id}"

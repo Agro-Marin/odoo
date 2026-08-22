@@ -4,7 +4,7 @@ import odoo.tests
 
 from odoo.addons.base.models.ir_actions_report import (
     PDF_OPTIONS_DATA_KEY,
-    _watermark_css,
+    _prepare_watermark_css,
     _weasy_warning_capture,
 )
 
@@ -86,11 +86,11 @@ class TestPdfDocumentMetadata(odoo.tests.TransactionCase):
 @odoo.tests.tagged("post_install", "-at_install")
 class TestWatermarkCss(odoo.tests.TransactionCase):
     def test_watermark_css_escapes_hostile_text(self):
-        css = _watermark_css('a"b\\c\nd')
+        css = _prepare_watermark_css('a"b\\c\nd')
         self.assertIn('content: "a\\"b\\\\c d";', css)
 
     def test_watermark_css_is_fixed_overlay(self):
-        css = _watermark_css("DRAFT")
+        css = _prepare_watermark_css("DRAFT")
         self.assertIn("position: fixed;", css)
         self.assertIn('content: "DRAFT";', css)
 
@@ -99,8 +99,8 @@ class TestWatermarkCss(odoo.tests.TransactionCase):
 class TestPdfImageOptions(odoo.tests.TransactionCase):
     def test_build_pdf_options_image_knobs(self):
         Report = self.env["ir.actions.report"]
-        self.assertIsNone(Report._build_pdf_options())
-        options = Report._build_pdf_options(dpi=96, jpeg_quality=80)
+        self.assertIsNone(Report._prepare_pdf_options())
+        options = Report._prepare_pdf_options(dpi=96, jpeg_quality=80)
         self.assertEqual(options, {"dpi": 96, "jpeg_quality": 80})
 
     def test_pdf_options_channel_forwards_image_knobs(self):
@@ -179,8 +179,8 @@ class TestWeasyWarningCapture(odoo.tests.TransactionCase):
         self.assertEqual(outer, ["inner", "outer"])
 
     def test_render_error_includes_captured_warnings(self):
-        engine = self.env["ir.actions.report"]._build_weasyprint_engine()
+        engine = self.env["ir.actions.report"]._prepare_weasyprint_engine()
         engine._captured_warnings = ["Ignored `flex: 1` at 3:7"]
-        error = engine._pdf_render_error("boom")
+        error = engine._prepare_pdf_render_error("boom")
         self.assertIn("boom", str(error))
         self.assertIn("Ignored `flex: 1` at 3:7", str(error))

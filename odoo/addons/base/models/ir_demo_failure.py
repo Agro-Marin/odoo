@@ -1,6 +1,6 @@
 from typing import Any
 
-from odoo import api, fields, models
+from odoo import fields, models
 
 
 class IrDemo_Failure(models.TransientModel):
@@ -22,12 +22,7 @@ class IrDemo_FailureWizard(models.TransientModel):
         readonly=True,
         string="Demo Installation Failures",
     )
-    failures_count = fields.Integer(compute="_compute_failures_count")
-
-    @api.depends("failure_ids")
-    def _compute_failures_count(self) -> None:
-        for r in self:
-            r.failures_count = len(r.failure_ids)
+    failures_count = fields.Count("failure_ids")
 
     def done(self) -> dict[str, Any]:
         return self.env["ir.module.module"]._next_todo_action()

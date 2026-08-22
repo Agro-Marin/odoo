@@ -11,24 +11,45 @@
                     <field name="lang" />
                     <field name="format" />
                     <field name="export_type" />
-                    <field name="modules" widget="many2many_tags" options="{'no_create': True}" invisible="export_type == 'model'" />
-                    <field name="model_id" options="{'no_create': True}" invisible="export_type == 'module'" required="export_type == 'model'" />
+                    <field
+                        name="modules"
+                        widget="many2many_tags"
+                        options="{'no_create': True}"
+                        invisible="export_type == 'model'" />
+                    <field
+                        name="model_id"
+                        options="{'no_create': True}"
+                        invisible="export_type == 'module'"
+                        required="export_type == 'model'" />
                     <field name="model_name" invisible="1" />
-                    <field name="domain" widget="domain" options="{'model': 'model_name'}" invisible="export_type == 'module'" />
+                    <field
+                        name="domain"
+                        widget="domain"
+                        options="{'model': 'model_name'}"
+                        invisible="export_type == 'module'" />
                 </group>
                 <div invisible="state != 'get'">
                     <h2>Export Complete</h2>
                     <div invisible="data">
                         <div class="mb-2 rounded-2 overflow-hidden d-grid gap-2">
                             <div class="alert alert-warning m-0 p-1 ps-3" role="alert">
-                                <div name="error" style="white-space: pre-wrap;" invisible="export_type == 'module'">
+                                <div
+                                    name="error"
+                                    style="white-space: pre-wrap;"
+                                    invisible="export_type == 'module'">
                                     Model
                                     <field name="model_id" readonly="1" />
                                     does not contain translatable terms.<br />
                                 </div>
-                                <div name="error" style="white-space: pre-wrap;" invisible="export_type == 'model'">
+                                <div
+                                    name="error"
+                                    style="white-space: pre-wrap;"
+                                    invisible="export_type == 'model'">
                                     Modules
-                                    <field name="modules" widget="many2many_tags" readonly="1" />
+                                    <field
+                                        name="modules"
+                                        widget="many2many_tags"
+                                        readonly="1" />
                                     do not contain translatable terms.<br />
                                 </div>
                             </div>
@@ -38,7 +59,7 @@
                     <div invisible="not data">
                         <p>Here is the exported translation file: <field name="data" readonly="1" filename="name" /></p>
                         <p>This file was generated using the universal <strong>Unicode/UTF-8</strong> file encoding, please be sure to view and edit
-                             using the same encoding.</p>
+                            using the same encoding.</p>
                         <p>The next step depends on the file format:
                             <ul>
                             <li>CSV format: you may edit it directly with your favorite spreadsheet software,
@@ -53,11 +74,26 @@
                     </div>
                 </div>
                 <footer invisible="state != 'choose'">
-                    <button name="act_getfile" data-hotkey="q" string="Export" type="object" class="btn-primary" />
-                    <button special="cancel" data-hotkey="x" string="Cancel" type="object" class="btn-secondary" />
+                    <button
+                        name="act_getfile"
+                        data-hotkey="q"
+                        string="Export"
+                        type="object"
+                        class="btn-primary" />
+                    <button
+                        special="cancel"
+                        data-hotkey="x"
+                        string="Cancel"
+                        type="object"
+                        class="btn-secondary" />
                 </footer>
                 <footer invisible="state != 'get'">
-                    <button special="cancel" data-hotkey="x" string="Close" type="object" class="btn-primary" />
+                    <button
+                        special="cancel"
+                        data-hotkey="x"
+                        string="Close"
+                        type="object"
+                        class="btn-primary" />
                 </footer>
             </form>
         </field>

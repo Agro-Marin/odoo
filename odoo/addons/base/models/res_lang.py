@@ -163,7 +163,9 @@ class ResLang(models.Model):
 
     @api.constrains("active")
     def _check_active(self) -> None:
-        if self.env.registry.ready and not self.search_count([("active", "=", True)]):
+        if self.env.registry.ready and not self.search_count(
+            [("active", "=", True)], limit=1
+        ):
             raise ValidationError(_("At least one language must be active."))
 
     @api.constrains("time_format", "date_format")
@@ -208,20 +210,20 @@ class ResLang(models.Model):
         return None
 
     def _register_hook(self) -> None:
-        if not self.search_count([]):
+        if not self.search_count([], limit=1):
             _logger.error("No language is active.")
 
-    def _find_lang_by_code(self, code: str) -> Self:
+    def _get_lang_by_code(self, code: str) -> Self:
         return self.with_context(active_test=False).search([("code", "=", code)])
 
     def _activate_lang(self, code: str) -> Self:
-        lang = self._find_lang_by_code(code)
+        lang = self._get_lang_by_code(code)
         if lang and not lang.active:
             lang.active = True
         return lang
 
     def _activate_and_install_lang(self, code: str) -> Self:
-        lang = self._find_lang_by_code(code)
+        lang = self._get_lang_by_code(code)
         if lang and not lang.active:
             lang.action_unarchive()
         return lang

@@ -6,7 +6,8 @@
         <field name="model">res.country</field>
         <field name="arch" type="xml">
             <search string="Countries">
-                <field name="name"
+                <field
+                    name="name"
                     filter_domain="['|', ('name', 'ilike', self), ('code', 'ilike', self)]" />
                 <field name="phone_code" />
             </search>
@@ -32,7 +33,10 @@
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                     </div>
-                    <field name="image_url" widget="image_url" class="oe_avatar"
+                    <field
+                        name="image_url"
+                        widget="image_url"
+                        class="oe_avatar"
                         options="{'size': [128,128]}" />
                     <group name="main_group">
                         <group name="country_details">
@@ -47,7 +51,9 @@
                             <field name="state_required" />
                         </group>
                     </group>
-                    <group name="advanced_address_formatting" string="Advanced Address Formatting"
+                    <group
+                        name="advanced_address_formatting"
+                        string="Advanced Address Formatting"
                         groups="base.group_no_one">
                         <label for="address_view_id" />
                         <div class="o_row">
@@ -57,7 +63,9 @@
                         </div>
                         <label for="address_format" />
                         <div class="o_row">
-                            <field name="address_format" placeholder="Address format..." />
+                            <field
+                                name="address_format"
+                                placeholder="Address format..." />
                             <div name="div_address_format ms-2" class="text-muted">Change the way
                                 addresses are displayed in reports</div>
                         </div>
@@ -113,7 +121,9 @@
                     </div>
                     <group name="country_group">
                         <field name="code" />
-                        <field name="country_ids" widget="many2many_tags"
+                        <field
+                            name="country_ids"
+                            widget="many2many_tags"
                             options="{'no_open': True, 'no_create': True}" />
                     </group>
                 </sheet>
@@ -143,7 +153,9 @@
                 <field name="name" />
                 <field name="country_id" />
                 <group>
-                    <filter name="groupby_country" string="Country"
+                    <filter
+                        name="groupby_country"
+                        string="Country"
                         context="{'group_by': 'country_id'}" />
                 </group>
             </search>
@@ -157,7 +169,9 @@
             <list string="State" editable="bottom">
                 <field name="name" />
                 <field name="code" />
-                <field name="country_id" options="{'no_create': True, 'no_open': True}" />
+                <field
+                    name="country_id"
+                    options="{'no_create': True, 'no_open': True}" />
             </list>
         </field>
     </record>
@@ -171,7 +185,8 @@
                     <group>
                         <field name="name" />
                         <field name="code" />
-                        <field name="country_id"
+                        <field
+                            name="country_id"
                             options="{&quot;no_open&quot;: True, &quot;no_create&quot;: True}" />
                     </group>
                 </sheet>

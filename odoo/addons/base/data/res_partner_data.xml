@@ -81,8 +81,7 @@
 
     <record id="res_partner_industry_I" model="res.partner.industry">
         <field name="name">Food/Hospitality</field>
-        <field
-            name="full_name">I - ACCOMMODATION AND FOOD SERVICE ACTIVITIES</field>
+        <field name="full_name">I - ACCOMMODATION AND FOOD SERVICE ACTIVITIES</field>
     </record>
 
     <record id="res_partner_industry_J" model="res.partner.industry">

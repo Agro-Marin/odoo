@@ -13,7 +13,7 @@ from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
 from odoo.modules import Manifest
 from odoo.tools import misc
-from odoo.tools.assets.constants import EXTERNAL_ASSET
+from odoo.tools.assets.constants import EXTERNAL_ASSET, like_escape
 
 from .ir_asset_paths import (
     AFTER_DIRECTIVE,
@@ -30,12 +30,12 @@ from .ir_asset_paths import (
     AssetEntry,
     BundleWalk,
     ResolvedPath,
-    _glob_static_file,
+    _get_static_files,
+    _prepare_origin_manifest,
+    _prepare_origin_record,
     can_aggregate,
-    fs2web,
+    fs_to_web,
     is_wildcard_glob,
-    manifest_origin,
-    record_origin,
 )
 
 _logger = getLogger(__name__)
@@ -49,13 +49,13 @@ class Resolution:
         default_factory=dict
     )
     bundle_assets: dict[str, list] = field(default_factory=dict)
-    fetched_bundles: set[str] = field(default_factory=set)
+    loaded_bundles: set[str] = field(default_factory=set)
     symlink_memo: dict[tuple[str, str], bool] = field(default_factory=dict)
     resolved_paths: dict[str, tuple[ResolvedPath, ...]] = field(default_factory=dict)
     _manifests: dict[str, Manifest | None] = field(default_factory=dict)
     _addon_roots: dict[str, tuple[str, str]] = field(default_factory=dict)
 
-    def manifest_for(self, addon: str) -> Manifest | None:
+    def get_manifest(self, addon: str) -> Manifest | None:
         try:
             return self._manifests[addon]
         except KeyError:
@@ -63,7 +63,7 @@ class Resolution:
             self._manifests[addon] = manifest
             return manifest
 
-    def addon_roots(self, addon: str, manifest: Manifest) -> tuple[str, str]:
+    def get_addon_roots(self, addon: str, manifest: Manifest) -> tuple[str, str]:
         try:
             return self._addon_roots[addon]
         except KeyError:
@@ -82,9 +82,15 @@ class IrAsset(models.Model):
     name = fields.Char(string="Name", required=True)
     active = fields.Boolean(default=True)
     sequence = fields.Integer(
-        string="Sequence", default=DEFAULT_SEQUENCE, required=True
+        string="Sequence",
+        default=DEFAULT_SEQUENCE,
+        required=True,
     )
-    bundle = fields.Char(string="Bundle name", required=True, index=True)
+    bundle = fields.Char(
+        string="Bundle name",
+        required=True,
+        index=True,
+    )
     directive = fields.Selection(
         string="Directive",
         selection=[
@@ -137,12 +143,12 @@ class IrAsset(models.Model):
 
     def write(self, vals: dict[str, Any]) -> bool:
         result = super().write(vals)
-        if self and not self._resolution_fields().isdisjoint(vals):
+        if self and not self._get_fields_invalidating_assets_cache().isdisjoint(vals):
             self._invalidate_assets_cache()
         return result
 
     @api.model
-    def _resolution_fields(self) -> frozenset[str]:
+    def _get_fields_invalidating_assets_cache(self) -> frozenset[str]:
         return frozenset(
             {"active", "sequence", "bundle", "directive", "path", "target"}
         )
@@ -157,15 +163,17 @@ class IrAsset(models.Model):
     def _invalidate_assets_cache(self) -> None:
         registry = self.env.registry
         postcommit = self.env.cr.postcommit
-        if not postcommit.data.get("ir_asset_cache_cleared"):
-            postcommit.data["ir_asset_cache_cleared"] = True
+        if not postcommit.data.get("ir_asset_cache_invalidated"):
+            postcommit.data["ir_asset_cache_invalidated"] = True
             postcommit.add(partial(registry.clear_cache, "assets"))
         registry.clear_cache("assets")
 
-    def _get_asset_params(self) -> dict[str, Any]:
+    def _prepare_assets_params(self) -> dict[str, Any]:
         return {}
 
-    def _get_asset_url_segments(self, assets_params: dict[str, Any]) -> tuple[str, ...]:
+    def _get_asset_bundle_url_segments(
+        self, assets_params: dict[str, Any]
+    ) -> tuple[str, ...]:
         return ()
 
     def _get_asset_bundle_url(
@@ -175,8 +183,19 @@ class IrAsset(models.Model):
         assets_params: dict[str, Any],
         ignore_params: bool = False,
     ) -> str:
-        segments = self._get_asset_url_segments(assets_params)
+        segments = self._get_asset_bundle_url_segments(assets_params)
         return "/".join(("/web/assets", *segments, unique, filename))
+
+    def _get_asset_bundle_url_pattern(
+        self,
+        filename: str,
+        unique: str,
+        assets_params: dict[str, Any],
+        ignore_params: bool = False,
+    ) -> str:
+        return self._get_asset_bundle_url(
+            like_escape(filename), unique, assets_params, ignore_params
+        )
 
     def _parse_bundle_name(
         self, bundle_name: str, debug_assets: bool
@@ -220,20 +239,22 @@ class IrAsset(models.Model):
     def _get_asset_paths(
         self, bundle: str, assets_params: dict[str, Any]
     ) -> tuple[AssetEntry, ...]:
-        addons = self._get_active_addons_list(**assets_params)
+        addons = self._get_addons_active(**assets_params)
         resolution = Resolution(
             active=frozenset(addons),
             assets_params=assets_params,
             manifest_assets=self._get_manifest_assets(tuple(sorted(addons))),
         )
-        walk = self._bundle_walk(resolution)
+        walk = self._prepare_bundle_walk(resolution)
         walk.walk(bundle)
         return tuple(walk.paths.list)
 
-    def _bundle_walk(self, resolution: Resolution) -> BundleWalk:
+    def _prepare_bundle_walk(self, resolution: Resolution) -> BundleWalk:
         return BundleWalk(
-            resolve=partial(self._get_paths, resolution=resolution),
-            directives_for=partial(self._directives_for, resolution=resolution),
+            resolve=partial(self._resolve_paths, resolution=resolution),
+            prepare_directives=partial(
+                self._prepare_bundle_directives, resolution=resolution
+            ),
         )
 
     @api.model
@@ -242,7 +263,7 @@ class IrAsset(models.Model):
         self, addons: tuple[str, ...]
     ) -> Mapping[str, tuple[tuple[str, Any], ...]]:
         by_bundle: dict[str, list[tuple[str, Any]]] = {}
-        for addon in self._topological_sort(addons):
+        for addon in self._get_addons_sorted_topologically(addons):
             manifest = Manifest.for_addon(addon)
             if manifest is None:
                 continue
@@ -254,11 +275,12 @@ class IrAsset(models.Model):
             {bundle: tuple(commands) for bundle, commands in by_bundle.items()}
         )
 
-    def _directives_for(
+    def _prepare_bundle_directives(
         self, bundle: str, resolution: Resolution
     ) -> list[AssetDirective]:
-        self._fetch_bundle_assets(
-            resolution, self._included_bundles(bundle, resolution.manifest_assets)
+        self._update_bundle_assets(
+            resolution,
+            self._get_bundles_in_include_closure(bundle, resolution.manifest_assets),
         )
         early, late = [], []
         for asset in resolution.bundle_assets.get(bundle, ()):
@@ -266,15 +288,17 @@ class IrAsset(models.Model):
                 asset.directive,
                 asset.target,
                 asset.path,
-                record_origin(asset.name, asset.id, asset.directive, asset.path),
+                _prepare_origin_record(
+                    asset.name, asset.id, asset.directive, asset.path
+                ),
             )
             (early if asset.sequence < DEFAULT_SEQUENCE else late).append(entry)
 
         middle = []
         for addon, command in resolution.manifest_assets.get(bundle, ()):
-            origin = manifest_origin(command, addon)
+            origin = _prepare_origin_manifest(command, addon)
             try:
-                directive, target, path_def = self._process_command(command)
+                directive, target, path_def = self._parse_manifest_command(command)
             except ValueError as exc:
                 raise AssetDirectiveError(
                     f"{exc} — raised by {origin}, declared for bundle {bundle!r}"
@@ -283,7 +307,7 @@ class IrAsset(models.Model):
 
         return [*early, *middle, *late]
 
-    def _get_related_assets(self, domain: list, **kwargs: Any) -> Self:
+    def _get_assets(self, domain: list, **kwargs: Any) -> Self:
         return (
             self.with_context(active_test=False)
             .sudo()
@@ -293,14 +317,14 @@ class IrAsset(models.Model):
     def _filter_bundle_assets(self, assets: Self, **kwargs: Any) -> Self:
         return assets
 
-    def _fetch_bundle_assets(
+    def _update_bundle_assets(
         self, resolution: Resolution, bundles: Collection[str]
     ) -> None:
-        missing = [b for b in bundles if b not in resolution.fetched_bundles]
+        missing = [b for b in bundles if b not in resolution.loaded_bundles]
         if not missing:
             return
-        resolution.fetched_bundles.update(missing)
-        assets = self._get_related_assets(
+        resolution.loaded_bundles.update(missing)
+        assets = self._get_assets(
             [("bundle", "in", missing)], **resolution.assets_params
         )
         ids_by_bundle: dict[str, list[int]] = {}
@@ -313,7 +337,7 @@ class IrAsset(models.Model):
             if applicable:
                 resolution.bundle_assets[bundle] = list(applicable)
 
-    def _included_bundles(
+    def _get_bundles_in_include_closure(
         self, bundle: str, manifest_assets: Mapping[str, tuple[tuple[str, Any], ...]]
     ) -> set[str]:
         closure: set[str] = set()
@@ -332,12 +356,14 @@ class IrAsset(models.Model):
                     pending.append(command[1])
         return closure
 
-    def _get_related_bundle(self, target_path_def: str, root_bundle: str) -> str:
-        assets_params = self._get_asset_params()
+    def _get_bundle_containing_path(
+        self, target_path_def: str, root_bundle: str
+    ) -> str:
+        assets_params = self._prepare_assets_params()
         resolution = Resolution(
-            active=frozenset(self._get_active_addons_list(**assets_params))
+            active=frozenset(self._get_addons_active(**assets_params))
         )
-        paths = self._get_paths(target_path_def, resolution)
+        paths = self._resolve_paths(target_path_def, resolution)
         if not paths:
             return root_bundle
         target_path = paths[0][0]
@@ -349,12 +375,14 @@ class IrAsset(models.Model):
 
         return root_bundle
 
-    def _get_active_addons_list(self, **kwargs: Any) -> Collection[str]:
-        return self._get_installed_addons_list()
+    def _get_addons_active(self, **kwargs: Any) -> Collection[str]:
+        return self._get_addons_installed()
 
     @api.model
     @tools.ormcache("addons_tuple")
-    def _topological_sort(self, addons_tuple: tuple[str, ...]) -> tuple[str, ...]:
+    def _get_addons_sorted_topologically(
+        self, addons_tuple: tuple[str, ...]
+    ) -> tuple[str, ...]:
         IrModule = self.env["ir.module.module"]
 
         def mapper(addon):
@@ -376,12 +404,12 @@ class IrAsset(models.Model):
         )
 
     @api.model
-    def _get_installed_addons_list(self) -> frozenset[str]:
+    def _get_addons_installed(self) -> frozenset[str]:
         return frozenset(
             self.env.registry._init_modules.union(tools.config["server_wide_modules"])
         )
 
-    def _get_paths(
+    def _resolve_paths(
         self, path_def: str, resolution: Resolution
     ) -> tuple[ResolvedPath, ...]:
         try:
@@ -394,7 +422,7 @@ class IrAsset(models.Model):
     def _resolve_path_def(
         self, path_def: str, resolution: Resolution
     ) -> tuple[ResolvedPath, ...]:
-        path_def = fs2web(path_def)
+        path_def = fs_to_web(path_def)
         path_parts = [part for part in path_def.split("/") if part]
         if not path_parts:
             _logger.warning("IrAsset: empty path definition")
@@ -404,7 +432,7 @@ class IrAsset(models.Model):
 
         paths = None
         addon = path_parts[0]
-        addon_manifest = resolution.manifest_for(addon)
+        addon_manifest = resolution.get_manifest(addon)
 
         safe_path = False
         if addon_manifest:
@@ -416,16 +444,16 @@ class IrAsset(models.Model):
                     addon,
                 )
                 return ()
-            addon_root, static_dir = resolution.addon_roots(addon, addon_manifest)
+            addon_root, static_dir = resolution.get_addon_roots(addon, addon_manifest)
             full_path = os.path.normpath("/".join([addon_root, *path_parts[1:]]))
             if full_path == static_dir or full_path.startswith(static_dir + os.sep):
-                paths_with_timestamps = _glob_static_file(
+                paths_with_timestamps = _get_static_files(
                     full_path, static_dir, resolution.symlink_memo
                 )
                 root_len = len(addon_root) + 1
                 paths = tuple(
                     ResolvedPath(
-                        intern(f"/{addon}/{fs2web(absolute_path[root_len:])}"),
+                        intern(f"/{addon}/{fs_to_web(absolute_path[root_len:])}"),
                         intern(absolute_path),
                         timestamp,
                     )
@@ -443,7 +471,7 @@ class IrAsset(models.Model):
                     addon,
                 )
             else:
-                self._warn_unbacked_attachment_path(
+                self._warn_attachment_path_unbacked(
                     path_def, addon if addon_manifest else None
                 )
             paths = (ResolvedPath(intern(path_def), None, None),)
@@ -466,7 +494,7 @@ class IrAsset(models.Model):
             return ()
         return paths
 
-    def _warn_unbacked_attachment_path(self, path_def: str, addon: str | None) -> None:
+    def _warn_attachment_path_unbacked(self, path_def: str, addon: str | None) -> None:
         attachments = self.env["ir.attachment"].sudo()
         if attachments.search_count([("url", "=", path_def)], limit=1):
             return
@@ -496,7 +524,9 @@ class IrAsset(models.Model):
             where,
         )
 
-    def _process_command(self, command: str | list) -> tuple[str, str | None, str]:
+    def _parse_manifest_command(
+        self, command: str | list
+    ) -> tuple[str, str | None, str]:
         if isinstance(command, str):
             return APPEND_DIRECTIVE, None, command
         try:

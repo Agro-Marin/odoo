@@ -82,7 +82,7 @@ class TestFieldConverters(TransactionCase):
                 self.converter._str_to_date(self.flds["date"], value)
 
     def test_boolean_value_sets_built_once(self):
-        self.converter._import_memo().clear()
+        self.converter._get_transaction_cache().clear()
         calls = []
         orig = type(self.converter)._get_boolean_translations
 
@@ -115,20 +115,20 @@ class TestFieldConverters(TransactionCase):
 
     def test_db_id_for_unknown_subfield_is_valueerror(self):
         with self.assertRaises(ValueError):
-            self.converter.db_id_for(self.flds["m2o"], "not_a_subfield", "x")
+            self.converter._get_db_id(self.flds["m2o"], "not_a_subfield", "x")
 
     def test_db_id_for_dbid_resolution(self):
         partner = self.env["res.partner"].search([], limit=1)
         self.assertTrue(partner, "need at least one partner to resolve")
-        got, warnings = self.converter.db_id_for(
+        got, warnings = self.converter._get_db_id(
             self.flds["m2o"], ".id", str(partner.id)
         )
         self.assertEqual(got, partner.id)
         self.assertFalse(warnings)
-        empty, _w = self.converter.db_id_for(self.flds["m2o"], ".id", "0")
+        empty, _w = self.converter._get_db_id(self.flds["m2o"], ".id", "0")
         self.assertIs(empty, False)
         with self.assertRaises(ValueError):
-            self.converter.db_id_for(self.flds["m2o"], ".id", str(partner.id + 10**9))
+            self.converter._get_db_id(self.flds["m2o"], ".id", str(partner.id + 10**9))
 
     def test_str_to_float_rejects_non_finite(self):
         for value in ("nan", "NaN", "inf", "-inf", "Infinity", "1e400"):
@@ -181,7 +181,7 @@ class TestFieldConverters(TransactionCase):
         if not target:
             self.skipTest("every field type has a converter on this build")
         model, fname, ftype = target
-        fn = self.converter.for_model(model)
+        fn = self.converter._get_converter_record(model)
         logged = []
         result = fn({fname: "x"}, lambda field, exc: logged.append((field, exc)))
         self.assertNotIn(fname, result, "unconvertible field must not be written")
@@ -232,7 +232,7 @@ class TestFieldConverters(TransactionCase):
         fld = self.env["res.partner"]._fields["tz"]
         n = len(fld.selection)
         self.assertGreater(n, 100, "need a large static selection")
-        self.converter._import_memo().clear()
+        self.converter._get_transaction_cache().clear()
         self.env["ir.model.fields.selection"].flush_model()
 
         cr = self.env.cr
@@ -258,11 +258,11 @@ class TestFieldConverters(TransactionCase):
     def test_db_id_for_non_str_reference_is_clean_error(self):
         for subfield in (".id", "id"):
             with self.assertRaises(ValueError):
-                self.converter.db_id_for(self.flds["m2o"], subfield, 123456789)
+                self.converter._get_db_id(self.flds["m2o"], subfield, 123456789)
 
     def test_referencing_subfield_empty_record(self):
         with self.assertRaises(ValueError) as cm:
-            self.converter._referencing_subfield({})
+            self.converter._get_subfield_referencing({})
         self.assertNotIn("unpack", str(cm.exception))
 
     def test_o2m_unknown_subfield_is_valueerror(self):
@@ -293,7 +293,7 @@ class TestFieldConverters(TransactionCase):
             ),
             self.assertRaises(TypeError),
         ):
-            converter.db_id_for(self.flds["m2o"], None, "zzz no such partner ifld16")
+            converter._get_db_id(self.flds["m2o"], None, "zzz no such partner ifld16")
 
     def test_name_create_user_error_becomes_import_message(self):
         converter = self.converter.with_context(
@@ -304,12 +304,12 @@ class TestFieldConverters(TransactionCase):
             patch.object(PartnerClass, "name_create", side_effect=UserError("nope")),
             self.assertRaises(ValueError) as cm,
         ):
-            converter.db_id_for(self.flds["m2o"], None, "zzz no such partner ifld16")
+            converter._get_db_id(self.flds["m2o"], None, "zzz no such partner ifld16")
         self.assertIn("Cannot create new", str(cm.exception.args[0]))
 
     def test_m2m_blank_comma_segments_dropped(self):
         tag = self.env["res.partner.category"].create({"name": "IFLD17 Tag"})
-        converter = self.converter.to_field(
+        converter = self.converter._resolve_converter_field(
             self.env["res.partner"]._fields["category_id"], str
         )
         for raw in ("IFLD17 Tag,", ",IFLD17 Tag", "IFLD17 Tag, ", "IFLD17 Tag,,"):
@@ -404,8 +404,8 @@ class TestFieldConverters(TransactionCase):
             raise psycopg.DataError('invalid input syntax for integer: "50%"')
 
         messages = []
-        with patch.object(type(converter), "to_field", lambda *a, **kw: boom):
-            convert = converter.for_model(self.env["res.partner"])
+        with patch.object(type(converter), "_resolve_converter_field", lambda *a, **kw: boom):
+            convert = converter._get_converter_record(self.env["res.partner"])
             convert({"name": "x"}, lambda f, e: messages.append(str(e.args[0])))
 
         self.assertTrue(messages, "expected the driver error to be logged")
@@ -413,7 +413,7 @@ class TestFieldConverters(TransactionCase):
         self.assertIn('"50%"', formatted)
 
     def test_unknown_field_reported_and_not_written(self):
-        convert = self.converter.for_model(self.env["res.partner"])
+        convert = self.converter._get_converter_record(self.env["res.partner"])
         logged = []
         converted = convert(
             {"name": "x", "ifld22_empty": "", "ifld22_filled": "v"},
@@ -433,7 +433,7 @@ class TestFieldConverters(TransactionCase):
             captured.append(field.name)
             return [], []
 
-        with patch.object(type(self.converter), "_resolve_reference_ids", spy):
+        with patch.object(type(self.converter), "_get_reference_ids", spy):
             self.converter._str_to_properties(
                 self.flds["bool"],
                 [
@@ -450,7 +450,7 @@ class TestFieldConverters(TransactionCase):
 
     def test_selection_translation_index_is_ordered(self):
         field = self.env["res.partner"]._fields["type"]
-        self.converter._import_memo().clear()
+        self.converter._get_transaction_cache().clear()
         queries = []
         orig_execute = type(self.env.cr).execute
 
@@ -459,7 +459,7 @@ class TestFieldConverters(TransactionCase):
             return orig_execute(cr, query, *args, **kwargs)
 
         with patch.object(type(self.env.cr), "execute", spy):
-            self.converter._selection_import_index(field)
+            self.converter._get_selection_index(field)
         selection_queries = [q for q in queries if "ir_model_fields_selection" in q]
         self.assertTrue(selection_queries, "expected the selection label query")
         self.assertTrue(
@@ -536,7 +536,7 @@ class TestFieldConverters(TransactionCase):
         PartnerClass = type(self.env["res.partner"])
         with patch.object(PartnerClass, "name_create", side_effect=boom):
             with self.assertRaises(ValueError) as cm:
-                converter.db_id_for(
+                converter._get_db_id(
                     self.flds["m2o"], None, "zzz no such partner ifld28"
                 )
         self.assertIn("Cannot create new", str(cm.exception.args[0]))
@@ -572,11 +572,11 @@ class TestFieldConverters(TransactionCase):
             import_set_empty_fields=["parent_id"],
             import_cache=LRU(1024),
         )
-        first, _w = converter.db_id_for(self.flds["m2o"], None, "IFLD29b Target")
+        first, _w = converter._get_db_id(self.flds["m2o"], None, "IFLD29b Target")
         self.assertIsNone(first, "the record does not exist yet")
         target = self.env["res.partner"].create({"name": "IFLD29b Target"})
         self.env.flush_all()
-        second, _w = converter.db_id_for(self.flds["m2o"], None, "IFLD29b Target")
+        second, _w = converter._get_db_id(self.flds["m2o"], None, "IFLD29b Target")
         self.assertEqual(
             second, target.id, "a cached miss would still report 'not found'"
         )
@@ -656,19 +656,19 @@ class TestFieldConverters(TransactionCase):
             {"name": "p1", "type": "integer", "string": "P1", "value": "x"}
         ]
         self.assertEqual(
-            self.converter._error_field_path("props", properties_value), ["props"]
+            self.converter._get_field_path_for_error("props", properties_value), ["props"]
         )
 
     def test_error_field_path_keeps_the_referencing_subfield(self):
         self.assertEqual(
-            self.converter._error_field_path("value", [{"id": "noxidhere"}]),
+            self.converter._get_field_path_for_error("value", [{"id": "noxidhere"}]),
             ["value", "id"],
         )
         self.assertEqual(
-            self.converter._error_field_path("value", [{None: "somename"}]), ["value"]
+            self.converter._get_field_path_for_error("value", [{None: "somename"}]), ["value"]
         )
         nested = self.converter.with_context(parent_fields_hierarchy=["child_ids"])
-        self.assertEqual(nested._error_field_path("type", "bad"), ["child_ids", "type"])
+        self.assertEqual(nested._get_field_path_for_error("type", "bad"), ["child_ids", "type"])
 
     def test_o2m_subfield_label_with_percent_is_reported(self):
         fld = self.env["res.partner"]._fields["type"]
@@ -889,10 +889,10 @@ class TestFieldConverters(TransactionCase):
     def test_database_id_possible_values_shows_database_ids(self):
         field = self.env["res.partner"]._fields["parent_id"]
         for subfield in ("id", ".id"):
-            action = self.converter._possible_values_action(field, subfield)
+            action = self.converter._get_action_possible_values(field, subfield)
             self.assertEqual(action["res_model"], "ir.model.data")
             self.assertEqual(action["domain"], [("model", "=", "res.partner")])
-        by_name = self.converter._possible_values_action(field, None)
+        by_name = self.converter._get_action_possible_values(field, None)
         self.assertEqual(by_name["res_model"], "res.partner")
 
     def test_unparseable_datetime_is_reported_not_a_server_fault(self):
@@ -1025,14 +1025,14 @@ class TestFieldConverters(TransactionCase):
     def test_nested_converter_is_built_once_per_import(self):
         calls = []
         converter_type = type(self.converter)
-        original = converter_type.for_model
+        original = converter_type._get_converter_record
 
         def spy(this, model, fromtype=str):
             calls.append(model._name)
             return original(this, model, fromtype)
 
         rows = [[f"IFLD49 P{i}", f"IFLD49 C{i}"] for i in range(25)]
-        with patch.object(converter_type, "for_model", spy):
+        with patch.object(converter_type, "_get_converter_record", spy):
             result = self.env["res.partner"].load(["name", "child_ids/name"], rows)
         self.assertFalse(result["messages"])
         self.assertEqual(len(result["ids"]), 25)

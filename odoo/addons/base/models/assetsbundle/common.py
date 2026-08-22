@@ -1,5 +1,6 @@
 import functools
 import hashlib
+import json
 import logging
 import re
 import subprocess
@@ -32,9 +33,50 @@ def _pipeline_sources() -> tuple[Path, ...]:
     )
 
 
+_OUTPUT_AFFECTING_NPM_TOOLS = ("sass-embedded", "rtlcss", "esbuild")
+
+
+@functools.cache
+def _toolchain_versions() -> str:
+    root = _repo_root()
+    if root is None:
+        return "unknown"
+    lock_versions: dict[str, str] = {}
+    try:
+        packages = json.loads((root / "package-lock.json").read_text())["packages"]
+    except OSError, ValueError, KeyError, TypeError:
+        packages = {}
+    for name in _OUTPUT_AFFECTING_NPM_TOOLS:
+        entry = packages.get(f"node_modules/{name}")
+        if isinstance(entry, dict) and entry.get("version"):
+            lock_versions[name] = entry["version"]
+
+    parts = []
+    for name in _OUTPUT_AFFECTING_NPM_TOOLS:
+        version = None
+        try:
+            installed = json.loads(
+                (root / "node_modules" / name / "package.json").read_text()
+            )
+            version = installed.get("version")
+        except OSError, ValueError, AttributeError:
+            version = None
+        parts.append(f"{name}@{version or lock_versions.get(name) or 'absent'}")
+    return ";".join(parts)
+
+
+def _repo_root() -> Path | None:
+    tools_file = getattr(odoo.tools, "__file__", None)
+    if not tools_file:
+        return None
+    return Path(tools_file).resolve().parent.parent.parent
+
+
 @functools.cache
 def _pipeline_fingerprint() -> str:
     digest = hashlib.sha256()
+    digest.update(_toolchain_versions().encode())
+    digest.update(b"\x00")
     files: list[Path] = []
     for source in _pipeline_sources():
         if source.is_dir():
@@ -155,17 +197,6 @@ _SCSS_STATEMENT_SPANS = re.compile(
     rf"""{_URL_FUNCTION}|{_SCSS_STRING_OR_COMMENT.pattern}""",
     re.DOTALL,
 )
-"""Opaque spans for scanners that look for SCSS *statements* (``@import``).
-
-Extends :data:`_SCSS_STRING_OR_COMMENT` with the whole ``url(…)`` function, so
-the ``//`` of a protocol (``url(https://…)``) or of a protocol-relative href
-(``url(//cdn/x.png)``) is not mistaken for the start of a Sass line comment.
-Without it the scanner swallowed the rest of that line and every ``@import``
-after it on the same line escaped sanitising.
-
-NOT usable by the ``url()`` *rewriter* (:meth:`StylesheetAsset._fetch_content`):
-that pass must reach inside ``url(…)``, which is exactly what this hides.
-"""
 
 _PROTECTED_SPAN = "_odoo_protected_span"
 

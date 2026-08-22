@@ -50,10 +50,10 @@ class TestAvatarMixin(TransactionCase):
 
     def test_content_of_generated_partner_avatar(self):
         expectedAvatar = (
-            "<?xml version='1.0' encoding='UTF-8' ?>"
-            "<svg height='180' width='180' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink'>"
-            "<rect fill='hsl(184, 40%, 45%)' height='180' width='180'/>"
-            "<text fill='#ffffff' font-size='96' text-anchor='middle' x='90' y='125' font-family='sans-serif'>M</text>"
+            '<?xml version="1.0" encoding="UTF-8" ?>'
+            '<svg height="180" width="180" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">'
+            '<rect fill="hsl(184, 40%, 45%)" height="180" width="180"/>'
+            '<text fill="#ffffff" font-size="96" text-anchor="middle" x="90" y="125" font-family="sans-serif">M</text>'
             "</svg>"
         )
         self.assertEqual(
@@ -63,16 +63,16 @@ class TestAvatarMixin(TransactionCase):
 
     def test_partner_without_name_has_default_placeholder_image_as_avatar(self):
         self.assertEqual(
-            self.user_without_name.partner_id._avatar_get_placeholder(),
+            self.user_without_name.partner_id._get_avatar_placeholder(),
             b64decode(self.user_without_name.partner_id.avatar_1920),
         )
 
     def test_external_partner_has_default_placeholder_image_as_avatar(self):
         expectedAvatar = (
-            "<?xml version='1.0' encoding='UTF-8' ?>"
-            "<svg height='180' width='180' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink'>"
-            "<rect fill='hsl(71, 48%, 45%)' height='180' width='180'/>"
-            "<text fill='#ffffff' font-size='96' text-anchor='middle' x='90' y='125' font-family='sans-serif'>J</text>"
+            '<?xml version="1.0" encoding="UTF-8" ?>'
+            '<svg height="180" width="180" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">'
+            '<rect fill="hsl(71, 48%, 45%)" height="180" width="180"/>'
+            '<text fill="#ffffff" font-size="96" text-anchor="middle" x="90" y="125" font-family="sans-serif">J</text>'
             "</svg>"
         )
         self.assertEqual(
@@ -88,10 +88,10 @@ class TestAvatarMixin(TransactionCase):
 
     def test_placeholder_bytes_are_cached(self):
         partner = self.external_partner
-        first = partner._avatar_get_placeholder()
-        second = partner._avatar_get_placeholder()
+        first = partner._get_avatar_placeholder()
+        second = partner._get_avatar_placeholder()
         self.assertIs(first, second)
-        with file_open(partner._avatar_get_placeholder_path(), "rb") as file:
+        with file_open(partner._get_avatar_placeholder_path(), "rb") as file:
             self.assertEqual(first, file.read())
 
     def test_partner_placeholder_per_type(self):

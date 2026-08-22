@@ -1,6 +1,6 @@
 from odoo.tests.common import BaseCase, tagged
 
-from odoo.addons.base.models.ir_actions_server import _webhook_url_blocked_reason
+from odoo.addons.base.models.ir_actions_server import _get_webhook_blocked_reason
 
 
 @tagged("post_install", "-at_install")
@@ -27,12 +27,12 @@ class TestWebhookSsrfGuard(BaseCase):
             "[2001:db8::1]",
         ):
             with self.subTest(host=host):
-                self.assertIsNotNone(_webhook_url_blocked_reason(f"http://{host}/hook"))
+                self.assertIsNotNone(_get_webhook_blocked_reason(f"http://{host}/hook"))
 
     def test_public_literals_are_allowed(self):
         for host in ("8.8.8.8", "1.1.1.1", "93.184.216.34", "[2606:4700::1111]"):
             with self.subTest(host=host):
-                self.assertIsNone(_webhook_url_blocked_reason(f"https://{host}/hook"))
+                self.assertIsNone(_get_webhook_blocked_reason(f"https://{host}/hook"))
 
     def test_non_http_schemes_and_malformed_urls_are_blocked(self):
         for url in (
@@ -42,4 +42,4 @@ class TestWebhookSsrfGuard(BaseCase):
             "http://",
         ):
             with self.subTest(url=url):
-                self.assertIsNotNone(_webhook_url_blocked_reason(url))
+                self.assertIsNotNone(_get_webhook_blocked_reason(url))

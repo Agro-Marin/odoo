@@ -65,7 +65,7 @@ def _log_smtp_debug(*args: Any) -> None:
     _logger.debug("%s", " ".join(str(arg) for arg in args))
 
 
-def _verify_check_hostname_callback(
+def _check_hostname_callback(
     cnx: Any,
     x509: Any,
     err_no: int,
@@ -455,7 +455,7 @@ class IrMail_Server(models.Model):
             except UserError:
                 raise
             except Exception as e:
-                raise self._connection_test_error(e, server) from e
+                raise self._prepare_connection_test_error(e, server) from e
             finally:
                 if smtp is not None:
                     with suppress(Exception):
@@ -482,7 +482,7 @@ class IrMail_Server(models.Model):
             },
         }
 
-    def _connection_test_error(self, exc: Exception, server: Self) -> UserError:
+    def _prepare_connection_test_error(self, exc: Exception, server: Self) -> UserError:
         handlers = (
             (
                 UnicodeError,
@@ -593,7 +593,7 @@ class IrMail_Server(models.Model):
             mail_server = self.sudo().browse(mail_server_id)
             self._check_forced_mail_server(mail_server, allow_archived, smtp_from)
         elif resolve_server and not host:
-            mail_server, smtp_from = self.sudo()._find_mail_server(smtp_from)
+            mail_server, smtp_from = self.sudo()._get_mail_server(smtp_from)
         if not mail_server:
             mail_server = self.env["ir.mail_server"]
 
@@ -776,7 +776,7 @@ class IrMail_Server(models.Model):
         )
 
     @staticmethod
-    def _ssl_load_error(exc: Exception) -> UserError:
+    def _prepare_ssl_load_error(exc: Exception) -> UserError:
         if isinstance(exc, (SSLCryptoError, ssl.SSLError, ValueError)):
             return UserError(
                 _(
@@ -798,7 +798,7 @@ class IrMail_Server(models.Model):
             ssl_context._ctx.set_verify(
                 VERIFY_PEER | VERIFY_FAIL_IF_NO_PEER_CERT,
                 functools.partial(
-                    _verify_check_hostname_callback,
+                    _check_hostname_callback,
                     hostname=smtp_server,
                 ),
             )
@@ -816,7 +816,7 @@ class IrMail_Server(models.Model):
                 base64.b64decode(self.smtp_ssl_private_key), password=None
             )
         except CERTIFICATE_LOAD_ERRORS as e:
-            raise self._ssl_load_error(e) from None
+            raise self._prepare_ssl_load_error(e) from None
         if chain[0].public_key() != private_key.public_key():
             raise UserError(
                 _(
@@ -837,7 +837,7 @@ class IrMail_Server(models.Model):
                 ssl_context._ctx.add_extra_chain_cert(intermediate)
             ssl_context._ctx.use_privatekey(private_key)
         except CERTIFICATE_LOAD_ERRORS as e:
-            raise self._ssl_load_error(e) from None
+            raise self._prepare_ssl_load_error(e) from None
         return ssl_context
 
     def _ssl_context_from_cert_files(
@@ -852,7 +852,7 @@ class IrMail_Server(models.Model):
             ssl_context.load_cert_chain(cert_filename, keyfile=key_filename)
             ssl_context._ctx.check_privatekey()
         except CERTIFICATE_LOAD_ERRORS as e:
-            raise self._ssl_load_error(e) from None
+            raise self._prepare_ssl_load_error(e) from None
         return ssl_context
 
     @staticmethod
@@ -882,7 +882,7 @@ class IrMail_Server(models.Model):
     ) -> None:
         connection.login(smtp_user, smtp_password)
 
-    def _build_email__(
+    def _prepare_email__(
         self,
         email_from: str | None,
         email_to: str | list[str],
@@ -1192,7 +1192,7 @@ class IrMail_Server(models.Model):
     def _find_mail_server_allowed_domain(self) -> fields.Domain:
         return fields.Domain.TRUE
 
-    def _find_mail_server(
+    def _get_mail_server(
         self, email_from: str | None, mail_servers: Self | None = None
     ) -> tuple[Self | None, str | None]:
         email_from_normalized = email_normalize(email_from)
@@ -1305,7 +1305,7 @@ class IrMail_Server(models.Model):
         return [part.strip() for part in (from_filter or "").split(",") if part.strip()]
 
     @api.onchange("smtp_encryption")
-    def _onchange_encryption(self) -> None:
+    def _onchange_smtp_encryption(self) -> None:
         if self.smtp_encryption in ("ssl", "ssl_strict"):
             if self.smtp_port == 25:
                 self.smtp_port = 465

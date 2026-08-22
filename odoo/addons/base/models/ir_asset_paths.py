@@ -49,7 +49,7 @@ class AssetEntry(NamedTuple):
         return self.full_path is EXTERNAL_ASSET
 
 
-def fs2web(path: str) -> str:
+def fs_to_web(path: str) -> str:
     if os.sep == "/":
         return path
     return "/".join(path.split(os.sep))
@@ -73,7 +73,7 @@ def _is_symlink(path: str) -> bool:
         return False
 
 
-def _reaches_root_without_symlink(
+def _is_reachable_without_symlink(
     directory: str, root: str, memo: dict[tuple[str, str], bool]
 ) -> bool:
     cached = memo.get((root, directory))
@@ -86,14 +86,14 @@ def _reaches_root_without_symlink(
     if not parent or not directory.startswith(root + os.sep):
         memo[root, directory] = False
         return False
-    result = not _is_symlink(directory) and _reaches_root_without_symlink(
+    result = not _is_symlink(directory) and _is_reachable_without_symlink(
         parent, root, memo
     )
     memo[root, directory] = result
     return result
 
 
-def _glob_static_file(
+def _get_static_files(
     pattern: str,
     static_dir: str,
     symlink_memo: dict[tuple[str, str], bool] | None = None,
@@ -109,7 +109,7 @@ def _glob_static_file(
         except OSError:
             continue
         directory = file.rpartition(os.sep)[0]
-        if S_ISLNK(status.st_mode) or not _reaches_root_without_symlink(
+        if S_ISLNK(status.st_mode) or not _is_reachable_without_symlink(
             directory, static_dir, symlink_memo
         ):
             real = os.path.realpath(file)
@@ -147,18 +147,18 @@ class AssetPaths:
         self.memo: set[str] = set()
         self.anchors: list[Anchor] = []
 
-    def new_anchor(self) -> Anchor:
+    def add_anchor(self) -> Anchor:
         anchor = Anchor(len(self.list))
         self.anchors.append(anchor)
         return anchor
 
-    def release_anchor(self, anchor: Anchor) -> None:
+    def remove_anchor(self, anchor: Anchor) -> None:
         self.anchors.remove(anchor)
 
-    def index(self, path: str, bundle: str) -> int:
-        return self.index_of_first([path], bundle)
+    def get_index(self, path: str, bundle: str) -> int:
+        return self.get_index_of_first([path], bundle)
 
-    def index_of_first(self, paths: Sequence[str], bundle: str) -> int:
+    def get_index_of_first(self, paths: Sequence[str], bundle: str) -> int:
         for path in paths:
             if path in self.memo:
                 for index, asset in enumerate(self.list):
@@ -167,12 +167,16 @@ class AssetPaths:
                 raise RuntimeError(
                     f"Inconsistent asset state: {path!r} in memo but not in list"
                 )
-        raise self._not_found(paths[0] if len(paths) == 1 else list(paths), bundle)
+        raise self._prepare_not_found_error(
+            paths[0] if len(paths) == 1 else list(paths), bundle
+        )
 
-    def append(self, paths: Sequence[ResolvedPath], bundle: str) -> None:
-        self.insert(paths, bundle, len(self.list))
+    def append_paths(self, paths: Sequence[ResolvedPath], bundle: str) -> None:
+        self.insert_paths(paths, bundle, len(self.list))
 
-    def insert(self, paths: Sequence[ResolvedPath], bundle: str, index: int) -> None:
+    def insert_paths(
+        self, paths: Sequence[ResolvedPath], bundle: str, index: int
+    ) -> None:
         to_insert = []
         for path, full_path, last_modified in paths:
             if path not in self.memo:
@@ -185,14 +189,14 @@ class AssetPaths:
             if anchor.index > index:
                 anchor.index += len(to_insert)
 
-    def remove(
+    def remove_paths(
         self, paths_to_remove: Sequence[ResolvedPath], bundle: str, strict: bool = True
     ) -> None:
         requested = [path for path, _full_path, _last_modified in paths_to_remove]
         present = {path for path in requested if path in self.memo}
         if not present:
             if requested and strict:
-                raise self._not_found(requested, bundle)
+                raise self._prepare_not_found_error(requested, bundle)
             return
 
         absent = [path for path in requested if path not in self.memo]
@@ -217,7 +221,9 @@ class AssetPaths:
         for anchor in self.anchors:
             anchor.index -= sum(1 for index in dropped_indexes if index < anchor.index)
 
-    def _not_found(self, path: str | list[str], bundle: str) -> ValueError:
+    def _prepare_not_found_error(
+        self, path: str | list[str], bundle: str
+    ) -> ValueError:
         return ValueError(f"File(s) {path} not found in bundle {bundle}")
 
 
@@ -238,10 +244,10 @@ class BundleWalk:
     def __init__(
         self,
         resolve: Callable[[str], Sequence[ResolvedPath]],
-        directives_for: Callable[[str], Sequence[AssetDirective]],
+        prepare_directives: Callable[[str], Sequence[AssetDirective]],
     ) -> None:
         self.resolve = resolve
-        self.directives_for = directives_for
+        self.prepare_directives = prepare_directives
         self.paths = AssetPaths()
         self.walked: set[str] = set()
 
@@ -258,14 +264,14 @@ class BundleWalk:
             return
         self.walked.add(bundle)
 
-        frame = BundleFrame(bundle, self.paths.new_anchor(), seen)
-        for directive in self.directives_for(bundle):
-            self.apply(frame, directive)
-        self.paths.release_anchor(frame.anchor)
+        frame = BundleFrame(bundle, self.paths.add_anchor(), seen)
+        for directive in self.prepare_directives(bundle):
+            self.apply_directive(frame, directive)
+        self.paths.remove_anchor(frame.anchor)
 
-    def apply(self, frame: BundleFrame, entry: AssetDirective) -> None:
+    def apply_directive(self, frame: BundleFrame, entry: AssetDirective) -> None:
         try:
-            self._apply(frame, entry)
+            self._apply_directive(frame, entry)
         except AssetDirectiveError:
             raise
         except ValueError as exc:
@@ -274,7 +280,7 @@ class BundleWalk:
                 f"{frame.bundle!r}"
             ) from exc
 
-    def _apply(self, frame: BundleFrame, entry: AssetDirective) -> None:
+    def _apply_directive(self, frame: BundleFrame, entry: AssetDirective) -> None:
         directive, target, path_def = entry.directive, entry.target, entry.path
         bundle = frame.bundle
         if directive == INCLUDE_DIRECTIVE:
@@ -291,15 +297,15 @@ class BundleWalk:
                 return
 
         if directive == APPEND_DIRECTIVE:
-            asset_paths.append(paths, bundle)
+            asset_paths.append_paths(paths, bundle)
         elif directive == PREPEND_DIRECTIVE:
-            self._warn_stranded(directive, paths, targets, bundle, target)
-            asset_paths.insert(paths, bundle, frame.anchor.index)
+            self._warn_stranded_sources(directive, paths, targets, bundle, target)
+            asset_paths.insert_paths(paths, bundle, frame.anchor.index)
         elif directive in (AFTER_DIRECTIVE, BEFORE_DIRECTIVE):
-            self._warn_stranded(directive, paths, targets, bundle, target)
+            self._warn_stranded_sources(directive, paths, targets, bundle, target)
             offset = 1 if directive == AFTER_DIRECTIVE else 0
-            target_index = asset_paths.index_of_first(targets, bundle)
-            asset_paths.insert(paths, bundle, target_index + offset)
+            target_index = asset_paths.get_index_of_first(targets, bundle)
+            asset_paths.insert_paths(paths, bundle, target_index + offset)
         elif directive == REMOVE_DIRECTIVE:
             if not paths:
                 _logger.warning(
@@ -311,9 +317,11 @@ class BundleWalk:
                     path_def,
                 )
                 return
-            asset_paths.remove(paths, bundle, strict=not is_wildcard_glob(path_def))
+            asset_paths.remove_paths(
+                paths, bundle, strict=not is_wildcard_glob(path_def)
+            )
         elif directive == REPLACE_DIRECTIVE:
-            self._replace(
+            self._replace_paths(
                 paths, targets, bundle, strict=not is_wildcard_glob(target or "")
             )
         else:
@@ -345,7 +353,7 @@ class BundleWalk:
             return []
         return [resolved[0] for resolved in target_paths]
 
-    def _warn_stranded(
+    def _warn_stranded_sources(
         self,
         directive: str,
         paths: Sequence[ResolvedPath],
@@ -370,7 +378,7 @@ class BundleWalk:
                 target,
             )
 
-    def _replace(
+    def _replace_paths(
         self,
         paths: Sequence[ResolvedPath],
         targets: list[str],
@@ -390,21 +398,21 @@ class BundleWalk:
         sources = [entry for entry in paths if entry[0] not in target_set]
         present = [entry for entry in sources if entry[0] in asset_paths.memo]
         if present:
-            asset_paths.remove(present, bundle)
-        target_index = asset_paths.index_of_first(targets, bundle)
-        asset_paths.insert(sources, bundle, target_index)
+            asset_paths.remove_paths(present, bundle)
+        target_index = asset_paths.get_index_of_first(targets, bundle)
+        asset_paths.insert_paths(sources, bundle, target_index)
         doomed = [
             ResolvedPath(path, None, None) for path in targets if path not in surviving
         ]
         if doomed:
-            asset_paths.remove(doomed, bundle, strict=strict)
+            asset_paths.remove_paths(doomed, bundle, strict=strict)
 
 
-def manifest_origin(command: Any, addon: str) -> str:
+def _prepare_origin_manifest(command: Any, addon: str) -> str:
     return f"{command!r} in the manifest of addon {addon!r}"
 
 
-def record_origin(name: str, record_id: Any, directive: str, path: str) -> str:
+def _prepare_origin_record(name: str, record_id: Any, directive: str, path: str) -> str:
     return (
         f"ir.asset record {name!r} (id {record_id}, directive {directive!r}, "
         f"path {path!r})"

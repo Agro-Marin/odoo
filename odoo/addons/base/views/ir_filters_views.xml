@@ -6,15 +6,31 @@
         <field name="arch" type="xml">
             <search string="Filters">
                 <field name="name" string="Filter Name" />
-                <filter string="Global" domain="[('user_ids','=',False)]" name="shared"
+                <filter
+                    string="Global"
+                    domain="[('user_ids','=',False)]"
+                    name="shared"
                     help="Filters shared with all users" />
-                <filter string="My filters" domain="[('user_ids','in',[uid])]" name="my_filters"
+                <filter
+                    string="My filters"
+                    domain="[('user_ids','in',[uid])]"
+                    name="my_filters"
                     help="Filters shared with myself" />
                 <separator />
-                <filter string="Archived" name="inactive" domain="[('active', '=', False)]" />
+                <filter
+                    string="Archived"
+                    name="inactive"
+                    domain="[('active', '=', False)]" />
                 <group>
-                    <filter string="User" name="user" domain="[]" context="{'group_by':'user_ids'}" />
-                    <filter string="Model" name="model" domain="[]"
+                    <filter
+                        string="User"
+                        name="user"
+                        domain="[]"
+                        context="{'group_by':'user_ids'}" />
+                    <filter
+                        string="Model"
+                        name="model"
+                        domain="[]"
                         context="{'group_by':'model_id'}" />
                 </group>
                 <field name="model_id" />
@@ -51,14 +67,19 @@
                     <group>
                         <group>
                             <field name="name" />
-                            <field name="user_ids" string="Shared with"
-                                widget="many2many_tags_avatar" placeholder="All users" />
+                            <field
+                                name="user_ids"
+                                string="Shared with"
+                                widget="many2many_tags_avatar"
+                                placeholder="All users" />
                             <field name="is_default" widget="boolean_toggle" />
                             <field name="model_id" groups="base.group_no_one" />
                             <field name="action_id" groups="base.group_no_one" />
                         </group>
                         <group>
-                            <field name="domain" widget="domain"
+                            <field
+                                name="domain"
+                                widget="domain"
                                 options="{'foldable': True, 'model': 'model_id', 'allow_expressions':True}" />
                             <field name="context" groups="base.group_no_one" />
                             <field name="sort" groups="base.group_no_one" />

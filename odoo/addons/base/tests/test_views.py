@@ -2109,7 +2109,7 @@ class TestViews(ViewCase):
 
     def test_custom_view_validation(self):
         model = "ir.actions.act_url"
-        validate = partial(self.View._validate_custom_views, model)
+        validate = partial(self.View._check_custom_views, model)
 
         vid = self._insert_view(
             name="base view",
@@ -7759,7 +7759,7 @@ class TestTemplateKeyCollision(ViewCase):
 
     def test_a_view_sharing_a_key_stays_reachable_by_id(self):
         generic, specific = self._pair("base.collision_tpl")
-        fetched = self.View._fetch_template_views([generic.id, "base.collision_tpl"])
+        fetched = self.View._get_template_views([generic.id, "base.collision_tpl"])
         self.assertEqual(fetched[generic.id], generic)
         self.assertEqual(fetched["base.collision_tpl"], specific)
 
@@ -7827,7 +7827,7 @@ class TestViewErrorReporting(ViewCase):
 @tagged("post_install", "-at_install")
 class TestInheritingViewsQuery(ViewCase):
     def test_cte_skips_columns_no_combination_step_reads(self):
-        fields = self.View._get_inheriting_views_fields()
+        fields = self.View._get_fields_inheriting_views()
         for required in ("arch_db", "inherit_id", "mode", "priority", "model"):
             self.assertIn(required, fields)
         for excluded in ("arch_prev", "create_uid", "write_date"):

@@ -26080,7 +26080,7 @@ msgid "EU One Stop Shop (OSS) Reports"
 msgstr "EU 원스톱 쇼핑 (OSS) 보고서"
 
 #. module: base
-#: model:ir.model.constraint,message:base.constraint_ir_model_obj_name_uniq
+#: model:ir.model.constraint,message:base.constraint_ir_model_model_uniq
 msgid "Each model must have a unique name."
 msgstr "각 모델에는 고유한 이름이 있어야 합니다."
 

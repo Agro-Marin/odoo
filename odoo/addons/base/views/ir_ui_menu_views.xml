@@ -9,7 +9,9 @@
                 <field name="name" string="Menu" />
                 <field name="parent_id" />
                 <separator />
-                <filter string="Archived" name="inactive"
+                <filter
+                    string="Archived"
+                    name="inactive"
                     domain="[('active', '=', False)]" />
             </search>
         </field>
@@ -36,7 +38,10 @@
                             <field name="name" />
                             <field name="parent_id" groups="base.group_no_one" />
                             <field name="sequence" groups="base.group_no_one" />
-                            <field name="group_ids" string="Visibility" widget="many2many_tags" />
+                            <field
+                                name="group_ids"
+                                string="Visibility"
+                                widget="many2many_tags" />
                         </group>
                         <group groups="base.group_no_one">
                             <field name="complete_name" />
@@ -46,7 +51,10 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Submenus" name="submenus" groups="base.group_no_one">
+                        <page
+                            string="Submenus"
+                            name="submenus"
+                            groups="base.group_no_one">
                             <field name="child_id" context="{'default_parent_id': id}">
                                 <list string="Menu">
                                     <field name="sequence" />

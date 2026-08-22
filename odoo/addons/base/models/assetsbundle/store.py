@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 from odoo import release
 from odoo.api import SUPERUSER_ID, Environment
 from odoo.tools import SQL
-from odoo.tools.assets.constants import ANY_UNIQUE
+from odoo.tools.assets.constants import ANY_UNIQUE, like_escape
 
 if TYPE_CHECKING:
     from odoo.addons.base.models.ir_attachment import IrAttachment
@@ -14,15 +14,6 @@ from .common import _logger
 
 class AssetAttachmentStore:
     TRACKED_BUNDLES = {"web.assets_web"}
-    """Bundles whose rebuild broadcasts ``bundle_changed`` on the bus.
-
-    Extend with :meth:`register_tracked_bundle` rather than by editing this
-    set: an addon that ships its own top-level bundle needs the same reload
-    prompt, and patching a constant in ``base`` was the only way to get it.
-    ``web.assets_web`` is the default because it is the bundle pages actually
-    load; ``base`` names it as data, and reaches the bus only through the
-    ``"bus.bus" in self.env`` guard in :meth:`save_attachment`.
-    """
 
     _CSS_EXTENSIONS = frozenset({"css", "min.css", "css.map"})
 
@@ -58,9 +49,7 @@ class AssetAttachmentStore:
         self.autoprefix = autoprefix
         self._version = version_provider
 
-    @staticmethod
-    def _like_escape(literal: str) -> str:
-        return literal.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    _like_escape = staticmethod(like_escape)
 
     def is_css(self, extension: str) -> bool:
         return extension in self._CSS_EXTENSIONS
@@ -87,11 +76,14 @@ class AssetAttachmentStore:
         autoprefixed = (
             ".autoprefixed" if self.is_css(extension) and self.autoprefix else ""
         )
-        name = self._like_escape(self.name) if pattern else self.name
-        bundle_name = f"{name}{direction}{autoprefixed}.{extension}"
-        return self.env["ir.asset"]._get_asset_bundle_url(
-            bundle_name, unique, self.assets_params, ignore_params
+        bundle_name = f"{self.name}{direction}{autoprefixed}.{extension}"
+        builder = self.env["ir.asset"]
+        build = (
+            builder._get_asset_bundle_url_pattern
+            if pattern
+            else builder._get_asset_bundle_url
         )
+        return build(bundle_name, unique, self.assets_params, ignore_params)
 
     def _attachment_values(
         self, *, name: str, mimetype: str, raw: bytes, url: str
@@ -131,7 +123,7 @@ class AssetAttachmentStore:
             if attach_id in deleted_ids
         }
         if to_delete:
-            attachments._storage_delete_multi(to_delete)
+            attachments._remove_stored_file_multi(to_delete)
 
     def _clean_attachments(self, extension: str, keep_url: str) -> None:
         ira = self.env["ir.attachment"]

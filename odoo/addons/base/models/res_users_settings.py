@@ -27,7 +27,7 @@ class ResUsersSettings(models.Model):
         return ["display_name"]
 
     @api.model
-    def _find_or_create_for_user(self, user: Any) -> Self:
+    def _get_or_create_for_user(self, user: Any) -> Self:
         settings = user.sudo().res_users_settings_ids
         if not settings:
             if self.env.cr.readonly:

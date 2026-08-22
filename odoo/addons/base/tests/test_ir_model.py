@@ -1169,17 +1169,6 @@ class TestIrModelRelationReflection(TransactionCase):
 class TestIrModelFieldsSelection(TransactionCase):
     @contextmanager
     def _write_raises(self, model_name, field_name, error):
-        """Make ``write`` raise `error` for one model+field, and unwind cleanly.
-
-        Patched on ``BaseModel``, never on ``type(record)``. Every operation
-        these tests wrap reloads the registry, which builds a NEW class for the
-        model and EMPTIES THE RETIRED ONE IN PLACE -- same object, cleared
-        ``__dict__``. A patch installed on that class is therefore gone before
-        mock unwinds it, and ``__exit__`` dies with ``AttributeError: type
-        object 'x_sel_...' has no attribute 'write'`` instead of reporting
-        whatever the test found. Registry classes are the registry's to recycle;
-        ``BaseModel`` is module-defined and outlives every reload.
-        """
         original_write = BaseModel.write
 
         def guarded_write(records, vals):
@@ -1746,7 +1735,7 @@ class TestIrModelData(TransactionCase):
 
     def test_lookup_xmlids_resolves(self):
         group = self.env.ref("base.group_user")
-        rows = self.env["ir.model.data"]._lookup_xmlids(
+        rows = self.env["ir.model.data"]._get_xmlids(
             ["base.group_user", "base.zzz_no_such_xmlid"], self.env["res.groups"]
         )
         self.assertEqual(len(rows), 1)

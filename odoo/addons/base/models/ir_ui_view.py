@@ -289,12 +289,12 @@ class IrUiView(models.Model):
     model_data_id = fields.Many2one(
         "ir.model.data",
         string="Model Data",
-        compute="_compute_model_data_id",
+        compute="_compute_model_data",
         search="_search_model_data_id",
     )
     xml_id = fields.Char(
         string="External ID",
-        compute="_compute_model_data_id",
+        compute="_compute_model_data",
         help="ID of the view defined in xml file",
     )
     group_ids = fields.Many2many(
@@ -335,7 +335,7 @@ class IrUiView(models.Model):
         "ir.model",
         string="Model of the view",
         compute="_compute_model_id",
-        inverse="_inverse_compute_model_id",
+        inverse="_inverse_model_id",
     )
 
     invalid_locators = fields.Json(compute="_compute_invalid_locators")
@@ -407,7 +407,7 @@ class IrUiView(models.Model):
 
     def _inverse_arch(self) -> None:
         for view in self:
-            self._validate_xml_encoding(view.arch)
+            self._check_xml_encoding(view.arch)
             data = {"arch_db": view.arch}
             if "install_filename" in self.env.context:
                 path_info = get_resource_from_path(self.env.context["install_filename"])
@@ -426,7 +426,7 @@ class IrUiView(models.Model):
 
     def _inverse_arch_base(self) -> None:
         for view, view_wo_lang in zip(self, self.with_context(lang=None), strict=True):
-            self._validate_xml_encoding(view.arch_base)
+            self._check_xml_encoding(view.arch_base)
             view_wo_lang.arch = view.arch_base
 
     def reset_arch(self, mode: str = "soft") -> Self:
@@ -507,7 +507,7 @@ class IrUiView(models.Model):
         return rows_by_view
 
     @api.depends("write_date")
-    def _compute_model_data_id(self) -> None:
+    def _compute_model_data(self) -> None:
         rows_by_view = self._get_ir_model_data_rows()
         for view in self:
             rows = rows_by_view.get(view.id)
@@ -529,7 +529,7 @@ class IrUiView(models.Model):
         for record in self:
             record.model_id = self.env["ir.model"]._get(record.model)
 
-    def _inverse_compute_model_id(self) -> None:
+    def _inverse_model_id(self) -> None:
         for record in self:
             record.model = record.model_id.model
 
@@ -650,7 +650,7 @@ class IrUiView(models.Model):
                 raise err from None
 
             try:
-                view._validate_view(combined_arch, view.model)
+                view._check_view(combined_arch, view.model)
 
                 if _xpath_attrs(combined_arch) or _xpath_states(combined_arch):
                     view_name = view._view_display_name()
@@ -810,7 +810,7 @@ class IrUiView(models.Model):
                 warning += error_message.replace("\n", Markup("<br/>\n"))
         return warning
 
-    def _validate_xml_encoding(self, text: str | None) -> None:
+    def _check_xml_encoding(self, text: str | None) -> None:
         if isinstance(text, str) and _XML_ENCODING_DECL_RE.search(text):
             raise UserError(
                 _(
@@ -839,7 +839,7 @@ class IrUiView(models.Model):
                 del values["arch_db"]
 
             for fname in ("arch", "arch_base", "arch_db"):
-                self._validate_xml_encoding(values.get(fname))
+                self._check_xml_encoding(values.get(fname))
 
             if not values.get("type"):
                 if values.get("inherit_id"):
@@ -897,7 +897,7 @@ class IrUiView(models.Model):
 
     def write(self, vals: dict[str, Any]) -> bool:
         for fname in ("arch", "arch_base", "arch_db"):
-            self._validate_xml_encoding(vals.get(fname))
+            self._check_xml_encoding(vals.get(fname))
 
         if (
             "arch_updated" not in vals
@@ -1025,7 +1025,7 @@ class IrUiView(models.Model):
                """
 
     @api.model
-    def _get_inheriting_views_fields(self) -> list[str]:
+    def _get_fields_inheriting_views(self) -> list[str]:
         return [
             f.name
             for f in self._fields.values()
@@ -1047,7 +1047,7 @@ class IrUiView(models.Model):
                 f"join. Got: {query.from_clause}"
             )
 
-        field_names = self._get_inheriting_views_fields()
+        field_names = self._get_fields_inheriting_views()
         aliased_names = SQL(", ").join(
             SQL(
                 "%s AS %s",
@@ -1406,7 +1406,7 @@ class IrUiView(models.Model):
         return "priority, id"
 
     @api.model
-    def _fetch_template_views(
+    def _get_template_views(
         self, ids_or_xmlids: Sequence[int | str]
     ) -> dict[int | str, Self | Exception]:
         IrUiView = (
@@ -1503,7 +1503,7 @@ class IrUiView(models.Model):
         if not missing_refs:
             return compile_batch
 
-        unknown_views = self._fetch_template_views(missing_refs)
+        unknown_views = self._get_template_views(missing_refs)
 
         for id_or_xmlid, view in unknown_views.items():
             if isinstance(view, models.BaseModel):
@@ -2122,7 +2122,7 @@ class IrUiView(models.Model):
     def _onchange_able_view_kanban(self, node: _Element) -> bool:
         return True
 
-    def _validate_view(
+    def _check_view(
         self,
         node: _Element,
         model_name: str,
@@ -2203,18 +2203,18 @@ class IrUiView(models.Model):
             return node_info
 
         for elem, elem_info in self._iter_arch_nodes(node, make_node_info):
-            validator = getattr(self, f"_validate_tag_{elem.tag}", None)
+            validator = getattr(self, f"_check_view_tag_{elem.tag}", None)
             if validator is not None:
                 validator(elem, name_manager, elem_info)
 
             if elem_info["validate"]:
-                self._validate_attributes(elem, name_manager, elem_info)
+                self._check_attributes(elem, name_manager, elem_info)
 
         name_manager.check(self)
 
         return name_manager
 
-    def _validate_tag_form(
+    def _check_view_tag_form(
         self,
         node: _Element,
         name_manager: NameManager,
@@ -2222,13 +2222,13 @@ class IrUiView(models.Model):
     ) -> None:
         pass
 
-    def _validate_tag_list(
+    def _check_view_tag_list(
         self,
         node: _Element,
         name_manager: NameManager,
         node_info: dict[str, Any],
     ) -> None:
-        self._validate_tag_form(node, name_manager, node_info)
+        self._check_view_tag_form(node, name_manager, node_info)
         if not node_info["validate"]:
             return
         editable_attr = node.get("editable")
@@ -2255,7 +2255,7 @@ class IrUiView(models.Model):
                 )
                 self._raise_view_error(msg, child)
 
-    def _validate_tag_graph(
+    def _check_view_tag_graph(
         self,
         node: _Element,
         name_manager: NameManager,
@@ -2271,7 +2271,7 @@ class IrUiView(models.Model):
                 )
                 self._raise_view_error(msg, child)
 
-    def _validate_tag_calendar(
+    def _check_view_tag_calendar(
         self,
         node: _Element,
         name_manager: NameManager,
@@ -2279,7 +2279,7 @@ class IrUiView(models.Model):
     ) -> None:
         self._has_calendar_fields(node, name_manager, node_info)
 
-    def _validate_tag_search(
+    def _check_view_tag_search(
         self,
         node: _Element,
         name_manager: NameManager,
@@ -2292,7 +2292,7 @@ class IrUiView(models.Model):
                     _("Search tag can only contain one search panel"), node
                 )
             node.remove(searchpanels[0])
-            self._validate_view(
+            self._check_view(
                 searchpanels[0],
                 name_manager.model._name,
                 view_type="searchpanel",
@@ -2300,7 +2300,7 @@ class IrUiView(models.Model):
                 editable=False,
             )
 
-    def _validate_tag_field(
+    def _check_view_tag_field(
         self,
         node: _Element,
         name_manager: NameManager,
@@ -2328,7 +2328,7 @@ class IrUiView(models.Model):
                         if node.get("domain")
                         else f"domain of python field {name!r}"
                     )
-                    self._validate_domain_identifiers(
+                    self._check_domain_identifiers(
                         node,
                         name_manager,
                         domain,
@@ -2357,7 +2357,7 @@ class IrUiView(models.Model):
                 if child.tag not in _NESTED_VIEW_TAGS:
                     continue
                 node.remove(child)
-                self._validate_view(
+                self._check_view(
                     child,
                     field.comodel_name,
                     view_type=child.tag,
@@ -2380,7 +2380,7 @@ class IrUiView(models.Model):
             {"id": node.get("id"), "select": node.get("select")},
         )
 
-    def _validate_tag_filter(
+    def _check_view_tag_filter(
         self,
         node: _Element,
         name_manager: NameManager,
@@ -2392,7 +2392,7 @@ class IrUiView(models.Model):
         if domain:
             name = node.get("name")
             desc = f'domain of <filter name="{name}">' if name else "domain of <filter>"
-            self._validate_domain_identifiers(
+            self._check_domain_identifiers(
                 node,
                 name_manager,
                 domain,
@@ -2418,15 +2418,6 @@ class IrUiView(models.Model):
                     self._raise_view_error(msg, node)
 
     def _get_client_button_types(self, view_type: str) -> set[str]:
-        """Button ``type`` values a view of ``view_type`` handles in the client,
-        without a server call — as opposed to ``object`` / ``action``, which name
-        something the server must resolve and are validated separately.
-
-        A module that implements its own button type in a view controller (the
-        ``beforeExecuteAction`` hook of ``useViewButtons`` returning ``False`` to
-        swallow the click) declares it here, so ``_validate_tag_button`` does not
-        report the type it deliberately introduced as unknown.
-        """
         types = set()
         if self._is_qweb_based_view(view_type):
             types.update(
@@ -2436,7 +2427,7 @@ class IrUiView(models.Model):
             types.add("edit")
         return types
 
-    def _validate_tag_button(
+    def _check_view_tag_button(
         self,
         node: _Element,
         name_manager: NameManager,
@@ -2489,9 +2480,9 @@ class IrUiView(models.Model):
 
         if node.get("icon"):
             description = f"A button with icon attribute ({node.get('icon')})"
-            self._validate_fa_class_accessibility(node, description)
+            self._check_fa_class_accessibility(node, description)
 
-    def _validate_tag_groupby(
+    def _check_view_tag_groupby(
         self,
         node: _Element,
         name_manager: NameManager,
@@ -2513,7 +2504,7 @@ class IrUiView(models.Model):
                 domain = node_info["editable"] and field._description_domain(self.env)
                 if isinstance(domain, str):
                     desc = f"domain of python field '{name}'"
-                    self._validate_domain_identifiers(
+                    self._check_domain_identifiers(
                         node,
                         name_manager,
                         domain,
@@ -2523,7 +2514,7 @@ class IrUiView(models.Model):
                     )
 
             groupby_node = E.groupby(*node)
-            self._validate_view(
+            self._check_view(
                 groupby_node,
                 field.comodel_name,
                 view_type="groupby",
@@ -2540,7 +2531,7 @@ class IrUiView(models.Model):
             )
             self._raise_view_error(msg, node)
 
-    def _validate_tag_searchpanel(
+    def _check_view_tag_searchpanel(
         self,
         node: _Element,
         name_manager: NameManager,
@@ -2555,7 +2546,7 @@ class IrUiView(models.Model):
                 )
                 self._raise_view_error(msg, child)
 
-    def _validate_tag_label(
+    def _check_view_tag_label(
         self,
         node: _Element,
         name_manager: NameManager,
@@ -2573,7 +2564,7 @@ class IrUiView(models.Model):
         else:
             name_manager.must_have_name(for_, '<label for="...">')
 
-    def _validate_tag_page(
+    def _check_view_tag_page(
         self,
         node: _Element,
         name_manager: NameManager,
@@ -2584,7 +2575,7 @@ class IrUiView(models.Model):
         if node.getparent() is None or node.getparent().tag != "notebook":
             self._raise_view_error(_("Page direct ancestor must be notebook"), node)
 
-    def _validate_tag_img(
+    def _check_view_tag_img(
         self,
         node: _Element,
         name_manager: NameManager,
@@ -2593,7 +2584,7 @@ class IrUiView(models.Model):
         if node_info["validate"] and not any(node.get(alt) for alt in att_names("alt")):
             self._log_view_warning("<img> tag must contain an alt attribute", node)
 
-    def _validate_tag_a(
+    def _check_view_tag_a(
         self,
         node: _Element,
         name_manager: NameManager,
@@ -2606,7 +2597,7 @@ class IrUiView(models.Model):
                 msg = '"<a>" tag with "btn" class must have "button" role'
                 self._log_view_warning(msg, node)
 
-    def _validate_tag_ul(
+    def _check_view_tag_ul(
         self,
         node: _Element,
         name_manager: NameManager,
@@ -2615,7 +2606,7 @@ class IrUiView(models.Model):
         if node_info["validate"]:
             self._check_dropdown_menu(node)
 
-    def _validate_tag_div(
+    def _check_view_tag_div(
         self,
         node: _Element,
         name_manager: NameManager,
@@ -2636,7 +2627,7 @@ class IrUiView(models.Model):
     def _is_qweb_based_view(self, view_type: str) -> bool:
         return view_type == "kanban"
 
-    def _validate_attributes(
+    def _check_attributes(
         self,
         node: _Element,
         name_manager: NameManager,
@@ -2646,7 +2637,7 @@ class IrUiView(models.Model):
         for attr in VIEW_MODIFIERS:
             py_expression = node.attrib.get(attr)
             if py_expression:
-                self._validate_expression(
+                self._check_expression(
                     node,
                     name_manager,
                     py_expression,
@@ -2656,7 +2647,7 @@ class IrUiView(models.Model):
 
         for attr, expr in node.items():
             if attr in ("class", "t-att-class", "t-attf-class"):
-                self._validate_classes(node, expr)
+                self._check_classes(node, expr)
 
             elif attr == "context":
                 try:
@@ -2741,23 +2732,23 @@ class IrUiView(models.Model):
                 )
 
             elif attr.startswith("t-"):
-                self._validate_qweb_directive(node, attr, node_info["view_type"])
+                self._check_qweb_directive(node, attr, node_info["view_type"])
                 if COMP_REGEX.search(expr):
                     self._raise_view_error(
                         _("Forbidden use of `__comp__` in arch."), node
                     )
 
-    def _validate_classes(self, node: _Element, expr: str) -> None:
+    def _check_classes(self, node: _Element, expr: str) -> None:
         for msg in check_class_accessibility(node, expr):
             self._log_view_warning(msg, node)
 
-    def _validate_fa_class_accessibility(
+    def _check_fa_class_accessibility(
         self, node: _Element, description: str
     ) -> None:
         for msg in check_fa_class_accessibility(node, description):
             self._log_view_warning(msg, node)
 
-    def _validate_qweb_directive(
+    def _check_qweb_directive(
         self, node: _Element, directive: str, view_type: str
     ) -> None:
         allowed = (
@@ -2770,7 +2761,7 @@ class IrUiView(models.Model):
                 _("Forbidden owl directive used in arch (%s).", directive), node
             )
 
-    def _validate_expression(
+    def _check_expression(
         self,
         node: _Element,
         name_manager: NameManager,
@@ -2792,7 +2783,7 @@ class IrUiView(models.Model):
             self._raise_view_error(msg, node, from_exception=e)
         name_manager.must_have_fields(node, fnames, node_info, (attr, py_expression))
 
-    def _validate_domain_identifiers(
+    def _check_domain_identifiers(
         self,
         node: _Element,
         name_manager: NameManager,
@@ -2954,7 +2945,7 @@ class IrUiView(models.Model):
         return self.env["ir.qweb"]._render(template, values)
 
     @api.model
-    def _validate_custom_views(self, model: str) -> bool:
+    def _check_custom_views(self, model: str) -> bool:
         rec = self.browse(
             id_
             for (id_,) in self.env.execute_query(
@@ -2975,9 +2966,9 @@ class IrUiView(models.Model):
         return rec.with_context({"load_all_views": True})._check_xml()
 
     @api.model
-    def _validate_module_views(self, module: str) -> None:
+    def _check_module_views(self, module: str) -> None:
         if not self.pool._init:
-            msg = "_validate_module_views() must only be called during module initialization"
+            msg = "_check_module_views() must only be called during module initialization"
             raise RuntimeError(msg)
 
         prefix = module + "."

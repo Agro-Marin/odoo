@@ -312,7 +312,7 @@ class IrHttp(models.AbstractModel):
         if (
             captcha := endpoint.routing.get("captcha")
         ) and request.httprequest.method not in SAFE_HTTP_METHODS:
-            request.env["ir.http"]._verify_request_recaptcha_token(captcha)
+            request.env["ir.http"]._check_request_recaptcha_token(captcha)
         result = endpoint(**request.params)
         if isinstance(result, Response) and result.is_qweb:
             result.flatten()
@@ -425,5 +425,5 @@ class IrHttp(models.AbstractModel):
         return cookie_type == "required" or bool(request.env.user)
 
     @api.model
-    def _verify_request_recaptcha_token(self, action: str) -> None:
+    def _check_request_recaptcha_token(self, action: str) -> None:
         return

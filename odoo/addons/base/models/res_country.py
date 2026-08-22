@@ -158,7 +158,7 @@ class ResCountry(models.Model):
         self.env.registry.clear_cache("stable")
         return super().unlink()
 
-    def get_address_fields(self) -> list[str]:
+    def get_fields_address(self) -> list[str]:
         self.ensure_one()
         return re.findall(r"%\((\w+)\)s", self.address_format or "")
 

@@ -205,7 +205,17 @@ ETREE_TEMPLATE_REF = count()
 MALICIOUS_SCHEMES = re.compile(
     r"javascript:(?!( ?)((window\.)?)history\.back\(\)$)", re.IGNORECASE
 ).findall
-URL_CONTROL_CHARS = re.compile(r"[\x00-\x1f]")
+URL_IGNORED_CHARS = re.compile(r"[\s\x00-\x1f]+")
+
+
+def _normalize_url_for_scheme_check(value: object) -> str:
+    """Undo the escapes a browser undoes before it decides on a scheme.
+
+    ``java script:``, ``java&#9;script:`` and ``%6aavascript:`` all reach the
+    URL parser as ``javascript:``, so the scheme test has to see them that way
+    too or it guards only the spelling an attacker would not use.
+    """
+    return URL_IGNORED_CHARS.sub("", urllib.parse.unquote_plus(str(value)))
 
 
 def _id_or_xmlid(ref: str | int) -> str | int:
@@ -943,7 +953,7 @@ class IrQweb(models.AbstractModel):
         compile_context["template_functions"] = {}
 
         compile_context["_text_concat"] = []
-        self._append_text("", compile_context)
+        self._add_text("", compile_context)
         compile_context["template_functions"][f"{def_name}_content"] = (
             [f"def {def_name}_content(self, values):"]
             + self._compile_node(element, compile_context, 2)
@@ -1095,7 +1105,7 @@ class IrQweb(models.AbstractModel):
             if "webp" in mimetype:
                 bin_source = base64.b64decode(base64_source)
                 Attachment = self.env["ir.attachment"]
-                checksum = Attachment._content_checksum(bin_source)
+                checksum = Attachment._get_content_checksum(bin_source)
                 converted_cache = self.env.cr.cache.setdefault(
                     "_webp_as_jpg_datas_", {}
                 )
@@ -1171,7 +1181,7 @@ class IrQweb(models.AbstractModel):
             **_BUILTINS,
         }
 
-    def _append_text(
+    def _add_text(
         self, text: str | bytes | None, compile_context: dict[str, Any]
     ) -> None:
         compile_context["_text_concat"].append(self._compile_to_str(text))
@@ -1612,11 +1622,11 @@ class IrQweb(models.AbstractModel):
                 for name, value in attrib.items()
                 if value or isinstance(value, str)
             )
-            self._append_text(f"<{el_tag}{attributes}", compile_context)
+            self._add_text(f"<{el_tag}{attributes}", compile_context)
             if el_tag in VOID_ELEMENTS:
-                self._append_text("/>", compile_context)
+                self._add_text("/>", compile_context)
             else:
-                self._append_text(">", compile_context)
+                self._add_text(">", compile_context)
 
         el.attrib.clear()
 
@@ -1629,7 +1639,7 @@ class IrQweb(models.AbstractModel):
 
         if unqualified_el_tag != "t":
             if el_tag not in VOID_ELEMENTS:
-                self._append_text(f"</{el_tag}>", compile_context)
+                self._add_text(f"</{el_tag}>", compile_context)
 
         return body
 
@@ -1818,7 +1828,7 @@ class IrQweb(models.AbstractModel):
         if not el_tag:
             return []
 
-        self._append_text(f"<{el_tag}", compile_context)
+        self._add_text(f"<{el_tag}", compile_context)
 
         code = self._flush_text(compile_context, level)
 
@@ -1838,9 +1848,9 @@ class IrQweb(models.AbstractModel):
         )
 
         if "t-tag-close" in el.attrib:
-            self._append_text(">", compile_context)
+            self._add_text(">", compile_context)
         else:
-            self._append_text("/>", compile_context)
+            self._add_text("/>", compile_context)
 
         return code
 
@@ -1849,7 +1859,7 @@ class IrQweb(models.AbstractModel):
     ) -> list[str]:
         el_tag = el.attrib.pop("t-tag-close", None)
         if el_tag:
-            self._append_text(f"</{el_tag}>", compile_context)
+            self._add_text(f"</{el_tag}>", compile_context)
         return []
 
     def _compile_directive_set(
@@ -1974,12 +1984,12 @@ class IrQweb(models.AbstractModel):
             compile_context = dict(compile_context, nsmap=el.nsmap)
 
         if el.text is not None:
-            self._append_text(el.text, compile_context)
+            self._add_text(el.text, compile_context)
         body = []
         for item in list(el):
             if isinstance(item, etree._Comment):
                 if compile_context.get("preserve_comments"):
-                    self._append_text(f"<!--{item.text}-->", compile_context)
+                    self._add_text(f"<!--{item.text}-->", compile_context)
                 else:
                     self._strip_pending_trailing_ws(compile_context)
                     if item.getparent() is None and item.tail is not None:
@@ -1987,17 +1997,17 @@ class IrQweb(models.AbstractModel):
                         if tail.isspace():
                             tail = tail.rstrip(" \t")
                         if tail:
-                            self._append_text(tail, compile_context)
+                            self._add_text(tail, compile_context)
                         continue
             elif isinstance(item, etree._ProcessingInstruction):
                 if compile_context.get("preserve_comments"):
-                    self._append_text(f"<?{item.target} {item.text}?>", compile_context)
+                    self._add_text(f"<?{item.target} {item.text}?>", compile_context)
                 else:
                     self._strip_pending_trailing_ws(compile_context)
             else:
                 body.extend(self._compile_node(item, compile_context, level))
             if item.tail is not None:
-                self._append_text(item.tail, compile_context)
+                self._add_text(item.tail, compile_context)
         return body
 
     def _compile_directive_if(
@@ -2016,7 +2026,7 @@ class IrQweb(models.AbstractModel):
         code.append(indent_code(f"if {self._compile_expr(expr)}:", level))
         body = []
         if strip:
-            self._append_text(strip, compile_context)
+            self._add_text(strip, compile_context)
         body.extend(
             self._compile_directives(el, compile_context, level + 1)
             + self._flush_text(compile_context, level + 1, rstrip=True)
@@ -2043,7 +2053,7 @@ class IrQweb(models.AbstractModel):
             code.append(indent_code("else:", level))
             body = []
             if strip:
-                self._append_text(strip, compile_context)
+                self._add_text(strip, compile_context)
             body.extend(
                 self._compile_node(next_el, compile_context, level + 1)
                 + self._flush_text(compile_context, level + 1, rstrip=True)
@@ -2081,7 +2091,7 @@ class IrQweb(models.AbstractModel):
         code = self._flush_text(compile_context, level)
         code.append(indent_code(f"if self.env.user.has_groups({groups!r}):", level))
         if strip and el.tag.lower() != "t":
-            self._append_text(strip, compile_context)
+            self._add_text(strip, compile_context)
         code.extend(
             [
                 *self._compile_directives(el, compile_context, level + 1),
@@ -2437,7 +2447,7 @@ class IrQweb(models.AbstractModel):
             code_content.extend(
                 self._compile_directive(el, compile_context, "inner-content", 1)
             )
-            self._append_text("", compile_context)
+            self._add_text("", compile_context)
             code_content.extend(self._flush_text(compile_context, 1, rstrip=True))
 
             compile_context["template_functions"][def_name] = code_content
@@ -2645,7 +2655,7 @@ class IrQweb(models.AbstractModel):
         if not is_static:
             for attr in ("href", "src", "action", "formaction", "xlink:href", "data"):
                 if (value := atts.get(attr)) and MALICIOUS_SCHEMES(
-                    URL_CONTROL_CHARS.sub("", str(value))
+                    _normalize_url_for_scheme_check(value)
                 ):
                     atts[attr] = ""
         return atts
@@ -2721,10 +2731,6 @@ class IrQweb(models.AbstractModel):
 
 class _MockCursor:
     dbname = None
-    """``QwebContent.irQweb`` compares this against the thread's dbname to refuse
-    a cross-database render; without the attribute the comparison raised
-    ``AttributeError`` inside a property, which ``__getattr__`` then turned into
-    unbounded recursion."""
 
     def __init__(self) -> None:
         self.cache: dict[str, Any] = {}

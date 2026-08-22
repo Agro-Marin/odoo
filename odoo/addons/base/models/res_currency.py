@@ -658,7 +658,7 @@ class ResCurrencyRate(models.Model):
             currency_rate.company_rate = 1.0 / currency_rate.inverse_company_rate
 
     @api.onchange("company_rate")
-    def _onchange_rate_warning(self) -> dict[str, Any] | None:
+    def _onchange_company_rate(self) -> dict[str, Any] | None:
         latest_rate = self._get_latest_rate()
         if latest_rate:
             diff = (latest_rate.rate - self.rate) / latest_rate.rate

@@ -14,11 +14,11 @@ class ResUsersIdentitycheck(models.TransientModel):
     request = fields.Char(readonly=True, groups=fields.NO_ACCESS)
     auth_method = fields.Selection(
         [("password", "Password")],
-        default=lambda self: self._get_default_auth_method(),
+        default=lambda self: self._default_auth_method(),
     )
     password = fields.Char(store=False)
 
-    def _get_default_auth_method(self) -> str:
+    def _default_auth_method(self) -> str:
         return "password"
 
     def _check_identity(self) -> None:

@@ -61,6 +61,7 @@ from . import ir_profile
 from . import mixin_image
 from . import mixin_avatar
 from . import mixin_catalog
+from . import merge_mixin
 from . import mixin_tag
 from . import mixin_tag_nested
 from . import tag_tag

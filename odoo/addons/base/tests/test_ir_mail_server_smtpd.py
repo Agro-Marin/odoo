@@ -652,7 +652,7 @@ class TestIrMailServerEnvelopeSMTPD(TransactionCaseWithUserDemo):
         build_kwargs.setdefault("email_from", "sender@example.com")
         build_kwargs.setdefault("subject", "envelope probe")
         build_kwargs.setdefault("body", "body")
-        message = IrMailServer._build_email__(**build_kwargs)
+        message = IrMailServer._prepare_email__(**build_kwargs)
         IrMailServer.send_email(message, mail_server_id=self.mail_server.id)
 
     @staticmethod
@@ -665,7 +665,7 @@ class TestIrMailServerEnvelopeSMTPD(TransactionCaseWithUserDemo):
 
     @mute_logger("mail.log")
     def test_bcc_is_an_envelope_recipient(self):
-        message = self.env["ir.mail_server"]._build_email__(
+        message = self.env["ir.mail_server"]._prepare_email__(
             email_from="sender@example.com",
             email_to=["to@example.com"],
             subject="envelope probe",

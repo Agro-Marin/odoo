@@ -72,7 +72,7 @@ class ResBank(models.Model):
         return super().write(self._sanitize_vals(vals))
 
     @api.onchange("country")
-    def _onchange_country_id(self) -> None:
+    def _onchange_country(self) -> None:
         if self.country and self.country != self.state.country_id:
             self.state = False
 
@@ -113,7 +113,7 @@ class ResPartnerBank(models.Model):
     acc_holder_name = fields.Char(
         string="Account Holder Name",
         help="Account holder name, in case it is different than the name of the Account Holder",
-        compute="_compute_account_holder_name",
+        compute="_compute_acc_holder_name",
         readonly=False,
         store=True,
     )
@@ -169,7 +169,7 @@ class ResPartnerBank(models.Model):
         self.ensure_one()
         return True
 
-    def _find_or_create_bank_account(
+    def _get_or_create_bank_account(
         self,
         account_number,
         partner,
@@ -227,15 +227,15 @@ class ResPartnerBank(models.Model):
     @api.depends("acc_number")
     def _compute_acc_type(self) -> None:
         for bank in self:
-            bank.acc_type = self.retrieve_acc_type(bank.acc_number)
+            bank.acc_type = self._get_acc_type(bank.acc_number)
 
     @api.depends("partner_id")
-    def _compute_account_holder_name(self) -> None:
+    def _compute_acc_holder_name(self) -> None:
         for bank in self:
             bank.acc_holder_name = bank.partner_id.name
 
     @api.model
-    def retrieve_acc_type(self, acc_number: str) -> str:
+    def _get_acc_type(self, acc_number: str) -> str:
         return "bank"
 
     @api.depends("acc_number", "bank_id.name")

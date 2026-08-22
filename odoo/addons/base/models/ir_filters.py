@@ -66,7 +66,7 @@ class IrFilters(models.Model):
     @api.constrains("domain", "context", "sort")
     def _check_serialized_fields(self) -> None:
         for filter_ in self:
-            self._validate_serialized_fields(
+            self._check_serialized_vals(
                 {
                     "domain": filter_.domain,
                     "context": filter_.context,
@@ -79,7 +79,7 @@ class IrFilters(models.Model):
         embedded_action_id = vals.get("embedded_action_id")
         if not embedded_action_id and "embedded_parent_res_id" in vals:
             del vals["embedded_parent_res_id"]
-        self._validate_serialized_fields(vals)
+        self._check_serialized_vals(vals)
         return self.create(vals)
 
     @api.model
@@ -169,8 +169,8 @@ class IrFilters(models.Model):
         )
 
     @api.model
-    def _validate_serialized_fields(self, vals: dict[str, Any]) -> None:
-        self._validate_domain_expression(vals.get("domain"))
+    def _check_serialized_vals(self, vals: dict[str, Any]) -> None:
+        self._check_domain_expression(vals.get("domain"))
         for fname, types, label in (
             ("context", (dict,), "dict"),
             ("sort", (list, tuple), "list"),
@@ -208,7 +208,7 @@ class IrFilters(models.Model):
                     )
 
     @api.model
-    def _validate_domain_expression(self, raw: Any) -> None:
+    def _check_domain_expression(self, raw: Any) -> None:
         if raw is None or isinstance(raw, (list, tuple)):
             return
         if not isinstance(raw, str):

@@ -26,13 +26,13 @@ class IrBinary(models.AbstractModel):
     _name = "ir.binary"
     _description = "File streaming helper model for controllers"
 
-    def _find_record(
+    def _get_record(
         self,
         xmlid: str | None = None,
         res_model: str = "ir.attachment",
         res_id: int | None = None,
         access_token: str | None = None,
-        field: str | None = None,
+        field_name: str | None = None,
     ) -> Any:
         record = None
         if xmlid:
@@ -44,10 +44,10 @@ class IrBinary(models.AbstractModel):
                 f"No record found for xmlid={xmlid}, res_model={res_model}, id={res_id}"
             )
         if access_token and verify_limited_field_access_token(
-            record, field, access_token, scope="binary"
+            record, field_name, access_token, scope="binary"
         ):
             return record.sudo()
-        if record._can_return_content(field, access_token):
+        if record._can_return_content(field_name, access_token):
             return record.sudo()
         record.check_access("read")
         return record
@@ -82,7 +82,7 @@ class IrBinary(models.AbstractModel):
 
         return Stream.from_binary_field(record, field_name)
 
-    def _get_stream_from(
+    def _get_stream_from_record(
         self,
         record: Any,
         field_name: str = "raw",
@@ -98,12 +98,12 @@ class IrBinary(models.AbstractModel):
             record.ensure_one()
 
         try:
-            field_def = record._fields[field_name]
+            field = record._fields[field_name]
         except KeyError:
             raise UserError(f"Record has no field {field_name!r}.") from None
-        if field_def.type != "binary":
+        if field.type != "binary":
             raise UserError(
-                f"Field {field_def!r} is type {field_def.type!r} but "
+                f"Field {field!r} is type {field.type!r} but "
                 f"it is only possible to stream Binary or Image fields."
             )
 
@@ -123,7 +123,11 @@ class IrBinary(models.AbstractModel):
             if filename:
                 stream.download_name = filename
             elif filename_field in record:
-                stream.download_name = record[filename_field]
+                name_field = record._fields[filename_field]
+                if "name" in filename_field or record.sudo(False)._has_field_access(
+                    name_field, "read"
+                ):
+                    stream.download_name = record[filename_field]
             if not stream.download_name:
                 stream.download_name = f"{record._table}-{record.id}-{field_name}"
 
@@ -140,7 +144,7 @@ class IrBinary(models.AbstractModel):
 
         return stream
 
-    def _get_image_stream_from(
+    def _get_stream_image_from_record(
         self,
         record: Any,
         field_name: str = "raw",
@@ -156,7 +160,7 @@ class IrBinary(models.AbstractModel):
     ) -> Stream:
         stream = None
         try:
-            stream = self._get_stream_from(
+            stream = self._get_stream_from_record(
                 record,
                 field_name,
                 filename,
@@ -177,7 +181,7 @@ class IrBinary(models.AbstractModel):
         if not stream or stream.size == 0:
             if not placeholder:
                 placeholder = record._get_placeholder_filename(field_name)
-            stream = self._get_placeholder_stream(placeholder)
+            stream = self._get_stream_placeholder(placeholder)
 
         if stream.type == "url":
             return stream
@@ -218,12 +222,12 @@ class IrBinary(models.AbstractModel):
 
         return stream
 
-    def _get_placeholder_stream(self, path: str | None = None) -> Stream:
+    def _get_stream_placeholder(self, path: str | None = None) -> Stream:
         if not path:
             path = DEFAULT_PLACEHOLDER_PATH
         return Stream.from_path(path, filter_ext=(".png", ".jpg"))
 
-    def _placeholder(self, path: str | bool = False) -> bytes:
+    def _get_placeholder_bytes(self, path: str | bool = False) -> bytes:
         if not path:
             path = DEFAULT_PLACEHOLDER_PATH
         with file_open(path, "rb", filter_ext=(".png", ".jpg")) as file:

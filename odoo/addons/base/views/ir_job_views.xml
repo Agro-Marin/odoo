@@ -12,18 +12,52 @@
                 <field name="uuid" />
                 <field name="identity_key" />
                 <separator />
-                <filter string="Waiting Dependencies" name="wait_deps" domain="[('state', '=', 'wait_deps')]" />
-                <filter string="Scheduled" name="scheduled" domain="[('state', '=', 'scheduled')]" />
-                <filter string="Pending" name="pending" domain="[('state', '=', 'pending')]" />
-                <filter string="Started" name="started" domain="[('state', '=', 'started')]" />
+                <filter
+                    string="Waiting Dependencies"
+                    name="wait_deps"
+                    domain="[('state', '=', 'wait_deps')]" />
+                <filter
+                    string="Scheduled"
+                    name="scheduled"
+                    domain="[('state', '=', 'scheduled')]" />
+                <filter
+                    string="Pending"
+                    name="pending"
+                    domain="[('state', '=', 'pending')]" />
+                <filter
+                    string="Started"
+                    name="started"
+                    domain="[('state', '=', 'started')]" />
                 <filter string="Done" name="done" domain="[('state', '=', 'done')]" />
-                <filter string="Failed" name="failed" domain="[('state', '=', 'failed')]" />
-                <filter string="Cancelled" name="cancelled" domain="[('state', '=', 'cancelled')]" />
+                <filter
+                    string="Failed"
+                    name="failed"
+                    domain="[('state', '=', 'failed')]" />
+                <filter
+                    string="Cancelled"
+                    name="cancelled"
+                    domain="[('state', '=', 'cancelled')]" />
                 <group>
-                    <filter string="State" name="groupby_state" domain="[]" context="{'group_by': 'state'}" />
-                    <filter string="Channel" name="groupby_channel" domain="[]" context="{'group_by': 'channel'}" />
-                    <filter string="Model" name="groupby_model" domain="[]" context="{'group_by': 'model_name'}" />
-                    <filter string="Created on" name="groupby_create_date" domain="[]" context="{'group_by': 'create_date'}" />
+                    <filter
+                        string="State"
+                        name="groupby_state"
+                        domain="[]"
+                        context="{'group_by': 'state'}" />
+                    <filter
+                        string="Channel"
+                        name="groupby_channel"
+                        domain="[]"
+                        context="{'group_by': 'channel'}" />
+                    <filter
+                        string="Model"
+                        name="groupby_model"
+                        domain="[]"
+                        context="{'group_by': 'model_name'}" />
+                    <filter
+                        string="Created on"
+                        name="groupby_create_date"
+                        domain="[]"
+                        context="{'group_by': 'create_date'}" />
                 </group>
             </search>
         </field>
@@ -32,23 +66,26 @@
     <record id="ir_job_view_tree" model="ir.ui.view">
         <field name="model">ir.job</field>
         <field name="arch" type="xml">
-            <list string="Background Jobs"
-                  decoration-success="state == 'done'"
-                  decoration-info="state == 'started'"
-                  decoration-danger="state == 'failed'"
-                  decoration-muted="state == 'cancelled'"
-                  create="false">
+            <list
+                string="Background Jobs"
+                decoration-success="state == 'done'"
+                decoration-info="state == 'started'"
+                decoration-danger="state == 'failed'"
+                decoration-muted="state == 'cancelled'"
+                create="false">
                 <field name="id" />
                 <field name="name" optional="show" />
                 <field name="model_name" />
                 <field name="method_name" />
                 <field name="channel" />
                 <field name="priority" optional="hide" />
-                <field name="state" widget="badge"
-                       decoration-success="state == 'done'"
-                       decoration-info="state in ('pending', 'started')"
-                       decoration-warning="state in ('wait_deps', 'scheduled')"
-                       decoration-danger="state == 'failed'" />
+                <field
+                    name="state"
+                    widget="badge"
+                    decoration-success="state == 'done'"
+                    decoration-info="state in ('pending', 'started')"
+                    decoration-warning="state in ('wait_deps', 'scheduled')"
+                    decoration-danger="state == 'failed'" />
                 <field name="retry" optional="show" />
                 <field name="defer_count" optional="hide" />
                 <field name="eta" optional="show" />
@@ -67,14 +104,27 @@
         <field name="arch" type="xml">
             <form string="Background Job" create="false">
                 <header>
-                    <button name="action_run_now" type="object" string="Run Manually"
-                            class="oe_highlight" invisible="state not in ('scheduled', 'pending')" />
-                    <button name="action_cancel" type="object" string="Cancel"
-                            invisible="state not in ('wait_deps', 'scheduled', 'pending')" />
-                    <button name="action_requeue" type="object" string="Requeue"
-                            class="oe_highlight" invisible="state not in ('failed', 'cancelled')" />
-                    <field name="state" widget="statusbar"
-                           statusbar_visible="scheduled,pending,started,done" />
+                    <button
+                        name="action_run_now"
+                        type="object"
+                        string="Run Manually"
+                        class="oe_highlight"
+                        invisible="state not in ('scheduled', 'pending')" />
+                    <button
+                        name="action_cancel"
+                        type="object"
+                        string="Cancel"
+                        invisible="state not in ('wait_deps', 'scheduled', 'pending')" />
+                    <button
+                        name="action_requeue"
+                        type="object"
+                        string="Requeue"
+                        class="oe_highlight"
+                        invisible="state not in ('failed', 'cancelled')" />
+                    <field
+                        name="state"
+                        widget="statusbar"
+                        statusbar_visible="scheduled,pending,started,done" />
                 </header>
                 <sheet>
                     <div class="oe_title">
@@ -109,8 +159,9 @@
                             <field name="started_at" />
                             <field name="done_at" />
                         </group>
-                        <group string="Dependencies"
-                               invisible="not depends_on_ids and not dependent_ids">
+                        <group
+                            string="Dependencies"
+                            invisible="not depends_on_ids and not dependent_ids">
                             <field name="depends_on_ids" widget="many2many_tags" />
                             <field name="dependent_ids" widget="many2many_tags" />
                         </group>
@@ -155,7 +206,10 @@
         <field name="arch" type="xml">
             <search string="Job Channels">
                 <field name="name" />
-                <filter string="Paused" name="paused" domain="[('active', '=', False)]" />
+                <filter
+                    string="Paused"
+                    name="paused"
+                    domain="[('active', '=', False)]" />
             </search>
         </field>
     </record>

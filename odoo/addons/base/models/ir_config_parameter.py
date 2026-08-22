@@ -44,6 +44,35 @@ class IrConfig_Parameter(models.Model):
             if force or not params:
                 params.set_param(key, func())
 
+    @api.model_create_multi
+    def create(self, vals_list: list[ValuesType]) -> Self:
+        self.env.registry.clear_cache("stable")
+        return super().create(vals_list)
+
+    def write(self, vals: dict[str, Any]) -> bool:
+        if "key" in vals:
+            illegal = _default_parameters.keys() & self.mapped("key")
+            if illegal:
+                raise ValidationError(
+                    self.env._(
+                        "You cannot rename config parameters with keys %s",
+                        ", ".join(illegal),
+                    )
+                )
+        self.env.registry.clear_cache("stable")
+        return super().write(vals)
+
+    def unlink(self) -> bool:
+        self.env.registry.clear_cache("stable")
+        return super().unlink()
+
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_default_parameter(self) -> None:
+        for record in self.filtered(lambda p: p.key in _default_parameters):
+            raise ValidationError(
+                self.env._("You cannot delete the %s record.", record.key)
+            )
+
     @api.model
     def get_param(self, key: str, default: str | bool = False) -> str | bool:
         self.browse().check_access("read")
@@ -80,13 +109,6 @@ class IrConfig_Parameter(models.Model):
 
     @api.model
     def get_param_bool(self, key: str, default: bool = False) -> bool:
-        """Read a boolean ICP, the missing sibling of ``get_param_int``.
-
-        The stored value is free text, so ``get_param(key)`` answers with a
-        *string*: ``'False'``, ``'0'`` and ``'no'`` are all truthy in Python and
-        every caller that tested the raw value read them as "on". Spell the
-        false-ish words out instead, and treat anything else non-empty as true.
-        """
         raw = self.get_param(key)
         if raw is False or raw is None:
             return default
@@ -123,32 +145,3 @@ class IrConfig_Parameter(models.Model):
         elif str(value) != old:
             param.write({"value": value})
         return old
-
-    @api.model_create_multi
-    def create(self, vals_list: list[ValuesType]) -> Self:
-        self.env.registry.clear_cache("stable")
-        return super().create(vals_list)
-
-    def write(self, vals: dict[str, Any]) -> bool:
-        if "key" in vals:
-            illegal = _default_parameters.keys() & self.mapped("key")
-            if illegal:
-                raise ValidationError(
-                    self.env._(
-                        "You cannot rename config parameters with keys %s",
-                        ", ".join(illegal),
-                    )
-                )
-        self.env.registry.clear_cache("stable")
-        return super().write(vals)
-
-    def unlink(self) -> bool:
-        self.env.registry.clear_cache("stable")
-        return super().unlink()
-
-    @api.ondelete(at_uninstall=False)
-    def unlink_default_parameters(self) -> None:
-        for record in self.filtered(lambda p: p.key in _default_parameters):
-            raise ValidationError(
-                self.env._("You cannot delete the %s record.", record.key)
-            )

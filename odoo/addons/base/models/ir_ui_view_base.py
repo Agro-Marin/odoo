@@ -311,7 +311,7 @@ class Base(models.AbstractModel):
     ) -> frozendict:
         arch, view = self._get_view(view_id, view_type, **options)
         arch, view_models = self._get_view_postprocessed(view, arch, **options)
-        view_models = self._get_view_fields(view_type or view.type, view_models)
+        view_models = self._get_fields_view(view_type or view.type, view_models)
         result = {
             "arch": arch,
             "id": view.id,
@@ -343,7 +343,7 @@ class Base(models.AbstractModel):
         return result
 
     @api.model
-    def _get_view_fields(
+    def _get_fields_view(
         self, view_type: str, view_models: dict[str, Any]
     ) -> dict[str, Any]:
         match view_type:

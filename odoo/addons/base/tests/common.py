@@ -581,7 +581,7 @@ class MockSmtplibCase:
 
         IrMailServer = self.env["ir.mail_server"]
         connect_origin = type(IrMailServer)._connect__
-        find_mail_server_origin = type(IrMailServer)._find_mail_server
+        find_mail_server_origin = type(IrMailServer)._get_mail_server
 
         def mock_function(func):
             mock = Mock()
@@ -608,7 +608,7 @@ class MockSmtplibCase:
             ) as connect_mocked,
             patch.object(
                 type(IrMailServer),
-                "_find_mail_server",
+                "_get_mail_server",
                 mock_function(find_mail_server_origin),
             ) as find_mail_server_mocked,
         ):
@@ -619,7 +619,7 @@ class MockSmtplibCase:
     def _build_email(self, mail_from, return_path=None, **kwargs):
         headers = {"Return-Path": return_path} if return_path else {}
         headers.update(**kwargs.pop("headers", {}))
-        return self.env["ir.mail_server"]._build_email__(
+        return self.env["ir.mail_server"]._prepare_email__(
             mail_from,
             kwargs.pop("email_to", "dest@example-é.com"),
             kwargs.pop("subject", "subject"),

@@ -24,7 +24,7 @@ class TestResConfigInstall(TransactionCase):
         self.config = Settings.create({})
 
     def test_no_install(self):
-        config_fields = self.config._get_classified_fields()
+        config_fields = self.config._get_fields_classified()
         for module in config_fields["module"]:
             if self.config[f"module_{module.name}"]:
                 self.assertTrue(
@@ -38,7 +38,7 @@ class TestResConfigInstall(TransactionCase):
             self.config.execute()
 
     def test_install(self):
-        config_fields = self.config._get_classified_fields()
+        config_fields = self.config._get_fields_classified()
         module_to_install = next(
             (m for m in config_fields["module"] if m.state == "uninstalled"),
             None,

@@ -67,7 +67,7 @@ class TestPartner(TransactionCaseWithUserDemo):
         self, test_string, expected_name, expected_email, expected_partner=False
     ):
         with self.mockPartnerCalls():
-            partner = self.env["res.partner"].find_or_create(test_string)
+            partner = self.env["res.partner"].get_or_create(test_string)
         if expected_partner:
             self.assertEqual(
                 partner,
@@ -313,10 +313,10 @@ class TestPartner(TransactionCaseWithUserDemo):
     def test_find_or_create_escapes_ilike_wildcards(self):
         Partner = self.env["res.partner"]
         existing = Partner.create({"name": "AxB", "email": "axb@example.com"})
-        found = Partner.find_or_create("a_b@example.com")
+        found = Partner.get_or_create("a_b@example.com")
         self.assertNotEqual(found, existing)
         self.assertEqual(found.email, "a_b@example.com")
-        self.assertEqual(Partner.find_or_create("axb@example.com"), existing)
+        self.assertEqual(Partner.get_or_create("axb@example.com"), existing)
 
     def test_is_public(self):
         self.assertFalse(self.env.ref("base.public_user").active)

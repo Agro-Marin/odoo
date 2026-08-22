@@ -26,12 +26,12 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
     def setUp(self):
         super().setUp()
         self.Attachment = self.env["ir.attachment"]
-        self.filestore = self.Attachment._filestore()
+        self.filestore = self.Attachment._get_filestore()
 
         self.blob1 = b"blob1"
         self.blob1_b64 = base64.b64encode(self.blob1)
-        self.blob1_hash = self.Attachment._content_checksum(self.blob1)
-        self.blob1_fname = self.Attachment._file_store_path(self.blob1_hash)
+        self.blob1_hash = self.Attachment._get_content_checksum(self.blob1)
+        self.blob1_fname = self.Attachment._get_store_key(self.blob1_hash)
 
         self.blob2 = b"blob2"
         self.blob2_b64 = base64.b64encode(self.blob2)
@@ -162,7 +162,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         pair.write({"raw": b"x,y,z\n4,5,6\n"})
         self.assertEqual(
             set(pair.mapped("mimetype")),
-            {self.Attachment._mimetype_from_values({"raw": b"x,y,z\n4,5,6\n"})},
+            {self.Attachment._get_mimetype_from_values({"raw": b"x,y,z\n4,5,6\n"})},
             "rows disagreeing on their name must fall back to sniffing",
         )
 
@@ -174,8 +174,8 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
 
         with patch.object(
             self.registry["ir.attachment"],
-            "_file_read",
-            side_effect=IrAttachment._file_read,
+            "_read_file",
+            side_effect=IrAttachment._read_file,
             autospec=True,
         ) as file_read:
             sized = self.Attachment.with_context(bin_size=True).browse((even + odd).ids)
@@ -201,7 +201,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(attachment.raw, payload)
         self.assertEqual(attachment.file_size, len(payload))
         self.assertEqual(
-            attachment.checksum, self.Attachment._content_checksum(payload)
+            attachment.checksum, self.Attachment._get_content_checksum(payload)
         )
         self.assertTrue(attachment.index_content)
         self.assertTrue(
@@ -230,7 +230,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertEqual(attachment.raw, b"replacement")
         self.assertEqual(attachment.file_size, len(b"replacement"))
         self.assertEqual(
-            attachment.checksum, self.Attachment._content_checksum(b"replacement")
+            attachment.checksum, self.Attachment._get_content_checksum(b"replacement")
         )
         self.env.cr.execute(
             "SELECT db_datas FROM ir_attachment WHERE id = %s", [attachment.id]
@@ -284,8 +284,8 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         attachment.invalidate_recordset()
         self.assertTrue(attachment.db_datas)
 
-        stale_key = self.Attachment._file_store_path(
-            self.Attachment._content_checksum(b"stale-inline-bytes")
+        stale_key = self.Attachment._get_store_key(
+            self.Attachment._get_content_checksum(b"stale-inline-bytes")
         )
         copied = attachment.copy()
         self.env.flush_all()
@@ -471,7 +471,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         Attachment._mark_for_gc(kept_fname)
         Attachment.flush_recordset(["store_fname"])
 
-        checklist = Attachment._gc_checklist()
+        checklist = Attachment._get_gc_checklist()
         self.assertIn(orphan_fname, checklist)
         self.assertIn(kept_fname, checklist)
 
@@ -494,7 +494,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         store_path = Path(self.filestore, fname)
         a1.unlink()
 
-        checklist = self.Attachment._gc_checklist()
+        checklist = self.Attachment._get_gc_checklist()
         self.assertNotIn(fname, checklist, "fresh marker must be grace-skipped")
         self.Attachment._gc_file_store_unsafe()
         self.assertTrue(store_path.is_file(), "file within grace must survive")
@@ -504,7 +504,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         )
 
         self._age_marker(fname, IrAttachment._GC_CHECKLIST_GRACE + 60)
-        checklist = self.Attachment._gc_checklist()
+        checklist = self.Attachment._get_gc_checklist()
         self.assertIn(fname, checklist, "aged marker must be sweepable")
         self.Attachment._gc_file_store_unsafe()
         self.assertFalse(store_path.is_file(), "aged orphan must be collected")
@@ -512,29 +512,29 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
 
     def test_gc_grace_remark_refreshes_clock(self):
         unique_blob = os.urandom(16)
-        checksum = self.Attachment._content_checksum(unique_blob)
+        checksum = self.Attachment._get_content_checksum(unique_blob)
 
-        fname = self.Attachment._file_write(unique_blob, checksum)
+        fname = self.Attachment._write_file(unique_blob, checksum)
         self._age_marker(fname, IrAttachment._GC_CHECKLIST_GRACE + 60)
-        self.assertIn(fname, self.Attachment._gc_checklist())
+        self.assertIn(fname, self.Attachment._get_gc_checklist())
 
-        self.assertEqual(self.Attachment._file_write(unique_blob, checksum), fname)
+        self.assertEqual(self.Attachment._write_file(unique_blob, checksum), fname)
         self.assertNotIn(
             fname,
-            self.Attachment._gc_checklist(),
-            "_file_write dedup hit must refresh the marker's grace clock",
+            self.Attachment._get_gc_checklist(),
+            "_write_file dedup hit must refresh the marker's grace clock",
         )
 
         self._age_marker(fname, IrAttachment._GC_CHECKLIST_GRACE + 60)
-        self.assertIn(fname, self.Attachment._gc_checklist())
-        stream_fname, size, stream_checksum = self.Attachment._file_write_stream(
+        self.assertIn(fname, self.Attachment._get_gc_checklist())
+        stream_fname, size, stream_checksum = self.Attachment._write_file_stream(
             io.BytesIO(unique_blob)
         )
         self.assertEqual((stream_fname, size, stream_checksum), (fname, 16, checksum))
         self.assertNotIn(
             fname,
-            self.Attachment._gc_checklist(),
-            "_file_write_stream dedup hit must refresh the marker's grace clock",
+            self.Attachment._get_gc_checklist(),
+            "_write_file_stream dedup hit must refresh the marker's grace clock",
         )
 
     def test_gc_sweep_restats_marker_before_unlink(self):
@@ -544,7 +544,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         a1.unlink()
 
         self._age_marker(fname, IrAttachment._GC_CHECKLIST_GRACE + 60)
-        checklist = self.Attachment._gc_checklist()
+        checklist = self.Attachment._get_gc_checklist()
         self.assertIn(fname, checklist)
 
         os.utime(self._checklist_marker(fname), None)
@@ -597,7 +597,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             .with_context(skip_res_field_check=True)
             .search_count(
                 Domain.AND(
-                    [self.Attachment._get_storage_domain(), [("type", "=", "binary")]]
+                    [self.Attachment._get_domain_migration(), [("type", "=", "binary")]]
                 )
             ),
             "force_storage left rows matching its own migration domain behind",
@@ -732,17 +732,17 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             "checklist",
             self.blob1_fname,
         ):
-            resolved = Path(self.Attachment._full_path(path))
+            resolved = Path(self.Attachment._get_full_path(path))
             self.assertTrue(
                 resolved == root or root in resolved.parents,
                 f"{path!r} escaped the filestore as {resolved}",
             )
 
-        self.patch(IrAttachment, "_sanitize_store_path", lambda self, path: path)
+        self.patch(IrAttachment, "_sanitize_store_key", lambda self, path: path)
         with self.assertRaises(ValueError):
-            self.Attachment._full_path("../../etc/passwd")
+            self.Attachment._get_full_path("../../etc/passwd")
         with self.assertRaises(ValueError):
-            self.Attachment._full_path("/etc/passwd")
+            self.Attachment._get_full_path("/etc/passwd")
 
     def test_full_path_refuses_a_symlink_out_of_the_filestore(self):
         outside = Path(self.filestore).parent / f"outside-{os.urandom(6).hex()}.txt"
@@ -759,10 +759,10 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
 
         key = f"zz/{'f' * 40}"
         with self.assertRaises(ValueError):
-            self.Attachment._full_path(key)
+            self.Attachment._get_full_path(key)
         with mute_logger("odoo.addons.base.models.ir_attachment"):
             self.assertEqual(
-                self.Attachment._file_read(key),
+                self.Attachment._read_file(key),
                 b"",
                 "content outside the filestore was served through a symlinked key",
             )
@@ -770,8 +770,8 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
     def test_fixed_subdirs_resolve_to_the_same_place_as_full_path(self):
         for name in ("tmp", "checklist"):
             self.assertEqual(
-                str(self.Attachment._filestore_dir(name)),
-                self.Attachment._full_path(name),
+                str(self.Attachment._get_filestore_dir(name)),
+                self.Attachment._get_full_path(name),
             )
 
     def test_14_invalid_mimetype_with_correct_file_extension_no_post_processing(
@@ -790,8 +790,8 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         main_partner = self.env.ref("base.main_partner")
         with patch.object(
             IrAttachment,
-            "_file_read",
-            side_effect=IrAttachment._file_read,
+            "_read_file",
+            side_effect=IrAttachment._read_file,
             autospec=True,
         ) as patch_file_read:
             self.env["res.partner"].with_context(bin_size=True).search_read(
@@ -802,14 +802,14 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
     def test_read_prefix_filestore_and_db(self):
         on_disk = self.Attachment.create({"name": "a1", "raw": self.blob1})
         self.assertTrue(on_disk.store_fname)
-        self.assertEqual(on_disk._read_prefix(3), self.blob1[:3])
-        self.assertEqual(on_disk._read_prefix(), self.blob1)
+        self.assertEqual(on_disk._get_content_prefix(3), self.blob1[:3])
+        self.assertEqual(on_disk._get_content_prefix(), self.blob1)
 
         self.env["ir.config_parameter"].set_param("ir_attachment.location", "db")
         in_db = self.Attachment.create({"name": "a2", "raw": self.blob2})
         self.assertFalse(in_db.store_fname)
-        self.assertEqual(in_db._read_prefix(3), self.blob2[:3])
-        self.assertEqual(in_db._read_prefix(), self.blob2)
+        self.assertEqual(in_db._get_content_prefix(3), self.blob2[:3])
+        self.assertEqual(in_db._get_content_prefix(), self.blob2)
 
     def test_read_prefix_ignores_bin_size(self):
         self.env["ir.config_parameter"].set_param("ir_attachment.location", "db")
@@ -817,12 +817,12 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.env.invalidate_all()
         sized = in_db.with_context(bin_size=True)
         self.assertNotEqual(sized.db_datas, self.blob1)
-        self.assertEqual(sized._read_prefix(), self.blob1)
-        self.assertEqual(sized._read_prefix(3), self.blob1[:3])
+        self.assertEqual(sized._get_content_prefix(), self.blob1)
+        self.assertEqual(sized._get_content_prefix(3), self.blob1[:3])
 
     def test_read_prefix_without_content(self):
         bare = self.Attachment.create({"name": "a1", "type": "binary"})
-        self.assertEqual(bare._read_prefix(10), b"")
+        self.assertEqual(bare._get_content_prefix(10), b"")
 
     def test_create_unique_invalid_base64(self):
         from odoo.exceptions import UserError
@@ -877,7 +877,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         [unique_id] = self.Attachment.create_unique([dict(vals)])
         self.assertEqual(created.raw, b"hand-written")
         self.assertEqual(
-            created.checksum, self.Attachment._content_checksum(b"hand-written")
+            created.checksum, self.Attachment._get_content_checksum(b"hand-written")
         )
         self.assertEqual(created.file_size, len(b"hand-written"))
         self.assertEqual(
@@ -949,13 +949,13 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         bravo = b"CONTENT-BRAVO" * 8
         self.assertEqual(len(alpha), len(bravo), "a collision pair shares its length")
 
-        real = type(self.Attachment)._content_checksum
+        real = type(self.Attachment)._get_content_checksum
         digest = "c0" * 20
 
         def colliding(model, data):
             return digest if data in (alpha, bravo) else real(model, data)
 
-        with patch.object(type(self.Attachment), "_content_checksum", colliding):
+        with patch.object(type(self.Attachment), "_get_content_checksum", colliding):
             first = self.Attachment.create_unique(
                 [
                     {
@@ -993,7 +993,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         )
         self.assertTrue(att.store_fname, "Attachment should be stored in filestore")
 
-        full_path = att._full_path(att.store_fname)
+        full_path = att._get_full_path(att.store_fname)
         Path(full_path).unlink()
 
         from types import SimpleNamespace
@@ -1110,7 +1110,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.assertTrue(original_fname)
 
         IrAttachment = self.registry["ir.attachment"]
-        with patch.object(IrAttachment, "_file_read", return_value=b""):
+        with patch.object(IrAttachment, "_read_file", return_value=b""):
             att._migrate()
 
         att.invalidate_recordset()
@@ -1129,7 +1129,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
 
         IrAttachmentCls = self.registry["ir.attachment"]
         with (
-            patch.object(IrAttachmentCls, "_file_read", return_value=b""),
+            patch.object(IrAttachmentCls, "_read_file", return_value=b""),
             patch.object(
                 IrAttachmentCls,
                 "_index",
@@ -1160,7 +1160,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
                 [{"name": "bad", "mimetype": "text/plain", "datas": bad}]
             )
         with self.assertRaises(UserError):
-            self.Attachment._mimetype_from_values({"datas": bad})
+            self.Attachment._get_mimetype_from_values({"datas": bad})
 
     def test_content_derivation_memoized_within_batch(self):
         IrAttachmentCls = self.registry["ir.attachment"]
@@ -1262,8 +1262,8 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
     def test_file_write_atomic_no_poison(self):
         self.env["ir.config_parameter"].set_param("ir_attachment.location", "file")
         payload = b"atomic-write-" + os.urandom(16)
-        checksum = self.Attachment._content_checksum(payload)
-        store_path = self.Attachment._file_store_path(checksum)
+        checksum = self.Attachment._get_content_checksum(payload)
+        store_path = self.Attachment._get_store_key(checksum)
         target = Path(self.filestore, store_path)
         checklist = Path(self.filestore, "checklist", store_path)
         self.addCleanup(target.unlink, missing_ok=True)
@@ -1271,7 +1271,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
 
         with patch("pathlib.Path.replace", side_effect=OSError("simulated crash")):
             with self.assertRaises(OSError):
-                self.env["ir.attachment"]._file_write(payload, checksum)
+                self.env["ir.attachment"]._write_file(payload, checksum)
         self.assertFalse(
             target.exists(), "no truncated file may remain at the real path"
         )
@@ -1287,13 +1287,13 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             "no temp file may be staged in the shard dir",
         )
 
-        fname = self.env["ir.attachment"]._file_write(payload, checksum)
-        self.assertEqual(self.env["ir.attachment"]._file_read(fname), payload)
+        fname = self.env["ir.attachment"]._write_file(payload, checksum)
+        self.assertEqual(self.env["ir.attachment"]._read_file(fname), payload)
 
     def test_file_write_stages_temp_in_tmp_dir(self):
         payload = b"tmp-staging-" + os.urandom(16)
-        checksum = self.Attachment._content_checksum(payload)
-        store_path = self.Attachment._file_store_path(checksum)
+        checksum = self.Attachment._get_content_checksum(payload)
+        store_path = self.Attachment._get_store_key(checksum)
         target = Path(self.filestore, store_path)
         self.addCleanup(target.unlink, missing_ok=True)
         self.addCleanup(
@@ -1310,7 +1310,7 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
             return orig_replace(self, dst)
 
         with patch.object(Path, "replace", capture):
-            self.env["ir.attachment"]._file_write(payload, checksum)
+            self.env["ir.attachment"]._write_file(payload, checksum)
         self.assertEqual(
             captured.get("src_parent"),
             tmp_dir,
@@ -1326,50 +1326,60 @@ class TestIrAttachment(TransactionCaseWithUserDemo):
         self.env["ir.config_parameter"].set_param("ir_attachment.location", "file")
         unique = b"single-path-" + os.urandom(16)
         with patch.object(
-            IrAttachment, "_get_path", side_effect=IrAttachment._get_path, autospec=True
+            IrAttachment,
+            "_prepare_file_destination",
+            side_effect=IrAttachment._prepare_file_destination,
+            autospec=True,
         ) as patched:
             att = self.Attachment.create({"name": "sp", "raw": unique})
             self.addCleanup(
                 Path(self.filestore, att.store_fname).unlink, missing_ok=True
             )
-        self.assertEqual(patched.call_count, 1, "exactly one _get_path per write")
+        self.assertEqual(
+            patched.call_count, 1, "exactly one _prepare_file_destination per write"
+        )
 
     def test_stream_write_resolves_path_through_get_path(self):
         self.env["ir.config_parameter"].set_param("ir_attachment.location", "file")
         payload = b"stream-path-" + os.urandom(16)
         with patch.object(
-            IrAttachment, "_get_path", side_effect=IrAttachment._get_path, autospec=True
+            IrAttachment,
+            "_prepare_file_destination",
+            side_effect=IrAttachment._prepare_file_destination,
+            autospec=True,
         ) as patched:
-            fname, size, _checksum = self.Attachment._file_write_stream(
+            fname, size, _checksum = self.Attachment._write_file_stream(
                 io.BytesIO(payload)
             )
         self.addCleanup(Path(self.filestore, fname).unlink, missing_ok=True)
         self.assertEqual(
-            patched.call_count, 1, "exactly one _get_path per stream write"
+            patched.call_count,
+            1,
+            "exactly one _prepare_file_destination per stream write",
         )
         self.assertEqual(size, len(payload))
-        self.assertEqual(self.Attachment._file_read(fname), payload)
+        self.assertEqual(self.Attachment._read_file(fname), payload)
 
     def test_stream_write_collision_unstages_temp(self):
         self.env["ir.config_parameter"].set_param(
             "ir_attachment.verify_content_collision", "True"
         )
         payload = b"stream-collide-" + os.urandom(16)
-        checksum = self.Attachment._content_checksum(payload)
-        planted = Path(self.filestore, self.Attachment._file_store_path(checksum))
+        checksum = self.Attachment._get_content_checksum(payload)
+        planted = Path(self.filestore, self.Attachment._get_store_key(checksum))
         planted.parent.mkdir(parents=True, exist_ok=True)
         planted.write_bytes(b"different bytes entirely")
         self.addCleanup(planted.unlink, missing_ok=True)
 
-        tmp_dir = Path(self.Attachment._full_path("tmp"))
+        tmp_dir = Path(self.Attachment._get_full_path("tmp"))
         before = set(tmp_dir.iterdir()) if tmp_dir.is_dir() else set()
         with self.assertRaises(UserError):
-            self.Attachment._file_write_stream(io.BytesIO(payload))
+            self.Attachment._write_file_stream(io.BytesIO(payload))
         after = set(tmp_dir.iterdir()) if tmp_dir.is_dir() else set()
         self.assertEqual(after, before, "the staged temp must be removed on failure")
 
     def test_empty_content_checksum_consistency(self):
-        empty_sha = self.Attachment._content_checksum(b"")
+        empty_sha = self.Attachment._get_content_checksum(b"")
         created = self.Attachment.create({"name": "empty", "raw": b""})
         self.assertEqual(created.checksum, empty_sha, "create must set empty checksum")
         self.assertEqual(created.file_size, 0)
@@ -1442,7 +1452,7 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
     def setUp(self):
         super().setUp()
         self.Attachment = self.env["ir.attachment"]
-        self.filestore = self.Attachment._filestore()
+        self.filestore = self.Attachment._get_filestore()
         self.env["ir.config_parameter"].set_param("ir_attachment.location", "file")
 
     @contextlib.contextmanager
@@ -1470,9 +1480,7 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
     def test_new_keys_carry_the_algorithm_tag(self):
         att = self.Attachment.create({"name": "tagged", "raw": b"tag-" + os.urandom(8)})
         self.addCleanup(Path(self.filestore, att.store_fname).unlink, missing_ok=True)
-        self.assertEqual(
-            att.store_fname, self.Attachment._file_store_path(att.checksum)
-        )
+        self.assertEqual(att.store_fname, self.Attachment._get_store_key(att.checksum))
         self.assertEqual(Path(self.filestore, att.store_fname).read_bytes(), att.raw)
 
         with self._tagged_digest_build():
@@ -1487,14 +1495,14 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
             self.assertEqual(len(tagged.store_fname.split("/")), 3)
             self.assertEqual(
                 tagged.store_fname,
-                self.Attachment._file_store_path(tagged.checksum),
+                self.Attachment._get_store_key(tagged.checksum),
             )
 
     def test_migration_never_tags_a_key_with_a_foreign_digest(self):
         payload = b"pre-rollout-" + os.urandom(16)
         foreign = (
             hashlib.sha256(payload).hexdigest()
-            if len(self.Attachment._content_checksum(payload)) != 64
+            if len(self.Attachment._get_content_checksum(payload)) != 64
             else hashlib.sha1(payload, usedforsecurity=False).hexdigest()
         )
 
@@ -1512,15 +1520,15 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         att.invalidate_recordset()
         self.addCleanup(Path(self.filestore, att.store_fname).unlink, missing_ok=True)
 
-        expected = self.Attachment._file_store_path(
-            self.Attachment._content_checksum(payload)
+        expected = self.Attachment._get_store_key(
+            self.Attachment._get_content_checksum(payload)
         )
         self.assertEqual(
             att.store_fname,
             expected,
             "migration filed the row under a key holding a foreign digest",
         )
-        self.assertEqual(att.checksum, self.Attachment._content_checksum(payload))
+        self.assertEqual(att.checksum, self.Attachment._get_content_checksum(payload))
         self.assertEqual(att.raw, payload)
 
         twin = self.Attachment.create({"name": "twin.bin", "raw": payload})
@@ -1535,7 +1543,7 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         payload = b"rekey-" + os.urandom(24)
         foreign = (
             hashlib.sha256(payload).hexdigest()
-            if len(self.Attachment._content_checksum(payload)) != 64
+            if len(self.Attachment._get_content_checksum(payload)) != 64
             else hashlib.sha1(payload, usedforsecurity=False).hexdigest()
         )
         self.env["ir.config_parameter"].set_param("ir_attachment.location", "db")
@@ -1566,11 +1574,11 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
             "EXPENSIVE-OVERRIDE-OUTPUT",
             "the derived index was thrown away while re-keying",
         )
-        self.assertEqual(att.checksum, self.Attachment._content_checksum(payload))
+        self.assertEqual(att.checksum, self.Attachment._get_content_checksum(payload))
         self.assertEqual(
             att.store_fname,
-            self.Attachment._file_store_path(
-                self.Attachment._content_checksum(payload)
+            self.Attachment._get_store_key(
+                self.Attachment._get_content_checksum(payload)
             ),
         )
         self.assertEqual(att.raw, payload)
@@ -1580,7 +1588,7 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         self.addCleanup(Path(self.filestore, att.store_fname).unlink, missing_ok=True)
         att.flush_recordset()
         att.invalidate_recordset()
-        self.assertEqual(att.checksum, self.Attachment._content_checksum(att.raw))
+        self.assertEqual(att.checksum, self.Attachment._get_content_checksum(att.raw))
         self.assertLessEqual(len(att.checksum), 64)
 
     def test_legacy_key_still_reads(self):
@@ -1596,7 +1604,7 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         )
         att.invalidate_recordset()
         self.assertEqual(att.raw, payload, "legacy-keyed content must still read")
-        self.assertEqual(self.Attachment._file_read(fname), payload)
+        self.assertEqual(self.Attachment._read_file(fname), payload)
         self.assertEqual(len(att.checksum), 40)
 
     def test_legacy_key_is_gc_collectable(self):
@@ -1605,7 +1613,7 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         self.Attachment._mark_for_gc(fname)
         marker = Path(self.filestore, "checklist", fname)
         self.assertTrue(marker.is_file(), "marker created at the legacy depth")
-        checklist = self.Attachment._gc_checklist(grace=0)
+        checklist = self.Attachment._get_gc_checklist(grace=0)
         self.assertIn(fname, checklist)
         self.Attachment._gc_file_store_unsafe(
             checklist={fname: checklist[fname]}, grace=0
@@ -1626,18 +1634,18 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
             self.assertNotEqual(
                 att.store_fname, legacy_fname, "the two layouts must not collide"
             )
-            self.assertEqual(self.Attachment._file_read(legacy_fname), payload)
-            self.assertEqual(self.Attachment._file_read(att.store_fname), payload)
+            self.assertEqual(self.Attachment._read_file(legacy_fname), payload)
+            self.assertEqual(self.Attachment._read_file(att.store_fname), payload)
 
         self.assertEqual(
-            self.Attachment._file_read(att.store_fname),
+            self.Attachment._read_file(att.store_fname),
             payload,
             "a key written under one layout keeps reading under the other",
         )
 
     def test_collision_verification_default_follows_the_algorithm(self):
         self.assertEqual(
-            self.Attachment._verify_content_collision(),
+            self.Attachment._is_content_collision_check_enabled(),
             ALGO_TAG == "s1",
             "sha1 needs the byte-compare; a modern digest does not",
         )
@@ -1646,7 +1654,9 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         ICP = self.env["ir.config_parameter"]
         for value, expected in (("True", True), ("False", False)):
             ICP.set_param("ir_attachment.verify_content_collision", value)
-            self.assertEqual(self.Attachment._verify_content_collision(), expected)
+            self.assertEqual(
+                self.Attachment._is_content_collision_check_enabled(), expected
+            )
 
     def test_legacy_key_domain_matches_shape_not_prefix(self):
         payload = b"shape-" + os.urandom(16)
@@ -1655,8 +1665,8 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         self.addCleanup(Path(self.filestore, good.store_fname).unlink, missing_ok=True)
         self.assertEqual(
             good.store_fname,
-            self.Attachment._file_store_path(
-                self.Attachment._content_checksum(payload)
+            self.Attachment._get_store_key(
+                self.Attachment._get_content_checksum(payload)
             ),
         )
 
@@ -1674,7 +1684,7 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
             self.Attachment.sudo()
             .with_context(skip_res_field_check=True)
             .search(
-                self.Attachment._legacy_key_domain()
+                self.Attachment._get_domain_legacy_keys()
                 & Domain("id", "in", (good | bad).ids)
             )
         )
@@ -1687,11 +1697,11 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
     def test_untagged_layout_under_the_sha1_tag(self):
         sha = "0" * 40
         with patch.object(ir_attachment_module, "ALGO_TAG", "s1"):
-            self.assertEqual(self.Attachment._file_store_path(sha), f"{sha[:2]}/{sha}")
+            self.assertEqual(self.Attachment._get_store_key(sha), f"{sha[:2]}/{sha}")
 
     def test_verification_defaults_on_under_the_sha1_tag(self):
         with patch.object(ir_attachment_module, "ALGO_TAG", "s1"):
-            self.assertTrue(self.Attachment._verify_content_collision())
+            self.assertTrue(self.Attachment._is_content_collision_check_enabled())
 
     @mute_logger("odoo.addons.base.models.ir_attachment")
     def test_forced_verification_still_detects_a_mismatch(self):
@@ -1699,23 +1709,23 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
             "ir_attachment.verify_content_collision", "True"
         )
         payload = b"verify-" + os.urandom(16)
-        checksum = self.Attachment._content_checksum(payload)
-        fname = self.Attachment._file_store_path(checksum)
+        checksum = self.Attachment._get_content_checksum(payload)
+        fname = self.Attachment._get_store_key(checksum)
         path = Path(self.filestore, fname)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"different bytes entirely")
         self.addCleanup(path.unlink, missing_ok=True)
         with self.assertRaises(UserError):
-            self.Attachment._file_write(payload, checksum)
+            self.Attachment._write_file(payload, checksum)
 
     def test_stream_and_buffered_writes_agree(self):
         payload = b"stream-" + os.urandom(4096)
-        fname, size, checksum = self.Attachment._file_write_stream(io.BytesIO(payload))
+        fname, size, checksum = self.Attachment._write_file_stream(io.BytesIO(payload))
         self.addCleanup(Path(self.filestore, fname).unlink, missing_ok=True)
         self.assertEqual(size, len(payload))
-        self.assertEqual(checksum, self.Attachment._content_checksum(payload))
-        self.assertEqual(fname, self.Attachment._file_store_path(checksum))
-        self.assertEqual(self.Attachment._file_read(fname), payload)
+        self.assertEqual(checksum, self.Attachment._get_content_checksum(payload))
+        self.assertEqual(fname, self.Attachment._get_store_key(checksum))
+        self.assertEqual(self.Attachment._read_file(fname), payload)
 
     def _legacy_row(self, payload):
         fname, sha = self._legacy_key(payload)
@@ -1755,9 +1765,11 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
             )
             self.assertTrue(att.store_fname.startswith("b3/"))
             self.assertEqual(att.raw, payload, "bytes must survive the re-key")
-            self.assertEqual(att.checksum, self.Attachment._content_checksum(payload))
             self.assertEqual(
-                att.store_fname, self.Attachment._file_store_path(att.checksum)
+                att.checksum, self.Attachment._get_content_checksum(payload)
+            )
+            self.assertEqual(
+                att.store_fname, self.Attachment._get_store_key(att.checksum)
             )
             self.assertEqual(att.file_size, size_before)
             self.assertEqual(att.index_content, index_before)
@@ -1782,7 +1794,7 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
                 self.assertTrue(att.store_fname.startswith("b3/"))
                 self.assertEqual(
                     att.store_fname,
-                    self.Attachment._file_store_path(att.checksum),
+                    self.Attachment._get_store_key(att.checksum),
                 )
 
     def test_rehash_leaves_shared_legacy_content_readable(self):
@@ -1800,7 +1812,7 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
                 Path(self.filestore, first.store_fname).unlink, missing_ok=True
             )
 
-            checklist = self.Attachment._gc_checklist(grace=0)
+            checklist = self.Attachment._get_gc_checklist(grace=0)
             if legacy_fname in checklist:
                 self.Attachment._gc_file_store_unsafe(
                     checklist={legacy_fname: checklist[legacy_fname]}, grace=0
@@ -1812,7 +1824,7 @@ class TestContentDigestKeys(TransactionCaseWithUserDemo):
         with self._tagged_digest_build():
             self._drain_legacy_rows()
             att, _fname = self._legacy_row(b"unreadable-" + os.urandom(16))
-            with patch.object(IrAttachment, "_file_read", return_value=b""):
+            with patch.object(IrAttachment, "_read_file", return_value=b""):
                 self.assertEqual(
                     self.Attachment._gc_rehash_legacy_keys(limit=10),
                     (0, 0),
@@ -2079,7 +2091,7 @@ class TestPermissions(TransactionCaseWithUserDemo):
 
         for order in (model._order, "id desc", "id", "id ASC", "id desc, name"):
             with self.subTest(order=order):
-                effective, keyset = model._accessible_batch_seek(order, None)
+                effective, keyset = model._get_seek_order_and_keyset(order, None)
                 self.assertEqual(effective, order, "an id-led order is already total")
                 self.assertIsNotNone(keyset, "no keyset derived for an id-led order")
                 seek = keyset(anchor)
@@ -2092,12 +2104,12 @@ class TestPermissions(TransactionCaseWithUserDemo):
                     [("id", expected, anchor.id)],
                 )
 
-        effective, keyset = model._accessible_batch_seek("name", None)
+        effective, keyset = model._get_seek_order_and_keyset("name", None)
         self.assertEqual(effective, "name, id", "a caller order must be made total")
         self.assertIsNone(keyset, "an unvetted leading term must stay on OFFSET")
 
         for bound in (None, 50):
-            _order, keyset = model._accessible_batch_seek(None, bound)
+            _order, keyset = model._get_seek_order_and_keyset(None, bound)
             self.assertIsNotNone(keyset, "the order-less scan must keep its keyset")
 
     @mute_logger("odoo.addons.base.models.ir_rule", "odoo.models")
@@ -2194,7 +2206,7 @@ class TestPermissions(TransactionCaseWithUserDemo):
     def _unprefiltered(self, func):
         with patch.object(
             IrAttachment,
-            "_scan_prefilter",
+            "_get_domain_security_prefilter",
             lambda self, sec_domain: sec_domain | Domain("res_model", "!=", False),
         ):
             return func()
@@ -2282,7 +2294,7 @@ class TestPermissions(TransactionCaseWithUserDemo):
         self._revoke_model_read("ir.ui.view")
         self.assertIn(
             "ir.ui.view",
-            self.Attachments._attached_model_names()[0],
+            self.Attachments._get_model_names_attached()[0],
             "this test needs the unreadable model to be discovered",
         )
 
@@ -2299,11 +2311,11 @@ class TestPermissions(TransactionCaseWithUserDemo):
         sec_domain = Domain("public", "=", True)
         with patch.object(
             IrAttachment,
-            "_attached_model_names",
+            "_get_model_names_attached",
             lambda self: (["res.partner"], True),
         ):
             self.assertEqual(
-                self.Attachments._scan_prefilter(sec_domain),
+                self.Attachments._get_domain_security_prefilter(sec_domain),
                 sec_domain | Domain("res_model", "!=", False),
             )
 
@@ -2365,24 +2377,24 @@ class TestPermissions(TransactionCaseWithUserDemo):
             }
         )
         self.assertEqual(
-            set(backed._res_field_targets({"res_model": "res.users"})),
+            set(backed._get_res_field_targets({"res_model": "res.users"})),
             {("res.users", "image_1920")},
         )
         self.assertEqual(
-            set(backed._res_field_targets({"res_field": "avatar_128"})),
+            set(backed._get_res_field_targets({"res_field": "avatar_128"})),
             {("res.partner", "avatar_128")},
         )
         self.assertEqual(
             set(
-                backed._res_field_targets(
+                backed._get_res_field_targets(
                     {"res_model": "res.users", "res_field": "avatar_128"}
                 )
             ),
             {("res.users", "avatar_128")},
         )
-        self.assertEqual(backed._res_field_targets({"name": "x"}), OrderedSet())
+        self.assertEqual(backed._get_res_field_targets({"name": "x"}), OrderedSet())
         self.assertEqual(
-            set(self.attachment._res_field_targets({"res_model": "res.users"})),
+            set(self.attachment._get_res_field_targets({"res_model": "res.users"})),
             {("res.users", False)},
             "a row with no res_field must yield a pair the check returns on",
         )
@@ -2414,7 +2426,7 @@ class TestPermissions(TransactionCaseWithUserDemo):
         ):
             with self.subTest(filename=filename):
                 buffered = self.Attachments.create({"name": filename, "raw": content})
-                streamed = self.Attachments._from_request_file(
+                streamed = self.Attachments._create_from_request_file(
                     _FakeFile(content, filename)
                 )
                 for field in ("name", "mimetype", "file_size", "checksum", "raw"):
@@ -2438,7 +2450,7 @@ class TestPermissions(TransactionCaseWithUserDemo):
             def seek(self, offset, whence=0):
                 return self._buf.seek(offset, whence)
 
-        explicit = self.Attachments._from_request_file(
+        explicit = self.Attachments._create_from_request_file(
             _FakeFile(b"hello", "application/octet-stream", "note.txt"),
             mimetype="text/plain",
         )
@@ -2448,13 +2460,13 @@ class TestPermissions(TransactionCaseWithUserDemo):
             b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
             b"\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
         )
-        guessed = self.Attachments._from_request_file(
+        guessed = self.Attachments._create_from_request_file(
             _FakeFile(png, "application/octet-stream", "img"),
             mimetype="GUESS",
         )
         self.assertEqual(guessed.mimetype, "image/png")
 
-        trusted_html = self.Attachments._from_request_file(
+        trusted_html = self.Attachments._create_from_request_file(
             _FakeFile(b"<script>alert(1)</script>", "text/html", "evil.html"),
             mimetype="TRUST",
         )
@@ -2463,7 +2475,7 @@ class TestPermissions(TransactionCaseWithUserDemo):
             "text/plain",
             "TRUST-ed text/html must be neutered for a non-view writer",
         )
-        trusted_svg = self.Attachments._from_request_file(
+        trusted_svg = self.Attachments._create_from_request_file(
             _FakeFile(b"<svg/>", "image/svg+xml", "evil.svg"),
             mimetype="TRUST",
         )
@@ -2517,14 +2529,14 @@ class TestPermissions(TransactionCaseWithUserDemo):
         key = "te/test_write_error"
         self.patch(
             IrAttachment,
-            "_get_path",
+            "_prepare_file_destination",
             lambda self, _binary, _checksum: (key, "/proc/dummy_test"),
         )
         self.addCleanup(
-            (self.Attachments._filestore_dir("checklist") / key).unlink, True
+            (self.Attachments._get_filestore_dir("checklist") / key).unlink, True
         )
         with self.assertRaises(OSError):
-            self.env["ir.attachment"]._file_write(b"test", "test")
+            self.env["ir.attachment"]._write_file(b"test", "test")
 
     def test_write_create_url_binary_attachment(self):
         with self.assertRaises(ValidationError):
@@ -2670,7 +2682,7 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
     def setUp(self):
         super().setUp()
         self.Attachment = self.env["ir.attachment"]
-        self.tmp_dir = Path(self.Attachment._full_path("tmp"))
+        self.tmp_dir = Path(self.Attachment._get_full_path("tmp"))
 
     def _temps(self):
         if not self.tmp_dir.is_dir():
@@ -2679,13 +2691,13 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
 
     def test_unlink_and_content_replacement_share_the_delete_hook(self):
         seen = []
-        real = IrAttachment._file_delete_multi
+        real = IrAttachment._mark_for_gc_multi
 
         def spy(records, fnames):
             seen.append(tuple(fnames))
             return real(records, fnames)
 
-        self.patch(IrAttachment, "_file_delete_multi", spy)
+        self.patch(IrAttachment, "_mark_for_gc_multi", spy)
 
         attachment = self.Attachment.create(
             {"name": "gone.bin", "raw": b"unlink-me" * 8}
@@ -2695,7 +2707,7 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
         attachment.unlink()
         self.assertTrue(
             any(store_fname in call for call in seen),
-            "unlink() must schedule the old key through _file_delete_multi",
+            "unlink() must schedule the old key through _mark_for_gc_multi",
         )
 
         seen.clear()
@@ -2724,8 +2736,8 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
                 self.env.flush_all()
                 attachment.invalidate_recordset()
                 self.assertEqual(attachment.raw, payload)
-                self.assertEqual(attachment._read_prefix(), payload)
-                self.assertEqual(attachment._read_prefix(4), payload[:4])
+                self.assertEqual(attachment._get_content_prefix(), payload)
+                self.assertEqual(attachment._get_content_prefix(4), payload[:4])
         self.env["ir.config_parameter"].sudo().set_param(
             "ir_attachment.location", "file"
         )
@@ -2739,7 +2751,7 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
                 "mimetype": "image/png",
             }
         )
-        self.assertTrue(attachment._read_prefix())
+        self.assertTrue(attachment._get_content_prefix())
         self.assertFalse(attachment.raw)
 
     @mute_logger("odoo.addons.base.models.ir_attachment")
@@ -2748,7 +2760,7 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
             {"name": "vanishing.bin", "raw": b"here-then-gone" * 8}
         )
         self.env.flush_all()
-        Path(self.Attachment._full_path(attachment.store_fname)).unlink()
+        Path(self.Attachment._get_full_path(attachment.store_fname)).unlink()
         attachment.invalidate_recordset()
         self.assertEqual(attachment.raw, b"")
         self.assertTrue(attachment.file_size)
@@ -2757,38 +2769,38 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
         before = self._temps()
 
         payload = b"buffered-payload" * 8
-        payload_checksum = self.Attachment._content_checksum(payload)
-        buffered_fname = self.Attachment._file_write(payload, payload_checksum)
+        payload_checksum = self.Attachment._get_content_checksum(payload)
+        buffered_fname = self.Attachment._write_file(payload, payload_checksum)
         self.assertEqual(
-            Path(self.Attachment._full_path(buffered_fname)).read_bytes(), payload
+            Path(self.Attachment._get_full_path(buffered_fname)).read_bytes(), payload
         )
         self.assertEqual(self._temps(), before, "buffered write left a temp behind")
 
         streamed = b"streamed-payload" * 8
-        stream_fname, size, checksum = self.Attachment._file_write_stream(
+        stream_fname, size, checksum = self.Attachment._write_file_stream(
             io.BytesIO(streamed)
         )
         self.assertEqual(
-            Path(self.Attachment._full_path(stream_fname)).read_bytes(), streamed
+            Path(self.Attachment._get_full_path(stream_fname)).read_bytes(), streamed
         )
         self.assertEqual(size, len(streamed))
-        self.assertEqual(checksum, self.Attachment._content_checksum(streamed))
+        self.assertEqual(checksum, self.Attachment._get_content_checksum(streamed))
         self.assertEqual(self._temps(), before, "stream write left a temp behind")
 
         self.assertEqual(
-            self.Attachment._file_write(payload, payload_checksum), buffered_fname
+            self.Attachment._write_file(payload, payload_checksum), buffered_fname
         )
         self.assertEqual(
-            self.Attachment._file_write_stream(io.BytesIO(streamed))[0], stream_fname
+            self.Attachment._write_file_stream(io.BytesIO(streamed))[0], stream_fname
         )
         self.assertEqual(self._temps(), before, "a dedup hit left a temp behind")
 
     def test_empty_stream_stays_inline_and_stages_nothing(self):
         before = self._temps()
-        fname, size, checksum = self.Attachment._file_write_stream(io.BytesIO(b""))
+        fname, size, checksum = self.Attachment._write_file_stream(io.BytesIO(b""))
         self.assertEqual(fname, "")
         self.assertEqual(size, 0)
-        self.assertEqual(checksum, self.Attachment._content_checksum(b""))
+        self.assertEqual(checksum, self.Attachment._get_content_checksum(b""))
         self.assertEqual(self._temps(), before)
 
     @mute_logger("odoo.addons.base.models.ir_attachment")
@@ -2801,30 +2813,34 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
 
         self.patch(Path, "replace", exploding_replace)
         with self.assertRaises(OSError):
-            self.Attachment._file_write(b"never-lands" * 8, "deadbeef" * 8)
+            self.Attachment._write_file(b"never-lands" * 8, "deadbeef" * 8)
         self.assertEqual(self._temps(), before, "buffered writer leaked a temp")
 
         with self.assertRaises(OSError):
-            self.Attachment._file_write_stream(io.BytesIO(b"never-lands" * 8))
+            self.Attachment._write_file_stream(io.BytesIO(b"never-lands" * 8))
         self.assertEqual(self._temps(), before, "streaming writer leaked a temp")
 
     def test_content_comparison_helpers_agree(self):
         payload = b"compare-me" * 9
-        checksum = self.Attachment._content_checksum(payload)
-        path = self.Attachment._full_path(
-            self.Attachment._file_write(payload, checksum)
+        checksum = self.Attachment._get_content_checksum(payload)
+        path = self.Attachment._get_full_path(
+            self.Attachment._write_file(payload, checksum)
         )
 
-        self.assertTrue(self.Attachment._same_content(payload, path))
-        self.assertFalse(self.Attachment._same_content(payload + b"!", path))
-        self.assertFalse(self.Attachment._same_content(b"Z" * len(payload), path))
-        self.assertTrue(self.Attachment._same_content_files(path, path))
+        self.assertTrue(self.Attachment._is_same_bytes_as_file(payload, path))
+        self.assertFalse(self.Attachment._is_same_bytes_as_file(payload + b"!", path))
+        self.assertFalse(
+            self.Attachment._is_same_bytes_as_file(b"Z" * len(payload), path)
+        )
+        self.assertTrue(self.Attachment._is_same_file(path, path))
 
         other = b"different" * 9
-        other_path = self.Attachment._full_path(
-            self.Attachment._file_write(other, self.Attachment._content_checksum(other))
+        other_path = self.Attachment._get_full_path(
+            self.Attachment._write_file(
+                other, self.Attachment._get_content_checksum(other)
+            )
         )
-        self.assertFalse(self.Attachment._same_content_files(path, other_path))
+        self.assertFalse(self.Attachment._is_same_file(path, other_path))
 
     def test_migrate_round_trips_without_touching_the_bytes(self):
         payloads = [b"migrate-a" * 7, b"migrate-b" * 7]
@@ -2858,7 +2874,7 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
             {"name": "lost.bin", "raw": b"about-to-vanish" * 7}
         )
         self.env.flush_all()
-        Path(self.Attachment._full_path(attachment.store_fname)).unlink()
+        Path(self.Attachment._get_full_path(attachment.store_fname)).unlink()
         attachment.invalidate_recordset()
         key_before, size_before = attachment.store_fname, attachment.file_size
 
@@ -2880,7 +2896,7 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
         self.env.flush_all()
         self.assertTrue(on_disk.store_fname)
         self.assertEqual(on_disk.raw, payload)
-        self.assertEqual(on_disk._read_prefix(), payload)
+        self.assertEqual(on_disk._get_content_prefix(), payload)
         self.assertEqual(on_disk._to_http_stream().type, "path")
 
         self.env["ir.config_parameter"].sudo().set_param("ir_attachment.location", "db")
@@ -2891,7 +2907,7 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
         )
         self.assertFalse(in_db.store_fname)
         self.assertEqual(in_db.raw, payload)
-        self.assertEqual(in_db._read_prefix(), payload)
+        self.assertEqual(in_db._get_content_prefix(), payload)
         db_stream = in_db._to_http_stream()
         self.assertEqual(db_stream.type, "data")
         self.assertEqual(db_stream.data, payload)
@@ -2900,12 +2916,12 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
             {"name": "remote", "type": "url", "url": "https://example.com/x.png"}
         )
         self.assertFalse(remote.raw)
-        self.assertEqual(remote._read_prefix(), b"")
+        self.assertEqual(remote._get_content_prefix(), b"")
         self.assertEqual(remote._to_http_stream().type, "url")
 
         empty = self.Attachment.create({"name": "empty.bin"})
         self.assertFalse(empty.raw)
-        self.assertEqual(empty._read_prefix(), b"")
+        self.assertEqual(empty._get_content_prefix(), b"")
         empty_stream = empty._to_http_stream()
         self.assertEqual(empty_stream.type, "data")
         self.assertEqual(empty_stream.size, 0)
@@ -2924,7 +2940,9 @@ class TestFilestoreDedup(TransactionCaseWithUserDemo):
 
         self.assertEqual(attachment.raw, payload, "raw took the decoy")
         self.assertEqual(
-            attachment._read_prefix(), payload, "_read_prefix took the decoy"
+            attachment._get_content_prefix(),
+            payload,
+            "_get_content_prefix took the decoy",
         )
         self.assertEqual(
             attachment._to_http_stream().type,
@@ -3011,9 +3029,9 @@ class TestBinSizeIsNeverContent(TransactionCaseWithUserDemo):
         attachment = self.Attachment.create({"name": "pf.bin", "raw": self.payload})
         attachment = self._reread(attachment)
         scoped = attachment.with_context(bin_size_raw=True, bin_size_db_datas=True)
-        self.assertEqual(scoped._stored_content(), self.payload)
-        self.assertEqual(scoped._read_prefix(), self.payload)
-        self.assertEqual(scoped._unsized().raw, self.payload)
+        self.assertEqual(scoped._get_stored_content(), self.payload)
+        self.assertEqual(scoped._get_content_prefix(), self.payload)
+        self.assertEqual(scoped._without_bin_size().raw, self.payload)
 
         scoped.write({"raw": b"replacement-payload"})
         self.assertEqual(self._reread(attachment).raw, b"replacement-payload")
@@ -3089,8 +3107,10 @@ class TestBinSizeIsNeverContent(TransactionCaseWithUserDemo):
 
     def test_unsized_is_a_no_op_without_bin_size(self):
         attachment = self.Attachment.create({"name": "n.bin", "raw": b"x"})
-        self.assertIs(attachment._unsized(), attachment)
-        self.assertIsNot(self._sized(attachment)._unsized(), self._sized(attachment))
+        self.assertIs(attachment._without_bin_size(), attachment)
+        self.assertIsNot(
+            self._sized(attachment)._without_bin_size(), self._sized(attachment)
+        )
 
 
 class TestDedupOwnership(TransactionCaseWithUserDemo):
@@ -3215,12 +3235,12 @@ class TestGcChecklistAddressing(TransactionCaseWithUserDemo):
     def setUp(self):
         super().setUp()
         self.Attachment = self.env["ir.attachment"]
-        self.checklist = self.Attachment._filestore_dir("checklist")
+        self.checklist = self.Attachment._get_filestore_dir("checklist")
 
     def test_a_stray_marker_never_unlinks_an_unrelated_file(self):
         live = self.Attachment.create({"name": "live.bin", "raw": b"live-content"})
         self.env.flush_all()
-        victim = Path(self.Attachment._full_path(live.store_fname))
+        victim = Path(self.Attachment._get_full_path(live.store_fname))
         self.assertTrue(victim.is_file())
 
         shard, _, digest = live.store_fname.rpartition("/")
@@ -3229,15 +3249,13 @@ class TestGcChecklistAddressing(TransactionCaseWithUserDemo):
         stray.write_bytes(b"")
         self.addCleanup(stray.unlink, True)
         self.assertNotEqual(
-            self.Attachment._sanitize_store_path(
-                str(stray.relative_to(self.checklist))
-            ),
+            self.Attachment._sanitize_store_key(str(stray.relative_to(self.checklist))),
             str(stray.relative_to(self.checklist)),
             "this test needs a name the sanitizer rewrites",
         )
 
         self.Attachment._gc_file_store_unsafe(
-            self.Attachment._gc_checklist(grace=0), grace=0
+            self.Attachment._get_gc_checklist(grace=0), grace=0
         )
 
         self.assertTrue(
@@ -3250,10 +3268,10 @@ class TestGcChecklistAddressing(TransactionCaseWithUserDemo):
     def test_a_refused_store_key_does_not_stop_the_sweep(self):
         live = self.Attachment.create({"name": "live.bin", "raw": b"survivor"})
         self.env.flush_all()
-        victim = Path(self.Attachment._full_path(live.store_fname))
+        victim = Path(self.Attachment._get_full_path(live.store_fname))
         self.assertTrue(victim.is_file())
 
-        filestore = Path(self.Attachment._filestore())
+        filestore = Path(self.Attachment._get_filestore())
         outside = filestore.parent / "ira_outside_the_filestore"
         outside.mkdir(parents=True, exist_ok=True)
         self.addCleanup(outside.rmdir)
@@ -3263,7 +3281,7 @@ class TestGcChecklistAddressing(TransactionCaseWithUserDemo):
 
         refused = "zz/" + "a" * 40
         with self.assertRaises(ValueError):
-            self.Attachment._full_path(refused)
+            self.Attachment._get_full_path(refused)
         marker = self.checklist / refused
         marker.parent.mkdir(parents=True, exist_ok=True)
         marker.write_bytes(b"")
@@ -3271,7 +3289,7 @@ class TestGcChecklistAddressing(TransactionCaseWithUserDemo):
 
         collectable = self.Attachment.create({"name": "gone.bin", "raw": b"collect-me"})
         self.env.flush_all()
-        orphan = Path(self.Attachment._full_path(collectable.store_fname))
+        orphan = Path(self.Attachment._get_full_path(collectable.store_fname))
         orphan_key = collectable.store_fname
         collectable.unlink()
         self.env.flush_all()
@@ -3291,11 +3309,11 @@ class TestGcChecklistAddressing(TransactionCaseWithUserDemo):
 
     def test_content_is_marked_before_it_is_published(self):
         payload = b"marked-before-published"
-        checksum = self.Attachment._content_checksum(payload)
-        fname = self.Attachment._file_store_path(checksum)
+        checksum = self.Attachment._get_content_checksum(payload)
+        fname = self.Attachment._get_store_key(checksum)
         marker = self.checklist / fname
         marker.unlink(missing_ok=True)
-        Path(self.Attachment._full_path(fname)).unlink(missing_ok=True)
+        Path(self.Attachment._get_full_path(fname)).unlink(missing_ok=True)
 
         published = []
         original = Path.replace
@@ -3305,7 +3323,7 @@ class TestGcChecklistAddressing(TransactionCaseWithUserDemo):
             return original(self, target)
 
         self.patch(Path, "replace", spy)
-        self.Attachment._file_write(payload, checksum)
+        self.Attachment._write_file(payload, checksum)
 
         self.assertEqual(
             published,
@@ -3315,11 +3333,11 @@ class TestGcChecklistAddressing(TransactionCaseWithUserDemo):
 
     def test_streamed_content_is_marked_before_it_is_published(self):
         payload = b"streamed-marked-before-published"
-        checksum = self.Attachment._content_checksum(payload)
-        fname = self.Attachment._file_store_path(checksum)
+        checksum = self.Attachment._get_content_checksum(payload)
+        fname = self.Attachment._get_store_key(checksum)
         marker = self.checklist / fname
         marker.unlink(missing_ok=True)
-        Path(self.Attachment._full_path(fname)).unlink(missing_ok=True)
+        Path(self.Attachment._get_full_path(fname)).unlink(missing_ok=True)
 
         published = []
         original = Path.replace
@@ -3329,7 +3347,7 @@ class TestGcChecklistAddressing(TransactionCaseWithUserDemo):
             return original(self, target)
 
         self.patch(Path, "replace", spy)
-        self.Attachment._file_write_stream(io.BytesIO(payload))
+        self.Attachment._write_file_stream(io.BytesIO(payload))
 
         self.assertEqual(published, [True])
 
@@ -3431,13 +3449,13 @@ class TestFromRequestFileValsMerge(TransactionCase):
             b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
             b"\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
         )
-        self.assertFalse(self.Attachments._should_stream_upload("image/png"))
-        self.assertTrue(self.Attachments._should_stream_upload("text/plain"))
+        self.assertFalse(self.Attachments._is_stream_upload_required("image/png"))
+        self.assertTrue(self.Attachments._is_stream_upload_required("text/plain"))
 
     def test_caller_supplied_name_is_accepted_on_both_branches(self):
         for filename, content in (("photo.png", self.png), ("note.txt", b"hello")):
             with self.subTest(filename=filename):
-                attachment = self.Attachments._from_request_file(
+                attachment = self.Attachments._create_from_request_file(
                     self._FakeFile(content, filename), name="chosen name"
                 )
                 self.assertEqual(
@@ -3450,7 +3468,7 @@ class TestFromRequestFileValsMerge(TransactionCase):
         partner = self.env["res.partner"].create({"name": "attachment target"})
         for filename, content in (("photo.png", self.png), ("note.txt", b"hello")):
             with self.subTest(filename=filename):
-                attachment = self.Attachments._from_request_file(
+                attachment = self.Attachments._create_from_request_file(
                     self._FakeFile(content, filename),
                     res_model="res.partner",
                     res_id=partner.id,
@@ -3462,7 +3480,7 @@ class TestFromRequestFileValsMerge(TransactionCase):
     def test_the_file_is_still_what_gets_stored(self):
         for filename, content in (("photo.png", self.png), ("note.txt", b"hello")):
             with self.subTest(filename=filename):
-                attachment = self.Attachments._from_request_file(
+                attachment = self.Attachments._create_from_request_file(
                     self._FakeFile(content, filename), name="renamed"
                 )
                 self.assertEqual(attachment.raw, content)

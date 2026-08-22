@@ -26,21 +26,21 @@ class TestIrAttachmentStorage(TransactionCase):
         self.icp = self.env["ir.config_parameter"]
 
     def test_location_selection(self):
-        self.assertIsInstance(self.Attachment._storage_backend(), FileStorage)
+        self.assertIsInstance(self.Attachment._get_storage_backend(), FileStorage)
         self.icp.set_param("ir_attachment.location", "db")
-        self.assertIsInstance(self.Attachment._storage_backend(), DbStorage)
+        self.assertIsInstance(self.Attachment._get_storage_backend(), DbStorage)
         self.icp.set_param("ir_attachment.location", "s3")
-        self.assertIsInstance(self.Attachment._storage_backend(), FileStorage)
+        self.assertIsInstance(self.Attachment._get_storage_backend(), FileStorage)
 
     def test_key_dispatch(self):
-        plain = self.Attachment._backend_for_key("ab/abcdef0123")
+        plain = self.Attachment._get_storage_backend_for_key("ab/abcdef0123")
         self.assertIsInstance(plain, FileStorage)
         self.addCleanup(
             ir_attachment_storage._UNKNOWN_SCHEMES_WARNED.discard,
             (self.env.cr.dbname, "weird"),
         )
         with mute_logger("odoo.addons.base.models.ir_attachment_storage"):
-            unknown = self.Attachment._backend_for_key("weird://bucket/key")
+            unknown = self.Attachment._get_storage_backend_for_key("weird://bucket/key")
         self.assertIsInstance(unknown, FileStorage)
 
         class FakeS3Storage(AttachmentStorage):
@@ -49,10 +49,10 @@ class TestIrAttachmentStorage(TransactionCase):
 
         register_storage(FakeS3Storage)
         try:
-            owned = self.Attachment._backend_for_key("fake-s3://bucket/key")
+            owned = self.Attachment._get_storage_backend_for_key("fake-s3://bucket/key")
             self.assertIsInstance(owned, FakeS3Storage)
             self.icp.set_param("ir_attachment.location", "fake_s3")
-            self.assertIsInstance(self.Attachment._storage_backend(), FakeS3Storage)
+            self.assertIsInstance(self.Attachment._get_storage_backend(), FakeS3Storage)
         finally:
             STORAGE_BACKENDS.pop("fake_s3")
 
@@ -64,14 +64,18 @@ class TestIrAttachmentStorage(TransactionCase):
         with self.assertLogs(
             "odoo.addons.base.models.ir_attachment_storage", level="WARNING"
         ) as cm:
-            backend = self.Attachment._backend_for_key("ghost-s3://bucket/key")
+            backend = self.Attachment._get_storage_backend_for_key(
+                "ghost-s3://bucket/key"
+            )
         self.assertIsInstance(backend, FileStorage)
         self.assertEqual(len(cm.records), 1)
         message = cm.records[0].getMessage()
         self.assertIn("No storage backend registered", message)
         self.assertIn("ghost-s3", message)
         with patch.object(ir_attachment_storage._logger, "warning") as warn:
-            again = self.Attachment._backend_for_key("ghost-s3://bucket/other")
+            again = self.Attachment._get_storage_backend_for_key(
+                "ghost-s3://bucket/other"
+            )
         self.assertIsInstance(again, FileStorage)
         warn.assert_not_called()
 
@@ -84,7 +88,7 @@ class TestIrAttachmentStorage(TransactionCase):
         with self.assertLogs(
             "odoo.addons.base.models.ir_attachment_storage", level="WARNING"
         ):
-            self.Attachment._backend_for_key("twin-s3://bucket/key")
+            self.Attachment._get_storage_backend_for_key("twin-s3://bucket/key")
 
         with (
             patch.object(self.env.cr, "dbname", other),
@@ -92,7 +96,7 @@ class TestIrAttachmentStorage(TransactionCase):
                 "odoo.addons.base.models.ir_attachment_storage", level="WARNING"
             ) as cm,
         ):
-            self.Attachment._backend_for_key("twin-s3://bucket/key")
+            self.Attachment._get_storage_backend_for_key("twin-s3://bucket/key")
         self.assertEqual(len(cm.records), 1, "a second database must be told too")
 
     def test_register_storage_rejects_a_contested_location(self):
@@ -150,10 +154,10 @@ class TestIrAttachmentStorage(TransactionCase):
             self.icp.set_param("ir_attachment.location", location)
             for data in (b"payload", b""):
                 with self.subTest(location=location, data=data):
-                    model_vals = self.Attachment._get_datas_related_values(
+                    model_vals = self.Attachment._prepare_content_vals(
                         data, "text/plain"
                     )
-                    checksum = self.Attachment._content_checksum(data)
+                    checksum = self.Attachment._get_content_checksum(data)
                     fragment = backend_cls(self.env).write(data, checksum)
                     self.assertEqual(fragment["store_fname"], model_vals["store_fname"])
                     self.assertEqual(fragment["db_datas"], model_vals["db_datas"])
@@ -189,7 +193,7 @@ class TestIrAttachmentStorage(TransactionCase):
         for location, expected in cases:
             with self.subTest(location=location):
                 self.icp.set_param("ir_attachment.location", location)
-                self.assertEqual(self.Attachment._get_storage_domain(), expected)
+                self.assertEqual(self.Attachment._get_domain_migration(), expected)
 
 
 class MemoryStorage(AttachmentStorage):
@@ -292,10 +296,10 @@ class TestMemoryStorageCRUD(TransactionCase):
             )
             self.assertTrue(att.store_fname.startswith("mem://"))
             self.assertEqual(att.file_size, len(payload))
-            self.assertEqual(att.checksum, Attachment._content_checksum(payload))
+            self.assertEqual(att.checksum, Attachment._get_content_checksum(payload))
             att.invalidate_recordset()
             self.assertEqual(att.raw, payload)
-            self.assertEqual(att._read_prefix(16), payload[:16])
+            self.assertEqual(att._get_content_prefix(16), payload[:16])
             self.assertEqual(att._to_http_stream().size, len(payload))
 
             indexed = Attachment._create_from_stream(
@@ -325,7 +329,7 @@ class TestMemoryStorageCRUD(TransactionCase):
                 .search(
                     Domain.AND(
                         [
-                            self.env["ir.attachment"]._get_storage_domain(),
+                            self.env["ir.attachment"]._get_domain_migration(),
                             [("type", "=", "binary"), ("id", "=", att.id)],
                         ]
                     )

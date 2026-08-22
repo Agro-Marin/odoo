@@ -477,7 +477,7 @@ class TestIrRule(TransactionCaseWithUserDemo):
 
         rule_env = self.env(user=self.user_demo)["ir.rule"]
         self.patch(UserCls, "has_group", fake_has_group)
-        exception = rule_env._make_access_error("read", partner_demo)
+        exception = rule_env._prepare_access_error("read", partner_demo)
         self.assertIn(
             "test_rule_t3_deny",
             str(exception),

@@ -12,12 +12,6 @@ from odoo.tools import SQL
 _logger = logging.getLogger(__name__)
 
 MAX_VACUUM_RUNTIME = 3600
-"""Wall-clock budget (seconds) for one ``_run_vacuum_cleaner`` run.
-
-Once exceeded, methods reporting remaining work are no longer re-enqueued
-(the backlog is deferred to the next daily run); already-queued first-pass
-methods still execute, so every method gets at least one batch.
-"""
 
 
 def is_autovacuum(func: object) -> bool:

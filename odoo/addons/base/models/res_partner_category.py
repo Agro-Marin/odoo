@@ -10,11 +10,11 @@ class ResPartnerCategory(models.Model):
     _order = "name, id"
     _parent_store = True
 
-    def _get_default_color(self) -> int:
+    def _default_color(self) -> int:
         return randint(1, 11)
 
     name = fields.Char("Name", required=True, translate=True)
-    color = fields.Integer(string="Color", default=_get_default_color, aggregator=False)
+    color = fields.Integer(string="Color", default=_default_color, aggregator=False)
     parent_id: ResPartnerCategory = fields.Many2one(
         "res.partner.category",
         string="Category",

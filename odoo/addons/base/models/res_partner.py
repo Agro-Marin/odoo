@@ -127,7 +127,7 @@ class ResPartner(models.Model):
 
     _complete_name_displayed_types = ("invoice", "delivery", "other")
 
-    def _default_category(self) -> ResPartnerCategory:
+    def _default_category_id(self) -> ResPartnerCategory:
         return self.env["res.partner.category"].browse(
             self.env.context.get("category_id")
         )
@@ -187,7 +187,7 @@ class ResPartner(models.Model):
         column1="partner_id",
         column2="category_id",
         string="Tags",
-        default=_default_category,
+        default=_default_category_id,
     )
     barcode = fields.Char(
         copy=False,
@@ -228,7 +228,7 @@ class ResPartner(models.Model):
     same_vat_partner_id = fields.Many2one(
         "res.partner",
         string="Partner with same Tax ID",
-        compute="_compute_same_vat_partner_id",
+        compute="_compute_same_identifier_partners",
         store=False,
     )
     company_registry = fields.Char(
@@ -249,7 +249,7 @@ class ResPartner(models.Model):
     same_company_registry_partner_id = fields.Many2one(
         "res.partner",
         string="Partner with same Company Registry",
-        compute="_compute_same_vat_partner_id",
+        compute="_compute_same_identifier_partners",
         store=False,
     )
     type = fields.Selection(
@@ -266,7 +266,7 @@ class ResPartner(models.Model):
         string="Company Type",
         selection=[("person", "Person"), ("company", "Company")],
         compute="_compute_company_type",
-        inverse="_write_company_type",
+        inverse="_inverse_company_type",
     )
     type_address_label = fields.Char(
         "Address Type Description",
@@ -352,7 +352,7 @@ class ResPartner(models.Model):
     commercial_partner_id = fields.Many2one(
         "res.partner",
         string="Commercial Entity",
-        compute="_compute_commercial_partner",
+        compute="_compute_commercial_partner_id",
         store=True,
         recursive=True,
         index=True,
@@ -366,7 +366,7 @@ class ResPartner(models.Model):
 
     self = fields.Many2one(
         comodel_name="res.partner",
-        compute="_compute_get_ids",
+        compute="_compute_self",
     )
     application_statistics = fields.Json(
         string="Stats",
@@ -412,26 +412,26 @@ class ResPartner(models.Model):
     def _compute_avatar_128(self) -> None:
         super()._compute_avatar_128()
 
-    def _compute_avatar(self, avatar_field: str, image_field: str) -> None:
+    def _update_avatar(self, avatar_field: str, image_field: str) -> None:
         partners_with_internal_user = self.filtered(
             lambda partner: (
                 partner.user_ids - partner.user_ids.filtered("share")
                 or partner.type == "contact"
             )
         )
-        super(ResPartner, partners_with_internal_user)._compute_avatar(
+        super(ResPartner, partners_with_internal_user)._update_avatar(
             avatar_field, image_field
         )
         partners_without_image = (self - partners_with_internal_user).filtered(
             lambda p: not p[image_field]
         )
         for partner in partners_without_image:
-            partner[avatar_field] = base64.b64encode(partner._avatar_get_placeholder())
+            partner[avatar_field] = base64.b64encode(partner._get_avatar_placeholder())
 
         for partner in self - partners_with_internal_user - partners_without_image:
             partner[avatar_field] = partner[image_field]
 
-    def _avatar_get_placeholder_path(self) -> str:
+    def _get_avatar_placeholder_path(self) -> str:
         if self.is_company:
             return "base/static/img/company_image.png"
         if self.type == "delivery":
@@ -440,7 +440,7 @@ class ResPartner(models.Model):
             return "base/static/img/bill.png"
         if self.type == "other":
             return "base/static/img/puzzle.png"
-        return super()._avatar_get_placeholder_path()
+        return super()._get_avatar_placeholder_path()
 
     def _get_complete_name(self, type_description: dict[str, str]) -> str:
         self.ensure_one()
@@ -570,7 +570,7 @@ class ResPartner(models.Model):
         "country_id.country_group_codes",
         "country_id.code",
     )
-    def _compute_same_vat_partner_id(self) -> None:
+    def _compute_same_identifier_partners(self) -> None:
         Partner = self.with_context(active_test=False).sudo()
 
         all_vats = set()
@@ -665,12 +665,12 @@ class ResPartner(models.Model):
         for partner in self:
             partner.contact_address = partner._display_address()
 
-    def _compute_get_ids(self) -> None:
+    def _compute_self(self) -> None:
         for partner in self:
             partner.self = partner.id
 
     @api.depends("is_company", "parent_id.commercial_partner_id")
-    def _compute_commercial_partner(self) -> None:
+    def _compute_commercial_partner_id(self) -> None:
         for partner in self:
             if partner.is_company or not partner.parent_id:
                 partner.commercial_partner_id = partner
@@ -734,13 +734,13 @@ class ResPartner(models.Model):
         ]
 
     @api.onchange("parent_id")
-    def onchange_parent_id(self) -> dict[str, Any] | None:
+    def _onchange_parent_id(self) -> dict[str, Any] | None:
         if not self.parent_id:
             return None
         result = {}
         partner = self._origin
         if (partner.type or self.type) == "contact":
-            if address_values := self.parent_id._get_address_values():
+            if address_values := self.parent_id._prepare_address_vals():
                 result["value"] = address_values
         return result
 
@@ -750,7 +750,7 @@ class ResPartner(models.Model):
             self.state_id = False
 
     @api.onchange("state_id")
-    def _onchange_state(self) -> None:
+    def _onchange_state_id(self) -> None:
         if self.state_id.country_id and self.country_id != self.state_id.country_id:
             self.country_id = self.state_id.country_id
 
@@ -781,12 +781,12 @@ class ResPartner(models.Model):
         for partner in self:
             partner.company_type = "company" if partner.is_company else "person"
 
-    def _write_company_type(self) -> None:
+    def _inverse_company_type(self) -> None:
         for partner in self:
             partner.is_company = partner.company_type == "company"
 
     @api.onchange("company_type")
-    def onchange_company_type(self) -> None:
+    def _onchange_company_type(self) -> None:
         self.is_company = self.company_type == "company"
 
     @api.constrains("barcode")
@@ -840,7 +840,7 @@ class ResPartner(models.Model):
     def _formatting_address_fields(self) -> list[str]:
         return self._address_fields()
 
-    def _get_address_values(self) -> dict[str, Any]:
+    def _prepare_address_vals(self) -> dict[str, Any]:
         address_fields = self._address_fields()
         if any(self[key] for key in address_fields):
             return self._convert_fields_to_values(address_fields)
@@ -862,15 +862,15 @@ class ResPartner(models.Model):
     def _synced_commercial_fields(self) -> list[str]:
         return ["vat"]
 
-    def _get_set_field_values(self, field_names: list[str]) -> dict[str, Any]:
+    def _prepare_field_vals_present(self, field_names: list[str]) -> dict[str, Any]:
         set_fields = [fname for fname in field_names if self[fname]]
         return self._convert_fields_to_values(set_fields) if set_fields else {}
 
-    def _get_commercial_values(self) -> dict[str, Any]:
-        return self._get_set_field_values(self._commercial_fields())
+    def _prepare_commercial_vals(self) -> dict[str, Any]:
+        return self._prepare_field_vals_present(self._commercial_fields())
 
-    def _get_synced_commercial_values(self) -> dict[str, Any]:
-        return self._get_set_field_values(self._synced_commercial_fields())
+    def _prepare_commercial_vals_synced(self) -> dict[str, Any]:
+        return self._prepare_field_vals_present(self._synced_commercial_fields())
 
     @api.model
     def _company_dependent_commercial_fields(self) -> list[str]:
@@ -883,7 +883,7 @@ class ResPartner(models.Model):
     def _commercial_sync_from_company(self) -> None:
         commercial_partner = self.commercial_partner_id
         if commercial_partner != self:
-            sync_vals = commercial_partner._get_commercial_values()
+            sync_vals = commercial_partner._prepare_commercial_vals()
             if sync_vals:
                 self.write(sync_vals)
                 self._commercial_sync_to_descendants(list(sync_vals))
@@ -946,7 +946,7 @@ class ResPartner(models.Model):
         if values.get("parent_id"):
             self.sudo()._commercial_sync_from_company()
         if self.parent_id and self.type == "contact":
-            if address_values := self.parent_id._get_address_values():
+            if address_values := self.parent_id._prepare_address_vals():
                 self._update_address(address_values)
 
     def _sync_to_parent(self, values: dict[str, Any]) -> None:
@@ -958,14 +958,14 @@ class ResPartner(models.Model):
             and ("parent_id" in values or any(f in values for f in address_fields))
             and any(self[f] != self.parent_id[f] for f in address_fields)
         ):
-            self.parent_id.write(self._get_address_values())
+            self.parent_id.write(self._prepare_address_vals())
         synced_fields = self._synced_commercial_fields()
         if (
             self.commercial_partner_id != self
             and ("parent_id" in values or any(f in values for f in synced_fields))
             and any(self[f] != self.parent_id[f] for f in synced_fields)
         ):
-            self.parent_id.write(self._get_synced_commercial_values())
+            self.parent_id.write(self._prepare_commercial_vals_synced())
 
     def _children_sync(self, values: dict[str, Any]) -> None:
         if self.commercial_partner_id == self:
@@ -1318,14 +1318,14 @@ class ResPartner(models.Model):
         return partner.id, partner.display_name
 
     @api.model
-    def find_or_create(self, email: str, assert_valid_email: bool = False) -> Self:
+    def get_or_create(self, email: str, assert_valid_email: bool = False) -> Self:
         if not email:
-            raise ValueError(_("An email is required for find_or_create to work"))
+            raise ValueError(_("An email is required for get_or_create to work"))
 
         parsed_name, parsed_email_normalized = tools.parse_contact_from_email(email)
         if not parsed_email_normalized and assert_valid_email:
             raise ValueError(
-                _("A valid email is required for find_or_create to work properly.")
+                _("A valid email is required for get_or_create to work properly.")
             )
 
         if parsed_email_normalized:
@@ -1542,8 +1542,10 @@ class ResPartner(models.Model):
             {
                 "contact_type": self.type,
                 "street": self.street,
+                "street2": self.street2,
                 "zip": self.zip,
                 "city": self.city,
+                "state": self.state_id.code,
                 "country": self.country_id.code,
             }
         ]

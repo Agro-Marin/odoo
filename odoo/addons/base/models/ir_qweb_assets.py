@@ -20,10 +20,16 @@ from odoo.tools.assets.constants import (
     STYLE_EXTENSIONS,
     TEMPLATE_EXTENSIONS,
 )
-from odoo.tools.assets.esbuild import EsbuildCompiler, EsbuildResult
+from odoo.tools.assets.esbuild import (
+    EXTERNAL_LIB_ALIASES,
+    EsbuildCompiler,
+    EsbuildResult,
+)
 from odoo.tools.assets.esm_graph import (
+    addon_specifier_to_url,
     discover_transitive_import_specifiers,
     find_escaping_relative_imports,
+    resolve_specifier_url,
 )
 from odoo.tools.assets.esm_registry import esm_registry, external_libs
 from odoo.tools.misc import file_path, str2bool
@@ -48,6 +54,10 @@ class _EsmFallbackError(Exception):
 
 class EsbuildBundleError(RuntimeError):
     pass
+
+
+def _inline_module_node(marker: str, bundle: str, code: str) -> AssetNode:
+    return ("script", {"type": "module", marker: bundle, "text": code})
 
 
 class IrQweb(models.AbstractModel):
@@ -123,11 +133,11 @@ class IrQweb(models.AbstractModel):
             .direction
             == "rtl"
         )
-        assets_params = self.env["ir.asset"]._get_asset_params()
+        assets_params = self.env["ir.asset"]._prepare_assets_params()
         debug_assets = self._is_debug_assets(debug)
 
         if debug_assets:
-            return self._generate_asset_links(
+            return self._get_asset_links_uncached(
                 bundle,
                 css=css,
                 js=js,
@@ -137,7 +147,7 @@ class IrQweb(models.AbstractModel):
                 autoprefix=autoprefix,
             )
         else:
-            return self._generate_asset_links_cache(
+            return self._get_asset_links_cached(
                 bundle,
                 css=css,
                 js=js,
@@ -158,7 +168,7 @@ class IrQweb(models.AbstractModel):
             cache="assets.links",
         ),
     )
-    def _generate_asset_links_cache(
+    def _get_asset_links_cached(
         self,
         bundle: str,
         css: bool = True,
@@ -167,7 +177,7 @@ class IrQweb(models.AbstractModel):
         rtl: bool = False,
         autoprefix: bool = False,
     ) -> list[str]:
-        return self._generate_asset_links(
+        return self._get_asset_links_uncached(
             bundle, css, js, False, assets_params, rtl, autoprefix=autoprefix
         )
 
@@ -175,7 +185,7 @@ class IrQweb(models.AbstractModel):
         self, bundle: str, assets_params: dict[str, Any] | None = None
     ) -> tuple[list[BundleFileSpec], list[str]]:
         if assets_params is None:
-            assets_params = self.env["ir.asset"]._get_asset_params()
+            assets_params = self.env["ir.asset"]._prepare_assets_params()
         asset_paths = self.env["ir.asset"]._get_asset_paths(
             bundle=bundle, assets_params=assets_params
         )
@@ -206,7 +216,7 @@ class IrQweb(models.AbstractModel):
         autoprefix: bool = False,
     ) -> AssetsBundle:
         if assets_params is None:
-            assets_params = self.env["ir.asset"]._get_asset_params()
+            assets_params = self.env["ir.asset"]._prepare_assets_params()
         files, external_assets = self._get_asset_content(bundle_name, assets_params)
         return AssetsBundle(
             bundle_name,
@@ -289,7 +299,7 @@ class IrQweb(models.AbstractModel):
 
         return None
 
-    def _generate_asset_links(
+    def _get_asset_links_uncached(
         self,
         bundle: str,
         css: bool = True,
@@ -313,30 +323,15 @@ class IrQweb(models.AbstractModel):
     _OWL_ESM_URL = "/web/static/lib/owl/owl.es.js"
     _external_libs = staticmethod(external_libs)
 
-    @staticmethod
-    def _specifier_to_static_url(spec: str) -> str | None:
-        if not spec.startswith("@"):
-            return None
-        rest = spec[1:]
-        slash = rest.find("/")
-        if slash <= 0:
-            return None
-        addon = rest[:slash]
-        if addon == "odoo":
-            return None
-        path = rest[slash + 1 :]
-        if path.startswith("../lib/"):
-            url = f"/{addon}/static/lib/{path[len('../lib/') :]}"
-        elif path.startswith("../tests/"):
-            url = f"/{addon}/static/tests/{path[len('../tests/') :]}"
-        else:
-            url = f"/{addon}/static/src/{path}"
-        if not url.endswith(".js"):
-            url += ".js"
-        return url
+    _specifier_to_static_url = staticmethod(addon_specifier_to_url)
+
+    def _resolve_specifier_url(self, spec: str) -> str | None:
+        return resolve_specifier_url(
+            spec, self._external_libs(), EsbuildCompiler._LIB_CANDIDATES
+        )
 
     @staticmethod
-    def _import_map_url_breakdown(import_map: dict[str, str]) -> tuple[int, int, int]:
+    def _get_import_map_url_counts(import_map: dict[str, str]) -> tuple[int, int, int]:
         n_bridges = sum(
             1 for v in import_map.values() if v.startswith("/web/assets/esm/bridges/")
         )
@@ -390,9 +385,9 @@ class IrQweb(models.AbstractModel):
         debug_assets: bool = False,
     ) -> dict:
         if assets_params is None:
-            assets_params = self.env["ir.asset"]._get_asset_params()
+            assets_params = self.env["ir.asset"]._prepare_assets_params()
         if debug_assets:
-            return self._esm_bundle_payload_impl(bundle, assets_params)
+            return self._get_esm_bundle_payload_uncached(bundle, assets_params)
         return self._get_esm_bundle_payload_cached(bundle, assets_params)
 
     @tools.conditional(
@@ -408,9 +403,9 @@ class IrQweb(models.AbstractModel):
         bundle: str,
         assets_params: dict[str, Any] | None = None,
     ) -> dict:
-        return self._esm_bundle_payload_impl(bundle, assets_params)
+        return self._get_esm_bundle_payload_uncached(bundle, assets_params)
 
-    def _esm_bundle_payload_impl(
+    def _get_esm_bundle_payload_uncached(
         self,
         bundle: str,
         assets_params: dict[str, Any] | None,
@@ -422,7 +417,7 @@ class IrQweb(models.AbstractModel):
             debug_assets=True,
             assets_params=assets_params,
         )
-        self._validate_lazy_bundle_relative_imports(asset_bundle)
+        self._check_lazy_bundle_relative_imports(asset_bundle)
         native_data = asset_bundle.get_native_module_data()
         import_map = dict(native_data["import_map"])
         import_map.update(native_data.get("bridge_import_map", {}))
@@ -436,7 +431,7 @@ class IrQweb(models.AbstractModel):
             "template_url": template_url,
         }
 
-    def _validate_lazy_bundle_relative_imports(
+    def _check_lazy_bundle_relative_imports(
         self,
         asset_bundle: AssetsBundle,
     ) -> None:
@@ -504,13 +499,13 @@ class IrQweb(models.AbstractModel):
             )
             return default
 
-    def _esbuild_fail_closed(self) -> bool:
+    def _is_esbuild_fail_closed(self) -> bool:
         override = self._get_esbuild_setting("fail_closed", default=None)
         if override is not None:
             return str(override).strip().lower() not in ("0", "false", "")
         return bool(tools.config["test_enable"] or "assets" in tools.config["dev_mode"])
 
-    def _esbuild_forced_fallback_bundles(self) -> set[str]:
+    def _get_esbuild_bundles_forced_fallback(self) -> set[str]:
         forced_raw = (
             self.env["ir.config_parameter"]
             .sudo()
@@ -518,11 +513,11 @@ class IrQweb(models.AbstractModel):
         )
         return {s.strip() for s in forced_raw.split(",") if s.strip()}
 
-    def _esbuild_cooldown_key(self, bundle: str) -> tuple[str, str]:
+    def _get_esbuild_cooldown_key(self, bundle: str) -> tuple[str, str]:
         return (self.env.cr.dbname, bundle)
 
-    def _esbuild_circuit_state(self, bundle: str) -> tuple[bool, str]:
-        key = self._esbuild_cooldown_key(bundle)
+    def _get_esbuild_circuit_state(self, bundle: str) -> tuple[bool, str]:
+        key = self._get_esbuild_cooldown_key(bundle)
         entry = type(self)._esbuild_cooldowns.get(key)
         if not entry:
             return True, ""
@@ -532,8 +527,8 @@ class IrQweb(models.AbstractModel):
         type(self)._esbuild_cooldowns[key] = (0.0, reason, _fails)
         return True, ""
 
-    def _esbuild_circuit_record_failure(self, bundle: str, reason: str) -> None:
-        key = self._esbuild_cooldown_key(bundle)
+    def _open_esbuild_circuit(self, bundle: str, reason: str) -> None:
+        key = self._get_esbuild_cooldown_key(bundle)
         prev = type(self)._esbuild_cooldowns.get(key)
         fails = (prev[2] + 1) if prev else 1
         if fails >= 2:
@@ -563,9 +558,9 @@ class IrQweb(models.AbstractModel):
             fails=fails,
         )
 
-    def _esbuild_circuit_record_success(self, bundle: str) -> None:
+    def _close_esbuild_circuit(self, bundle: str) -> None:
         cooldowns = type(self)._esbuild_cooldowns
-        key = self._esbuild_cooldown_key(bundle)
+        key = self._get_esbuild_cooldown_key(bundle)
         if key in cooldowns:
             cooldowns.pop(key, None)
             log_event(
@@ -579,7 +574,7 @@ class IrQweb(models.AbstractModel):
     _ESBUILD_LOCK_RETRY_SLEEP_S: float = 0.2
 
     @contextlib.contextmanager
-    def _esbuild_lock_cursor(self, bundle: str):
+    def _get_esbuild_lock_cursor(self, bundle: str):
         if not self.env.cr.readonly:
             yield self.env.cr
             return
@@ -603,7 +598,7 @@ class IrQweb(models.AbstractModel):
             rw_cr.rollback()
             rw_cr.close()
 
-    def _esbuild_try_acquire_lock(self, bundle: str, cr=None) -> bool:
+    def _acquire_esbuild_lock(self, bundle: str, cr=None) -> bool:
         if cr is None:
             cr = self.env.cr
         retries = self._get_esbuild_setting(
@@ -652,7 +647,7 @@ class IrQweb(models.AbstractModel):
         return by_directory and ("/../tests/" in specifier or "/tests/" in specifier)
 
     @classmethod
-    def _hoot_specifiers(cls, bundle: str, specifiers: Iterable[str]) -> list[str]:
+    def _get_hoot_specifiers(cls, bundle: str, specifiers: Iterable[str]) -> list[str]:
         registry = esm_registry()
         by_directory = (
             bundle in registry.import_map_includes
@@ -665,7 +660,7 @@ class IrQweb(models.AbstractModel):
         ]
 
     @classmethod
-    def _build_loader_shim_js(cls) -> str:
+    def _prepare_loader_shim_js(cls) -> str:
         src_path = Path(file_path("web/static/src/module_loader.js"))
         mtime = src_path.stat().st_mtime
         cached = cls._loader_shim_cache
@@ -684,19 +679,7 @@ class IrQweb(models.AbstractModel):
         return minified
 
     @staticmethod
-    def _esm_test_satellites_rendered(debug: str | bool | None) -> bool:
-        """Whether this page also renders its ``secondary_import_map_includes``.
-
-        The satellites those declare are test bundles, and ``web.conditional_assets_tests``
-        renders them under ``'tests' in debug or test_mode_enabled``.  The merge that
-        puts their specifiers in the page's import map has to answer the same question,
-        or a production page advertises the URL of every test file that would have been
-        rendered -- and, worse, bridges every specifier those files reach for
-        (``_build_native_to_legacy_bridge``) to a shim whose producer no page ever loads.
-        A dead bridge is not inert: an import map entry cannot be re-mapped once the
-        document has it, so the specifier is spent and the bundle that really owns it
-        loads against ``undefined``.
-        """
+    def _has_esm_test_satellites(debug: str | bool | None) -> bool:
         return "tests" in (debug or "") or bool(tools.config["test_enable"])
 
     @tools.conditional(
@@ -705,6 +688,7 @@ class IrQweb(models.AbstractModel):
             "bundle",
             "tuple(sorted(assets_params.items()))",
             "with_test_satellites",
+            "page_scope",
             cache="assets",
         ),
     )
@@ -713,13 +697,15 @@ class IrQweb(models.AbstractModel):
         bundle: str,
         assets_params: dict[str, Any] | None = None,
         with_test_satellites: bool = False,
+        page_scope: tuple[str, ...] = (),
     ) -> EsmNodePair:
-        return self._get_native_module_nodes_impl(
+        return self._get_native_module_nodes_uncached(
             bundle,
             debug=False,
             assets_params=assets_params,
             _raise_on_decline=True,
             with_test_satellites=with_test_satellites,
+            page_scope=page_scope,
         )
 
     def _get_native_module_nodes(
@@ -730,32 +716,37 @@ class IrQweb(models.AbstractModel):
     ) -> EsmNodePair:
         debug_assets = self._is_debug_assets(debug)
         if assets_params is None:
-            assets_params = self.env["ir.asset"]._get_asset_params()
-        # Part of the ormcache key below: `debug=tests` takes the *prod* branch
-        # (`_is_debug_assets` only looks for "assets"), so one cached entry would
-        # otherwise serve both a page that renders the test satellites and one that does not.
-        satellites = self._esm_test_satellites_rendered(debug)
-        if not debug_assets and bundle not in self._esbuild_forced_fallback_bundles():
+            assets_params = self.env["ir.asset"]._prepare_assets_params()
+        satellites = self._has_esm_test_satellites(debug)
+        page_scope = self._get_esm_page_scope(bundle)
+        if (
+            not debug_assets
+            and bundle not in self._get_esbuild_bundles_forced_fallback()
+        ):
             try:
                 pre, post = self._get_native_module_nodes_cached(
                     bundle,
                     assets_params=assets_params,
                     with_test_satellites=satellites,
+                    page_scope=page_scope,
                 )
             except _EsmFallbackError:
-                pre, post = self._get_native_module_nodes_impl(
+                pre, post = self._get_native_module_nodes_uncached(
                     bundle,
                     debug=debug,
                     assets_params=assets_params,
                     with_test_satellites=satellites,
+                    page_scope=page_scope,
                 )
         else:
-            pre, post = self._get_native_module_nodes_impl(
+            pre, post = self._get_native_module_nodes_uncached(
                 bundle,
                 debug=debug,
                 assets_params=assets_params,
                 with_test_satellites=satellites,
+                page_scope=page_scope,
             )
+        self._record_esm_page_bundle(bundle)
         return self._dedup_request_import_map(bundle, pre), post
 
     def _dedup_request_import_map(
@@ -783,17 +774,18 @@ class IrQweb(models.AbstractModel):
         )
         return [node for node in pre_nodes if not _is_import_map(node)]
 
-    def _get_native_module_nodes_impl(
+    def _get_native_module_nodes_uncached(
         self,
         bundle: str,
         debug: str = "",
         assets_params: dict[str, Any] | None = None,
         _raise_on_decline: bool = False,
         with_test_satellites: bool = False,
+        page_scope: tuple[str, ...] = (),
     ) -> EsmNodePair:
         debug_assets = self._is_debug_assets(debug)
         if assets_params is None:
-            assets_params = self.env["ir.asset"]._get_asset_params()
+            assets_params = self.env["ir.asset"]._prepare_assets_params()
 
         if debug_assets:
             asset_bundle = self._get_asset_bundle(
@@ -827,11 +819,11 @@ class IrQweb(models.AbstractModel):
                 debug_assets=False,
                 assets_params=assets_params,
             )
-            esbuild_result, child_bundles = self._esm_run_esbuild(
-                bundle, asset_bundle, assets_params
+            esbuild_result, child_bundles = self._compile_with_esbuild_locked(
+                bundle, asset_bundle, assets_params, page_scope
             )
             if esbuild_result.code:
-                return self._esm_prod_nodes(
+                return self._get_esm_nodes_prod(
                     bundle,
                     asset_bundle,
                     esbuild_result,
@@ -842,7 +834,7 @@ class IrQweb(models.AbstractModel):
                 )
             if _raise_on_decline:
                 raise _EsmFallbackError
-        return self._esm_debug_nodes(
+        return self._get_esm_nodes_debug(
             bundle,
             asset_bundle,
             native_data,
@@ -851,25 +843,12 @@ class IrQweb(models.AbstractModel):
             with_test_satellites=with_test_satellites,
         )
 
-    def _esm_run_esbuild(
-        self,
-        bundle: str,
-        asset_bundle: AssetsBundle,
-        assets_params: dict[str, Any] | None,
-    ) -> tuple[EsbuildResult, list[AssetsBundle]]:
-        forced_bundles = self._esbuild_forced_fallback_bundles()
-
-        allow, circuit_reason = self._esbuild_circuit_state(bundle)
-        esbuild_result = EsbuildResult("", None, None)
-        child_bundles: list[AssetsBundle] = []
-        if bundle in forced_bundles:
-            log_event(
-                _fallback_log,
-                logging.INFO,
-                "admin_override",
-                bundle=bundle,
-            )
-        elif not allow:
+    def _can_compile_with_esbuild(self, bundle: str) -> bool:
+        if bundle in self._get_esbuild_bundles_forced_fallback():
+            log_event(_fallback_log, logging.INFO, "admin_override", bundle=bundle)
+            return False
+        allow, circuit_reason = self._get_esbuild_circuit_state(bundle)
+        if not allow:
             log_event(
                 _fallback_log,
                 logging.DEBUG,
@@ -877,88 +856,109 @@ class IrQweb(models.AbstractModel):
                 bundle=bundle,
                 reason=circuit_reason,
             )
-        else:
-            with self._esbuild_lock_cursor(bundle) as lock_cr:
-                if lock_cr is None:
-                    log_event(
-                        _fallback_log,
-                        logging.INFO,
-                        "lock_unavailable",
-                        bundle=bundle,
-                    )
-                elif not self._esbuild_try_acquire_lock(bundle, cr=lock_cr):
-                    log_event(
-                        _fallback_log,
-                        logging.INFO,
-                        "lock_contention",
-                        bundle=bundle,
-                    )
-                else:
-                    child_bundles = self._get_dynamic_child_bundles(
-                        bundle, assets_params, debug_assets=False
-                    )
-                    _parent_specs = {a.module_path for a in asset_bundle.native_modules}
-                    _child_specs = {
-                        asset.module_path
-                        for child_ab in child_bundles
-                        for asset in child_ab.native_modules
-                    } - _parent_specs
-                    secondary_stubs = self._secondary_parent_stubs(
-                        bundle, assets_params
-                    )
-                    dynamic_child_specs = None
-                    if _child_specs:
-                        aliasable = {
-                            s
-                            for s in _child_specs
-                            if "/../" not in s and not s.startswith("../")
-                        }
-                        if aliasable:
-                            child_stubs = asset_bundle._bridges.build_shim_sources(
-                                aliasable
-                            )
-                            secondary_stubs = {**child_stubs, **secondary_stubs}
-                        dynamic_child_specs = (
-                            frozenset(_child_specs - aliasable) or None
-                        )
-                    try:
-                        esbuild_result = asset_bundle.esbuild_native_bundle(
-                            timeout_s=self._get_esbuild_setting(
-                                "timeout_s",
-                                default=EsbuildCompiler._ESBUILD_TIMEOUT_S,
-                                cast=int,
-                            ),
-                            target=self._get_esbuild_setting(
-                                "target",
-                                default=EsbuildCompiler._ESBUILD_TARGET,
-                            ),
-                            source_maps=self._get_esbuild_setting(
-                                "source_maps",
-                                default=EsbuildCompiler._ESBUILD_SOURCE_MAPS,
-                            ),
-                            dynamic_child_specs=dynamic_child_specs,
-                            secondary_parent_stubs=secondary_stubs or None,
-                        )
-                        self._esbuild_circuit_record_success(bundle)
-                    except Exception as e:
-                        log_event(
-                            _fallback_log,
-                            logging.WARNING,
-                            "esbuild_exception",
-                            bundle=bundle,
-                            err=type(e).__name__,
-                            msg=str(e)[:200],
-                        )
-                        if self._esbuild_fail_closed():
-                            raise EsbuildBundleError(
-                                f"esbuild failed for bundle {bundle!r}: {e}"
-                            ) from e
-                        self._esbuild_circuit_record_failure(
-                            bundle,
-                            reason=type(e).__name__,
-                        )
-                        esbuild_result = EsbuildResult("", None, None)
-        return esbuild_result, child_bundles
+        return allow
+
+    def _get_esbuild_child_externals(
+        self,
+        bundle: str,
+        asset_bundle: AssetsBundle,
+        assets_params: dict[str, Any] | None,
+        child_bundles: list[AssetsBundle],
+        page_scope: tuple[str, ...] = (),
+    ) -> tuple[frozenset[str] | None, dict[str, str]]:
+        parent_specs = {a.module_path for a in asset_bundle.native_modules}
+        child_specs = {
+            asset.module_path
+            for child_ab in child_bundles
+            for asset in child_ab.native_modules
+        } - parent_specs
+        secondary_stubs = self._get_secondary_parent_stubs(
+            bundle, assets_params, page_scope
+        )
+        if not child_specs:
+            return None, secondary_stubs
+
+        aliasable = {
+            spec
+            for spec in child_specs
+            if "/../" not in spec and not spec.startswith("../")
+        }
+        if aliasable:
+            child_stubs = asset_bundle._bridges.build_shim_sources(aliasable)
+            secondary_stubs = {**child_stubs, **secondary_stubs}
+        return frozenset(child_specs - aliasable) or None, secondary_stubs
+
+    def _compile_with_esbuild(
+        self,
+        bundle: str,
+        asset_bundle: AssetsBundle,
+        dynamic_child_specs: frozenset[str] | None,
+        secondary_stubs: dict[str, str],
+    ) -> EsbuildResult:
+        try:
+            result = asset_bundle.esbuild_native_bundle(
+                timeout_s=self._get_esbuild_setting(
+                    "timeout_s", default=EsbuildCompiler._ESBUILD_TIMEOUT_S, cast=int
+                ),
+                target=self._get_esbuild_setting(
+                    "target", default=EsbuildCompiler._ESBUILD_TARGET
+                ),
+                source_maps=self._get_esbuild_setting(
+                    "source_maps", default=EsbuildCompiler._ESBUILD_SOURCE_MAPS
+                ),
+                dynamic_child_specs=dynamic_child_specs,
+                secondary_parent_stubs=secondary_stubs or None,
+            )
+        except Exception as exc:
+            log_event(
+                _fallback_log,
+                logging.WARNING,
+                "esbuild_exception",
+                bundle=bundle,
+                err=type(exc).__name__,
+                msg=str(exc)[:200],
+            )
+            if self._is_esbuild_fail_closed():
+                raise EsbuildBundleError(
+                    f"esbuild failed for bundle {bundle!r}: {exc}"
+                ) from exc
+            self._open_esbuild_circuit(bundle, reason=type(exc).__name__)
+            return EsbuildResult("", None, None)
+        self._close_esbuild_circuit(bundle)
+        return result
+
+    def _compile_with_esbuild_locked(
+        self,
+        bundle: str,
+        asset_bundle: AssetsBundle,
+        assets_params: dict[str, Any] | None,
+        page_scope: tuple[str, ...] = (),
+    ) -> tuple[EsbuildResult, list[AssetsBundle]]:
+        empty = EsbuildResult("", None, None)
+        child_bundles: list[AssetsBundle] = []
+        if not self._can_compile_with_esbuild(bundle):
+            return empty, child_bundles
+
+        with self._get_esbuild_lock_cursor(bundle) as lock_cr:
+            if lock_cr is None:
+                log_event(
+                    _fallback_log, logging.INFO, "lock_unavailable", bundle=bundle
+                )
+                return empty, child_bundles
+            if not self._acquire_esbuild_lock(bundle, cr=lock_cr):
+                log_event(_fallback_log, logging.INFO, "lock_contention", bundle=bundle)
+                return empty, child_bundles
+
+            child_bundles = self._get_dynamic_child_bundles(
+                bundle, assets_params, debug_assets=False
+            )
+            dynamic_child_specs, secondary_stubs = self._get_esbuild_child_externals(
+                bundle, asset_bundle, assets_params, child_bundles, page_scope
+            )
+            result = self._compile_with_esbuild(
+                bundle, asset_bundle, dynamic_child_specs, secondary_stubs
+            )
+        return result, child_bundles
 
     def _get_dynamic_parent_bundles(
         self,
@@ -968,7 +968,8 @@ class IrQweb(models.AbstractModel):
         contributors = dict.fromkeys((bundle,))
         for asset in self.env["ir.asset"]._get_asset_paths(
             bundle=bundle,
-            assets_params=assets_params or self.env["ir.asset"]._get_asset_params(),
+            assets_params=assets_params
+            or self.env["ir.asset"]._prepare_assets_params(),
         ):
             contributors.setdefault(asset.bundle)
         return tuple(contributors)
@@ -1005,26 +1006,6 @@ class IrQweb(models.AbstractModel):
         *,
         map_specifiers: bool = True,
     ) -> tuple[list[AssetsBundle], set[str]]:
-        """Collect the dynamic children's specifiers; optionally map them here.
-
-        Two different questions have to be answered with this set, and only one
-        of them wants the entries on the page:
-
-        - *Which specifiers must NOT be bridged* — always. A bridge resolves
-          ``odoo.loader.modules.get(spec)`` at evaluation time, so bridging a
-          specifier whose owner is a bundle this page has not loaded yields
-          ``undefined`` for every export, permanently: an import-map entry cannot
-          be re-mapped once the document holds it. Bridging a child is therefore
-          never right, whether or not the child is mapped.
-        - *Which specifiers the page must resolve itself* — only where the page
-          has no other way to get them. A dynamic child is fetched through
-          ``/web/bundle``, whose payload carries the child's own import map, and
-          ``assets.loadESMBundle`` injects it before importing anything from it.
-
-        So production collects without mapping (``map_specifiers=False``) and the
-        debug per-file branch, which serves the children inline and has no
-        ``/web/bundle`` round trip to carry their map, still maps them.
-        """
         dynamic_names = esm_registry().dynamic_bundle_names
         dynamic_bundles = []
         child_specifiers: set[str] = set()
@@ -1070,7 +1051,7 @@ class IrQweb(models.AbstractModel):
                 set(include_data["import_map"]),
                 set(self._external_libs()),
             )
-            self._resolve_bridge_specifiers_to_urls(
+            self._add_import_map_bridge_urls(
                 import_map,
                 discovered,
                 drop_unresolved=True,
@@ -1078,31 +1059,80 @@ class IrQweb(models.AbstractModel):
             )
         return include_names
 
-    def _secondary_shared_specs(
+    def _get_esm_page_scope(self, bundle: str) -> tuple[str, ...]:
+        """The JS bundles this page has already rendered, for a secondary bundle.
+
+        A secondary bundle is layered onto a page other bundles have already
+        filled, and every layout renders it last: ``web.assets_web`` then
+        ``web.assets_tests`` on the backend, ``web.assets_frontend_lazy`` +
+        ``web.assets_frontend_minimal`` then the tests on the frontend, and the
+        same shape in ``point_of_sale``, ``documents``, ``project``,
+        ``hr_attendance``, ``sign`` and ``knowledge``.  That order is not a
+        convention but a requirement -- a module script cannot import from one
+        that has not run -- and ``pos_assets_index.xml`` records what breaks when
+        it is violated.
+
+        Empty for every other bundle, and empty outside a request: an asset
+        prebuild, a cron or a test renders a bundle with no page around it, and
+        ``_get_secondary_shared_specs`` falls back to the declared parents there.
+        """
+        if not request or bundle not in esm_registry().secondary_bundle_names:
+            return ()
+        return tuple(getattr(request, "_esm_page_bundles", ()))
+
+    @staticmethod
+    def _record_esm_page_bundle(bundle: str) -> None:
+        if not request:
+            return
+        rendered = tuple(getattr(request, "_esm_page_bundles", ()))
+        if bundle not in rendered:
+            request._esm_page_bundles = (*rendered, bundle)
+
+    def _get_secondary_provider_specs(
         self,
         bundle: str,
         assets_params: dict[str, Any] | None,
-    ) -> frozenset[str]:
-        parents = esm_registry().secondary_parents.get(bundle)
-        if not parents:
-            return frozenset()
-        parent_spec_sets = []
-        for parent in parents:
-            parent_ab = self._get_asset_bundle(
-                parent,
+        page_scope: tuple[str, ...],
+    ) -> set[str]:
+        """What a page carrying ``bundle`` is guaranteed to have registered.
+
+        Two regimes, and the difference is knowledge rather than caution.  With
+        a ``page_scope`` the providers are the bundles this very page rendered,
+        all of them present, so their **union** is what the page provides.
+        Without one the providers are the declared parents -- a set of *different*
+        pages this one artifact may be layered onto -- and only what **all** of
+        them carry can be externalised safely.
+        """
+        providers = page_scope or esm_registry().secondary_parents.get(bundle) or ()
+        spec_sets = []
+        for provider in providers:
+            provider_ab = self._get_asset_bundle(
+                provider,
                 js=True,
                 css=False,
                 debug_assets=False,
                 assets_params=assets_params,
             )
             specs = set(
-                parent_ab.get_native_module_data(with_bridges=False)["import_map"]
+                provider_ab.get_native_module_data(with_bridges=False)["import_map"]
             )
             if specs:
-                parent_spec_sets.append(specs)
-        if not parent_spec_sets:
+                spec_sets.append(specs)
+        if not spec_sets:
+            return set()
+        return (set.union if page_scope else set.intersection)(*spec_sets)
+
+    def _get_secondary_shared_specs(
+        self,
+        bundle: str,
+        assets_params: dict[str, Any] | None,
+        page_scope: tuple[str, ...] = (),
+    ) -> frozenset[str]:
+        if not esm_registry().secondary_parents.get(bundle):
             return frozenset()
-        shared = set.intersection(*parent_spec_sets)
+        shared = self._get_secondary_provider_specs(bundle, assets_params, page_scope)
+        if not shared:
+            return frozenset()
         sec_ab = self._get_asset_bundle(
             bundle,
             js=True,
@@ -1115,14 +1145,51 @@ class IrQweb(models.AbstractModel):
             own_specs,
             set(self._external_libs()),
         )
-        return frozenset(set(discovered) & shared)
+        stubbed = frozenset(set(discovered) & shared)
+        if page_scope:
+            self._warn_on_late_secondary_providers(
+                bundle, assets_params, discovered, stubbed
+            )
+        return stubbed
 
-    def _secondary_parent_stubs(
+    def _warn_on_late_secondary_providers(
         self,
         bundle: str,
         assets_params: dict[str, Any] | None,
+        discovered: Iterable[str],
+        stubbed: frozenset[str],
+    ) -> None:
+        """Report a layout that renders a secondary bundle before its providers.
+
+        The page-scoped set should be a superset of the declaration-scoped one:
+        a page carries at least what every candidate page carries.  When it is
+        not, a bundle this artifact depends on renders *after* it, so those
+        specifiers cannot be externalised and esbuild inlines a second copy --
+        the singleton split ``pos_assets_index.xml`` describes.  Nothing else
+        notices, hence the warning: the page still boots, it just holds two of
+        each affected module.
+        """
+        declared = self._get_secondary_provider_specs(bundle, assets_params, ())
+        late = sorted((set(discovered) & declared) - stubbed)
+        if not late:
+            return
+        log_event(
+            _esm_log,
+            logging.WARNING,
+            "secondary_provider_renders_late",
+            bundle=bundle,
+            page=",".join(self._get_esm_page_scope(bundle)),
+            count=len(late),
+            specs=",".join(late[:5]),
+        )
+
+    def _get_secondary_parent_stubs(
+        self,
+        bundle: str,
+        assets_params: dict[str, Any] | None,
+        page_scope: tuple[str, ...] = (),
     ) -> dict[str, str]:
-        shared = self._secondary_shared_specs(bundle, assets_params)
+        shared = self._get_secondary_shared_specs(bundle, assets_params, page_scope)
         if not shared:
             return {}
         sec_ab = self._get_asset_bundle(
@@ -1154,7 +1221,7 @@ class IrQweb(models.AbstractModel):
             for spec, url in sec_data["import_map"].items():
                 import_map.setdefault(spec, url)
 
-    def _resolve_bridge_specifiers_to_urls(
+    def _add_import_map_bridge_urls(
         self,
         import_map: dict[str, str],
         discovered: Iterable[str],
@@ -1169,9 +1236,7 @@ class IrQweb(models.AbstractModel):
                 ("/web/assets/esm/bridges/", "data:")
             ):
                 continue
-            resolved = self._external_libs().get(spec) or self._specifier_to_static_url(
-                spec
-            )
+            resolved = self._resolve_specifier_url(spec)
             if resolved:
                 import_map[spec] = resolved
                 resolved_map[spec] = resolved
@@ -1186,15 +1251,131 @@ class IrQweb(models.AbstractModel):
                 bundle_name=bundle,
             )
             for spec in sorted(extra):
-                resolved = self._external_libs().get(
-                    spec
-                ) or self._specifier_to_static_url(spec)
+                resolved = self._resolve_specifier_url(spec)
                 if resolved:
                     import_map[spec] = resolved
                     resolved_map[spec] = resolved
         return resolved_map
 
-    def _esm_prod_nodes(
+    def _prepare_esm_script_node(
+        self,
+        name: str,
+        code: str,
+        attrs: dict[str, str],
+        *,
+        raise_on_decline: bool,
+        metafile: str | None = None,
+        sourcemap: str | None = None,
+    ) -> AssetNode:
+        url = None
+        try:
+            url = self._save_esm_attachment(
+                name, code, metafile=metafile, sourcemap=sourcemap
+            )
+        except ReadOnlySqlTransaction:
+            log_event(
+                _attach_log,
+                logging.WARNING,
+                "save_failed_inline",
+                bundle=name,
+                readonly=bool(self.env.cr.readonly),
+                declined=raise_on_decline,
+            )
+            if raise_on_decline:
+                raise _EsmFallbackError from None
+        node: dict[str, str] = {"type": "module"}
+        node["src" if url else "text"] = url or code
+        node.update(attrs)
+        return ("script", node)
+
+    def _log_esm_render(
+        self,
+        bundle: str,
+        branch: str,
+        pre: list[AssetNode],
+        post: list[AssetNode],
+        import_map: dict[str, str],
+        **extra: Any,
+    ) -> None:
+        real_urls, bridges, data_uris = self._get_import_map_url_counts(import_map)
+        log_event(
+            _esm_log,
+            logging.DEBUG,
+            "render",
+            bundle=bundle,
+            branch=branch,
+            pre=len(pre),
+            post=len(post),
+            importmap=len(import_map),
+            url=real_urls,
+            bridges=bridges,
+            data=data_uris,
+            **extra,
+        )
+
+    def _get_esm_import_map_prod(
+        self,
+        bundle: str,
+        asset_bundle: AssetsBundle,
+        assets_params: dict[str, Any] | None,
+        child_bundles: list[AssetsBundle] | None,
+        *,
+        with_test_satellites: bool,
+    ) -> tuple[dict[str, str], list[AssetsBundle], tuple[str, ...]]:
+        import_map = dict(self._external_libs())
+        if child_bundles is None:
+            child_bundles = self._get_dynamic_child_bundles(
+                bundle, assets_params, debug_assets=False
+            )
+        dynamic_bundles, child_specifiers = self._merge_child_import_maps(
+            import_map, child_bundles, map_specifiers=False
+        )
+
+        if dynamic_bundles:
+            combined_modules = []
+            for dyn_ab in dynamic_bundles:
+                combined_modules.extend(dyn_ab.native_modules)
+            bridge_map = dynamic_bundles[0]._bridges._build_native_to_legacy_bridge(
+                set(import_map) | child_specifiers,
+                modules=combined_modules,
+            )
+            import_map.update(bridge_map)
+
+        include_names = self._merge_include_import_maps(
+            bundle,
+            import_map,
+            assets_params,
+            debug_assets=False,
+            resolve_bridges=False,
+        )
+
+        if with_test_satellites:
+            self._merge_secondary_import_maps(
+                bundle, import_map, assets_params, debug_assets=False
+            )
+
+        if include_names:
+            self._add_import_map_parent_self_bridges(asset_bundle, import_map)
+        return import_map, dynamic_bundles, include_names
+
+    @staticmethod
+    def _add_import_map_parent_self_bridges(
+        asset_bundle: AssetsBundle, import_map: dict[str, str]
+    ) -> None:
+        self_bridges = asset_bundle._bridges._build_parent_self_bridge()
+        import_map.update(self_bridges)
+        for asset in asset_bundle.native_modules:
+            header = asset.parsed_header
+            if not (header and header["alias"]):
+                continue
+            alias = header["alias"]
+            if import_map.get(alias, "").startswith("/web/assets/esm/bridges/"):
+                continue
+            shim = self_bridges.get(asset.module_path)
+            if shim:
+                import_map[alias] = shim
+
+    def _get_esm_nodes_prod(
         self,
         bundle: str,
         asset_bundle: AssetsBundle,
@@ -1208,60 +1389,13 @@ class IrQweb(models.AbstractModel):
         esbuild_code = esbuild_result.code
         pre = []
         post = []
-        prod_import_map = dict(self._external_libs())
-
-        if child_bundles is None:
-            child_bundles = self._get_dynamic_child_bundles(
-                bundle, assets_params, debug_assets=False
-            )
-        dynamic_bundles, child_specifiers = self._merge_child_import_maps(
-            prod_import_map, child_bundles, map_specifiers=False
-        )
-
-        if dynamic_bundles:
-            combined_modules = []
-            for dyn_ab in dynamic_bundles:
-                combined_modules.extend(dyn_ab.native_modules)
-            bridge_map = dynamic_bundles[0]._bridges._build_native_to_legacy_bridge(
-                # `child_specifiers` are excluded from bridging without being
-                # mapped: see `_merge_child_import_maps`. The child brings its own
-                # map through `/web/bundle`; a bridge here would claim the
-                # specifier first and resolve to `undefined` forever.
-                set(prod_import_map) | child_specifiers,
-                modules=combined_modules,
-            )
-            prod_import_map.update(bridge_map)
-
-        include_names = self._merge_include_import_maps(
+        prod_import_map, dynamic_bundles, include_names = self._get_esm_import_map_prod(
             bundle,
-            prod_import_map,
+            asset_bundle,
             assets_params,
-            debug_assets=False,
-            resolve_bridges=False,
+            child_bundles,
+            with_test_satellites=with_test_satellites,
         )
-
-        if with_test_satellites:
-            self._merge_secondary_import_maps(
-                bundle,
-                prod_import_map,
-                assets_params,
-                debug_assets=False,
-            )
-
-        if include_names:
-            self_bridges = asset_bundle._bridges._build_parent_self_bridge()
-            prod_import_map.update(self_bridges)
-            for asset in asset_bundle.native_modules:
-                header = asset.parsed_header
-                if not (header and header["alias"]):
-                    continue
-                alias = header["alias"]
-                current = prod_import_map.get(alias, "")
-                if current.startswith("/web/assets/esm/bridges/"):
-                    continue
-                shim = self_bridges.get(asset.module_path)
-                if shim:
-                    prod_import_map[alias] = shim
 
         pre.append(
             (
@@ -1275,137 +1409,77 @@ class IrQweb(models.AbstractModel):
                 },
             )
         )
-        shim_js = self._build_loader_shim_js()
+        shim_js = self._prepare_loader_shim_js()
         pre.append(("script", {"text": shim_js}))
         esm_tpl = asset_bundle.generate_esm_template_bundle(
             use_import=False,
         )
         bundle_code = self._combine_bundle_with_templates(esbuild_code, esm_tpl)
-        esm_url = None
-        try:
-            esm_url = self._save_esm_attachment(
+        post.append(
+            self._prepare_esm_script_node(
                 bundle,
                 bundle_code,
+                {"data-bridge": bundle},
+                raise_on_decline=raise_on_decline,
                 metafile=esbuild_result.metafile,
                 sourcemap=esbuild_result.sourcemap,
             )
-        except ReadOnlySqlTransaction:
-            log_event(
-                _attach_log,
-                logging.WARNING,
-                "save_failed_inline",
-                bundle=bundle,
-                readonly=bool(self.env.cr.readonly),
-                declined=raise_on_decline,
-            )
-            if raise_on_decline:
-                raise _EsmFallbackError from None
-        if esm_url:
-            post.append(
-                (
-                    "script",
-                    {
-                        "type": "module",
-                        "src": esm_url,
-                        "data-bridge": bundle,
-                    },
-                )
-            )
-        else:
-            post.append(
-                (
-                    "script",
-                    {
-                        "type": "module",
-                        "text": bundle_code,
-                        "data-bridge": bundle,
-                    },
-                )
-            )
+        )
         _has_satellites = bool(
             esm_registry().import_map_includes.get(bundle),
         )
         if esm_tpl and _has_satellites:
-            tpl_url = None
-            try:
-                tpl_url = self._save_esm_attachment(
+            post.append(
+                self._prepare_esm_script_node(
                     f"{bundle}.templates",
                     esm_tpl,
+                    {"data-templates": bundle},
+                    raise_on_decline=raise_on_decline,
                 )
-            except ReadOnlySqlTransaction:
-                log_event(
-                    _attach_log,
-                    logging.WARNING,
-                    "save_failed_inline",
-                    bundle=f"{bundle}.templates",
-                    readonly=bool(self.env.cr.readonly),
-                    declined=raise_on_decline,
-                )
-                if raise_on_decline:
-                    raise _EsmFallbackError from None
-            if tpl_url:
-                post.append(
-                    (
-                        "script",
-                        {
-                            "type": "module",
-                            "src": tpl_url,
-                            "data-templates": bundle,
-                        },
-                    )
-                )
-            else:
-                post.append(
-                    (
-                        "script",
-                        {
-                            "type": "module",
-                            "text": esm_tpl,
-                            "data-templates": bundle,
-                        },
-                    )
-                )
-        _n_real_url, _n_bridges, _n_data_uri = self._import_map_url_breakdown(
-            prod_import_map
-        )
-        log_event(
-            _esm_log,
-            logging.DEBUG,
-            "render",
-            bundle=bundle,
-            branch="prod",
-            pre=len(pre),
-            post=len(post),
-            importmap=len(prod_import_map),
-            url=_n_real_url,
-            bridges=_n_bridges,
-            data=_n_data_uri,
+            )
+        self._log_esm_render(
+            bundle,
+            "prod",
+            pre,
+            post,
+            prod_import_map,
             dyn=len(dynamic_bundles),
             includes=len(include_names) if include_names else 0,
         )
         return pre, post
 
-    def _esm_debug_nodes(
+    def _get_esm_preload_links(
+        self, bundle: str, native_data: dict[str, Any]
+    ) -> list[AssetNode]:
+        hoot_owned = set(self._get_hoot_specifiers(bundle, native_data["import_map"]))
+        reachable_without_hoot = {
+            url
+            for spec, url in native_data["import_map"].items()
+            if spec not in hoot_owned
+        }
+        return [
+            ("link", {"rel": "modulepreload", "href": url})
+            for url in native_data["preload_urls"]
+            if url in reachable_without_hoot
+        ]
+
+    def _get_esm_import_map_debug(
         self,
         bundle: str,
         asset_bundle: AssetsBundle,
         native_data: dict[str, Any],
-        debug_assets: bool,
         assets_params: dict[str, Any] | None,
         *,
-        with_test_satellites: bool = False,
-    ) -> EsmNodePair:
-        pre_nodes = []
-        post_nodes = []
+        debug_assets: bool,
+        with_test_satellites: bool,
+    ) -> tuple[dict[str, str], dict[str, str]]:
         import_map = dict(self._external_libs())
-
         import_map.update(native_data["import_map"])
 
         lazy_bundles = self._get_dynamic_child_bundles(
             bundle, assets_params, debug_assets=True
         )
         self._merge_child_import_maps(import_map, lazy_bundles)
-
         self._merge_include_import_maps(
             bundle,
             import_map,
@@ -1413,13 +1487,9 @@ class IrQweb(models.AbstractModel):
             debug_assets=debug_assets,
             resolve_bridges=True,
         )
-
         if with_test_satellites:
             self._merge_secondary_import_maps(
-                bundle,
-                import_map,
-                assets_params,
-                debug_assets=debug_assets,
+                bundle, import_map, assets_params, debug_assets=debug_assets
             )
 
         all_native_specifiers = set(native_data["import_map"])
@@ -1433,11 +1503,135 @@ class IrQweb(models.AbstractModel):
             set(self._external_libs()),
             modules=combined_native_modules,
         )
-        resolved_bridges = self._resolve_bridge_specifiers_to_urls(
-            import_map,
-            discovered,
-            drop_unresolved=False,
-            bundle=bundle,
+        resolved_bridges = self._add_import_map_bridge_urls(
+            import_map, discovered, drop_unresolved=False, bundle=bundle
+        )
+        return import_map, resolved_bridges
+
+    @staticmethod
+    def _prepare_register_native_modules_js(
+        entries: list[tuple[str, str]], var_prefix: str
+    ) -> str:
+        import_lines = []
+        register_entries = []
+        for index, (specifier, source) in enumerate(entries):
+            var = f"{var_prefix}{index}"
+            import_lines.append(f"import * as {var} from {json_mod.dumps(source)};")
+            register_entries.append(f"  {json_mod.dumps(specifier)}: {var}")
+        return (
+            "\n".join(import_lines)
+            + "\nodoo.loader.registerNativeModules({\n"
+            + ",\n".join(register_entries)
+            + "\n});\n"
+        )
+
+    @staticmethod
+    def _resolve_esm_satellite_kind(bundle: str) -> str | None:
+        registry = esm_registry()
+        if bundle in registry.import_map_included_bundles:
+            return "import_map_include"
+        if bundle in registry.secondary_bundle_names:
+            return "secondary"
+        return None
+
+    def _prepare_esm_bridge_js(
+        self,
+        bundle: str,
+        native_data: dict[str, Any],
+        bridge_specifiers: list[str],
+        *,
+        already_has_esm: bool,
+    ) -> str:
+        hoot_specs = self._get_hoot_specifiers(bundle, bridge_specifiers)
+        hoot_spec_set = set(hoot_specs)
+        non_hoot_specs = [s for s in bridge_specifiers if s not in hoot_spec_set]
+        bridge_code = ""
+
+        if not already_has_esm:
+            bridge_code = self._prepare_register_native_modules_js(
+                [(spec, spec) for spec in non_hoot_specs], "__m"
+            )
+        elif satellite := self._resolve_esm_satellite_kind(bundle):
+            if non_hoot_specs:
+                imports = ", ".join(
+                    f"import({json_mod.dumps(s)})" for s in non_hoot_specs
+                )
+                bridge_code += f"await Promise.allSettled([{imports}]);\n"
+                log_event(
+                    _esm_log,
+                    logging.DEBUG,
+                    "satellite_imports",
+                    bundle=bundle,
+                    kind=satellite,
+                    specs=len(non_hoot_specs),
+                )
+        else:
+            own = [
+                (spec, native_data["import_map"][spec])
+                for spec in non_hoot_specs
+                if spec in native_data["import_map"]
+            ]
+            if own:
+                bridge_code += self._prepare_register_native_modules_js(own, "__s")
+
+        start_hoot = [s for s in hoot_specs if s.endswith("/start.hoot")]
+        other_tests = [s for s in hoot_specs if s not in start_hoot]
+        if start_hoot and other_tests:
+            specifier_list = ",\n".join(f"  {json_mod.dumps(s)}" for s in other_tests)
+            bridge_code += (
+                f"const {{loadAndStart}} = await import("
+                f"{json_mod.dumps(start_hoot[0])});\n"
+                f"loadAndStart([\n{specifier_list}\n]);\n"
+            )
+        return bridge_code
+
+    @staticmethod
+    def _bridge_external_specifiers(native_data: dict[str, Any]) -> set[str]:
+        """External-lib specifiers the per-file bridge may eagerly import.
+
+        ``_prepare_esm_bridge_js`` turns every specifier it is handed into a
+        static ``import * as __mN from "<spec>"``, so this set decides what the
+        page *evaluates*, not merely what it can resolve -- resolution is
+        already covered, ``_get_esm_import_map_debug`` seeds the import map with
+        the full ``_external_libs()`` table.
+
+        The rule is the one the esbuild entry follows (``_esbuild_entry_lines``):
+        ``@odoo/owl`` unconditionally, and an alias only when the bundle carries
+        the file it aliases.  Handing over the whole external table instead --
+        which is what this did until the ``web_tour`` sanity tours caught it --
+        evaluates the entire HOOT test framework, plus pdfjs, chart.js and
+        fullcalendar, on any page rendered through this branch.  That branch is
+        not just ``debug=assets``: an esbuild lock held by another worker falls
+        back to it (``odoo.assets.fallback: event=lock_unavailable``), so a
+        production frontend page picked up ``@odoo/hoot-dom`` at random, and
+        ``odoo.loader.modules`` held entries the esbuild path never puts there.
+        """
+        own_specifiers = set(native_data["import_map"])
+        return {"@odoo/owl"} | {
+            alias
+            for alias, aliased in EXTERNAL_LIB_ALIASES.items()
+            if aliased in own_specifiers
+        }
+
+    def _get_esm_nodes_debug(
+        self,
+        bundle: str,
+        asset_bundle: AssetsBundle,
+        native_data: dict[str, Any],
+        debug_assets: bool,
+        assets_params: dict[str, Any] | None,
+        *,
+        with_test_satellites: bool = False,
+    ) -> EsmNodePair:
+        pre_nodes = []
+        post_nodes = []
+        import_map, resolved_bridges = self._get_esm_import_map_debug(
+            bundle,
+            asset_bundle,
+            native_data,
+            assets_params,
+            debug_assets=debug_assets,
+            with_test_satellites=with_test_satellites,
         )
 
         _req = request or None
@@ -1460,128 +1654,38 @@ class IrQweb(models.AbstractModel):
             )
 
         if not debug_assets:
-            hoot_owned = set(self._hoot_specifiers(bundle, native_data["import_map"]))
-            reachable_without_hoot = {
-                url
-                for spec, url in native_data["import_map"].items()
-                if spec not in hoot_owned
-            }
-            pre_nodes.extend(
-                ("link", {"rel": "modulepreload", "href": url})
-                for url in native_data["preload_urls"]
-                if url in reachable_without_hoot
-            )
+            pre_nodes.extend(self._get_esm_preload_links(bundle, native_data))
 
         bridge_specifiers = sorted(
-            set(native_data["import_map"]) | set(self._external_libs())
+            set(native_data["import_map"])
+            | self._bridge_external_specifiers(native_data)
         )
         if bridge_specifiers and not _already_has_esm:
-            shim_js = self._build_loader_shim_js()
+            shim_js = self._prepare_loader_shim_js()
             pre_nodes.append(("script", {"text": shim_js}))
 
         if bridge_specifiers:
-            bridge_code = ""
-
-            hoot_specs = self._hoot_specifiers(bundle, bridge_specifiers)
-            non_hoot_specs = [s for s in bridge_specifiers if s not in set(hoot_specs)]
-
-            if not _already_has_esm:
-                import_lines = []
-                register_entries = []
-                for i, specifier in enumerate(non_hoot_specs):
-                    var = f"__m{i}"
-                    import_lines.append(
-                        f"import * as {var} from {json_mod.dumps(specifier)};"
-                    )
-                    register_entries.append(f"  {json_mod.dumps(specifier)}: {var}")
-                bridge_code = "\n".join(import_lines) + "\n"
-                bridge_code += "odoo.loader.registerNativeModules({\n"
-                bridge_code += ",\n".join(register_entries)
-                bridge_code += "\n});\n"
-            elif bundle in esm_registry().import_map_included_bundles:  # noqa: SIM114  two distinct bundle-name matches that happen to need identical handling; merging the conditions would hide which case fired
-                if non_hoot_specs:
-                    imports = ", ".join(
-                        f"import({json_mod.dumps(s)})" for s in non_hoot_specs
-                    )
-                    bridge_code += f"await Promise.allSettled([{imports}]);\n"
-            elif bundle in esm_registry().secondary_bundle_names:
-                if non_hoot_specs:
-                    imports = ", ".join(
-                        f"import({json_mod.dumps(s)})" for s in non_hoot_specs
-                    )
-                    bridge_code += f"await Promise.allSettled([{imports}]);\n"
-            else:
-                own_specs = [
-                    s for s in non_hoot_specs if s in native_data["import_map"]
-                ]
-                if own_specs:
-                    import_lines = []
-                    register_entries = []
-                    for i, specifier in enumerate(own_specs):
-                        var = f"__s{i}"
-                        url = native_data["import_map"][specifier]
-                        import_lines.append(
-                            f"import * as {var} from {json_mod.dumps(url)};"
-                        )
-                        register_entries.append(f"  {json_mod.dumps(specifier)}: {var}")
-                    bridge_code += "\n".join(import_lines) + "\n"
-                    bridge_code += "odoo.loader.registerNativeModules({\n"
-                    bridge_code += ",\n".join(register_entries)
-                    bridge_code += "\n});\n"
-
-            start_hoot = [s for s in hoot_specs if s.endswith("/start.hoot")]
-            other_tests = [s for s in hoot_specs if s not in start_hoot]
-            if start_hoot and other_tests:
-                specifier_list = ",\n".join(
-                    f"  {json_mod.dumps(s)}" for s in other_tests
-                )
-                bridge_code += (
-                    f"const {{loadAndStart}} = await import({json_mod.dumps(start_hoot[0])});\n"
-                    f"loadAndStart([\n{specifier_list}\n]);\n"
-                )
-
+            bridge_code = self._prepare_esm_bridge_js(
+                bundle,
+                native_data,
+                bridge_specifiers,
+                already_has_esm=bool(_already_has_esm),
+            )
             if bridge_code.strip():
                 post_nodes.append(
-                    (
-                        "script",
-                        {
-                            "type": "module",
-                            "data-bridge": bundle,
-                            "text": bridge_code,
-                        },
-                    )
+                    _inline_module_node("data-bridge", bundle, bridge_code)
                 )
 
-        esm_tpl = asset_bundle.generate_esm_template_bundle(
-            use_import=True,
-        )
+        esm_tpl = asset_bundle.generate_esm_template_bundle(use_import=True)
         if esm_tpl:
-            post_nodes.append(
-                (
-                    "script",
-                    {
-                        "type": "module",
-                        "data-templates": bundle,
-                        "text": esm_tpl,
-                    },
-                )
-            )
+            post_nodes.append(_inline_module_node("data-templates", bundle, esm_tpl))
 
-        _n_real_url, _n_bridges, _n_data_uri = self._import_map_url_breakdown(
-            import_map
-        )
-        log_event(
-            _esm_log,
-            logging.DEBUG,
-            "render",
-            bundle=bundle,
-            branch="debug",
-            pre=len(pre_nodes),
-            post=len(post_nodes),
-            importmap=len(import_map),
-            url=_n_real_url,
-            bridges=_n_bridges,
-            data=_n_data_uri,
+        self._log_esm_render(
+            bundle,
+            "debug",
+            pre_nodes,
+            post_nodes,
+            import_map,
             bridge_shims=len(resolved_bridges),
             already_has_esm=bool(_already_has_esm),
         )
@@ -1612,14 +1716,14 @@ class IrQweb(models.AbstractModel):
                 url=url,
                 bytes=len(content_bytes),
             )
-            self._persist_esm_attachment_rows(
+            self._save_esm_attachment_rows(
                 [],
                 touch_ids=existing.ids,
                 bundle=bundle,
             )
             return url
 
-        self._persist_esm_attachment_rows(
+        self._save_esm_attachment_rows(
             [
                 {
                     "name": f"{bundle}.esm.js",
@@ -1634,22 +1738,39 @@ class IrQweb(models.AbstractModel):
             ],
             bundle=bundle,
         )
-        stale_count = IrAttachment.sudo().search_count(
-            [
-                "|",
-                "|",
-                "|",
-                "|",
-                "|",
-                ("url", "=like", f"/web/assets/esm/%/{bundle}.esm.js"),
-                ("url", "=like", f"/web/assets/%/{bundle}.esm.js"),
-                ("url", "=like", f"/web/assets/esm/%/{bundle}.esm.js.map"),
-                ("url", "=like", f"/web/assets/esm/%/{bundle}.meta.json"),
-                ("url", "=like", f"/web/assets/%/{bundle}.esm.js.map"),
-                ("url", "=like", f"/web/assets/%/{bundle}.meta.json"),
-                ("url", "!=", url),
-                ("public", "=", True),
-            ]
+        self._log_esm_artifacts_superseded(bundle, url)
+        log_event(
+            _attach_log,
+            logging.INFO,
+            "save",
+            bundle=bundle,
+            url=url,
+            bytes=len(content_bytes),
+        )
+        self._save_esm_sidecars(bundle, url, metafile, sourcemap)
+        return url
+
+    def _log_esm_artifacts_superseded(self, bundle: str, keep_url: str) -> None:
+        stale_count = (
+            self.env["ir.attachment"]
+            .sudo()
+            .search_count(
+                [
+                    "|",
+                    "|",
+                    "|",
+                    "|",
+                    "|",
+                    ("url", "=like", f"/web/assets/esm/%/{bundle}.esm.js"),
+                    ("url", "=like", f"/web/assets/%/{bundle}.esm.js"),
+                    ("url", "=like", f"/web/assets/esm/%/{bundle}.esm.js.map"),
+                    ("url", "=like", f"/web/assets/esm/%/{bundle}.meta.json"),
+                    ("url", "=like", f"/web/assets/%/{bundle}.esm.js.map"),
+                    ("url", "=like", f"/web/assets/%/{bundle}.meta.json"),
+                    ("url", "!=", keep_url),
+                    ("public", "=", True),
+                ]
+            )
         )
         if stale_count:
             log_event(
@@ -1659,32 +1780,28 @@ class IrQweb(models.AbstractModel):
                 bundle=bundle,
                 count=stale_count,
             )
-        log_event(
-            _attach_log,
-            logging.INFO,
-            "save",
-            bundle=bundle,
-            url=url,
-            bytes=len(content_bytes),
-        )
 
-        if metafile and url.endswith(".esm.js"):
-            meta_url = url[: -len(".esm.js")] + ".meta.json"
+    def _save_esm_sidecars(
+        self,
+        bundle: str,
+        url: str,
+        metafile: str | None,
+        sourcemap: str | None,
+    ) -> None:
+        if metafile:
             self._save_esm_sidecar(
                 bundle,
-                meta_url,
+                url.removesuffix(".esm.js") + ".meta.json",
                 metafile.encode("utf-8"),
                 mimetype="application/json",
             )
-        if sourcemap and url.endswith(".esm.js"):
-            sm_url = url + ".map"
+        if sourcemap:
             self._save_esm_sidecar(
                 bundle,
-                sm_url,
+                url + ".map",
                 sourcemap.encode("utf-8"),
                 mimetype="application/json",
             )
-        return url
 
     def _save_esm_sidecar(
         self,
@@ -1709,13 +1826,13 @@ class IrQweb(models.AbstractModel):
                 bundle=bundle,
                 url=url,
             )
-            self._persist_esm_attachment_rows(
+            self._save_esm_attachment_rows(
                 [],
                 touch_ids=existing.ids,
                 bundle=bundle,
             )
             return
-        self._persist_esm_attachment_rows(
+        self._save_esm_attachment_rows(
             [
                 {
                     "name": url.rsplit("/", 1)[-1],
@@ -1739,7 +1856,7 @@ class IrQweb(models.AbstractModel):
             bytes=len(content),
         )
 
-    def _persist_esm_attachment_rows(
+    def _save_esm_attachment_rows(
         self,
         vals_list: list[dict],
         touch_ids: Sequence[int] = (),

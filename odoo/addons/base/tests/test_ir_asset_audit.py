@@ -12,27 +12,27 @@ from odoo.modules import Manifest
 from odoo.tests.common import TransactionCase, tagged
 
 from odoo.addons.base.models.ir_asset import Resolution
-from odoo.addons.base.models.ir_asset_paths import _glob_static_file
+from odoo.addons.base.models.ir_asset_paths import _get_static_files
 
 
 @tagged("post_install", "-at_install")
 class TestGetPathsEscapeWarning(TransactionCase):
     def test_escape_outside_static_warns(self):
         IrAsset = self.env["ir.asset"]
-        installed = Resolution(active=IrAsset._get_installed_addons_list())
+        installed = Resolution(active=IrAsset._get_addons_installed())
         escaping = "/base/static/../../../../etc/passwd"
         with self.assertLogs("odoo.addons.base.models", level="WARNING") as cm:
-            result = IrAsset._get_paths(escaping, installed)
+            result = IrAsset._resolve_paths(escaping, installed)
         joined = "\n".join(cm.output)
         self.assertIn("resolves outside the static/", joined)
         self.assertEqual(result, ((escaping, None, None),))
 
     def test_missing_literal_inside_static_warns_typo(self):
         IrAsset = self.env["ir.asset"]
-        installed = Resolution(active=IrAsset._get_installed_addons_list())
+        installed = Resolution(active=IrAsset._get_addons_installed())
         inside = "/base/static/src/scss/__does_not_exist__.scss"
         with self.assertLogs("odoo.addons.base.models", level="WARNING") as cm:
-            result = IrAsset._get_paths(inside, installed)
+            result = IrAsset._resolve_paths(inside, installed)
         joined = "\n".join(cm.output)
         self.assertIn("matches no bundleable file in the static/", joined)
         self.assertNotIn("resolves outside the static/", joined)
@@ -40,10 +40,10 @@ class TestGetPathsEscapeWarning(TransactionCase):
 
     def test_existing_literal_inside_static_does_not_warn(self):
         IrAsset = self.env["ir.asset"]
-        installed = Resolution(active=IrAsset._get_installed_addons_list())
+        installed = Resolution(active=IrAsset._get_addons_installed())
         inside = "/base/static/src/scss/res_users.scss"
         with self.assertNoLogs("odoo.addons.base.models", level="WARNING"):
-            result = IrAsset._get_paths(inside, installed)
+            result = IrAsset._resolve_paths(inside, installed)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0][0], inside)
         self.assertIsNotNone(result[0][1])
@@ -55,8 +55,8 @@ class TestAttachmentBackedPath(TransactionCase):
 
     def _resolve(self, path_def):
         IrAsset = self.env["ir.asset"]
-        resolution = Resolution(active=IrAsset._get_installed_addons_list())
-        return IrAsset._get_paths(path_def, resolution)
+        resolution = Resolution(active=IrAsset._get_addons_installed())
+        return IrAsset._resolve_paths(path_def, resolution)
 
     def _attach(self, url):
         return self.env["ir.attachment"].create(
@@ -142,24 +142,24 @@ class TestResolvedPathsAreShared(TransactionCase):
 class TestProcessCommandMalformed(TransactionCase):
     def test_int_command_raises_valueerror_naming_command(self):
         with self.assertRaises(ValueError) as cm:
-            self.env["ir.asset"]._process_command(123)
+            self.env["ir.asset"]._parse_manifest_command(123)
         self.assertIn("123", str(cm.exception))
 
     def test_dict_command_raises_valueerror_naming_command(self):
         with self.assertRaises(ValueError) as cm:
-            self.env["ir.asset"]._process_command({"path": "x"})
+            self.env["ir.asset"]._parse_manifest_command({"path": "x"})
         self.assertIn("path", str(cm.exception))
 
     def test_wrong_arity_raises_valueerror_naming_command(self):
         with self.assertRaises(ValueError) as cm:
-            self.env["ir.asset"]._process_command(["after", "only_two"])
+            self.env["ir.asset"]._parse_manifest_command(["after", "only_two"])
         self.assertIn("only_two", str(cm.exception))
 
     def test_a_non_string_member_is_rejected_here_not_two_frames_down(self):
         IrAsset = self.env["ir.asset"]
         for command in (["append", 123], ["append", ["a", "b"]], ["after", 7, "/x.js"]):
             with self.subTest(command=command), self.assertRaises(ValueError) as cm:
-                IrAsset._process_command(command)
+                IrAsset._parse_manifest_command(command)
             self.assertIn("non-string", str(cm.exception))
 
     def test_a_non_string_path_is_attributed_to_its_addon(self):
@@ -184,7 +184,7 @@ class TestTopologicalSort(TransactionCase):
         with patch.object(
             Manifest, "for_addon", lambda name, **kw: manifests.get(name)
         ):
-            return IrAsset._topological_sort(tuple(addons))
+            return IrAsset._get_addons_sorted_topologically(tuple(addons))
 
     def test_dependency_precedes_dependents(self):
         manifests = {
@@ -221,11 +221,11 @@ class TestAssetPathsCacheCanonical(TransactionCase):
         with (
             patch.object(
                 cls,
-                "_get_active_addons_list",
+                "_get_addons_active",
                 lambda _self, **k: ["web", "base", "mail"],
             ),
             patch.object(
-                cls, "_get_related_assets", lambda _self, domain, **k: IrAsset.browse()
+                cls, "_get_assets", lambda _self, domain, **k: IrAsset.browse()
             ),
             patch.object(cls, "_get_manifest_assets", spy_index),
         ):
@@ -242,7 +242,7 @@ class TestAssetPathsCacheCanonical(TransactionCase):
             captured.append(addons_tuple)
             return ()
 
-        with patch.object(type(IrAsset), "_topological_sort", spy_topo):
+        with patch.object(type(IrAsset), "_get_addons_sorted_topologically", spy_topo):
             IrAsset._get_manifest_assets.__wrapped__(IrAsset, ("base", "mail", "web"))
 
         self.assertEqual(captured, [("base", "mail", "web")])
@@ -262,7 +262,9 @@ class TestManifestAssetsIndex(TransactionCase):
 
         with (
             patch.object(
-                type(IrAsset), "_topological_sort", lambda _s, addons: ("alpha", "beta")
+                type(IrAsset),
+                "_get_addons_sorted_topologically",
+                lambda _s, addons: ("alpha", "beta"),
             ),
             patch.object(
                 Manifest,
@@ -286,12 +288,12 @@ class TestManifestAssetsIndex(TransactionCase):
         IrAsset = self.env["ir.asset"]
         for command in (123, None, {"path": "x"}, ["include"], ["include", "a", "b"]):
             with self.subTest(command=command):
-                closure = IrAsset._included_bundles(
+                closure = IrAsset._get_bundles_in_include_closure(
                     "probe.bundle", {"probe.bundle": (("an_addon", command),)}
                 )
                 self.assertEqual(closure, {"probe.bundle"})
         self.assertEqual(
-            IrAsset._included_bundles(
+            IrAsset._get_bundles_in_include_closure(
                 "probe.bundle",
                 {"probe.bundle": (("an_addon", ["include", "other.bundle"]),)},
             ),
@@ -302,7 +304,9 @@ class TestManifestAssetsIndex(TransactionCase):
         IrAsset = self.env["ir.asset"]
         with (
             patch.object(
-                type(IrAsset), "_topological_sort", lambda _s, addons: ("ghost",)
+                type(IrAsset),
+                "_get_addons_sorted_topologically",
+                lambda _s, addons: ("ghost",),
             ),
             patch.object(Manifest, "for_addon", staticmethod(lambda name, **k: None)),
         ):
@@ -322,12 +326,10 @@ class TestManifestAssetsIndex(TransactionCase):
             ),
             patch.object(
                 type(IrAsset),
-                "_get_paths",
+                "_resolve_paths",
                 lambda _s, path_def, resolution: [(path_def, "/full" + path_def, 1)],
             ),
-            patch.object(
-                type(IrAsset), "_get_related_assets", lambda _s, domain, **k: IrAsset
-            ),
+            patch.object(type(IrAsset), "_get_assets", lambda _s, domain, **k: IrAsset),
         ):
             with self.assertRaises(ValueError) as cm:
                 IrAsset._get_asset_paths.__wrapped__(IrAsset, "probe.bundle", {})
@@ -343,8 +345,10 @@ class TestCachedResultsAreImmutable(TransactionCase):
     def test_cached_accessors_return_immutable_collections(self):
         IrAsset = self.env["ir.asset"]
         self.assertIsInstance(IrAsset._get_asset_paths("web.assets_backend", {}), tuple)
-        self.assertIsInstance(IrAsset._get_installed_addons_list(), frozenset)
-        self.assertIsInstance(IrAsset._topological_sort(("base",)), tuple)
+        self.assertIsInstance(IrAsset._get_addons_installed(), frozenset)
+        self.assertIsInstance(
+            IrAsset._get_addons_sorted_topologically(("base",)), tuple
+        )
 
     def test_the_manifest_index_is_read_only(self):
         IrAsset = self.env["ir.asset"]
@@ -389,7 +393,7 @@ class TestAssetsCacheInvalidatedAtCommit(TransactionCase):
         self.env.cr.postcommit.clear()
         self._make_asset()
         self.assertTrue(
-            self.env.cr.postcommit.data.get("ir_asset_cache_cleared"),
+            self.env.cr.postcommit.data.get("ir_asset_cache_invalidated"),
             "a post-commit clear must be queued",
         )
         self.assertEqual(len(self.env.cr.postcommit), 1)
@@ -476,7 +480,7 @@ class TestDirectiveAttribution(TransactionCase):
 
     def _resolve(self):
         IrAsset = self.env["ir.asset"]
-        with patch.object(type(IrAsset), "_get_paths", _fake_get_paths):
+        with patch.object(type(IrAsset), "_resolve_paths", _fake_get_paths):
             IrAsset._get_asset_paths.__wrapped__(IrAsset, self.BUNDLE, {})
 
     def test_a_broken_record_names_itself(self):
@@ -528,13 +532,13 @@ class TestBundleAssetsFetch(TransactionCase):
     def _spy(self):
         IrAsset = self.env["ir.asset"]
         calls = []
-        original = type(IrAsset)._get_related_assets
+        original = type(IrAsset)._get_assets
 
         def spy(inner_self, domain, **params):
             calls.append(domain)
             return original(inner_self, domain, **params)
 
-        return calls, patch.object(type(IrAsset), "_get_related_assets", spy)
+        return calls, patch.object(type(IrAsset), "_get_assets", spy)
 
     def test_a_manifest_include_chain_costs_one_fetch(self):
         IrAsset = self.env["ir.asset"]
@@ -550,7 +554,7 @@ class TestBundleAssetsFetch(TransactionCase):
                 "_get_manifest_assets",
                 lambda _s, addons: manifest_assets,
             ),
-            patch.object(type(IrAsset), "_get_paths", _fake_get_paths),
+            patch.object(type(IrAsset), "_resolve_paths", _fake_get_paths),
         ):
             IrAsset._get_asset_paths.__wrapped__(IrAsset, "chain.b0", {})
         self.assertEqual(len(calls), 1, f"one fetch expected, got {calls}")
@@ -568,7 +572,7 @@ class TestBundleAssetsFetch(TransactionCase):
         with (
             spy,
             patch.object(type(IrAsset), "_get_manifest_assets", lambda _s, a: {}),
-            patch.object(type(IrAsset), "_get_paths", _fake_get_paths),
+            patch.object(type(IrAsset), "_resolve_paths", _fake_get_paths),
         ):
             IrAsset._get_asset_paths.__wrapped__(IrAsset, "lonely.bundle", {})
         self.assertEqual(calls, [[("bundle", "in", ["lonely.bundle"])]])
@@ -588,7 +592,7 @@ class TestBundleAssetsFetch(TransactionCase):
         with (
             spy,
             patch.object(type(IrAsset), "_get_manifest_assets", lambda _s, a: {}),
-            patch.object(type(IrAsset), "_get_paths", _fake_get_paths),
+            patch.object(type(IrAsset), "_resolve_paths", _fake_get_paths),
         ):
             paths = IrAsset._get_asset_paths.__wrapped__(IrAsset, "rec.outer", {})
         self.assertEqual([entry.path for entry in paths], ["/some/leaf.js"])
@@ -614,7 +618,7 @@ class TestBundleAssetsFetch(TransactionCase):
             patch.object(
                 type(IrAsset), "_get_manifest_assets", lambda _s, a: manifest_assets
             ),
-            patch.object(type(IrAsset), "_get_paths", _fake_get_paths),
+            patch.object(type(IrAsset), "_resolve_paths", _fake_get_paths),
         ):
             IrAsset._get_asset_paths.__wrapped__(IrAsset, "deep.outer", {})
         self.assertEqual(len(calls), 2, f"root + one on demand, got {calls}")
@@ -628,9 +632,9 @@ class TestBundleAssetsFetch(TransactionCase):
         resolution = Resolution(active=set())
         calls, spy = self._spy()
         with spy:
-            IrAsset._fetch_bundle_assets(resolution, ["a.b", "c.d"])
-            IrAsset._fetch_bundle_assets(resolution, ["a.b"])
-            IrAsset._fetch_bundle_assets(resolution, ["c.d", "e.f"])
+            IrAsset._update_bundle_assets(resolution, ["a.b", "c.d"])
+            IrAsset._update_bundle_assets(resolution, ["a.b"])
+            IrAsset._update_bundle_assets(resolution, ["c.d", "e.f"])
         self.assertEqual(len(calls), 2)
         self.assertEqual(calls[1], [("bundle", "in", ["e.f"])])
 
@@ -646,7 +650,7 @@ class TestBundleAssetsFetch(TransactionCase):
                 }
             )
         resolution = Resolution(active=set())
-        IrAsset._fetch_bundle_assets(resolution, ["order.probe"])
+        IrAsset._update_bundle_assets(resolution, ["order.probe"])
         self.assertEqual(
             [a.sequence for a in resolution.bundle_assets["order.probe"]], [10, 20, 30]
         )
@@ -662,7 +666,7 @@ class TestBundleAssetsFetch(TransactionCase):
             }
         )
         resolution = Resolution(active=set())
-        IrAsset._fetch_bundle_assets(resolution, ["active.probe"])
+        IrAsset._update_bundle_assets(resolution, ["active.probe"])
         self.assertNotIn("active.probe", resolution.bundle_assets)
 
 
@@ -687,7 +691,7 @@ class TestStaticContainment(TransactionCase):
     def _glob(self, pattern):
         return [
             os.path.relpath(path, self.static)
-            for path, _mtime in _glob_static_file(
+            for path, _mtime in _get_static_files(
                 str(self.static / pattern), str(self.static)
             )
         ]
@@ -729,7 +733,7 @@ class TestPerBundleFiltering(TransactionCase):
 
         resolution = Resolution(active=set())
         with patch.object(type(IrAsset), "_filter_bundle_assets", spy):
-            IrAsset._fetch_bundle_assets(resolution, ["split.a", "split.b"])
+            IrAsset._update_bundle_assets(resolution, ["split.a", "split.b"])
 
         self.assertEqual(sorted(seen), [["split.a", "split.a"], ["split.b", "split.b"]])
         self.assertEqual(len(resolution.bundle_assets["split.a"]), 2)
@@ -749,7 +753,7 @@ class TestPerBundleFiltering(TransactionCase):
             "_filter_bundle_assets",
             lambda _s, assets, **p: assets.filtered(lambda a: a.name == "kept"),
         ):
-            IrAsset._fetch_bundle_assets(resolution, ["drop.probe"])
+            IrAsset._update_bundle_assets(resolution, ["drop.probe"])
         self.assertEqual(
             [a.name for a in resolution.bundle_assets["drop.probe"]], ["kept"]
         )
@@ -800,14 +804,16 @@ class TestInvalidationIsNarrow(TransactionCase):
                 )
 
     def test_target_counts_as_a_resolution_field(self):
-        self.assertIn("target", self.env["ir.asset"]._resolution_fields())
+        self.assertIn(
+            "target", self.env["ir.asset"]._get_fields_invalidating_assets_cache()
+        )
 
 
 @tagged("post_install", "-at_install")
 class TestExternalUrlShortCircuit(TransactionCase):
     def test_an_external_url_never_consults_a_manifest(self):
         IrAsset = self.env["ir.asset"]
-        resolution = Resolution(active=IrAsset._get_installed_addons_list())
+        resolution = Resolution(active=IrAsset._get_addons_installed())
         for url in (
             "http://external.link/external.js",
             "https://cdn.example.com/a.css",
@@ -815,7 +821,7 @@ class TestExternalUrlShortCircuit(TransactionCase):
             "/web/content/1234/some.js",
         ):
             with self.subTest(url=url):
-                resolved = IrAsset._get_paths(url, resolution)
+                resolved = IrAsset._resolve_paths(url, resolution)
                 self.assertEqual(len(resolved), 1)
                 self.assertTrue(resolved[0].is_external)
                 self.assertEqual(resolved[0].path, url)
@@ -825,8 +831,8 @@ class TestExternalUrlShortCircuit(TransactionCase):
 
     def test_a_bundleable_path_still_resolves(self):
         IrAsset = self.env["ir.asset"]
-        resolution = Resolution(active=IrAsset._get_installed_addons_list())
-        resolved = IrAsset._get_paths(
+        resolution = Resolution(active=IrAsset._get_addons_installed())
+        resolved = IrAsset._resolve_paths(
             "/base/static/src/scss/res_users.scss", resolution
         )
         self.assertEqual(len(resolved), 1)
@@ -842,7 +848,7 @@ class TestEveryServableBundleResolves(TransactionCase):
 
     def test_every_publicly_named_bundle_resolves_standalone(self):
         IrAsset = self.env["ir.asset"]
-        addons = tuple(sorted(IrAsset._get_active_addons_list()))
+        addons = tuple(sorted(IrAsset._get_addons_active()))
         servable = sorted(
             bundle
             for bundle in IrAsset._get_manifest_assets(addons)
@@ -859,7 +865,7 @@ class TestEveryServableBundleResolves(TransactionCase):
 
     def test_an_include_only_fragment_may_legitimately_need_its_parent(self):
         IrAsset = self.env["ir.asset"]
-        addons = tuple(sorted(IrAsset._get_active_addons_list()))
+        addons = tuple(sorted(IrAsset._get_addons_active()))
         fragments = [
             bundle
             for bundle in IrAsset._get_manifest_assets(addons)
@@ -917,7 +923,7 @@ class TestAssetsCacheStores(TransactionCase):
             for css, js in ((True, False), (False, True)):
                 for rtl in (False, True):
                     for autoprefix in (False, True):
-                        IrQweb._generate_asset_links_cache(
+                        IrQweb._get_asset_links_cached(
                             bundle,
                             css=css,
                             js=js,
@@ -943,7 +949,7 @@ class TestAssetsCacheStores(TransactionCase):
         IrAsset = self.env["ir.asset"]
         IrQweb = self.env["ir.qweb"]
         IrAsset._get_asset_paths(self.BUNDLES[0], {})
-        IrQweb._generate_asset_links_cache(
+        IrQweb._get_asset_links_cached(
             self.BUNDLES[0], css=True, js=False, assets_params={}
         )
         self.assertTrue(self._lrus()["assets"])
@@ -966,12 +972,12 @@ class TestInstalledAddonGate(TransactionCase):
     EXISTING_FILE = "/base/static/src/scss/res_users.scss"
 
     def _uninstalled_addon_file(self):
-        installed = self.env["ir.asset"]._get_installed_addons_list()
+        installed = self.env["ir.asset"]._get_addons_installed()
         resolution = Resolution(active=installed)
         for manifest in Manifest.all_addon_manifests():
             if manifest.name in installed:
                 continue
-            paths = self.env["ir.asset"]._get_paths(
+            paths = self.env["ir.asset"]._resolve_paths(
                 f"/{manifest.name}/static/src/**/*.js",
                 Resolution(active=installed | {manifest.name}),
             )
@@ -981,17 +987,19 @@ class TestInstalledAddonGate(TransactionCase):
 
     def test_the_file_exists_but_the_addon_does_not_resolve(self):
         IrAsset = self.env["ir.asset"]
-        installed = Resolution(active=IrAsset._get_installed_addons_list())
+        installed = Resolution(active=IrAsset._get_addons_installed())
 
-        resolved = IrAsset._get_paths(self.EXISTING_FILE, installed)
-        gated = IrAsset._get_paths(self.EXISTING_FILE, Resolution(active=frozenset()))
+        resolved = IrAsset._resolve_paths(self.EXISTING_FILE, installed)
+        gated = IrAsset._resolve_paths(
+            self.EXISTING_FILE, Resolution(active=frozenset())
+        )
 
         self.assertEqual(len(resolved), 1)
         self.assertIsNotNone(resolved[0].full_path)
         self.assertEqual(gated, ())
 
     def test_a_gated_addon_yields_nothing_rather_than_an_attachment_url(self):
-        gated = self.env["ir.asset"]._get_paths(
+        gated = self.env["ir.asset"]._resolve_paths(
             "/base/static/src/scss/__no_such_file__.scss",
             Resolution(active=frozenset()),
         )
@@ -1000,10 +1008,10 @@ class TestInstalledAddonGate(TransactionCase):
 
     def test_wildcards_do_not_expand_into_a_gated_addon(self):
         IrAsset = self.env["ir.asset"]
-        installed = Resolution(active=IrAsset._get_installed_addons_list())
+        installed = Resolution(active=IrAsset._get_addons_installed())
 
-        expanded = IrAsset._get_paths("/base/static/src/scss/*.scss", installed)
-        gated = IrAsset._get_paths(
+        expanded = IrAsset._resolve_paths("/base/static/src/scss/*.scss", installed)
+        gated = IrAsset._resolve_paths(
             "/base/static/src/scss/*.scss", Resolution(active=frozenset())
         )
 
@@ -1026,7 +1034,7 @@ class TestInstalledAddonGate(TransactionCase):
     def test_server_wide_modules_are_treated_as_installed(self):
         IrAsset = self.env["ir.asset"]
         with tools.config.patch(server_wide_modules=["__probe_addon__"]):
-            installed = IrAsset._get_installed_addons_list()
+            installed = IrAsset._get_addons_installed()
 
         self.assertIn("__probe_addon__", installed)
 
@@ -1042,9 +1050,9 @@ class TestInstalledAddonGate(TransactionCase):
         )
         self.assertTrue(IrAsset._get_asset_paths(bundle, {}))
 
-        active = set(IrAsset._get_active_addons_list()) - {"base"}
+        active = set(IrAsset._get_addons_active()) - {"base"}
         with patch.object(
-            type(IrAsset), "_get_active_addons_list", return_value=frozenset(active)
+            type(IrAsset), "_get_addons_active", return_value=frozenset(active)
         ):
             self.env.registry.clear_cache("assets")
             narrowed = IrAsset._get_asset_paths(bundle, {})

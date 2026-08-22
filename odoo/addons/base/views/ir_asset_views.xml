@@ -10,7 +10,10 @@
                 <field name="directive" />
                 <field name="sequence" />
                 <field name="path" />
-                <filter string="Active" name="active" domain="[('active', '=', True)]" />
+                <filter
+                    string="Active"
+                    name="active"
+                    domain="[('active', '=', True)]" />
             </search>
         </field>
     </record>
@@ -41,7 +44,9 @@
                             <field name="active" widget="boolean_toggle" />
                         </group>
                         <group>
-                            <field name="target" invisible="directive not in ('after', 'before', 'replace')" />
+                            <field
+                                name="target"
+                                invisible="directive not in ('after', 'before', 'replace')" />
                             <field name="path" />
                         </group>
                     </group>

@@ -6,23 +6,44 @@
         <field name="model">ir.module.module</field>
         <field name="arch" type="xml">
             <search string="Search modules">
-                <field name="name"
+                <field
+                    name="name"
                     string="Module"
                     filter_domain="['|', '|', ('summary', 'ilike', self), ('shortdesc', 'ilike', self), ('name','ilike', self)]" />
-                <filter name="app" string="Apps" domain="[('application', '=', True)]" />
-                <filter name="extra" string="Extra" domain="[('application', '=', False)]" />
+                <filter
+                    name="app"
+                    string="Apps"
+                    domain="[('application', '=', True)]" />
+                <filter
+                    name="extra"
+                    string="Extra"
+                    domain="[('application', '=', False)]" />
                 <separator />
-                <filter name="installed" string="Installed"
+                <filter
+                    name="installed"
+                    string="Installed"
                     domain="[('state', 'in', ['installed', 'to upgrade', 'to remove'])]" />
-                <filter name="not_installed" string="Not Installed"
+                <filter
+                    name="not_installed"
+                    string="Not Installed"
                     domain="[('state', 'in', ['uninstalled', 'uninstallable', 'to install'])]" />
                 <field name="category_id" />
                 <group>
-                    <filter string="Author" name="author" domain="[]"
+                    <filter
+                        string="Author"
+                        name="author"
+                        domain="[]"
                         context="{'group_by':'author'}" />
-                    <filter string="Category" name="category" domain="[]"
+                    <filter
+                        string="Category"
+                        name="category"
+                        domain="[]"
                         context="{'group_by':'category_id'}" />
-                    <filter string="Status" name="state" domain="[]" context="{'group_by':'state'}" />
+                    <filter
+                        string="Status"
+                        name="state"
+                        domain="[]"
+                        context="{'group_by':'state'}" />
                 </group>
                 <searchpanel>
                     <field name="category_id" string="Categories" enable_counters="1" />
@@ -50,12 +71,21 @@
         <field name="name">ir.module.module.list</field>
         <field name="model">ir.module.module</field>
         <field name="arch" type="xml">
-            <list create="false" string="Apps" decoration-info="state == 'uninstalled'"
+            <list
+                create="false"
+                string="Apps"
+                decoration-info="state == 'uninstalled'"
                 decoration-muted="state == 'uninstallable'">
                 <header>
-                    <button name="button_immediate_install" type="object" string="Activate"
+                    <button
+                        name="button_immediate_install"
+                        type="object"
+                        string="Activate"
                         groups="base.group_system" />
-                    <button name="button_immediate_upgrade" type="object" string="Upgrade"
+                    <button
+                        name="button_immediate_upgrade"
+                        type="object"
+                        string="Upgrade"
                         groups="base.group_system" />
                 </header>
                 <field name="shortdesc" />
@@ -63,7 +93,10 @@
                 <field name="author" />
                 <field name="website" />
                 <field name="manifest_version" />
-                <field name="state" widget="badge" decoration-muted="state == 'uninstallable'"
+                <field
+                    name="state"
+                    widget="badge"
+                    decoration-muted="state == 'uninstallable'"
                     decoration-info="state  == 'uninstalled'"
                     decoration-success="state == 'installed'" />
             </list>
@@ -83,22 +116,32 @@
                 <field name="application" />
                 <templates>
                     <t t-name="menu">
-                        <t t-set="installed" t-value="record.state.raw_value == 'installed'" />
+                        <t
+                            t-set="installed"
+                            t-value="record.state.raw_value == 'installed'" />
                         <a type="open" class="dropdown-item">Module Info</a>
-                        <a t-if="record.website.raw_value" role="menuitem"
-                            class="dropdown-item o-hidden-ios" t-att-href="record.website.raw_value"
-                            target="_blank">Learn More</a>
-                        <a t-if="installed" name="button_immediate_upgrade" type="object"
-                            role="menuitem" class="dropdown-item" groups="base.group_system">Upgrade</a>
-                        <a t-if="installed" name="button_uninstall_wizard" type="object"
-                            role="menuitem" class="dropdown-item" groups="base.group_system">
+                        <a t-if="record.website.raw_value" role="menuitem" class="dropdown-item o-hidden-ios" t-att-href="record.website.raw_value" target="_blank">Learn More</a>
+                        <a t-if="installed" name="button_immediate_upgrade" type="object" role="menuitem" class="dropdown-item" groups="base.group_system">Upgrade</a>
+                        <a
+                            t-if="installed"
+                            name="button_uninstall_wizard"
+                            type="object"
+                            role="menuitem"
+                            class="dropdown-item"
+                            groups="base.group_system">
                             Uninstall…</a>
                     </t>
                     <t t-name="card" class="flex-row align-items-center">
                         <aside>
-                            <field name="icon" widget="image_url" options="{'size': [50, 50]}"
+                            <field
+                                name="icon"
+                                widget="image_url"
+                                options="{'size': [50, 50]}"
                                 alt="Icon" />
-                            <field t-if="record.icon_flag" name="icon_flag" class="oe_module_flag" />
+                            <field
+                                t-if="record.icon_flag"
+                                name="icon_flag"
+                                class="oe_module_flag" />
                         </aside>
                         <main class="me-4" t-att-title="record.shortdesc.value">
                             <field class="fw-bold fs-5" name="shortdesc" />
@@ -109,36 +152,25 @@
                                 </code>
                             </p>
                             <footer class="w-100 justify-content-between">
-                                <button type="object" class="btn btn-primary btn-sm"
+                                <button
+                                    type="object"
+                                    class="btn btn-primary btn-sm"
                                     name="button_immediate_install"
                                     invisible="state != 'uninstalled'"
-                                    t-if="! record.to_buy.raw_value" groups="base.group_system">
+                                    t-if="! record.to_buy.raw_value"
+                                    groups="base.group_system">
                                     Activate</button>
-                                <button t-if="installed"
+                                <button
+                                    t-if="installed"
                                     class="d-flex align-items-center text-muted float-start">
                                     Installed</button>
-                                <a t-att-href="record.website.raw_value" target="_blank"
-                                    invisible="website in (False, '')"
-                                    class="btn btn-sm btn-secondary float-end o-hidden-ios"
-                                    role="button">Learn More</a>
-                                <a type="open" class="btn btn-secondary btn-sm float-end"
-                                    id="module_info" role="button" invisible="website != ''">Module
+                                <a t-att-href="record.website.raw_value" target="_blank" invisible="website in (False, '')" class="btn btn-sm btn-secondary float-end o-hidden-ios" role="button">Learn More</a>
+                                <a type="open" class="btn btn-secondary btn-sm float-end" id="module_info" role="button" invisible="website != ''">Module
                                     Info</a>
-                                <a
-                                    href="https://odoo.com/pricing?utm_source=db&amp;utm_medium=module#hosting=on_premise"
-                                    target="_blank" class="btn btn-info btn-sm"
-                                    invisible="state not in ('uninstalled', 'uninstallable')"
-                                    t-if="record.to_buy.raw_value" role="button"
-                                    groups="base.group_system">Upgrade</a>
-                                <button invisible="state != 'to remove'"
-                                    class="btn btn-sm btn-secondary" groups="base.group_system"
-                                    disabled="1">Removing</button>
-                                <button invisible="state != 'to upgrade'"
-                                    class="btn btn-sm btn-secondary" groups="base.group_system"
-                                    disabled="1">Upgrading</button>
-                                <button invisible="state != 'to install'"
-                                    class="btn btn-sm btn-secondary" groups="base.group_system"
-                                    disabled="1">Installing</button>
+                                <a href="https://odoo.com/pricing?utm_source=db&amp;utm_medium=module#hosting=on_premise" target="_blank" class="btn btn-info btn-sm" invisible="state not in ('uninstalled', 'uninstallable')" t-if="record.to_buy.raw_value" role="button" groups="base.group_system">Upgrade</a>
+                                <button invisible="state != 'to remove'" class="btn btn-sm btn-secondary" groups="base.group_system" disabled="1">Removing</button>
+                                <button invisible="state != 'to upgrade'" class="btn btn-sm btn-secondary" groups="base.group_system" disabled="1">Upgrading</button>
+                                <button invisible="state != 'to install'" class="btn btn-sm btn-secondary" groups="base.group_system" disabled="1">Installing</button>
                             </footer>
                         </main>
                     </t>
@@ -158,37 +190,48 @@
                     <div class="mb32">
                         <h1 class="d-flex flex-column">
                             <field name="shortdesc" placeholder="Module Name" />
-                            <field class="fs-2 text-muted" name="summary" invisible="not summary" />
+                            <field
+                                class="fs-2 text-muted"
+                                name="summary"
+                                invisible="not summary" />
                         </h1>
                         <h4 class="text-muted d-flex flex-column">
                             <div>By <field name="author" class="oe_inline" placeholder="Author Name" />
                             </div>
                             <small>
-                                <field name="website" widget="url" invisible="not website" />
+                                <field
+                                    name="website"
+                                    widget="url"
+                                    invisible="not website" />
                             </small>
                         </h4>
 
                         <div>
-                            <button name="button_immediate_install" string="Activate"
-                                invisible="to_buy or state != 'uninstalled'" type="object"
-                                class="btn btn-primary me-1" groups="base.group_system" />
-                            <a
-                                href="https://odoo.com/pricing?utm_source=db&amp;utm_medium=module#hosting=on_premise"
-                                target="_blank" class="btn btn-primary me-1"
-                                invisible="not to_buy or state not in ('uninstalled', 'uninstallable')"
-                                role="button">Upgrade</a>
-                            <button name="button_immediate_upgrade" invisible="state != 'installed'"
-                                string="Upgrade" type="object" class="btn btn-primary me-1"
+                            <button
+                                name="button_immediate_install"
+                                string="Activate"
+                                invisible="to_buy or state != 'uninstalled'"
+                                type="object"
+                                class="btn btn-primary me-1"
                                 groups="base.group_system" />
-                            <button name="button_uninstall_wizard" invisible="state != 'installed'"
-                                string="Uninstall" type="object" class="btn btn-secondary me-1"
+                            <a href="https://odoo.com/pricing?utm_source=db&amp;utm_medium=module#hosting=on_premise" target="_blank" class="btn btn-primary me-1" invisible="not to_buy or state not in ('uninstalled', 'uninstallable')" role="button">Upgrade</a>
+                            <button
+                                name="button_immediate_upgrade"
+                                invisible="state != 'installed'"
+                                string="Upgrade"
+                                type="object"
+                                class="btn btn-primary me-1"
                                 groups="base.group_system" />
-                            <button invisible="state != 'to remove'" class="btn btn-secondary me-1"
-                                groups="base.group_system" disabled="1">Removing</button>
-                            <button invisible="state != 'to upgrade'" class="btn btn-secondary me-1"
-                                groups="base.group_system" disabled="1">Upgrading</button>
-                            <button invisible="state != 'to install'" class="btn btn-secondary me-1"
-                                groups="base.group_system" disabled="1">Installing</button>
+                            <button
+                                name="button_uninstall_wizard"
+                                invisible="state != 'installed'"
+                                string="Uninstall"
+                                type="object"
+                                class="btn btn-secondary me-1"
+                                groups="base.group_system" />
+                            <button invisible="state != 'to remove'" class="btn btn-secondary me-1" groups="base.group_system" disabled="1">Removing</button>
+                            <button invisible="state != 'to upgrade'" class="btn btn-secondary me-1" groups="base.group_system" disabled="1">Upgrading</button>
+                            <button invisible="state != 'to install'" class="btn btn-secondary me-1" groups="base.group_system" disabled="1">Installing</button>
                         </div>
                         <h6 class="text-muted mt-2" invisible="not has_iap">Contains In-App
                             Purchases</h6>
@@ -198,7 +241,8 @@
                         <page string="Information" name="information">
                             <group>
                                 <group>
-                                    <field name="category_id"
+                                    <field
+                                        name="category_id"
                                         options="{'no_open': True, 'no_create': True}" />
                                     <field name="name" />
                                     <field name="license" />
@@ -214,7 +258,10 @@
                             </group>
                             <group>
                                 <group string="Dependencies">
-                                    <field name="dependencies_id" nolabel="1" colspan="2">
+                                    <field
+                                        name="dependencies_id"
+                                        nolabel="1"
+                                        colspan="2">
                                         <list string="Dependencies">
                                             <field name="name" />
                                             <field name="state" />
@@ -231,7 +278,9 @@
                                 </group>
                             </group>
                         </page>
-                        <page string="Installed Features" name="installed_features"
+                        <page
+                            string="Installed Features"
+                            name="installed_features"
                             invisible="state != 'installed'">
                             <group string="Created Menus" />
                             <field name="menus_by_module" />
@@ -241,7 +290,9 @@
                             <field name="reports_by_module" />
                         </page>
                     </notebook>
-                    <field name="description_html" class="oe_styling_v8"
+                    <field
+                        name="description_html"
+                        class="oe_styling_v8"
                         invisible="not description_html" />
                 </sheet>
             </form>
@@ -264,10 +315,12 @@
             </p>
         </field>
     </record>
+
     <record id="action_third_party" model="ir.actions.act_url">
         <field name="name">Third-Party Apps</field>
         <field name="url">https://apps.odoo.com/apps/modules</field>
     </record>
+
     <record id="action_theme_store" model="ir.actions.act_url">
         <field name="name">Theme Store</field>
         <field name="url">https://apps.odoo.com/apps/themes</field>

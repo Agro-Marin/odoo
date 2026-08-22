@@ -167,7 +167,7 @@ class IrModelData(models.Model):
             self.env.registry.clear_cache("groups")
         return res
 
-    def _lookup_xmlids(self, xml_ids: list[str], model: Any) -> list[tuple]:
+    def _get_xmlids(self, xml_ids: list[str], model: Any) -> list[tuple]:
         if not xml_ids:
             return []
 
@@ -212,7 +212,7 @@ class IrModelData(models.Model):
             rows.add((prefix, suffix, record._name, record.id, noupdate))
 
         for sub_rows in batched(rows, self.env.cr.BATCH_SIZE, strict=False):
-            query = self._build_update_xmlids_query(sub_rows, update)
+            query = self._prepare_update_xmlids_query(sub_rows, update)
             try:
                 self.env.cr.execute(query)
                 result = self.env.cr.fetchall()
@@ -252,7 +252,7 @@ class IrModelData(models.Model):
     def _insert_xmlids_extra_columns(self) -> dict[str, SQL]:
         return {}
 
-    def _build_update_xmlids_query(self, sub_rows: list[tuple], update: bool) -> SQL:
+    def _prepare_update_xmlids_query(self, sub_rows: list[tuple], update: bool) -> SQL:
         extra = self._insert_xmlids_extra_columns()
         columns = ["module", "name", "model", "res_id", "noupdate", *extra]
         values = SQL(", ").join(

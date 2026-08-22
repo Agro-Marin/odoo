@@ -8,7 +8,10 @@
             <search>
                 <field name="name" string="Name" />
                 <field name="session" string="Session" />
-                <filter name="group_session" string="Session" context="{'group_by':'session'}" />
+                <filter
+                    name="group_session"
+                    string="Session"
+                    context="{'group_by':'session'}" />
             </search>
         </field>
     </record>
@@ -17,9 +20,15 @@
         <field name="name">IR Profile List</field>
         <field name="model">ir.profile</field>
         <field name="arch" type="xml">
-            <list string="Profile Session" default_order="session desc, id desc" create="0">
+            <list
+                string="Profile Session"
+                default_order="session desc, id desc"
+                create="0">
                 <header>
-                    <button name="action_view_speedscope" type="object" string="Configure speedscope" />
+                    <button
+                        name="action_view_speedscope"
+                        type="object"
+                        string="Configure speedscope" />
                 </header>
                 <field name="create_date" />
                 <field name="session" />
@@ -72,8 +81,17 @@
                     <field name="expiration" />
                 </group>
                 <footer>
-                    <button string="Cancel" class="btn-secondary" special="cancel" data-hotkey="x" />
-                    <button string="Enable profiling" type="object" name="submit" class="btn btn-primary" data-hotkey="q" />
+                    <button
+                        string="Cancel"
+                        class="btn-secondary"
+                        special="cancel"
+                        data-hotkey="x" />
+                    <button
+                        string="Enable profiling"
+                        type="object"
+                        name="submit"
+                        class="btn btn-primary"
+                        data-hotkey="q" />
                 </footer>
             </form>
         </field>

@@ -3,9 +3,10 @@ import ipaddress
 import json
 import logging
 import socket
+from collections.abc import Callable
 from functools import partial, reduce
 from operator import getitem
-from typing import Any, Self
+from typing import Any, Literal, Self
 from urllib.parse import urlparse
 
 import babel
@@ -15,7 +16,7 @@ from odoo.api import ValuesType
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.libs.datetime import utc
-from odoo.libs.json import OPT_SORT_KEYS
+from odoo.libs.json import OPT_SORT_KEYS, stringify_keys
 from odoo.libs.json import dumps as json_dumps
 from odoo.tools import _, get_lang
 from odoo.tools.misc import unquote
@@ -27,7 +28,7 @@ _server_action_logger = logging.getLogger(
 )
 
 
-def _webhook_url_blocked_reason(url: str) -> str | None:
+def _get_webhook_blocked_reason(url: str) -> str | None:
     try:
         parsed = urlparse(url)
     except ValueError:
@@ -66,55 +67,14 @@ def _webhook_url_blocked_reason(url: str) -> str | None:
     return None
 
 
-def _webhook_log_target(url: str) -> str:
-    """Name a webhook's receiver for a log line, without quoting its secret.
-
-    :param str url: the configured webhook URL
-    :return: something an operator can act on
-    :rtype: str
-
-    The host alone, because a webhook URL routinely IS the credential. Slack,
-    Discord and Teams all put the token in the path
-    (`hooks.slack.com/services/T…/B…/<token>`), others put it in the query, and
-    this action used to log the whole thing five times per call at INFO — so
-    every log file, every log aggregator and every pasted traceback carried a
-    live secret that grants posting rights to the channel.
-
-    Dropping the path costs the one thing it was good for: telling two webhooks
-    on the same host apart. The action name is a better answer to that anyway
-    and now travels with every line, and the full URL is a field on the action
-    for anyone who needs it. Masking selectively was the alternative and was
-    rejected: it means a list of which vendors hide secrets where, which is a
-    list that is wrong the first time a vendor is added to it.
-    """
+def _get_webhook_log_target(url: str) -> str:
     try:
         return urlparse(url).hostname or "<unknown host>"
     except ValueError:
         return "<malformed URL>"
 
 
-def _webhook_scrub(message: str, url: str, target: str) -> str:
-    """Take the webhook URL back out of somebody else's error text.
-
-    :param str message: the exception's own words
-    :param str url: the configured webhook URL
-    :param str target: what `_webhook_log_target` called the receiver
-    :return: the message with the URL replaced
-    :rtype: str
-
-    Not keeping the URL out of our own log lines is only half of it, because
-    the libraries quote it back at us. Measured:
-
-        HTTPError    404 Client Error: … for url: https://hooks.slack.com/services/T…/B…/<token>
-        ConnError    HTTPSConnectionPool(host='…', port=443): Max retries exceeded
-                     with url: /services/T…/B…/<token> (Caused by …)
-
-    So the full URL comes back from `raise_for_status`, and urllib3 quotes the
-    path on its own. Both are replaced, longest first so the full URL wins over
-    its own path. Exact substrings of a string we already hold — no pattern
-    matching, nothing to be wrong about — and a path of "/" or shorter is left
-    alone rather than substituted into every separator in the sentence.
-    """
+def _scrub_webhook_url(message: str, url: str, target: str) -> str:
     parsed = urlparse(url)
     needles = [url]
     if parsed.query:
@@ -235,8 +195,15 @@ class IrActionsServer(models.Model):
                 return field_name
         return ""
 
-    name = fields.Char(compute="_compute_name", store=True, readonly=False)
-    automated_name = fields.Char(compute="_compute_name", store=True)
+    name = fields.Char(
+        compute="_compute_names",
+        store=True,
+        readonly=False,
+    )
+    automated_name = fields.Char(
+        compute="_compute_names",
+        store=True,
+    )
     type = fields.Char(default="ir.actions.server")
     usage = fields.Selection(
         [
@@ -269,7 +236,8 @@ class IrActionsServer(models.Model):
         "\nAdditional types may be added by other modules (e.g. Discuss, SMS).",
     )
     allowed_states = fields.Json(
-        string="Allowed states", compute="_compute_allowed_states"
+        string="Allowed states",
+        compute="_compute_allowed_states",
     )
     sequence = fields.Integer(
         default=5,
@@ -290,8 +258,15 @@ class IrActionsServer(models.Model):
         compute="_compute_available_model_ids",
         store=False,
     )
-    model_name = fields.Char(related="model_id.model", string="Model Name")
-    warning = fields.Text(string="Warning", compute="_compute_warning", recursive=True)
+    model_name = fields.Char(
+        related="model_id.model",
+        string="Model Name",
+    )
+    warning = fields.Text(
+        string="Warning",
+        compute="_compute_warning",
+        recursive=True,
+    )
     ir_cron_ids = fields.One2many(
         "ir.cron",
         "ir_actions_server_id",
@@ -315,7 +290,7 @@ class IrActionsServer(models.Model):
         "ir.actions.server",
         "parent_id",
         copy=True,
-        domain=lambda self: str(self._get_children_domain()),
+        domain=lambda self: str(self._get_domain_children()),
         string="Child Actions",
         help="Child server actions that will be executed. The global return value is the action returned by the last child that returns one; children that return nothing are skipped over.",
     )
@@ -323,13 +298,15 @@ class IrActionsServer(models.Model):
         "ir.model",
         string="Record to Create",
         compute="_compute_crud_relations",
-        inverse="_set_crud_model_id",
+        inverse="_inverse_crud_model_id",
         readonly=False,
         store=True,
         help="Specify which kind of record should be created. Set this field only to specify a different model than the base model.",
     )
     crud_model_name = fields.Char(
-        related="crud_model_id.model", string="Target Model Name", readonly=True
+        related="crud_model_id.model",
+        string="Target Model Name",
+        readonly=True,
     )
     link_field_id = fields.Many2one(
         "ir.model.fields",
@@ -364,7 +341,10 @@ class IrActionsServer(models.Model):
         readonly=False,
         store=True,
     )
-    update_field_type = fields.Selection(related="update_field_id.ttype", readonly=True)
+    update_field_type = fields.Selection(
+        related="update_field_id.ttype",
+        readonly=True,
+    )
     update_m2m_operation = fields.Selection(
         [
             ("add", "Adding"),
@@ -404,14 +384,14 @@ class IrActionsServer(models.Model):
     resource_ref = fields.Reference(
         string="Record",
         selection="_selection_target_model",
-        inverse="_set_resource_ref",
+        inverse="_inverse_resource_ref",
     )
     selection_value = fields.Many2one(
         "ir.model.fields.selection",
         string="Custom Value",
         ondelete="cascade",
         domain='[("field_id", "=", update_field_id)]',
-        inverse="_set_selection_value",
+        inverse="_inverse_selection_value",
     )
 
     value_field_to_show = fields.Selection(
@@ -466,13 +446,10 @@ class IrActionsServer(models.Model):
         "The name of the action that triggered the webhook is always sent as '_action'.",
     )
     webhook_sample_payload = fields.Text(
-        string="Sample Payload", compute="_compute_webhook_sample_payload"
+        string="Sample Payload",
+        compute="_compute_webhook_sample_payload",
     )
 
-    #: Ceiling on `webhook_timeout`. The call runs in `cr.postcommit`, so the
-    #: request worker is held for its duration; a value in minutes turns one
-    #: unreachable receiver into exhausted workers. Generous enough for any
-    #: receiver worth waiting for synchronously, and a refusal that says why.
     _WEBHOOK_TIMEOUT_CEILING = 60
 
     @api.constrains("webhook_timeout")
@@ -491,6 +468,36 @@ class IrActionsServer(models.Model):
                         ceiling=self._WEBHOOK_TIMEOUT_CEILING,
                     )
                 )
+
+    @api.constrains("code")
+    def _check_python_code(self) -> None:
+        for action in self.sudo().filtered("code"):
+            msg = test_python_expr(expr=action.code.strip(), mode="exec")
+            if msg:
+                raise ValidationError(msg)
+
+    @api.constrains("update_path", "model_id", "state")
+    def _check_update_path(self) -> None:
+        for action in self:
+            if (
+                action.state == "object_write"
+                and action.update_path
+                and action.model_id
+            ):
+                action._get_relation_chain("update_path", raise_on_error=True)
+
+    @api.constrains("parent_id", "child_ids")
+    def _check_children(self) -> None:
+        if self._has_cycle():
+            raise ValidationError(_("Recursion found in child server actions"))
+
+        if children_with_warnings := self.child_ids.filtered("warning"):
+            raise ValidationError(
+                _(
+                    "Following child actions have warnings: %(children)s",
+                    children=", ".join(children_with_warnings.mapped("name")),
+                )
+            )
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
@@ -553,7 +560,7 @@ class IrActionsServer(models.Model):
             action.show_code_history = action.id in actions_with_diff
 
     @api.model
-    def _warning_depends(self) -> list[str]:
+    def _get_fields_warning_depends(self) -> list[str]:
         return [
             "state",
             "model_id",
@@ -620,15 +627,13 @@ class IrActionsServer(models.Model):
         self.ensure_one()
         warnings = self._get_child_warnings()
 
-        if (
-            (relation_chain := self._get_relation_chain("update_path"))
-            and relation_chain[0]
-            and isinstance(relation_chain[0][-1], fields.Json)
+        if (relation_chain := self._get_relation_chain("update_path")) and isinstance(
+            relation_chain[-1], fields.Json
         ):
             warnings.append(
                 _(
                     "JSON fields (such as '%s') are not supported.",
-                    relation_chain[0][-1].string,
+                    relation_chain[-1].string,
                 )
             )
 
@@ -673,7 +678,7 @@ class IrActionsServer(models.Model):
     def _compute_allowed_states(self) -> None:
         self.allowed_states = [value for value, __ in self._fields["state"].selection]
 
-    @api.depends(lambda self: self._warning_depends())
+    @api.depends(lambda self: self._get_fields_warning_depends())
     def _compute_warning(self) -> None:
         for action in self:
             if warnings := action._get_warning_messages():
@@ -682,7 +687,7 @@ class IrActionsServer(models.Model):
                 action.warning = False
 
     @api.model
-    def _get_children_domain(self) -> Domain:
+    def _get_domain_children(self) -> Domain:
         return Domain(
             [
                 ("model_id", "=", unquote("model_id")),
@@ -691,7 +696,7 @@ class IrActionsServer(models.Model):
             ]
         )
 
-    def _generate_action_name(self) -> str:
+    def _prepare_automated_name(self) -> str:
         self.ensure_one()
         if self.state == "object_create":
             return _("Create %(model_name)s", model_name=self.crud_model_id.name)
@@ -706,25 +711,25 @@ class IrActionsServer(models.Model):
             self.state, ""
         )
 
-    def _name_depends(self) -> list[str]:
+    def _get_fields_name_depends(self) -> list[str]:
         return [
             "state",
             "crud_model_id",
             "resource_ref",
         ]
 
-    @api.depends(lambda self: self._name_depends())
-    def _compute_name(self) -> None:
+    @api.depends(lambda self: self._get_fields_name_depends())
+    def _compute_names(self) -> None:
         for action in self:
             was_automated = action.name == action.automated_name
-            action.automated_name = action._generate_action_name()
+            action.automated_name = action._prepare_automated_name()
             if was_automated:
                 action.name = action.automated_name
 
     @api.onchange("name")
     def _onchange_name(self) -> None:
         if not self.name:
-            self.automated_name = self._generate_action_name()
+            self.automated_name = self._prepare_automated_name()
             self.name = self.automated_name
 
     @api.depends_context("uid")
@@ -751,7 +756,7 @@ class IrActionsServer(models.Model):
                     action.update_path = False
                 elif action.state == "object_write":
                     if action.update_path:
-                        model, field = action._traverse_path()
+                        model, field = action._get_update_path_target()
                         action.crud_model_id = model
                         action.update_field_id = field
                         if (
@@ -770,9 +775,11 @@ class IrActionsServer(models.Model):
                 action.update_field_id = False
                 action.update_path = False
 
-    def _traverse_path(self) -> tuple[Any, Any]:
+    def _get_update_path_target(
+        self,
+    ) -> tuple[models.Model | Literal[False], models.Model | Literal[False]]:
         self.ensure_one()
-        field_chain, _field_chain_str = self._get_relation_chain("update_path")
+        field_chain = self._get_relation_chain("update_path")
         if not field_chain:
             return False, False
         last_field = field_chain[-1]
@@ -784,7 +791,7 @@ class IrActionsServer(models.Model):
 
     def _get_relation_chain(
         self, searched_field_name: str, raise_on_error: bool = False
-    ) -> tuple[list[Any], str]:
+    ) -> list[fields.Field]:
         self.ensure_one()
         if (
             not searched_field_name
@@ -792,7 +799,7 @@ class IrActionsServer(models.Model):
             or not self[searched_field_name]
             or not self.model_id
         ):
-            return [], ""
+            return []
         path = self[searched_field_name].split(".")
         model = self.env[self.model_id.model]
         chain = []
@@ -807,7 +814,7 @@ class IrActionsServer(models.Model):
                             path=self[searched_field_name],
                         )
                     )
-                return [], ""
+                return []
             if field_name not in model._fields:
                 if raise_on_error:
                     raise ValidationError(
@@ -817,7 +824,7 @@ class IrActionsServer(models.Model):
                             model_name=model._name,
                         )
                     )
-                return [], ""
+                return []
             field = model._fields[field_name]
             if not is_last_field:
                 if not field.relational:
@@ -833,13 +840,13 @@ class IrActionsServer(models.Model):
                                 current_field=current_field,
                             )
                         )
-                    return [], ""
+                    return []
                 model = self.env[field.comodel_name]
             chain.append(field)
-        stringified_path = " > ".join(
-            [field.get_description(self.env)["string"] for field in chain]
-        )
-        return chain, stringified_path
+        return chain
+
+    def _get_relation_chain_label(self, chain: list[fields.Field]) -> str:
+        return " > ".join(field.get_description(self.env)["string"] for field in chain)
 
     @api.depends("state", "model_id.model", "webhook_field_ids", "name")
     def _compute_webhook_sample_payload(self) -> None:
@@ -873,45 +880,15 @@ class IrActionsServer(models.Model):
                             else WEBHOOK_SAMPLE_VALUES[None]
                         )
             action.webhook_sample_payload = json.dumps(
-                payload, indent=4, sort_keys=True, default=str
-            )
-
-    @api.constrains("code")
-    def _check_python_code(self) -> None:
-        for action in self.sudo().filtered("code"):
-            msg = test_python_expr(expr=action.code.strip(), mode="exec")
-            if msg:
-                raise ValidationError(msg)
-
-    @api.constrains("update_path", "model_id", "state")
-    def _check_update_path(self) -> None:
-        for action in self:
-            if (
-                action.state == "object_write"
-                and action.update_path
-                and action.model_id
-            ):
-                action._get_relation_chain("update_path", raise_on_error=True)
-
-    @api.constrains("parent_id", "child_ids")
-    def _check_children(self) -> None:
-        if self._has_cycle():
-            raise ValidationError(_("Recursion found in child server actions"))
-
-        if children_with_warnings := self.child_ids.filtered("warning"):
-            raise ValidationError(
-                _(
-                    "Following child actions have warnings: %(children)s",
-                    children=", ".join(children_with_warnings.mapped("name")),
-                )
+                stringify_keys(payload), indent=4, sort_keys=True, default=str
             )
 
     @api.model
     @tools.ormcache(cache="stable")
-    def _unconditional_clear_fields(self) -> frozenset[str]:
-        return super()._unconditional_clear_fields() | {"model_id"}
+    def _get_fields_invalidating_always(self) -> frozenset[str]:
+        return super()._get_fields_invalidating_always() | {"model_id"}
 
-    def _menu_access_model_field(self) -> str:
+    def _get_field_target_model(self) -> str:
         return "model_name"
 
     def _is_batchable(self) -> bool:
@@ -947,13 +924,13 @@ class IrActionsServer(models.Model):
             "model_name",
         }
 
-    def _get_runner(self) -> tuple[Any, bool]:
+    def _resolve_runner(self) -> tuple[Callable | None, bool]:
         multi = True
-        t = self.env.registry[self._name]
-        fn = getattr(t, f"_run_action_{self.state}_multi", None)
+        model_class = self.env.registry[self._name]
+        fn = getattr(model_class, f"_run_action_{self.state}_multi", None)
         if not fn:
             multi = False
-            fn = getattr(t, f"_run_action_{self.state}", None)
+            fn = getattr(model_class, f"_run_action_{self.state}", None)
         return fn, multi
 
     def create_action(self) -> bool:
@@ -967,7 +944,7 @@ class IrActionsServer(models.Model):
         self.filtered("binding_model_id").write({"binding_model_id": False})
         return True
 
-    def history_wizard_action(self) -> dict[str, Any]:
+    def action_open_code_history(self) -> dict[str, Any]:
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",
@@ -1029,7 +1006,7 @@ class IrActionsServer(models.Model):
                     name=self.name,
                 )
             )
-        if blocked := _webhook_url_blocked_reason(url):
+        if blocked := _get_webhook_blocked_reason(url):
             raise UserError(
                 _(
                     "The webhook action '%(name)s' targets a forbidden address "
@@ -1049,18 +1026,13 @@ class IrActionsServer(models.Model):
             )
         json_values = json_dumps(vals, default=str, option=OPT_SORT_KEYS)
 
-        # Captured as plain values, not read off `self` inside the closures:
-        # they run after the transaction ends, when reading a field would query
-        # a cursor that is no longer the one this action was loaded on.
         action_label = vals["_action"]
         timeout = self.webhook_timeout or 1
-        # The URL itself never reaches the log -- see `_webhook_log_target`. It
-        # still reaches `requests`, which is the only place it belongs.
-        target = _webhook_log_target(url)
+        target = _get_webhook_log_target(url)
 
         _logger.info("Webhook %s to %s", action_label, target)
         _logger.debug("POST JSON data for webhook call: %s", json_values)
-        deliver = self._webhook_delivery(url, timeout, action_label, target)
+        deliver = self._prepare_webhook_delivery(url, timeout, action_label, target)
 
         @self.env.cr.postrollback.add
         def _add_post_rollback():
@@ -1074,37 +1046,19 @@ class IrActionsServer(models.Model):
         def _add_post_commit():
             deliver(json_values)
 
-    def _webhook_delivery(self, url, timeout, action_label, target):
-        """Return the callable that actually sends the webhook.
-
-        :param str url: where to POST
-        :param int timeout: seconds
-        :param str action_label: `name(#id)`, for the log
-        :param str target: the receiver's host — see `_webhook_log_target`
-        :return: a callable taking the JSON body
-        :rtype: collections.abc.Callable[[str], None]
-
-        A **plain closure over plain values**, deliberately, rather than a bound
-        method. What it returns runs from a `postcommit` hook, after the
-        transaction has ended and the cursor it was built on is gone, so
-        anything that reads a field there queries a dead cursor. Returning a
-        closure makes the boundary explicit and puts every ORM read on this side
-        of it: an override decides how to send *while it still can*, and hands
-        back something that no longer needs the ORM.
-
-        The delivery is unauthenticated by design at this layer. `base` has no
-        credential store and cannot depend on one; a module that does —
-        `api_transport` — overrides this to send through a configured endpoint.
-        """
+    def _prepare_webhook_delivery(self, url, timeout, action_label, target):
         return partial(
-            self._webhook_deliver_unauthenticated, url, timeout, action_label, target
+            self._deliver_webhook_unauthenticated,
+            url,
+            timeout,
+            action_label,
+            target,
         )
 
     @staticmethod
-    def _webhook_deliver_unauthenticated(
+    def _deliver_webhook_unauthenticated(
         url, timeout, action_label, target, json_values
     ):
-        """POST the payload with no credential, which is all `base` can do."""
         _logger.debug("Webhook %s to %s - start", action_label, target)
         import requests
 
@@ -1132,7 +1086,7 @@ class IrActionsServer(models.Model):
                 "Webhook %s to %s failed and will NOT be retried: %s",
                 action_label,
                 target,
-                _webhook_scrub(str(e), url, target),
+                _scrub_webhook_url(str(e), url, target),
             )
 
     def _link_to_active_record(self, new_id: int) -> None:
@@ -1240,7 +1194,7 @@ class IrActionsServer(models.Model):
         for action in self.sudo():
             eval_context = self._get_eval_context(action)
             records = self._get_target_records(action)
-            action.sudo(self.env.su)._can_execute_action_on_records(records)
+            action.sudo(self.env.su)._check_access_to_run(records)
             res = action._run(records, eval_context)
         return res
 
@@ -1265,7 +1219,7 @@ class IrActionsServer(models.Model):
                 )
             )
 
-        runner, multi = self._get_runner()
+        runner, multi = self._resolve_runner()
         res = False
         if runner and multi:
             if not records and self.state in self._get_states_needing_a_live_record():
@@ -1298,7 +1252,7 @@ class IrActionsServer(models.Model):
             )
         return res or False
 
-    def _can_execute_action_on_records(self, records: Any) -> None:
+    def _check_access_to_run(self, records: Any) -> None:
         self.ensure_one()
         config = self.sudo()
 
@@ -1363,7 +1317,7 @@ class IrActionsServer(models.Model):
         )
 
     @api.onchange("crud_model_id")
-    def _set_crud_model_id(self) -> None:
+    def _inverse_crud_model_id(self) -> None:
         invalid = self.filtered(
             lambda a: (
                 a.state == "object_copy"
@@ -1384,7 +1338,7 @@ class IrActionsServer(models.Model):
         invalid.link_field_id = False
 
     @api.onchange("resource_ref")
-    def _set_resource_ref(self) -> None:
+    def _inverse_resource_ref(self) -> None:
         for action in self.filtered(
             lambda action: action.value_field_to_show == "resource_ref"
         ):
@@ -1392,14 +1346,14 @@ class IrActionsServer(models.Model):
                 action.value = str(action.resource_ref.id)
 
     @api.onchange("selection_value")
-    def _set_selection_value(self) -> None:
+    def _inverse_selection_value(self) -> None:
         for action in self.filtered(
             lambda action: action.value_field_to_show == "selection_value"
         ):
             if action.selection_value:
                 action.value = action.selection_value.value
 
-    def _to_number(self, converter: Any) -> Any:
+    def _coerce_number(self, converter: Any) -> Any:
         self.ensure_one()
         try:
             return converter(self.value)
@@ -1445,11 +1399,11 @@ class IrActionsServer(models.Model):
                 if not action.value:
                     expr = False if ttype == "many2one" else 0
                 else:
-                    expr = action._to_number(int)
+                    expr = action._coerce_number(int)
                     if expr == 0 and ttype == "many2one":
                         expr = False
             elif action.update_field_id.ttype == "float":
-                expr = 0.0 if not action.value else action._to_number(float)
+                expr = 0.0 if not action.value else action._coerce_number(float)
             elif action.update_field_id.ttype == "html":
                 expr = action.html_value
             result[action.id] = expr

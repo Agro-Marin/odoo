@@ -40,7 +40,6 @@ from .ir_cron import (
 _logger = logging.getLogger(__name__)
 
 NOTIFY_PENDING_KEY = "ir.job.notify"
-"""``cr.postcommit.data`` key coalescing a transaction's worker wake-ups."""
 
 ALLOWED_CONTEXT_KEYS = ("lang", "tz", "allowed_company_ids")
 
@@ -55,24 +54,8 @@ CONCURRENCY_MAX_ATTEMPTS = 5
 CONCURRENCY_BACKOFF_BASE_S = 0.2
 CONCURRENCY_BACKOFF_MAX_S = 2.0
 JOB_CONCURRENCY_EXCEPTIONS = (*PG_RETRY_EXCEPTIONS, ConcurrencyError)
-"""Failures that mean "somebody else committed first", not "this job is broken".
-
-The set :func:`odoo.service.transaction.retrying` replays an HTTP request on.
-A job body writing the same rows as a concurrent request loses the same races,
-and reaching them through :meth:`IrJob._record_failure` instead charged each
-one a retry off the budget plus a rung of the backoff ladder -- five lost races
-and a perfectly correct job is ``failed`` for good.
-"""
 
 DRAIN_BUDGET_RATIO = 0.4
-"""Fraction of the worker's real-time limit a single drain pass may consume.
-
-Below a half because the prefork worker pings its watchdog *before* sleeping:
-``WorkerCron.sleep`` caps its select at half the watchdog timeout, so a pass
-that starts after a full idle sleep only has the other half of the window left.
-Unlike the cron backstop, a drain reaches this bound on any real backlog, so it
-is sized for the worst case rather than the typical one.
-"""
 
 MAINTENANCE_INTERVAL_S = 30
 REAP_BATCH_SIZE = 1000
@@ -81,7 +64,6 @@ DONE_RETENTION = timedelta(days=7)
 FAILED_RETENTION = timedelta(days=30)
 
 _last_maintenance: dict[str, float] = {}
-"""Per-process monotonic clock of the last maintenance sweep, by database."""
 
 
 class JobState(StrEnum):
@@ -110,28 +92,17 @@ QUEUED_STATES = (
     JobState.PENDING,
     JobState.STARTED,
 )
-"""States in which a job still owes work, and so holds its ``identity_key``."""
 
 CANCELLABLE_STATES = (JobState.WAIT_DEPS, JobState.SCHEDULED, JobState.PENDING)
-"""States a job can still be cancelled from -- everything not yet running."""
 
 RUNNABLE_STATES = (JobState.SCHEDULED, JobState.PENDING)
-"""States "Run Manually" accepts: a job whose only obstacle is its clock."""
 
 _DUE_STATE_SQL = SQL(
     "CASE WHEN eta IS NULL OR eta <= (now() AT TIME ZONE 'UTC')"
     " THEN 'pending' ELSE 'scheduled' END"
 )
-"""Which queued state a job belongs in *right now*, given its ``eta``.
-
-``pending`` means claimable this instant; a job waiting on its clock is
-``scheduled``.  Every writer that puts a job back in the queue -- enqueue, retry
-backoff, dependency release, the repair sweep -- has to make that distinction,
-and each one spelling it out separately is how they drift.
-"""
 
 DEAD_DEPENDENCY_STATES = (JobState.FAILED, JobState.CANCELLED)
-"""Dependency states that cascade-cancel whatever is waiting on them."""
 
 
 def _states_sql(states: tuple[JobState, ...]) -> str:
@@ -146,17 +117,11 @@ def _format_exception(exc: BaseException) -> str:
 
 
 def _current_job() -> dict | None:
-    """The job this thread is executing, if any.
-
-    Set by :meth:`IrJob._run_claimed` around the body call so a job can ask
-    for its own deferral without being handed a handle to itself.
-    """
     return getattr(threading.current_thread(), "ir_job", None)
 
 
 @contextmanager
 def _running_job(job: dict[str, Any]) -> Iterator[None]:
-    """Mark this thread as executing ``job`` for the duration of the body."""
     thread = threading.current_thread()
     previous = getattr(thread, "ir_job", None)
     thread.ir_job = job
@@ -271,12 +236,12 @@ class IrJobChannel(models.Model):
     )
     running_count = fields.Integer(
         string="Running",
-        compute="_compute_running_count",
+        compute="_compute_job_counts",
         help="Jobs of this channel currently executing, across all workers.",
     )
     pending_count = fields.Integer(
         string="Pending",
-        compute="_compute_running_count",
+        compute="_compute_job_counts",
         help="Jobs of this channel waiting to be claimed.",
     )
 
@@ -287,7 +252,7 @@ class IrJobChannel(models.Model):
     )
 
     @api.depends("name")
-    def _compute_running_count(self) -> None:
+    def _compute_job_counts(self) -> None:
         counts = {
             (channel, state): count
             for channel, state, count in self.env["ir.job"]
@@ -563,40 +528,10 @@ class IrJob(models.Model):
 
     @api.model
     def _defer(self, seconds: int, reason: str = "") -> None:
-        """Ask the queue to run this job again later, keeping what it did.
-
-        For a job whose work is not finished because something *outside* it is
-        not ready yet -- polling a remote service that is still preparing an
-        answer, waiting on a file that has not landed. That is not a failure,
-        and it must not be reported as one:
-
-        - the body's writes are kept and committed, because a poll that
-          learned something should not throw the answer away;
-        - ``retry`` is untouched, so the tolerance that exists for genuine
-          errors is not eaten by a service that is merely slow;
-        - nothing is recorded in ``exc_*``, because nothing went wrong;
-        - the job keeps its ``identity_key`` throughout, so a caller cannot
-          queue a duplicate for the same work while it waits.
-
-        Raising :class:`RetryableJobError` is the wrong tool for this: it is
-        an exception, so the transaction is rolled back and the poll's
-        findings are lost, and it spends a retry per attempt.
-
-        Deferrals have their own budget, ``max_defers`` on ``@api.job``. A job
-        that exhausts it fails, because a job that never stops asking for more
-        time is stuck.
-
-        :param int seconds: how long to wait before running again
-        :param str reason: shown on the job, for whoever looks at the queue
-        :raises UserError: if called outside a running job
-        :raises TerminalJobError: if the deferral budget is spent
-        """
         job = _current_job()
         if job is None:
             raise UserError(
-                self.env._(
-                    "_defer() can only be called from inside a running job."
-                )
+                self.env._("_defer() can only be called from inside a running job.")
             )
         if job["defer_count"] >= job["max_defers"]:
             raise TerminalJobError(
@@ -634,7 +569,7 @@ class IrJob(models.Model):
             threading.current_thread().dbname = db_name
             with db_conn.cursor() as pre_cr:
                 IrCron._check_version(pre_cr)
-                if IrCron._modules_are_changing(pre_cr):
+                if IrCron._is_any_module_changing(pre_cr):
                     _logger.debug(
                         "Skipping database %s because of modules to"
                         " install/upgrade/remove.",
@@ -956,13 +891,6 @@ class IrJob(models.Model):
 
     @staticmethod
     def _record_deferral(cr, job: dict[str, Any], defer: dict[str, Any]) -> None:
-        """Put a job that asked for more time back on the clock.
-
-        Deliberately not :meth:`_record_failure`: ``retry`` is untouched and
-        ``exc_*`` is cleared, because a deferral says the job made progress
-        and is not finished, not that anything went wrong. Dependents stay
-        blocked, which is correct -- the job has not delivered yet.
-        """
         seconds = defer["seconds"]
         cr.execute(
             SQL(

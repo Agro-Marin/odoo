@@ -26768,7 +26768,7 @@ msgid "EU One Stop Shop (OSS) Reports"
 msgstr "EU:n OSS-järjestelmän raportit"
 
 #. module: base
-#: model:ir.model.constraint,message:base.constraint_ir_model_obj_name_uniq
+#: model:ir.model.constraint,message:base.constraint_ir_model_model_uniq
 msgid "Each model must have a unique name."
 msgstr "Jokaisella mallipohjalla on oltava yksilöllinen nimi."
 

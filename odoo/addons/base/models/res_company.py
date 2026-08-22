@@ -30,7 +30,7 @@ class ResCompany(models.Model):
             )
         )
 
-    def _get_logo(self) -> bytes:
+    def _default_logo(self) -> bytes:
         return _get_default_logo()
 
     def _default_currency_id(self) -> models.Model:
@@ -67,12 +67,12 @@ class ResCompany(models.Model):
     parent_path = fields.Char(index=True)
     parent_ids = fields.Many2many(
         "res.company",
-        compute="_compute_parent_ids",
+        compute="_compute_hierarchy",
         compute_sudo=True,
     )
     root_id = fields.Many2one(
         "res.company",
-        compute="_compute_parent_ids",
+        compute="_compute_hierarchy",
         compute_sudo=True,
     )
     currency_id = fields.Many2one(
@@ -101,14 +101,14 @@ class ResCompany(models.Model):
     state_id = fields.Many2one(
         "res.country.state",
         compute="_compute_address",
-        inverse="_inverse_state",
+        inverse="_inverse_state_id",
         string="Fed. State",
         domain="[('country_id', '=?', country_id)]",
     )
     country_id = fields.Many2one(
         "res.country",
         compute="_compute_address",
-        inverse="_inverse_country",
+        inverse="_inverse_country_id",
         string="Country",
     )
     country_code = fields.Char(related="country_id.code", depends=["country_id"])
@@ -126,7 +126,7 @@ class ResCompany(models.Model):
     )
     logo = fields.Binary(
         related="partner_id.image_1920",
-        default=_get_logo,
+        default=_default_logo,
         string="Company Logo",
         readonly=False,
     )
@@ -155,7 +155,7 @@ class ResCompany(models.Model):
         help="Header text displayed at the top of all reports.",
     )
     is_company_details_empty = fields.Boolean(
-        compute="_compute_empty_company_details",
+        compute="_compute_is_company_details_empty",
     )
     paperformat_id = fields.Many2one(
         "report.paperformat",
@@ -408,7 +408,7 @@ class ResCompany(models.Model):
         }
 
     @api.depends("parent_path")
-    def _compute_parent_ids(self) -> None:
+    def _compute_hierarchy(self) -> None:
         for company in self.with_context(active_test=False):
             company.parent_ids = (
                 self.browse([int(id) for id in company.parent_path.split("/") if id])
@@ -445,11 +445,11 @@ class ResCompany(models.Model):
         for company in self:
             company.partner_id.city = company.city
 
-    def _inverse_state(self) -> None:
+    def _inverse_state_id(self) -> None:
         for company in self:
             company.partner_id.state_id = company.state_id
 
-    def _inverse_country(self) -> None:
+    def _inverse_country_id(self) -> None:
         for company in self:
             company.partner_id.country_id = company.country_id
 
@@ -463,7 +463,7 @@ class ResCompany(models.Model):
 
     @api.depends("partner_id.image_1920")
     def _compute_uses_default_logo(self) -> None:
-        default_logo = self._get_logo()
+        default_logo = _get_default_logo()
         for company in self:
             company.uses_default_logo = not company.logo or company.logo == default_logo
 
@@ -479,7 +479,7 @@ class ResCompany(models.Model):
             company.root_id.partner_id.color = company.color
 
     @api.onchange("state_id")
-    def _onchange_state(self) -> None:
+    def _onchange_state_id(self) -> None:
         if self.state_id.country_id:
             self.country_id = self.state_id.country_id
 
@@ -578,7 +578,7 @@ class ResCompany(models.Model):
         return domain & constraint
 
     @api.depends("company_details")
-    def _compute_empty_company_details(self) -> None:
+    def _compute_is_company_details_empty(self) -> None:
         for record in self:
             record.is_company_details_empty = not html2plaintext(
                 record.company_details or ""

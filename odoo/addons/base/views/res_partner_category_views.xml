@@ -8,7 +8,9 @@
             <form string="Contact Tag">
                 <sheet>
                     <group col="4">
-                        <field name="name" placeholder="e.g. &quot;Consulting Services&quot;" />
+                        <field
+                            name="name"
+                            placeholder="e.g. &quot;Consulting Services&quot;" />
                         <field name="color" widget="color_picker" />
                         <field name="parent_id" />
                         <field name="active" widget="boolean_toggle" />
@@ -26,11 +28,19 @@
                 <field name="name" string="Name" />
                 <field name="display_name" string="Category" />
                 <separator />
-                <filter string="Archived" name="inactive" domain="[('active', '=', False)]" />
+                <filter
+                    string="Archived"
+                    name="inactive"
+                    domain="[('active', '=', False)]" />
                 <group>
-                    <filter string="Category" name="group_parent_id"
+                    <filter
+                        string="Category"
+                        name="group_parent_id"
                         context="{'group_by': 'parent_id'}" />
-                    <filter string="Color" name="group_color" context="{'group_by': 'color'}" />
+                    <filter
+                        string="Color"
+                        name="group_color"
+                        context="{'group_by': 'color'}" />
                 </group>
             </search>
         </field>

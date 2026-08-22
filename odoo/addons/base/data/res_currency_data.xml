@@ -588,7 +588,7 @@
         <field name="name">AZN</field>
         <field name="iso_numeric">944</field>
         <field name="full_name">Azerbaijani manat</field>
-        <field name="symbol">m</field>
+        <field name="symbol">₼</field>
         <field name="rounding">0.01</field>
         <field name="active" eval="False" />
         <field name="currency_unit_label">Manat</field>
@@ -1779,6 +1779,7 @@
         <field name="iso_numeric">586</field>
         <field name="full_name">Pakistani rupee</field>
         <field name="symbol">Rs.</field>
+        <field name="position">before</field>
         <field name="rounding">0.01</field>
         <field name="active" eval="False" />
         <field name="currency_unit_label">Rupee</field>

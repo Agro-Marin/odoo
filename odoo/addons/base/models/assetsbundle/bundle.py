@@ -53,7 +53,17 @@ from .xml_pipeline import XmlTemplatePipeline
 
 @functools.cache
 def _check_external_libs_once() -> None:
-    AssetsBundle._validate_external_libs(external_libs())
+    try:
+        AssetsBundle._check_external_libs(external_libs())
+    except ValueError as exc:
+        if JsPipeline._fails_closed():
+            raise
+        log_event(
+            _bundle_log,
+            logging.ERROR,
+            "external_libs_invalid",
+            error=str(exc).replace("\n", " ")[:400],
+        )
 
 
 class AssetsBundle:
@@ -72,7 +82,7 @@ class AssetsBundle:
     )
 
     @classmethod
-    def _validate_external_libs(
+    def _check_external_libs(
         cls,
         import_map: Mapping[str, str],
         lib_candidates: Mapping[str, tuple[str, ...]] = EsbuildCompiler._LIB_CANDIDATES,
@@ -89,6 +99,15 @@ class AssetsBundle:
             )
         missing_files = []
         for spec, url in import_map.items():
+            # No _addon_is_present guard here, and that asymmetry with the
+            # _LIB_CANDIDATES loop below is the point. This map is built from
+            # the manifests that were actually read, and every declared URL is
+            # served by its own declaring addon -- which is a separate gate,
+            # test_every_declared_lib_is_served_by_its_own_addon. So the addon
+            # is present by construction, and a URL naming one that is not is a
+            # typo. Skipping it is how a mistyped addon reached production and
+            # 404'd every page that loaded the bundle; it is reported as the
+            # missing file it is.
             if not cls._addon_relative_path_exists(url.lstrip("/")):
                 missing_files.append(f"{spec} -> {url}")
         if missing_files:
@@ -97,11 +116,17 @@ class AssetsBundle:
                 f"on disk: {missing_files}. Browsers would 404 on the "
                 f"import-map fetch.",
             )
-        missing_aliases = [
-            f"{alias} -> {'/'.join(parts)}"
-            for alias, parts in lib_candidates.items()
-            if not cls._addon_relative_path_exists("/".join(parts))
-        ]
+        missing_aliases = []
+        for alias, parts in lib_candidates.items():
+            rel = "/".join(parts)
+            # Here the guard is load-bearing. _LIB_CANDIDATES is a static table
+            # naming addons a given deployment may simply not carry, and
+            # _get_esbuild_addon_flags already skips a candidate whose file is
+            # absent, so nothing imports the alias. An absent addon is therefore
+            # legitimate; a present addon whose file moved is the defect this
+            # loop exists to catch.
+            if cls._addon_is_present(rel) and not cls._addon_relative_path_exists(rel):
+                missing_aliases.append(f"{alias} -> {rel}")
         if missing_aliases:
             raise ValueError(
                 f"_LIB_CANDIDATES aliases point at files that do not exist "
@@ -115,18 +140,75 @@ class AssetsBundle:
         return url.partition("#")[0].partition("?")[0].rpartition(".")[2].lower()
 
     @staticmethod
+    def _addon_is_present(rel: str) -> bool:
+        module = rel.partition("/")[0]
+        if not module:
+            return False
+        try:
+            file_path(module)
+        except ValueError, FileNotFoundError:
+            return False
+        return True
+
+    @staticmethod
     def _addon_relative_path_exists(rel: str) -> bool:
         try:
             file_path(rel)
-        except ValueError:
-            return False
-        except FileNotFoundError:
-            try:
-                file_path(rel.split("/", 1)[0])
-            except FileNotFoundError, ValueError:
-                return True
+        except ValueError, FileNotFoundError:
             return False
         return True
+
+    def _collect_external_assets(
+        self, external_assets: Sequence[str], css: bool, js: bool
+    ) -> list[str]:
+        kept = []
+        for url in external_assets:
+            ext = self._url_extension(url)
+            if (css and ext in STYLE_EXTENSIONS) or (js and ext in SCRIPT_EXTENSIONS):
+                kept.append(url)
+            elif ext not in STYLE_EXTENSIONS and ext not in SCRIPT_EXTENSIONS:
+                log_event(
+                    _bundle_log,
+                    logging.WARNING,
+                    "external_asset_skipped",
+                    bundle=self.name,
+                    url=url,
+                )
+        return kept
+
+    def _collect_files(self, files: list[BundleFileSpec], css: bool, js: bool) -> None:
+        for spec in files:
+            extension = self._url_extension(spec["url"])
+            params = {
+                "url": spec["url"],
+                "filename": spec["filename"],
+                "inline": spec["content"],
+                "last_modified": (
+                    None if self.is_debug_assets else spec.get("last_modified")
+                ),
+            }
+            if css and (stylesheet_type := self._STYLESHEET_TYPES.get(extension)):
+                self.stylesheets.append(
+                    stylesheet_type(
+                        self, **params, rtl=self.rtl, autoprefix=self.autoprefix
+                    )
+                )
+            if js and (script_type := self._SCRIPT_TYPES.get(extension)):
+                asset = script_type(self, **params)
+                if self._is_esm_bundle and self._is_module_js(asset):
+                    self.native_modules.append(asset)
+                else:
+                    self.javascripts.append(asset)
+            if js and (template_type := self._TEMPLATE_TYPES.get(extension)):
+                self.templates.append(template_type(self, **params))
+            if extension not in self._BUNDLE_FILE_EXTENSIONS:
+                log_event(
+                    _bundle_log,
+                    logging.WARNING,
+                    "bundle_file_skipped",
+                    bundle=self.name,
+                    url=spec["url"],
+                )
 
     def __init__(
         self,
@@ -160,52 +242,8 @@ class AssetsBundle:
         self._checksum_cache = {}
         self._native_module_data_cache: dict[bool, NativeModuleData] = {}
         self.is_debug_assets = debug_assets
-        self.external_assets = []
-        for url in external_assets:
-            ext = self._url_extension(url)
-            if (css and ext in STYLE_EXTENSIONS) or (js and ext in SCRIPT_EXTENSIONS):
-                self.external_assets.append(url)
-            elif ext not in STYLE_EXTENSIONS and ext not in SCRIPT_EXTENSIONS:
-                log_event(
-                    _bundle_log,
-                    logging.WARNING,
-                    "external_asset_skipped",
-                    bundle=name,
-                    url=url,
-                )
-
-        for f in files:
-            extension = self._url_extension(f["url"])
-            params = {
-                "url": f["url"],
-                "filename": f["filename"],
-                "inline": f["content"],
-                "last_modified": (
-                    None if self.is_debug_assets else f.get("last_modified")
-                ),
-            }
-            if css and (stylesheet_type := self._STYLESHEET_TYPES.get(extension)):
-                self.stylesheets.append(
-                    stylesheet_type(
-                        self, **params, rtl=self.rtl, autoprefix=self.autoprefix
-                    )
-                )
-            if js and (script_type := self._SCRIPT_TYPES.get(extension)):
-                asset = script_type(self, **params)
-                if self._is_esm_bundle and self._is_module_js(asset):
-                    self.native_modules.append(asset)
-                else:
-                    self.javascripts.append(asset)
-            if js and (template_type := self._TEMPLATE_TYPES.get(extension)):
-                self.templates.append(template_type(self, **params))
-            if extension not in self._BUNDLE_FILE_EXTENSIONS:
-                log_event(
-                    _bundle_log,
-                    logging.WARNING,
-                    "bundle_file_skipped",
-                    bundle=name,
-                    url=f["url"],
-                )
+        self.external_assets = self._collect_external_assets(external_assets, css, js)
+        self._collect_files(files, css, js)
 
         for index, stylesheet in enumerate(self.stylesheets):
             stylesheet.id = f"{index:04x}"
