@@ -47,12 +47,12 @@ class CredentialCategory(models.Model):
         help="FontAwesome icon class for UI display",
     )
 
-    default_enable_rate_limiting = fields.Boolean(
+    default_decrypt_rate_limit_enabled = fields.Boolean(
         string="Enable Rate Limiting (Default)",
         default=True,
         help="Default rate limiting setting for credentials of this category. Can be overridden per credential.",
     )
-    default_rate_limit_max_attempts = fields.Integer(
+    default_decrypt_rate_limit_max = fields.Integer(
         string="Rate Limit (Default)",
         default=100,
         help="Default maximum decryption attempts per hour. Can be overridden per credential.",

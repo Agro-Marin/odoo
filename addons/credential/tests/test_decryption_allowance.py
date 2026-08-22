@@ -2,11 +2,12 @@ from odoo.exceptions import ValidationError
 from odoo.tests import TransactionCase, tagged
 from odoo.tools import mute_logger
 
+from odoo.addons.base_encryption_mixin.tests.common import EncryptionKeyCase
 from odoo.addons.credential.tools import get_caller_rate_limiter
 
 
 @tagged("post_install", "-at_install")
-class TestDecryptionAllowance(TransactionCase):
+class TestDecryptionAllowance(EncryptionKeyCase, TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -21,7 +22,7 @@ class TestDecryptionAllowance(TransactionCase):
             }
         )
         credential.sudo().write(
-            {"enable_rate_limiting": True, "rate_limit_max_attempts": cap}
+            {"decrypt_rate_limit_enabled": True, "decrypt_rate_limit_max": cap}
         )
         self.env.flush_all()
         return credential
@@ -85,7 +86,7 @@ class TestDecryptionAllowance(TransactionCase):
                 }
             )
             credential.sudo().write(
-                {"enable_rate_limiting": True, "rate_limit_max_attempts": 2}
+                {"decrypt_rate_limit_enabled": True, "decrypt_rate_limit_max": 2}
             )
             credential_id = credential.id
             cr.commit()
@@ -145,7 +146,7 @@ class TestDecryptionAllowance(TransactionCase):
                 "credential_value": "PLAINTEXT",
             }
         )
-        credential.sudo().write({"enable_rate_limiting": False})
+        credential.sudo().write({"decrypt_rate_limit_enabled": False})
         self.env.flush_all()
 
         buckets = self.env["rate.limit.bucket"].sudo()

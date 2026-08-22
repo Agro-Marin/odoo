@@ -205,7 +205,7 @@ class EncryptionMixin(models.AbstractModel):
     def _allow_key_fallback(self) -> bool:
         return getattr(self.sudo(), "allow_key_fallback", True)
 
-    def _fallback_disabled_error(self, binary: bool) -> ValidationError:
+    def _prepare_fallback_disabled_error(self, binary: bool) -> ValidationError:
         if binary:
             return ValidationError(
                 self.env._(
@@ -273,7 +273,7 @@ class EncryptionMixin(models.AbstractModel):
             return False
         except InvalidToken:
             if not allow_fallback:
-                raise self._fallback_disabled_error(binary) from None
+                raise self._prepare_fallback_disabled_error(binary) from None
             _logger.debug(
                 "Current key failed for %s record %s, trying old key versions",
                 self._name,

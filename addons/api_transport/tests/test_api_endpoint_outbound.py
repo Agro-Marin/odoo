@@ -5,6 +5,7 @@ from odoo.libs.logging import mute_logger
 from odoo.tests.common import TransactionCase, tagged
 
 from odoo.addons.api_transport.tools.exceptions import CommError
+from odoo.addons.base_encryption_mixin.tests.common import EncryptionKeyCase
 
 
 class TestApiEndpointOutbound(TransactionCase):
@@ -404,7 +405,7 @@ class TestGenericVersionHeaders(TransactionCase):
 
 
 @tagged("post_install", "-at_install", "api_transport")
-class TestApiKeyHeader(TransactionCase):
+class TestApiKeyHeader(EncryptionKeyCase, TransactionCase):
     def _credential_for(self, **service_vals):
         service = self.env["api.endpoint.outbound"].create(
             {

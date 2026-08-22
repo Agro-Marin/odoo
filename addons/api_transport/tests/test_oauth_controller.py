@@ -3,9 +3,10 @@ from unittest.mock import MagicMock, patch
 from odoo.tests.common import TransactionCase
 
 from odoo.addons.api_transport.controllers.oauth import OAuthController
+from odoo.addons.base_encryption_mixin.tests.common import EncryptionKeyCase
 
 
-class TestOAuthTokenExchange(TransactionCase):
+class TestOAuthTokenExchange(EncryptionKeyCase, TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -72,3 +73,71 @@ class TestOAuthTokenExchange(TransactionCase):
         _tokens, mock_post = self._exchange(credential)
 
         self.assertNotIn("client_secret", mock_post.call_args.kwargs["data"])
+
+
+class TestOAuthClientIdResolution(EncryptionKeyCase, TransactionCase):
+    """The credential's own `oauth_client_id` was offered by the UI and read by nothing.
+
+    `api.endpoint.outbound` and `credential.credential` both declare a field of that
+    name. Every call site in the OAuth flow read the endpoint's, so a client id entered
+    on the credential form -- stored encrypted, audited, carried through key rotation --
+    was silently ignored, and the authorize step then refused with "not configured for
+    service", naming the model the value was not on.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.category_oauth2 = cls.env.ref("credential.credential_category_oauth2")
+
+    def _setup(self, service_client_id, credential_client_id):
+        # 'code' is constrained to an identifier by '_check_code_format', so it is
+        # derived from which side supplies the value rather than from the value.
+        slug = f"{'svc' if service_client_id else 'nosvc'}_"
+        slug += "cred" if credential_client_id else "nocred"
+        service = self.env["api.endpoint.outbound"].create(
+            {
+                "name": f"resolution {slug}",
+                "code": f"oauth_res_{slug}",
+                "endpoint_url": "https://api.oauth.test",
+                "auth_type": "oauth2",
+                "oauth_client_id": service_client_id or False,
+                "oauth_auth_endpoint": "https://oauth.test/authorize",
+                "oauth_token_endpoint": "https://oauth.test/token",
+            }
+        )
+        return self.env["credential.credential"].create(
+            {
+                "name": f"resolution credential {slug}",
+                "category_id": self.category_oauth2.id,
+                "endpoint_id": service.id,
+                "oauth_client_secret": "s3cr3t",
+                "oauth_client_id": credential_client_id or False,
+            }
+        )
+
+    def test_the_service_supplies_it(self):
+        credential = self._setup("from-service", None)
+        self.assertEqual(credential._oauth_client_id(), "from-service")
+
+    def test_the_credential_supplies_it_when_the_service_does_not(self):
+        credential = self._setup(None, "from-credential")
+        self.assertEqual(
+            credential._oauth_client_id(),
+            "from-credential",
+            "a client id entered on the credential form was ignored, and the flow "
+            "then refused saying the service was not configured",
+        )
+
+    def test_the_service_still_wins(self):
+        """A fallback, not a new precedence -- no configured deployment changes."""
+        credential = self._setup("from-service", "from-credential")
+        self.assertEqual(credential._oauth_client_id(), "from-service")
+
+    def test_neither_resolves_to_nothing(self):
+        credential = self._setup(None, None)
+        self.assertFalse(
+            credential._oauth_client_id(),
+            "with neither configured the flow must still refuse, rather than "
+            "authorize with an empty client id",
+        )

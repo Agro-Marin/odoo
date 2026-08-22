@@ -19,12 +19,7 @@ class PrivacyLookupWizard(models.TransientModel):
     execution_details = fields.Text(compute='_compute_execution_details', store=True)
     log_id = fields.Many2one('privacy.log')
     records_description = fields.Text(compute='_compute_records_description')
-    line_count = fields.Integer(compute='_compute_line_count')
-
-    @api.depends('line_ids')
-    def _compute_line_count(self):
-        for wizard in self:
-            wizard.line_count = len(wizard.line_ids)
+    line_count = fields.Count("line_ids")
 
     def _compute_display_name(self):
         self.display_name = _('Privacy Lookup')
@@ -205,7 +200,7 @@ class PrivacyLookupWizard(models.TransientModel):
 
     def action_open_lines(self):
         self.ensure_one()
-        action = self.env['ir.actions.act_window']._for_xml_id('privacy_lookup.action_privacy_lookup_wizard_line')
+        action = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('privacy_lookup.action_privacy_lookup_wizard_line')
         action['domain'] = [('wizard_id', '=', self.id)]
         return action
 
@@ -241,7 +236,7 @@ class PrivacyLookupWizardLine(models.TransientModel):
         string='Record',
         selection='_selection_target_model',
         compute='_compute_resource_ref',
-        inverse='_set_resource_ref')
+        inverse='_inverse_resource_ref')
     has_active = fields.Boolean(compute='_compute_has_active', store=True)
     is_active = fields.Boolean()
     is_unlinked = fields.Boolean()
@@ -260,7 +255,7 @@ class PrivacyLookupWizardLine(models.TransientModel):
             else:
                 line.resource_ref = None
 
-    def _set_resource_ref(self):
+    def _inverse_resource_ref(self):
         for line in self:
             if line.resource_ref:
                 line.res_id = line.resource_ref.id

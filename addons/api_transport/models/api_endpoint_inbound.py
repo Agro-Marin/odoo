@@ -13,8 +13,8 @@ class ApiEndpointInbound(models.AbstractModel):
     _name = "api.endpoint.inbound"
     _inherit = ["api.channel.mixin", "inbound.gate.mixin"]
     _description = "Inbound Endpoint"
+    _api_event_direction = "inbound"
 
-    rate_limit_strict = fields.Boolean(default=True)
 
     duplicate_detection_enabled = fields.Boolean(
         default=True,
@@ -35,10 +35,6 @@ class ApiEndpointInbound(models.AbstractModel):
         help="Sync: Process immediately. Async: Queue for background processing.",
     )
 
-    event_log_ids = fields.One2many(
-        comodel_name="api.event.log",
-        compute="_compute_event_log_ids",
-    )
     event_count = fields.Integer(
         compute="_compute_event_count",
     )
@@ -170,33 +166,11 @@ class ApiEndpointInbound(models.AbstractModel):
 
         return super().unlink()
 
-    def _compute_event_log_ids(self):
-        logs_by_ref: dict[str, list[int]] = {}
-        if self.ids:
-            endpoint_refs = [f"{record._name},{record.id}" for record in self]
-            groups = self.env["api.event.log"]._read_group(
-                domain=[
-                    ("channel_id", "in", endpoint_refs),
-                    ("direction", "=", "inbound"),
-                ],
-                groupby=["channel_id"],
-                aggregates=["id:recordset"],
-            )
-            for ref, recordset in groups:
-                logs_by_ref[ref] = recordset.ids
-        for record in self:
-            ref = f"{record._name},{record.id}"
-            record.event_log_ids = [(6, 0, logs_by_ref.get(ref, []))]
-
     def _compute_event_count(self):
         counts_by_ref: dict[str, int] = {}
         if self.ids:
-            endpoint_refs = [f"{record._name},{record.id}" for record in self]
             groups = self.env["api.event.log"]._read_group(
-                domain=[
-                    ("channel_id", "in", endpoint_refs),
-                    ("direction", "=", "inbound"),
-                ],
+                domain=self._api_event_log_domain(),
                 groupby=["channel_id"],
                 aggregates=["__count"],
             )
@@ -324,4 +298,4 @@ class ApiEndpointInbound(models.AbstractModel):
         if exclude_event_id:
             domain.append(("id", "!=", exclude_event_id))
 
-        return self.env["api.event.log"].sudo().search_count(domain) > 0
+        return self.env["api.event.log"].sudo().search_count(domain, limit=1) > 0

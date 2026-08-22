@@ -14,10 +14,10 @@ class ResUsers(models.Model):
             ),
         }
 
-    def _set_password(self):
+    def _inverse_password(self):
         self._check_password_policy(self.mapped("password"))
 
-        super()._set_password()
+        super()._inverse_password()
 
     def _check_password_policy(self, passwords):
         failures = []

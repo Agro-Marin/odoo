@@ -45,6 +45,15 @@ def _apply_registered_secrets(value: str) -> str:
     return value
 
 
+# Matched against key names lowercased and with '-' folded to '_', so one spelling
+# covers both the JSON convention ('api_key') and the header one ('X-API-Key'). Write
+# new entries with underscores.
+#
+# This is a denylist and is known to be incomplete for arbitrary caller-chosen names;
+# test_api_client_logging.py pins that gap by name rather than pretending otherwise.
+# Header names the *credential* contributes do not rely on it at all -- they are
+# redacted by provenance in '_redact_headers', because 'api_key_header' is free text
+# and no list can be right about it.
 _SENSITIVE_FIELD_PATTERNS = (
     "password",
     "passwd",
@@ -63,8 +72,8 @@ _SENSITIVE_FIELD_PATTERNS = (
     "auth",
     "bearer",
     "signature",
-    "x-amz-security-token",
-    "x-amz-signature",
+    "x_amz_security_token",
+    "x_amz_signature",
 )
 
 _MAX_LOGGED_PAYLOAD = 10000
@@ -170,6 +179,12 @@ class OutboundAPIClient:
         self.endpoint_code = endpoint_code
         self.company_id = company_id or env.company.id
         self.user_id = env.user.id
+        # Which header names this client's credential fills in. Client-scoped rather than
+        # request-scoped because the credential is: the names are a property of how this
+        # endpoint authenticates, not of any one call. Captured in '_build_headers' from
+        # the same call that produces the values, so the two cannot drift -- deriving them
+        # a second time from 'auth_type' would be a copy of 'get_auth_headers' that could.
+        self._credential_header_names = frozenset()
 
         self.service = (
             env["api.endpoint.outbound"]
@@ -305,7 +320,7 @@ class OutboundAPIClient:
         if not skip_rate_limit:
             self.check_rate_limit()
 
-        headers = self._prepare_request(url, kwargs)
+        self._prepare_request(url, kwargs)
         start_time = datetime.now()
 
         try:
@@ -313,7 +328,6 @@ class OutboundAPIClient:
             response = self.session.request(
                 method=method,
                 url=url,
-                headers=headers,
                 **kwargs,
             )
 
@@ -373,7 +387,20 @@ class OutboundAPIClient:
             raise CommError(_("Unexpected error: %s") % error) from _masked_cause(e)
 
     def _prepare_request(self, url, kwargs):
-        headers = self._build_headers(kwargs.pop("headers", {}))
+        """ Complete 'kwargs' into the request that will be sent, in place.
+
+        Every logging path downstream describes the exchange from this same dict, so what
+        is recorded is what was sent by construction rather than by a second, parallel
+        reconstruction. Header merging used to be the one part that broke that: it popped
+        'headers' out and returned it alongside, so the request travelled to
+        'session.request' as two values and reached '_queue_event_log' as one -- the half
+        without the headers. 'api.event.log.request_headers' was therefore empty for every
+        outbound call ever made, and the redaction beside it never ran once.
+
+        Timeout, TLS verification and auth were already completed in place here. Headers
+        now are too, which is the invariant the rest of this method always assumed.
+        """
+        kwargs["headers"] = self._build_headers(kwargs.pop("headers", {}))
 
         if "timeout" not in kwargs:
             kwargs["timeout"] = (
@@ -382,7 +409,6 @@ class OutboundAPIClient:
             )
         kwargs.setdefault("verify", self._get_tls_verification(url))
         kwargs.setdefault("auth", self._get_auth())
-        return headers
 
     def _deliver(
         self, response, elapsed_ms, raw, method, url, kwargs, trace_id, skip_logging
@@ -625,7 +651,13 @@ class OutboundAPIClient:
         return full_url
 
     def _build_headers(self, additional_headers=None):
-        headers = self.credential.get_auth_headers() if self.credential else {}
+        credential_headers = (
+            self.credential.get_auth_headers() if self.credential else {}
+        )
+        self._credential_header_names = frozenset(
+            str(name).lower() for name in credential_headers
+        )
+        headers = dict(credential_headers)
 
         if self.service.api_version:
             if self.service.api_version_header:
@@ -641,7 +673,32 @@ class OutboundAPIClient:
 
         return headers
 
+    #: The two schemes 'requests' carries in its 'auth' argument. Everything else
+    #: this endpoint model offers -- bearer, api_key, hmac, oauth2, custom -- travels
+    #: in headers, which is '_build_headers'' business.
+    _HTTP_AUTH_TYPES = ("basic", "digest")
+
     def _get_auth(self):
+        """The 'auth' handler requests should use, or None if this endpoint uses none.
+
+        GATED ON 'auth_type', WHICH IT WAS NOT. It asked only whether the credential
+        happened to carry a username and a password, so a credential attached to an
+        endpoint declaring 'auth_type = none' had that pair put into an
+        'Authorization: Basic' header and sent to the vendor -- who never asked for it
+        and, for the ten services in this workspace that declare 'none', would not know
+        what to do with it.
+
+        That is not hypothetical bookkeeping: a service can legitimately hold a
+        credential it does not authenticate *with*. The Mexican PACs are the case that
+        found this -- their username and password travel inside the SOAP body the
+        driver builds, so the vault is their custodian and the transport must put
+        nothing in the headers on their behalf.
+
+        'get_auth_headers' on the credential already branched on 'auth_type'. This is
+        the same rule on the other half of the request.
+        """
+        if self.service.auth_type not in self._HTTP_AUTH_TYPES:
+            return None
         if not self.credential:
             return None
         pair = self.credential.get_basic_auth()
@@ -857,7 +914,7 @@ class OutboundAPIClient:
     ):
         self._ensure_log_hooks()
 
-        safe_headers = self._redact_sensitive_data(request_kwargs.get("headers", {}))
+        safe_headers = self._redact_headers(request_kwargs.get("headers"))
         safe_body = self._serialize_payload_for_log(
             request_kwargs.get("json") or request_kwargs.get("data"),
         )
@@ -914,6 +971,32 @@ class OutboundAPIClient:
 
         self.env.cr.precommit.data["api.event.log.values"].append(vals)
 
+    def _redact_headers(self, headers):
+        """ Redact the request headers for the audit row.
+
+        Two rules, because two kinds of header end up in one dict and only one of them
+        can be reasoned about. Anything the *credential* contributed is redacted on
+        provenance, whatever it is called: 'api_key_header' is free text an administrator
+        chooses and 'custom_headers' is arbitrary JSON, so no list of names can be right
+        about them. Everything else -- what the caller passed, and the version headers --
+        falls back to the name denylist, which is best effort and known to be.
+
+        The value of the row is that it says which content type, which API version and
+        which caller headers went out; redaction is what makes keeping it safe, so this
+        never returns the raw dict.
+        """
+        if not isinstance(headers, dict):
+            return {}
+        by_provenance = {
+            key: (
+                "***REDACTED***"
+                if str(key).lower() in self._credential_header_names
+                else value
+            )
+            for key, value in headers.items()
+        }
+        return self._redact_sensitive_data(by_provenance)
+
     def _redact_sensitive_data(self, data, _depth=0, _max_depth=50):
         if not data:
             return data
@@ -931,7 +1014,7 @@ class OutboundAPIClient:
         if isinstance(data, dict):
             redacted = {}
             for key, value in data.items():
-                key_lower = str(key).lower()
+                key_lower = str(key).lower().replace("-", "_")
                 if any(pattern in key_lower for pattern in sensitive_patterns):
                     redacted[key] = "***REDACTED***"
                 elif isinstance(value, (dict, list)):

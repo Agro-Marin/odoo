@@ -32,7 +32,7 @@ class ResUsers(models.Model):
         copy=False,
         groups=fields.NO_ACCESS,
         compute="_compute_totp_secret",
-        inverse="_inverse_token",
+        inverse="_inverse_totp_secret",
     )
     totp_last_counter = fields.Integer(copy=False, groups=fields.NO_ACCESS)
     totp_enabled = fields.Boolean(
@@ -84,8 +84,8 @@ class ResUsers(models.Model):
         self.ensure_one()
         return self.totp_enabled or super()._rpc_api_keys_only()
 
-    def _get_session_token_fields(self):
-        return super()._get_session_token_fields() | {"totp_secret"}
+    def _get_fields_session_token(self):
+        return super()._get_fields_session_token() | {"totp_secret"}
 
     def _check_credentials(self, credentials, env):
         if credentials["type"] == "totp":
@@ -284,7 +284,7 @@ class ResUsers(models.Model):
             )
             user.totp_secret = self.env.cr.fetchone()[0]
 
-    def _inverse_token(self):
+    def _inverse_totp_secret(self):
         self.sudo().totp_last_counter = False
         for user in self:
             secret = user.totp_secret or None

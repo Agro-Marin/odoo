@@ -372,8 +372,8 @@ class TestEO78SudoReads(TestHardeningFixesBase):
         cred_as_user = cred.with_user(user)
         cred_as_user._onchange_category_id()
         self.assertEqual(
-            cred_as_user.sudo().enable_rate_limiting,
-            self.category_api_key.default_enable_rate_limiting,
+            cred_as_user.sudo().decrypt_rate_limit_enabled,
+            self.category_api_key.default_decrypt_rate_limit_enabled,
         )
         self.assertEqual(
             cred_as_user.sudo().allow_key_fallback,

@@ -4,12 +4,13 @@ from odoo.tests import TransactionCase, tagged
 from odoo.tools import mute_logger
 
 from odoo.addons.api_transport.models.ir_actions_server import _EndpointDelivery
+from odoo.addons.base_encryption_mixin.tests.common import EncryptionKeyCase
 
 _MODULE = "odoo.addons.api_transport.models.ir_actions_server"
 
 
 @tagged("post_install", "-at_install")
-class TestWebhookActionEndpoint(TransactionCase):
+class TestWebhookActionEndpoint(EncryptionKeyCase, TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -46,12 +47,16 @@ class TestWebhookActionEndpoint(TransactionCase):
 
     def test_without_an_endpoint_base_still_posts_directly(self):
         action = self._action()
-        deliver = action._webhook_delivery("https://example.com/hook", 1, "n(#1)", "x")
+        deliver = action._prepare_webhook_delivery(
+            "https://example.com/hook", 1, "n(#1)", "x"
+        )
         self.assertNotIsInstance(deliver, _EndpointDelivery)
 
     def test_the_delivery_holds_no_recordset(self):
         action = self._action(webhook_endpoint_id=self.endpoint.id)
-        deliver = action._webhook_delivery("https://example.com/hook", 5, "n(#1)", "x")
+        deliver = action._prepare_webhook_delivery(
+            "https://example.com/hook", 5, "n(#1)", "x"
+        )
 
         self.assertIsInstance(deliver, _EndpointDelivery)
         for name, value in vars(deliver).items():
@@ -65,7 +70,9 @@ class TestWebhookActionEndpoint(TransactionCase):
 
     def test_it_captures_what_the_client_will_need(self):
         action = self._action(webhook_endpoint_id=self.endpoint.id)
-        deliver = action._webhook_delivery("https://example.com/hook", 7, "n(#1)", "x")
+        deliver = action._prepare_webhook_delivery(
+            "https://example.com/hook", 7, "n(#1)", "x"
+        )
 
         self.assertEqual(deliver.endpoint_code, "wh_receiver")
         self.assertEqual(deliver.dbname, self.env.cr.dbname)
@@ -76,7 +83,9 @@ class TestWebhookActionEndpoint(TransactionCase):
     @mute_logger(_MODULE)
     def test_the_delivery_opens_its_own_cursor(self):
         action = self._action(webhook_endpoint_id=self.endpoint.id)
-        deliver = action._webhook_delivery("https://example.com/hook", 5, "n(#1)", "x")
+        deliver = action._prepare_webhook_delivery(
+            "https://example.com/hook", 5, "n(#1)", "x"
+        )
 
         with patch(f"{_MODULE}.Registry") as registry:
             deliver('{"a": 1}')
@@ -86,7 +95,9 @@ class TestWebhookActionEndpoint(TransactionCase):
 
     def test_the_request_carries_the_endpoint_credential(self):
         action = self._action(webhook_endpoint_id=self.endpoint.id)
-        deliver = action._webhook_delivery("https://example.com/hook", 5, "n(#1)", "x")
+        deliver = action._prepare_webhook_delivery(
+            "https://example.com/hook", 5, "n(#1)", "x"
+        )
 
         sent = {}
 
@@ -142,7 +153,9 @@ class TestWebhookActionEndpoint(TransactionCase):
     @mute_logger(_MODULE)
     def test_a_failed_delivery_does_not_escape_the_hook(self):
         action = self._action(webhook_endpoint_id=self.endpoint.id)
-        deliver = action._webhook_delivery("https://example.com/hook", 5, "n(#1)", "x")
+        deliver = action._prepare_webhook_delivery(
+            "https://example.com/hook", 5, "n(#1)", "x"
+        )
 
         with patch(f"{_MODULE}.Registry", side_effect=RuntimeError("no database")):
             deliver('{"a": 1}')

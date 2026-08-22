@@ -55,24 +55,7 @@ class InboundGateMixin(models.AbstractModel):
         help="Maximum allowed payload size for DoS prevention. Default: 1MB",
     )
 
-    rate_limit_enabled = fields.Boolean(
-        string="Enable Rate Limiting",
-        default=True,
-        help="Enable rate limiting using token bucket algorithm",
-    )
-    rate_limit_requests = fields.Integer(
-        string="Max Requests",
-        default=100,
-        help="Maximum number of requests allowed per time period",
-    )
-    rate_limit_strict = fields.Boolean(
-        string="Strict Rate Limiting",
-        default=True,
-        help="Deny the request when the rate-limit bucket cannot be read "
-        "(lock contention, timeout, internal error) instead of allowing it. "
-        "Enable wherever the limit is a security control rather than a "
-        "best-effort cap.",
-    )
+    rate_limit_strict = fields.Boolean(default=True)
     rate_limit_window_seconds = fields.Integer(
         string="Rate Window (s)",
         default=60,
@@ -149,7 +132,7 @@ class InboundGateMixin(models.AbstractModel):
 
         authenticated, refusal = self._authenticate_inbound_identity(headers, body)
         if authenticated:
-            if self.rate_limit_enabled and not self._consume_rate_limit():
+            if self.rate_limit_enabled and not self.check_rate_limit():
                 return (
                     False,
                     429,
@@ -159,11 +142,6 @@ class InboundGateMixin(models.AbstractModel):
             return True, 200, "", "allowed"
 
         if mode == self.AUTH_MODE_AUDIT:
-            # Carried, not logged here: `_note_inbound_verdict` owns the
-            # reporting, and it is the only side that knows whether this
-            # admission is news or the same standing condition as the last
-            # one. The reason lands on the audit row, which is what makes it
-            # answer *why* the request was unauthenticated.
             return (
                 True,
                 200,
@@ -172,14 +150,6 @@ class InboundGateMixin(models.AbstractModel):
             )
 
         if refusal:
-            # A non-empty refusal means the gate answered about *itself*: it
-            # has no credential to check against, or it authenticates over a
-            # body its caller never passed. That is one standing condition
-            # repeated per request, not one fact per request, and it needs
-            # the opposite handling from a caller who guessed wrong -- so it
-            # is a distinct outcome rather than a shade of `unauthenticated`.
-            # The status stays 401: changing what a refused caller sees is a
-            # wire-contract change and does not belong in the taxonomy.
             return False, 401, refusal, "misconfigured"
 
         return (
@@ -225,11 +195,6 @@ class InboundGateMixin(models.AbstractModel):
         if self.timestamp_verification_enabled:
             timestamp_value = headers.get(self.timestamp_header)
             if not timestamp_value:
-                # Debug, not warning: which of the caller-side ways a request
-                # failed is a detail you raise the level to get, and the
-                # refusal itself is already on the record. At warning level
-                # these three are a per-request line whose volume the caller
-                # chooses -- the same flood the audit path was fixed for.
                 _logger.debug(
                     "Missing timestamp header '%s' for %s",
                     self.timestamp_header,
@@ -241,9 +206,7 @@ class InboundGateMixin(models.AbstractModel):
                 max_age_seconds=self.timestamp_max_age_seconds,
                 env=self.env,
             ):
-                _logger.debug(
-                    "Timestamp verification failed for %s", self.display_name
-                )
+                _logger.debug("Timestamp verification failed for %s", self.display_name)
                 return False
 
         if self.auth_type == "none":
@@ -516,13 +479,8 @@ class InboundGateMixin(models.AbstractModel):
             )
         return result["allowed"]
 
-    def _consume_rate_limit(self) -> bool:
-        self.ensure_one()
-        return self.env["rate.limit.bucket"].consume_for(
-            self,
-            self._inbound_company_id(),
-            strict=bool(self.rate_limit_strict),
-        )
+    def _rate_limit_company_id(self):
+        return self._inbound_company_id()
 
     def is_ip_allowed(self, source_ip: str) -> bool:
         self.ensure_one()

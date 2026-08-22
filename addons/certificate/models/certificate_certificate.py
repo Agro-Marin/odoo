@@ -77,7 +77,7 @@ class CertificateCertificate(models.Model):
         comodel_name="certificate.key",
         check_company=True,
         domain=[("public", "=", False)],
-        compute="_compute_private_key",
+        compute="_compute_private_key_id",
         store=True,
         readonly=False,
     )
@@ -216,7 +216,7 @@ class CertificateCertificate(models.Model):
         )
 
     @api.depends("pem_certificate")
-    def _compute_private_key(self):
+    def _compute_private_key_id(self):
         for certificate in self:
             if not certificate.pem_certificate:
                 certificate.private_key_id = None
@@ -394,6 +394,26 @@ class CertificateCertificate(models.Model):
             lambda key: key.with_context(bin_size=False).content == pem_key,
         )[:1]
 
+    def _load_certificate(self):
+        """The parsed X.509 certificate this record holds.
+
+        This model owns the parsing, but exposed no way to obtain the parsed object, so
+        every caller that needed one re-derived it: four methods below opened with the
+        same three lines, and 'documents_l10n_mx_edi' added a fifth copy on this very
+        model under an '_l10n_mx_edi_' prefix -- another module's namespace on a
+        'certificate' method, which is what a missing accessor looks like from outside.
+
+        No 'sudo': 'pem_certificate' declares no 'groups', so the only thing sudo changed
+        at the previous call sites was the record rule, and that is the caller's decision
+        rather than this method's.
+
+        :return: a 'cryptography.x509.Certificate'.
+        """
+        self.ensure_one()
+        return x509.load_pem_x509_certificate(
+            base64.b64decode(self.with_context(bin_size=False).pem_certificate)
+        )
+
     def _get_der_certificate_bytes(self, formatting="encodebytes"):
         """Get the DER bytes of the certificate.
 
@@ -405,9 +425,7 @@ class CertificateCertificate(models.Model):
         :rtype: bytes
         """
         self.ensure_one()
-        cert = x509.load_pem_x509_certificate(
-            base64.b64decode(self.with_context(bin_size=False).pem_certificate)
-        )
+        cert = self._load_certificate()
         return _get_formatted_value(
             cert.public_bytes(serialization.Encoding.DER), formatting=formatting
         )
@@ -426,9 +444,7 @@ class CertificateCertificate(models.Model):
         :rtype: bytes
         """
         self.ensure_one()
-        cert = x509.load_pem_x509_certificate(
-            base64.b64decode(self.with_context(bin_size=False).pem_certificate)
-        )
+        cert = self._load_certificate()
         if hashing_algorithm not in STR_TO_HASH:
             raise UserError(  # pylint: disable=missing-gettext
                 f"Unsupported hashing algorithm '{hashing_algorithm}'. Currently supported: sha1 and sha256."
@@ -448,9 +464,7 @@ class CertificateCertificate(models.Model):
         :rtype: bytes
         """
         self.ensure_one()
-        cert = x509.load_pem_x509_certificate(
-            base64.b64decode(self.with_context(bin_size=False).pem_certificate)
-        )
+        cert = self._load_certificate()
         return _get_formatted_value(cert.signature, formatting=formatting)
 
     def _get_public_key_numbers_bytes(self, formatting="encodebytes"):
@@ -495,10 +509,7 @@ class CertificateCertificate(models.Model):
             )
 
         try:
-            cert = x509.load_pem_x509_certificate(
-                base64.b64decode(self.with_context(bin_size=False).pem_certificate)
-            )
-            public_key = cert.public_key()
+            public_key = self._load_certificate().public_key()
         except ValueError as e:
             raise UserError(
                 _("The public key from the certificate could not be loaded.")

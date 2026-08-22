@@ -50,7 +50,7 @@ class TestKeySigning(TransactionCase):
     def test_verify_accepts_a_genuine_rsa_signature(self):
         """RSA/EC verification used to raise TypeError before reaching the key.
 
-        ``_verify_with_key`` called its ``check_valid_signature_algorithm``
+        ``_check_with_key`` called its ``check_valid_signature_algorithm``
         closure with an argument the closure does not take, so every RSA and EC
         verification raised instead of returning a verdict — including
         ``hr_expense_stripe``'s webhook signature check. Only the Ed25519
@@ -58,21 +58,21 @@ class TestKeySigning(TransactionCase):
         """
         signature = self.Key._sign_with_key("m", self.pem_b64, formatting="raw")
         self.assertTrue(
-            self.Key._verify_with_key("m", signature, self.pub_pem_b64),
+            self.Key._check_with_key("m", signature, self.pub_pem_b64),
         )
 
     def test_verify_rejects_a_forged_rsa_signature(self):
         """A verdict, not an exception, is what a bad signature must produce."""
         signature = self.Key._sign_with_key("m", self.pem_b64, formatting="raw")
         self.assertFalse(
-            self.Key._verify_with_key("tampered", signature, self.pub_pem_b64),
+            self.Key._check_with_key("tampered", signature, self.pub_pem_b64),
         )
 
     def test_verify_rejects_an_unsupported_hash(self):
         """The closure's own check must still fire once it is callable."""
         signature = self.Key._sign_with_key("m", self.pem_b64, formatting="raw")
         with self.assertRaises(UserError):
-            self.Key._verify_with_key(
+            self.Key._check_with_key(
                 "m",
                 signature,
                 self.pub_pem_b64,

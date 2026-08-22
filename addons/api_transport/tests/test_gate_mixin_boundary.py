@@ -14,6 +14,16 @@ INBOUND_ONLY_FIELDS = (
 
 IDENTITY_FIELDS = ("credential_id", "auth_type", "credential_fingerprint")
 
+#: Admission both directions spend from, so it lives on 'credential.auth.mixin' by the
+#: same argument IDENTITY_FIELDS does. These were declared on both mixins at once --
+#: byte for byte apart from 'rate_limit_strict''s default -- and 'api.endpoint.inbound'
+#: inherits both, so the duplication was invisible from either side.
+SHARED_ADMISSION_FIELDS = (
+    "rate_limit_enabled",
+    "rate_limit_requests",
+    "rate_limit_strict",
+)
+
 FORBIDDEN_ON_THE_GATE = (
     "name",
     "active",
@@ -63,6 +73,40 @@ class TestGateMixinBoundary(TransactionCase):
             f"the caller: it has no allowlist to enforce, no replay window and "
             f"no payload to cap. This is what `api.channel.mixin` inheriting "
             f"the gate instead of `credential.auth.mixin` would look like.",
+        )
+
+    def test_admission_is_declared_once_on_the_shared_ancestor(self):
+        ancestor = set(self.env["credential.auth.mixin"]._fields)
+        for field in SHARED_ADMISSION_FIELDS:
+            self.assertIn(
+                field,
+                ancestor,
+                f"{field} is spent by an inbound gate and an outbound caller "
+                f"alike, so it belongs on credential.auth.mixin. Declaring it on "
+                f"both mixins is what it looked like before, and api.endpoint."
+                f"inbound inherited both copies.",
+            )
+
+    def test_rate_limiting_has_one_spelling(self):
+        for model in ("api.endpoint.inbound", "api.endpoint.outbound"):
+            self.assertTrue(
+                hasattr(self.env[model], "check_rate_limit"),
+                f"{model} lost check_rate_limit",
+            )
+            self.assertFalse(
+                hasattr(self.env[model], "_consume_rate_limit"),
+                f"{model} carries a second name for spending a rate-limit token. "
+                f"There were two identical implementations, and on an inbound "
+                f"endpoint -- which inherits both mixins -- one of them was dead.",
+            )
+
+    def test_inbound_refuses_a_bucket_it_cannot_read_and_outbound_does_not(self):
+        self.assertTrue(
+            self.env["api.endpoint.inbound"]
+            .default_get(["rate_limit_strict"])
+            .get("rate_limit_strict"),
+            "inbound strictness is a security control and must survive the move "
+            "of the field onto the shared ancestor, which defaults it to False",
         )
 
     def test_outbound_endpoints_still_carry_identity(self):

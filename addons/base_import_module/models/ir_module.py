@@ -71,9 +71,9 @@ class IrModuleModule(models.Model):
             .mapped("name")
         )
 
-    def _get_modules_to_load_domain(self):
+    def _get_domain_modules_to_load(self):
         # imported modules are not expected to be loaded as regular modules
-        return super()._get_modules_to_load_domain() + [("imported", "=", False)]
+        return super()._get_domain_modules_to_load() + [("imported", "=", False)]
 
     @api.model
     def _load_module_terms(self, modules, langs, overwrite=False):
@@ -125,8 +125,8 @@ class IrModuleModule(models.Model):
         super(IrModuleModule, self - imported_modules)._compute_manifest_version()
 
     @api.depends("icon")
-    def _compute_icon_image(self):
-        super()._compute_icon_image()
+    def _compute_icon_display(self):
+        super()._compute_icon_display()
         IrAttachment = self.env["ir.attachment"]
         for module in self.filtered("imported"):
             attachment = IrAttachment.sudo().search(
@@ -350,7 +350,7 @@ class IrModuleModule(models.Model):
         # Generate 'ir.asset' record values for each asset delared in the manifest
         for bundle, commands in terp.get("assets", {}).items():
             for command in commands:
-                directive, target, path = IrAsset._process_command(command)
+                directive, target, path = IrAsset._parse_manifest_command(command)
                 if is_wildcard_glob(path):
                     raise UserError(
                         _(

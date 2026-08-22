@@ -1,12 +1,36 @@
 import hashlib
 import hmac
+import logging
 
 from odoo import api, fields, models
+
+from ...tools.endpoint_rate_limiter import EndpointRateLimiter
+
+_logger = logging.getLogger(__name__)
 
 
 class CredentialAuthMixin(models.AbstractModel):
     _name = "credential.auth.mixin"
     _description = "Credential Authentication Mixin"
+
+    rate_limit_enabled = fields.Boolean(
+        string="Enable Rate Limiting",
+        default=True,
+        help="Enable rate limiting using token bucket algorithm",
+    )
+    rate_limit_requests = fields.Integer(
+        string="Max Requests",
+        default=100,
+        help="Maximum number of requests allowed per time period",
+    )
+    rate_limit_strict = fields.Boolean(
+        string="Strict Rate Limiting",
+        default=False,
+        help="Deny the request when the rate-limit bucket cannot be read "
+        "(lock contention, timeout, internal error) instead of allowing it. "
+        "Enable wherever the limit is a security control rather than a "
+        "best-effort cap.",
+    )
 
     credential_id = fields.Many2one(
         comodel_name="credential.credential",
@@ -72,10 +96,19 @@ class CredentialAuthMixin(models.AbstractModel):
         return hmac.compare_digest(stored, self._fingerprint_token(token))
 
     @api.model
-    def _find_by_credential_token(self, token, domain=None):
+    def _get_by_credential_token(self, token, domain=None):
         fingerprint = self._fingerprint_token(token)
         if not fingerprint:
             return self.browse()
         return self.sudo().search(
             [("credential_fingerprint", "=", fingerprint), *(domain or [])]
         )
+
+    def _rate_limit_company_id(self):
+        return
+
+    def check_rate_limit(self, company_id=None):
+        self.ensure_one()
+        if company_id is None:
+            company_id = self._rate_limit_company_id()
+        return EndpointRateLimiter(self.env, self, company_id).check_limit()

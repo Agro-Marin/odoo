@@ -1,8 +1,10 @@
 from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase
 
+from odoo.addons.base_encryption_mixin.tests.common import EncryptionKeyCase
 
-class TestCredentialEncryption(TransactionCase):
+
+class TestCredentialEncryption(EncryptionKeyCase, TransactionCase):
     def setUp(self):
         super().setUp()
 
@@ -218,7 +220,7 @@ class TestCredentialEncryption(TransactionCase):
         self.assertEqual(credential.api_key, long_key)
 
 
-class TestCredentialAccessLog(TransactionCase):
+class TestCredentialAccessLog(EncryptionKeyCase, TransactionCase):
     def setUp(self):
         super().setUp()
         self.service = self.env["api.endpoint.outbound"].create(
@@ -360,7 +362,7 @@ class TestCredentialAccessLog(TransactionCase):
         self.assertEqual(count_after, count_before + 2, "Should have 2 new log entries")
 
 
-class TestEncryptionSecurity(TransactionCase):
+class TestEncryptionSecurity(EncryptionKeyCase, TransactionCase):
     def setUp(self):
         super().setUp()
         self.service = self.env["api.endpoint.outbound"].create(

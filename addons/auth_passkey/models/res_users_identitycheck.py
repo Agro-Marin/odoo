@@ -8,11 +8,11 @@ class ResUsersIdentitycheck(models.TransientModel):
     auth_method = fields.Selection(selection_add=[("webauthn", "Passkey")])
 
     @api.model
-    def _get_default_auth_method(self):
+    def _default_auth_method(self):
         if self.env.user.auth_passkey_key_ids:
             return "webauthn"
         else:
-            return super()._get_default_auth_method()
+            return super()._default_auth_method()
 
     def _check_identity(self):
         if self.auth_method == "webauthn":

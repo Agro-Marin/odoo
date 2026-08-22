@@ -156,14 +156,14 @@ class CredentialCredential(models.Model):
     )
     username = fields.Char(
         compute="_compute_credential_accessors",
-        inverse="_inverse_credential_field_username",
+        inverse="_inverse_username",
         copy=False,
         groups="base.group_system",
         help="Username stored in JSON credential data",
     )
     password = fields.Char(
         compute="_compute_credential_accessors",
-        inverse="_inverse_credential_field_password",
+        inverse="_inverse_password",
         copy=False,
         groups="base.group_system",
         help="Password stored in JSON credential data",
@@ -329,16 +329,6 @@ class CredentialCredential(models.Model):
         "date is rewritten, so a renewed credential is warned about again.",
     )
 
-    cache_hits = fields.Integer(
-        default=0,
-        readonly=True,
-        help="Number of times a cached session/connection was reused",
-    )
-    cache_misses = fields.Integer(
-        default=0,
-        readonly=True,
-        help="Number of times a new session/connection had to be created",
-    )
     allow_key_fallback = fields.Boolean(
         string="Allow Old Key Fallback",
         default=True,
@@ -352,13 +342,15 @@ class CredentialCredential(models.Model):
         "Default from category, can be overridden.",
     )
 
-    enable_rate_limiting = fields.Boolean(
+    decrypt_rate_limit_enabled = fields.Boolean(
+        string="Cap Decryptions",
         default=True,
         groups="credential.group_credential_admin",
-        help="Enable rate limiting for credential access operations. Default from category, can be overridden.",
+        help="Cap how often this credential's secret may be decrypted. Default from "
+        "category, can be overridden.",
     )
-    rate_limit_max_attempts = fields.Integer(
-        string="Rate Limit (attempts/hour)",
+    decrypt_rate_limit_max = fields.Integer(
+        string="Decryptions / hour",
         default=100,
         groups="credential.group_credential_admin",
         help="Maximum number of decryption operations allowed per user per hour. "
@@ -391,7 +383,7 @@ class CredentialCredential(models.Model):
     api_key = fields.Char(
         string="API Key",
         compute="_compute_credential_accessors",
-        inverse="_inverse_credential_field_api_key",
+        inverse="_inverse_api_key",
         copy=False,
         groups="base.group_system",
         help="API Key stored in JSON credential data",
@@ -399,14 +391,14 @@ class CredentialCredential(models.Model):
     api_secret = fields.Char(
         string="API Secret",
         compute="_compute_credential_accessors",
-        inverse="_inverse_credential_field_api_secret",
+        inverse="_inverse_api_secret",
         copy=False,
         groups="base.group_system",
         help="API Secret stored in JSON credential data",
     )
     bearer_token = fields.Char(
         compute="_compute_credential_accessors",
-        inverse="_inverse_credential_field_bearer_token",
+        inverse="_inverse_bearer_token",
         copy=False,
         groups="base.group_system",
         help="Bearer Token stored in JSON credential data",
@@ -415,7 +407,7 @@ class CredentialCredential(models.Model):
     oauth_access_token = fields.Char(
         string="OAuth Access Token",
         compute="_compute_credential_accessors",
-        inverse="_inverse_credential_field_oauth_access_token",
+        inverse="_inverse_oauth_access_token",
         copy=False,
         groups="base.group_system",
         help="OAuth Access Token stored in JSON credential data",
@@ -423,7 +415,7 @@ class CredentialCredential(models.Model):
     oauth_refresh_token = fields.Char(
         string="OAuth Refresh Token",
         compute="_compute_credential_accessors",
-        inverse="_inverse_credential_field_oauth_refresh_token",
+        inverse="_inverse_oauth_refresh_token",
         copy=False,
         groups="base.group_system",
         help="OAuth Refresh Token stored in JSON credential data",
@@ -431,7 +423,7 @@ class CredentialCredential(models.Model):
     oauth_client_id = fields.Char(
         string="OAuth Client ID",
         compute="_compute_credential_accessors",
-        inverse="_inverse_credential_field_oauth_client_id",
+        inverse="_inverse_oauth_client_id",
         copy=False,
         groups="base.group_system",
         help="OAuth Client ID stored in JSON credential data",
@@ -439,7 +431,7 @@ class CredentialCredential(models.Model):
     oauth_client_secret = fields.Char(
         string="OAuth Client Secret",
         compute="_compute_credential_accessors",
-        inverse="_inverse_credential_field_oauth_client_secret",
+        inverse="_inverse_oauth_client_secret",
         copy=False,
         groups="base.group_system",
         help="OAuth Client Secret stored in JSON credential data",
@@ -479,7 +471,7 @@ class CredentialCredential(models.Model):
         "Active credential names must be unique per company!",
     )
 
-    def _validate_required_fields_for_category(self):
+    def _check_required_fields_for_category(self):
         self.invalidate_recordset(["credential_value_encrypted"])
 
         for record in self:
@@ -589,7 +581,7 @@ class CredentialCredential(models.Model):
 
         records = super().create(vals_list)
 
-        records._validate_required_fields_for_category()
+        records._check_required_fields_for_category()
 
         return records
 
@@ -598,8 +590,6 @@ class CredentialCredential(models.Model):
             "usage_count",
             "success_count",
             "error_count",
-            "cache_hits",
-            "cache_misses",
             "health_status",
             "health_message",
             "last_health_check",
@@ -687,7 +677,7 @@ class CredentialCredential(models.Model):
 
         category_changed = "category_id" in vals
         if category_changed or adding_encrypted_content:
-            self._validate_required_fields_for_category()
+            self._check_required_fields_for_category()
 
         return result
 
@@ -1001,39 +991,39 @@ class CredentialCredential(models.Model):
             return {}
         return parsed if isinstance(parsed, dict) else {}
 
-    def _inverse_credential_field_api_key(self) -> None:
+    def _inverse_api_key(self) -> None:
         self._inverse_credential_json_field("api_key")
 
-    def _inverse_credential_field_api_secret(self) -> None:
+    def _inverse_api_secret(self) -> None:
         self._inverse_credential_json_field("api_secret")
 
-    def _inverse_credential_field_username(self) -> None:
+    def _inverse_username(self) -> None:
         self._inverse_credential_json_field("username")
 
-    def _inverse_credential_field_password(self) -> None:
+    def _inverse_password(self) -> None:
         self._inverse_credential_json_field("password")
 
-    def _inverse_credential_field_oauth_access_token(self) -> None:
+    def _inverse_oauth_access_token(self) -> None:
         self._inverse_credential_json_field("oauth_access_token")
 
-    def _inverse_credential_field_oauth_refresh_token(self) -> None:
+    def _inverse_oauth_refresh_token(self) -> None:
         self._inverse_credential_json_field("oauth_refresh_token")
 
-    def _inverse_credential_field_oauth_client_id(self) -> None:
+    def _inverse_oauth_client_id(self) -> None:
         self._inverse_credential_json_field("oauth_client_id")
 
-    def _inverse_credential_field_oauth_client_secret(self) -> None:
+    def _inverse_oauth_client_secret(self) -> None:
         self._inverse_credential_json_field("oauth_client_secret")
 
-    def _inverse_credential_field_bearer_token(self) -> None:
+    def _inverse_bearer_token(self) -> None:
         self._inverse_credential_json_field("bearer_token")
 
     @api.onchange("category_id")
     def _onchange_category_id(self):
         if self.category_id:
             category = self.category_id.sudo()
-            self.enable_rate_limiting = category.default_enable_rate_limiting
-            self.rate_limit_max_attempts = category.default_rate_limit_max_attempts
+            self.decrypt_rate_limit_enabled = category.default_decrypt_rate_limit_enabled
+            self.decrypt_rate_limit_max = category.default_decrypt_rate_limit_max
             self.auto_validate_health = category.default_auto_validate_health
             self.allow_key_fallback = category.default_allow_key_fallback
 
@@ -1499,10 +1489,10 @@ class CredentialCredential(models.Model):
         if not self.id:
             return
         config = self.sudo()
-        if not (config.enable_rate_limiting and config.rate_limit_max_attempts > 0):
+        if not (config.decrypt_rate_limit_enabled and config.decrypt_rate_limit_max > 0):
             return
 
-        cap = config.rate_limit_max_attempts
+        cap = config.decrypt_rate_limit_max
         if self._consume_decryption_allowance(cap):
             return
 

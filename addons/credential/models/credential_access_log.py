@@ -65,6 +65,10 @@ class CredentialAccessLog(models.Model):
         index=True,
         help="Type of operation performed",
     )
+    DENIED_OPERATIONS = {
+        "read_rate_limited": "Decryption rate limit exceeded for this user",
+    }
+
     timestamp = fields.Datetime(
         required=True,
         default=fields.Datetime.now,

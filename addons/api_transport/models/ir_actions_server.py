@@ -12,7 +12,6 @@ _logger = logging.getLogger(__name__)
 
 
 class IrActionsServer(models.Model):
-    _name = "ir.actions.server"
     _inherit = "ir.actions.server"
 
     webhook_endpoint_id = fields.Many2one(
@@ -52,10 +51,10 @@ class IrActionsServer(models.Model):
                     )
                 )
 
-    def _webhook_delivery(self, url, timeout, action_label, target):
+    def _prepare_webhook_delivery(self, url, timeout, action_label, target):
         self.ensure_one()
         if not self.webhook_endpoint_id:
-            return super()._webhook_delivery(url, timeout, action_label, target)
+            return super()._prepare_webhook_delivery(url, timeout, action_label, target)
 
         return _EndpointDelivery(
             dbname=self.env.cr.dbname,

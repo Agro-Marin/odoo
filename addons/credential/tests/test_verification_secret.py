@@ -2,9 +2,11 @@ from odoo.exceptions import ValidationError
 from odoo.tests import TransactionCase, tagged
 from odoo.tools import mute_logger
 
+from odoo.addons.base_encryption_mixin.tests.common import EncryptionKeyCase
+
 
 @tagged("post_install", "-at_install")
-class TestVerificationSecret(TransactionCase):
+class TestVerificationSecret(EncryptionKeyCase, TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -80,7 +82,7 @@ class TestVerificationSecret(TransactionCase):
             "verif uncapped", self.api_key_category, credential_value="PLAIN"
         )
         credential.sudo().write(
-            {"enable_rate_limiting": True, "rate_limit_max_attempts": 3}
+            {"decrypt_rate_limit_enabled": True, "decrypt_rate_limit_max": 3}
         )
         self.env.flush_all()
 

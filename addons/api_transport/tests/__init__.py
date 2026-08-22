@@ -7,6 +7,7 @@ from . import test_cron_ownership
 from . import test_response_cache_gc
 from . import test_api_client
 from . import test_cache
+from . import test_channel_event_log_scope
 from . import test_rate_limiter
 from . import test_integration
 from . import test_multicompany
@@ -22,3 +23,4 @@ from . import test_error_status_code
 from . import test_user_credential_scope
 from . import test_private_host
 from . import test_webhook_action_endpoint
+from . import test_access_log_outcome

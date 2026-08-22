@@ -244,7 +244,7 @@ class TestCertificateEncryption(TransactionCase):
         self.assertIn("certificate.certificate", discovered)
 
     def test_one_private_key_is_shared_by_identical_bundles(self):
-        """The dedup in _compute_private_key must see through the storage.
+        """The dedup in _compute_private_key_id must see through the storage.
 
         It used to read the ``ir.attachment`` that backed ``certificate.key.content``,
         which no longer exists once the bytes are encrypted; matching now goes

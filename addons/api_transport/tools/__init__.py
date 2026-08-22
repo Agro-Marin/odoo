@@ -1,6 +1,7 @@
 from .api_client import (
     OutboundAPIClient,
     get_api_client,
+    is_private_host,
     register_url_secret,
 )
 from .exceptions import (
@@ -32,6 +33,7 @@ __all__ = [
     "ValidationError",
     "compute_payload_hash",
     "get_api_client",
+    "is_private_host",
     "register_url_secret",
     "sanitize_error_message",
     "split_large_payload",

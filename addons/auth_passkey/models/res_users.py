@@ -83,8 +83,8 @@ class ResUsers(models.Model):
         else:
             return super()._check_credentials(credential, env)
 
-    def _get_session_token_fields(self):
-        return super()._get_session_token_fields() | {"auth_passkey_key_ids"}
+    def _get_fields_session_token(self):
+        return super()._get_fields_session_token() | {"auth_passkey_key_ids"}
 
     def _get_session_token_query_params(self):
         params = super()._get_session_token_query_params()

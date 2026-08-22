@@ -1,6 +1,6 @@
 {
     "name": "API Transport",
-    "version": "19.0.1.18.0",
+    "version": "19.0.1.19.0",
     "category": "Technical",
     "sequence": 5,
     "summary": "Inbound and outbound API transport with auth, rate limiting, retry and logging",

@@ -13,7 +13,6 @@ _logger = logging.getLogger(__name__)
 
 
 class CredentialCredential(models.Model):
-    _name = "credential.credential"
     _inherit = "credential.credential"
 
     endpoint_id = fields.Many2one(
@@ -93,6 +92,31 @@ class CredentialCredential(models.Model):
             order="sequence, id",
             limit=1,
         )
+
+    def _oauth_client_id(self) -> str:
+        """The OAuth client identifier to authorize with, from whichever model holds it.
+
+        THE SAME FIELD NAME EXISTS ON BOTH MODELS AND ONLY ONE OF THEM WAS EVER READ.
+        `api.endpoint.outbound.oauth_client_id` is what the flow used at all three of its
+        call sites, while `credential.credential.oauth_client_id` -- offered on the
+        credential form, stored encrypted, audited and carried through key rotation --
+        was read by nothing. A client id entered there was silently ignored, and the
+        authorize step then refused with "not configured for service", pointing at the
+        other model.
+
+        The endpoint still wins, so no configured deployment changes behaviour: it is a
+        fallback, not a new precedence. The order also matches what the two fields are
+        for -- the endpoint's is shared configuration of the service, the credential's is
+        per-credential and encrypted, which is what a deployment running several client
+        applications against one service needs.
+
+        The client SECRET is only ever the credential's: `_exchange_code_for_tokens`
+        reads `oauth_client_secret` off this model and the endpoint has no such field, so
+        the pair is deliberately split -- public identifier beside the service,
+        secret in the vault.
+        """
+        self.ensure_one()
+        return self.endpoint_id.oauth_client_id or self.oauth_client_id
 
     def get_auth_headers(self):
         self.ensure_one()
@@ -225,8 +249,25 @@ class CredentialCredential(models.Model):
     _AUDIT_FIELDS_CONTEXT_KEY = "_credential_audited_fields"
 
     def _access_log_extras(self, operation: str) -> dict:
+        """EXTENDS 'credential': fill the outcome fields this module declares.
+
+        'success' was a hardcoded True, which made it worse than unset: the audit trail
+        has exactly one operation that records a refusal -- 'read_rate_limited', logged
+        by '_enforce_access_rate_limit' on the line before it raises -- and that row was
+        written as a success. A security report filtered for failed credential access
+        therefore returned nothing, and the empty result read as "no failures" rather
+        than "never recorded". 'failure_reason' had no writer at all while being
+        rendered in the log's own form view.
+
+        The vocabulary is 'credential.access.log.DENIED_OPERATIONS', not a literal here:
+        that model owns 'operation', and deriving the outcome from a copy of its
+        selection is what produced the constant in the first place.
+        """
         extras = super()._access_log_extras(operation)
-        extras["success"] = True
+        reason = self.env["credential.access.log"].DENIED_OPERATIONS.get(operation)
+        extras["success"] = reason is None
+        if reason:
+            extras["failure_reason"] = reason
         written = self.env.context.get(self._AUDIT_FIELDS_CONTEXT_KEY)
         if written:
             extras["field_accessed"] = ",".join(written)

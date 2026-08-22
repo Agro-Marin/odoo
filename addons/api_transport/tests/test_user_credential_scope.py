@@ -1,10 +1,11 @@
 from odoo.tests import TransactionCase, tagged
 
 from odoo.addons.api_transport.tools import get_api_client
+from odoo.addons.base_encryption_mixin.tests.common import EncryptionKeyCase
 
 
 @tagged("post_install", "-at_install")
-class TestUserCredentialScope(TransactionCase):
+class TestUserCredentialScope(EncryptionKeyCase, TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

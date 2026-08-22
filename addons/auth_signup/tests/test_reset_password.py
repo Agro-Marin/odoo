@@ -57,14 +57,14 @@ class TestResetPassword(HttpCase):
 
     @contextmanager
     def _patch_captcha_reset(self):
-        def _verify_request_recaptcha_token(self, captcha):
+        def _check_request_recaptcha_token(self, captcha):
             if captcha != "password_reset":
                 raise UserError("CAPTCHA test")
 
         with patch.object(
             self.env.registry["ir.http"],
-            "_verify_request_recaptcha_token",
-            _verify_request_recaptcha_token,
+            "_check_request_recaptcha_token",
+            _check_request_recaptcha_token,
         ):
             yield
 

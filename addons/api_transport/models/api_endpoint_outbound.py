@@ -15,6 +15,7 @@ class ApiEndpointOutbound(models.Model):
     _name = "api.endpoint.outbound"
     _inherit = ["api.channel.mixin"]
     _description = "Outbound Endpoint"
+    _api_event_direction = "outbound"
     _order = "sequence, name"
     _rec_name = "name"
 
@@ -263,11 +264,6 @@ class ApiEndpointOutbound(models.Model):
         compute="_compute_credential_count",
         store=True,
     )
-    event_log_ids = fields.One2many(
-        comodel_name="api.event.log",
-        compute="_compute_event_log_ids",
-    )
-
     total_requests = fields.Integer(
         compute="_compute_statistics",
     )
@@ -316,24 +312,6 @@ class ApiEndpointOutbound(models.Model):
     def _compute_credential_count(self):
         for service in self:
             service.credential_count = len(service.credential_ids.filtered("active"))
-
-    def _compute_event_log_ids(self):
-        logs_by_ref: dict[str, list[int]] = {}
-        if self.ids:
-            channel_refs = [f"{record._name},{record.id}" for record in self]
-            groups = self.env["api.event.log"]._read_group(
-                domain=[
-                    ("channel_id", "in", channel_refs),
-                    ("direction", "=", "outbound"),
-                ],
-                groupby=["channel_id"],
-                aggregates=["id:recordset"],
-            )
-            for ref, recordset in groups:
-                logs_by_ref[ref] = recordset.ids
-        for record in self:
-            ref = f"{record._name},{record.id}"
-            record.event_log_ids = [(6, 0, logs_by_ref.get(ref, []))]
 
     @api.depends("cache_error_count", "cache_last_error", "cache_enabled")
     def _compute_cache_health(self):

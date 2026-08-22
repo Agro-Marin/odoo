@@ -12,6 +12,7 @@ from odoo.tests.common import TransactionCase, tagged
 
 from odoo.addons.api_transport.tools.api_client import _MAX_LOGGED_PAYLOAD
 from odoo.addons.api_transport.tools.exceptions import ClientError, CommError
+from odoo.addons.base_encryption_mixin.tests.common import EncryptionKeyCase
 
 SECRET_KEY = "-----BEGIN PRIVATE KEY-----MIIEvQIBADANBg"
 
@@ -47,7 +48,7 @@ def _error_response(status_code, json_data):
     return response
 
 
-class ClientLoggingCommon(TransactionCase):
+class ClientLoggingCommon(EncryptionKeyCase, TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -530,7 +531,7 @@ class TestFailedExchangesAreRecordedAsFailed(ClientLoggingCommon):
 
 
 @tagged("post_install", "-at_install")
-class TestDigestAuthAndTlsVerification(TransactionCase):
+class TestDigestAuthAndTlsVerification(EncryptionKeyCase, TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -567,6 +568,30 @@ class TestDigestAuthAndTlsVerification(TransactionCase):
         client = self._service(code="basic_probe", auth_type="basic")._get_api_client()
 
         self.assertEqual(client._get_auth(), ("admin", "device-pass"))
+
+    def test_a_service_that_authenticates_with_nothing_sends_nothing(self):
+        """A credential may be held for custody without being an HTTP credential.
+
+        The Mexican PACs put their username and password inside the SOAP body the
+        driver builds; the vault is where those live, and the transport must not also
+        put them in an `Authorization: Basic` header addressed to the PAC. This asked
+        only whether the credential carried a pair, so it did.
+        """
+        client = self._service(code="none_probe", auth_type="none")._get_api_client()
+
+        self.assertTrue(
+            self.credential.get_basic_auth(),
+            "the credential does carry a pair -- that is the point of the case",
+        )
+        self.assertIsNone(client._get_auth())
+
+    def test_a_bearer_service_does_not_get_basic_auth_either(self):
+        """Bearer travels in a header. `auth` is for basic and digest only."""
+        client = self._service(
+            code="bearer_probe", auth_type="bearer"
+        )._get_api_client()
+
+        self.assertIsNone(client._get_auth())
 
     def test_verification_stays_on_by_default(self):
         self.assertTrue(self._service(code="default_probe").verify_tls)
@@ -733,3 +758,123 @@ class TestChainedCauseCarriesNoSecret(ClientLoggingCommon):
 
         self.assertIn("ConnectionError", rendered, "the cause must still be reported")
         self.assertNotIn(SECRET_VALUE, rendered)
+
+
+@tagged("post_install", "-at_install")
+class TestRequestHeadersReachTheRow(ClientLoggingCommon):
+    """ The request headers, as the audit row describes them.
+
+    'request_headers' was empty for every outbound call the module had ever made:
+    '_prepare_request' popped 'headers' out of the kwargs dict and returned it alongside,
+    so the request reached 'session.request' as two values and '_queue_event_log' as the
+    one without the headers. The field, the redaction next to it and the form-view block
+    guarded by 'invisible="not request_headers"' were dead together, and nothing failed.
+
+    What is pinned here is the invariant that closed it -- the row is built from the same
+    dict that was sent, so the two cannot describe different requests -- and the redaction
+    that makes keeping the row safe.
+    """
+
+    # Storing a credential secret needs a Fernet key from the environment. This class
+    # used to patch one in itself; `EncryptionKeyCase` on `ClientLoggingCommon` now
+    # provides it for the whole file, and having both was worse than having neither --
+    # the second `patch.dict` replaced the key the first had already registered a
+    # version for, so the cache and the environment disagreed and every test here
+    # failed with the very "not configured" error the patch existed to prevent.
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # An API-key endpoint whose header name matches no denylist entry, on purpose:
+        # 'api_key_header' is free text an administrator picks, so name matching cannot be
+        # right about it and provenance has to carry the redaction instead.
+        cls.odd_service = cls.env["api.endpoint.outbound"].create(
+            {
+                "name": "Odd Header Probe",
+                "code": "odd_header_probe",
+                "endpoint_url": "https://example.invalid/live",
+                "auth_type": "api_key",
+                "api_key_header": "X-Tenant-Ticket",
+                "environment": "production",
+            }
+        )
+        cls.env["credential.credential"].create(
+            {
+                "name": "Odd Header Credential",
+                "endpoint_id": cls.odd_service.id,
+                "company_id": cls.env.company.id,
+                "category_id": cls.env.ref("credential.credential_category_custom").id,
+                "environment": "production",
+                "api_key": SECRET_VALUE,
+            }
+        )
+
+    def _queued(self):
+        return self.env.cr.precommit.data.get("api.event.log.values") or []
+
+    def _send(self, client=None, **call_kwargs):
+        """ Returns (headers as requests received them, the queued row). """
+        sent = {}
+
+        def _record(*args, **kwargs):
+            sent.update(kwargs)
+            return _ok_response()
+
+        with patch("requests.Session.request", side_effect=_record):
+            (client or self._client()).post("/probe", **call_kwargs)
+        return sent.get("headers"), self._queued()[0]
+
+    def test_the_row_describes_the_headers_that_were_sent(self):
+        """ The structural pin: same names in the row as on the wire.
+
+        Values may differ -- that is redaction -- but a name present on one side and
+        absent on the other means the row is describing a request that was not made,
+        which is exactly the state this replaced.
+        """
+        sent, row = self._send(headers={"Content-Type": "application/xml"})
+
+        self.assertTrue(sent, "the test sent no headers at all")
+        self.assertEqual(set(row["request_headers"]), set(sent))
+
+    def test_a_row_without_secrets_is_still_worth_keeping(self):
+        """ Redaction has to leave the audit value behind, or the row is just noise. """
+        _sent, row = self._send(headers={"Content-Type": "application/xml"})
+
+        self.assertEqual(row["request_headers"]["Content-Type"], "application/xml")
+
+    def test_a_caller_authorization_header_is_redacted(self):
+        _sent, row = self._send(headers={"Authorization": f"Bearer {SECRET_VALUE}"})
+
+        self.assertEqual(row["request_headers"]["Authorization"], "***REDACTED***")
+        self.assertNotIn(SECRET_VALUE, str(row))
+
+    def test_a_hyphenated_header_name_reaches_the_denylist(self):
+        """ 'X-API-Key' matched nothing before: the entries are written 'api_key' and the
+        header convention spells the same word 'X-API-Key'. Folding '-' to '_' at match
+        time is what makes one spelling cover both.
+        """
+        _sent, row = self._send(headers={"X-API-Key": SECRET_VALUE})
+
+        self.assertEqual(row["request_headers"]["X-API-Key"], "***REDACTED***")
+        self.assertNotIn(SECRET_VALUE, str(row))
+
+    def test_a_credential_header_with_an_unguessable_name_is_redacted(self):
+        """ Provenance, not name matching.
+
+        'X-Tenant-Ticket' is in no denylist and could not be -- an administrator chose it
+        in 'api_key_header', and 'custom_headers' is arbitrary JSON besides. The client
+        knows the names its own credential filled in, which is the only thing here that
+        can be right about them.
+        """
+        client = self.odd_service._get_api_client()
+        _sent, row = self._send(client=client)
+
+        self.assertEqual(row["request_headers"]["X-Tenant-Ticket"], "***REDACTED***")
+        self.assertNotIn(SECRET_VALUE, str(row))
+
+    def test_provenance_does_not_redact_the_whole_row(self):
+        """ Redacting by provenance must stay scoped to the names it knows about. """
+        client = self.odd_service._get_api_client()
+        _sent, row = self._send(client=client, headers={"Accept-Language": "es-MX"})
+
+        self.assertEqual(row["request_headers"]["Accept-Language"], "es-MX")

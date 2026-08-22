@@ -1,8 +1,6 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
-from odoo.addons.credential.tools import EndpointRateLimiter
-
 
 class ApiChannelMixin(models.AbstractModel):
     _name = "api.channel.mixin"
@@ -34,25 +32,6 @@ class ApiChannelMixin(models.AbstractModel):
     description = fields.Text(
         translate=True,
         help="Description of what this channel does",
-    )
-
-    rate_limit_enabled = fields.Boolean(
-        string="Enable Rate Limiting",
-        default=True,
-        help="Enable rate limiting using token bucket algorithm",
-    )
-    rate_limit_requests = fields.Integer(
-        string="Max Requests",
-        default=100,
-        help="Maximum number of requests allowed per time period",
-    )
-    rate_limit_strict = fields.Boolean(
-        string="Strict Rate Limiting",
-        default=False,
-        help="Deny the request when the rate-limit bucket cannot be read "
-        "(lock contention, timeout, internal error) instead of allowing it. "
-        "Enable wherever the limit is a security control rather than a "
-        "best-effort cap.",
     )
 
     retry_enabled = fields.Boolean(
@@ -110,15 +89,6 @@ class ApiChannelMixin(models.AbstractModel):
                     self.env._("Initial retry delay must be greater than 0"),
                 )
 
-    def check_rate_limit(self, company_id=None):
-        self.ensure_one()
-
-        if not self.rate_limit_enabled:
-            return True
-
-        limiter = EndpointRateLimiter(self.env, self, company_id)
-        return limiter.check_limit()
-
     def calculate_retry_delay(self, attempt_number):
         self.ensure_one()
 
@@ -140,3 +110,44 @@ class ApiChannelMixin(models.AbstractModel):
 
     def update_date_last_activity(self):
         self.write({"date_last_activity": fields.Datetime.now()})
+
+    #: Which half of the log a channel owns. Set by the concrete model, because it is
+    #: the one fact about its event log that an inbound endpoint and an outbound one do
+    #: not share -- everything below is identical between them and was written twice.
+    _api_event_direction = None
+
+    event_log_ids = fields.One2many(
+        comodel_name="api.event.log",
+        compute="_compute_event_log_ids",
+    )
+
+    def _api_event_log_domain(self):
+        """The log rows belonging to these channels.
+
+        One definition because 'channel_id' is a reference field, so the domain is not
+        the obvious 'channel_id in self.ids' but a list of 'model,id' strings, and a
+        second hand-built copy of that is a silent way to read another channel's log.
+        """
+        if not self._api_event_direction:
+            raise NotImplementedError(
+                f"{self._name} inherits api.channel.mixin without declaring "
+                "_api_event_direction, so its event log cannot be scoped",
+            )
+        return [
+            ("channel_id", "in", [f"{record._name},{record.id}" for record in self]),
+            ("direction", "=", self._api_event_direction),
+        ]
+
+    def _compute_event_log_ids(self):
+        logs_by_ref: dict[str, list[int]] = {}
+        if self.ids:
+            groups = self.env["api.event.log"]._read_group(
+                domain=self._api_event_log_domain(),
+                groupby=["channel_id"],
+                aggregates=["id:recordset"],
+            )
+            for ref, recordset in groups:
+                logs_by_ref[ref] = recordset.ids
+        for record in self:
+            ref = f"{record._name},{record.id}"
+            record.event_log_ids = [(6, 0, logs_by_ref.get(ref, []))]

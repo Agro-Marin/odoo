@@ -63,10 +63,14 @@ class OAuthController(http.Controller):
                     % service.name
                 )
 
-            if not service.oauth_client_id:
+            client_id = credential._oauth_client_id()
+            if not client_id:
                 raise UserError(
-                    request.env._("OAuth Client ID not configured for service '%s'")
-                    % service.name
+                    request.env._(
+                        "OAuth Client ID not configured for service '%(service)s'. "
+                        "Set it on the service, or on the credential itself.",
+                        service=service.name,
+                    )
                 )
 
             if not service.oauth_auth_endpoint:
@@ -89,7 +93,7 @@ class OAuthController(http.Controller):
 
             params = {
                 "response_type": "code",
-                "client_id": service.oauth_client_id,
+                "client_id": client_id,
                 "redirect_uri": redirect_uri,
                 "state": json.dumps(state),
             }
@@ -341,7 +345,7 @@ class OAuthController(http.Controller):
         token_data = {
             "grant_type": "authorization_code",
             "code": code,
-            "client_id": service.oauth_client_id,
+            "client_id": credential._oauth_client_id(),
             "redirect_uri": redirect_uri,
         }
 

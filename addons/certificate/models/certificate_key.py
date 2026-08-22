@@ -235,7 +235,7 @@ class CertificateKey(models.Model):
         if self.loading_error:
             raise UserError(self.name + " - " + self.loading_error)
 
-        return self._verify_with_key(
+        return self._check_with_key(
             signed_message,
             signature,
             pem_key,
@@ -500,7 +500,7 @@ class CertificateKey(models.Model):
         return _get_formatted_value(signature, formatting=formatting)
 
     @api.model
-    def _verify_with_key(
+    def _check_with_key(
         self, signed_message, signature, pem_key, signature_algorithm="sha256"
     ):
         """Return the verification of the signature"""

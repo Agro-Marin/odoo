@@ -25,13 +25,6 @@ class CredentialAccessLog(models.Model):
     failure_reason = fields.Char(
         help="Reason for access failure (if applicable)",
     )
-    user_agent = fields.Char(
-        help="Browser/client user agent string",
-    )
-    session_id = fields.Char(
-        string="Session ID",
-        help="User session identifier",
-    )
 
     def action_view_related_logs(self) -> dict[str, Any]:
         self.ensure_one()
