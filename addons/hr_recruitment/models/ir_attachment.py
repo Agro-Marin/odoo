@@ -1,4 +1,7 @@
+import warnings
+
 from odoo import models
+from odoo.db import FunctionStatus
 from odoo.tools import SQL
 
 
@@ -7,11 +10,15 @@ class IrAttachment(models.Model):
 
     def init(self):
         if self.env.registry.has_trigram:
-            indexed_field = (
-                SQL("UNACCENT(index_content)")
-                if self.env.registry.has_unaccent
-                else SQL("index_content")
-            )
+            indexed_field = SQL("index_content")
+            if self.env.registry.has_unaccent == FunctionStatus.INDEXABLE:
+                indexed_field = SQL("UNACCENT(index_content)")
+            elif self.env.registry.has_unaccent:
+                warnings.warn(
+                    "PostgreSQL function 'unaccent' is present but not immutable, "
+                    "therefore trigram indexes may not be effective.",
+                    stacklevel=1,
+                )
 
             self.env.cr.execute(
                 SQL(
