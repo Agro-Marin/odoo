@@ -20,12 +20,12 @@ class HrJob(models.Model):
         else:
             return self.env.company.partner_id
 
-    def _address_id_domain(self):
+    def _domain_address_id(self):
         return ['|', '&', '&', ('type', '!=', 'contact'), ('type', '!=', 'private'),
                 ('id', 'in', self.sudo().env.companies.partner_id.child_ids.ids),
                 ('id', 'in', self.sudo().env.companies.partner_id.ids)]
 
-    def _get_default_favorite_user_ids(self):
+    def _default_favorite_user_ids(self):
         return [Command.set([self.env.uid])]
 
     expected_employees = fields.Integer(groups="hr_recruitment.group_hr_recruitment_interviewer,hr.group_hr_user")
@@ -35,7 +35,7 @@ class HrJob(models.Model):
 
     address_id = fields.Many2one(
         'res.partner', "Job Location", default=_default_address_id,
-        domain=lambda self: self._address_id_domain(), tracking=True,
+        domain=lambda self: self._domain_address_id(), tracking=True,
         help="Select the location where the applicant will work. Addresses listed here are defined on the company's contact information.")
     application_ids = fields.One2many('hr.applicant', 'job_id', "Job Applications", groups="hr_recruitment.group_hr_recruitment_interviewer")
     application_count = fields.Integer(compute='_compute_application_count', string="Application Count", groups="hr_recruitment.group_hr_recruitment_interviewer")
@@ -52,13 +52,17 @@ class HrJob(models.Model):
     manager_id = fields.Many2one(
         'hr.employee', related='department_id.manager_id', string="Department Manager",
         readonly=True, store=True, groups="hr_recruitment.group_hr_recruitment_interviewer,hr.group_hr_user")
-    document_ids = fields.One2many('ir.attachment', compute='_compute_document_ids', string="Documents", readonly=True, groups="hr_recruitment.group_hr_recruitment_interviewer")
-    documents_count = fields.Integer(compute='_compute_document_ids', string="Document Count", groups="hr_recruitment.group_hr_recruitment_interviewer")
+    document_ids = fields.One2many('ir.attachment', compute='_compute_documents', string="Documents", readonly=True, groups="hr_recruitment.group_hr_recruitment_interviewer")
+    documents_count = fields.Count(
+        "document_ids",
+        string="Document Count",
+        groups="hr_recruitment.group_hr_recruitment_interviewer",
+    )
     employee_count = fields.Integer(compute='_compute_employee_count')
     alias_id = fields.Many2one(help="Email alias for this job position. New emails will automatically create new applicants for this job position.", groups="hr_recruitment.group_hr_recruitment_interviewer")
     color = fields.Integer("Color Index")
     is_favorite = fields.Boolean(compute='_compute_is_favorite', inverse='_inverse_is_favorite')
-    favorite_user_ids = fields.Many2many('res.users', 'job_favorite_user_rel', 'job_id', 'user_id', default=_get_default_favorite_user_ids)
+    favorite_user_ids = fields.Many2many('res.users', 'job_favorite_user_rel', 'job_id', 'user_id', default=_default_favorite_user_ids)
     interviewer_ids = fields.Many2many(
         "res.users",
         domain="[('share', '=', False), ('company_ids', '=?', company_id)]",
@@ -70,7 +74,7 @@ class HrJob(models.Model):
     industry_id = fields.Many2one('res.partner.industry', 'Industry', tracking=True, groups="hr_recruitment.group_hr_recruitment_interviewer")
     expected_degree = fields.Many2one("hr.recruitment.degree", groups="hr_recruitment.group_hr_recruitment_interviewer")
 
-    activity_count = fields.Integer(compute='_compute_activities', groups="hr_recruitment.group_hr_recruitment_interviewer")
+    activity_count = fields.Integer(compute='_compute_activity_count', groups="hr_recruitment.group_hr_recruitment_interviewer")
 
     job_properties = fields.Properties('Properties', definition='company_id.job_properties_definition', groups="hr_recruitment.group_hr_recruitment_interviewer")
 
@@ -99,7 +103,7 @@ class HrJob(models.Model):
             job.no_of_hired_employee = counts.get(job, 0)
 
     @api.depends_context('uid')
-    def _compute_activities(self):
+    def _compute_activity_count(self):
         self.env.cr.execute("""
             SELECT
                 app.job_id,
@@ -152,7 +156,7 @@ class HrJob(models.Model):
         favorited_jobs.write({'favorite_user_ids': [Command.link(self.env.uid)]})
         unfavorited_jobs.write({'favorite_user_ids': [Command.unlink(self.env.uid)]})
 
-    def _compute_document_ids(self):
+    def _compute_documents(self):
         applicants = self.mapped('application_ids').filtered(lambda self: not self.employee_id)
         app_to_job = {applicant.id: applicant.job_id.id for applicant in applicants}
         attachments = self.env['ir.attachment'].search([
@@ -168,7 +172,6 @@ class HrJob(models.Model):
 
         for job in self:
             job.document_ids = result.get(job.id, False)
-            job.documents_count = len(job.document_ids)
 
     def _compute_all_application_count(self):
         read_group_result = self.env['hr.applicant'].with_context(active_test=False)._read_group([
@@ -368,7 +371,7 @@ class HrJob(models.Model):
         }
 
     def action_open_activities(self):
-        action = self.env["ir.actions.actions"]._for_xml_id("hr_recruitment.action_hr_job_applications")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("hr_recruitment.action_hr_job_applications")
         views = ['activity'] + [view for view in action['view_mode'].split(',') if view != 'activity']
         action['view_mode'] = ','.join(views)
         action['views'] = [(False, view) for view in views]

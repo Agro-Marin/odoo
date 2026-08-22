@@ -170,8 +170,8 @@ Thank you for your prompt attention to this matter.""")
                 state=employee.hr_presence_state_display))
 
     @api.depends("user_id.im_status", "hr_presence_state_display")
-    def _compute_presence_state(self):
-        super()._compute_presence_state()
+    def _compute_hr_presence_state(self):
+        super()._compute_hr_presence_state()
         company = self.env.company
         working_now_list = self._get_employee_working_now()
         for employee in self:

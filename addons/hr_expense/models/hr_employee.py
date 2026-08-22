@@ -22,7 +22,7 @@ class HrEmployee(models.Model):
     expense_manager_id = fields.Many2one(
         comodel_name='res.users',
         string='Expense Approver',
-        compute='_compute_expense_manager', store=True, readonly=False,
+        compute='_compute_expense_manager_id', store=True, readonly=False,
         domain=_group_hr_expense_user_domain,
         help='Select the user responsible for approving "Expenses" of this employee.\n'
              'If empty, the approval is done by an Administrator or Approver (determined in settings/users).',
@@ -51,7 +51,7 @@ class HrEmployee(models.Model):
         return domain
 
     @api.depends('parent_id')
-    def _compute_expense_manager(self):
+    def _compute_expense_manager_id(self):
         for employee in self:
             previous_manager = employee._origin.parent_id.user_id
             new_manager = employee.parent_id.user_id

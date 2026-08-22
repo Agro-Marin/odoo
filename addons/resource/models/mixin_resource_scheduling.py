@@ -13,8 +13,8 @@ class MixinResourceScheduling(models.AbstractModel):
     - Reverse One2many to ``resource.reservation`` via ``(res_model, res_id)``
     - Computed ``schedule_overlap_count``, saved and unsaved records alike
     - CRUD hooks that reconcile reservations via ``_sync_reservations``
-    - Contracts consumers override: ``_get_reservation_date_fields``,
-      ``_get_reservation_vals_list``, ``_get_sync_trigger_fields``
+    - Contracts consumers override: ``_get_fields_reservation_date``,
+      ``_get_reservation_vals_list``, ``_get_fields_sync_trigger``
     - Utility methods (``_scheduling_get_work_hours``,
       ``_scheduling_plan_hours``, ``_scheduling_snap_to_calendar``,
       ``_scheduling_resolve_calendar``) for calendar-aware computations
@@ -69,7 +69,7 @@ class MixinResourceScheduling(models.AbstractModel):
     # Contracts (consumers override)
     # ------------------------------------------------------------------
 
-    def _get_reservation_date_fields(self):
+    def _get_fields_reservation_date(self):
         """Return ``(start_field, end_field)`` names, or ``(None, None)``.
 
         Consumers whose records are never scheduled (no planned dates) keep
@@ -89,10 +89,10 @@ class MixinResourceScheduling(models.AbstractModel):
         self.ensure_one()
         return []
 
-    def _get_sync_trigger_fields(self):
+    def _get_fields_sync_trigger(self):
         """Return the set of field names whose write triggers ``_sync_reservations``.
 
-        Default: the date fields returned by ``_get_reservation_date_fields``.
+        Default: the date fields returned by ``_get_fields_reservation_date``.
         Consumers add their assignee field on top;
         :class:`mixin.resource.allocation` adds ``allocated_percentage``,
         because the field it declares is one every consumer of it forwards
@@ -100,7 +100,7 @@ class MixinResourceScheduling(models.AbstractModel):
         mirror row stuck at the old value with nothing to indicate it.
         """
         triggers = set()
-        start_field, end_field = self._get_reservation_date_fields()
+        start_field, end_field = self._get_fields_reservation_date()
         if start_field:
             triggers.add(start_field)
         if end_field:
@@ -114,7 +114,7 @@ class MixinResourceScheduling(models.AbstractModel):
     def _sync_reservations(self):
         """Reconcile ``resource.reservation`` records for each consumer record.
 
-        Short-circuits for consumers whose ``_get_reservation_date_fields``
+        Short-circuits for consumers whose ``_get_fields_reservation_date``
         returns ``(None, None)`` — they never create reservations, so the
         per-record SQL probe is pure overhead on every create/write.
 
@@ -122,7 +122,7 @@ class MixinResourceScheduling(models.AbstractModel):
         (archived included: they are engine-owned mirror rows, and reconciling
         blind to them would create active duplicates next to archived twins).
         """
-        start_field, end_field = self._get_reservation_date_fields()
+        start_field, end_field = self._get_fields_reservation_date()
         if not start_field or not end_field or not self:
             return
         reservation_model = self.env["resource.reservation"]
@@ -171,7 +171,7 @@ class MixinResourceScheduling(models.AbstractModel):
 
     def write(self, vals):
         result = super().write(vals)
-        start_field, end_field = self._get_reservation_date_fields()
+        start_field, end_field = self._get_fields_reservation_date()
         has_dates = bool(start_field and end_field)
 
         if "active" in vals and has_dates:
@@ -195,7 +195,7 @@ class MixinResourceScheduling(models.AbstractModel):
 
         # Re-sync when a scheduling field changed, or when the record is being
         # reactivated (its reservations must reflect edits made while archived).
-        triggers = self._get_sync_trigger_fields()
+        triggers = self._get_fields_sync_trigger()
         sync_needed = bool(triggers and triggers.intersection(vals.keys()))
         reactivating = bool(vals.get("active")) and has_dates
         if (sync_needed or reactivating) and not self._reservation_sync_manual:
@@ -226,7 +226,7 @@ class MixinResourceScheduling(models.AbstractModel):
     # Query surface
     # ------------------------------------------------------------------
 
-    def _get_overlap_depends_fields(self):
+    def _get_fields_overlap_depends(self):
         """Fields whose change re-evaluates ``schedule_overlap_count``.
 
         The reservation aggregates answer for saved records.  The sync
@@ -238,10 +238,10 @@ class MixinResourceScheduling(models.AbstractModel):
         return [
             "reservation_ids.schedule_overlap_count",
             "reservation_ids.active",
-            *sorted(self._get_sync_trigger_fields()),
+            *sorted(self._get_fields_sync_trigger()),
         ]
 
-    @api.depends(lambda self: self._get_overlap_depends_fields())
+    @api.depends(lambda self: self._get_fields_overlap_depends())
     def _compute_schedule_overlap_count(self):
         """Aggregate overlap counts from linked reservations.
 

@@ -9,7 +9,7 @@ class HrTalentPool(models.Model):
     _description = "Talent Pool"
     _inherit = ["mixin.mail.thread"]
 
-    def _get_default_color(self):
+    def _default_color(self):
         return randint(1, 11)
 
     active = fields.Boolean(default=True)
@@ -31,12 +31,12 @@ class HrTalentPool(models.Model):
     )
     talent_ids = fields.Many2many(comodel_name="hr.applicant", string="Talent", groups="base.group_user")
     no_of_talents = fields.Integer(
-        compute="_compute_talent_count",
+        compute="_compute_no_of_talents",
         string="# Talents",
         help="The number of talents in this talent pool.",
     )
     description = fields.Html(string="Talent Pool Description")
-    color = fields.Integer(string="Color", default=_get_default_color)
+    color = fields.Integer(string="Color", default=_default_color)
     categ_ids = fields.Many2many(
         comodel_name="hr.applicant.category",
         string="Tags",
@@ -44,7 +44,7 @@ class HrTalentPool(models.Model):
         readonly=False,
     )
 
-    def _compute_talent_count(self):
+    def _compute_no_of_talents(self):
         talents = self.env["hr.applicant"]._read_group(
             domain=[("talent_pool_ids", "in", self.ids)], groupby=["talent_pool_ids"], aggregates=["__count"]
         )

@@ -21,7 +21,7 @@ class HrEmployeePublic(models.Model):
     active = fields.Boolean(readonly=True)
     department_id = fields.Many2one("hr.department", readonly=True)
     member_of_department = fields.Boolean(
-        compute="_compute_member_of_department", search="_search_part_of_department"
+        compute="_compute_member_of_department", search="_search_member_of_department"
     )
     job_id = fields.Many2one("hr.job", readonly=True)
     job_title = fields.Char(related="employee_id.job_title")
@@ -49,7 +49,7 @@ class HrEmployeePublic(models.Model):
             ("archive", "Archived"),
             ("out_of_working_hour", "Off-Hours"),
         ],
-        compute="_compute_presence_state",
+        compute="_compute_hr_presence_state",
         default="out_of_working_hour",
     )
     hr_icon_display = fields.Selection(
@@ -178,7 +178,7 @@ class HrEmployeePublic(models.Model):
         for employee in self:
             employee.is_user = employee.id == user_employee_id
 
-    def _compute_presence_state(self):
+    def _compute_hr_presence_state(self):
         self._compute_from_employee("hr_presence_state")
 
     def _compute_presence_icon(self):
@@ -188,10 +188,10 @@ class HrEmployeePublic(models.Model):
     def _compute_member_of_department(self):
         self._compute_from_employee("member_of_department")
 
-    def _get_manager_only_fields(self):
+    def _get_fields_manager_only(self):
         return []
 
-    def _search_part_of_department(self, operator, value):
+    def _search_member_of_department(self, operator, value):
         if operator != "in":
             return NotImplemented
 
@@ -216,7 +216,7 @@ class HrEmployeePublic(models.Model):
 
     @api.depends_context("uid")
     def _compute_manager_only_fields(self):
-        manager_fields = self._get_manager_only_fields()
+        manager_fields = self._get_fields_manager_only()
         for employee in self:
             if employee.is_manager:
                 employee_sudo = employee.employee_id.sudo()

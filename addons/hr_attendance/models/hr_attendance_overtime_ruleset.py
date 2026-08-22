@@ -29,12 +29,8 @@ class HrAttendanceOvertimeRuleset(models.Model):
             "    e.g.: combined rate for 150% & 120% = 100% (baseline) + (150-100)% + (120-100)% = 170%\n"
         ),
     )
-    rules_count = fields.Integer(compute='_compute_rules_count')
+    rules_count = fields.Count("rule_ids")
     active = fields.Boolean(default=True, readonly=False)
-
-    def _compute_rules_count(self):
-        for ruleset in self:
-            ruleset.rules_count = len(ruleset.rule_ids)
 
     def _attendances_to_regenerate_for(self):
         self.ensure_one()

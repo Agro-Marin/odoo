@@ -636,7 +636,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
             self.assertEqual(allocation_worked_time.nextcall, next_date, 'The next call date of the cron should be September 20th')
 
     @freeze_time('2025-09-01')  # Monday
-    def test_non_elligible_leaves(self):
+    def test_non_eligible_leaves(self):
         accrual_plan = self.env['hr.leave.accrual.plan'].with_context(tracking_disable=True).create({
             'is_based_on_worked_time': True,
             'can_be_carryover': True,
@@ -668,7 +668,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
             'name': 'Paid Time Off',
             'time_type': 'leave',
             'requires_allocation': False,
-            'elligible_for_accrual_rate': False,
+            'eligible_for_accrual_rate': False,
         })
         timeoff = self.env['hr.leave'].create({
             'name': 'Paid Time Off',
@@ -684,7 +684,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
             self.assertEqual(allocation_worked_time.number_of_days, 12, 'There should be 12 days allocated.')
 
     @freeze_time('2025-09-01')  # Monday
-    def test_elligible_leaves(self):
+    def test_eligible_leaves(self):
         accrual_plan = self.env['hr.leave.accrual.plan'].with_context(tracking_disable=True).create({
             'is_based_on_worked_time': True,
             'can_be_carryover': True,
@@ -716,7 +716,7 @@ class TestAccrualAllocations(TestHrHolidaysCommon):
             'name': 'Paid Time Off',
             'time_type': 'leave',
             'requires_allocation': False,
-            'elligible_for_accrual_rate': True,
+            'eligible_for_accrual_rate': True,
         })
         timeoff_eligible = self.env['hr.leave'].create({
             'name': 'Paid Time Off',

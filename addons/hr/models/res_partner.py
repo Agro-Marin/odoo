@@ -80,8 +80,10 @@ class ResPartner(models.Model):
         pstl_addr = {
             "contact_type": "employee",
             "street": employee_id.private_street,
+            "street2": employee_id.private_street2,
             "zip": employee_id.private_zip,
             "city": employee_id.private_city,
+            "state": employee_id.private_state_id.code,
             "country": employee_id.private_country_id.code,
         }
         return [pstl_addr] + super()._get_all_addr()
@@ -146,11 +148,11 @@ class ResPartner(models.Model):
             )
         return action
 
-    def _get_store_avatar_card_fields(self, target):
-        avatar_card_fields = super()._get_store_avatar_card_fields(target)
+    def _get_fields_store_avatar_card(self, target):
+        avatar_card_fields = super()._get_fields_store_avatar_card(target)
         if target.is_internal(self.env):
             # sudo: res.partner - internal users can access employee information of partner
-            employee_fields = self.sudo().employee_ids._get_store_avatar_card_fields(
+            employee_fields = self.sudo().employee_ids._get_fields_store_avatar_card(
                 target
             )
             avatar_card_fields.append(

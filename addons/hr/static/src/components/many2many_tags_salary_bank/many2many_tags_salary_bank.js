@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { TagsList } from "@web/components/tags_list/tags_list";
+import { TagsList } from "@web/components/tags_list";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import {

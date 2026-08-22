@@ -179,7 +179,7 @@ class ResourceCalendar(models.Model):
         copy=False,
     )
     is_fulltime = fields.Boolean(
-        compute="_compute_work_time_rate", string="Is Full Time"
+        compute="_compute_work_time", string="Is Full Time"
     )
     two_weeks_calendar = fields.Boolean(string="Calendar in 2 weeks mode")
     two_weeks_explanation = fields.Char(
@@ -208,7 +208,7 @@ class ResourceCalendar(models.Model):
     )
     work_time_rate = fields.Float(
         string="Work Time Rate",
-        compute="_compute_work_time_rate",
+        compute="_compute_work_time",
         search="_search_work_time_rate",
         help="Work time rate versus full time working schedule, should be between 0 and 100 %.",
     )
@@ -433,7 +433,7 @@ class ResourceCalendar(models.Model):
             calendar.work_resources_count = resources_per_calendar.get(calendar, 0)
 
     @api.depends("hours_per_week", "full_time_required_hours")
-    def _compute_work_time_rate(self):
+    def _compute_work_time(self):
         for calendar in self:
             if calendar.full_time_required_hours:
                 calendar.work_time_rate = (
@@ -449,7 +449,7 @@ class ResourceCalendar(models.Model):
                 == 0
             )
 
-    # SQL mirror of the ``_compute_work_time_rate`` formula, kept as the single
+    # SQL mirror of the ``_compute_work_time`` formula, kept as the single
     # source of truth for the pushed-down search below.  Keep the two in sync.
     _WORK_TIME_RATE_SQL = SQL(
         "CASE WHEN COALESCE(full_time_required_hours, 0) > 0"
@@ -547,7 +547,7 @@ class ResourceCalendar(models.Model):
     # Computation API
     # --------------------------------------------------
 
-    def _make_dummy_attendance(self, hours, days):
+    def _prepare_dummy_attendance(self, hours, days):
         """Build a transient (unsaved) attendance carrying only a duration.
 
         Flexible / fully-flexible resources have no stored attendance lines, so
@@ -630,7 +630,7 @@ class ResourceCalendar(models.Model):
                     (
                         day_start,
                         day_end,
-                        self._make_dummy_attendance(
+                        self._prepare_dummy_attendance(
                             covered_hours,
                             min(1.0, covered_hours / expected_day_hours),
                         ),
@@ -678,7 +678,7 @@ class ResourceCalendar(models.Model):
         them: fill each 7-day chunk up to the flexible weekly budget and each
         day up to ``hours_per_day``, centering each day's block on noon.  Each
         interval carries a throwaway attendance holding only its duration (see
-        :meth:`_make_dummy_attendance`).
+        :meth:`_prepare_dummy_attendance`).
 
         .. important::
            The chunks are anchored on ``start_datetime``, not on the calendar
@@ -740,7 +740,7 @@ class ResourceCalendar(models.Model):
                     (
                         start_time,
                         end_time,
-                        self._make_dummy_attendance(allocate_hours, 1),
+                        self._prepare_dummy_attendance(allocate_hours, 1),
                     )
                 )
                 day += timedelta(days=1)

@@ -8,8 +8,8 @@ export class HrEmployee extends hrModels.HrEmployee {
     leave_date_to = fields.Date();
     user_id = fields.Many2one({ relation: "res.users" });
 
-    _get_store_avatar_card_fields() {
-        return [...super._get_store_avatar_card_fields(), "leave_date_to"];
+    _get_fields_store_avatar_card() {
+        return [...super._get_fields_store_avatar_card(), "leave_date_to"];
     }
 
     _records = [

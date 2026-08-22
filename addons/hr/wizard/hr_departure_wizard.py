@@ -8,7 +8,7 @@ class HrDepartureWizard(models.TransientModel):
     _name = "hr.departure.wizard"
     _description = "Departure Wizard"
 
-    def _get_default_departure_date(self):
+    def _default_departure_date(self):
         if len(active_ids := self.env.context.get("active_ids", [])) == 1:
             employee = self.env["hr.employee"].browse(active_ids[0])
             departure_date = employee and employee._get_departure_date()
@@ -17,7 +17,7 @@ class HrDepartureWizard(models.TransientModel):
 
         return departure_date or fields.Date.today()
 
-    def _get_default_employee_ids(self):
+    def _default_employee_ids(self):
         active_ids = self.env.context.get("active_ids", [])
         if active_ids:
             return (
@@ -27,7 +27,7 @@ class HrDepartureWizard(models.TransientModel):
             )
         return self.env["hr.employee"]
 
-    def _get_domain_employee_ids(self):
+    def _domain_employee_ids(self):
         return [("active", "=", True), ("company_id", "in", self.env.companies.ids)]
 
     departure_reason_id = fields.Many2one(
@@ -37,15 +37,15 @@ class HrDepartureWizard(models.TransientModel):
     )
     departure_description = fields.Html(string="Additional Information")
     departure_date = fields.Date(
-        string="Contract End Date", required=True, default=_get_default_departure_date
+        string="Contract End Date", required=True, default=_default_departure_date
     )
     employee_ids = fields.Many2many(
         "hr.employee",
         string="Employees",
         required=True,
-        default=_get_default_employee_ids,
+        default=_default_employee_ids,
         context={"active_test": False},
-        domain=_get_domain_employee_ids,
+        domain=_domain_employee_ids,
     )
 
     is_user_employee = fields.Boolean(

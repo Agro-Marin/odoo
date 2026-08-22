@@ -693,7 +693,7 @@ class TestResourceReservation(TransactionCase):
         )
         self.assertEqual(res.origin_display, "Display Test")
 
-    def test_action_open_origin(self):
+    def test_action_view_origin(self):
         """action_open_origin returns an act_window action."""
         partner = self.env["res.partner"].create({"name": "Action Test"})
         res = self.Reservation.create(

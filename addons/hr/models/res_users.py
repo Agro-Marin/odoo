@@ -52,7 +52,7 @@ HR_WRITABLE_FIELDS = [
 class ResUsers(models.Model):
     _inherit = "res.users"
 
-    def _employee_ids_domain(self):
+    def _domain_employee_ids(self):
         # employee_ids is considered a safe field and as such will be fetched as sudo.
         # So try to enforce the security rules on the field to make sure we do not load employees outside of active companies
         return [
@@ -65,13 +65,13 @@ class ResUsers(models.Model):
 
     # note: a user can only be linked to one employee per company (see sql constraint in `hr.employee`)
     employee_ids = fields.One2many(
-        "hr.employee", "user_id", string="Related employee", domain=_employee_ids_domain
+        "hr.employee", "user_id", string="Related employee", domain=_domain_employee_ids
     )
     employee_id = fields.Many2one(
         "hr.employee",
         string="Company employee",
-        compute="_compute_company_employee",
-        search="_search_company_employee",
+        compute="_compute_employee_id",
+        search="_search_employee_id",
         store=False,
     )
 
@@ -400,7 +400,7 @@ class ResUsers(models.Model):
     @api.model
     def action_get(self):
         if self.env.user.employee_id:
-            action = self.env["ir.actions.act_window"]._for_xml_id(
+            action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
                 "hr.res_users_action_my"
             )
             groups = {
@@ -418,7 +418,7 @@ class ResUsers(models.Model):
 
     @api.depends("employee_ids")
     @api.depends_context("company")
-    def _compute_company_employee(self):
+    def _compute_employee_id(self):
         employee_per_user = {
             employee.user_id: employee
             for employee in self.env["hr.employee"].search(
@@ -428,7 +428,7 @@ class ResUsers(models.Model):
         for user in self:
             user.employee_id = employee_per_user.get(user)
 
-    def _search_company_employee(self, operator, value):
+    def _search_employee_id(self, operator, value):
         # Equivalent to `[('employee_ids', operator, value)]`,
         # but we inline the ids directly to simplify final queries and improve performance,
         # as it's part of a few ir.rules.

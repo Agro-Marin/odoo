@@ -124,7 +124,7 @@ class TestMultiCompany(TestHrCommon):
         with self.assertRaises(AccessError):
             self.employee_a.with_user(self.user_b).name  # noqa: B018
 
-    def test_compute_presence_state(self):
+    def test_compute_hr_presence_state(self):
         self.user_a.company_ids = self.company_a
         # user A should still read the employee since he is the manager of that employee
         self.assertEqual(

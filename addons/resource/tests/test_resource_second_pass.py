@@ -255,10 +255,10 @@ class TestResourceSecondPass(TransactionCase):
         declaration -- a consumer left to remember it got a mirror reservation
         stuck at the old percentage with nothing to indicate it.
         """
-        projection = self.env["mixin.resource.scheduling"]._get_sync_trigger_fields()
+        projection = self.env["mixin.resource.scheduling"]._get_fields_sync_trigger()
         self.assertNotIn("allocated_percentage", projection)
 
-        allocation = self.env["mixin.resource.allocation"]._get_sync_trigger_fields()
+        allocation = self.env["mixin.resource.allocation"]._get_fields_sync_trigger()
         self.assertIn("allocated_percentage", allocation)
 
     # ------------------------------------------------------------------

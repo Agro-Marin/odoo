@@ -7,7 +7,7 @@ class HrApplicant(models.Model):
     _inherit = 'hr.applicant'
 
     def action_send_sms(self):
-        res = self.env['ir.actions.act_window']._for_xml_id('sms.sms_composer_action_form')
+        res = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('sms.sms_composer_action_form')
         res['context'] = {
             'default_composition_mode': 'mass',
             'default_mass_keep_log': True,

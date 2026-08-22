@@ -98,7 +98,7 @@ class HrLeaveType(models.Model):
             #     - Approved by Time Off Officer: The employee's request need to be manually approved
             #       by the Time Off Officer, Employee's Approver or both.""")
 
-    has_valid_allocation = fields.Boolean(compute='_compute_valid', search='_search_valid', help='This indicates if it is still possible to use this type of leave')
+    has_valid_allocation = fields.Boolean(compute='_compute_has_valid_allocation', search='_search_has_valid_allocation', help='This indicates if it is still possible to use this type of leave')
     time_type = fields.Selection([('other', 'Worked Time'), ('leave', 'Absence')], default='leave', string="Kind of Time Off",
                                  help="The distinction between working time (ex. Attendance) and absence (ex. Training) will be used in the computation of Accrual's plan rate.")
     request_unit = fields.Selection([
@@ -112,7 +112,7 @@ class HrLeaveType(models.Model):
     support_document = fields.Boolean(string='Supporting Document')
     allow_request_on_top = fields.Boolean(string='Allow Request on Top', default=False,
         help="If checked, users can request another leave on top of the ones of this type.")
-    elligible_for_accrual_rate = fields.Boolean(string='Eligible for Accrual Rate', compute="_compute_eligible_for_accrual_rate", store=True, readonly=False,
+    eligible_for_accrual_rate = fields.Boolean(string='Eligible for Accrual Rate', compute="_compute_eligible_for_accrual_rate", store=True, readonly=False,
         help="If checked, this time off type will be taken into account for accruals computation.")
     accruals_ids = fields.One2many('hr.leave.accrual.plan', 'time_off_type_id')
     accrual_count = fields.Float(compute="_compute_accrual_count", string="Accruals count")
@@ -128,7 +128,7 @@ class HrLeaveType(models.Model):
     )
 
     @api.model
-    def _search_valid(self, operator, value):
+    def _search_has_valid_allocation(self, operator, value):
         """ Returns leave_type ids for which a valid allocation exists
             or that don't need an allocation
             return [('id', domain_operator, [x['id'] for x in res])]
@@ -168,10 +168,10 @@ class HrLeaveType(models.Model):
             if leave.time_type == "leave" and leave.allow_request_on_top:
                 raise ValidationError(self.env._("You cannot allow requests on top of leaves of type 'Absence'."))
 
-    @api.constrains('elligible_for_accrual_rate')
-    def _check_elligible_for_accrual_rate(self):
+    @api.constrains('eligible_for_accrual_rate')
+    def _check_eligible_for_accrual_rate(self):
         for leave in self:
-            if leave.time_type == "other" and not leave.elligible_for_accrual_rate:
+            if leave.time_type == "other" and not leave.eligible_for_accrual_rate:
                 raise ValidationError(self.env._("leaves of type 'Worked Time' should be always eligible for accrual rate."))
 
     @api.constrains('include_public_holidays_in_duration')
@@ -207,7 +207,7 @@ class HrLeaveType(models.Model):
                         time off type are overlapping with public holidays, meaning that the balance of those employees would be affected by this change."))
 
     @api.depends('requires_allocation', 'max_leaves', 'virtual_remaining_leaves')
-    def _compute_valid(self):
+    def _compute_has_valid_allocation(self):
         date_from = self.env.context.get('default_date_from', fields.Datetime.today())
         date_to = self.env.context.get('default_date_to', fields.Datetime.today())
         employee_id = self.env.context.get('default_employee_id', self.env.context.get('employee_id', self.env.user.employee_id.id))
@@ -391,7 +391,7 @@ class HrLeaveType(models.Model):
     @api.depends('time_type')
     def _compute_eligible_for_accrual_rate(self):
         for leave_type in self:
-            leave_type.elligible_for_accrual_rate = leave_type.time_type != 'leave'
+            leave_type.eligible_for_accrual_rate = leave_type.time_type != 'leave'
 
     @api.model
     def _search(self, domain, offset=0, limit=None, order=None, **kwargs):
@@ -430,7 +430,7 @@ class HrLeaveType(models.Model):
 
     def action_see_days_allocated(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id("hr_holidays.hr_leave_allocation_action_all")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("hr_holidays.hr_leave_allocation_action_all")
         action['domain'] = [
             ('holiday_status_id', 'in', self.ids),
         ]
@@ -444,7 +444,7 @@ class HrLeaveType(models.Model):
 
     def action_see_group_leaves(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id("hr_holidays.hr_leave_action_action_approve_department")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("hr_holidays.hr_leave_action_action_approve_department")
         action['domain'] = [
             ('holiday_status_id', '=', self.ids[0]),
         ]
@@ -455,7 +455,7 @@ class HrLeaveType(models.Model):
 
     def action_see_accrual_plans(self):
         self.ensure_one()
-        action = self.env["ir.actions.actions"]._for_xml_id("hr_holidays.open_view_accrual_plans")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("hr_holidays.open_view_accrual_plans")
         action['domain'] = [
             ('time_off_type_id', '=', self.id),
         ]
@@ -480,7 +480,7 @@ class HrLeaveType(models.Model):
             '|',
             ('date_to', '>', date.today()),
             ('date_to', '=', False),
-        ]))
+        ], limit=1))
 
     @api.model
     def get_allocation_data_request(self, target_date=None, hidden_allocations=True):

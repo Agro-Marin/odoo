@@ -28,12 +28,12 @@ class ResourceRole(models.Model):
     _description = "Resource Role"
     _order = "sequence, name, id"
 
-    def _get_default_color(self) -> int:
+    def _default_color(self) -> int:
         return randint(1, 11)
 
     active = fields.Boolean(default=True)
     name = fields.Char(required=True, translate=True)
-    color = fields.Integer(default=_get_default_color)
+    color = fields.Integer(default=_default_color)
     sequence = fields.Integer(export_string_translation=False)
 
     def copy_data(self, default=None):

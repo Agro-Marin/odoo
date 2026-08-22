@@ -7,7 +7,7 @@ class HrExpensePostWizard(models.TransientModel):
     _description = 'Expense Posting Wizard'
 
     @api.model
-    def _default_journal_id(self):
+    def _default_employee_journal_id(self):
         """
          The journal is determining the company of the accounting entries generated from expense.
          We need to force journal company and expense company to be the same.
@@ -35,7 +35,7 @@ class HrExpensePostWizard(models.TransientModel):
     employee_journal_id = fields.Many2one(
         comodel_name='account.journal',
         string="Journal",
-        default=_default_journal_id,
+        default=_default_employee_journal_id,
         check_company=True,
         domain=[('type', '=', 'purchase')],
         help="The journal used when the expense is paid by employee.",

@@ -458,7 +458,7 @@
         <field name="binding_model_id" ref="hr_attendance.model_res_company"/>
         <field name="state">code</field>
         <field name="code">
-            action = model._action_open_kiosk_mode()
+            action = model._action_view_kiosk_mode()
         </field>
         <field name="group_ids" eval="[(4, ref('hr_attendance.group_hr_attendance_user'))]"/>
     </record>
@@ -467,7 +467,7 @@
 
     <menuitem id="menu_hr_attendance_root" name="Attendances" sequence="205" groups="hr_attendance.group_hr_attendance_officer" web_icon="hr_attendance,static/description/icon.png"/>
 
-    <menuitem id="menu_action_open_form" name="Kiosk Mode" action="open_kiosk_url" parent="menu_hr_attendance_root" sequence="10" groups="hr_attendance.group_hr_attendance_user"/>
+    <menuitem id="menu_action_view_form" name="Kiosk Mode" action="open_kiosk_url" parent="menu_hr_attendance_root" sequence="10" groups="hr_attendance.group_hr_attendance_user"/>
 
     <menuitem
         id="menu_hr_attendance_reporting"

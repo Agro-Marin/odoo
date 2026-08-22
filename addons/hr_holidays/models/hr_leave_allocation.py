@@ -50,12 +50,12 @@ class HrLeaveAllocation(models.Model):
 
     name = fields.Char(
         string='Description',
-        compute='_compute_description',
+        compute='_compute_name',
         store=True,
         readonly=False,
         compute_sudo=False)
     is_name_custom = fields.Boolean(readonly=True, store=False)
-    name_validity = fields.Char('Description with validity', compute='_compute_description_validity')
+    name_validity = fields.Char('Description with validity', compute='_compute_name_validity')
     state = fields.Selection([
         ('confirm', 'To Approve'),
         ('refuse', 'Refused'),
@@ -171,13 +171,13 @@ class HrLeaveAllocation(models.Model):
             self.is_name_custom = True
 
     @api.depends('holiday_status_id', 'number_of_days')
-    def _compute_description(self):
+    def _compute_name(self):
         for allocation in self:
             if not allocation.is_name_custom:
                 allocation.name = allocation._get_title()
 
     @api.depends('name', 'date_from', 'date_to')
-    def _compute_description_validity(self):
+    def _compute_name_validity(self):
         for allocation in self:
             allocation_date_from = fields.Datetime.to_datetime(allocation.date_from or fields.Date.context_today(allocation))
             allocation_date_to = fields.Datetime.to_datetime(allocation.date_to)
@@ -385,7 +385,7 @@ class HrLeaveAllocation(models.Model):
         end_dt = datetime.combine(end_date, datetime_min_time)
         leaves_eligible = self.employee_id.sudo()._get_leave_days_data_batch(start_dt, end_dt,
             calendar=self.employee_id._get_calendars(start_dt)[self.employee_id.id],
-            domain=[('time_type', '=', 'leave'), ('elligible_for_accrual_rate', '=', True)])[self.employee_id.id]['hours']
+            domain=[('time_type', '=', 'leave'), ('eligible_for_accrual_rate', '=', True)])[self.employee_id.id]['hours']
         worked = self.employee_id._get_work_days_data_batch(start_dt, end_dt,
             calendar=self.employee_id.resource_calendar_id)[self.employee_id.id]['hours']
         worked += leaves_eligible
@@ -394,7 +394,7 @@ class HrLeaveAllocation(models.Model):
             end_dt = datetime.combine(end_period, datetime_min_time)
             leaves_eligible = self.employee_id.sudo()._get_leave_days_data_batch(start_dt, end_dt,
                 calendar=self.employee_id._get_calendars(start_dt)[self.employee_id.id],
-                domain=[('time_type', '=', 'leave'), ('elligible_for_accrual_rate', '=', True)])[self.employee_id.id]['hours']
+                domain=[('time_type', '=', 'leave'), ('eligible_for_accrual_rate', '=', True)])[self.employee_id.id]['hours']
             planned_worked = self.employee_id._get_work_days_data_batch(start_dt, end_dt,
                 calendar=self.employee_id.resource_calendar_id)[self.employee_id.id]['hours']
             planned_worked += leaves_eligible
@@ -402,7 +402,7 @@ class HrLeaveAllocation(models.Model):
             planned_worked = worked
         left = self.employee_id.sudo()._get_leave_days_data_batch(start_dt, end_dt,
             calendar=self.employee_id._get_calendars(start_dt)[self.employee_id.id],
-            domain=[('time_type', '=', 'leave'), ('elligible_for_accrual_rate', '=', False)])[self.employee_id.id]['hours']
+            domain=[('time_type', '=', 'leave'), ('eligible_for_accrual_rate', '=', False)])[self.employee_id.id]['hours']
         if level.frequency in level._get_hourly_frequencies():
             if level.accrual_plan_id.is_based_on_worked_time:
                 work_entry_prorata = planned_worked

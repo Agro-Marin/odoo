@@ -18,11 +18,11 @@ class HrEmployee(models.Model):
 
     leave_manager_id = fields.Many2one(
         'res.users', string='Time Off Approver',
-        compute='_compute_leave_manager', store=True, readonly=False,
+        compute='_compute_leave_manager_id', store=True, readonly=False,
         domain="[('share', '=', False), ('company_ids', 'in', company_id)]",
         help='Select the user responsible for approving "Time Off" of this employee.\n'
              'If empty, the approval is done by an Administrator or Approver (determined in settings/users).')
-    current_leave_id = fields.Many2one('hr.leave.type', compute='_compute_current_leave', string="Current Time Off Type",
+    current_leave_id = fields.Many2one('hr.leave.type', compute='_compute_current_leave_id', string="Current Time Off Type",
                                        groups="hr.group_hr_user")
     current_leave_state = fields.Selection(compute='_compute_leave_status', string="Current Time Off Status",
         selection=[
@@ -39,14 +39,14 @@ class HrEmployee(models.Model):
     allocations_count = fields.Integer('Total number of allocations', compute="_compute_allocation_count",
                                        groups="hr.group_hr_user")
     show_leaves = fields.Boolean('Able to see Remaining Time Off', compute='_compute_show_leaves')
-    is_absent = fields.Boolean('Absent Today', compute='_compute_leave_status', search='_search_absent_employee')
+    is_absent = fields.Boolean('Absent Today', compute='_compute_leave_status', search='_search_is_absent')
     allocation_display = fields.Char(compute='_compute_allocation_remaining_display')
     allocation_remaining_display = fields.Char(compute='_compute_allocation_remaining_display')
     hr_icon_display = fields.Selection(selection_add=[
         ('presence_holiday_absent', 'On leave'),
         ('presence_holiday_present', 'Present but on leave')])
 
-    def _compute_current_leave(self):
+    def _compute_current_leave_id(self):
         self.current_leave_id = False
 
         holidays = self.env['hr.leave'].sudo().search([
@@ -59,8 +59,8 @@ class HrEmployee(models.Model):
             employee = self.filtered(lambda e, holiday=holiday: e.id == holiday.employee_id.id)
             employee.current_leave_id = holiday.holiday_status_id.id
 
-    def _compute_presence_state(self):
-        super()._compute_presence_state()
+    def _compute_hr_presence_state(self):
+        super()._compute_hr_presence_state()
         employees = self.filtered(lambda employee: employee.hr_presence_state != 'present' and employee.is_absent)
         employees.update({'hr_presence_state': 'absent'})
 
@@ -159,7 +159,7 @@ class HrEmployee(models.Model):
             employee.is_absent = leave_data.get(employee.id) and leave_data.get(employee.id).get('current_leave_state') == 'validate'
 
     @api.depends('parent_id')
-    def _compute_leave_manager(self):
+    def _compute_leave_manager_id(self):
         for employee in self:
             previous_manager = employee._origin.parent_id.user_id
             manager = employee.parent_id.user_id
@@ -176,7 +176,7 @@ class HrEmployee(models.Model):
             else:
                 employee.show_leaves = False
 
-    def _search_absent_employee(self, operator, value):
+    def _search_is_absent(self, operator, value):
         if operator != 'in':
             return NotImplemented
         # This search is only used for the 'Absent Today' filter however
@@ -620,5 +620,5 @@ class HrEmployee(models.Model):
         calendars = self._get_calendars(date_from)
         return calendars[self.id].hours_per_day if calendars[self.id] else 24
 
-    def _get_store_avatar_card_fields(self, target):
-        return [*super()._get_store_avatar_card_fields(target), "leave_date_to"]
+    def _get_fields_store_avatar_card(self, target):
+        return [*super()._get_fields_store_avatar_card(target), "leave_date_to"]

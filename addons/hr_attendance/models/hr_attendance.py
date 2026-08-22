@@ -29,12 +29,12 @@ class HrAttendance(models.Model):
     _order = "check_in desc"
     _inherit = ["mixin.mail.thread"]
 
-    def _default_employee(self):
+    def _default_employee_id(self):
         if self.env.user.has_group('hr_attendance.group_hr_attendance_user'):
             return self.env.user.employee_id
         return None
 
-    employee_id = fields.Many2one('hr.employee', string="Employee", default=_default_employee, required=True,
+    employee_id = fields.Many2one('hr.employee', string="Employee", default=_default_employee_id, required=True,
         ondelete='cascade', index=True, group_expand='_read_group_employee_id')
     department_id = fields.Many2one('hr.department', string="Department", related="employee_id.department_id",
         readonly=True)
@@ -375,7 +375,7 @@ class HrAttendance(models.Model):
             return True
         # This record only exists if the scenario has been already launched
         demo_tag = self.env.ref('hr_attendance.resource_calendar_std_38h', raise_if_not_found=False)
-        return bool(demo_tag) or bool(self.env['ir.module.module'].search_count([('demo', '=', True)]))
+        return bool(demo_tag) or bool(self.env['ir.module.module'].search_count([('demo', '=', True)], limit=1))
 
     def _load_demo_data(self):
         if self.has_demo_data():

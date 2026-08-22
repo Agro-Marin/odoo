@@ -123,7 +123,7 @@ class HrLeave(models.Model):
         return values
 
     # description
-    name = fields.Char('Description', compute='_compute_description', inverse='_inverse_description', search='_search_description', compute_sudo=False, copy=False)
+    name = fields.Char('Description', compute='_compute_name', inverse='_inverse_name', search='_search_name', compute_sudo=False, copy=False)
     private_name = fields.Char('Time Off Description', groups='hr_holidays.group_hr_holidays_responsible')
     state = fields.Selection([
         ('confirm', 'To Approve'),
@@ -135,7 +135,7 @@ class HrLeave(models.Model):
     user_id = fields.Many2one('res.users', string='User', related='employee_id.user_id', related_sudo=True, compute_sudo=True, store=True, readonly=True, index=True)
     # leave type configuration
     holiday_status_id = fields.Many2one(
-        "hr.leave.type", compute='_compute_from_employee_id',
+        "hr.leave.type", compute='_compute_holiday_status_id',
         store=True, string="Time Off Type",
         required=True, readonly=False,
         domain="""[
@@ -151,7 +151,7 @@ class HrLeave(models.Model):
 
     employee_id = fields.Many2one(
         'hr.employee', string='Employee', index=True, ondelete="restrict", required=True,
-        tracking=True, domain=lambda self: self._get_employee_domain(), default=lambda self: self.env.user.employee_id)
+        tracking=True, domain=lambda self: self._domain_employee_id(), default=lambda self: self.env.user.employee_id)
     employee_company_id = fields.Many2one(related='employee_id.company_id', string="Employee Company", store=True)
     company_id = fields.Many2one('res.company', compute='_compute_company_id', store=True)
     active_employee = fields.Boolean(related='employee_id.active', string='Employee Active')
@@ -319,7 +319,7 @@ class HrLeave(models.Model):
             )
 
     @api.depends_context('uid')
-    def _compute_description(self):
+    def _compute_name(self):
         self.check_access('read')
 
         is_officer = self.env.user.has_group('hr_holidays.group_hr_holidays_user')
@@ -330,14 +330,14 @@ class HrLeave(models.Model):
             else:
                 leave.name = '*****'
 
-    def _inverse_description(self):
+    def _inverse_name(self):
         is_officer = self.env.user.has_group('hr_holidays.group_hr_holidays_user')
 
         for leave in self:
             if is_officer or self.env.user in (leave.user_id, leave.employee_id.leave_manager_id):
                 leave.sudo().private_name = leave.name
 
-    def _search_description(self, operator, value):
+    def _search_name(self, operator, value):
         is_officer = self.env.user.has_group('hr_holidays.group_hr_holidays_user')
         domain = Domain('private_name', operator, value)
 
@@ -473,7 +473,7 @@ Versions:
         for holiday in self:
             holiday.request_unit_hours = holiday.leave_type_request_unit == 'hour'
 
-    def _get_employee_domain(self):
+    def _domain_employee_id(self):
         domain = [
             ('active', '=', True),
             ('company_id', 'in', self.env.companies.ids),
@@ -487,7 +487,7 @@ Versions:
         return domain
 
     @api.depends('employee_id')
-    def _compute_from_employee_id(self):
+    def _compute_holiday_status_id(self):
         for holiday in self:
             if not holiday.holiday_status_id.requires_allocation:
                 continue
@@ -989,7 +989,7 @@ Versions:
             'resource_id': self.employee_id.resource_id.id,
             'calendar_id': self.resource_calendar_id.id,
             'time_type': self.holiday_status_id.time_type,
-            'elligible_for_accrual_rate': self.holiday_status_id.elligible_for_accrual_rate,
+            'eligible_for_accrual_rate': self.holiday_status_id.eligible_for_accrual_rate,
         }
 
     def _create_resource_leave(self):

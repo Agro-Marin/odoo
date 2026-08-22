@@ -139,7 +139,7 @@ class HrEmployee(models.Model):
             ("archive", "Archived"),
             ("out_of_working_hour", "Off-Hours"),
         ],
-        compute="_compute_presence_state",
+        compute="_compute_hr_presence_state",
         default="out_of_working_hour",
     )
     last_activity = fields.Date(compute="_compute_last_activity")
@@ -254,7 +254,7 @@ class HrEmployee(models.Model):
     )
     salary_distribution = fields.Json(
         string="Salary Distribution",
-        compute="_sync_salary_distribution",
+        compute="_compute_salary_distribution",
         groups="hr.group_hr_user",
         store=True,
         readonly=False,
@@ -386,7 +386,7 @@ class HrEmployee(models.Model):
     coach_id = fields.Many2one(
         "hr.employee",
         "Coach",
-        compute="_compute_coach",
+        compute="_compute_coach_id",
         store=True,
         readonly=False,
         domain="['|', ('company_id', '=', False), ('company_id', 'in', allowed_company_ids)]",
@@ -529,7 +529,7 @@ class HrEmployee(models.Model):
                 employee.has_multiple_bank_accounts = False
 
     @api.depends("bank_account_ids")
-    def _sync_salary_distribution(self):
+    def _compute_salary_distribution(self):
         for employee in self:
             current_salary_distribution = employee.salary_distribution or {}
             current_ids = set(map(int, current_salary_distribution.keys()))
@@ -1215,7 +1215,7 @@ class HrEmployee(models.Model):
             employee.work_contact_id = work_contact
 
     @api.depends("parent_id")
-    def _compute_coach(self):
+    def _compute_coach_id(self):
         for version in self:
             manager = version.parent_id
             previous_manager = version._origin.parent_id
@@ -1287,7 +1287,7 @@ class HrEmployee(models.Model):
         return working_now
 
     @api.depends("user_id.im_status", "active")
-    def _compute_presence_state(self):
+    def _compute_hr_presence_state(self):
         """
         This method is overritten in several other modules which add additional
         presence criterions. e.g. hr_attendance, hr_holidays
@@ -1360,7 +1360,7 @@ class HrEmployee(models.Model):
     def _compute_avatar_128(self):
         super()._compute_avatar_128()
 
-    def _compute_avatar(self, avatar_field, image_field):
+    def _update_avatar(self, avatar_field, image_field):
         employee_wo_user_and_image = self.env["hr.employee"]
         for employee in self:
             if not employee.user_id and not employee._origin[image_field]:
@@ -1370,7 +1370,7 @@ class HrEmployee(models.Model):
             if not avatar and employee.user_id:
                 avatar = employee.user_id.sudo()[avatar_field]
             employee[avatar_field] = avatar
-        super(HrEmployee, employee_wo_user_and_image)._compute_avatar(
+        super(HrEmployee, employee_wo_user_and_image)._update_avatar(
             avatar_field, image_field
         )
 
@@ -1963,7 +1963,7 @@ We can redirect you to the public employee list."""
             if not employee_sudo.image_1920 and self.env["ir.ui.view"].sudo(
                 False
             ).has_access("write"):
-                employee_sudo.image_1920 = employee_sudo._avatar_generate_svg()
+                employee_sudo.image_1920 = employee_sudo._prepare_avatar_svg()
                 employee_sudo.work_contact_id.image_1920 = employee_sudo.image_1920
         employee_departments = employees.department_id
         if employee_departments:
@@ -2249,13 +2249,18 @@ We can redirect you to the public employee list."""
                 start.date(), stop.date()
             )
         else:
-            versions = self.version_ids.filtered_domain(
-                [
-                    ("date_start", "<=", stop),
-                    "|",
-                    ("date_end", "=", False),
-                    ("date_end", ">=", start),
-                ]
+            # Compare the computed values, not a domain. date_start/date_end are
+            # non-stored and their search methods are documented approximations
+            # that resolve to contract_date_start/end (see hr_version.py), so a
+            # version with no contract -- the ordinary case -- has
+            # contract_date_start = False, matches nothing, and silently emptied
+            # every period list here. hr_version's own note says not to rely on
+            # those searches for exact effective-window queries; this is one.
+            start_date, stop_date = start.date(), stop.date()
+            versions = self.version_ids.filtered(
+                lambda version: version.date_start
+                and version.date_start <= stop_date
+                and (not version.date_end or version.date_end >= start_date)
             )
         for version in versions:
             # if employee is under fully flexible contract, use timezone of the employee
@@ -2556,7 +2561,7 @@ We can redirect you to the public employee list."""
             "search_view_id": self.env.ref("hr.hr_version_search_view").id,
         }
 
-    def _get_store_avatar_card_fields(self, target):
+    def _get_fields_store_avatar_card(self, target):
         employee_fields = [
             "company_id",
             Store.One("department_id", ["name"]),
@@ -2605,7 +2610,7 @@ We can redirect you to the public employee list."""
     def get_bank_account_salary_allocation(self, account_id):
         ba_info = (self.salary_distribution or {}).get(str(account_id), {})
         # Default to percentage (True), consistent with the other getters and
-        # _sync_salary_distribution, rather than None for a missing entry.
+        # _compute_salary_distribution, rather than None for a missing entry.
         return ba_info.get("amount", 0), ba_info.get("amount_is_percentage", True)
 
     def get_remaining_percentage(self):

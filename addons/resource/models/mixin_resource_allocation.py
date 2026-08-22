@@ -76,7 +76,7 @@ class MixinResourceAllocation(models.AbstractModel):
                     )
                 )
 
-    def _get_sync_trigger_fields(self):
+    def _get_fields_sync_trigger(self):
         """Add the allocation share to the projection's triggers.
 
         It belongs here because *this mixin declares it* and every consumer
@@ -85,7 +85,7 @@ class MixinResourceAllocation(models.AbstractModel):
         percentage, and therefore a wrong ``allocated_hours``, with nothing to
         indicate it.
         """
-        return super()._get_sync_trigger_fields() | {"allocated_percentage"}
+        return super()._get_fields_sync_trigger() | {"allocated_percentage"}
 
     # ``reservation_ids.active`` is a dependency on purpose: ``reservation_ids``
     # drops archived rows on read (x2many active_test), so an archive flip

@@ -19,7 +19,7 @@ class HrLeaveAccrualPlan(models.Model):
         check_company=True, index='btree_not_null',
         help="""Specify if this accrual plan can only be used with this Time Off Type.
                 Leave empty if this accrual plan can be used with any Time Off Type.""")
-    employees_count = fields.Integer("Employees", compute='_compute_employee_count')
+    employees_count = fields.Integer("Employees", compute='_compute_employees_count')
     level_ids = fields.One2many('hr.leave.accrual.level', 'accrual_plan_id', copy=True, string="Milestones")
     allocation_ids = fields.One2many('hr.leave.allocation', 'accrual_plan_id',
         export_string_translation=False)
@@ -84,7 +84,7 @@ class HrLeaveAccrualPlan(models.Model):
             plan.level_count = mapped_count.get(plan.id, 0)
 
     @api.depends('allocation_ids')
-    def _compute_employee_count(self):
+    def _compute_employees_count(self):
         allocations_read_group = self.env['hr.leave.allocation']._read_group(
             [('accrual_plan_id', 'in', self.ids)],
             ['accrual_plan_id'],
@@ -165,7 +165,7 @@ class HrLeaveAccrualPlan(models.Model):
             ('accrual_plan_id', 'in', self.ids),
             ('state', 'not in', ('cancel', 'refuse')),
         ]
-        if self.env['hr.leave.allocation'].search_count(domain):
+        if self.env['hr.leave.allocation'].search_count(domain, limit=1):
             raise ValidationError(_(
                 "Some of the accrual plans you're trying to delete are linked to an existing allocation. Delete or cancel them first."
             ))

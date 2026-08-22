@@ -17,7 +17,7 @@ class MixinHrIndividualSkill(models.AbstractModel):
     def _linked_field_name(self):
         raise NotImplementedError
 
-    def _get_passive_fields(self):
+    def _get_fields_passive(self):
         """Return extra field names to copy onto new (versioned) skills.
 
         :return: list of field names to copy to new skills
@@ -435,7 +435,7 @@ class MixinHrIndividualSkill(models.AbstractModel):
 
             passive_vals = {
                 field: vals.get(field, _get_passive_field_value(field, ind_skill))
-                for field in self._get_passive_fields()
+                for field in self._get_fields_passive()
             }
             new_vals = {
                 f'{self._linked_field_name()}': vals.get(self._linked_field_name(), ind_skill[self._linked_field_name()].id),

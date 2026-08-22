@@ -7,7 +7,7 @@
         <field name="binding_view_types">form</field>
         <field name="state">code</field>
         <field name="code">
-action = env['ir.actions.act_window']._for_xml_id('hr_skills.action_hr_employee_skill_log_department')
+action = env['ir.actions.act_window']._get_action_dict_by_xml_id('hr_skills.action_hr_employee_skill_log_department')
 action['domain'] = [('department_id', '=', record.id)]
         </field>
     </record>
@@ -20,7 +20,7 @@ action['domain'] = [('department_id', '=', record.id)]
         <field name="binding_type">report</field>
         <field name="state">code</field>
         <field name="code">
-action = env['ir.actions.act_window']._for_xml_id('hr_skills.action_hr_employee_cv_wizard')
+action = env['ir.actions.act_window']._get_action_dict_by_xml_id('hr_skills.action_hr_employee_cv_wizard')
         </field>
     </record>
 </odoo>

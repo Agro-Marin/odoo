@@ -59,7 +59,7 @@ class HrDepartment(models.Model):
     )
     jobs_ids = fields.One2many("hr.job", "department_id", string="Jobs")
     plan_ids = fields.One2many("mail.activity.plan", "department_id")
-    plans_count = fields.Integer(compute="_compute_plan_count")
+    plans_count = fields.Integer(compute="_compute_plans_count")
     note = fields.Text("Note")
     color = fields.Integer("Color Index")
     parent_path = fields.Char(index=True)
@@ -131,7 +131,7 @@ class HrDepartment(models.Model):
         for department in self:
             department.total_employee = result.get(department.id, 0)
 
-    def _compute_plan_count(self):
+    def _compute_plans_count(self):
         plans_data = self.env["mail.activity.plan"]._read_group(
             domain=[
                 "|",
@@ -209,7 +209,7 @@ class HrDepartment(models.Model):
         return res
 
     def action_plan_from_department(self):
-        action = self.env["ir.actions.actions"]._for_xml_id(
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "hr.mail_activity_plan_action"
         )
         action["context"] = dict(

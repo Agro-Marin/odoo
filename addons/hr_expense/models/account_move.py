@@ -10,11 +10,11 @@ class AccountMove(models.Model):
     _inherit = "account.move"
 
     expense_ids = fields.One2many(comodel_name='hr.expense', inverse_name='account_move_id')
-    nb_expenses = fields.Integer(compute='_compute_nb_expenses', string='Number of Expenses', compute_sudo=True)
-
-    def _compute_nb_expenses(self):
-        for move in self:
-            move.nb_expenses = len(move.expense_ids)
+    nb_expenses = fields.Count(
+        "expense_ids",
+        string='Number of Expenses',
+        compute_sudo=True,
+    )
 
     @api.depends('partner_id', 'expense_ids', 'company_id')
     def _compute_commercial_partner_id(self):

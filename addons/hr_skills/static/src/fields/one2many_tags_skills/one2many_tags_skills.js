@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { TagsList } from "@web/components/tags_list/tags_list";
+import { TagsList } from "@web/components/tags_list";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";

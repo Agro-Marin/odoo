@@ -296,13 +296,13 @@ class TestHrEmployee(TestHrCommon):
         employees = emp + emp_sub + emp_sub_sub + emp_other + emp_parent
         self.assertEqual(
             employees.filtered_domain(
-                employees.version_id._search_part_of_department("in", [True])
+                employees.version_id._search_member_of_department("in", [True])
             ),
             emp + emp_sub + emp_sub_sub,
         )
         self.assertEqual(
             employees.filtered_domain(
-                ["!"] + employees.version_id._search_part_of_department("in", [True])
+                ["!"] + employees.version_id._search_member_of_department("in", [True])
             ),
             emp_other + emp_parent,
         )
@@ -534,7 +534,7 @@ class TestHrEmployee(TestHrCommon):
         self.assertEqual(employee.work_contact_id, user.partner_id)
         self.assertFalse(employee.user_id)
         # create new employee from user
-        user._compute_company_employee()
+        user._compute_employee_id()
         user.action_create_employee()
         self.assertTrue(
             len(user.employee_ids) == 1,

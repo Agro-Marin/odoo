@@ -13,7 +13,7 @@ class HrLeaveGenerateMultiWizard(models.TransientModel):
     _inherit = ['mixin.hr']
     _description = 'Generate time off for multiple employees'
 
-    def _get_employee_domain(self):
+    def _domain_employee_ids(self):
         domain = Domain([('company_id', 'in', self.env.companies.ids)])
         if not self.env.user.has_group('hr_holidays.group_hr_holidays_user'):
             domain &= Domain(['|', ('leave_manager_id', '=', self.env.user.id), ('user_id', '=', self.env.user.id)])
@@ -33,7 +33,7 @@ class HrLeaveGenerateMultiWizard(models.TransientModel):
              "\n- By Company: all employees of the specified company"
              "\n- By Department: all employees of the specified department"
              "\n- By Employee Tag: all employees of the specific employee group category")
-    employee_ids = fields.Many2many('hr.employee', string='Employees', domain=lambda self: self._get_employee_domain())
+    employee_ids = fields.Many2many('hr.employee', string='Employees', domain=lambda self: self._domain_employee_ids())
     company_id = fields.Many2one('res.company', default=lambda self: self.env.company, required=True)
     department_id = fields.Many2one('hr.department')
     category_id = fields.Many2one('hr.employee.category', string='Employee Tag')
@@ -43,7 +43,7 @@ class HrLeaveGenerateMultiWizard(models.TransientModel):
     def _get_employees_from_allocation_mode(self):
         self.ensure_one()
         if self.allocation_mode == 'employee':
-            employees = self.employee_ids or self.env['hr.employee'].search(self._get_employee_domain())
+            employees = self.employee_ids or self.env['hr.employee'].search(self._domain_employee_ids())
         elif self.allocation_mode == 'category':
             employees = self.category_id.employee_ids.filtered(lambda e: e.company_id in self.env.companies)
         elif self.allocation_mode == 'company':

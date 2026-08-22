@@ -1158,7 +1158,7 @@ class HrExpense(models.Model):
 
         duplicates = self.duplicate_expense_ids.filtered(lambda exp: exp.state in {'submitted', 'approved', 'posted', 'paid', 'in_payment'})
         if duplicates:
-            action = self.env["ir.actions.act_window"]._for_xml_id('hr_expense.hr_expense_approve_duplicate_action')
+            action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id('hr_expense.hr_expense_approve_duplicate_action')
             action['context'] = {'default_expense_ids': duplicates.ids}
             return action
         self._do_approve(False)
@@ -1166,7 +1166,7 @@ class HrExpense(models.Model):
     def action_refuse(self):
         """ Refuse an expense with a reason """
         self._check_can_refuse()
-        return self.env["ir.actions.act_window"]._for_xml_id('hr_expense.hr_expense_refuse_wizard_action')
+        return self.env["ir.actions.act_window"]._get_action_dict_by_xml_id('hr_expense.hr_expense_refuse_wizard_action')
 
     def action_post(self):
         """

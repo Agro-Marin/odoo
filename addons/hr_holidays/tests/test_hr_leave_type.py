@@ -28,7 +28,7 @@ class TestHrLeaveType(TestHrHolidaysCommon):
         })
 
         with self.assertRaises(ValidationError):
-            worked_leave_type.elligible_for_accrual_rate = False
+            worked_leave_type.eligible_for_accrual_rate = False
 
         leave_0 = self.env['hr.leave'].create({
             'name': 'Remote Work',

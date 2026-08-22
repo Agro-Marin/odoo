@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { CopyButton } from "@web/components/copy_button/copy_button";
+import { CopyButton } from "@web/components/copy_button";
 import { useService } from "@web/core/utils/hooks";
 
 export class GenerateContentAndCopyButton extends CopyButton {

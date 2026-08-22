@@ -25,7 +25,7 @@ class TestHrSkillsSlidesEmployee(TransactionCase):
         self.assertEqual(employee.courses_completion_text, "0 / 0")
         self.assertFalse(employee.has_subscribed_courses)
 
-    def test_action_open_courses_targets_profile(self):
+    def test_action_view_courses_targets_profile(self):
         """The open-courses action points at the user's profile URL."""
         user = self.env["res.users"].create(
             {"name": "Learner 2", "login": "skills_slides_learner2"}

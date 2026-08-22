@@ -58,7 +58,7 @@ class HrDepartment(models.Model):
         }
 
     def action_open_leave_department(self):
-        action = self.env["ir.actions.actions"]._for_xml_id("hr_holidays.hr_leave_action_action_approve_department")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("hr_holidays.hr_leave_action_action_approve_department")
         action['context'] = {
             **self._get_action_context(),
             'search_default_active_time_off': 3,
@@ -67,7 +67,7 @@ class HrDepartment(models.Model):
         return action
 
     def action_open_allocation_department(self):
-        action = self.env["ir.actions.actions"]._for_xml_id("hr_holidays.hr_leave_allocation_action_approve_department")
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("hr_holidays.hr_leave_allocation_action_approve_department")
         action['context'] = self._get_action_context()
         action['context']['search_default_second_approval'] = 3
         action['domain'] = Domain.AND([ast.literal_eval(action['domain']), [('state', '=', 'confirm')]])

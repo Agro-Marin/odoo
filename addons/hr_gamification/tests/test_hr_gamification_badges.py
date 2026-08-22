@@ -38,7 +38,7 @@ class TestHrGamificationBadges(TransactionCase):
         self.assertEqual(action["res_model"], "hr.employee.public")
         self.assertIn(self.employee.id, action["domain"][0][2])
 
-    def test_action_open_badge(self):
+    def test_action_view_badge(self):
         """action_open_badge opens the badge-user record in a dialog form."""
         action = self.badge_user.action_open_badge()
         self.assertEqual(action["res_model"], "gamification.badge.user")

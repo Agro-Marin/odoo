@@ -11,7 +11,7 @@ class HrSkillType(models.Model):
     _description = "Skill Type"
     _order = "sequence, name"
 
-    def _get_default_color(self):
+    def _default_color(self):
         return randint(1, 11)
 
     active = fields.Boolean('Active', default=True)
@@ -19,7 +19,7 @@ class HrSkillType(models.Model):
     name = fields.Char(required=True, translate=True)
     skill_ids = fields.One2many('hr.skill', 'skill_type_id', string="Skills")
     skill_level_ids = fields.One2many('hr.skill.level', 'skill_type_id', string="Levels", copy=True)
-    color = fields.Integer('Color', default=_get_default_color)
+    color = fields.Integer('Color', default=_default_color)
     levels_count = fields.Integer(compute="_compute_levels_count", store=True, readonly=False, help="Number of levels linked to this skill type")
     is_certification = fields.Boolean('Certification', help="if checked the skill type become a certification type")
 

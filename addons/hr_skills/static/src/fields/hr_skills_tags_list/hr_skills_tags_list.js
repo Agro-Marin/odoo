@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { TagsList } from "@web/components/tags_list/tags_list";
+import { TagsList } from "@web/components/tags_list";
 
 
 export class SkillsTagList extends TagsList {

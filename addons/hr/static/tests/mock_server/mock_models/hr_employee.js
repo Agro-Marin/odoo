@@ -11,7 +11,7 @@ export class HrEmployee extends models.ServerModel {
     work_location_id = fields.Many2one({ relation: "hr.work.location" });
     job_title = fields.Char();
 
-    _get_store_avatar_card_fields() {
+    _get_fields_store_avatar_card() {
         return [
             "company_id",
             mailDataHelpers.Store.one("department_id", ["name"]),

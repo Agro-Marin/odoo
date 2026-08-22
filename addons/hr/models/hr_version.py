@@ -32,11 +32,11 @@ class HrVersion(models.Model):
     _order = "date_version"
     _rec_name = "name"
 
-    def _get_default_address_id(self):
+    def _default_address_id(self):
         address = self.env.company.partner_id.address_get(["default"])
         return address["default"] if address else False
 
-    def _default_salary_structure(self):
+    def _default_structure_type_id(self):
         return self.env["hr.payroll.structure.type"].sudo().search(
             [("country_id", "=", self.env.company.country_id.id)], limit=1
         ) or self.env["hr.payroll.structure.type"].sudo().search(
@@ -207,8 +207,8 @@ class HrVersion(models.Model):
     )
     member_of_department = fields.Boolean(
         "Member of department",
-        compute="_compute_part_of_department",
-        search="_search_part_of_department",
+        compute="_compute_member_of_department",
+        search="_search_member_of_department",
         help="Whether the employee is a member of the active user's department or one of it's child department.",
     )
     job_id = fields.Many2one("hr.job", check_company=True, tracking=True, index=True)
@@ -229,7 +229,7 @@ class HrVersion(models.Model):
     address_id = fields.Many2one(
         "res.partner",
         string="Work Address",
-        default=_get_default_address_id,
+        default=_default_address_id,
         store=True,
         readonly=False,
         check_company=True,
@@ -291,12 +291,12 @@ class HrVersion(models.Model):
     date_start = fields.Date(
         compute="_compute_dates",
         groups="hr.group_hr_manager",
-        search="_search_start_date",
+        search="_search_date_start",
     )
     date_end = fields.Date(
         compute="_compute_dates",
         groups="hr.group_hr_manager",
-        search="_search_end_date",
+        search="_search_date_end",
     )
     is_current = fields.Boolean(
         compute="_compute_is_current", groups="hr.group_hr_manager"
@@ -325,7 +325,7 @@ class HrVersion(models.Model):
         store=True,
         tracking=True,
         groups="hr.group_hr_manager",
-        default=_default_salary_structure,
+        default=_default_structure_type_id,
     )
     active_employee = fields.Boolean(
         related="employee_id.active",
@@ -362,7 +362,7 @@ class HrVersion(models.Model):
         string="Additional Note", groups="hr.group_hr_user", tracking=True
     )
 
-    def _get_hr_responsible_domain(self):
+    def _domain_hr_responsible_id(self):
         return (
             "[('share', '=', False), ('company_ids', 'in', company_id), ('all_group_ids', 'in', %s)]"
             % self.env.ref("hr.group_hr_user").id
@@ -373,7 +373,7 @@ class HrVersion(models.Model):
         "HR Responsible",
         tracking=True,
         help="Person responsible for validating the employee's contracts.",
-        domain=_get_hr_responsible_domain,
+        domain=_domain_hr_responsible_id,
         default=lambda self: self.env.user,
         required=True,
         groups="hr.group_hr_user",
@@ -818,7 +818,7 @@ class HrVersion(models.Model):
 
     @api.depends_context("uid", "company")
     @api.depends("department_id")
-    def _compute_part_of_department(self):
+    def _compute_member_of_department(self):
         user_employee = self._get_valid_employee_for_user()
         active_department = user_employee.department_id
         if not active_department:
@@ -832,7 +832,7 @@ class HrVersion(models.Model):
                     version.department_id in child_departments
                 )
 
-    def _search_part_of_department(self, operator, value):
+    def _search_member_of_department(self, operator, value):
         if operator != "in":
             return NotImplemented
 
@@ -846,7 +846,7 @@ class HrVersion(models.Model):
 
         default_structure_by_country = {}
 
-        def _default_salary_structure(country_id):
+        def _default_structure_type_id(country_id):
             default_structure = default_structure_by_country.get(country_id)
             if default_structure is None:
                 default_structure = default_structure_by_country[country_id] = self.env[
@@ -862,7 +862,7 @@ class HrVersion(models.Model):
                 and version.structure_type_id.country_id
                 != version.company_id.country_id
             ):
-                version.structure_type_id = _default_salary_structure(
+                version.structure_type_id = _default_structure_type_id(
                     version.company_id.country_id.id
                 )
 
@@ -941,10 +941,10 @@ class HrVersion(models.Model):
     # would need a correlated subquery over each employee's sibling date_versions.
     # No shipped view filters on these (they use contract_date_start/end
     # directly); do not rely on them for exact effective-window queries.
-    def _search_start_date(self, operator, value):
+    def _search_date_start(self, operator, value):
         return [("contract_date_start", operator, value)]
 
-    def _search_end_date(self, operator, value):
+    def _search_date_end(self, operator, value):
         return [("contract_date_end", operator, value)]
 
     @api.model

@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { rpc } from "@web/core/network";
-import { AutoComplete } from "@web/components/autocomplete/autocomplete";
+import { AutoComplete } from "@web/components/autocomplete";
 import { Component } from "@odoo/owl";
 
 export class Many2One extends Component {

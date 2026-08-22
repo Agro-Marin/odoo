@@ -74,16 +74,16 @@ class HrApplicant(models.Model):
     probability = fields.Float("Probability")
     create_date = fields.Datetime("Applied on", readonly=True)
     stage_id = fields.Many2one('hr.recruitment.stage', 'Stage', ondelete='restrict', tracking=True,
-                               compute='_compute_stage', store=True, readonly=False,
+                               compute='_compute_stage_id', store=True, readonly=False,
                                domain="['|', ('job_ids', '=', False), ('job_ids', '=', job_id)]",
                                copy=False, index=True,
                                group_expand='_read_group_stage_ids')
     last_stage_id = fields.Many2one('hr.recruitment.stage', "Last Stage",
                                     help="Stage of the applicant before being in the current stage. Used for lost cases analysis.")
     categ_ids = fields.Many2many('hr.applicant.category', string="Tags")
-    company_id = fields.Many2one('res.company', "Company", compute='_compute_company', store=True, readonly=False, tracking=True)
+    company_id = fields.Many2one('res.company', "Company", compute='_compute_company_id', store=True, readonly=False, tracking=True)
     user_id = fields.Many2one(
-        'res.users', "Recruiter", compute='_compute_user', domain="[('share', '=', False), ('company_ids', 'in', company_id)]",
+        'res.users', "Recruiter", compute='_compute_user_id', domain="[('share', '=', False), ('company_ids', 'in', company_id)]",
         tracking=True, store=True, readonly=False)
     date_closed = fields.Datetime("Hire Date", compute='_compute_date_closed', store=True, readonly=False, tracking=True, copy=False)
     date_open = fields.Datetime("Assigned", readonly=True)
@@ -95,13 +95,13 @@ class HrApplicant(models.Model):
     salary_proposed = fields.Float("Proposed", aggregator="avg", help="Salary Proposed by the Organisation", tracking=True, groups="hr_recruitment.group_hr_recruitment_user")
     salary_expected = fields.Float("Expected", aggregator="avg", help="Salary Expected by Applicant", tracking=True, groups="hr_recruitment.group_hr_recruitment_user")
     department_id = fields.Many2one(
-        'hr.department', "Department", compute='_compute_department', store=True, readonly=False,
+        'hr.department', "Department", compute='_compute_department_id', store=True, readonly=False,
         domain="['|', ('company_id', '=', False), ('company_id', '=', company_id)]", tracking=True)
     day_open = fields.Float(compute='_compute_day', string="Days to Open", compute_sudo=True)
     day_close = fields.Float(compute='_compute_day', string="Days to Close", compute_sudo=True)
-    delay_close = fields.Float(compute="_compute_delay", string='Delay to Close', readonly=True, aggregator="avg", help="Number of days to close", store=True)
+    delay_close = fields.Float(compute="_compute_delay_close", string='Delay to Close', readonly=True, aggregator="avg", help="Number of days to close", store=True)
     user_email = fields.Char(related='user_id.email', string="User Email", readonly=True)
-    attachment_number = fields.Integer(compute='_get_attachment_number', string="Number of Attachments")
+    attachment_number = fields.Integer(compute='_compute_attachment_number', string="Number of Attachments")
     attachment_ids = fields.One2many('ir.attachment', 'res_id', domain=[('res_model', '=', 'hr.applicant')], string='Attachments')
     kanban_state = fields.Selection([
         ('normal', 'In Progress'),
@@ -136,7 +136,7 @@ class HrApplicant(models.Model):
     refuse_date = fields.Datetime('Refuse Date')
     talent_pool_ids = fields.Many2many(comodel_name="hr.talent.pool", string="Talent Pools")
     pool_applicant_id = fields.Many2one("hr.applicant", index='btree_not_null')
-    is_pool_applicant = fields.Boolean(compute="_compute_is_pool")
+    is_pool_applicant = fields.Boolean(compute="_compute_is_pool_applicant")
     is_applicant_in_pool = fields.Boolean(
         compute="_compute_is_applicant_in_pool", search="_search_is_applicant_in_pool"
     )
@@ -300,7 +300,7 @@ class HrApplicant(models.Model):
             applicant.application_count = max(0, count)
 
     @api.depends("talent_pool_ids")
-    def _compute_is_pool(self):
+    def _compute_is_pool_applicant(self):
         for applicant in self:
             applicant.is_pool_applicant = applicant.talent_pool_ids
 
@@ -451,15 +451,15 @@ class HrApplicant(models.Model):
                 applicant.day_close = False
 
     @api.depends('day_open', 'day_close')
-    def _compute_delay(self):
+    def _compute_delay_close(self):
         for applicant in self:
             if applicant.date_open and applicant.day_close:
                 applicant.delay_close = applicant.day_close - applicant.day_open
             else:
                 applicant.delay_close = False
 
-    def _get_rotting_depends_fields(self):
-        return super()._get_rotting_depends_fields() + ['application_status', 'date_closed']
+    def _get_fields_rotting_depends(self):
+        return super()._get_fields_rotting_depends() + ['application_status', 'date_closed']
 
     def _get_rotting_domain(self):
         return super()._get_rotting_domain() & Domain([
@@ -520,7 +520,7 @@ class HrApplicant(models.Model):
 
         return Domain.OR(domains)
 
-    def _get_attachment_number(self):
+    def _compute_attachment_number(self):
         read_group_res = self.env['ir.attachment']._read_group(
             [('res_model', '=', 'hr.applicant'), ('res_id', 'in', self.ids)],
             ['res_id'], ['__count'])
@@ -542,7 +542,7 @@ class HrApplicant(models.Model):
         return stages.browse(stage_ids)
 
     @api.depends('job_id', 'department_id')
-    def _compute_company(self):
+    def _compute_company_id(self):
         for applicant in self:
             company_id = False
             if applicant.department_id:
@@ -552,12 +552,12 @@ class HrApplicant(models.Model):
             applicant.company_id = company_id or self.env.company.id
 
     @api.depends('job_id')
-    def _compute_department(self):
+    def _compute_department_id(self):
         for applicant in self:
             applicant.department_id = applicant.job_id.department_id.id
 
     @api.depends('job_id')
-    def _compute_stage(self):
+    def _compute_stage_id(self):
         for applicant in self:
             if applicant.job_id:
                 if not applicant.stage_id:
@@ -572,7 +572,7 @@ class HrApplicant(models.Model):
                 applicant.stage_id = False
 
     @api.depends('job_id')
-    def _compute_user(self):
+    def _compute_user_id(self):
         for applicant in self:
             applicant.user_id = applicant.job_id.user_id.id
 
@@ -741,7 +741,7 @@ class HrApplicant(models.Model):
         else:
             partners |= self.user_id.partner_id
 
-        res = self.env['ir.actions.act_window']._for_xml_id('calendar.action_calendar_event')
+        res = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('calendar.action_calendar_event')
         # As we are redirected from the hr.applicant, calendar checks rules on "hr.applicant",
         # in order to decide whether to allow creation of a meeting.
         # As interviewer does not have create right on the hr.applicant, in order to allow them
@@ -993,7 +993,7 @@ class HrApplicant(models.Model):
                 'email': self.email_from,
             })
 
-        action = self.env['ir.actions.act_window']._for_xml_id('hr.open_view_employee_list')
+        action = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('hr.open_view_employee_list')
         employee = self.env['hr.employee'].with_context(clean_context(self.env.context)).create(self._get_employee_create_vals())
         action['res_id'] = employee.id
         employee_attachments = self.env['ir.attachment'].search([('res_model', '=','hr.employee'), ('res_id', '=', employee.id)])
