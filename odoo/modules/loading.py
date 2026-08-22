@@ -787,7 +787,7 @@ class _ModuleLoader:
         cr.execute("SELECT model from ir_model")
         for (model,) in cr.fetchall():
             if model in self.registry:
-                env[model]._check_removed_columns(log=True)
+                env[model]._check_removed_columns()
             elif _logger.isEnabledFor(logging.INFO):
                 _logger.runbot(
                     "Model %s is declared but cannot be loaded! (Perhaps a module was partially removed or renamed)",

@@ -1797,6 +1797,64 @@ class TestIrModelConstraintReflection(TransactionCase):
         )
         self.assertFalse(remaining, "constraint must actually be dropped")
 
+    def test_process_end_keeps_a_constraint_the_registry_still_declares(self):
+        """A table object declared on an abstract mixin is reflected under the
+        module of the class that declared it, while the row it creates names a
+        concrete table that module never loads. init_models() reflects only the
+        modules being upgraded, so a partial upgrade leaves that xmlid out of
+        loaded_xmlids with the constraint still perfectly well declared. Read as
+        obsolescence, that absence dropped 39 live indexes off one `-u base`.
+        """
+        rows = self.env.execute_query(
+            SQL(
+                """SELECT c.id, c.name, im.model, d.module || '.' || d.name
+                   FROM ir_model_constraint c
+                   JOIN ir_model im ON c.model = im.id
+                   JOIN ir_model_data d
+                     ON d.model = 'ir.model.constraint' AND d.res_id = c.id
+                   WHERE d.module = 'base'
+                     AND COALESCE(d.noupdate, false) = false"""
+            )
+        )
+        target = next(
+            (
+                row
+                for row in rows
+                if (model := self.env.get(row[2])) is not None
+                and row[1] in model._table_objects
+            ),
+            None,
+        )
+        if target is None:
+            self.skipTest("no constraint reflected under base is still declared")
+        cons_id, _name, _model_name, xmlid = target
+
+        # Reproduce exactly what a partial upgrade leaves behind: every other
+        # xmlid of the module counts as loaded, this one does not.
+        others = {
+            row[0]
+            for row in self.env.execute_query(
+                SQL(
+                    "SELECT module || '.' || name FROM ir_model_data"
+                    " WHERE module = 'base'"
+                )
+            )
+        } - {xmlid}
+        loaded = self.env.registry.loaded_xmlids
+        saved = set(loaded)
+        loaded.clear()
+        loaded.update(others)
+        try:
+            self.env["ir.model.data"]._process_end(["base"])
+        finally:
+            loaded.clear()
+            loaded.update(saved)
+
+        self.assertTrue(
+            self.env["ir.model.constraint"].browse(cons_id).exists(),
+            "a constraint the registry still declares must survive the GC",
+        )
+
     def test_reflect_constraints_idempotent_and_repairs(self):
         Constraint = self.env["ir.model.constraint"]
         names = list(self.env[self.MODEL]._table_objects)

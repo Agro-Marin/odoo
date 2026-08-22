@@ -40,7 +40,16 @@ class SchemaMixin(_ModelStubs):
         self.env.cr.execute(query)
         self.invalidate_model(["parent_path"])
 
-    def _check_removed_columns(self, log: bool = False) -> None:
+    def _check_removed_columns(self) -> None:
+        """Drop NOT NULL from columns no field declares any more.
+
+        Requires a COMPLETE registry, so `run_post_update_model_checks()` is the
+        only caller. Mid-load the registry holds just the modules processed so
+        far, and a column whose field a later module declares is
+        indistinguishable there from one whose field was deleted: deciding then
+        stripped NOT NULL from 30 live columns of res_company, res_partner and
+        res_users on a single `-u base`.
+        """
         if self._abstract:
             return
         cr = self.env.cr
@@ -48,13 +57,12 @@ class SchemaMixin(_ModelStubs):
         for col_name, col_data in sql.table_columns(cr, self._table).items():
             if col_name in cols:
                 continue
-            if log:
-                _logger.debug(
-                    "column %s is in the table %s but not in the corresponding object %s",
-                    col_name,
-                    self._table,
-                    self._name,
-                )
+            _logger.debug(
+                "column %s is in the table %s but not in the corresponding object %s",
+                col_name,
+                self._table,
+                self._name,
+            )
             if col_data["is_nullable"] == "NO":
                 sql.drop_not_null(cr, self._table, col_name)
 
@@ -130,9 +138,6 @@ class SchemaMixin(_ModelStubs):
                     )
                     parent_path_compute = True
                 self._check_parent_path()
-
-            if not must_create_table:
-                self._check_removed_columns(log=False)
 
             columns = sql.table_columns(cr, self._table)
             fields_to_compute = []

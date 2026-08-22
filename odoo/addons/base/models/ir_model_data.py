@@ -510,6 +510,22 @@ class IrModelData(models.Model):
                 bad_imd_ids.append(id)
                 continue
 
+            if model == "ir.model.constraint":
+                # A table object declared on an abstract mixin is reflected
+                # under the module of the class that declared it, not the one
+                # that owns the concrete model: `base.constraint_crm_tag_*`
+                # names a table `base` never loads. init_models() reflects only
+                # the modules being upgraded, so a partial upgrade leaves that
+                # xmlid out of loaded_xmlids while the constraint is still
+                # declared, and deleting the row drops a live index (measured:
+                # 39 indexes and 13 unique constraints from one `-u base`).
+                # The registry is complete by now, so ask it rather than infer
+                # obsolescence from an absence this run could not have filled.
+                cons = Model.browse(res_id)
+                target = self.env.get(cons.model.model) if cons.exists() else None
+                if target is not None and cons.name in target._table_objects:
+                    continue
+
             _logger.info("Deleting %s@%s (%s)", res_id, model, xmlid)
             record = Model.browse(res_id)
             if record.exists():
