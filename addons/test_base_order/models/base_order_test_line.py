@@ -65,7 +65,7 @@ class BaseOrderTestLine(models.Model):
     def _price_update_blocked(self):
         return False
 
-    def _get_tracked_qty_fields(self):
+    def _get_fields_tracked_qty(self):
         return ["product_qty"]
 
     def _post_quantity_changes(self, field_name, changes):

@@ -897,12 +897,7 @@ class TestOrmRecursiveLine(models.Model):
 
     order_id = fields.Many2one("test_orm.recursive.order")
     task_ids = fields.One2many("test_orm.recursive.task", "line_id")
-    task_number = fields.Integer(compute="_compute_task_number", store=True)
-
-    @api.depends("task_ids")
-    def _compute_task_number(self):
-        for record in self:
-            record.task_number = len(record.task_ids)
+    task_number = fields.Count("task_ids", store=True)
 
 
 class TestOrmRecursiveTask(models.Model):
@@ -1567,17 +1562,12 @@ class TestOrmInverse_M2o_Ref(models.Model):
         string="Models",
         domain=[("const", "=", True)],
     )
-    model_ids_count = fields.Integer("Count", compute="_compute_model_ids_count")
+    model_ids_count = fields.Count("model_ids", "Count")
     model_computed_ids = fields.One2many(
         "test_orm.model_many2one_reference",
         string="Models Computed",
         compute="_compute_model_computed_ids",
     )
-
-    @api.depends("model_ids")
-    def _compute_model_ids_count(self):
-        for rec in self:
-            rec.model_ids_count = len(rec.model_ids)
 
     def _compute_model_computed_ids(self):
         self.model_computed_ids = []
@@ -1913,12 +1903,7 @@ class TestOrmComputeContainer(models.Model):
     name = fields.Char()
     name_translated = fields.Char(translate=True)
     member_ids = fields.One2many("test_orm.compute.member", "container_id")
-    member_count = fields.Integer(compute="_compute_member_count", store=True)
-
-    @api.depends("member_ids")
-    def _compute_member_count(self):
-        for record in self:
-            record.member_count = len(record.member_ids)
+    member_count = fields.Count("member_ids", store=True)
 
 
 class TestOrmComputeMember(models.Model):
@@ -2009,12 +1994,7 @@ class TestOrmUser(models.Model):
 
     name = fields.Char()
     group_ids = fields.Many2many("test_orm.group")
-    group_count = fields.Integer(compute="_compute_group_count", store=True)
-
-    @api.depends("group_ids")
-    def _compute_group_count(self):
-        for user in self:
-            user.group_count = len(user.group_ids)
+    group_count = fields.Count("group_ids", store=True)
 
 
 class TestOrmGroup(models.Model):
@@ -2191,12 +2171,7 @@ class TestOrmTriggerRight(models.Model):
     _description = "model with a dependency on the inverse of the related many2one"
 
     left_ids = fields.One2many("test_orm.trigger.left", "right_id")
-    left_size = fields.Integer(compute="_compute_left_size", store=True)
-
-    @api.depends("left_ids")
-    def _compute_left_size(self):
-        for record in self:
-            record.left_size = len(record.left_ids)
+    left_size = fields.Count("left_ids", store=True)
 
 
 class TestOrmCrew(models.Model):
@@ -2871,3 +2846,154 @@ class TestOrmPartialCompute(models.Model):
     @api.depends("mode")
     def _compute_beta(self):
         self.filtered(lambda record: record.mode == "force").beta = 2
+
+
+class TestOrmCountTag(models.Model):
+    _name = "test_orm.count.tag"
+    _description = "test_orm.count.tag"
+
+    name = fields.Char()
+    published = fields.Boolean(default=True)
+    container_ids = fields.Many2many(
+        "test_orm.count.container",
+        "test_orm_count_container_published_tag_rel",
+        "tag_id",
+        "container_id",
+    )
+
+
+class TestOrmCountLine(models.Model):
+    _name = "test_orm.count.line"
+    _description = "test_orm.count.line"
+
+    name = fields.Char()
+    active = fields.Boolean(default=True)
+    important = fields.Boolean()
+    container_id = fields.Many2one("test_orm.count.container")
+    unstored_container_id = fields.Many2one(
+        "test_orm.count.container",
+        compute="_compute_unstored_container_id",
+        search="_search_unstored_container_id",
+    )
+
+    @api.depends("container_id")
+    def _compute_unstored_container_id(self):
+        for record in self:
+            record.unstored_container_id = record.container_id
+
+    def _search_unstored_container_id(self, operator, value):
+        return [("container_id", operator, value)]
+
+    stored_computed_container_id = fields.Many2one(
+        "test_orm.count.container",
+        compute="_compute_stored_computed_container_id",
+        store=True,
+    )
+
+    @api.depends("container_id")
+    def _compute_stored_computed_container_id(self):
+        for record in self:
+            record.stored_computed_container_id = record.container_id
+
+
+class TestOrmCountMixin(models.AbstractModel):
+    _name = "test_orm.count.mixin"
+    _description = "test_orm.count.mixin"
+
+    mixin_line_count = fields.Count("line_ids")
+
+
+class TestOrmCountContainer(models.Model):
+    _name = "test_orm.count.container"
+    _inherit = ["test_orm.count.mixin"]
+    _description = "test_orm.count.container"
+
+    name = fields.Char()
+
+    line_ids = fields.One2many("test_orm.count.line", "container_id")
+    important_line_ids = fields.One2many(
+        "test_orm.count.line", "container_id", domain=[("important", "=", True)]
+    )
+    all_line_ids = fields.One2many(
+        "test_orm.count.line", "container_id", context={"active_test": False}
+    )
+    unstored_inverse_line_ids = fields.One2many(
+        "test_orm.count.line", "unstored_container_id"
+    )
+    computed_inverse_line_ids = fields.One2many(
+        "test_orm.count.line", "stored_computed_container_id"
+    )
+    tag_ids = fields.Many2many("test_orm.count.tag")
+    computed_subset_line_ids = fields.One2many(
+        "test_orm.count.line",
+        "container_id",
+        compute="_compute_computed_subset_line_ids",
+    )
+    published_tag_ids = fields.Many2many(
+        "test_orm.count.tag",
+        "test_orm_count_container_published_tag_rel",
+        "container_id",
+        "tag_id",
+        domain=[("published", "=", True)],
+    )
+
+    line_count = fields.Count("line_ids")
+    important_line_count = fields.Count("important_line_ids")
+    all_line_count = fields.Count("all_line_ids")
+    unstored_inverse_count = fields.Count("unstored_inverse_line_ids")
+    computed_inverse_count = fields.Count("computed_inverse_line_ids")
+    tag_count = fields.Count("tag_ids")
+    stored_line_count = fields.Count("line_ids", store=True)
+    stored_important_line_count = fields.Count("important_line_ids", store=True)
+    stored_published_tag_count = fields.Count("published_tag_ids", store=True)
+    computed_subset_line_count = fields.Count("computed_subset_line_ids")
+
+    @api.depends("line_ids")
+    def _compute_computed_subset_line_ids(self):
+        for container in self:
+            container.computed_subset_line_ids = container.line_ids.filtered(
+                "important"
+            )
+
+    len_line_count = fields.Integer(compute="_compute_len_counts")
+    len_important_line_count = fields.Integer(compute="_compute_len_counts")
+    len_all_line_count = fields.Integer(compute="_compute_len_counts")
+    len_unstored_inverse_count = fields.Integer(compute="_compute_len_counts")
+    len_computed_inverse_count = fields.Integer(compute="_compute_len_counts")
+    len_tag_count = fields.Integer(compute="_compute_len_counts")
+
+    @api.depends(
+        "line_ids",
+        "important_line_ids",
+        "all_line_ids",
+        "unstored_inverse_line_ids",
+        "computed_inverse_line_ids",
+        "tag_ids",
+    )
+    def _compute_len_counts(self):
+        for record in self:
+            record.len_line_count = len(record.line_ids)
+            record.len_important_line_count = len(record.important_line_ids)
+            record.len_all_line_count = len(record.all_line_ids)
+            record.len_unstored_inverse_count = len(record.unstored_inverse_line_ids)
+            record.len_computed_inverse_count = len(record.computed_inverse_line_ids)
+            record.len_tag_count = len(record.tag_ids)
+
+
+class TestOrmCountDelegate(models.Model):
+    """`_inherits` a model carrying a Count.
+
+    `_add_inherited_fields` builds the delegated copy as
+    `type(field)(related=..., inherited=True)` with no `count_of`, so a Count
+    that refuses `related` outright takes the whole registry down at load —
+    `account.bank.statement.line` delegates to `account.move`, which is where
+    this was found.
+    """
+
+    _name = "test_orm.count.delegate"
+    _description = "test_orm.count.delegate"
+    _inherits = {"test_orm.count.container": "container_id"}
+
+    container_id = fields.Many2one(
+        "test_orm.count.container", required=True, ondelete="cascade"
+    )

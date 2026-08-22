@@ -95,7 +95,7 @@ class TestIrMailServerPersonal(MailCommon):
             self.assertEqual(mail.failure_type, 'mail_server_unauthorized')
 
     def test_personal_mail_server_find_mail_server(self):
-        """Check that _find_mail_server only finds 'public' servers unless otherwise allowed."""
+        """Check that _get_mail_server only finds 'public' servers unless otherwise allowed."""
         IrMailServer = self.env['ir.mail_server']
         all_servers = IrMailServer.search([])
         test_cases = [
@@ -104,7 +104,7 @@ class TestIrMailServerPersonal(MailCommon):
         ]
         for mail_servers, should_find_personal in test_cases:
             with self.subTest(mail_servers=mail_servers):
-                found_server, found_email_from = IrMailServer._find_mail_server(self.user_employee.email, mail_servers=mail_servers)
+                found_server, found_email_from = IrMailServer._get_mail_server(self.user_employee.email, mail_servers=mail_servers)
                 if should_find_personal:
                     self.assertEqual(
                         (found_server, found_email_from), (self.mail_server_user, self.user_employee.email),

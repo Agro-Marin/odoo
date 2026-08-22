@@ -1876,7 +1876,7 @@ class TestHttp(common.HttpCase):
         # synchronously inside the write below; only the HTTP call itself is
         # deferred to postcommit. So the patch has to span both.
         with patch(
-            "odoo.addons.base.models.ir_actions_server._webhook_url_blocked_reason",
+            "odoo.addons.base.models.ir_actions_server._get_webhook_blocked_reason",
             return_value=None,
         ):
             # Changing the name will make an http request, post-commitedly

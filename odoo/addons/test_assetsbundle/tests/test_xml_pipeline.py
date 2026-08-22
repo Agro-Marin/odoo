@@ -12,6 +12,7 @@ from odoo.addons.base.models.assetsbundle import (
     XMLAssetError,
     XmlTemplatePipeline,
 )
+from odoo.addons.base.models.ir_qweb_assets import IrQweb
 
 TEMPLATE_XML = "<templates><t t-name='audit.g10.tpl'><div>x</div></t></templates>"
 XML_SPACE_ATTR = "{http://www.w3.org/XML/1998/namespace}space"
@@ -218,6 +219,39 @@ class TestEsmTemplateBundleForms(BaseCase):
     def test_empty_templates_yield_empty_string(self):
         bundle = SimpleNamespace(name="my.bundle", env=None, templates=[])
         self.assertEqual(XmlTemplatePipeline(bundle).generate_esm_template_bundle(), "")
+
+
+class TestTemplateBlockFollowsModuleCode(BaseCase):
+
+    _MODULE_CODE = "console.log('module code');\n"
+    _TEMPLATE_CODE = 'registerTemplate("my.module.Widget", "/u", `hi`);\n'
+
+    def test_template_block_follows_module_code(self):
+        combined = IrQweb._combine_bundle_with_templates(
+            self._MODULE_CODE, self._TEMPLATE_CODE
+        )
+        self.assertLess(
+            combined.index("module code"),
+            combined.index("registerTemplate"),
+            "the template block must follow the module code: boot/start.js "
+            "relies on `await whenReady()` to let it run before the mount",
+        )
+
+    def test_a_sourcemap_directive_stays_last(self):
+        combined = IrQweb._combine_bundle_with_templates(
+            "code;\n//# sourceMappingURL=x.map\n", self._TEMPLATE_CODE
+        )
+        self.assertLess(
+            combined.index("registerTemplate"),
+            combined.index("sourceMappingURL"),
+            "a sourcemap directive left mid-file detaches the map",
+        )
+
+    def test_no_templates_leaves_the_bundle_untouched(self):
+        self.assertEqual(
+            IrQweb._combine_bundle_with_templates(self._MODULE_CODE, ""),
+            self._MODULE_CODE,
+        )
 
 
 class TestTemplateInheritance(TransactionCase):

@@ -8,6 +8,7 @@ from odoo.api import SUPERUSER_ID
 from odoo.db import db_connect
 from odoo.modules.registry import Registry
 from odoo.tests.common import BaseCase, TransactionCase, get_db_name, tagged
+from odoo.tools.assets.constants import like_escape
 from odoo.tools.misc import file_path
 
 from .common import asset_file, make_cursor_readonly
@@ -31,6 +32,13 @@ class _FakeIrAsset:
     def _get_asset_bundle_url(self, bundle_name, unique, assets_params, ignore_params):
         self.calls.append((bundle_name, unique, assets_params, ignore_params))
         return f"/web/assets/{unique}/{bundle_name}"
+
+    def _get_asset_bundle_url_pattern(
+        self, filename, unique, assets_params, ignore_params=False
+    ):
+        return self._get_asset_bundle_url(
+            like_escape(filename), unique, assets_params, ignore_params
+        )
 
 
 class _FakeEnv:
@@ -264,7 +272,7 @@ class TestUnlinkAttachmentsReturning(TransactionCase):
         )
         expected_fnames = set(attachments.mapped("store_fname")) - {False}
         bundle = AssetsBundle("test_assetsbundle.unlink", [], env=self.env)
-        with patch.object(IrAttachment, "_file_delete_multi") as file_delete:
+        with patch.object(IrAttachment, "_mark_for_gc_multi") as file_delete:
             bundle._store._unlink_attachments(attachments)
         marked = {
             fname for call in file_delete.call_args_list for fname in call.args[-1]
@@ -321,7 +329,7 @@ class TestUnlinkAttachmentsSkipLockedPartial(BaseCase):
                 env = api.Environment(cr, SUPERUSER_ID, {})
                 store = AssetsBundle("test_assetsbundle.skiplock", [], env=env)._store
                 attachments = env["ir.attachment"].browse(ids)
-                with patch.object(IrAttachment, "_file_delete_multi") as file_delete:
+                with patch.object(IrAttachment, "_mark_for_gc_multi") as file_delete:
                     store._unlink_attachments(attachments)
                 marked = {
                     fname
@@ -488,6 +496,39 @@ class TestEsmAttachmentSidecars(TransactionCase):
         self.assertFalse(self._att(url + ".map"), "no sourcemap sidecar without one")
 
 
+class TestLikePatternHasOneSpelling(TransactionCase):
+    def test_the_two_sides_build_the_same_pattern(self):
+        from odoo.tools.assets.constants import ANY_UNIQUE
+
+        store = AssetAttachmentStore(
+            self.env,
+            "web.assets_web",
+            assets_params={},
+            rtl=False,
+            autoprefix=False,
+            version_provider=lambda _t: ANY_UNIQUE,
+        )
+        writer = store.get_asset_url_pattern(extension="min.css")
+        reader = self.env["ir.asset"]._get_asset_bundle_url_pattern(
+            "web.assets_web.min.css", ANY_UNIQUE, {}
+        )
+        self.assertEqual(writer, reader)
+
+    def test_the_reader_pattern_does_not_match_a_near_miss(self):
+        canonical = "/web/assets/abc1234/web.assets_web.min.css"
+        near_miss = "/web/assets/abc1234/web.assetsXweb.min.css"
+        pattern = self.env["ir.asset"]._get_asset_bundle_url_pattern(
+            "web.assets_web.min.css", "abc1234", {}
+        )
+        self.env.cr.execute(
+            "SELECT %s LIKE %s, %s LIKE %s",
+            [canonical, pattern, near_miss, pattern],
+        )
+        matches_canonical, matches_near_miss = self.env.cr.fetchone()
+        self.assertTrue(matches_canonical)
+        self.assertFalse(matches_near_miss, "an unescaped `_` is a LIKE wildcard")
+
+
 class TestEsmAssetGc(TransactionCase):
     def _mk(self, name: str, url: str, days_old: int = 0):
         att = (
@@ -528,7 +569,10 @@ class TestEsmAssetGc(TransactionCase):
         recent_old = self._mk("z.gcb.esm.js", "/web/assets/esm/dddd/z.gcb.esm.js", 2)
         recent_new = self._mk("z.gcb.esm.js", "/web/assets/esm/eeee/z.gcb.esm.js")
         bridge_old = self._mk(
-            "aabbccddeeff0011.js", "/web/assets/esm/bridges/aabbccddeeff0011.js", 30
+            "aabbccddeeff0011.js", "/web/assets/esm/bridges/aabbccddeeff0011.js", 400
+        )
+        bridge_mid = self._mk(
+            "33445566778899aa.js", "/web/assets/esm/bridges/33445566778899aa.js", 30
         )
         bridge_new = self._mk(
             "1100ffeeddccbbaa.js", "/web/assets/esm/bridges/1100ffeeddccbbaa.js", 1
@@ -539,14 +583,84 @@ class TestEsmAssetGc(TransactionCase):
 
         self.assertFalse(old_v1.exists(), "superseded old version must be GC'd")
         self.assertFalse(old_map.exists(), "superseded old sidecar must be GC'd")
-        self.assertFalse(bridge_old.exists(), "aged bridge shim must be GC'd")
+        self.assertFalse(
+            bridge_old.exists(),
+            "a bridge past its own (much longer) grace must still be GC'd",
+        )
         self.assertTrue(new_v2.exists(), "current version must survive")
         self.assertTrue(new_map.exists(), "current sidecar must survive")
         self.assertTrue(lone_old.exists(), "newest-per-name survives any age")
         self.assertTrue(recent_old.exists(), "within grace window — survives")
         self.assertTrue(recent_new.exists())
         self.assertTrue(bridge_new.exists(), "young bridge survives")
+        self.assertTrue(
+            bridge_mid.exists(),
+            "a bridge older than the ARTIFACT grace survives: shims are tiny "
+            "(23 rows = 13 kB measured) and content-addressed with no supersession, "
+            "so collecting them on the artifact clock deleted live rows for nothing",
+        )
         self.assertTrue(classic.exists(), "classic bundles are out of scope")
+
+    def test_a_bridge_still_in_use_is_refreshed_before_it_can_age_out(self):
+        from odoo.tools.assets.esm_bridges import BridgeShimManager
+
+        digest = "beef" * 8
+        url = f"/web/assets/esm/bridges/{digest}.js"
+        aged = self._mk(f"{digest}.js", url, 6)
+        before = aged.write_date
+
+        manager = BridgeShimManager(self.env, "test_assetsbundle.gc_probe", [])
+        with patch("odoo.tools.assets.esm_bridges.cache_hash", return_value=digest):
+            manager._persist_bridge_shims({"@probe/spec": "export const p = 1;\n"})
+        aged.invalidate_recordset(["write_date"])
+
+        self.assertGreater(
+            aged.write_date,
+            before,
+            "reusing a shim must push its write_date forward, or the vacuum eats it",
+        )
+        self.env["ir.attachment"]._gc_esm_assets()
+        self.assertTrue(aged.exists(), "a refreshed shim must survive the vacuum")
+
+    def test_a_young_shim_is_not_rewritten_on_every_reuse(self):
+        from odoo.tools.assets.esm_bridges import BridgeShimManager
+
+        digest = "cafe" * 8
+        url = f"/web/assets/esm/bridges/{digest}.js"
+        young = self._mk(f"{digest}.js", url)
+        before = young.write_date
+        manager = BridgeShimManager(self.env, "test_assetsbundle.gc_probe", [])
+        with patch("odoo.tools.assets.esm_bridges.cache_hash", return_value=digest):
+            manager._persist_bridge_shims({"@probe/spec": "export const p = 1;\n"})
+        young.invalidate_recordset(["write_date"])
+        self.assertEqual(young.write_date, before)
+
+    def test_the_refresh_is_skipped_rather_than_raised_when_read_only(self):
+        from odoo.tools.assets.esm_bridges import BridgeShimManager
+
+        digest = "deed" * 8
+        aged = self._mk(f"{digest}.js", f"/web/assets/esm/bridges/{digest}.js", 6)
+        before = aged.write_date
+        make_cursor_readonly(self)
+        manager = BridgeShimManager(self.env, "test_assetsbundle.gc_probe", [])
+        with patch("odoo.tools.assets.esm_bridges.cache_hash", return_value=digest):
+            manager._persist_bridge_shims({"@probe/spec": "export const p = 1;\n"})
+        aged.invalidate_recordset(["write_date"])
+        self.assertEqual(aged.write_date, before)
+
+    def test_the_bridge_grace_is_separately_configurable(self):
+        self.env["ir.config_parameter"].sudo().set_param(
+            "web.esm.bridge_gc_grace_days", "10"
+        )
+        old = self._mk(
+            "99887766554433aa.js", "/web/assets/esm/bridges/99887766554433aa.js", 20
+        )
+        young = self._mk(
+            "aa334455667788bb.js", "/web/assets/esm/bridges/aa334455667788bb.js", 5
+        )
+        self.env["ir.attachment"]._gc_esm_assets()
+        self.assertFalse(old.exists())
+        self.assertTrue(young.exists())
 
     def test_gc_grace_window_configurable(self):
         self.env["ir.config_parameter"].sudo().set_param("web.esm.gc_grace_days", "60")

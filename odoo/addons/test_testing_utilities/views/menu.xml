@@ -1,5 +1,6 @@
 <odoo>
-    <menuitem id="menu_ssf" parent="base.menu_tests" name="Server-side form"/>
+
+    <menuitem id="menu_ssf" parent="base.menu_tests" name="Server-side form" />
 
     <record id="action_test_o2m_onchange" model="ir.actions.act_window">
         <field name="name">Test o2m onchange thing</field>
@@ -7,9 +8,11 @@
         <field name="view_mode">list,form</field>
     </record>
 
-    <menuitem id="menu_o2m" parent="menu_ssf"
-              name="O2M onchange test thing"
-              action="action_test_o2m_onchange"/>
+    <menuitem
+        id="menu_o2m"
+        parent="menu_ssf"
+        name="O2M onchange test thing"
+        action="action_test_o2m_onchange" />
 
     <record id="action_test_m2o_onchange" model="ir.actions.act_window">
         <field name="name">test_default_and_onchange</field>
@@ -17,9 +20,11 @@
         <field name="view_mode">list,form</field>
     </record>
 
-    <menuitem id="menu_m2o" parent="menu_ssf"
-              name="test_default_and_onchange"
-              action="action_test_m2o_onchange"/>
+    <menuitem
+        id="menu_m2o"
+        parent="menu_ssf"
+        name="test_default_and_onchange"
+        action="action_test_m2o_onchange" />
 
     <record id="action_test_o2m_count" model="ir.actions.act_window">
         <field name="name">test_change_number_of_lines</field>
@@ -27,9 +32,11 @@
         <field name="view_mode">list,form</field>
     </record>
 
-    <menuitem id="menu_o2m_count" parent="menu_ssf"
-              name="test_change_number_of_lines"
-              action="action_test_o2m_count"/>
+    <menuitem
+        id="menu_o2m_count"
+        parent="menu_ssf"
+        name="test_change_number_of_lines"
+        action="action_test_o2m_count" />
 
     <record id="o2m_parent" model="ir.ui.view">
         <field name="name">Parent External Form</field>
@@ -39,20 +46,21 @@
             <form>
                 <sheet>
                     <group>
-                        <field name="value"/>
-                        <field name="v"/>
+                        <field name="value" />
+                        <field name="v" />
                     </group>
                     <group>
-                        <field name="subs"/>
+                        <field name="subs" />
                     </group>
                 </sheet>
             </form>
         </field>
     </record>
+
     <record id="o2m_parent_readonly" model="ir.ui.view">
         <field name="name">Parent readonly o2m field</field>
         <field name="model">test_testing_utilities.parent</field>
-        <field name="inherit_id" ref="o2m_parent"/>
+        <field name="inherit_id" ref="o2m_parent" />
         <field name="mode">primary</field>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='subs']" position="attributes">
@@ -60,15 +68,16 @@
             </xpath>
         </field>
     </record>
+
     <record id="o2m_tree" model="ir.ui.view">
         <field name="name">Sub regular</field>
         <field name="priority">1</field>
         <field name="model">test_testing_utilities.sub</field>
         <field name="arch" type="xml">
             <list>
-                <field name="value"/>
-                <field name="v"/>
-                <field name="name"/>
+                <field name="value" />
+                <field name="v" />
+                <field name="name" />
             </list>
         </field>
     </record>
@@ -78,20 +87,23 @@
         <field name="model">test_testing_utilities.parent</field>
         <field name="arch" type="xml">
             <form>
-                <field name="value"/>
-                <field name="v"/>
-                <field name="subs" context="{'list_view_ref': 'test_testing_utilities.editable_external'}"/>
+                <field name="value" />
+                <field name="v" />
+                <field
+                    name="subs"
+                    context="{'list_view_ref': 'test_testing_utilities.editable_external'}" />
             </form>
         </field>
     </record>
+
     <record id="editable_external" model="ir.ui.view">
         <field name="name">Sub regular</field>
         <field name="model">test_testing_utilities.sub</field>
         <field name="arch" type="xml">
             <list editable="bottom">
-                <field name="value"/>
-                <field name="v"/>
-                <field name="name"/>
+                <field name="value" />
+                <field name="v" />
+                <field name="name" />
             </list>
         </field>
     </record>
@@ -101,12 +113,12 @@
         <field name="model">test_testing_utilities.parent</field>
         <field name="arch" type="xml">
             <form>
-                <field name="value"/>
-                <field name="v"/>
+                <field name="value" />
+                <field name="v" />
                 <field name="subs">
                     <list editable="bottom">
-                        <field name="value"/>
-                        <field name="name"/>
+                        <field name="value" />
+                        <field name="name" />
                     </list>
                 </field>
             </form>
@@ -118,12 +130,12 @@
         <field name="model">test_testing_utilities.parent</field>
         <field name="arch" type="xml">
             <form>
-                <field name="value"/>
-                <field name="v"/>
+                <field name="value" />
+                <field name="v" />
                 <field name="subs">
                     <list editable="bottom">
-                        <field name="value" context="{'parent_value': parent.value}"/>
-                        <field name="name"/>
+                        <field name="value" context="{'parent_value': parent.value}" />
+                        <field name="name" />
                     </list>
                 </field>
             </form>
@@ -135,12 +147,12 @@
         <field name="model">test_testing_utilities.a</field>
         <field name="arch" type="xml">
             <form>
-                <field name="f1"/>
-                <field name="f2" readonly="f1 == '63' and f3 == 5"/>
-                <field name="f3"/>
-                <field name="f4"/>
-                <field name="f5" readonly="True"/>
-                <field name="f6" readonly="1" force_save="1"/>
+                <field name="f1" />
+                <field name="f2" readonly="f1 == '63' and f3 == 5" />
+                <field name="f3" />
+                <field name="f4" />
+                <field name="f5" readonly="True" />
+                <field name="f6" readonly="1" force_save="1" />
             </form>
         </field>
     </record>
@@ -153,10 +165,16 @@
                 <sheet>
                     <notebook>
                         <page>
-                            <field name="line_ids" widget="one2many" context="{'line_ids': line_ids}">
+                            <field
+                                name="line_ids"
+                                widget="one2many"
+                                context="{'line_ids': line_ids}">
                                 <list editable="bottom">
-                                    <field name="dummy"/>
-                                    <field name="flag" readonly="1" column_invisible="True"/>
+                                    <field name="dummy" />
+                                    <field
+                                        name="flag"
+                                        readonly="1"
+                                        column_invisible="True" />
                                 </list>
                             </field>
                         </page>
@@ -171,17 +189,17 @@
         <field name="model">test_testing_utilities.f</field>
         <field name="arch" type="xml">
             <form>
-                <field name="m2o"/>
+                <field name="m2o" />
                 <field name="m2m" nolabel="1">
                     <list>
-                        <field name="name"/>
-                        <field name="m2o_ids" widget="many2many_tags"/>
+                        <field name="name" />
+                        <field name="m2o_ids" widget="many2many_tags" />
                     </list>
                     <form>
-                        <field name="name"/>
+                        <field name="name" />
                         <field name="m2o_ids">
                             <list>
-                                <field name="name"/>
+                                <field name="name" />
                             </list>
                         </field>
                     </form>
@@ -196,8 +214,8 @@
         <field name="arch" type="xml">
             <form>
                 <sheet>
-                    <field name="one_to_many_id"/>
-                    <field name="many_to_one_ids"/>
+                    <field name="one_to_many_id" />
+                    <field name="many_to_one_ids" />
                 </sheet>
             </form>
         </field>
@@ -206,13 +224,13 @@
     <record id="o2m_modifier" model="ir.ui.view">
         <field name="name">Modifier check</field>
         <field name="model">test_testing_utilities.parent</field>
-        <field name="inherit_id" ref="o2m_parent"/>
+        <field name="inherit_id" ref="o2m_parent" />
         <field name="mode">primary</field>
         <field name="arch" type="xml">
             <field name="subs" position="inside">
                 <form>
-                    <field name="value" readonly="v == 42"/>
-                    <field name="v"/>
+                    <field name="value" readonly="v == 42" />
+                    <field name="v" />
                 </form>
             </field>
         </field>
@@ -221,13 +239,13 @@
     <record id="o2m_modifier_parent" model="ir.ui.view">
         <field name="name">Modifier check</field>
         <field name="model">test_testing_utilities.parent</field>
-        <field name="inherit_id" ref="o2m_parent"/>
+        <field name="inherit_id" ref="o2m_parent" />
         <field name="mode">primary</field>
         <field name="arch" type="xml">
             <field name="subs" position="inside">
                 <form>
-                    <field name="value" readonly="parent.value == 42"/>
-                    <field name="v"/>
+                    <field name="value" readonly="parent.value == 42" />
+                    <field name="v" />
                 </form>
             </field>
         </field>
@@ -238,45 +256,48 @@
         <field name="model">test_testing_utilities.ref</field>
         <field name="arch" type="xml">
             <form>
-                <field name="x" invisible="True" readonly="True"/>
-                <field name="value"/>
-                <field name="subs"
+                <field name="x" invisible="True" readonly="True" />
+                <field name="value" />
+                <field
+                    name="subs"
                     invisible="value == 666"
-                    context="{
-                        'list_view_ref': 'test_testing_utilities.o2m_modifier_ref_sub_tree',
-                        'hide_c': True
-                    }"/>
+                    context="{                         'list_view_ref': 'test_testing_utilities.o2m_modifier_ref_sub_tree',                         'hide_c': True                     }" />
             </form>
         </field>
     </record>
+
     <record id="o2m_modifier_ref_sub_form" model="ir.ui.view">
         <field name="name">Sub form view</field>
         <field name="model">test_testing_utilities.ref.sub</field>
         <field name="arch" type="xml">
             <form>
-                <field name="c"/>
+                <field name="c" />
             </form>
         </field>
     </record>
+
     <record id="o2m_modifier_ref_sub_wrong" model="ir.ui.view">
         <field name="name">Sub list view</field>
         <field name="model">test_testing_utilities.ref.sub</field>
         <field name="priority">1</field>
         <field name="arch" type="xml">
             <list editable="top">
-                <field name="c"/>
+                <field name="c" />
             </list>
         </field>
     </record>
+
     <record id="o2m_modifier_ref_sub_tree" model="ir.ui.view">
         <field name="name">Sub list view</field>
         <field name="model">test_testing_utilities.ref.sub</field>
         <field name="priority">1000</field>
         <field name="arch" type="xml">
             <list editable="bottom">
-                <field name="a"/>
-                <field name="b" readonly="parent.value == 42 and not parent.x and not z"/>
-                <field name="c" column_invisible="context.get('hide_c')"/>
+                <field name="a" />
+                <field
+                    name="b"
+                    readonly="parent.value == 42 and not parent.x and not z" />
+                <field name="c" column_invisible="context.get('hide_c')" />
             </list>
         </field>
     </record>
@@ -284,7 +305,7 @@
     <record id="o2m_widget_m2m" model="ir.ui.view">
         <field name="name">Treat o2m as m2m</field>
         <field name="model">test_testing_utilities.parent</field>
-        <field name="inherit_id" ref="o2m_parent"/>
+        <field name="inherit_id" ref="o2m_parent" />
         <field name="mode">primary</field>
         <field name="arch" type="xml">
             <field name="subs" position="attributes">
@@ -298,8 +319,8 @@
         <field name="model">test_testing_utilities.e</field>
         <field name="arch" type="xml">
             <form>
-                <field name="count" readonly="not m2m"/>
-                <field name="m2m"/>
+                <field name="count" readonly="not m2m" />
+                <field name="m2m" />
             </form>
         </field>
     </record>

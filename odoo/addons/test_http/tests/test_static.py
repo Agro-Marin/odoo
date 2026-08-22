@@ -548,7 +548,7 @@ class TestHttpStaticLogo(TestHttpStaticCommon):
         super().setUpClass()
         ResCompany = cls.env["res.company"]
         cls.default_logo_data = cls.img_data_to_web_data(
-            base64.b64decode(ResCompany._get_logo())
+            base64.b64decode(ResCompany._default_logo())
         )
         cls.gizeh_data_b64 = base64.encodebytes(cls.gizeh_data)
         cls.logo_gizeh_data = cls.img_data_to_web_data(cls.gizeh_data)

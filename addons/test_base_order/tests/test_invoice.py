@@ -156,7 +156,7 @@ class TestInvoice(BaseOrderTestCase):
         """Down payments run *after* confirmation, so the order is often locked.
 
         ``_create_order_lines`` links the new ids onto ``line_ids``, which is an
-        order-level x2many write — and ``_validate_write_locked_order`` rejects
+        order-level x2many write — and ``_check_write_locked_order`` rejects
         every x2many write on a locked order without inspecting it. The link
         only re-states what the ``create`` already did, so it must not be
         rejected.

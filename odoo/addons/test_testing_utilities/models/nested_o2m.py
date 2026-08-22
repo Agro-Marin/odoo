@@ -15,13 +15,13 @@ class TtuRoot(models.Model):
     product_id = fields.Many2one("ttu.product")
     product_qty = fields.Integer()
     qty_producing = fields.Integer()
-    qty_produced = fields.Integer(compute="_get_produced_qty")
+    qty_produced = fields.Integer(compute="_compute_qty_produced")
 
     move_raw_ids = fields.One2many("ttu.child", "root_raw_id")
     move_finished_ids = fields.One2many("ttu.child", "root_id")
 
     @api.depends("move_finished_ids.move_line_ids.qty_done")
-    def _get_produced_qty(self):
+    def _compute_qty_produced(self):
         for r in self:
             r.qty_produced = sum(r.mapped("move_finished_ids.move_line_ids.qty_done"))
 
@@ -93,7 +93,7 @@ class TtuChild(models.Model):
     product_id = fields.Many2one("ttu.product")
     unit_factor = fields.Integer(default=1, required=True)
     quantity_done = fields.Integer(
-        compute="_quantity_done_compute", inverse="_quantity_done_set"
+        compute="_compute_quantity_done", inverse="_inverse_quantity_done"
     )
 
     root_raw_id = fields.Many2one("ttu.root")
@@ -127,11 +127,11 @@ class TtuChild(models.Model):
         return res
 
     @api.depends("move_line_ids.qty_done")
-    def _quantity_done_compute(self):
+    def _compute_quantity_done(self):
         for move in self:
             move.quantity_done = sum(move.mapped("move_line_ids.qty_done"))
 
-    def _quantity_done_set(self):
+    def _inverse_quantity_done(self):
         quantity_done = self[0].quantity_done
         for move in self:
             move_lines = move.move_line_ids

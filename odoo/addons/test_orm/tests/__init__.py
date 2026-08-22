@@ -5,6 +5,7 @@ from . import (
     test_backend_differential,
     test_cache_dead_pending,
     test_company_checks,
+    test_count_field,
     test_domain,
     test_domain_evaluator_parity,
     test_env_operations,

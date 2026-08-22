@@ -17,11 +17,11 @@ class TestUnenforcedOndeleteOwnership(TransactionCase):
     def _swept(self):
         return {
             (model_name, field_name): ondelete
-            for model_name, field_name, ondelete in self.Actions._unenforced_reference_fields()
+            for model_name, field_name, ondelete in self.Actions._get_fields_ondelete_unenforced()
         }
 
     def _unfiltered_references(self):
-        roots = self.Actions._root_model_names()
+        roots = self.Actions._get_model_names_in_root_table()
         return sorted(
             (model_name, field.name, field.ondelete or "set null")
             for model_name, model in self.env.registry.items()

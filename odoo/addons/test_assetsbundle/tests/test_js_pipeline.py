@@ -70,12 +70,6 @@ class TestModuleSyntaxGuard(TransactionCase):
         )
 
     def test_module_file_stops_the_build_when_someone_can_read_it(self):
-        """Under `--test-enable` / `--dev=assets` the loss is an exception.
-
-        Degrading silently is what let this defect be rediscovered six times: the
-        bundle builds, the route returns 200, and `loadBundle` resolves carrying
-        a `console.error` instead of the module.
-        """
         bundle = self._legacy_bundle()
         self.assertNotIn(self.BUNDLE, esm_registry().bundles)
         self.assertEqual(len(bundle.javascripts), 2)
@@ -88,7 +82,6 @@ class TestModuleSyntaxGuard(TransactionCase):
         self.assertIn("declare the bundle under the 'esm' key", str(raised.exception))
 
     def test_module_file_is_stubbed_and_excluded_in_production(self):
-        """Production still degrades: a page missing one file beats a 500."""
         with config.patch(test_enable=False, dev_mode=[]):
             self.assertFalse(JsPipeline._fails_closed())
             bundle = self._legacy_bundle(f"{self.BUNDLE}_prod")

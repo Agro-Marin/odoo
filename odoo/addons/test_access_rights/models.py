@@ -71,10 +71,10 @@ class ResPartner(models.Model):
     _inherit = "res.partner"
 
     currency_id = fields.Many2one(
-        "res.currency", compute="_get_company_currency", readonly=True
+        "res.currency", compute="_compute_currency_id", readonly=True
     )
     monetary = fields.Monetary()
 
-    def _get_company_currency(self):
+    def _compute_currency_id(self):
         for partner in self:
             partner.currency_id = partner.sudo().company_id.currency_id

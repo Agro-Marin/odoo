@@ -167,7 +167,7 @@ class TestHistoryRpcGuards(TransactionCase):
         cls.record.versioned_field_1 = "<p>v3</p>"
 
     def test_unversioned_field_name_rejected(self):
-        """A field outside _get_versioned_fields raises a clean UserError."""
+        """A field outside _get_fields_versioned raises a clean UserError."""
         with self.assertRaises(UserError):
             self.record.html_field_history_get_content_at_revision("display_name", 1)
 

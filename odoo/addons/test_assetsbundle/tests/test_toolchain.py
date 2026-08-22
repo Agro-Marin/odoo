@@ -185,6 +185,66 @@ class TestPipelineFingerprint(BaseCase):
             _pipeline_fingerprint.cache_clear()
 
 
+class TestToolchainParticipatesInBundleIdentity(BaseCase):
+
+    def _fingerprint_with(self, versions):
+        from odoo.addons.base.models.assetsbundle import common
+
+        _pipeline_fingerprint.cache_clear()
+        try:
+            with patch.object(common, "_toolchain_versions", lambda: versions):
+                return _pipeline_fingerprint.__wrapped__()
+        finally:
+            _pipeline_fingerprint.cache_clear()
+
+    def test_every_output_affecting_tool_is_reported(self):
+        from odoo.addons.base.models.assetsbundle.common import (
+            _OUTPUT_AFFECTING_NPM_TOOLS,
+            _toolchain_versions,
+        )
+
+        reported = _toolchain_versions()
+        for name in _OUTPUT_AFFECTING_NPM_TOOLS:
+            self.assertIn(f"{name}@", reported)
+        for name in ("sass-embedded", "rtlcss", "esbuild"):
+            self.assertIn(name, _OUTPUT_AFFECTING_NPM_TOOLS)
+
+    def test_this_checkout_resolves_real_versions(self):
+        from odoo.addons.base.models.assetsbundle.common import _toolchain_versions
+
+        reported = _toolchain_versions()
+        self.assertNotIn(
+            "@absent",
+            reported,
+            f"{reported} -- a development checkout must have these installed; "
+            f"run `npm install` in the repo root",
+        )
+
+    def test_a_compiler_upgrade_moves_the_digest(self):
+        base = self._fingerprint_with(
+            "sass-embedded@1.100.0;rtlcss@4.3.0;esbuild@0.25.0"
+        )
+        bumped = self._fingerprint_with(
+            "sass-embedded@1.101.0;rtlcss@4.3.0;esbuild@0.25.0"
+        )
+        self.assertNotEqual(base, bumped, "a Dart Sass bump must invalidate bundles")
+
+    def test_rtlcss_disappearing_moves_the_digest(self):
+        present = self._fingerprint_with(
+            "sass-embedded@1.100.0;rtlcss@4.3.0;esbuild@0.25.0"
+        )
+        absent = self._fingerprint_with(
+            "sass-embedded@1.100.0;rtlcss@absent;esbuild@0.25.0"
+        )
+        self.assertNotEqual(
+            present,
+            absent,
+            "without rtlcss an RTL bundle holds LTR rules (pinned by "
+            "TestAuditRtlSilentDegradation); it must not share an identity with "
+            "the same bundle built with it",
+        )
+
+
 class TestRunCliPipeFailures(BaseCase):
     def test_nonzero_exit_names_the_tool(self):
         with self.assertRaises(CompileError) as ctx:

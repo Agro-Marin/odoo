@@ -5,7 +5,7 @@ from odoo.tests import tagged
 
 from .common import BaseOrderTestCase
 
-# mixin.order.line.fields guards line writes through _validate_write_vals, which
+# mixin.order.line.fields guards line writes through _check_write_guards, which
 # walks the same kind of registry mixin.order uses for confirmation. The two
 # validators behind it — the display_type freeze and the locked-order protected
 # fields — had no tests, and neither did _get_line_identifier, which builds the
@@ -14,7 +14,7 @@ from .common import BaseOrderTestCase
 
 @tagged("post_install", "-at_install")
 class TestLineWriteGuards(BaseOrderTestCase):
-    # --- _validate_write_display_type ---
+    # --- _check_write_display_type ---
 
     def test_display_type_cannot_change_on_an_existing_line(self):
         line = self._make_line(product_qty=1.0)
@@ -27,7 +27,7 @@ class TestLineWriteGuards(BaseOrderTestCase):
         line = self._make_line(product_qty=1.0)
 
         with self.assertRaises(UserError) as err:
-            line._validate_write_display_type({"display_type": "line_section"})
+            line._check_write_display_type({"display_type": "line_section"})
         self.assertIn(self.product.display_name, str(err.exception))
 
     def test_display_type_error_lists_at_most_five_then_counts_the_rest(self):
@@ -39,7 +39,7 @@ class TestLineWriteGuards(BaseOrderTestCase):
             )
 
         with self.assertRaises(UserError) as err:
-            lines._validate_write_display_type({"display_type": "line_section"})
+            lines._check_write_display_type({"display_type": "line_section"})
 
         message = str(err.exception)
         self.assertIn("7", message, "the total should be reported")
@@ -48,7 +48,7 @@ class TestLineWriteGuards(BaseOrderTestCase):
     def test_write_without_display_type_is_not_guarded(self):
         line = self._make_line(product_qty=1.0)
 
-        line._validate_write_display_type({"product_qty": 5.0})  # must not raise
+        line._check_write_display_type({"product_qty": 5.0})  # must not raise
 
     def test_allowed_transition_is_let_through(self):
         """The hook exists so sale can promote a subsection to a section."""
@@ -59,14 +59,14 @@ class TestLineWriteGuards(BaseOrderTestCase):
             "_is_display_type_change_allowed",
             lambda self, line, new_type: True,
         ):
-            line._validate_write_display_type({"display_type": "line_section"})
+            line._check_write_display_type({"display_type": "line_section"})
 
     def test_setting_the_same_display_type_is_a_no_op(self):
         line = self._make_line(product_id=False, display_type="line_note", name="Note")
 
-        line._validate_write_display_type({"display_type": "line_note"})
+        line._check_write_display_type({"display_type": "line_note"})
 
-    # --- _validate_write_locked_order ---
+    # --- _check_write_locked_order ---
 
     def test_protected_field_refused_on_a_locked_order(self):
         order = self._make_order()
@@ -75,7 +75,7 @@ class TestLineWriteGuards(BaseOrderTestCase):
         order.write({"locked": True})
 
         with self.assertRaises(UserError) as err:
-            line._validate_write_locked_order({"price_unit": 42.0})
+            line._check_write_locked_order({"price_unit": 42.0})
         self.assertIn("locked order", str(err.exception))
 
     def test_unprotected_field_allowed_on_a_locked_order(self):
@@ -84,13 +84,13 @@ class TestLineWriteGuards(BaseOrderTestCase):
         order.write({"state": "done"})
         order.write({"locked": True})
 
-        line._validate_write_locked_order({"sequence": 99})  # must not raise
+        line._check_write_locked_order({"sequence": 99})  # must not raise
 
     def test_protected_field_allowed_while_unlocked(self):
         line = self._make_line(product_qty=1.0)
         self.assertFalse(line.locked)
 
-        line._validate_write_locked_order({"price_unit": 42.0})  # must not raise
+        line._check_write_locked_order({"price_unit": 42.0})  # must not raise
 
     def test_downpayment_name_may_change_while_locked(self):
         """The one exemption: a down payment's description stays editable."""
@@ -99,7 +99,7 @@ class TestLineWriteGuards(BaseOrderTestCase):
         order.write({"state": "done"})
         order.write({"locked": True})
 
-        line._validate_write_locked_order({"name": "Down payment (draft)"})
+        line._check_write_locked_order({"name": "Down payment (draft)"})
 
     def test_downpayment_exemption_covers_only_the_name(self):
         order = self._make_order()
@@ -108,7 +108,7 @@ class TestLineWriteGuards(BaseOrderTestCase):
         order.write({"locked": True})
 
         with self.assertRaises(UserError):
-            line._validate_write_locked_order(
+            line._check_write_locked_order(
                 {"name": "Down payment", "price_unit": 42.0},
             )
 

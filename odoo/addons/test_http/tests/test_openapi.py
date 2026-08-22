@@ -11,7 +11,6 @@ from odoo.addons.test_http.tests.test_common import TestHttpBase
 
 
 def _http_handler(self, n: int, flag: bool = False, **kw):
-    """Echo n and flag."""
     return
 
 

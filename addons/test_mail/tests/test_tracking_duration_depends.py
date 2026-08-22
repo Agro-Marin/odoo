@@ -81,6 +81,6 @@ class TestDurationTrackingInvalidates(MailCommon):
         self.assertEqual(
             self.env[
                 "mail.test.track.duration.mixin"
-            ]._get_duration_tracking_depends_fields(),
+            ]._get_fields_duration_tracking_depends(),
             ["customer_id"],
         )

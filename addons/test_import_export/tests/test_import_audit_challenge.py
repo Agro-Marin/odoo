@@ -520,7 +520,7 @@ class SelectionLabelLanguage(TransactionCase):
     English labels while the session is in another language. """
 
     def test_source_labels_are_indexed_alongside_translated_ones(self):
-        """ `_selection_for_import` asked for the source labels with
+        """ `_get_selection_and_labels` asked for the source labels with
         `lang=None`. That is not "no translation": `_()` resolves its language
         by walking the stack for a frame whose `self.env.lang` is truthy, so a
         `None` lang is a frame to skip and the walk found the caller's French.
@@ -537,7 +537,7 @@ class SelectionLabelLanguage(TransactionCase):
 
         converter = self.env['ir.fields.converter'].with_context(lang='fr_FR')
         field = self.env['export.selection.function']._fields['value']
-        index = converter._selection_import_index(field)
+        index = converter._get_selection_index(field)
 
         for label in ('wheee', 'corge', 'grault', 'moog'):
             self.assertIn(label, index, "source label %r not importable" % label)

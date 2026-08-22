@@ -384,7 +384,7 @@ class TestCalendar(TestResourceCommon):
         self.assertEqual(leave.calendar_id, self.calendar_jules, "Leave calendar should update")
         self.assertEqual(holiday.calendar_id, self.calendar_jean, "Global leave shouldn't change")
 
-    def test_compute_work_time_rate_with_one_week_calendar(self):
+    def test_compute_work_time_with_one_week_calendar(self):
         """Test Case: check if the computation of the work time rate in the resource.calendar is correct."""
         # Define a mid time
         resource_calendar = self.env['resource.calendar'].create({
@@ -430,7 +430,7 @@ class TestCalendar(TestResourceCommon):
         })
         self.assertAlmostEqual(resource_calendar.work_time_rate, 100, 2)
 
-    def test_compute_work_time_rate_with_two_weeks_calendar(self):
+    def test_compute_work_time_with_two_weeks_calendar(self):
         """Test Case: check if the computation of the work time rate in the resource.calendar is correct."""
         def create_attendance_ids(attendance_list):
             return [(0, 0, {'week_type': str(i), **attendance}) for i in range(0, 2) for attendance in attendance_list]

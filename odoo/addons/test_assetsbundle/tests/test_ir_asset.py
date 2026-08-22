@@ -14,7 +14,7 @@ from .common import AddonManifestPatched
 from odoo.addons.base.models.ir_asset_paths import (
     AssetDirectiveError,
     AssetPaths,
-    _glob_static_file,
+    _get_static_files,
 )
 
 
@@ -23,7 +23,7 @@ class TestAddonPaths(BaseCase):
         asset_paths = AssetPaths()
         self.assertFalse(asset_paths.list)
 
-        asset_paths.append(
+        asset_paths.append_paths(
             [
                 ("/home/user/odoo/addons/web/a", "/web/a", 1),
                 ("/home/user/odoo/addons/web/c", "/web/c", 1),
@@ -40,7 +40,7 @@ class TestAddonPaths(BaseCase):
             ],
         )
 
-        asset_paths.append(
+        asset_paths.append_paths(
             [
                 ("/home/user/odoo/addons/web/c", "/web/c", 1),
                 ("/home/user/odoo/addons/web/f", "/web/f", 1),
@@ -57,7 +57,7 @@ class TestAddonPaths(BaseCase):
             ],
         )
 
-        asset_paths.insert(
+        asset_paths.insert_paths(
             [
                 ("/home/user/odoo/addons/web/c", "/web/c", 1),
                 ("/home/user/odoo/addons/web/e", "/web/e", 1),
@@ -76,7 +76,7 @@ class TestAddonPaths(BaseCase):
             ],
         )
 
-        asset_paths.insert(
+        asset_paths.insert_paths(
             [
                 ("/home/user/odoo/addons/web/b", "/web/b", 1),
                 ("/home/user/odoo/addons/web/d", "/web/d", 1),
@@ -96,7 +96,7 @@ class TestAddonPaths(BaseCase):
             ],
         )
 
-        asset_paths.remove(
+        asset_paths.remove_paths(
             [
                 ("/home/user/odoo/addons/web/c", "/web/c", 1),
                 ("/home/user/odoo/addons/web/d", "/web/d", 1),
@@ -116,7 +116,7 @@ class TestAddonPaths(BaseCase):
 
     def test_replace_empty_source(self):
         asset_paths = AssetPaths()
-        asset_paths.append(
+        asset_paths.append_paths(
             [
                 ("/web/a.js", "/full/a.js", 1),
                 ("/web/b.js", "/full/b.js", 1),
@@ -124,9 +124,9 @@ class TestAddonPaths(BaseCase):
             ],
             "bundle1",
         )
-        target_index = asset_paths.index("/web/b.js", "bundle1")
-        asset_paths.insert([], "bundle1", target_index)
-        asset_paths.remove([("/web/b.js", "/full/b.js", 1)], "bundle1")
+        target_index = asset_paths.get_index("/web/b.js", "bundle1")
+        asset_paths.insert_paths([], "bundle1", target_index)
+        asset_paths.remove_paths([("/web/b.js", "/full/b.js", 1)], "bundle1")
 
         self.assertEqual(len(asset_paths.list), 2)
         self.assertEqual(asset_paths.list[0][0], "/web/a.js")
@@ -141,7 +141,7 @@ class TestAddonPaths(BaseCase):
                 "odoo.addons.base.models.ir_asset_paths.glob",
                 return_value=[deleted_file],
             ):
-                result = _glob_static_file(f"{static_dir}/*.js", static_dir)
+                result = _get_static_files(f"{static_dir}/*.js", static_dir)
         self.assertEqual(result, [], "Deleted files should be silently skipped")
 
     def test_glob_static_file_filters_extensions(self):
@@ -149,7 +149,7 @@ class TestAddonPaths(BaseCase):
             static_dir = str(pathlib.Path(tmp).resolve())
             for name in ("file.js", "file.py", "file.css"):
                 pathlib.Path(static_dir, name).write_text("", encoding="utf-8")
-            result = _glob_static_file(f"{static_dir}/*", static_dir)
+            result = _get_static_files(f"{static_dir}/*", static_dir)
         paths = [r[0] for r in result]
         self.assertIn(f"{static_dir}/file.js", paths)
         self.assertIn(f"{static_dir}/file.css", paths)
@@ -169,8 +169,8 @@ class TestAddonPaths(BaseCase):
             (root_b / "in_b.js").write_text("var b;")
 
             memo = {}
-            found_a = _glob_static_file(f"{root_a}/**/*.js", str(root_a), memo)
-            found_b = _glob_static_file(f"{root_b}/*.js", str(root_b), memo)
+            found_a = _get_static_files(f"{root_a}/**/*.js", str(root_a), memo)
+            found_b = _get_static_files(f"{root_b}/*.js", str(root_b), memo)
 
         self.assertEqual([pathlib.Path(f).name for f, _mtime in found_a], ["in_a.js"])
         self.assertEqual([pathlib.Path(f).name for f, _mtime in found_b], ["in_b.js"])
@@ -186,7 +186,7 @@ class TestAddonPaths(BaseCase):
             (outside / "secret.js").write_text("")
             (static_dir / "escape").symlink_to(outside)
 
-            result = _glob_static_file(f"{static_dir}/*/*.js", str(static_dir))
+            result = _get_static_files(f"{static_dir}/*/*.js", str(static_dir))
 
         self.assertEqual(
             [path for path, _mtime in result], [f"{static_dir}/src/inside.js"]

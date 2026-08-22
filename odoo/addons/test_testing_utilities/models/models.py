@@ -88,14 +88,9 @@ class Test_Testing_UtilitiesE(models.Model):
     _description = "Testing Utilities E"
 
     m2m = fields.Many2many("test_testing_utilities.sub2")
-    count = fields.Integer(compute="_m2m_count", inverse="_set_count")
+    count = fields.Count("m2m", inverse="_inverse_count")
 
-    @api.depends("m2m")
-    def _m2m_count(self):
-        for r in self:
-            r.count = len(r.m2m)
-
-    def _set_count(self):
+    def _inverse_count(self):
         for r in self:
             r.write(
                 {
@@ -120,12 +115,12 @@ class Test_Testing_UtilitiesF(models.Model):
     _name = "test_testing_utilities.f"
     _description = "Testing Utilities F"
 
-    def _get_some(self):
+    def _default_m2m(self):
         return self.env["test_testing_utilities.sub2"].search([], limit=2)
 
     m2m = fields.Many2many(
         "test_testing_utilities.sub2",
-        default=_get_some,
+        default=_default_m2m,
     )
     m2o = fields.Many2one("test_testing_utilities.sub2")
 

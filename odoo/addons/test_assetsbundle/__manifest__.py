@@ -3,14 +3,6 @@
     "version": "0.1",
     "category": "Hidden/Tests",
     "description": """A module to verify the Assets Bundle mechanism.""",
-    # `web`, not `base`: this module contributes to `web.assets_tests` and
-    # `web.assets_unit_tests`, and `lazy_component.test.js` imports `@odoo/hoot`,
-    # `@web/core/assets` and `@web/../tests/web_test_helpers`. A HOOT run scopes
-    # every bundle to `_get_unit_test_scope_addons` — the module plus its
-    # transitive `depends` — so with `base` alone the closure was
-    # `{test_assetsbundle, base}`, `web.assets_unit_tests_setup` came back empty,
-    # and the runner that renders the suite was never served. The page stayed
-    # blank until the 300 s script timeout, reporting 0 tests rather than a failure.
     "depends": ["web"],
     "installable": True,
     "data": [
@@ -96,15 +88,6 @@
             "test_assetsbundle.native_esm",
         ],
         "standalone_bundles": ["test_assetsbundle.native_esm"],
-        # `lazy_component.test.js` mounts `<LazyComponent bundle="…"/>`, which
-        # `loadBundle`s this. Undeclared, `/web/bundle` serves the legacy branch,
-        # every module-syntax file becomes a console.error stub, and `loadBundle`
-        # still resolves -- so only the later registry lookup fails.
-        #
-        # `runtime_bundles` and not `dynamic_children`: nothing about this is a
-        # property of the page that happens to load it. No page needs its
-        # specifiers in an import map or excluded from bridging; it is simply
-        # fetched at runtime.
         "runtime_bundles": ["test_assetsbundle.lazy_test_component"],
     },
     "author": "Odoo S.A.",

@@ -2244,7 +2244,7 @@ class TestActivityStrandedModel(ActivityScheduleCase):
             'a stranded activity falls into the "Other activities" bucket',
         )
 
-    def test_action_open_document_falls_back(self):
+    def test_action_view_document_falls_back(self):
         self._strand()
         action = (
             self.env["mail.activity"]

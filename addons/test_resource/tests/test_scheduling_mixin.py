@@ -256,7 +256,7 @@ class TestSchedulingMixin(TransactionCase):
         self.assertEqual(rec2.schedule_overlap_count, 0)
 
         # Now bump to 60% each → 120% > 100 → conflict. The allocation change
-        # re-syncs each reservation (see _get_sync_trigger_fields override).
+        # re-syncs each reservation (see _get_fields_sync_trigger override).
         rec1.allocated_percentage = 60.0
         rec2.allocated_percentage = 60.0
         self.env.invalidate_all()

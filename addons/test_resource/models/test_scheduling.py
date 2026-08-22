@@ -50,7 +50,7 @@ class ResourceSchedulingTest(models.Model):
             else:
                 record.resource_calendar_id = record.env.company.resource_calendar_id
 
-    def _get_reservation_date_fields(self):
+    def _get_fields_reservation_date(self):
         return ("date_start", "date_end")
 
     def _get_reservation_vals_list(self):
@@ -73,10 +73,10 @@ class ResourceSchedulingTest(models.Model):
             }
         ]
 
-    def _get_sync_trigger_fields(self):
+    def _get_fields_sync_trigger(self):
         # Re-sync the reservation when the resource or the allocation share
         # changes, not only the dates (the mixin default).
-        return super()._get_sync_trigger_fields() | {
+        return super()._get_fields_sync_trigger() | {
             "resource_id",
             "allocated_percentage",
         }

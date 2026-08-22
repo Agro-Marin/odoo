@@ -235,8 +235,8 @@ class TestStylesheetErrorInversion(BaseCase):
             pass
 
         asset = StylesheetAsset(BareBundle(), url="/web/static/src/css/missing.css")
-        with patch.object(WebAsset, "_fetch_content", side_effect=AssetError("boom")):
-            out = asset._fetch_content()
+        with patch.object(WebAsset, "_get_content", side_effect=AssetError("boom")):
+            out = asset._get_content()
         self.assertEqual(out, "")
         self.assertEqual(asset.errors, ["boom"])
         self.assertFalse(hasattr(asset.bundle, "css_errors"))
@@ -251,7 +251,7 @@ class TestStylesheetErrorInversion(BaseCase):
         def fake_fetch(self):
             raise AssetError(f"missing {self.url}")
 
-        with patch.object(WebAsset, "_fetch_content", fake_fetch):
+        with patch.object(WebAsset, "_get_content", fake_fetch):
             result = bundle.preprocess_css()
 
         self.assertIn(".ok{color:red}", result)
@@ -272,7 +272,7 @@ class TestStylesheetErrorInversion(BaseCase):
         def fake_fetch(self):
             raise AssetError("missing x.css")
 
-        with patch.object(WebAsset, "_fetch_content", fake_fetch):
+        with patch.object(WebAsset, "_get_content", fake_fetch):
             bundle.preprocess_css()
             bundle.preprocess_css()
 
@@ -910,10 +910,10 @@ class TestUrlFragmentReferences(BaseCase):
         asset = StylesheetAsset(bundle, url="/web/static/src/css/foo.css")
 
         with (
-            patch.object(WebAsset, "_fetch_content", lambda self: sample),
+            patch.object(WebAsset, "_get_content", lambda self: sample),
             patch.object(assetsbundle.assets, "Path", pathlib.PureWindowsPath),
         ):
-            out = asset._fetch_content()
+            out = asset._get_content()
 
         self.assertNotIn("\\", out, "rewritten URLs must never contain backslashes")
         self.assertIn(

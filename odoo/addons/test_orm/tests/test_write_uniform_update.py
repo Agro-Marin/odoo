@@ -6,7 +6,6 @@ from odoo.tests import TransactionCase, tagged
 
 
 class UniformUpdateCase(TransactionCase):
-    """Records which UPDATE shape each write took."""
 
     def setUp(self):
         super().setUp()
@@ -64,14 +63,6 @@ class UniformUpdateCase(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestUniformUpdateEligibility(UniformUpdateCase):
-    """Which column shapes take the new path -- stated both ways.
-
-    The negative half is the point. The first version of this change used a bare
-    ``==`` over the adapted values, which never matches for the ``psycopg``
-    ``Json`` wrapper a jsonb column produces, so the collapse silently never
-    fired for translated or company-dependent columns while the equivalence
-    tests passed by comparing the old path with itself.
-    """
 
     def test_plain_scalar_columns_collapse(self):
         records = self.messages(5)
@@ -110,9 +101,6 @@ class TestUniformUpdateEligibility(UniformUpdateCase):
         self.assertCollapsed("test_orm.mixed")
 
     def test_translated_column_does_not_collapse(self):
-        """jsonb stays on the VALUES path, deliberately: its SET expression
-        merges into the row's *existing* value, so it must not be reshaped by a
-        change that has no test for that merge."""
         records = self.messages(5)
         records.write({"label": "shared label"})
         self.assertNotCollapsed("test_orm.message", "translate=True")
@@ -144,7 +132,6 @@ class TestUniformUpdateEligibility(UniformUpdateCase):
         self.assertNotCollapsed("test_orm.message")
 
     def test_mixed_group_is_not_collapsed(self):
-        """One jsonb column in the group disqualifies the whole row."""
         records = self.messages(5)
         records.write({"body": "shared", "label": "shared label"})
         self.assertNotCollapsed("test_orm.message")
@@ -157,7 +144,6 @@ class TestUniformUpdateEligibility(UniformUpdateCase):
         self.assertCollapsed("test_orm.mixed")
 
     def test_two_columns_one_differing_do_not_collapse(self):
-        """The comparison is over the whole row: one column differing is enough."""
         records = self.env["test_orm.mixed"].create([{} for _ in range(5)])
         self.env.flush_all()
         self.reset_calls()
@@ -166,10 +152,6 @@ class TestUniformUpdateEligibility(UniformUpdateCase):
         self.assertNotCollapsed("test_orm.mixed")
 
     def test_log_access_columns_do_not_block_the_collapse(self):
-        """``write_date`` / ``write_uid`` join every row of a ``_log_access``
-        model, so the collapse only survives because ``cr.now()`` is stable
-        within a transaction. That is an assumption of the design, so it is
-        asserted rather than commented."""
         records = self.messages(5)
         self.assertTrue(records._log_access)
         records.write({"body": "shared"})
@@ -182,21 +164,8 @@ class TestUniformUpdateEligibility(UniformUpdateCase):
 
 @tagged("post_install", "-at_install")
 class TestUniformUpdateEquivalence(UniformUpdateCase):
-    """The two shapes must store the same thing.
-
-    Differential rather than golden: the VALUES path survives as the
-    non-uniform branch, so it can be provoked by adding one differing row and
-    the two results compared. A golden value would only pin what this test
-    author believed.
-    """
 
     def _write_both_ways(self, count, fname, value, other, seed=None):
-        """Return (collapsed, via_values) column values for `count` records.
-
-        `other` must differ from `value` *after* the field coerces it -- writing
-        a string to a Boolean lands on the same True and would leave the group
-        uniform, quietly testing the collapse against itself.
-        """
         results = []
         for extra in (0, 1):
             records = self.env["test_orm.message"].create(
@@ -211,7 +180,6 @@ class TestUniformUpdateEquivalence(UniformUpdateCase):
             subject = records[:count]
             subject.write({fname: value})
             if extra:
-                # one differing row forces the group onto the VALUES path
                 records[count].write({fname: other})
             self.env.flush_all()
             uniform, values = self._calls_for("test_orm.message")
@@ -243,7 +211,6 @@ class TestUniformUpdateEquivalence(UniformUpdateCase):
         self.assertEqual(collapsed, via_values)
 
     def test_equivalent_from_a_mixed_prior_state(self):
-        """Half the rows already hold a value, half are NULL."""
 
         def seed(index, record):
             if index % 2:
@@ -276,8 +243,6 @@ class TestUniformUpdateEquivalence(UniformUpdateCase):
                 self.assertEqual(collapsed, via_values)
 
     def test_numeric_values_survive_the_cast(self):
-        """The literal is cast with the same ``::type`` the join used, but a
-        scalar parameter and a VALUES column can adapt differently."""
         records = self.env["test_orm.mixed"].create([{} for _ in range(4)])
         self.env.flush_all()
         for value in (1.25, -7.5, 0.0):
@@ -291,12 +256,6 @@ class TestUniformUpdateEquivalence(UniformUpdateCase):
 
 @tagged("post_install", "-at_install")
 class TestUniformUpdateStatements(UniformUpdateCase):
-    """How many statements each shape costs -- the property that regressed.
-
-    The first prototype collapsed inside the batch loop instead of replacing it,
-    so it emitted exactly as many statements as before while every correctness
-    test passed.
-    """
 
     def _update_count(self, records, vals):
         self.reset_calls()

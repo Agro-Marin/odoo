@@ -27,7 +27,7 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
     #       - fetch res_users (_read_format)
     #       - fetch hr_employee (res.users _to_store)
     #   5: settings:
-    #       - search res_users_settings (_find_or_create_for_user)
+    #       - search res_users_settings (_get_or_create_for_user)
     #       - fetch res_users_settings (_format_settings)
     #       - search res_users_settings_volumes (_format_settings)
     #       - search res_users_settings_embedded_action (_format_settings)
@@ -445,7 +445,7 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
                 "self_partner": self.users[0].partner_id.id,
                 "settings": {
                     "channel_notifications": False,
-                    "id": self.env["res.users.settings"]._find_or_create_for_user(self.users[0]).id,
+                    "id": self.env["res.users.settings"]._get_or_create_for_user(self.users[0]).id,
                     "is_discuss_sidebar_category_channel_open": True,
                     "is_discuss_sidebar_category_chat_open": True,
                     "livechat_expertise_ids": [],

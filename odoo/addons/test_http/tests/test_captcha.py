@@ -16,14 +16,14 @@ class TestCaptcha(HttpCase):
 
     @contextmanager
     def patch_captcha_valid(self, validity):
-        def _verify_request_recaptcha_token(self, captcha):
+        def _check_request_recaptcha_token(self, captcha):
             if not validity:
                 raise UserError("CAPTCHA test")
 
         with patch.object(
             self.env.registry["ir.http"],
-            "_verify_request_recaptcha_token",
-            _verify_request_recaptcha_token,
+            "_check_request_recaptcha_token",
+            _check_request_recaptcha_token,
         ):
             yield
 

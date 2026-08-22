@@ -654,7 +654,7 @@ class TestAssetsBundleWithIRAMock(FileTouchable):
     def _get_asset(self, debug_assets=True):
         with patch.object(
             type(self.env["ir.asset"]),
-            "_get_installed_addons_list",
+            "_get_addons_installed",
             Mock(return_value=self.installed_modules),
         ):
             return self.env["ir.qweb"]._get_asset_bundle(
@@ -897,10 +897,10 @@ class TestAuditRegressionFixes(TransactionCase):
     def _bundle(self, name="test_assetsbundle.audit_fix"):
         return AssetsBundle(name, [], env=self.env)
 
-    def test_fetch_content_preserves_not_found_subclass(self):
+    def test_get_content_preserves_not_found_subclass(self):
         asset = WebAsset(self._bundle(), url="/test_assetsbundle/missing.js")
         with self.assertRaises(AssetNotFoundError) as cm:
-            asset._fetch_content()
+            asset._get_content()
         self.assertIs(type(cm.exception), AssetNotFoundError)
 
 

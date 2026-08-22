@@ -1,9 +1,10 @@
 <odoo>
+
     <template id="test_assetsbundle.template1" name="test template 1">
 &lt;!DOCTYPE html&gt;
 <html>
     <head>
-        <t t-call-assets="test_assetsbundle.bundle1"/>
+        <t t-call-assets="test_assetsbundle.bundle1" />
     </head>
     <body>
     </body>
@@ -14,9 +15,9 @@
 &lt;!DOCTYPE html&gt;
 <html>
     <head>
-        <t t-call-assets="test_assetsbundle.bundle4" t-js="False"/>
-        <meta/>
-        <t t-call-assets="test_assetsbundle.bundle4" t-css="False"/>
+        <t t-call-assets="test_assetsbundle.bundle4" t-js="False" />
+        <meta />
+        <t t-call-assets="test_assetsbundle.bundle4" t-css="False" />
     </head>
     <body>
     </body>

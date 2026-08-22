@@ -9,7 +9,11 @@ from unittest.mock import patch
 
 from odoo import tools
 from odoo.tests.common import BaseCase, TransactionCase
-from odoo.tools.assets.esbuild import EsbuildCompiler, _find_esbuild
+from odoo.tools.assets.esbuild import (
+    EXTERNAL_LIB_ALIASES,
+    EsbuildCompiler,
+    _find_esbuild,
+)
 from odoo.tools.assets.esm_bridges import BridgeShimManager
 from odoo.tools.assets.esm_registry import (
     esm_registry,
@@ -223,6 +227,162 @@ class TestBundleProductsAreMemoized(TransactionCase):
         self.assertEqual(without["bridge_import_map"], {})
 
 
+class TestSecondaryBundlePageScope(TransactionCase):
+    """A secondary bundle externalises against the page, not against a guess.
+
+    ``web.assets_tests`` is layered onto pages with different inventories --
+    ``web.assets_web`` on the backend, ``web.assets_frontend_lazy`` +
+    ``web.assets_frontend_minimal`` on the frontend -- and every layout renders
+    it last.  Intersecting the declared parents instead treated one artifact as
+    if it had to satisfy all those pages at once, dropped anything only one of
+    them carried, and let esbuild inline a second copy of it.
+    """
+
+    BUNDLE = "web.assets_tests"
+
+    def _fake_bundles(self, inventory):
+        def _get(_self, name, **kwargs):
+            return SimpleNamespace(
+                get_native_module_data=lambda **kw: {
+                    "import_map": dict.fromkeys(inventory.get(name, ()), "/x.js")
+                }
+            )
+
+        return patch.object(type(self.env["ir.qweb"]), "_get_asset_bundle", _get)
+
+    def test_a_page_unions_its_bundles_while_a_declaration_intersects_them(self):
+        IrQweb = self.env["ir.qweb"]
+        inventory = {
+            "a.backend": ("@shared/one", "@backend/only"),
+            "b.frontend": ("@shared/one", "@frontend/only"),
+        }
+        with (
+            self._fake_bundles(inventory),
+            patch(
+                "odoo.addons.base.models.ir_qweb_assets.esm_registry",
+                return_value=SimpleNamespace(
+                    secondary_parents={self.BUNDLE: ("a.backend", "b.frontend")},
+                ),
+            ),
+        ):
+            page = IrQweb._get_secondary_provider_specs(
+                self.BUNDLE, None, ("a.backend", "b.frontend")
+            )
+            declared = IrQweb._get_secondary_provider_specs(self.BUNDLE, None, ())
+        self.assertEqual(page, {"@shared/one", "@backend/only", "@frontend/only"})
+        self.assertEqual(declared, {"@shared/one"})
+
+    def test_the_page_scope_is_empty_for_a_bundle_that_is_not_secondary(self):
+        IrQweb = self.env["ir.qweb"]
+        self.assertEqual(IrQweb._get_esm_page_scope("web.assets_web"), ())
+
+    def test_a_backend_only_module_is_externalised_on_a_backend_page(self):
+        IrQweb = self.env["ir.qweb"]
+        params = self.env["ir.asset"]._prepare_assets_params()
+        backend = IrQweb._get_asset_bundle(
+            "web.assets_web",
+            js=True,
+            css=False,
+            debug_assets=False,
+            assets_params=params,
+        )
+        backend_specs = set(
+            backend.get_native_module_data(with_bridges=False)["import_map"]
+        )
+        secondary = IrQweb._get_asset_bundle(
+            self.BUNDLE,
+            js=True,
+            css=False,
+            debug_assets=False,
+            assets_params=params,
+        )
+        own = set(secondary.get_native_module_data(with_bridges=False)["import_map"])
+        if not own or not backend_specs:
+            self.skipTest("bundles resolved empty (web assets unavailable)")
+        discovered, _ext = secondary._bridges._discover_bridge_specifiers(
+            own, set(IrQweb._external_libs())
+        )
+        backend_only = (set(discovered) & backend_specs) - own
+        scoped = IrQweb._get_secondary_shared_specs(
+            self.BUNDLE, params, ("web.assets_web",)
+        )
+        self.assertEqual(
+            backend_only - set(scoped),
+            set(),
+            "a module the backend page already carries was left to esbuild, "
+            "which inlines a second instance of it",
+        )
+
+    def test_a_provider_rendering_after_the_tests_bundle_is_reported(self):
+        IrQweb = self.env["ir.qweb"]
+        params = self.env["ir.asset"]._prepare_assets_params()
+        declared = IrQweb._get_secondary_provider_specs(self.BUNDLE, params, ())
+        if not declared:
+            self.skipTest("no declared parents resolved (web assets unavailable)")
+        # ``web.assets_frontend_minimal`` carries 11 modules; a layout that
+        # renders the tests bundle straight after it (room booking did until
+        # this was fixed) leaves every other provider too late to externalise.
+        with self.assertLogs("odoo.assets.esm", level="WARNING") as logs:
+            IrQweb._get_secondary_shared_specs(
+                self.BUNDLE, params, ("web.assets_frontend_minimal",)
+            )
+        self.assertTrue(
+            any("secondary_provider_renders_late" in line for line in logs.output),
+            logs.output,
+        )
+
+
+class TestFallbackBridgeExternals(TransactionCase):
+    """The per-file bridge must not evaluate libraries the bundle never uses.
+
+    ``_get_esm_nodes_debug`` renders ``debug=assets`` pages *and* every page
+    whose esbuild compile declined -- an unavailable build lock is enough
+    (``odoo.assets.fallback: event=lock_unavailable``).  Its bridge turns each
+    specifier into a static import, so anything listed here is code the page
+    runs, and the esbuild entry is the reference for what that list may hold.
+    """
+
+    def test_an_unrelated_bundle_bridges_owl_and_nothing_else(self):
+        IrQweb = self.env["ir.qweb"]
+        specs = IrQweb._bridge_external_specifiers(
+            {"import_map": {"@web/env": "/web/static/src/env.js"}}
+        )
+        self.assertEqual(specs, {"@odoo/owl"})
+
+    def test_a_bundle_carrying_hoot_bridges_its_aliases(self):
+        IrQweb = self.env["ir.qweb"]
+        specs = IrQweb._bridge_external_specifiers(
+            {
+                "import_map": {
+                    alias_target: f"/web/static/lib/{alias_target}.js"
+                    for alias_target in EXTERNAL_LIB_ALIASES.values()
+                }
+            }
+        )
+        self.assertEqual(specs, {"@odoo/owl", *EXTERNAL_LIB_ALIASES})
+
+    def test_the_app_bundles_do_not_bridge_the_test_framework(self):
+        IrQweb = self.env["ir.qweb"]
+        params = self.env["ir.asset"]._prepare_assets_params()
+        for bundle in ("web.assets_web", "web.assets_frontend_lazy"):
+            asset_bundle = IrQweb._get_asset_bundle(
+                bundle,
+                js=True,
+                css=False,
+                debug_assets=True,
+                assets_params=params,
+            )
+            native_data = asset_bundle.get_native_module_data()
+            if not native_data["import_map"]:
+                self.skipTest(f"{bundle} resolved empty (web assets unavailable)")
+            self.assertEqual(
+                IrQweb._bridge_external_specifiers(native_data),
+                {"@odoo/owl"},
+                f"{bundle} would evaluate the HOOT test framework on every page "
+                "served through the per-file fallback",
+            )
+
+
 class TestDebugIncludeImportMap(TransactionCase):
     def test_debug_import_map_has_no_shim_entries(self):
         IrQweb = self.env["ir.qweb"]
@@ -270,7 +430,7 @@ class TestEsmConfigValidation(TransactionCase):
         )
 
         IrQweb = self.env["ir.qweb"]
-        assets_params = self.env["ir.asset"]._get_asset_params()
+        assets_params = self.env["ir.asset"]._prepare_assets_params()
 
         parents = IrQweb._get_dynamic_parent_bundles(
             "web.assets_frontend_lazy", assets_params
@@ -296,7 +456,7 @@ class TestEsmConfigValidation(TransactionCase):
 
     def test_dynamic_children_are_deduplicated(self):
         IrQweb = self.env["ir.qweb"]
-        assets_params = self.env["ir.asset"]._get_asset_params()
+        assets_params = self.env["ir.asset"]._prepare_assets_params()
         names = [
             child.name
             for child in IrQweb._get_dynamic_child_bundles(
@@ -331,15 +491,15 @@ class TestEsmConfigValidation(TransactionCase):
         with self.assertRaisesRegex(ValueError, "both"):
             validate_esm_config({"p", "c"}, {"p": ["c"]}, {"p": ["c"]}, {})
 
-    def test_validate_external_libs_follows_esbuild_pattern(self):
-        AssetsBundle._validate_external_libs(
+    def test_check_external_libs_follows_esbuild_pattern(self):
+        AssetsBundle._check_external_libs(
             {
                 "@odoo/owl": "/web/static/lib/owl/owl.es.js",
                 "@odoo/not-listed": "/web/static/lib/owl/owl.es.js",
             },
         )
         with self.assertRaises(ValueError):
-            AssetsBundle._validate_external_libs(
+            AssetsBundle._check_external_libs(
                 {"left-pad": "/web/static/lib/owl/owl.es.js"},
             )
 
@@ -387,7 +547,7 @@ class TestEsmRegistryInstallationScope(TransactionCase):
 
     def test_absent_modules_contribute_empty_children_not_wrong_ones(self):
         registry = esm_registry()
-        installed = self.env["ir.asset"]._get_installed_addons_list()
+        installed = self.env["ir.asset"]._get_addons_installed()
         absent = {
             child
             for children in registry.dynamic_children.values()
@@ -399,7 +559,7 @@ class TestEsmRegistryInstallationScope(TransactionCase):
 
         children = self.env["ir.qweb"]._get_dynamic_child_bundles(
             "web.assets_web",
-            self.env["ir.asset"]._get_asset_params(),
+            self.env["ir.asset"]._prepare_assets_params(),
             debug_assets=True,
         )
         built = {child.name: child for child in children}
@@ -428,14 +588,14 @@ class TestSecondarySingletonSurface(TransactionCase):
         )
 
     def test_every_stubbed_specifier_is_owned_by_the_parent(self):
-        shared = self.env["ir.qweb"]._secondary_shared_specs(self.BUNDLE, {})
+        shared = self.env["ir.qweb"]._get_secondary_shared_specs(self.BUNDLE, {})
         if not shared:
             self.skipTest("no shared specifiers on this database")
 
         self.assertLessEqual(set(shared), self._specs(self.PARENT))
 
     def test_the_guarantee_stops_at_direct_imports(self):
-        shared = set(self.env["ir.qweb"]._secondary_shared_specs(self.BUNDLE, {}))
+        shared = set(self.env["ir.qweb"]._get_secondary_shared_specs(self.BUNDLE, {}))
         if not shared:
             self.skipTest("no shared specifiers on this database")
         parent_specs = self._specs(self.PARENT)
@@ -447,7 +607,7 @@ class TestSecondarySingletonSurface(TransactionCase):
             reachable_unstubbed,
             "the singleton guarantee now covers the whole parent surface -- "
             "drop this test and the shortfall paragraph in "
-            "_secondary_shared_specs",
+            "_get_secondary_shared_specs",
         )
 
 
@@ -464,7 +624,7 @@ class TestHootOwnership(TransactionCase):
         )
         self.assertTrue(specs, "the tour bundle must resolve to something")
 
-        owned = IrQweb._hoot_specifiers(self.TOUR_BUNDLE, specs)
+        owned = IrQweb._get_hoot_specifiers(self.TOUR_BUNDLE, specs)
 
         self.assertFalse(owned, f"Hoot does not own tour-bundle specifiers: {owned}")
 
@@ -472,7 +632,7 @@ class TestHootOwnership(TransactionCase):
         suite = "@im_livechat/../tests/embed/thread.test"
 
         self.assertEqual(
-            self.env["ir.qweb"]._hoot_specifiers("some.standalone_bundle", [suite]),
+            self.env["ir.qweb"]._get_hoot_specifiers("some.standalone_bundle", [suite]),
             [suite],
         )
 
@@ -480,7 +640,7 @@ class TestHootOwnership(TransactionCase):
         helper = "@web/../tests/_framework/mock_server/mock_server"
 
         self.assertEqual(
-            self.env["ir.qweb"]._hoot_specifiers(self.RUNNER_BUNDLE, [helper]),
+            self.env["ir.qweb"]._get_hoot_specifiers(self.RUNNER_BUNDLE, [helper]),
             [helper],
         )
 
@@ -488,7 +648,7 @@ class TestHootOwnership(TransactionCase):
         tour = "@web/../tests/tours/some_tour"
 
         self.assertFalse(
-            self.env["ir.qweb"]._hoot_specifiers(self.RUNNER_BUNDLE, [tour])
+            self.env["ir.qweb"]._get_hoot_specifiers(self.RUNNER_BUNDLE, [tour])
         )
 
 
@@ -509,7 +669,6 @@ class TestBridgeShimLiterals(TransactionCase):
         self.assertNotIn("get('@web/core/x')", shim)
         self.assertIn("_e0 = _m.alpha;", shim)
         self.assertIn("_e0 as alpha", shim)
-        # `export default <expr>` snapshots; `export { _d as default }` is live.
         self.assertNotIn("export default", shim)
         self.assertFalse(is_fallback)
 
@@ -521,7 +680,6 @@ class TestBridgeShimLiterals(TransactionCase):
         self.assertIn(" as class", shim)
         self.assertNotIn("const class", shim)
         self.assertNotIn("a-b", shim)
-        # `default` is published from `_d`, never re-read as a named member.
         self.assertNotIn("= _m.default;", shim)
 
     @unittest.skipUnless(shutil.which("node"), "node binary not available")
@@ -836,18 +994,6 @@ class TestDeepStubMirror(BaseCase):
 
 
 class TestBarePackageStubMirror(BaseCase):
-    """A bare package specifier (`@spreadsheet`) is stubbable like any other.
-
-    It used to be dropped with a `bare_package_stub_skipped` warning: the shim
-    was built and then thrown away, leaving the specifier pointed at the addon's
-    real `static/src`. Nothing imports `@spreadsheet` at runtime today — every
-    reference to it is a JSDoc `import("@spreadsheet")` type annotation — so the
-    hole cost nothing measurable, and closing it leaves `web.assets_web`
-    byte-identical. What it closes is the case where a bare package a parent
-    bundle *does* import gets inlined into that parent instead of deferring to
-    the child bundle that owns it, which would duplicate the module's state.
-    """
-
     BARE = "@probe"
     SUB = "@probe/core/network"
     ADDON_ALIAS = "--alias:@probe=./addons/probe/static/src"
@@ -856,7 +1002,6 @@ class TestBarePackageStubMirror(BaseCase):
         odoo_root = Path(tmp)
         real = odoo_root / "addons" / "probe" / "static" / "src"
         (real / "core").mkdir(parents=True)
-        # What the bare specifier resolves to without a stub.
         (real / "index.js").write_text("export const face = 'REAL_INDEX';")
         (real / "core" / "network.js").write_text("export const net = 'REAL_NET';")
         stub_root = odoo_root / "stubs"
@@ -882,7 +1027,6 @@ class TestBarePackageStubMirror(BaseCase):
         with tempfile.TemporaryDirectory() as tmp:
             stub_root, _real, _targets = self._build_mirror(tmp)
 
-            # Sub-path imports keep resolving through the mirror to the real file.
             self.assertEqual(
                 (stub_root / "probe" / "core" / "network.js").read_text(),
                 "export const net = 'REAL_NET';",
@@ -906,7 +1050,6 @@ class TestBarePackageStubMirror(BaseCase):
                 (stub_root / "probe" / "core" / "network.js").read_text(),
                 "export const net = 'SHIM_NET';",
             )
-            # The mirror must not have been written through into the source tree.
             self.assertEqual(
                 (real / "core" / "network.js").read_text(),
                 "export const net = 'REAL_NET';",
@@ -922,9 +1065,6 @@ class TestBarePackageStubMirror(BaseCase):
                 f"import {{ net }} from '{self.SUB}';\n"
                 "console.log(face, net);\n"
             )
-            # The scanned addon alias is dropped for a stubbed specifier, exactly
-            # as `compile()` does — leaving both would make the winner esbuild's
-            # choice rather than ours.
             stubbed = {key.removeprefix("--alias:") for key in targets}
             alias_flags = [
                 flag
@@ -950,7 +1090,6 @@ class TestBarePackageStubMirror(BaseCase):
             self.assertEqual(proc.returncode, 0, proc.stderr)
             self.assertIn("SHIM_INDEX", proc.stdout)
             self.assertNotIn("REAL_INDEX", proc.stdout)
-            # ...while an unstubbed sub-path still reaches the real module.
             self.assertIn("REAL_NET", proc.stdout)
 
 
@@ -962,7 +1101,7 @@ class TestEsbuildFailClosed(TransactionCase):
         patched = dict(tools.config._runtime_options)
         patched.update(config)
         with patch.dict(tools.config._runtime_options, patched, clear=False):
-            return qweb._esbuild_fail_closed(), EsbuildBundleError
+            return qweb._is_esbuild_fail_closed(), EsbuildBundleError
 
     def test_test_enable_fails_closed(self):
         fail_closed, _ = self._run(test_enable=True, dev_mode=[])
@@ -1061,7 +1200,9 @@ class TestEsbuildFailurePath(TransactionCase):
             "esbuild_native_bundle",
             side_effect=RuntimeError("esbuild exploded"),
         ):
-            return self.env["ir.qweb"]._esm_run_esbuild(NATIVE_BUNDLE, asset_bundle, {})
+            return self.env["ir.qweb"]._compile_with_esbuild_locked(
+                NATIVE_BUNDLE, asset_bundle, {}
+            )
 
     def test_a_compile_failure_raises_when_fail_closed(self):
         from odoo.addons.base.models.ir_qweb_assets import EsbuildBundleError
@@ -1851,37 +1992,188 @@ class TestExternalLibsValidator(BaseCase):
 
     def test_a_specifier_esbuild_cannot_resolve_is_refused(self):
         with self.assertRaisesRegex(ValueError, "no resolution for them"):
-            AssetsBundle._validate_external_libs(
+            AssetsBundle._check_external_libs(
                 {"left-pad": self.REAL_URL}, lib_candidates={}
             )
 
     def test_bare_externals_are_a_subset_of_the_declared_libs(self):
         from odoo.tools.assets.esm_registry import external_bare_specifiers
 
-        self.assertLessEqual(set(external_bare_specifiers()), set(external_libs()))
+        registered = external_libs()
+        # The subset assertion below is satisfied by two empty sets, so it
+        # cannot tell "every bare specifier is declared" from "the registry
+        # read nothing" -- ADR-0044's shape exactly. This guard is what makes
+        # the next line mean something. It arrived here from a duplicate of
+        # this class that `web` used to carry: the duplicate drifted (its
+        # absent-addon test still asserted the behaviour d025c1bb062 inverted)
+        # and was removed in favour of this one, which was a superset in every
+        # assertion but this.
+        self.assertTrue(registered, "no module declares an external lib")
+        self.assertLessEqual(set(external_bare_specifiers()), set(registered))
 
     def test_an_import_map_url_pointing_nowhere_is_refused(self):
         with self.assertRaisesRegex(ValueError, "do not exist"):
-            AssetsBundle._validate_external_libs(
+            AssetsBundle._check_external_libs(
                 {"@odoo/owl": "/web/static/lib/owl/does_not_exist.js"},
                 lib_candidates={},
             )
 
     def test_a_lib_alias_pointing_nowhere_is_refused(self):
         with self.assertRaisesRegex(ValueError, "_LIB_CANDIDATES aliases"):
-            AssetsBundle._validate_external_libs(
+            AssetsBundle._check_external_libs(
                 {},
                 lib_candidates={"@odoo/nope": ("web", "static", "lib", "nope.js")},
             )
 
-    def test_an_unknown_addon_in_the_url_is_not_mistaken_for_a_missing_file(self):
-        AssetsBundle._validate_external_libs(
-            {"@odoo/owl": "/no_such_addon_here/static/lib/x.js"},
-            lib_candidates={},
+    def test_an_unknown_addon_in_the_url_is_refused_like_any_other_missing_file(self):
+        with self.assertRaisesRegex(ValueError, "do not exist"):
+            AssetsBundle._check_external_libs(
+                {"@odoo/owl": "/no_such_addon_here/static/lib/x.js"},
+                lib_candidates={},
+            )
+
+    def test_a_lib_candidate_in_an_absent_addon_is_skipped(self):
+        """The asymmetry with the import map above, pinned.
+
+        _LIB_CANDIDATES is a static table naming addons a given deployment may
+        not carry, and _get_esbuild_addon_flags already skips a candidate whose
+        file is absent, so nothing imports the alias. Dropping the
+        _addon_is_present guard from that loop -- to match the import map, which
+        deliberately has none -- would make every deployment without the addon
+        raise on a lib it never uses.
+        """
+        AssetsBundle._check_external_libs(
+            {},
+            lib_candidates={"@odoo/nope": ("no_such_addon_here", "static", "x.js")},
         )
 
+    def test_every_declared_lib_is_served_by_its_own_addon(self):
+        from odoo.modules import Manifest
+        from odoo.tools.assets.esbuild import EsbuildCompiler
+
+        cross_addon = []
+        for manifest in Manifest.all_addon_manifests():
+            declared = (manifest.get("esm") or {}).get("external_libs") or {}
+            for spec, url in declared.items():
+                if url.lstrip("/").split("/")[0] != manifest.name:
+                    cross_addon.append(f"{spec}: {manifest.name} declares {url}")
+        self.assertFalse(
+            cross_addon,
+            "a lib is declared by one addon and served by another; the strict "
+            "addon check in `_addon_relative_path_exists` assumes this does not "
+            "happen, so decide which of the two changes:\n  "
+            + "\n  ".join(cross_addon),
+        )
+        for alias, parts in EsbuildCompiler._LIB_CANDIDATES.items():
+            self.assertTrue(
+                AssetsBundle._addon_relative_path_exists("/".join(parts)),
+                f"{alias} points at {'/'.join(parts)}, which this checkout cannot "
+                f"serve; a lib alias must live in a bundled addon",
+            )
+
     def test_the_live_tables_satisfy_all_four(self):
-        AssetsBundle._validate_external_libs(external_libs())
+        AssetsBundle._check_external_libs(external_libs())
+
+
+class TestSpecifierResolutionHasOneOwner(BaseCase):
+    def _tables(self):
+        from odoo.tools.assets.esbuild import EsbuildCompiler
+        from odoo.tools.assets.esm_registry import external_libs
+
+        return external_libs(), EsbuildCompiler._LIB_CANDIDATES
+
+    def test_every_lib_candidate_resolves(self):
+        from odoo.tools.assets.esm_graph import resolve_specifier_url
+
+        ext, libs = self._tables()
+        for spec in libs:
+            self.assertIsNotNone(
+                resolve_specifier_url(spec, ext, libs),
+                f"{spec} is aliased for esbuild but the page could not resolve it",
+            )
+
+    def test_the_resolver_and_the_qweb_call_site_agree(self):
+        from odoo.tools.assets.esm_graph import (
+            _BridgeExportResolver,
+            resolve_specifier_url,
+        )
+
+        ext, libs = self._tables()
+        resolver = _BridgeExportResolver(ext, libs, "test")
+        for spec in [*ext, *libs, "@web/core/registry", "@web/../lib/luxon/luxon"]:
+            self.assertEqual(
+                resolver.resolve_url(spec),
+                resolve_specifier_url(spec, ext, libs),
+                f"{spec} resolves differently through the two entry points",
+            )
+
+    def test_declared_tables_beat_the_naming_convention(self):
+        from odoo.tools.assets.esm_graph import (
+            addon_specifier_to_url,
+            resolve_specifier_url,
+        )
+
+        self.assertEqual(
+            resolve_specifier_url("@odoo/x", {}, {"@odoo/x": ("a", "b", "c.js")}),
+            "/a/b/c.js",
+        )
+        self.assertIsNone(resolve_specifier_url("@odoo/x", {}, {}))
+        self.assertIsNone(addon_specifier_to_url("@odoo/x"))
+
+
+class TestBrokenManifestDoesNotTakeThePageDown(BaseCase):
+    def _check_with(self, bad_table, fails_closed):
+        from odoo.addons.base.models.assetsbundle import bundle as bundle_mod
+
+        bundle_mod._check_external_libs_once.cache_clear()
+        self.addCleanup(bundle_mod._check_external_libs_once.cache_clear)
+        with (
+            patch.object(bundle_mod, "external_libs", lambda: bad_table),
+            patch.object(
+                bundle_mod.JsPipeline,
+                "_fails_closed",
+                staticmethod(lambda: fails_closed),
+            ),
+        ):
+            bundle_mod._check_external_libs_once()
+
+    def test_production_logs_instead_of_raising(self):
+        with self.assertLogs("odoo.assets.bundle", level="ERROR") as logs:
+            self._check_with({"@odoo/owl": "/web/static/lib/owl/NOPE.js"}, False)
+        self.assertTrue(
+            any("external_libs_invalid" in line for line in logs.output), logs.output
+        )
+
+    def test_a_session_with_a_reader_still_raises(self):
+        with self.assertRaises(ValueError):
+            self._check_with({"@odoo/owl": "/web/static/lib/owl/NOPE.js"}, True)
+
+    def test_the_validator_itself_still_raises_when_called_directly(self):
+        with self.assertRaisesRegex(ValueError, "do not exist"):
+            AssetsBundle._check_external_libs(
+                {"@odoo/owl": "/web/static/lib/owl/NOPE.js"}, lib_candidates={}
+            )
+
+
+class TestLexModuleIsMemoised(BaseCase):
+    def test_the_same_source_is_lexed_once(self):
+        from odoo.tools.assets import esm_lexer
+
+        esm_lexer.clear_lex_cache()
+        self.addCleanup(esm_lexer.clear_lex_cache)
+        calls = []
+
+        def _spy(src):
+            calls.append(src)
+            return {"imports": [], "names": [], "starFrom": [], "hasDefault": False}
+
+        with patch.object(esm_lexer._worker, "request", _spy):
+            src = "export const memo_probe = 1;\n"
+            first = esm_lexer.lex_module(src)
+            second = esm_lexer.lex_module(src)
+            esm_lexer.lex_module("export const other_probe = 2;\n")
+        self.assertEqual(len(calls), 2, "identical sources must reach the worker once")
+        self.assertIs(first, second)
 
 
 class TestEsmManifestShapeGuards(BaseCase):
@@ -1933,19 +2225,12 @@ class TestEsmManifestShapeGuards(BaseCase):
             self._build_with({"bundles": ["a.b"], "runtime_bundles": ["a.c"]})
 
     def test_runtime_bundles_needs_no_parent(self):
-        """The point of the key: `/web/bundle` asks about the bundle, not a page.
-
-        Gating the route on `dynamic_children` forced every author to name a
-        parent page for a fact that is not about any page, and a missed parent
-        fell through to the legacy branch silently.
-        """
         registry = self._build_with({"bundles": ["a.b"], "runtime_bundles": ["a.b"]})
         self.assertIn("a.b", registry.runtime_bundle_names)
         self.assertEqual(registry.dynamic_children, {})
         self.assertEqual(registry.dynamic_bundle_names, frozenset())
 
     def test_a_dynamic_child_is_a_runtime_bundle_without_saying_so(self):
-        """Back-compat: a lazy child is fetched at runtime by definition."""
         registry = self._build_with(
             {"bundles": ["a.b", "a.c"], "dynamic_children": {"a.b": ["a.c"]}}
         )

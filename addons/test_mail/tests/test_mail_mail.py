@@ -808,7 +808,7 @@ class TestMailMail(MailCommon):
         managed and stored at mail and notification level."""
         mail, notification = self.test_mail, self.test_notification
 
-        # MailServer._build_email__(): invalid from (missing)
+        # MailServer._prepare_email__(): invalid from (missing)
         for default_from in [False, ""]:
             self.mail_alias_domain.default_from = default_from
             self._reset_data()
@@ -3856,7 +3856,7 @@ class TestMailMailOutcomeWrites(MailCommon):
     def test_an_unchanged_message_id_is_not_written_back(self):
         """`message_id` lives on `mail.message`, and it never changes here.
 
-        `_prepare_outgoing_list` hands `self.message_id` to `_build_email__`,
+        `_prepare_outgoing_list` hands `self.message_id` to `_prepare_email__`,
         which uses it verbatim, and `send_email` returns it; `mail.message.create`
         always fills it. Writing it back therefore cost an UPDATE on the busiest
         table in the module and a read to resolve the parent, on every send, and
