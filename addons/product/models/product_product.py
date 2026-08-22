@@ -1864,6 +1864,65 @@ class ProductProduct(models.Model):
         """
         return True
 
+    def _restamp_uom(
+        self,
+        model,
+        to_uom_id,
+        domain=None,
+        product_field="product_id",
+        context=None,
+    ):
+        """Rewrite ``product_uom_id`` on every ``model`` record of ``self``.
+
+        Refuses the change when a record already uses a unit *other* than the
+        product's own: it carries a quantity expressed in that unit, and rewriting
+        the unit alone would silently reinterpret the quantity. Because of that
+        guard every surviving group is one product at its own unit, so the writes
+        are collected and issued once instead of once per group.
+
+        Four modules carried this loop -- ``stock`` (twice), ``base_order``,
+        ``repair`` and ``mrp`` (three times) -- differing only in the model, what
+        identifies the product on it, the domain that selects its rows, and four
+        drifted spellings of one sentence. ``mrp`` needs ``product_tmpl_id`` and a
+        ``mail_notrack`` context, hence the last two parameters.
+
+        :param str model: model to rewrite
+        :param int to_uom_id: id of the ``uom.uom`` to move the records to
+        :param domain: rows to select, default every row of ``self``
+        :param str product_field: field naming the product, grouped on
+        :param dict context: extra context for the write
+        :raise UserError: if a record uses a unit other than the product's own
+        """
+        Model = self.env[model]
+        if domain is None:
+            domain = [("product_id", "in", self.ids)]
+        to_write = Model.browse()
+        for uom, product, records in Model._read_group(
+            domain, ["product_uom_id", product_field], ["id:recordset"]
+        ):
+            template = (
+                product
+                if product._name == "product.template"
+                else product.product_tmpl_id
+            )
+            if uom != template.uom_id:
+                raise UserError(
+                    self.env._(
+                        "Other units of measure (e.g., %(problem_uom)s) have already "
+                        "been used for this product. The unit of measure cannot be "
+                        "changed from %(uom)s. If you want to change it, please "
+                        "archive the product and create a new one.",
+                        problem_uom=uom.display_name,
+                        uom=template.uom_id.display_name,
+                    ),
+                )
+            to_write |= records
+        if to_write:
+            if context:
+                to_write = to_write.with_context(**context)
+            to_write.product_uom_id = to_uom_id
+        return to_write
+
     def _check_duplicated_product_barcodes(self, barcodes_within_company, company_id):
         domain = self._get_barcode_search_domain(barcodes_within_company, company_id)
         products_by_barcode = self.sudo()._read_group(

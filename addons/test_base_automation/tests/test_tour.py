@@ -1,10 +1,10 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 from urllib.parse import urlencode
-import ast
 
 from odoo import Command
-
 from odoo.tests import HttpCase, tagged
+
+from odoo.addons.base.models.ir_actions import eval_action_context
 
 
 def _urlencode_kwargs(**kwargs):
@@ -16,7 +16,7 @@ class BaseAutomationTestUi(HttpCase):
     def _neutralize_preexisting_automations(self, neutralize_action=True):
         self.env["base.automation"].with_context(active_test=False).search([]).write({"active": False})
         if neutralize_action:
-            context = ast.literal_eval(self.env.ref("base_automation.base_automation_act").context)
+            context = eval_action_context(self.env.ref("base_automation.base_automation_act").context, self.env)
             del context["search_default_inactive"]
             self.env.ref("base_automation.base_automation_act").context = str(context)
 

@@ -1,11 +1,12 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 import json
-from ast import literal_eval
 from collections import defaultdict
 
 from odoo import models
 from odoo.fields import Domain
+
+from odoo.addons.base.models.ir_actions import eval_action_context
 
 
 class ProjectProject(models.Model):
@@ -175,7 +176,7 @@ class ProjectProject(models.Model):
     def action_open_analytic_items(self):
         action = self.env['ir.actions.act_window']._get_action_dict_by_xml_id('analytic.account_analytic_line_action_entries')
         action['domain'] = [('account_id', '=', self.account_id.id)]
-        context = literal_eval(action['context'])
+        context = eval_action_context(action['context'], self.env)
         action['context'] = {
             **context,
             'create': self.env.context.get('from_embedded_action', False),

@@ -11,6 +11,8 @@ from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tools import _
 
+from odoo.addons.base.models.ir_actions import eval_action_context
+
 # When recycle_mode = automatic, _recycle_records calls action_validate.
 # This is quite slow so requires smaller batch size.
 DR_CREATE_STEP_AUTO = 5000
@@ -200,7 +202,7 @@ class Data_RecycleModel(models.Model):
     def open_records(self):
         self.ensure_one()
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("data_recycle.action_data_recycle_record")
-        action['context'] = dict(ast.literal_eval(action.get('context')), searchpanel_default_recycle_model_id=self.id)
+        action['context'] = dict(eval_action_context(action.get('context'), self.env), searchpanel_default_recycle_model_id=self.id)
         return action
 
     def action_recycle_records(self):

@@ -1,4 +1,3 @@
-import ast
 import json
 from collections import defaultdict, deque
 from datetime import timedelta
@@ -17,6 +16,7 @@ from odoo.tools.translate import _
 
 from .project_task import CLOSED_STATES, DELIVERED_STATES
 from .project_update import STATUS_COLOR
+from odoo.addons.base.models.ir_actions import eval_action_context
 from odoo.addons.mail.tools.discuss import Store
 from odoo.addons.rating.models import rating_data
 
@@ -2499,7 +2499,7 @@ class ProjectProject(models.Model):
         )
         action["display_name"] = _("%(name)s's Burndown Chart", name=self.name)
         context = action["context"].replace("active_id", str(self.id))
-        context = ast.literal_eval(context)
+        context = eval_action_context(context, self.env)
         context.update(
             {
                 "stage_name_and_sequence_per_id": {
@@ -2596,7 +2596,7 @@ class ProjectProject(models.Model):
         )
         action["display_name"] = self.name
         context = action["context"].replace("active_id", str(self.id))
-        context = ast.literal_eval(context)
+        context = eval_action_context(context, self.env)
         context.update(
             {
                 "create": self.active,
@@ -2623,7 +2623,9 @@ class ProjectProject(models.Model):
         )
         action["display_name"] = _("%(name)s's Rating", name=self.name)
         action_context = (
-            ast.literal_eval(action["context"]) if action["context"] else {}
+            eval_action_context(action["context"], self.env)
+            if action["context"]
+            else {}
         )
         action_context.update(self.env.context)
         action_context["search_default_filter_write_date"] = (
@@ -2658,7 +2660,9 @@ class ProjectProject(models.Model):
         )
         action["display_name"] = _("%(name)s's Tasks Analysis", name=self.name)
         action_context = (
-            ast.literal_eval(action["context"]) if action["context"] else {}
+            eval_action_context(action["context"], self.env)
+            if action["context"]
+            else {}
         )
         action_context["search_default_project_id"] = self.id
         return dict(action, context=action_context)

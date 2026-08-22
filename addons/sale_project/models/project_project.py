@@ -1,6 +1,5 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import ast
 import json
 from collections import defaultdict
 
@@ -9,6 +8,8 @@ from odoo.fields import Domain
 from odoo.tools import SQL, Query
 from odoo.tools.misc import unquote
 from odoo.tools.translate import _
+
+from odoo.addons.base.models.ir_actions import eval_action_context
 
 
 class ProjectProject(models.Model):
@@ -242,7 +243,7 @@ class ProjectProject(models.Model):
         action_window["display_name"] = self.env._("%(name)s's %(action_name)s", name=self.name, action_name=action_window.get('name'))
         action_window["domain"] = self._get_sale_orders_domain(all_sale_orders)
         action_window['context'] = {
-            **ast.literal_eval(action_window['context']),
+            **eval_action_context(action_window['context'], self.env),
             "create": self.env.context.get("create_for_project_id", embedded_action_context),
             "show_sale": True,
             "default_partner_id": self.partner_id.id,
@@ -284,7 +285,7 @@ class ProjectProject(models.Model):
             action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("account.action_move_out_invoice_type")
             action['domain'] = domain or []
             action['context'] = {
-                **ast.literal_eval(action['context']),
+                **eval_action_context(action['context'], self.env),
                 'default_partner_id': self.partner_id.id,
                 'project_id': self.id,
             }

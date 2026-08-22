@@ -1,9 +1,10 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import ast
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
+
+from odoo.addons.base.models.ir_actions import eval_action_context
 
 
 class SurveySurvey(models.Model):
@@ -63,7 +64,7 @@ class SurveySurvey(models.Model):
             action.update({'views': [[False, 'list'], [False, 'form']],
                            'domain': [('id', 'in', self.slide_channel_ids.ids)]})
         action['context'] = dict(
-            ast.literal_eval(action.get('context') or '{}'),  # sufficient in most cases
+            eval_action_context(action.get('context') or '{}', self.env),  # sufficient in most cases
             create=False
         )
         return action

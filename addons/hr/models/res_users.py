@@ -1,6 +1,5 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import ast
 
 from markupsafe import Markup
 
@@ -8,6 +7,8 @@ from odoo import SUPERUSER_ID, _, api, fields, models
 from odoo.exceptions import AccessError
 from odoo.fields import Domain
 from odoo.tools.misc import clean_context
+
+from odoo.addons.base.models.ir_actions import eval_action_context
 
 HR_READABLE_FIELDS = [
     "active",
@@ -409,7 +410,9 @@ class ResUsers(models.Model):
                 if group_xml_id
             }
             action_context = (
-                ast.literal_eval(action["context"]) if action["context"] else {}
+                eval_action_context(action["context"], self.env)
+                if action["context"]
+                else {}
             )
             action_context.update(groups)
             action["context"] = str(action_context)

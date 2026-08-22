@@ -6,6 +6,8 @@ from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 
+from odoo.addons.base.models.ir_actions import eval_action_context
+
 
 class HrDepartment(models.Model):
     _name = "hr.department"
@@ -213,7 +215,8 @@ class HrDepartment(models.Model):
             "hr.mail_activity_plan_action"
         )
         action["context"] = dict(
-            ast.literal_eval(action.get("context")), default_department_id=self.id
+            eval_action_context(action.get("context"), self.env),
+            default_department_id=self.id,
         )
         domain = [
             "|",

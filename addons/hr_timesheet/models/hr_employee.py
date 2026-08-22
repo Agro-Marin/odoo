@@ -1,10 +1,11 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from ast import literal_eval
 
-from odoo import api, models, fields, _
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.tools import SQL
+
+from odoo.addons.base.models.ir_actions import eval_action_context
 
 
 class HrEmployee(models.Model):
@@ -69,7 +70,9 @@ class HrEmployee(models.Model):
 
     def action_timesheet_from_employee(self):
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id("hr_timesheet.timesheet_action_from_employee")
-        context = literal_eval(action['context'].replace('active_id', str(self.id)))
+        context = eval_action_context(
+            action['context'], self.env, active_id=self.id
+        )
         context['create'] = context.get('create', True) and self.active
         action['context'] = context
         return action

@@ -7,6 +7,7 @@ from odoo.exceptions import ValidationError
 from odoo.tests.common import ADMIN_USER_ID, TransactionCase, tagged
 from odoo.tools import mute_logger
 
+from odoo.addons.base.models.ir_actions import eval_action_context
 from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
 
 _logger = logging.getLogger(__name__)
@@ -226,7 +227,7 @@ class TestAllFilters(TransactionCase):
     def test_filters(self):
         for filter_ in self.env["ir.filters"].search([]):
             with self.subTest(name=filter_.name):
-                context = ast.literal_eval(filter_.context)
+                context = eval_action_context(filter_.context, self.env)
                 groupby = context.get("group_by")
                 self.check_filter(
                     name=filter_.name,

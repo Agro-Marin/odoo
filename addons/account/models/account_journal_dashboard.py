@@ -16,6 +16,8 @@ from odoo.tools import SQL
 from odoo.tools.misc import format_date as odoo_format_date
 from odoo.tools.misc import get_lang
 
+from odoo.addons.base.models.ir_actions import eval_action_context
+
 
 def group_by_journal(vals_list):
     res = defaultdict(list)
@@ -1214,7 +1216,7 @@ class AccountJournal(models.Model):
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(action_name)
 
         if "context" in action and isinstance(action["context"], str):
-            action_context = ast.literal_eval(action["context"])
+            action_context = eval_action_context(action["context"], self.env)
         else:
             action_context = action.get("context", {})
         action["context"] = {
@@ -1262,7 +1264,7 @@ class AccountJournal(models.Model):
             action_ref = "account.action_account_all_payments"
         action = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(action_ref)
         action["context"] = dict(
-            ast.literal_eval(action.get("context")),
+            eval_action_context(action.get("context"), self.env),
             default_journal_id=self.id,
             search_default_journal_id=self.id,
         )

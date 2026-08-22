@@ -1,10 +1,11 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from ast import literal_eval
 
 from lxml import etree
 
 import odoo.tests
+
+from odoo.addons.base.models.ir_actions import eval_action_context
 
 
 @odoo.tests.tagged('-at_install', 'post_install')
@@ -22,7 +23,7 @@ class TestUi(odoo.tests.HttpCase):
         company_type_field = self.env['res.partner']._fields['company_type']
         self.assertTrue(company_type_field.compute)
         self.assertFalse(company_type_field.readonly)
-        action_context = literal_eval(self.env.ref('contacts.action_contacts').context)
+        action_context = eval_action_context(self.env.ref('contacts.action_contacts').context, self.env)
         self.assertTrue(action_context.get('default_is_company'))
         # Make sure there is currently no user-defined default on res.partner.company_type
         # so "Company" is the default value for the field res.partner.company_type

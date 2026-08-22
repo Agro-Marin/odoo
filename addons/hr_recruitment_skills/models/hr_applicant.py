@@ -1,8 +1,9 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from ast import literal_eval
 
 from odoo import Command, api, fields, models
+
+from odoo.addons.base.models.ir_actions import eval_action_context
 
 
 class HrApplicant(models.Model):
@@ -135,7 +136,9 @@ class HrApplicant(models.Model):
             }
         )
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id("hr_recruitment.action_hr_job_applications")
-        action["context"] = literal_eval(action["context"].replace("active_id", str(self.job_id.id)))
+        action["context"] = eval_action_context(
+            action["context"], self.env, active_id=self.job_id.id
+        )
         return action
 
     @api.model_create_multi

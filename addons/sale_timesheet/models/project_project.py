@@ -1,13 +1,14 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import ast
 import json
 
 from odoo import api, fields, models
+from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.tools import SQL
-from odoo.exceptions import ValidationError, UserError
 from odoo.tools.translate import _
+
+from odoo.addons.base.models.ir_actions import eval_action_context
 
 
 class ProjectProject(models.Model):
@@ -266,7 +267,7 @@ class ProjectProject(models.Model):
         if not self.allow_billable:
             context = action['context'].replace('active_id', str(self.id))
             action['context'] = {
-                **ast.literal_eval(context),
+                **eval_action_context(context, self.env),
                 'hide_so_line': True,
             }
         return action

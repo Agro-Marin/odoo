@@ -1,8 +1,9 @@
-from ast import literal_eval
 
 from markupsafe import Markup
 
 from odoo import api, fields, models
+
+from odoo.addons.base.models.ir_actions import eval_action_context
 
 
 class HrJob(models.Model):
@@ -48,7 +49,7 @@ class HrJob(models.Model):
         help_message_1 = self.env._("No Matching Applicants")
         help_message_2 = self.env._("We do not have any applicants who meet the skill requirements for this job position in the database at the moment.")
         action = self.env['ir.actions.actions']._get_action_dict_by_xml_id('hr_recruitment.crm_case_categ0_act_job')
-        context = literal_eval(action['context'])
+        context = eval_action_context(action['context'], self.env)
         context['matching_job_id'] = self.id
         action.update({
             'name': self.env._("Matching Applicants"),

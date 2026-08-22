@@ -1,7 +1,8 @@
-import ast
 from typing import Any
 
 from odoo import _, api, models
+
+from odoo.addons.base.models.ir_actions import eval_action_context
 
 
 class SurveySurvey(models.Model):
@@ -509,6 +510,6 @@ class SurveySurvey(models.Model):
         action["views"] = [[self.env.ref("survey.survey_survey_view_form").id, "form"]]
         action["res_id"] = self.id
         action["context"] = dict(
-            ast.literal_eval(action.get("context", "{}")), create=False
+            eval_action_context(action.get("context", "{}"), self.env), create=False
         )
         return action

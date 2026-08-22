@@ -9,6 +9,8 @@ from odoo import _, api, fields, models
 from odoo.exceptions import MissingError, ValidationError
 from odoo.fields import Domain
 
+from odoo.addons.base.models.ir_actions import eval_action_context
+
 _logger = logging.getLogger(__name__)
 
 
@@ -192,7 +194,7 @@ class WebsiteSnippetFilter(models.Model):
                 order = None
             else:
                 domain = Domain(filter_sudo._get_eval_domain())
-                context = literal_eval(filter_sudo.context)
+                context = eval_action_context(filter_sudo.context, self.env)
                 order = ",".join(literal_eval(filter_sudo.sort)) or None
             if "website_id" in model:
                 domain &= self.env["website"].get_current_website().website_domain()

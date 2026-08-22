@@ -1,9 +1,10 @@
 """Wizard to archive or delete project phases."""
 
-from ast import literal_eval
 from typing import Any
 
 from odoo import api, fields, models
+
+from odoo.addons.base.models.ir_actions import eval_action_context
 
 
 class ProjectPhaseDeleteWizard(models.TransientModel):
@@ -87,7 +88,7 @@ class ProjectPhaseDeleteWizard(models.TransientModel):
 
         context = action.get("context", "{}")
         context = context.replace("uid", str(self.env.uid))
-        context = dict(literal_eval(context), active_test=True)
+        context = dict(eval_action_context(context, self.env), active_test=True)
         action["context"] = context
         action["target"] = "main"
         return action

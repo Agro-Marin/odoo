@@ -1,9 +1,10 @@
 import uuid
-from ast import literal_eval
 from urllib.parse import urlencode
 
 from odoo import api, fields, models
 from odoo.exceptions import AccessError
+
+from odoo.addons.base.models.ir_actions import eval_action_context
 
 
 class MixinPortal(models.AbstractModel):
@@ -95,7 +96,7 @@ class MixinPortal(models.AbstractModel):
         action["context"] = {
             "active_id": self.env.context.get("active_id"),
             "active_model": self.env.context.get("active_model"),
-            **literal_eval(action["context"]),
+            **eval_action_context(action["context"], self.env),
         }
         return action
 

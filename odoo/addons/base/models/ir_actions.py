@@ -30,6 +30,24 @@ def _eval_dict_or_default(
     return result if isinstance(result, dict) else default
 
 
+def eval_action_context(context: str | None, env, **names: Any) -> dict:
+    """An action's stored ``context``, read the way this module reads one.
+
+    A stored context is an expression, not a literal: 206 of the 1017 shipped
+    ``ir.actions.act_window`` records name something -- ``active_id``, ``uid``,
+    ``allowed_company_ids`` -- and ``ast.literal_eval`` raises on every one of
+    them.  Callers that want the dict evaluate it against their own context and
+    take ``{}`` when it cannot be read, which is what ``_empty_list_help`` and
+    ``IrActionsTodo`` have always done; this is that, named.
+
+    ``names`` supplies what the caller knows and its own context does not -- an
+    ``active_id`` the caller holds rather than carries.  Passing it beats
+    substituting it into the string, which only ever works for the one name the
+    caller thought of.
+    """
+    return _eval_dict_or_default(context, {**env.context, **names}, {})
+
+
 class IrActionsActions(models.Model):
     _name = "ir.actions.actions"
     _description = "Actions"
