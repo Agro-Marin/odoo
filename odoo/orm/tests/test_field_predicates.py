@@ -25,13 +25,6 @@ PREDICATE_TYPES: dict[str, frozenset[str]] = {
 }
 
 UNCONVERTED: dict[str, str] = {}
-"""Files still comparing `.type` against a migrated set, with the reason.
-
-Empty, and the second test below keeps it that way honestly: an entry naming a
-file with nothing left to convert fails, so this cannot quietly become a place
-to put inconvenient sites. It held ``orm/domain/optimizations.py`` for one
-commit, while another session had uncommitted work in it.
-"""
 
 
 class TestPredicatesMatchTheTypeStrings(unittest.TestCase):

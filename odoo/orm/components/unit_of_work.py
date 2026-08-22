@@ -9,25 +9,8 @@ if TYPE_CHECKING:
     from .compute import ComputeEngine
 
 STALL_REPEATS = 16
-"""Consecutive no-change passes before a loop is declared stalled.
-
-Above 1 so that a ``recompute_fn`` making progress the pending map cannot
-express (see :meth:`UnitOfWork.run_recompute_loop`) is not cut short, far below
-``max_iterations`` so a genuine cycle fails in seconds instead of grinding
-through a thousand full passes.
-"""
 
 SNAPSHOT_AFTER = 3
-"""Passes a loop may run before it starts snapshotting for the stall detector.
-
-A snapshot is ``{field: frozenset(ids)}`` over everything pending (and dirty),
-so it costs one frozenset per field and is O(total entries) — negligible next to
-a pass that recomputes and writes them, but *not* negligible when the loop
-converges in one or two passes and the snapshot is the only extra work.  A
-``create()`` of a thousand records measured 3.6% slower with it taken
-unconditionally.  Real flushes converge in a handful of passes; only a loop that
-is already failing to converge reaches this threshold and starts paying.
-"""
 
 
 @dataclass(slots=True)

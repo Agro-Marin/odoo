@@ -71,14 +71,6 @@ IGNORED_MSGS = re.compile(
 
 
 TARGET_GONE = re.compile(r"inspected target navigated or closed", re.IGNORECASE).search
-"""Match the CDP error raised when a command outlives the page it addressed.
-
-``_wait_ready`` polls ``Runtime.evaluate`` *while the page is still loading*,
-so the page navigating out from under an in-flight evaluate is the normal
-course of events, not a failure — the poll simply has to be retried against
-the new target.  Letting it escape made every tour a coin flip on how the
-navigation happened to interleave with the poll.
-"""
 
 
 class ChromeBrowserException(Exception):
@@ -175,6 +167,7 @@ class ChromeBrowser:
             "Runtime.exceptionThrown": self._handle_exception,
             "Page.frameStoppedLoading": self._handle_frame_stopped_loading,
             "Page.screencastFrame": self.screencaster,
+            "ServiceWorker.workerErrorReported": self._handle_service_worker_error,
         }
         for attempt in range(5):
             self._receiver = threading.Thread(
@@ -193,6 +186,7 @@ class ChromeBrowser:
             self._receiver.start()
         self._logger.info("Enable chrome headless console log notification")
         self._websocket_send("Runtime.enable")
+        self._websocket_send("ServiceWorker.enable")
         self._websocket_request("Fetch.enable")
         self._logger.info("Chrome headless enable page notifications")
         self._websocket_send("Page.enable")
@@ -309,11 +303,6 @@ class ChromeBrowser:
         with log_path.open("wb") as log_file:
             proc = subprocess.Popen(
                 cmd,
-                # Both streams, not just stderr. Left to inherit, Chrome and
-                # every process it forks hold the runner's stdout -- the file a
-                # test log is read from -- for the whole life of the browser,
-                # and write into it unattributed. That is the other half of the
-                # output ``err.log`` exists to keep out of the log.
                 stdout=log_file,
                 stderr=log_file,
                 preexec_fn=_preexec,  # noqa: PLW1509  see comment above
@@ -555,6 +544,18 @@ class ChromeBrowser:
         self._logger.debug("\n-> %s", payload)
         self.ws.send(json.dumps(payload))
         return result
+
+    def _handle_service_worker_error(self, errorMessage: dict, **kw: Any) -> None:
+        source = errorMessage.get("sourceURL") or ""
+        if source.startswith("chrome-extension://"):
+            return
+        self._logger.getChild("browser").error(
+            "Service worker error: %s (%s:%s:%s)",
+            errorMessage.get("errorMessage"),
+            source or "<no source>",
+            errorMessage.get("lineNumber"),
+            errorMessage.get("columnNumber"),
+        )
 
     def _handle_request_paused(self, **params: Any) -> None:
         url = params["request"]["url"]

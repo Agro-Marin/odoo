@@ -20,6 +20,19 @@ _esbuild_log = get_asset_logger("esbuild")
 
 EXTERNAL_SPECIFIER_PREFIX = "@odoo/"
 
+# External-lib specifiers that are merely another name for a file a bundle can
+# itself carry.  Registering one in ``odoo.loader.modules`` is legitimate only
+# when the bundle provides the aliased module, never unconditionally: the three
+# below are the HOOT test framework, and a page that registers them has loaded
+# the test framework.  Both renderers consult this table -- the esbuild entry in
+# ``_esbuild_entry_lines`` and the per-file fallback in
+# ``IrQweb._get_esm_nodes_debug`` -- so they cannot drift apart.
+EXTERNAL_LIB_ALIASES = {
+    "@odoo/hoot": "@web/../lib/hoot/hoot",
+    "@odoo/hoot-dom": "@web/../lib/hoot-dom/hoot-dom",
+    "@odoo/hoot-mock": "@web/../lib/hoot/hoot-mock",
+}
+
 
 class EsbuildResult(NamedTuple):
     code: str
@@ -163,37 +176,6 @@ class EsbuildCompiler:
 
     _LIB_CANDIDATES: dict[str, tuple[str, ...]] = {
         "@odoo/hoot-dom": ("web", "static", "lib", "hoot-dom", "hoot-dom.js"),
-        "@odoo/hoot-dom-helpers-dom": (
-            "web",
-            "static",
-            "lib",
-            "hoot-dom",
-            "helpers",
-            "dom.js",
-        ),
-        "@odoo/hoot-dom-helpers-events": (
-            "web",
-            "static",
-            "lib",
-            "hoot-dom",
-            "helpers",
-            "events.js",
-        ),
-        "@odoo/hoot-dom-helpers-time": (
-            "web",
-            "static",
-            "lib",
-            "hoot-dom",
-            "helpers",
-            "time.js",
-        ),
-        "@odoo/hoot-dom-utils": (
-            "web",
-            "static",
-            "lib",
-            "hoot-dom",
-            "hoot_dom_utils.js",
-        ),
         "@popperjs/core": (
             "web",
             "static",
@@ -384,17 +366,6 @@ class EsbuildCompiler:
         tmp_dir: str,
         odoo_root: Path,
     ) -> list[str]:
-        """Return ``alias_flags`` with the secondary-parent stub mirror applied.
-
-        A stub's alias must *replace* any alias the addon scan already emitted
-        for the same specifier, not sit beside it — with two ``--alias:`` flags
-        for one specifier, which of them wins is esbuild's business, not ours.
-        That is what a bare package (``@spreadsheet``, aliased to its
-        ``static/src``) always hits, and what a ``_LIB_CANDIDATES`` entry aliased
-        straight to a file (``@odoo/hoot-dom``) would hit too. A plain sub-path
-        specifier (``@web/core/network``) has no scanned alias, so nothing is
-        dropped for it.
-        """
         if not secondary_parent_stubs:
             return alias_flags
         stub_flags = self._write_stub_mirror(
@@ -480,13 +451,8 @@ class EsbuildCompiler:
         entry_lines.append(",\n".join(register_entries))
         entry_lines.append("});")
 
-        _ext_aliases = {
-            "@odoo/hoot": "@web/../lib/hoot/hoot",
-            "@odoo/hoot-dom": "@web/../lib/hoot-dom/hoot-dom",
-            "@odoo/hoot-mock": "@web/../lib/hoot/hoot-mock",
-        }
         alias_lines = []
-        for ext_name, int_name in _ext_aliases.items():
+        for ext_name, int_name in EXTERNAL_LIB_ALIASES.items():
             if int_name in registered_specs:
                 alias_lines.append(
                     f"odoo.loader.modules.set({json.dumps(ext_name)},"
@@ -542,15 +508,6 @@ class EsbuildCompiler:
         alias_flags: list[str],
         odoo_root: Path,
     ) -> list[str]:
-        """Write each shim as `<mirror>/<spec>.js` and alias the specifier at the
-        extensionless `<mirror>/<spec>`, so file resolution picks the shim while
-        `<spec>/<sub>` still reaches the real tree beside it.
-
-        A bare package (`@spreadsheet`) is the depth-0 case of that same shape:
-        the shim lands at `<mirror>/spreadsheet.js` next to a mirror of the
-        addon's `static/src`, which is what its own `index.js` would otherwise
-        have resolved to. The caller drops the scanned alias it replaces.
-        """
         addon_roots = {}
         for flag in alias_flags:
             spec, _, target = flag.removeprefix("--alias:").partition("=")

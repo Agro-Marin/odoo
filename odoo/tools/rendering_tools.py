@@ -103,12 +103,6 @@ def render_inline_template(
     variables: dict[str, object],
     format_value: Callable[[object], str] = str,
 ) -> str:
-    """Evaluate an inline template.
-
-    ``format_value`` turns a resolved value into text. It exists so that the caller
-    — mail, the only consumer — can render a recordset the same way its
-    evaluation-free renderer does; ``str`` alone answers ``res.partner(11,)``.
-    """
     results = []
     for string, expression, default in template_instructions:
         results.append(string)

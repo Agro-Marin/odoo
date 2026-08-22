@@ -23,7 +23,7 @@ _UNIFORM_UPDATE_TYPES = (
     type(None),
     bool,
     bytes,
-    date,  # datetime is a subclass, listed for the reader
+    date,
     datetime,
     Decimal,
     float,
@@ -294,34 +294,11 @@ class WriteMixin(_ModelStubs):
     def _uniform_update_values(
         self, fnames: tuple[str, ...], rows: list[tuple]
     ) -> tuple | None:
-        """The value tuple every row in ``rows`` shares, or None if they differ.
-
-        Eligibility is a positive allowlist of adapted types rather than a bare
-        ``==`` over whatever the adapters produced, for two reasons.
-
-        A bare ``==`` silently answers "not uniform" for the values a jsonb
-        column produces: ``translate=True`` and ``company_dependent`` write
-        ``psycopg`` ``Json`` wrappers, which define no ``__eq__``, so identical
-        payloads compare by identity and never match. Excluding them here is
-        deliberate rather than incidental -- those are exactly the two column
-        shapes whose SET expression reads the *existing* column value
-        (``COALESCE(table.col, ...) || expr``, and the ir.default pruning), so
-        keeping them on the VALUES path means this change cannot affect them at
-        all. Admitting them later means comparing ``Json.obj``, and owning that
-        argument with tests.
-
-        A bare ``==`` also delegates a correctness decision to an arbitrary
-        ``__eq__``: an adapter whose equality is looser than its SQL rendering
-        would collapse rows that are not the same value.
-        """
         if len(rows) < 2:
             return None
         values = rows[0][1:]
         if not all(isinstance(value, _UNIFORM_UPDATE_TYPES) for value in values):
             return None
-        # tuple equality short-circuits on element identity, so the common case
-        # -- one value assigned to every record -- costs a pointer comparison
-        # per row rather than a data comparison.
         if any(row[1:] != values for row in rows):
             return None
         return values
@@ -329,14 +306,6 @@ class WriteMixin(_ModelStubs):
     def _update_assignments_sql(
         self, fnames: tuple[str, ...], value_sql: Callable[[str, SQL, SQL], SQL]
     ) -> tuple[list[SQL], list[SQL]]:
-        """The columns and SET clauses shared by both UPDATE shapes.
-
-        ``value_sql(fname, column, cast)`` produces the *new* value; the wrappers
-        below add whatever reads the row's existing value. The cast is built here
-        rather than by each caller: a type name cannot be a query parameter, so it
-        is the one fragment that has to be interpolated, and it is interpolated in
-        exactly one place.
-        """
         columns = []
         assignments = []
         for fname in fnames:
@@ -381,7 +350,6 @@ class WriteMixin(_ModelStubs):
     def _update_rows_values_sql(
         self, fnames: tuple[str, ...], rows: tuple[tuple, ...] | list[tuple]
     ) -> None:
-        """One statement carrying an id and a value per row."""
         columns, assignments = self._update_assignments_sql(
             fnames,
             lambda fname, column, cast: SQL('"__tmp".%s::%s', column, cast),
@@ -403,12 +371,6 @@ class WriteMixin(_ModelStubs):
     def _update_rows_uniform_sql(
         self, fnames: tuple[str, ...], ids: list[int], values: tuple
     ) -> None:
-        """One statement for every id sharing one value tuple.
-
-        The whole group in one statement instead of ``ceil(n / 100)`` of them,
-        each carrying the value once rather than once per row, and with a query
-        string that does not vary with the row count.
-        """
         _columns, assignments = self._update_assignments_sql(
             fnames,
             lambda fname, column, cast: SQL(

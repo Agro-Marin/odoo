@@ -24,7 +24,6 @@ _logger = logging.getLogger(__name__)
 _logger_guess_mimetype = _logger.getChild("guess_mimetype")
 MIMETYPE_HEAD_SIZE = 2048
 UNKNOWN_MIMETYPE = "application/octet-stream"
-"""What both libmagic and our own guesser return when they cannot identify the content."""
 
 
 _ooxml_dirs = {

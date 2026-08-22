@@ -14,7 +14,6 @@ import pytest
 from odoo.libs import docstring
 
 if typing.TYPE_CHECKING:
-    # deliberately unimportable at runtime -- this is the ORM's situation
     from collections.abc import Sequence
 
 
@@ -42,8 +41,6 @@ class TestTypeField:
         assert _params(f)["value"]["annotation"] == "SomeCustomType"
 
     def test_type_field_exports_no_other_key(self):
-        # the original bug: `param.annotations = ...` created a stray attribute
-        # that as_dict() then exported, while `annotation` stayed absent
         def f(value):
             """:type value: SomeCustomType"""
 
@@ -56,7 +53,6 @@ class TestTypeField:
         assert _params(f)["value"]["annotation"] == "int"
 
     def test_a_typo_in_a_field_name_cannot_create_an_attribute(self):
-        # slots=True is what makes this a failure rather than silent data loss
         param = docstring.Param(
             "x", "POSITIONAL_OR_KEYWORD", docstring.EMPTY, None, None
         )
@@ -135,7 +131,6 @@ class TestDeferredAnnotations:
         def f(names: Sequence[str], count: int = 0) -> Sequence[int]:
             return []
 
-        # evaluating these annotations would raise NameError: Sequence
         params = _params(f)
         assert params["names"]["annotation"] == "Sequence[str]"
         assert params["count"]["annotation"] == "int"

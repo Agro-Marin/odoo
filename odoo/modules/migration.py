@@ -50,12 +50,6 @@ VERSION_RE = re.compile(
 
 
 MIGRATION_STAGES: tuple[str, ...] = ("pre", "post", "end")
-"""The stages ``migrate_module`` runs, and the filename prefixes that select them.
-
-``_get_migration_files`` picks scripts with ``name.startswith(f"{stage}-")``, so
-the stage is carried entirely by the filename and a name matching none of these
-is collected and then never executed.
-"""
 
 _STAGE_PREFIXES: tuple[str, ...] = tuple(f"{stage}-" for stage in MIGRATION_STAGES)
 

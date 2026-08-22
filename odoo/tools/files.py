@@ -89,7 +89,9 @@ def _file_path_uncached(
         fpath = normalized if is_abs else parent_path / normalized
         if not (skip_exists_check or fpath.exists()):
             continue
-        if fpath.resolve().is_relative_to(resolved_parent):
+        resolved = os.path.realpath(fpath)
+        parent = str(resolved_parent)
+        if resolved == parent or resolved.startswith(parent + os.sep):
             return str(fpath)
 
     raise FileNotFoundError("File not found: " + file_path)

@@ -46,6 +46,17 @@ def new_get_soap_client(wsdlurl, timeout=30):
 
 
 def patch_module() -> None:
+    from importlib.metadata import PackageNotFoundError, version
+
+    from odoo.libs.parse_version import parse_version
+
+    try:
+        stdnum_version = version("python-stdnum")
+    except PackageNotFoundError:
+        stdnum_version = "0"
+    if parse_version(stdnum_version) >= parse_version("2.0"):
+        return
+
     try:
         from stdnum import util
     except ImportError:

@@ -69,6 +69,13 @@ class ThreadedServer(CommonServer):
             os.write(2, b"CPU time limit exceeded! Shutting down immediately\n")
             os._exit(0)
         elif _SIGHUP_AVAILABLE and sig == signal.SIGHUP:
+            if self.quit_signals_received:
+                # A shutdown or phoenix restart is already pending. One file
+                # change can emit several SIGHUPs, and a late one lands while
+                # run()'s `finally: self.stop()` is executing -- outside the
+                # `except KeyboardInterrupt` that covers the body -- where
+                # raising would escape run() and exit 129 instead of restarting.
+                return
             lifecycle.server_phoenix = True
             self.quit_signals_received += 1
             raise KeyboardInterrupt

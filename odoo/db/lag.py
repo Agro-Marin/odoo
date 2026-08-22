@@ -13,12 +13,6 @@ LAG_SQL = """
             )
         END, 0)::float8
 """
-"""Apply lag in seconds, or ``0`` when the server has nothing outstanding.
-
-Zero for a primary too (``NOT pg_is_in_recovery()``): ``test_enable`` and
-``dev_mode=replica`` point the read-only connection at the primary on purpose,
-and that is a replica zero seconds behind itself, not an error.
-"""
 
 
 class ReplicaLagGate:

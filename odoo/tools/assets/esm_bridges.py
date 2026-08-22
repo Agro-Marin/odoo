@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Sequence
+from datetime import UTC, datetime, timedelta
 from typing import Protocol
 from urllib.parse import quote
 
@@ -8,6 +9,7 @@ from odoo.api import SUPERUSER_ID, Environment
 from odoo.libs.asset_log import get_asset_logger, log_event
 from odoo.libs.hashing import cache_hash
 from odoo.tools import config
+from odoo.tools.assets.constants import ESM_BRIDGE_REFRESH_DAYS
 from odoo.tools.assets.esbuild import EsbuildCompiler
 from odoo.tools.assets.esm_graph import (
     _IMPORT_ANY_RE,
@@ -49,6 +51,41 @@ class BridgeShimManager:
         self.bundle_name = bundle_name
         self.native_modules = native_modules
 
+    def _refresh_reused_shims(self, existing) -> None:
+        if not existing:
+            return
+        cutoff = datetime.now(UTC).replace(tzinfo=None) - timedelta(
+            days=ESM_BRIDGE_REFRESH_DAYS
+        )
+        stale = [
+            row.id for row in existing if row.write_date and row.write_date < cutoff
+        ]
+        if not stale:
+            return
+        cr = self.env.cr
+        if cr.readonly:
+            log_event(
+                _bridge_log,
+                logging.DEBUG,
+                "bridges_refresh_skipped_readonly",
+                bundle=self.bundle_name,
+                rows=len(stale),
+            )
+            return
+        cr.execute(
+            "UPDATE ir_attachment SET write_date = now() at time zone 'UTC'"
+            " WHERE id = ANY(%s)",
+            (stale,),
+        )
+        self.env["ir.attachment"].browse(stale).invalidate_recordset(["write_date"])
+        log_event(
+            _bridge_log,
+            logging.DEBUG,
+            "bridges_refreshed",
+            bundle=self.bundle_name,
+            rows=len(stale),
+        )
+
     def _persist_bridge_shims(
         self,
         shims_by_spec: dict[str, str],
@@ -63,14 +100,15 @@ class BridgeShimManager:
             url_by_spec[spec] = url
             content_by_url[url] = content
         Attachment = self.env["ir.attachment"].sudo()
-        existing_urls = set(
-            Attachment.search(
-                [
-                    ("url", "in", list(content_by_url)),
-                    ("public", "=", True),
-                ]
-            ).mapped("url")
+        existing = Attachment.search_fetch(
+            [
+                ("url", "in", list(content_by_url)),
+                ("public", "=", True),
+            ],
+            ["url", "write_date"],
         )
+        existing_urls = set(existing.mapped("url"))
+        self._refresh_reused_shims(existing)
         to_create = [
             {
                 "name": url.rsplit("/", 1)[-1],
@@ -90,20 +128,10 @@ class BridgeShimManager:
 
         from odoo.http import request
 
-        if not request:
+        outside_request = not request
+        if outside_request:
             self.env["ir.attachment"].with_user(SUPERUSER_ID).create(to_create)
-            log_event(
-                _bridge_log,
-                logging.INFO,
-                "bridges_persisted",
-                bundle=self.bundle_name,
-                new=len(to_create),
-                reused=len(content_by_url) - len(to_create),
-                total=len(url_by_spec),
-            )
-            return url_by_spec
-
-        if self._persist_bridges_via_rw_cursor(to_create):
+        if outside_request or self._persist_bridges_via_rw_cursor(to_create):
             log_event(
                 _bridge_log,
                 logging.INFO,

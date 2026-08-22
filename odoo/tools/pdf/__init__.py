@@ -2,6 +2,7 @@ import base64
 import io
 import re
 import unicodedata
+from collections.abc import Iterable
 from datetime import datetime
 from hashlib import md5
 from logging import getLogger
@@ -147,7 +148,7 @@ def to_pdf_stream(attachment) -> io.BytesIO | None:
     if attachment_raw := attachment._get_pdf_raw():
         return io.BytesIO(attachment_raw)
 
-    raw = attachment._unsized().raw
+    raw = attachment._without_bin_size().raw
     if not raw:
         _logger.warning("%s has no raw data.", attachment)
         return None
@@ -419,6 +420,43 @@ class OdooPdfFileWriter(PdfFileWriter):
         else:
             self._ID = pdf_id
 
+    _PDFA_ANNOT_INVISIBLE = 1 << 0
+    _PDFA_ANNOT_HIDDEN = 1 << 1
+    _PDFA_ANNOT_PRINT = 1 << 2
+    _PDFA_ANNOT_NOZOOM = 1 << 3
+    _PDFA_ANNOT_NOROTATE = 1 << 4
+    _PDFA_ANNOT_NOVIEW = 1 << 5
+    _PDFA_ANNOT_TOGGLENOVIEW = 1 << 8
+
+    @classmethod
+    def _normalize_annotation_flags(cls, pages: Iterable[Any]) -> None:
+        """Give every annotation the /F flags PDF/A clause 6.3.2 requires.
+
+        Print must be set; Hidden, Invisible, NoView and ToggleNoView must be
+        clear. Popup annotations are exempt, and text annotations additionally
+        want NoZoom and NoRotate. An annotation with no /F at all is the common
+        case and is the one that fails validation.
+        """
+        clear = (
+            cls._PDFA_ANNOT_HIDDEN
+            | cls._PDFA_ANNOT_INVISIBLE
+            | cls._PDFA_ANNOT_TOGGLENOVIEW
+            | cls._PDFA_ANNOT_NOVIEW
+        )
+        for page in pages:
+            annots = page.get_object().get("/Annots", [])
+            if isinstance(annots, IndirectObject):
+                annots = annots.get_object()
+            for annot_ref in annots:
+                annot = annot_ref.get_object()
+                if annot.get("/Subtype") == "/Popup":
+                    continue
+                flags = int(annot.get("/F", 0)) | cls._PDFA_ANNOT_PRINT
+                flags &= ~clear
+                if annot.get("/Subtype") == "/Text":
+                    flags |= cls._PDFA_ANNOT_NOZOOM | cls._PDFA_ANNOT_NOROTATE
+                annot[NameObject("/F")] = NumberObject(flags)
+
     def convert_to_pdfa(self) -> None:
         self._header = b"%PDF-1.7"
 
@@ -459,39 +497,9 @@ class OdooPdfFileWriter(PdfFileWriter):
 
         pages = self._root_object["/Pages"]["/Kids"]
 
-        try:
-            import fontTools.ttLib
-        except ImportError:
-            _logger.warning(
-                "The fonttools package is not installed. Generated PDF may not be PDF/A compliant."
-            )
-        else:
-            fonts = {}
-            for page in pages:
-                for font in page.get_object()["/Resources"]["/Font"].values():
-                    for descendant in font.get_object()["/DescendantFonts"]:
-                        fonts[descendant.idnum] = descendant.get_object()
+        self._restate_descendant_font_widths(pages)
 
-            for font in fonts.values():
-                font_file = font["/FontDescriptor"]["/FontFile2"]
-                stream = io.BytesIO(decompress(font_file._data))
-                ttfont = fontTools.ttLib.TTFont(stream)
-                font_upm = ttfont["head"].unitsPerEm
-                if parse_version(fontTools.__version__) < parse_version("4.37.2"):
-                    glyphs = ttfont.getGlyphSet()._hmtx.metrics
-                else:
-                    glyphs = ttfont.getGlyphSet().hMetrics
-                glyph_widths = []
-                for key, values in glyphs.items():
-                    if key[:5] == "glyph":
-                        glyph_widths.append(
-                            NumberObject(round(1000.0 * values[0] / font_upm))
-                        )
-
-                font[NameObject("/W")] = ArrayObject(
-                    [NumberObject(1), ArrayObject(glyph_widths)]
-                )
-                stream.close()
+        self._normalize_annotation_flags(pages)
 
         outlines = self._root_object["/Outlines"].get_object()
         outlines[NameObject("/Count")] = NumberObject(1)
@@ -511,6 +519,46 @@ class OdooPdfFileWriter(PdfFileWriter):
             }
         )
         self.is_pdfa = True
+
+    def _restate_descendant_font_widths(self, pages) -> None:
+        try:
+            import fontTools.ttLib
+        except ImportError:
+            _logger.warning(
+                "The fonttools package is not installed. Generated PDF may not be PDF/A compliant."
+            )
+            return
+
+        fonts = {}
+        for page in pages:
+            resources = page.get_object().get("/Resources") or {}
+            for font in (resources.get("/Font") or {}).values():
+                for descendant in font.get_object().get("/DescendantFonts") or ():
+                    fonts[descendant.idnum] = descendant.get_object()
+
+        for font in fonts.values():
+            descriptor = font.get("/FontDescriptor") or {}
+            font_file = descriptor.get("/FontFile2")
+            if font_file is None:
+                continue
+            stream = io.BytesIO(decompress(font_file._data))
+            ttfont = fontTools.ttLib.TTFont(stream)
+            font_upm = ttfont["head"].unitsPerEm
+            if parse_version(fontTools.__version__) < parse_version("4.37.2"):
+                glyphs = ttfont.getGlyphSet()._hmtx.metrics
+            else:
+                glyphs = ttfont.getGlyphSet().hMetrics
+            glyph_widths = []
+            for key, values in glyphs.items():
+                if key[:5] == "glyph":
+                    glyph_widths.append(
+                        NumberObject(round(1000.0 * values[0] / font_upm))
+                    )
+
+            font[NameObject("/W")] = ArrayObject(
+                [NumberObject(1), ArrayObject(glyph_widths)]
+            )
+            stream.close()
 
     def add_file_metadata(self, metadata_content: bytes) -> None:
         header = b'<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>'

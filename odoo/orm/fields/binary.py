@@ -176,7 +176,7 @@ class Binary(Field[bytes | typing.Literal[False]]):
         ]
         context = records.env.context
         bin_size = context.get("bin_size") or context.get("bin_size_" + self.name)
-        attachments = records.env["ir.attachment"].sudo()._unsized()
+        attachments = records.env["ir.attachment"].sudo()._without_bin_size()
         data = {
             att.res_id: (_encode(human_size(att.file_size)) if bin_size else att.datas)
             for att in attachments.search_fetch(domain)
@@ -352,7 +352,7 @@ class Image(Binary):
             if not self.max_width and not self.max_height:
                 return value
             Attachment = env["ir.attachment"]
-            checksum = Attachment._content_checksum(img)
+            checksum = Attachment._get_content_checksum(img)
             origins = Attachment.search(
                 [
                     ["id", "!=", False],

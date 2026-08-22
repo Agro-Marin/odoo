@@ -116,80 +116,43 @@ def _merge_external_libs(
         owner_by_spec[spec] = module
 
 
-def _build() -> EsmRegistry:
-    from odoo.modules import Manifest
+def _validated_esm_section(manifest) -> Mapping | None:
+    esm = manifest.get("esm")
+    if not esm:
+        return None
+    if not isinstance(esm, Mapping):
+        raise TypeError(
+            f"Module {manifest.name!r}: manifest 'esm' must be a dict, "
+            f"got {type(esm).__name__}"
+        )
+    unknown = set(esm) - _ESM_MANIFEST_KEYS
+    if unknown:
+        raise ValueError(
+            f"Module {manifest.name!r}: unknown 'esm' manifest keys "
+            f"{sorted(unknown)}; expected a subset of {sorted(_ESM_MANIFEST_KEYS)}"
+        )
+    return esm
 
-    bundles: set = set()
-    dynamic_children: dict = {}
-    import_map_includes: dict = {}
-    secondary_includes: dict = {}
-    standalone_bundles: set = set()
-    runtime_bundles: set = set()
-    external_libs: dict = {}
-    external_lib_owner: dict = {}
-    declaring_modules = 0
-    for manifest in Manifest.all_addon_manifests():
-        esm = manifest.get("esm")
-        if not esm:
-            continue
-        if not isinstance(esm, Mapping):
-            raise TypeError(
-                f"Module {manifest.name!r}: manifest 'esm' must be a dict, "
-                f"got {type(esm).__name__}"
-            )
-        unknown = set(esm) - _ESM_MANIFEST_KEYS
-        if unknown:
-            raise ValueError(
-                f"Module {manifest.name!r}: unknown 'esm' manifest keys "
-                f"{sorted(unknown)}; expected a subset of "
-                f"{sorted(_ESM_MANIFEST_KEYS)}"
-            )
-        declaring_modules += 1
-        declared_bundles = esm.get("bundles", ())
-        if isinstance(declared_bundles, str):
-            raise TypeError(
-                f"Module {manifest.name!r}: 'esm.bundles' must be a list, "
-                f"not a bare string"
-            )
-        bundles.update(declared_bundles)
-        declared_standalone = esm.get("standalone_bundles", ())
-        if isinstance(declared_standalone, str):
-            raise TypeError(
-                f"Module {manifest.name!r}: 'esm.standalone_bundles' must be "
-                f"a list, not a bare string"
-            )
-        standalone_bundles.update(declared_standalone)
-        declared_runtime = esm.get("runtime_bundles", ())
-        if isinstance(declared_runtime, str):
-            raise TypeError(
-                f"Module {manifest.name!r}: 'esm.runtime_bundles' must be "
-                f"a list, not a bare string"
-            )
-        runtime_bundles.update(declared_runtime)
-        if "external_libs" in esm:
-            _merge_external_libs(
-                external_libs,
-                esm["external_libs"],
-                external_lib_owner,
-                module=manifest.name,
-            )
-        for target, key in (
-            (dynamic_children, "dynamic_children"),
-            (import_map_includes, "import_map_includes"),
-            (secondary_includes, "secondary_import_map_includes"),
-        ):
-            if key in esm:
-                _merge_mapping(target, esm[key], module=manifest.name, key=key)
 
-    validate_esm_config(
-        bundles,
-        dynamic_children,
-        import_map_includes,
-        secondary_includes,
-        standalone_bundles=standalone_bundles,
-        runtime_bundles=runtime_bundles,
-    )
-    registry = EsmRegistry(
+def _bundle_name_list(esm: Mapping, key: str, module: str):
+    declared = esm.get(key, ())
+    if isinstance(declared, str):
+        raise TypeError(
+            f"Module {module!r}: 'esm.{key}' must be a list, not a bare string"
+        )
+    return declared
+
+
+def _assemble_registry(
+    bundles: set,
+    dynamic_children: dict,
+    import_map_includes: dict,
+    secondary_includes: dict,
+    standalone_bundles: set,
+    runtime_bundles: set,
+    external_libs: dict,
+) -> EsmRegistry:
+    return EsmRegistry(
         bundles=frozenset(bundles),
         dynamic_children=MappingProxyType(
             {p: tuple(c) for p, c in dynamic_children.items()}
@@ -223,14 +186,66 @@ def _build() -> EsmRegistry:
         ),
         standalone_bundles=frozenset(standalone_bundles),
         external_libs=MappingProxyType(dict(external_libs)),
-        # A dynamic child is fetched at runtime by definition, so it stays in the
-        # set without needing a second declaration. The explicit key exists for
-        # the bundle that is fetched from more than one page -- or from none in
-        # particular -- where naming a parent said nothing true.
         runtime_bundle_names=frozenset(runtime_bundles)
         | frozenset(
             child for children in dynamic_children.values() for child in children
         ),
+    )
+
+
+def _build() -> EsmRegistry:
+    from odoo.modules import Manifest
+
+    bundles: set = set()
+    dynamic_children: dict = {}
+    import_map_includes: dict = {}
+    secondary_includes: dict = {}
+    standalone_bundles: set = set()
+    runtime_bundles: set = set()
+    external_libs: dict = {}
+    external_lib_owner: dict = {}
+    declaring_modules = 0
+    for manifest in Manifest.all_addon_manifests():
+        esm = _validated_esm_section(manifest)
+        if esm is None:
+            continue
+        declaring_modules += 1
+        bundles.update(_bundle_name_list(esm, "bundles", manifest.name))
+        standalone_bundles.update(
+            _bundle_name_list(esm, "standalone_bundles", manifest.name)
+        )
+        runtime_bundles.update(_bundle_name_list(esm, "runtime_bundles", manifest.name))
+        if "external_libs" in esm:
+            _merge_external_libs(
+                external_libs,
+                esm["external_libs"],
+                external_lib_owner,
+                module=manifest.name,
+            )
+        for target, key in (
+            (dynamic_children, "dynamic_children"),
+            (import_map_includes, "import_map_includes"),
+            (secondary_includes, "secondary_import_map_includes"),
+        ):
+            if key in esm:
+                _merge_mapping(target, esm[key], module=manifest.name, key=key)
+
+    validate_esm_config(
+        bundles,
+        dynamic_children,
+        import_map_includes,
+        secondary_includes,
+        standalone_bundles=standalone_bundles,
+        runtime_bundles=runtime_bundles,
+    )
+    registry = _assemble_registry(
+        bundles,
+        dynamic_children,
+        import_map_includes,
+        secondary_includes,
+        standalone_bundles,
+        runtime_bundles,
+        external_libs,
     )
     log_event(
         _registry_log,

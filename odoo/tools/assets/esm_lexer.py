@@ -1,5 +1,6 @@
 import atexit
 import contextlib
+import functools
 import json
 import logging
 import os
@@ -189,7 +190,20 @@ def _register_worker_cleanup() -> None:
 
 def close_lexer_worker() -> None:
     _worker.close()
+    _lex_cached.cache_clear()
+
+
+_LEX_CACHE_ENTRIES = 4096
+
+
+@functools.lru_cache(maxsize=_LEX_CACHE_ENTRIES)
+def _lex_cached(src: str) -> dict[str, Any] | None:
+    return _worker.request(src)
 
 
 def lex_module(src: str) -> dict[str, Any] | None:
-    return _worker.request(src)
+    return _lex_cached(src)
+
+
+def clear_lex_cache() -> None:
+    _lex_cached.cache_clear()

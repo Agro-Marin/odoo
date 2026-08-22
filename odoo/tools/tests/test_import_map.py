@@ -26,13 +26,6 @@ _OVERRIDE_DIRS = (_REPO_ROOT / "addons/web/static/lib/hoot/tests",)
 
 
 def _declared_external_libs() -> dict[str, str]:
-    """Read ``esm.external_libs`` off the bundled manifests, without Odoo.
-
-    The registry's own builder walks ``Manifest.all_addon_manifests()``, which
-    imports ``odoo.modules`` and from there the whole ORM — not available to
-    this suite, which runs against the ``odoo.libs`` leaves under the
-    DB-free bootstrap. Parsing the literals is the same information.
-    """
     declared: dict[str, str] = {}
     for manifest in sorted(_REPO_ROOT.glob("addons/*/__manifest__.py")):
         try:
@@ -45,7 +38,6 @@ def _declared_external_libs() -> dict[str, str]:
 
 
 def setUpModule():
-    """Seed the registry so ``import_map_for`` resolves without a database."""
     esm_registry._cache[0] = esm_registry.EsmRegistry(
         bundles=frozenset(),
         dynamic_children={},
@@ -140,17 +132,6 @@ class TestHardcodedImportMaps(unittest.TestCase):
 
 
 class TestIotHomepagePlaceholder(unittest.TestCase):
-    """The IoT box is the only live consumer of `import_map_for`, and its pages
-    fail silently in both directions.
-
-    `homepage.py::_render_page` substitutes `IMPORT_MAP_PLACEHOLDER` and sets a
-    CSP whose `script-src` carries the map's hash. Drop the placeholder from a
-    page that needs one and `str.replace` finds nothing: no import map is
-    emitted, the CSP still allows the script that is not there, and the page
-    ships with `@popperjs/core` unresolvable. Nothing else in the tree would
-    notice — the module is `installable: False` and runs only as a
-    `server_wide_modules` entry on the box image.
-    """
 
     VIEWS = _REPO_ROOT / "addons/iot_drivers/views"
     CONTROLLER = _REPO_ROOT / "addons/iot_drivers/controllers/homepage.py"
@@ -162,8 +143,6 @@ class TestIotHomepagePlaceholder(unittest.TestCase):
         return match.group(1)
 
     def test_a_page_loading_bootstrap_carries_the_placeholder(self):
-        """`bootstrap.esm.js` imports Popper by bare specifier — the one thing
-        on the box that needs a map at all, per `_import_map`'s own comment."""
         placeholder = self._placeholder()
         checked = 0
         for page in sorted(self.VIEWS.glob("*.html")):
@@ -181,7 +160,6 @@ class TestIotHomepagePlaceholder(unittest.TestCase):
         self.assertGreater(checked, 0, "no IoT page loads bootstrap — check the glob")
 
     def test_the_substituted_page_matches_the_csp_hash(self):
-        """The round trip: what is substituted is what the hash covers."""
         placeholder = self._placeholder()
         map_ = import_map_for("@popperjs/core")
         for page in sorted(self.VIEWS.glob("*.html")):

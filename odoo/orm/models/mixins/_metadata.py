@@ -76,55 +76,14 @@ class _ModelMetadataMixin(_ModelStubs):
     __slots__ = ()
 
     pool: Registry
-    """The registry instance, set as a class attribute during model setup.
-
-    Same object as ``self.env.registry``. Convention: use ``self.pool`` for
-    registry *metadata* (field_computed, field_inverses, ...) and
-    ``self.env.registry`` / ``self.env[model_name]`` for model class lookups.
-    """
 
     _fields__: dict[str, Field]
     _fields: MappingProxyType[str, Field]
 
     _auto: bool = False
-    """Whether a database table should be created.
-    If set to ``False``, override :meth:`~odoo.models.BaseModel.init`
-    to create the database table.
-
-    Defaults to ``True`` for :class:`Model` and :class:`TransientModel`, and
-    ``False`` for :class:`AbstractModel`/:class:`BaseModel` (which have no
-    table).
-
-    .. tip:: To create a model without any table, inherit
-            from :class:`~odoo.models.AbstractModel`.
-    """
     _abstract: bool = True
-    """ Whether the model is *abstract*.
-
-    .. seealso:: :class:`AbstractModel`
-    """
     _transient: bool = False
-    """ Whether the model is *transient*.
-
-    .. seealso:: :class:`TransientModel`
-    """
     _is_registry_metadata: bool = False
-    """Whether this model's rows describe the registry itself.
-
-    True for the ``ir.model*`` reflection models and ``ir.module.module``:
-    their rows are deleted and rewritten whenever a module is installed,
-    upgraded or removed, so a ``Many2one(..., ondelete="restrict")`` pointing
-    at one would block the very operation that maintains them.
-    :meth:`Many2one.setup_nonrelated` rejects that combination by asking the
-    comodel this question.
-
-    It was a tuple of seven model names, ``IR_MODELS``, in
-    ``orm/fields/base.py`` until 2026-08-09 -- Layer 1 of the ORM holding a
-    hardcoded list of addon-owned models, invisible to `layer_check` (no
-    import), to `core-does-not-depend-on-addons` (no import) and, because it
-    was a bare tuple rather than a lookup, to `env_model_surface_check` too.
-    The property belongs to the models it describes, so they declare it.
-    """
 
     _name: str = None
     _description: str | None = None
@@ -132,104 +91,30 @@ class _ModelMetadataMixin(_ModelStubs):
     _custom: bool = False
 
     _inherit: str | list[str] | tuple[str, ...] = ()
-    """Python-inherited models:
-
-    :type: str or list(str) or tuple(str)
-
-    .. note::
-
-        * If :attr:`._name` is set, name(s) of parent models to inherit from
-        * If :attr:`._name` is unset, name of a single model to extend in-place
-    """
     _inherits: dict[str, str] = frozendict()
-    """dictionary {'parent_model': 'm2o_field'} mapping the _name of the parent business
-    objects to the names of the corresponding foreign key fields to use::
-
-      _inherits = {
-          'a.model': 'a_field_id',
-          'b.model': 'b_field_id'
-      }
-
-    implements composition-based inheritance: the new model exposes all
-    the fields of the inherited models but stores none of them:
-    the values themselves remain stored on the linked record.
-
-    .. warning::
-
-      if multiple fields with the same name are defined in the
-      :attr:`~odoo.models.Model._inherits`-ed models, the inherited field will
-      correspond to the last one (in the inherits list order).
-    """
     _table: str = ""
     _table_query: SQL | str | None = None
     _table_objects: dict[str, TableObject] = frozendict()
     _table_inheritance_root: str = ""
-    """Name of the table this model's subtypes share through PostgreSQL table
-    inheritance (``CREATE TABLE ... INHERITS``), when it is this model's own.
-
-    A foreign key pointing at such a table is accepted by PostgreSQL but only
-    ever sees the rows of the parent itself, so it rejects every id that lives
-    in a child table: relational fields must not declare one, and their
-    ``ondelete`` has to be applied in Python instead.  Subtypes inherit the
-    attribute but own a different :attr:`_table`, which is what makes
-    :meth:`_is_table_inheritance_root` false for them — they are ordinary
-    tables and do get their foreign keys.
-    """
     _inherit_children: OrderedSet[str]
 
     _rec_name: str | None = None
-    """Field to use for labeling records. Default: ``name`` if the model has it.
-
-    Set during model setup in ``registration.py``. The default stays ``name``
-    (not ``''``): ``_compute_display_name`` relies on the implicit fallback.
-    """
     _rec_names_search: list[str] | None = None
     _order: str = "id"
     _parent_name: str = "parent_id"
     _parent_store: bool = False
-    """set to True to compute parent_path field.
-
-    Alongside a :attr:`~.parent_path` field, sets up an indexed storage
-    of the tree structure of records, to enable faster hierarchical queries
-    on the records of the current model using the ``child_of`` and
-    ``parent_of`` domain operators.
-    """
     _active_name: str | None = None
-    """field to use for active records, automatically set to either ``"active"``
-    or ``"x_active"``.
-    """
     _fold_name: str = "fold"
 
     _translate: bool = True
-    """Whether to export translations for this model.
-
-    Legacy attribute; some models (e.g. ir.model.constraint) set it to
-    ``False`` to suppress translation export.
-    """
     _check_company_auto: bool = False
-    """On write and create, call ``_check_company`` to ensure companies
-    consistency on the relational fields having ``check_company=True``
-    as attribute.
-    """
 
     _allow_sudo_commands: bool = True
-    """Allow One2many and Many2many Commands targeting this model in an environment using `sudo()` or `with_user()`.
-    By disabling this flag, security-sensitive models protect themselves
-    against malicious manipulation of One2many or Many2many fields
-    through an environment using `sudo` or a more privileged user.
-    """
 
     _depends: frozendict[str, Iterable[str]] = frozendict()
-    """dependencies of models backed up by SQL views
-    ``{model_name: field_names}``, where ``field_names`` is an iterable.
-    This is only used to determine the changes to flush to database before
-    executing any search/read operations. It won't be used for cache
-    invalidation or recomputing fields.
-    """
 
     @property
     def _table_sql(self) -> SQL:
-        """Return the :class:`SQL` object for the table identifier or table query."""
         table_query = self._table_query
         if table_query and isinstance(table_query, SQL):
             table_sql = SQL("(%s)", table_query)
@@ -263,9 +148,4 @@ class _ModelMetadataMixin(_ModelStubs):
         return self.pool.is_an_ordinary_table(self)
 
     def _is_table_inheritance_root(self) -> bool:
-        """Whether this model owns the table its subtypes inherit from.
-
-        See :attr:`_table_inheritance_root`.  Relational fields consult this to
-        skip the foreign key PostgreSQL would let them create but never honour.
-        """
         return bool(self._table) and self._table == self._table_inheritance_root

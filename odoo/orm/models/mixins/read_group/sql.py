@@ -242,8 +242,6 @@ class _ReadGroupSQLMixin(_ModelStubs):
             prop_type = definition.get("type")
             if prop_type == "datetime":
                 if tz_name := self.env.context.get("tz"):
-                    # the database's catalogue, not Python's: see
-                    # _get_sql_timezones_set
                     if tz_name in _get_sql_timezones_set(self.env):
                         sql_expr = SQL(
                             "timezone(%s, timezone('UTC', %s))",

@@ -370,7 +370,7 @@ def load_module_graph(
                     if post_init:
                         getattr(py_module, post_init)(env)
                 elif update_operation == "upgrade":
-                    env["ir.ui.view"]._validate_module_views(module_name)
+                    env["ir.ui.view"]._check_module_views(module_name)
 
                 _warn_models_without_access_rules(
                     env, module_name, model_names, registry
@@ -730,7 +730,7 @@ class _ModuleLoader:
     def report_modules_that_never_loaded(self) -> None:
         Module = self.env["ir.module.module"]
         modules = Module.search_fetch(
-            Module._get_modules_to_load_domain(), ["name"], order="name"
+            Module._get_domain_modules_to_load(), ["name"], order="name"
         )
         missing = [name for name in modules.mapped("name") if name not in self.graph]
         if missing:
@@ -858,7 +858,7 @@ class _ModuleLoader:
         View = self.env["ir.ui.view"]
         for model in self.registry:
             try:
-                View._validate_custom_views(model)
+                View._check_custom_views(model)
             except Exception as e:
                 _logger.warning("invalid custom view(s) for model %s: %s", model, e)
 

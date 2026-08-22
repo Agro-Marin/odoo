@@ -362,39 +362,32 @@ def _check_and_complete_route_definition(
 
 
 def fragment_to_query_string(func: Callable) -> Callable:
-    """Re-request the endpoint with the URL fragment turned into query args.
+    """Make the client re-request the URL with its fragment moved into the query.
 
-    OAuth2 and OAuth-like providers that use the implicit flow hand their
-    answer back in the URL *fragment* (``#access_token=...``), which a browser
-    never sends to the server -- so the endpoint sees no parameters at all.
-    Wrapped, it answers that first, parameter-less request with a page whose
-    only job is to move the fragment into the query string and navigate again;
-    the second request carries the values and runs the real handler.
-
-    ``debug`` is dropped because the web client appends it to the fragment on
-    a debug session, and it alone would make the request look answered.
-
-    Lives here rather than beside its first caller: it holds no state of any
-    provider's, and being in ``odoo.http`` means an addon that needs it does
-    not have to depend on an authentication provider to reach it.
+    A fragment never reaches the server, so a controller that needs those values
+    answers the first call with a page that rewrites the location and comes back.
+    ``debug`` does not count as a query for that decision, but it is passed on to
+    the wrapped method rather than consumed here.
     """
 
     @functools.wraps(func)
     def wrapper(self, *a, **kw):
-        kw.pop("debug", False)
-        if not kw:
-            return Response("""<html><head><script>
-                var l = window.location;
-                var q = l.hash.substring(1);
-                var r = l.pathname + l.search;
-                if(q.length !== 0) {
-                    var s = l.search ? (l.search === '?' ? '' : '&') : '?';
-                    r = l.pathname + l.search + s + q;
-                }
-                if (r == l.pathname) {
-                    r = '/';
-                }
-                window.location = r;
+        if not (kw.keys() - {"debug"}):
+            return Response("""<!DOCTYPE html>
+            <html><head><script>
+                (function () {
+                    const url = window.location;
+                    const fragment = url.hash.substring(1);
+                    let new_url = url.pathname + url.search;
+                    if (fragment.length !== 0) {
+                        const separator = url.search ? (url.search === '?' ? '' : '&') : '?';
+                        new_url = url.pathname + url.search + separator + fragment;
+                    }
+                    if (new_url == url.pathname) {
+                        new_url = '/';
+                    }
+                    window.location = new_url;
+                })()
             </script></head><body></body></html>""")
         return func(self, *a, **kw)
 

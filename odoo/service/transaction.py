@@ -23,12 +23,6 @@ PG_CONCURRENCY_EXCEPTIONS_TO_RETRY = PG_RETRY_EXCEPTIONS
 MAX_TRIES_ON_CONCURRENCY_FAILURE = 5
 
 BASE_CONCURRENCY_BACKOFF_SECONDS = 0.2
-"""Ceiling for the first retry's wait; doubled per attempt up to the cap below.
-
-Without a base term the cap wins from attempt 1 (``2 ** 1 >= 2.0``) and every
-retry draws from the same interval, which is what this loop did until 2026-08-08.
-See :mod:`odoo.libs.backoff`.
-"""
 
 MAX_CONCURRENCY_BACKOFF_SECONDS = 2.0
 

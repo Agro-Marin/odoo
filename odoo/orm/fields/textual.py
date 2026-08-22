@@ -206,6 +206,14 @@ class BaseString(Field[str | typing.Literal[False]]):
         return s
 
     @override
+    def _compute_related(self, records: BaseModel) -> None:
+        if records.env.context.get("edit_translations"):
+            records = records.with_context(
+                edit_translations=None, check_translations=True
+            )
+        super()._compute_related(records)
+
+    @override
     def convert_to_record(
         self, value: typing.Any, record: ModelLike
     ) -> str | typing.Literal[False]:
@@ -216,6 +224,14 @@ class BaseString(Field[str | typing.Literal[False]]):
         if isinstance(value, dict):
             lang = self.translation_lang(record.env)
             value = value[lang]
+        field_ = self
+        record_ = record
+        while not field_.store and field_.related and field_.related_field is not None:
+            path = ".".join(field_._related_names[:-1])
+            record_ = record_.mapped(path)[:1] if path else record_
+            field_ = field_.related_field
+        if field_ is not self:
+            return field_.convert_to_record(value, record_)
         if (
             callable(self.translate)
             and record.env.context.get("edit_translations")

@@ -23,7 +23,6 @@ class MetaModel(type):
     _module_to_models__: defaultdict[str, list[MetaModel]] = defaultdict(list)
 
     pool: Registry | None
-    """Reference to the registry for registry classes, otherwise it is a definition class."""
 
     _field_definitions: list[Field]
     _table_object_definitions: list[TableObject]

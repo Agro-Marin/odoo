@@ -248,7 +248,9 @@ class JSONFormatter(logging.Formatter):
         return json.dumps(record_json, default=str)
 
     def _get_default_record_keys(self, record: logging.LogRecord) -> list:
-        return list((record.__dict__.keys() | {"message"}) - self.ignore_record_keys)
+        return sorted(
+            (record.__dict__.keys() | {"message", "test"}) - self.ignore_record_keys
+        )
 
 
 class LogRecord(logging.LogRecord):
@@ -464,18 +466,6 @@ PSEUDOCONFIG_MAPPER: Final[dict[str, list[str]]] = {
 }
 
 RUNBOT: Final[int] = 25
-"""Custom level between INFO and WARNING, for runbot-only output.
-
-Also published onto the stdlib module as ``logging.RUNBOT`` below, which is how
-every consumer reached it until 2026-08-09. That worked only while something
-had already imported this module, and what guaranteed it was an accident:
-``orm/fields/textual.py`` imported ``odoo.logutils`` for four ANSI colour
-constants, so importing the ORM registered the level. When those constants
-moved to ``odoo/libs/colors/`` the accidental provider went away and
-``odoo/tests/browser.py`` -- which reads ``logging.RUNBOT`` in a class body --
-raised AttributeError at import. Import this name directly rather than relying
-on the patched attribute being there.
-"""
 
 logging.RUNBOT = RUNBOT
 logging.addLevelName(RUNBOT, "INFO")

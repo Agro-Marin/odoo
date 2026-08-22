@@ -55,26 +55,8 @@ class OptimizationLevel(enum.IntEnum):
 
 
 MAX_OPTIMIZE_ITERATIONS = 1000
-"""Fixpoint-loop budget before :class:`DomainOptimizationError` is raised.
-
-Each iteration raises the optimization level or leaves the domain unchanged, so a
-well-formed optimizer converges in as many steps as there are levels — single
-digits. The budget is this far above that because the loop also re-runs when an
-optimization rewrites a domain into an equal-but-not-identical form, which is
-legitimate and can repeat a few times per level. Anything approaching 1000 is two
-optimizations undoing each other, which is why exceeding it is an error rather
-than a stop.
-"""
 
 MAX_DOMAIN_NESTING = 100
-"""Maximum AST operator-nesting depth accepted when parsing a domain list.
-
-Domain traversal is recursive, so a pathologically deep (e.g. attacker-supplied)
-domain blows the stack with an opaque ``RecursionError`` mid-evaluation; we
-reject it at parse time with a clear ``ValueError`` instead. Real domains nest a
-handful of levels, so 100 is well beyond legitimate use yet safely below the
-interpreter recursion limit.
-"""
 
 
 def _comparand_eq(left: typing.Any, right: typing.Any) -> bool:

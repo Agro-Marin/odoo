@@ -135,7 +135,7 @@ class AccessMixin(_ModelStubs):
         Access = self.env["ir.model.access"]
         if not Access.check(self._name, operation, raise_exception=False):
             return self, functools.partial(
-                Access._make_access_error, self._name, operation
+                Access._prepare_access_error, self._name, operation
             )
 
         real_self = self.browse(id_ for id_ in self._ids if id_)
@@ -149,7 +149,7 @@ class AccessMixin(_ModelStubs):
                 .filtered_domain(domain)
             ):
                 return forbidden, functools.partial(
-                    Rule._make_access_error, operation, forbidden
+                    Rule._prepare_access_error, operation, forbidden
                 )
 
         return None

@@ -17,7 +17,6 @@ from ._crud_common import (
 from ._model_stubs import _ModelStubs
 
 _UNLINK_LOG_MAX_IDS = 1000
-"""Ids logged verbatim by :meth:`UnlinkMixin.unlink` before it summarizes."""
 
 
 class UnlinkMixin(_ModelStubs):
@@ -148,6 +147,14 @@ class UnlinkMixin(_ModelStubs):
                 field._invalidate_cache(env, keep_dirty=True)
             for field in fields_by_comodel.get(model_name, ()):
                 field._invalidate_cache(env, keep_dirty=True)
+        # A `many2one_reference` names its model in a sibling column, so a
+        # field computed by dereferencing one caches a value belonging to a
+        # model no comodel bucket associates with it -- the loop above cannot
+        # reach it for any `gone`. Sweep them whatever was deleted; see
+        # `Registry.fields_reading_through_a_reference` for why the set stays
+        # small enough to pay for on every delete.
+        for field in registry.fields_reading_through_a_reference:
+            field._invalidate_cache(env, keep_dirty=True)
 
     def _unlink_process_batch(
         self,

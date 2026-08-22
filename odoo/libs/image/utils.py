@@ -8,6 +8,7 @@ from PIL import (
     IcoImagePlugin,  # noqa: F401  plugin registration, see comment above
     Image,
     ImageOps,
+    ImageSequence,
 )
 from PIL.Image import Image as PILImage
 from PIL.Image import Palette, Resampling
@@ -79,6 +80,7 @@ class ImageProcess:
         self.source = source or False
         self.operationsCount = 0
         self.original_format = ""
+        self.animated_frames: list[PILImage] = []
 
         if not source or source[:1] == b"<":
             self.image = False
@@ -105,7 +107,25 @@ class ImageProcess:
 
             self.original_format = (self.image.format or "").upper()
 
-            self.image = image_fix_orientation(self.image)
+            if self.original_format != "GIF":
+                # exif_transpose returns a fresh single-frame image, which
+                # would drop every frame after the first. GIF carries no EXIF
+                # orientation tag, so there is nothing to correct anyway.
+                self.image = image_fix_orientation(self.image)
+
+    def _extract_gif_frames(self) -> None:
+        """Detach the frames from the read-only GIF stream, once.
+
+        A ``GifImageFile`` seeks within its source, so operations on it do not
+        stick and ``self.image.size`` never changes. Copying the frames out
+        makes ``self.image`` an ordinary image that resizes and crops normally,
+        with the rest of the animation carried in ``animated_frames``.
+        """
+        if self.original_format == "GIF" and not self.animated_frames:
+            frames = [frame.copy() for frame in ImageSequence.Iterator(self.image)]
+            if frames:
+                self.image = frames[0]
+                self.animated_frames = frames[1:]
 
     def image_quality(
         self, quality: int = 0, output_format: str = ""
@@ -146,6 +166,7 @@ class ImageProcess:
         if output_format == "GIF":
             opt["optimize"] = True
             opt["save_all"] = True
+            opt["append_images"] = self.animated_frames
 
         if output_image.mode not in ["1", "L", "P", "RGB", "RGBA"] or (
             output_format == "JPEG" and output_image.mode == "RGBA"
@@ -164,10 +185,19 @@ class ImageProcess:
     def resize(
         self, max_width: int = 0, max_height: int = 0, expand: bool = False
     ) -> Self:
-        if self.image and self.original_format != "GIF" and (max_width or max_height):
+        if self.image and (max_width or max_height):
             w, h = self.image.size
             asked_width = max_width or (w * max_height) // h
             asked_height = max_height or (h * max_width) // w
+            if self.original_format == "GIF":
+                if asked_width < w or asked_height < h:
+                    self._extract_gif_frames()
+                    for frame in [self.image, *self.animated_frames]:
+                        frame.thumbnail(
+                            (asked_width, asked_height), Resampling.LANCZOS
+                        )
+                    self.operationsCount += 1
+                return self
             if expand and (asked_width > w or asked_height > h):
                 self.image = self.image.resize((asked_width, asked_height))
                 self.operationsCount += 1
@@ -185,7 +215,7 @@ class ImageProcess:
         center_x: float = 0.5,
         center_y: float = 0.5,
     ) -> Self:
-        if self.image and self.original_format != "GIF" and max_width and max_height:
+        if self.image and max_width and max_height:
             w, h = self.image.size
             if w / max_width > h / max_height:
                 new_w, new_h = w, (max_height * w) // max_width
@@ -203,11 +233,18 @@ class ImageProcess:
             h_offset = int((h - new_h) * center_y)
 
             if new_w != w or new_h != h:
-                self.image = self.image.crop(
-                    (x_offset, h_offset, x_offset + new_w, h_offset + new_h)
-                )
-                if self.image.width != w or self.image.height != h:
+                crop_box = (x_offset, h_offset, x_offset + new_w, h_offset + new_h)
+                if self.original_format == "GIF":
+                    self._extract_gif_frames()
+                    self.image = self.image.crop(crop_box)
+                    self.animated_frames = [
+                        frame.crop(crop_box) for frame in self.animated_frames
+                    ]
                     self.operationsCount += 1
+                else:
+                    self.image = self.image.crop(crop_box)
+                    if self.image.width != w or self.image.height != h:
+                        self.operationsCount += 1
 
         return self.resize(max_width, max_height)
 

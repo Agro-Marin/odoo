@@ -107,22 +107,6 @@ if typing.TYPE_CHECKING:
     from odoo.tests.common import TestCase
 
 current_test: TestCase | bool = False
-"""Test-mode marker observed by loggers, mail, reports and the ORM.
-
-The value follows a small state machine driven by ``odoo.tests``:
-
-* ``False`` — no test is running (default and steady state).
-* ``True`` — ``loader.run_suite`` has begun; the suite has not yet selected
-  a specific :class:`TestCase`.  Brief, observable only between
-  :class:`OdooSuite.run` iterations.
-* ``TestCase`` instance — set by ``OdooSuite.run`` for the currently
-  executing test, and read by consumers as ``current_test.canonical_tag`` or
-  ``current_test.get_log_metadata()``.  Consumers that dereference attributes
-  must guard against the bool form (e.g. with ``contextlib.suppress``).
-
-A plain global is correct: Odoo uses fork-based concurrency, so each worker
-gets its own copy, and tests require ``--workers=0``.
-"""
 
 
 class UpgradeHook:

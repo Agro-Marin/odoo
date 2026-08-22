@@ -145,55 +145,18 @@ class Field[T](
     _FieldDescriptionMixin, _FieldConvertMixin, _FieldSqlMixin, _FieldMetadataMixin
 ):
     type: str
-    """The serialised discriminator: what ``ir.model.fields`` stores, what
-    ``fields_get`` reports and what the web client dispatches on.
-
-    It is a *persistence* concern, and the class hierarchy is what code in this
-    package should branch on. ``relational``/``is_text`` below, and the
-    predicates after them, exist so that a caller asks the field what it is
-    rather than comparing this string -- see :attr:`is_delegating` for what the
-    comparison form costs.
-    """
 
     relational: bool = False
     is_text: bool = False
     falsy_value: T | None = None
 
     is_x2many: bool = False
-    """Whether the field holds a *set* of comodel records (o2m or m2m).
-
-    Declared with an inert default and overridden on ``_RelationalMulti``, the
-    shared base of ``One2many`` and ``Many2many``, so the sites that spelled
-    this as a membership test over the two type strings ask the field instead of
-    reproducing the list.
-    """
 
     is_temporal: bool = False
-    """Whether the field holds a date or a datetime."""
 
     is_many2one: bool = False
-    """Whether the field is a foreign-key scalar relation.
-
-    ``Many2one`` only. In particular **not** ``Many2oneReference``, which points
-    at one record too but is an ``Integer`` column paired with a model-name
-    field, and so cannot be joined or grouped like an FK. The type strings say
-    that (``"many2one"`` against ``"many2one_reference"``) and a reader has to
-    know it; the predicate states it.
-
-    Safe as a class attribute only because nothing subclasses ``Many2one`` and
-    resets ``type`` -- the leak `fields/_field_sql.py` warns about, checked for
-    every registered field type by ``orm/tests/test_field_predicates.py``.
-    """
 
     is_properties: bool = False
-    """Whether the field holds a JSON bag of dynamic, per-record properties.
-
-    ``Properties`` only -- NOT ``PropertiesDefinition``, which is the separate
-    field holding the *schema* those values are validated against. The two were
-    told apart by their type strings (``"properties"`` vs
-    ``"properties_definition"``), which is a distinction that survives only as
-    long as nobody writes ``startswith("properties")``.
-    """
 
     @property
     def is_delegating(self) -> bool:
@@ -204,22 +167,6 @@ class Field[T](
         return False
 
     write_sequence: int = 0
-    """Field processing priority in ``write()`` — lower values are processed first.
-
-    Controls the order in which ``mark_dirty()`` is called during ``write()``.
-    This matters for correctness when fields depend on each other's cached values:
-
-    ========== ============== ============================================
-    Sequence   Field Type     Reason
-    ========== ============== ============================================
-    0          Regular        Default — scalar fields, M2O, currency fields
-    10         Monetary       Needs ``currency_id`` (seq 0) cached for rounding
-    10         Properties     Must be written after the definition field
-    20         x2many (O2M)   May flush other fields when deleting lines
-    ========== ============== ============================================
-
-    Custom field types with similar dependencies should override this attribute.
-    """
 
     _args__: dict[str, typing.Any] | None = None
     _module: str | None = None
@@ -236,58 +183,10 @@ class Field[T](
 
     comodel_name: str | None = None
     context: ContextType = frozendict({})
-    """Extra context a relational field applies to its comodel.
-
-    Not a plain ``{}``: this default is shared by every ``Field`` instance in the
-    process, so one in-place mutation would rewrite the context of every field at
-    once. ``ContextType`` is a ``Mapping``, which promises exactly that and cannot
-    enforce it; the same file wraps ``_args__`` for this reason.
-
-    ``frozendict`` rather than ``ReadonlyDict``, because it must also stay a
-    ``dict``. ``_description_context`` hands this default to ``fields_get``
-    verbatim, so it is wire-facing; as a ``ReadonlyDict`` -- a bare ``Mapping`` --
-    it was refused by everything that tests ``isinstance(..., dict)``, stdlib
-    ``json.dumps`` included, and it took out 2963 XML-RPC ``fields_get`` calls on
-    one database in a day. ``frozendict`` refuses all eight mutation entry points
-    exactly as ``ReadonlyDict`` does, so nothing above is given up for it.
-
-    This does not make the default universally serialisable: ``xmlrpc.client``
-    dispatches on *exact* type and so misses a ``dict`` subclass too, which is why
-    ``OdooMarshaller`` has carried an explicit ``frozendict`` entry since long
-    before this. Being a ``dict`` is simply the property serialisers test for, so
-    the exception is one registration in one exact-type dispatcher rather than a
-    type each of them has to learn. What it does give up is
-    ``dict.__setitem__(field.context, ...)``, which bypasses the override --
-    sabotage, not the accident this default guards against.
-
-    Declared on the base class, with an inert default, for the same reason as
-    ``comodel_name``: consumers key on it without first proving the field is
-    relational.  ``Environment.cache_key`` is the one that made this load-bearing
-    -- its ``active_test`` branch reads ``field.context`` for any field whose
-    ``depends_context`` mentions it, so ``@api.depends_context("active_test")``
-    on a computed scalar raised ``AttributeError`` on every read of that field.
-    """
 
     delegate: bool = False
-    """Whether a Many2one sets up ``_inherits`` delegation to its comodel.
-
-    Declared here, with an inert default, for the same reason as
-    ``comodel_name`` and ``context`` above: consumers key on it without first
-    proving the field is a Many2one. ``Field.__get__``'s cache-miss path reads
-    ``self.type == "many2one" and self.delegate``, and until 2026-08-09 the
-    attribute existed *only* on ``Many2one`` -- so that line was safe purely by
-    ``and`` short-circuiting on the type string. Reorder the condition, or add a
-    second reader that checks ``delegate`` first, and every non-m2o field raises
-    ``AttributeError`` on the hottest read path in the ORM.
-    """
 
     attachment: bool = False
-    """Whether a Binary field stores its bytes as an ``ir.attachment``.
-
-    Same reason as ``delegate``: ``Field.update_db`` reads
-    ``self.related_field.type == "binary" and self.related_field.attachment``,
-    and the attribute lived only on ``Binary``.
-    """
 
     index: str | None = None
     manual: bool = False
@@ -1001,11 +900,12 @@ class Field[T](
             if field_cache.get(ids[0], SENTINEL) != cache_value:
                 return records
             return records.browse()
-        return records.browse(
+        ids_to_update = tuple(
             record_id
             for record_id in ids
             if field_cache.get(record_id, SENTINEL) != cache_value
         )
+        return records._spawn(records.env, ids_to_update, records._prefetch_ids)
 
     def _to_prefetch(self, record: ModelType) -> ModelType:
         field_cache = self._get_cache(record.env)

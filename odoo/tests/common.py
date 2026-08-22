@@ -50,7 +50,7 @@ from odoo.tools import (
 from odoo.tools.cache import _COUNTERS
 from odoo.tools.mail import single_email_re
 from odoo.tools.misc import lower_logging
-from odoo.tools.xml_utils import _validate_xml
+from odoo.tools.xml_utils import _check_xml
 
 from . import case
 from .browser import DEFAULT_SUCCESS_SIGNAL, ChromeBrowser, ChromeBrowserException
@@ -193,7 +193,7 @@ def test_xsd(url=None, path=None, skip=False):
                     skip if isinstance(skip, str) else "XSD validation disabled"
                 )
             xmls = func(self, *args, **kwargs)
-            _validate_xml(self.env, url, path, xmls)
+            _check_xml(self.env, url, path, xmls)
 
         return wrapped_f
 
@@ -311,14 +311,6 @@ _STATEMENT_RECORDERS = {
 }
 
 _DELEGATING_STATEMENTS = {"execute_values"}
-"""Statement entry points that reach the server *through* :meth:`Cursor.execute`.
-
-Recording them as well would list every such call twice.  ``copy_from`` is
-deliberately not here: it runs its ``LOCK TABLE`` through ``execute`` (which is
-a real, separately-recorded statement) but streams the rows straight to
-``psycopg``'s ``copy``, so without its own recorder the write itself is
-invisible.
-"""
 
 
 class BlockedRequest(requests.exceptions.ConnectionError):
@@ -334,8 +326,6 @@ class BaseCase(case.TestCase):
     cr: Cursor = None
 
     test_tags: set[str] | None = None
-    """Tags used for selection; ``None`` until :meth:`__init_subclass__` assigns
-    the default, and left as ``None`` for classes outside ``odoo.addons``."""
 
     test_module: str = ""
 
@@ -430,11 +420,6 @@ class BaseCase(case.TestCase):
 
         def check_remaining_patchers():
             for patcher in list(_patch._active_patches):
-                # mock.patch.dict instances live in _active_patches too but
-                # describe themselves with `in_dict`, not `target`/`attribute`.
-                # Reaching for those raised AttributeError here, which aborted
-                # the cleanup *before* stop() -- so the patcher leaked as well,
-                # and the whole test class errored in teardown.
                 if hasattr(patcher, "target"):
                     description = f"{patcher.target}.{patcher.attribute}"
                 else:

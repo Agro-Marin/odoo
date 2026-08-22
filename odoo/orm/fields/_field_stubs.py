@@ -33,8 +33,7 @@ class _FieldStubs:
 
         @property
         def column_type(self) -> tuple[str, str] | None:
-            """Owned by ``_FieldMetadataMixin``; the public read of
-            ``_column_type``, which several sibling mixins branch on."""
+            pass
 
         bypass_search_access: bool
         check_company: bool
@@ -66,11 +65,6 @@ class _FieldStubs:
             self, record: BaseModel
         ) -> dict[str, str] | None: ...
 
-        # The value-conversion seam, owned by _FieldConvertMixin, and the cache
-        # accessor owned by Field itself. _FieldSqlMixin calls all four while
-        # building a column expression; without them here every such call read
-        # as an attribute error on the mixin, which is the only scope a type
-        # checker sees them in.
         def get_company_dependent_fallback(self, records: ModelLike) -> typing.Any: ...
         def convert_to_column(
             self,

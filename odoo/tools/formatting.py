@@ -79,7 +79,7 @@ def formatLang(
 
     if rounding_unit == "decimals":
         if dp:
-            digits = env["decimal.precision"].precision_get(dp)
+            digits = env["decimal.precision"].get_precision(dp)
         elif currency_obj:
             digits = currency_obj.decimal_places
     else:

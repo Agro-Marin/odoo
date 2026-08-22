@@ -45,40 +45,18 @@ _OBSERVER_JOIN_TIMEOUT_S = 5.0
 ASSET_SUFFIXES = (".js", ".xml", ".scss", ".css")
 
 OVERFLOW_WD = -1
-"""Watch descriptor the kernel reports on ``IN_Q_OVERFLOW``; matches no watch."""
 
 OVERFLOW_PATH = "<inotify-overflow>"
-"""Stand-in path for the overflow event, which names no file."""
 
 ASSET_BURST_PATH = "<asset-burst>"
-"""Stand-in path for a coalesced invalidation, which covers many files."""
 
 
 INOTIFY_SYSCTL_DIR = Path("/proc/sys/fs/inotify")
 
 INOTIFY_LIMITS = ("max_user_instances", "max_user_watches")
-"""The two caps that both report ENOSPC, in the order the syscalls hit them."""
 
 
 def inotify_limit_diagnosis(exc: BaseException) -> str:
-    """Explain an inotify ENOSPC, which never means disk space.
-
-    inotify spends ``ENOSPC`` on two unrelated caps reached by two different
-    syscalls, and ``strerror`` renders both as "No space left on device":
-
-    * ``inotify_init()`` exhausts ``fs.inotify.max_user_instances`` — one
-      instance per watcher object, so concurrent servers, test runs and editors
-      share a per-*user* pool that defaults to 128 and is reached long before
-      anything about files is wrong.
-    * ``inotify_add_watch()`` exhausts ``fs.inotify.max_user_watches`` — one
-      watch per directory, so a large addons path reaches it instead.
-
-    Naming only one of them sends the reader to the wrong sysctl: raising a
-    limit that is nowhere near its cap changes nothing, and the message reads
-    like a diagnosis rather than the guess it was. So report both **with their
-    current values**, letting whoever is looking see which one is at its cap
-    instead of being told. Returns ``""`` for any error that is not ENOSPC.
-    """
     if getattr(exc, "errno", None) != errno.ENOSPC:
         return ""
     limits = []
@@ -240,13 +218,6 @@ class FSWatcherInotify(FSWatcherBase):
                 paths, mask=INOTIFY_LISTEN_EVENTS, block_duration_s=block_duration_s
             )
         except Exception as exc:
-            # `InotifyTrees` calls inotify_init() and then add_watch() per path,
-            # and the library reports both failures as `InotifyError: Call failed
-            # (should not be -1): (-1) ERRNO=(28) [No space left on device]`. That
-            # string sends every reader to `df`. Re-raise as an OSError carrying
-            # the real errno and an explanation of which caps are in play; the
-            # caller in lifecycle.py already degrades to running without a
-            # watcher, so this changes what it can SAY, not what it does.
             diagnosis = inotify_limit_diagnosis(exc)
             if not diagnosis:
                 raise

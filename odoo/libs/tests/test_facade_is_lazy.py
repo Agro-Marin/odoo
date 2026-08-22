@@ -7,17 +7,6 @@ _HEAVY = ("lxml", "markupsafe", "arabic_reshaper")
 
 
 def _probe(code: str) -> str:
-    """Run *code* in a subprocess and return what it printed.
-
-    Every assertion about the facade has to be made against the REAL module.
-    In-process, ``from odoo import libs`` reaches the Tier-1 stub instead: a
-    bare ``ModuleType`` carrying nothing but a ``__path__`` (see
-    ``odoo/_testing_bootstrap.py``), because these suites deliberately avoid
-    running ``odoo/__init__.py``. Against that stub ``libs.__all__`` raises
-    AttributeError and ``libs.anything`` raises it too -- which is how
-    ``test_unknown_attribute_still_raises_attribute_error`` used to pass while
-    proving nothing at all. A subprocess has no stubs registered.
-    """
     completed = subprocess.run(
         [sys.executable, "-c", textwrap.dedent(code)],
         capture_output=True,

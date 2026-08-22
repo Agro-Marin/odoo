@@ -37,13 +37,22 @@ class SQL:
         to_flush: Field | Iterable[Field] | None = None,
         **kwargs: object,
     ) -> None:
-        if isinstance(code, SQL):
-            if args or kwargs or to_flush:
+        if isinstance(code, SQL) or (
+            code == "%s" and len(args) == 1 and isinstance(args[0], SQL)
+        ):
+            if not isinstance(code, SQL):
+                code, args = args[0], ()
+            if args or kwargs:
                 msg = "SQL() unexpected arguments when code has type SQL"
                 raise TypeError(msg)
             self.__code = code.__code
             self.__params = code.__params
-            self.__to_flush = code.__to_flush
+            if to_flush is None:
+                self.__to_flush = code.__to_flush
+            elif hasattr(to_flush, "__iter__"):
+                self.__to_flush = tuple(to_flush)
+            else:
+                self.__to_flush = (to_flush,)
             return
 
         if args and kwargs:

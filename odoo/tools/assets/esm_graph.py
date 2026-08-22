@@ -211,7 +211,7 @@ def discover_transitive_import_specifiers(
         for target in _scan_import_specifiers(src):
             if target.startswith("."):
                 abs_spec = _resolve_export_specifier(
-                    spec, target, resolver.resolve_url(spec)
+                    spec, target, resolver.effective_url(spec)
                 )
                 if abs_spec and abs_spec not in scanned:
                     scanned.add(abs_spec)
@@ -235,8 +235,13 @@ def discover_transitive_import_specifiers(
 
 
 def _source_map_url(source_map: object, spec: str | None) -> str | None:
-    resolve = getattr(source_map, "resolve_url", None)
-    return resolve(spec) if callable(resolve) and spec else None
+    if not spec:
+        return None
+    for attr in ("effective_url", "resolve_url"):
+        resolve = getattr(source_map, attr, None)
+        if callable(resolve):
+            return resolve(spec)
+    return None
 
 
 def _resolve_relative_url(importing_url: str, target_path: str) -> str | None:
@@ -341,6 +346,40 @@ def _extract_esm_exports(
     return names, has_default
 
 
+def addon_specifier_to_url(spec: str) -> str | None:
+    if not spec.startswith("@"):
+        return None
+    rest = spec[1:]
+    slash = rest.find("/")
+    if slash <= 0:
+        return None
+    addon = rest[:slash]
+    if addon == "odoo":
+        return None
+    path = rest[slash + 1 :]
+    if path.startswith("../lib/"):
+        url = f"/{addon}/static/lib/{path[len('../lib/') :]}"
+    elif path.startswith("../tests/"):
+        url = f"/{addon}/static/tests/{path[len('../tests/') :]}"
+    else:
+        url = f"/{addon}/static/src/{path}"
+    if not url.endswith(".js"):
+        url += ".js"
+    return url
+
+
+def resolve_specifier_url(
+    spec: str,
+    ext_libs: Mapping[str, str],
+    lib_candidates: Mapping[str, tuple[str, ...]],
+) -> str | None:
+    if (url := ext_libs.get(spec)) is not None:
+        return url
+    if (lib_parts := lib_candidates.get(spec)) is not None:
+        return "/" + "/".join(lib_parts)
+    return addon_specifier_to_url(spec)
+
+
 class _BridgeExportResolver:
     __slots__ = (
         "_bundle_name",
@@ -349,6 +388,7 @@ class _BridgeExportResolver:
         "_ext_libs",
         "_lib_candidates",
         "_star_cache",
+        "_url_cache",
     )
 
     def __init__(
@@ -363,30 +403,10 @@ class _BridgeExportResolver:
         self._cache: dict[str, str | None] = {}
         self._exports_cache: dict[str, tuple[set[str], bool]] = {}
         self._star_cache: dict[str, set[str]] = {}
+        self._url_cache: dict[str, str] = {}
 
     def resolve_url(self, spec: str) -> str | None:
-        if spec in self._ext_libs:
-            return self._ext_libs[spec]
-        lib_parts = self._lib_candidates.get(spec)
-        if lib_parts:
-            return "/" + "/".join(lib_parts)
-        if not spec.startswith("@"):
-            return None
-        s = spec[1:]
-        slash = s.find("/")
-        if slash <= 0:
-            return None
-        addon = s[:slash]
-        path = s[slash + 1 :]
-        if path.startswith("../lib/"):
-            url = f"/{addon}/static/lib/{path[len('../lib/') :]}"
-        elif path.startswith("../tests/"):
-            url = f"/{addon}/static/tests/{path[len('../tests/') :]}"
-        else:
-            url = f"/{addon}/static/src/{path}"
-        if not url.endswith(".js"):
-            url += ".js"
-        return url
+        return resolve_specifier_url(spec, self._ext_libs, self._lib_candidates)
 
     def read_source(self, spec: str) -> str | None:
         if spec in self._cache:
@@ -405,11 +425,13 @@ class _BridgeExportResolver:
                 fpath = file_path(rel)
             except FileNotFoundError, ValueError:
                 if rel.endswith(".js"):
-                    fpath = file_path(rel[:-3] + "/index.js")
+                    rel = rel[:-3] + "/index.js"
+                    fpath = file_path(rel)
                 else:
                     raise
             src = Path(fpath).read_text(encoding="utf-8")
             self._cache[spec] = src
+            self._url_cache[spec] = f"/{rel}"
             return src
         except (FileNotFoundError, ValueError, OSError) as exc:
             log_event(
@@ -427,6 +449,10 @@ class _BridgeExportResolver:
         src = self.read_source(key)
         return src if src is not None else default
 
+    def effective_url(self, spec: str) -> str | None:
+        cached = self._url_cache.get(spec)
+        return cached if cached is not None else self.resolve_url(spec)
+
     def source_exports(self, spec: str) -> tuple[set[str], bool]:
         cached = self._exports_cache.get(spec)
         if cached is not None:
@@ -439,7 +465,7 @@ class _BridgeExportResolver:
                 src,
                 source_map=self,
                 importing_specifier=spec,
-                importing_url=self.resolve_url(spec),
+                importing_url=self.effective_url(spec),
                 _exports_cache=self._star_cache,
             )
         self._exports_cache[spec] = result
@@ -455,25 +481,6 @@ def _bridge_shim_source(
     src_names: set[str],
     has_default: bool,
 ) -> tuple[str, bool]:
-    """Emit the shim that re-publishes one specifier from ``odoo.loader.modules``.
-
-    The bindings are ``let`` re-exported by name, never ``const`` and never
-    ``export default <expr>``, and that is the whole point: both of those
-    snapshot at evaluation. A shim reached before its producer registered bound
-    ``undefined`` for every export and kept it, permanently, because an
-    import-map entry cannot be re-mapped once the document holds it — so the
-    consumer had no second chance either.
-
-    ``export { _d as default }`` IS a live binding where ``export default _d``
-    is not; the spelling matters.
-
-    ``_s`` runs once at evaluation and again on the loader's ``registered``
-    event, then unsubscribes. Consumers that read at use time
-    (``registry.category(...)``, ``_t(...)``) pick the value up. A consumer that
-    reads at module scope — ``class X extends Y`` — still cannot, which is why
-    `TestDynamicBundleIntegrity` refuses a lazy bundle whose producer the page
-    never registers at all: this makes ordering survivable, not absence.
-    """
     names = [
         name
         for name in sorted(src_names)

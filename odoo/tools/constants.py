@@ -7,10 +7,8 @@ __all__ = [
 ]
 
 CRON_TRIGGER_CHANNEL = "cron_trigger"
-"""PostgreSQL NOTIFY channel waking the ``ir.cron`` workers."""
 
 JOB_QUEUE_CHANNEL = "job_queue"
-"""PostgreSQL NOTIFY channel waking the ``ir.job`` workers."""
 
 SUPPORTED_DEBUGGER = {"pdb", "ipdb", "wdb", "pudb"}
 

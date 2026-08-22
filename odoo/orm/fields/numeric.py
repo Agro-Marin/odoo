@@ -141,7 +141,7 @@ class Float(Field[float]):
 
     def get_digits(self, env: Environment) -> tuple[int, int] | None:
         if isinstance(self._digits, str):
-            precision = env["decimal.precision"].precision_get(self._digits)
+            precision = env["decimal.precision"].get_precision(self._digits)
             return 16, precision
         else:
             return self._digits
@@ -153,7 +153,7 @@ class Float(Field[float]):
 
     def get_min_display_digits(self, env: Environment) -> int | None:
         if isinstance(self._min_display_digits, str):
-            return env["decimal.precision"].precision_get(self._min_display_digits)
+            return env["decimal.precision"].get_precision(self._min_display_digits)
         return self._min_display_digits
 
     def _description_min_display_digits(self, env: Environment) -> int | None:
@@ -189,7 +189,7 @@ class Float(Field[float]):
             return float_round(value, precision_digits=digits[1])
         if not isinstance(digits, str):
             return value
-        precision = record.env["decimal.precision"].precision_get(digits)
+        precision = record.env["decimal.precision"].get_precision(digits)
         return float_round(value, precision_digits=precision)
 
     @override
@@ -410,7 +410,7 @@ class Monetary(Field[float]):
         env = records.env
         field_cache = self._get_cache(env)
         currency_field = records._fields[self.get_currency_field(records)]
-        return records.browse(
+        ids_to_update = tuple(
             record_id
             for record_id, record_sudo in zip(
                 records._ids,
@@ -424,3 +424,4 @@ class Monetary(Field[float]):
                 and currency.with_env(env).round(value) == cache_value
             )
         )
+        return records._spawn(env, ids_to_update, records._prefetch_ids)

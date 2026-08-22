@@ -253,12 +253,6 @@ def _warn_on_connection_budget() -> None:
         _logger.debug("Could not check the connection budget", exc_info=True)
         return
 
-    # A pooler makes the comparison below meaningless: the workers contend for
-    # its client slots, while max_connections bounds the much smaller server
-    # pool it multiplexes, so demand legitimately exceeds it. Its client limit
-    # is not readable from here, so report that rather than guess. Detected
-    # without naming a vendor: a proxied connection reports the backend's port,
-    # not the one we dialed.
     if server_port and configured_port and int(configured_port) != int(server_port):
         _logger.info(
             "Connection budget not checked: connected to port %s but the server "

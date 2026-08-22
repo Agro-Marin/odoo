@@ -8,24 +8,8 @@ SAFE_HTTP_METHODS = ("GET", "HEAD", "OPTIONS")
 DEFAULT_ALLOWED_METHODS = ("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE")
 
 CORS_DEFAULT_ALLOWED_METHODS = ("GET", "POST")
-"""Fallback for ``Access-Control-Allow-Methods`` when a CORS route names none.
-
-Deliberately narrower than :data:`DEFAULT_ALLOWED_METHODS`, which is what the
-``OPTIONS`` handler advertises for a route that declares no methods. The two
-are different questions -- what this server will accept, versus what a
-cross-origin caller is invited to send -- and the CORS answer has always been
-the pair. Named because it was an inline literal facing a same-shaped constant,
-which is how the two get "unified" by mistake.
-"""
 
 REJECTED_HTTP_METHODS = ("TRACE",)
-"""Verbs the framework never dispatches, whatever a route declares.
-
-A route with no ``methods=`` allow-list matches every verb, so dropping
-``TRACE`` from :data:`SAFE_HTTP_METHODS` is not enough on its own: the handler
-would still run, merely with CSRF now enforced. ``TRACE`` echoes the request
-back and no Odoo route serves it, so reject it at the entry point instead.
-"""
 
 CSRF_TOKEN_MAX_AGE = 60 * 60 * 24 * 365
 

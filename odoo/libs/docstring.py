@@ -1,24 +1,3 @@
-"""Sphinx info-field docstrings and Python signatures, as data.
-
-Two jobs, both Odoo-free (docutils and the standard library are the only
-dependencies):
-
-* parse the *vocabulary* of Sphinx info fields -- ``:param:``, ``:raises:``,
-  ``:rtype:`` and their aliases -- out of a docstring, and render the prose
-  around them to HTML;
-* reflect a callable's signature into a JSON-serialisable :class:`Signature`,
-  merging in whatever the docstring documented.
-
-The vocabulary is shared on purpose: ``addons/test_lint`` *lints* these fields
-and ``addons/api_doc`` *renders* them, and two copies of the table drift.
-
-Annotations are read with :data:`annotationlib.Format.STRING` (PEP 649), so a
-signature whose annotations name types imported under ``if TYPE_CHECKING:``
-reflects fine instead of raising ``NameError`` -- which is most of the ORM.
-That is also what keeps this module Odoo-free: nothing here has to *resolve* a
-type, only carry the text of it.
-"""
-
 from __future__ import annotations
 
 import contextlib
@@ -60,8 +39,6 @@ _logger = logging.getLogger(__name__)
 
 EMPTY: typing.Final = inspect.Parameter.empty
 
-#: Sphinx info-field names, mapped to the canonical kind they denote.
-#: https://www.sphinx-doc.org/en/master/usage/domains/python.html#info-field-lists
 RST_INFO_FIELDS: typing.Final[dict[str, str]] = {
     "param": "param",
     "parameter": "param",
@@ -84,9 +61,6 @@ RST_INFO_FIELDS: typing.Final[dict[str, str]] = {
     "meta": "meta",
 }
 
-#: Info-field kinds that describe an attribute rather than the call, plus the
-#: no-op ``:meta:``. Recognised so a caller can skip them deliberately instead
-#: of reporting them as unparsable.
 NON_CALL_FIELDS: typing.Final[frozenset[str]] = frozenset({"var", "vartype", "meta"})
 
 PARSE_ERROR: typing.Final = '''\
@@ -97,10 +71,6 @@ Want to help fix the docstrings? Check out the test_docstring linter!
 """
 {}'''
 
-# report_level 3 keeps docutils quiet below ERROR; halt_level 5 means it never
-# raises on our behalf. raw/file_insertion are disabled because a docstring is
-# untrusted input as far as this module is concerned: neither `.. raw:: html`
-# nor `.. include::` may reach the renderer.
 _SAFE_SETTINGS: typing.Final[dict[str, typing.Any]] = {
     "report_level": 3,
     "halt_level": 5,
@@ -111,7 +81,7 @@ _SAFE_SETTINGS: typing.Final[dict[str, typing.Any]] = {
 
 def _make_settings(
     writer_name: str, overrides: dict[str, typing.Any]
-) -> typing.Any:  # docutils returns an optparse Values
+) -> typing.Any:
     parser = parsers.get_parser_class("restructuredtext")()
     reader = readers.get_reader_class("standalone")(parser)
     writer = writers.get_writer_class(writer_name)()
@@ -132,12 +102,10 @@ def _html_settings() -> typing.Any:
 
 @functools.cache
 def _empty_root() -> Callable[[], nodes.document]:
-    """A factory for blank docutils documents to hang a subtree under."""
     return docutils.core.publish_doctree("").copy
 
 
 def to_doctree(docstring: str) -> nodes.document:
-    """Parse *docstring* as reStructuredText, logging any docutils complaint."""
     with contextlib.redirect_stderr(io.StringIO()) as stderr:
         doctree = docutils.core.publish_doctree(docstring, settings=_tree_settings())
         if stderr.tell():
@@ -146,7 +114,6 @@ def to_doctree(docstring: str) -> nodes.document:
 
 
 def render_html(tree: nodes.Node) -> str:
-    """Render a doctree (or one node of one) to an HTML fragment."""
     root = _empty_root()()
     root.append(tree)
     html = docutils.core.publish_from_doctree(
@@ -162,20 +129,14 @@ def render_children_html(tree: nodes.Element) -> str:
 
 
 class InfoField(typing.NamedTuple):
-    """One ``:kind [annotation] name: body`` entry of a docstring."""
 
-    kind: str | None  # canonical kind, None when the name is not a known field
-    name: str  # what followed the kind, verbatim and stripped
+    kind: str | None
+    name: str
     body: nodes.Element
-    raw: str  # the field name as written, for error messages
+    raw: str
 
 
 def iter_info_fields(doctree: nodes.document) -> Iterator[InfoField]:
-    """Yield every info field of *doctree*, removing their lists from it.
-
-    The removal is the point: what is left of the tree afterwards is the prose,
-    ready to be rendered on its own.
-    """
     field_lists = [
         node for node in doctree if node.tagname in ("docinfo", "field_list")
     ]
@@ -189,7 +150,6 @@ def iter_info_fields(doctree: nodes.document) -> Iterator[InfoField]:
 
 
 def stringify_annotation(annotation: typing.Any) -> str | None:
-    """Render an annotation as source-like text, or None when there is none."""
     if annotation is EMPTY:
         return None
     if isinstance(annotation, str):
@@ -202,29 +162,16 @@ def stringify_annotation(annotation: typing.Any) -> str | None:
 
 
 ParamKind = typing.Literal[
-    # def f(pos_only, /, pos_or_kw, *var_pos, kw_only, **var_kw)
     "POSITIONAL_ONLY",
     "POSITIONAL_OR_KEYWORD",
     "VAR_POSITIONAL",
     "KEYWORD_ONLY",
     "VAR_KEYWORD",
 ]
-"""The five ``inspect._ParameterKind`` member names.
-
-Named rather than written inline in :class:`Param` so ``from_inspect`` can spell
-the same type in its cast: ``inspect.Parameter.kind.name`` is typed ``str``, and
-only the enum guarantees that string is one of these five.
-"""
 
 
 @dataclasses.dataclass(slots=True)
 class Param:
-    """One parameter of a :class:`Signature`.
-
-    ``slots=True`` is load-bearing: it turns a typo in an attribute name into
-    an ``AttributeError`` instead of a silently created attribute that
-    ``as_dict`` would then export under the wrong key.
-    """
 
     name: str
     kind: ParamKind
@@ -251,8 +198,6 @@ class Param:
             "doc": self.doc,
         }
         if self.kind == "POSITIONAL_OR_KEYWORD":
-            # most (99%) params are POSITIONAL_OR_KEYWORD: make the export
-            # smaller by leaving those implicit
             del d["kind"]
         if self.annotation is None:
             del d["annotation"]
@@ -261,7 +206,6 @@ class Param:
         if self.default is EMPTY:
             del d["default"]
         else:
-            # a default that cannot survive the trip is worse than no default
             try:
                 json.dumps(self.default)
             except TypeError, ValueError:
@@ -319,12 +263,6 @@ class Signature:
         default: bool = True,
         return_annotation: bool = True,
     ) -> str:
-        """Render the signature the way it would be written in Python.
-
-        The markers matter as much as the names: a reader copying
-        ``(field_name, kwargs)`` writes a call that cannot work, where
-        ``(field_name, **kwargs)`` tells them what to send.
-        """
         rendered: list[str] = []
         previous: str | None = None
         starred = False
@@ -360,7 +298,6 @@ class Signature:
 
 
 def render_docstring(text: str) -> str:
-    """Render a whole docstring to HTML, info fields and all."""
     return render_html(to_doctree(inspect.cleandoc(text)))
 
 
@@ -370,20 +307,8 @@ def parse_signature(
     docstring: str | None = None,
     normalize_return: Callable[[str | None], str | None] | None = None,
 ) -> Signature:
-    """Reflect *method* into a :class:`Signature`, docstring included.
-
-    :param method: any callable; ``self``/``cls`` is dropped when present
-    :param docstring: documentation to merge in, when it does not live on
-        *method* itself -- an override that documents nothing should still be
-        described by the docstring of the implementation it replaced
-    :param normalize_return: optional hook rewriting the return annotation,
-        for callers whose transport does not return what the annotation says
-        (Odoo's RPC returns ids where the signature says a recordset)
-    :return: the parsed signature
-    """
     isign = inspect.signature(method, annotation_format=Format.STRING)
 
-    # strip self and cls: the caller of an RPC method does not pass them
     parameters = list(isign.parameters.values())
     if parameters and parameters[0].name in ("self", "cls"):
         isign = isign.replace(parameters=parameters[1:])
@@ -410,44 +335,35 @@ def parse_signature(
 
 
 def enhance_signature_using_docstring(signature: Signature, docstring: str) -> None:
-    """Fold a docstring's info fields into *signature*, in place."""
     doctree = to_doctree(inspect.cleandoc(docstring))
 
     for field in iter_info_fields(doctree):
         match (field.kind, field.name):
-            # unknown field name (:foo:) -- say so, it is likely a typo
             case (None, _):
                 _logger.warning(
                     PARSE_ERROR.format(docstring, f"cannot parse {field.raw}")
                 )
-            # :var:/:vartype:/:meta: describe something other than the call
             case (kind, _) if kind in NON_CALL_FIELDS:
                 pass
-            # :param <annotation> <name>: <rst>
             case ("param", annotated_name) if " " in annotated_name:
                 annotation, _, name = annotated_name.rpartition(" ")
                 if param := signature.parameters.get(name.strip()):
                     if not param.annotation:
                         param.annotation = annotation.strip()
                     param.doc = render_children_html(field.body)
-            # :param <name>: <rst>
             case ("param", name):
                 if param := signature.parameters.get(name):
                     param.doc = render_children_html(field.body)
-            # :type <name>: <annotation>
             case ("type", name):
                 if (param := signature.parameters.get(name)) and not param.annotation:
                     param.annotation = field.body.children[0].astext().strip()
-            # :returns: <rst>
             case ("returns", ""):
                 signature.return_.doc = render_children_html(field.body)
-            # :rtype: <annotation>
             case ("rtype", ""):
                 if not signature.return_.annotation:
                     signature.return_.annotation = (
                         field.body.children[0].astext().strip()
                     )
-            # :raises <exception>: <rst>
             case ("raises", exception):
                 signature.raise_[exception] = render_children_html(field.body)
             case _:

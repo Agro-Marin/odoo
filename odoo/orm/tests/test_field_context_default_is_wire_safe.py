@@ -1,12 +1,3 @@
-"""``Field.context``'s shared default has to be immutable *and* a ``dict``.
-
-It is wire-facing: ``_description_context`` hands it to ``fields_get`` verbatim.
-While it was a ``ReadonlyDict`` -- immutable, but a bare ``Mapping`` -- every
-serialiser that dispatches on ``dict`` refused it, which broke ``fields_get``
-over XML-RPC entirely. Immutability alone is therefore not the invariant; these
-tests pin both halves so a future tightening cannot trade one for the other.
-"""
-
 import json
 
 import pytest
@@ -39,7 +30,6 @@ def test_context_default_is_empty():
 
 @pytest.mark.parametrize("name", sorted(_MUTATIONS))
 def test_context_default_refuses_mutation(name):
-    """The default is shared by every Field, so one mutation would hit them all."""
     with pytest.raises((NotImplementedError, TypeError, AttributeError)):
         _MUTATIONS[name](Field.context)
     assert Field.context == {}

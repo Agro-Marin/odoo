@@ -3,7 +3,6 @@ import unittest
 from odoo.tools.safe_eval import safe_eval
 
 SECRET = "db-password-xyz"
-"""A module global standing in for anything sensitive in a real namespace."""
 
 
 def _victim():

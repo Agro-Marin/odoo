@@ -108,16 +108,6 @@ class Transaction:
 
         self.cache = Cache(self)
         self._ref_cache: dict[tuple[str, int], bool] = {}
-        """``{(model, id): True}`` for xml-ids :meth:`Environment.ref` proved to
-        exist, saving it one ``exists()`` query per lookup (1.1 us cached vs
-        59.6 us, one query each).
-
-        Sound only because a positive cannot go stale within a transaction:
-        cursors run at ``REPEATABLE READ``, so a delete committed elsewhere is
-        invisible here, and an ORM ``unlink()`` clears this map through
-        :meth:`invalidate_field_data`.  Deleting rows with raw SQL and then
-        calling ``ref()`` on them returns a browse of the dead id instead of
-        raising -- invalidate after such a delete, as with any other cache."""
 
         self._n1_tracker: NplusOneTracker | None = (
             NplusOneTracker() if _n1_enabled else None

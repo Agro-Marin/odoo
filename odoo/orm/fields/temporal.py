@@ -19,24 +19,10 @@ def _get_all_timezones_set() -> frozenset[str]:
     return frozenset(all_timezones())
 
 
-#: PostgreSQL's timezone catalogue, per database. Static for the life of a
-#: server, so it is read once and kept.
 _sql_timezones_set: dict[str, frozenset[str]] = {}
 
 
 def _get_sql_timezones_set(env) -> frozenset[str]:
-    """Timezone names *the database* accepts, for anything reaching SQL.
-
-    Odoo's own catalogue is a superset of the server's -- 599 zoneinfo names
-    against PostgreSQL 18's 487 here. Every legacy alias ('Asia/Calcutta',
-    'America/Buenos_Aires', 'US/Samoa', ...) is offered by the ``tz`` dropdown
-    and refused by ``AT TIME ZONE``, so validating a timezone against Python's
-    set and then interpolating it into a query turns one user's profile setting
-    into an ``InvalidParameterValue`` on every grouped read they perform.
-
-    Callers go through :func:`_sql_timezone_name`, which resolves the alias
-    rather than reading this set directly.
-    """
     names = _sql_timezones_set.get(env.cr.dbname)
     if names is None:
         env.cr.execute("SELECT name FROM pg_timezone_names")

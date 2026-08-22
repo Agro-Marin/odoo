@@ -24,6 +24,7 @@ from odoo.tools import config
 
 from ._protocols import RequestState
 from .constants import NOT_FOUND_NODB, STATIC_CACHE
+from .core import borrow_request
 from .dispatcher import (
     HttpDispatcher,
     _dispatchers,
@@ -126,7 +127,8 @@ class _RequestServeMixin(RequestState):
     def _acquire_registry_cursor(self) -> Any:
         cr = None
         try:
-            registry = Registry(self.db)
+            with borrow_request():
+                registry = Registry(self.db)
             cr = registry.cursor(readonly=True)
             self.registry = registry.check_signaling(cr)
             return cr

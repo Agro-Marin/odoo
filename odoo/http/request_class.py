@@ -67,6 +67,23 @@ def _monodb_dblist(host: str) -> list[str]:
     try:
         all_dbs = _all_dbs_cached(int(time.time() // DB_MONODB_CACHE_TTL))
     except psycopg.Error:
+        # An empty list here is indistinguishable, to every caller, from "this
+        # instance serves no database": the monodb rule needs exactly one
+        # survivor, so a session-less request answers 404 and says nothing
+        # about why. `list_dbs` logs only failures of its SELECT -- the
+        # `db_connect` and `.cursor()` above it are outside that try -- so a
+        # cluster refusing connections lands here and nowhere else. It cost a
+        # `web` test run an unreproducible 404 on a route that was fine.
+        #
+        # Logged, not raised: falling back to "no database" is the right
+        # behaviour for a transient blip, and the 5 s TTL means the next
+        # request retries. lru_cache does not memoise exceptions, so this
+        # reflects live connectivity rather than one stale failure.
+        _logger.warning(
+            "Could not list databases to resolve a session-less request; "
+            "answering as though this instance serves none.",
+            exc_info=True,
+        )
         return []
     return db_filter(list(all_dbs), host=host)
 

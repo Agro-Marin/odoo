@@ -130,17 +130,6 @@ def job(
     max_retries: int = 5,
     max_defers: int = 100,
 ) -> Callable:
-    """Mark a private method as runnable by the background job queue.
-
-    :param channel: queue channel, which governs concurrency
-    :param priority: lower runs first
-    :param max_retries: attempts after a *failure* before the job is failed
-    :param max_defers: times the body may call ``_defer()`` before the job is
-        failed. A deferral is not a failure -- it is a job saying it made
-        progress and wants to be run again later -- so it has its own budget:
-        polling an external service for an hour must not eat the tolerance
-        that exists for genuine errors.
-    """
 
     def decorate[C: Callable](func: C) -> C:
         if not func.__name__.startswith("_"):
@@ -176,6 +165,12 @@ def readonly[C: Callable](method: C) -> C:
 
 
 def deprecated(reason: str) -> Decorator:
+    if not isinstance(reason, str):
+        msg = (
+            "Expected an object of type str for 'reason', not "
+            f"{type(reason).__name__!r}"
+        )
+        raise TypeError(msg)
 
     def decorator(method: C) -> C:
         @wraps(method)

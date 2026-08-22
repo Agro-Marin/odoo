@@ -65,7 +65,6 @@ class ormcache_counter:
 _COUNTERS: defaultdict[tuple[str, Callable], ormcache_counter] = defaultdict(
     ormcache_counter
 )
-"""Statistic counters, mapping (dbname, method) to counter."""
 
 
 def prune_counters(db_name: str) -> None:

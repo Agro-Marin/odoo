@@ -399,7 +399,7 @@ class LoadMixin(_ModelStubs):
         if self.env.lang:
             field_names.update(self.env["ir.model.fields"].get_field_string(self._name))
 
-        convert = self.env["ir.fields.converter"].for_model(self)
+        convert = self.env["ir.fields.converter"]._get_converter_record(self)
 
         def _log(base, record, field, exception):
             type = "warning" if isinstance(exception, Warning) else "error"
@@ -474,7 +474,7 @@ class LoadMixin(_ModelStubs):
 
         xml_ids = [data["xml_id"] for data in data_list if data.get("xml_id")]
         existing = {
-            f"{row[1]}.{row[2]}": row for row in imd._lookup_xmlids(xml_ids, self)
+            f"{row[1]}.{row[2]}": row for row in imd._get_xmlids(xml_ids, self)
         }
 
         to_create = []

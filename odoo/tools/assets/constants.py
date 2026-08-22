@@ -2,12 +2,14 @@ __all__ = [
     "ANY_UNIQUE",
     "ASSET_EXTENSIONS",
     "DOTTED_ASSET_EXTENSIONS",
+    "ESM_BRIDGE_REFRESH_DAYS",
     "EXTENSION_TO_WEB_MIMETYPES",
     "EXTERNAL_ASSET",
     "SCRIPT_EXTENSIONS",
     "STYLE_EXTENSIONS",
     "TEMPLATE_EXTENSIONS",
     "ExternalAsset",
+    "like_escape",
 ]
 
 SCRIPT_EXTENSIONS = ("js",)
@@ -24,13 +26,12 @@ class ExternalAsset:
 
 
 EXTERNAL_ASSET = ExternalAsset()
-"""Marks a resolved asset as an external URL, served as-is instead of bundled."""
 
 ANY_UNIQUE = "_" * 7
-"""Sentinel placeholder for unique asset hashes in URLs."""
+
+ESM_BRIDGE_REFRESH_DAYS = 1.0
 
 DOTTED_ASSET_EXTENSIONS = tuple(f".{ext}" for ext in ASSET_EXTENSIONS)
-"""Asset extensions with leading dots (for URL/path matching)."""
 
 EXTENSION_TO_WEB_MIMETYPES = {
     ".css": "text/css",
@@ -40,4 +41,7 @@ EXTENSION_TO_WEB_MIMETYPES = {
     ".csv": "text/csv",
     ".html": "text/html",
 }
-"""Mapping of web file extensions to MIME types."""
+
+
+def like_escape(literal: str) -> str:
+    return literal.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")

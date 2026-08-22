@@ -359,7 +359,6 @@ def _optimize_relational_name_search(condition, model):
 
 
 _NOT_A_NUMBER = object()
-"""Marker for a comparand that is not a number at all (see _coerce_numeric)."""
 
 
 def _coerce_numeric(value: typing.Any, field_type: str) -> typing.Any:

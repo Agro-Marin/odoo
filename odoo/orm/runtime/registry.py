@@ -45,31 +45,12 @@ _schema = logging.getLogger("odoo.schema")
 
 
 _REPLICA_RETRY_TIME = 20 * 60
-"""Ceiling on the replica breaker's backoff.
-
-Was a flat window: one failure sent every readonly request to the primary for
-the full 20 minutes, with nothing re-checking, so a transient blip cost 20
-minutes of primary load and recovery was waited out rather than detected.  It is
-now the *maximum* a doubling backoff reaches, so the worst case is unchanged
-while a blip recovers in about a second.
-"""
 
 _SIGNALING_TABLES = tuple(
     f"orm_signaling_{cache_name}" for cache_name in ["registry", *CACHES_BY_KEY]
 )
 
 _ASSERTION_REPORTS: dict[str, typing.Any] = {}
-"""``{db_name: OdooTestResult}`` — the test report belongs to a database, not to
-a :class:`Registry` instance.
-
-``odoo.service.lifecycle.preload_registries`` derives the ``odoo-bin
---test-enable`` exit code from ``registry._assertion_report.wasSuccessful()`` on
-whichever registry is published in :attr:`Registry.registries`.  Per-instance,
-any test that reloads the registry (``Registry.new``, as
-``base/tests/test_uninstall.py`` does) published an empty report and discarded
-every failure recorded before it, so the run logged its failures and still
-exited 0.  Verified by A/B on identical databases: exit 0 per-instance, exit 1
-per-database, same one failing test."""
 
 
 def _get_assertion_report(db_name: str) -> typing.Any:
@@ -112,7 +93,6 @@ class Registry(
     _lock: threading.RLock | DummyRLock = threading.RLock()
 
     registries = LRU[str, "Registry"](42)
-    """A mapping from database names to registries."""
 
     idle_timeout: float = 0
     """Seconds a registry may go unused before :meth:`_drop_idle` collects it.

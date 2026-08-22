@@ -228,7 +228,7 @@ def restore_db(
                     odoo.modules.neutralize.neutralize_database(cr)
 
                 if filestore_path:
-                    filestore_dest = env["ir.attachment"]._filestore()
+                    filestore_dest = env["ir.attachment"]._get_filestore()
                     if Path(filestore_dest).exists():
                         raise RuntimeError(
                             f"Filestore {filestore_dest!r} appeared between "

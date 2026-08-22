@@ -66,28 +66,11 @@ class _RegistryCapabilitiesMixin(_RegistryStubs):
     __slots__ = ()
 
     has_unaccent: FunctionStatus
-    """Tri-state, NOT a bool: ``MISSING`` / ``PRESENT`` / ``INDEXABLE``.
-
-    ``_registry_schema.check_indexes`` branches on all three -- only
-    ``INDEXABLE`` (``unaccent`` declared ``IMMUTABLE``) may be used inside a
-    trigram index expression, while ``PRESENT`` merely warns.  Declared ``bool``
-    until 19.0-marin, which made that comparison statically unsatisfiable (a
-    ``bool`` is 0 or 1, ``INDEXABLE`` is 2) and reported it as
-    ``comparison-overlap``; the branch it called dead is the one that runs on
-    every database built from a template carrying an immutable ``unaccent``.
-    ``has_trigram`` really is a bool -- the asymmetry is why the wrong
-    declaration read as plausible.
-    """
 
     has_trigram: bool
     unaccent: typing.Callable[..., SQL | str | psycopg_sql.Composed]
-    """SQL-level folding: wraps an expression in ``unaccent(...)``, or returns
-    it unchanged when the extension is absent."""
 
     unaccent_python: typing.Callable[[str], str]
-    """The same fold in Python, for comparing values the database is not being
-    asked about. Built from a probed translation table rather than a call, so it
-    costs no query per use."""
 
     def _probe_capabilities(self, cr: BaseCursor, db_name: str) -> None:
         from odoo.modules import db as modules_db

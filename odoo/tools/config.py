@@ -985,9 +985,6 @@ class configmanager:
         )
 
     def _add_db_pool_sizing_options(self, group: optparse.OptionGroup) -> None:
-        # --db-template is neither a size nor a limit; it rides in this method
-        # because --help prints options in the order they are added, so the
-        # split had to fall on contiguous runs rather than on themes.
         group.add_option(
             "--db_maxconn",
             dest="db_maxconn",

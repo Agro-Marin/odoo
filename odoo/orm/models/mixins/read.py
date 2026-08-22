@@ -287,7 +287,7 @@ class ReadMixin(_ModelStubs):
             forbidden = (self - fetched).exists()
             if forbidden:
                 msg = "read"
-                raise self.env["ir.rule"]._make_access_error(msg, forbidden)
+                raise self.env["ir.rule"]._prepare_access_error(msg, forbidden)
 
     def _determine_fields_to_fetch(
         self,
@@ -369,7 +369,7 @@ class ReadMixin(_ModelStubs):
                     sql = SQL("pg_size_pretty(length(%s)::bigint)", sql)
                 elif not field.translate:
                     to_flush = (f for f in sql.to_flush if f != field)
-                    sql = SQL(sql.code, *sql.params, to_flush=to_flush)
+                    sql = SQL("%s", sql, to_flush=to_flush)
                 sql_terms.append(sql)
 
             rows = self.env.execute_query(query.select(*sql_terms))

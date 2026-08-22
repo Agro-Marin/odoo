@@ -42,7 +42,7 @@ class odoo_resolver(etree.Resolver):
         return None
 
 
-def _validate_xml(env: object, url: str | None, path: str | None, xmls: object) -> None:
+def _check_xml(env: object, url: str | None, path: str | None, xmls: object) -> None:
     xsd_attachment = env["ir.attachment"]
     if path:
         with file_open(path, filter_ext=(".xsd",)) as file:

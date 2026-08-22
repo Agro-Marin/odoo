@@ -6,6 +6,7 @@ from .base import (
 )
 
 from .binary import Binary, Image
+from .count import Count
 from .misc import Boolean, Id, Json
 from .numeric import Float, Integer, Monetary
 from .properties import (
@@ -24,6 +25,7 @@ __all__ = [
     "Binary",
     "Boolean",
     "Char",
+    "Count",
     "Date",
     "Datetime",
     "Field",

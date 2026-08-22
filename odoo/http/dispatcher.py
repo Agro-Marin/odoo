@@ -56,28 +56,8 @@ class Dispatcher(ABC):
     mimetypes: collections.abc.Collection[str] = ()
 
     cors_allowed_methods: collections.abc.Collection[str] | None = None
-    """Methods to advertise in ``Access-Control-Allow-Methods``.
-
-    ``None`` means "whatever the route declares". A dispatcher that accepts one
-    verb regardless of the route says so here.
-
-    Declared because :meth:`pre_dispatch` used to read
-    ``routing["type"] == JsonRPCDispatcher.routing_type`` -- the abstract base
-    naming one of its own concrete subclasses, defined 130 lines below it. That
-    is the wrong direction for every reason: a fourth dispatcher with the same
-    constraint would have had to be added to a condition in its own base class.
-    """
 
     serializes_errors_in_dev_mode: bool = False
-    """Whether to build a serialised error body even under ``--dev werkzeug``.
-
-    Same inversion, same reason: ``_serve.py::_update_served_exception`` asked
-    ``self.dispatcher.routing_type != JsonRPCDispatcher.routing_type`` to decide
-    whether to let werkzeug's interactive debugger take the exception instead.
-    The question it is actually asking is "does this transport's client need a
-    structured error rather than an HTML traceback?", which is a property of the
-    dispatcher, not a string comparison against a sibling.
-    """
 
     @classmethod
     def __init_subclass__(cls, **kwargs: Any) -> None:

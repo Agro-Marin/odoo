@@ -1091,7 +1091,7 @@ def trans_export_records(
 
 def _push(callback: object, term: str | None, source_line: int) -> None:
     term = (term or "").strip()
-    if len(term) > 8 or any(x.isalpha() for x in term):
+    if any(x.isalpha() for x in term):
         callback(term, source_line)
 
 
@@ -1229,8 +1229,7 @@ class TranslationReader:
         value: str | None = None,
     ) -> None:
         sanitized_term = (source or "").strip()
-        sanitized_term = re.sub(r"\W+", "", sanitized_term)
-        if not sanitized_term or len(sanitized_term) <= 1:
+        if not any(c.isalpha() for c in sanitized_term):
             return
         self._to_translate.append(
             (

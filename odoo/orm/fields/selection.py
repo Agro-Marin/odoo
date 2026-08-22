@@ -190,12 +190,13 @@ class Selection(Field[str | typing.Literal[False]]):
             selection = determine(selection, env[self.model_name])
             return [(str(key), str(label)) for key, label in selection]
 
-        if env.lang:
-            return env["ir.model.fields"].get_field_selection(
-                self.model_name, self.name
-            )
-        else:
+        if not env.lang:
             return selection
+
+        translations = dict(
+            env["ir.model.fields"].get_field_selection(self.model_name, self.name)
+        )
+        return [(key, translations.get(key, label)) for key, label in selection]
 
     def _default_group_expand(
         self, records: BaseModel, groups: typing.Any, domain: typing.Any

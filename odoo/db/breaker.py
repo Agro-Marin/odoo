@@ -6,13 +6,6 @@ from time import monotonic
 _INITIAL_COOLDOWN = 1.0
 
 _PROBE_ABANDON_AFTER = 60.0
-"""How long a claimed probe may run before another caller may reclaim it.
-
-Deliberately independent of the cooldown: tying the two meant a breaker with a
-zero-width window could not hold a claim at all, so every caller probed at once —
-the thundering herd the claim exists to prevent.  It only ever applies after the
-cooldown has already elapsed, so it cannot shorten a backoff.
-"""
 
 
 class CircuitBreaker:

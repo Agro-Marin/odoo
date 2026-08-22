@@ -33,6 +33,7 @@ TIMEZONE_ALIASES: dict[str, str] = {
     "Antarctica/South_Pole": "Pacific/Auckland",
     "Asia/Ashkhabad": "Asia/Ashgabat",
     "Asia/Calcutta": "Asia/Kolkata",
+    "Asia/Choibalsan": "Asia/Ulaanbaatar",
     "Asia/Chungking": "Asia/Shanghai",
     "Asia/Dacca": "Asia/Dhaka",
     "Asia/Katmandu": "Asia/Kathmandu",
@@ -56,6 +57,8 @@ TIMEZONE_ALIASES: dict[str, str] = {
     "Brazil/DeNoronha": "America/Noronha",
     "Brazil/East": "America/Sao_Paulo",
     "Brazil/West": "America/Manaus",
+    "CET": "Europe/Brussels",
+    "CST6CDT": "America/Chicago",
     "Canada/Atlantic": "America/Halifax",
     "Canada/Central": "America/Winnipeg",
     "Canada/Eastern": "America/Toronto",
@@ -67,6 +70,9 @@ TIMEZONE_ALIASES: dict[str, str] = {
     "Chile/Continental": "America/Santiago",
     "Chile/EasterIsland": "Pacific/Easter",
     "Cuba": "America/Havana",
+    "EET": "Europe/Athens",
+    "EST": "America/Panama",
+    "EST5EDT": "America/New_York",
     "Egypt": "Africa/Cairo",
     "Eire": "Europe/Dublin",
     "Europe/Kiev": "Europe/Kyiv",
@@ -78,6 +84,7 @@ TIMEZONE_ALIASES: dict[str, str] = {
     "GMT-0": "Etc/GMT",
     "GMT0": "Etc/GMT",
     "Greenwich": "Etc/GMT",
+    "HST": "Pacific/Honolulu",
     "Hongkong": "Asia/Hong_Kong",
     "Iceland": "Africa/Abidjan",
     "Iran": "Asia/Tehran",
@@ -86,12 +93,16 @@ TIMEZONE_ALIASES: dict[str, str] = {
     "Japan": "Asia/Tokyo",
     "Kwajalein": "Pacific/Kwajalein",
     "Libya": "Africa/Tripoli",
+    "MET": "Europe/Brussels",
+    "MST": "America/Phoenix",
+    "MST7MDT": "America/Denver",
     "Mexico/BajaNorte": "America/Tijuana",
     "Mexico/BajaSur": "America/Mazatlan",
     "Mexico/General": "America/Mexico_City",
     "Navajo": "America/Denver",
     "NZ": "Pacific/Auckland",
     "NZ-CHAT": "Pacific/Chatham",
+    "PST8PDT": "America/Los_Angeles",
     "Pacific/Enderbury": "Pacific/Kanton",
     "Pacific/Ponape": "Pacific/Guadalcanal",
     "Pacific/Truk": "Pacific/Port_Moresby",
@@ -117,6 +128,7 @@ TIMEZONE_ALIASES: dict[str, str] = {
     "US/Pacific": "America/Los_Angeles",
     "US/Samoa": "Pacific/Pago_Pago",
     "W-SU": "Europe/Moscow",
+    "WET": "Europe/Lisbon",
     "Zulu": "Etc/UTC",
 }
 
@@ -128,12 +140,6 @@ def timezone(name: str) -> ZoneInfo:
     if name in _timezone_cache:
         return _timezone_cache[name]
 
-    # pytz special-cased UTC before anything else — ``pytz.timezone('utc')``
-    # and ``'Utc'`` both returned the UTC singleton — while zoneinfo's database
-    # lookup is case-sensitive and knows only 'UTC'. Callers written against
-    # pytz still pass the lowercase spelling (l10n_es_edi_sii and
-    # l10n_es_edi_tbai each do, in test setup), and without this they get a
-    # ZoneInfoNotFoundError for the one timezone that cannot be missing.
     if name.upper() == "UTC":
         tz = ZoneInfo("UTC")
         _timezone_cache[name] = tz
