@@ -5,26 +5,15 @@ class IrModel(models.Model):
     _inherit = "ir.model"
 
     def _get_model_definitions(self, model_names_to_fetch):
-        # Model-level ACL: silently omit models the current user cannot read.
-        # Without this, any authenticated user (including portal) could
-        # enumerate the schema of arbitrary models.  Omitting (rather than
-        # erroring) keeps batch requests from the web client working when a
-        # subset of the requested models is restricted.
-        # Deduplicate while keeping order: the payload is client-controlled and
-        # a repeated name used to redo the whole ``fields_get`` + inverse-field
-        # pass for an entry that overwrites itself in the result dict.
         model_names_to_fetch = [
             model_name
             for model_name in dict.fromkeys(model_names_to_fetch)
             if self.env[model_name].has_access("read")
         ]
-        # Set, not the list: this is used as a membership test once per field
-        # of every fetched model.
         fetched_model_names = set(model_names_to_fetch)
         model_definitions = {}
         for model_name in model_names_to_fetch:
             model = self.env[model_name]
-            # get fields, relational fields are kept only if the related model is in model_names_to_fetch
             fields_data_by_fname = {
                 fname: field_data
                 for fname, field_data in model.fields_get(

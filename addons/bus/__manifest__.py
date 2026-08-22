@@ -23,7 +23,6 @@
             "bus/static/src/workers/*",
             ("remove", "bus/static/src/workers/bus_worker_script.js"),
         ],
-        # Unit test files
         "web.assets_unit_tests": [
             "bus/static/tests/**/*",
         ],

@@ -1,33 +1,3 @@
-"""WebSocket serving layer of the ``bus`` module.
-
-Cross-site WebSocket hijacking (CSWSH) protection
--------------------------------------------------
-Browsers do not apply the same-origin policy to WebSocket handshakes: any
-web page can open a connection to ``/websocket`` and the browser attaches
-the victim's session cookie (subject only to its SameSite policy). To
-prevent a cross-site page from acting with an authenticated session, a
-handshake whose ``Origin`` header does not match the request host — as seen
-by ``odoo.http``, i.e. after ``proxy_mode`` folded the ``X-Forwarded-*``
-headers into the WSGI environ — is downgraded to a brand new public
-(unauthenticated) session.
-
-A *missing* or empty ``Origin`` is treated the same way: downgraded, not
-rejected. The header is only mandatory for browsers, and the downgrade is
-what provides the protection — so requiring its presence would lock out
-non-browser clients (IoT boxes, integrations) without denying an attacker
-anything, since they can send whatever ``Origin`` they like.
-
-Environment variables:
-
-- ``ODOO_BUS_TRUSTED_ORIGINS``: comma-separated allowlist of origins
-  (``scheme://host[:port]``) additionally permitted to open websocket
-  connections with the request's authenticated session, for deployments
-  that legitimately serve websockets cross-origin.
-- ``ODOO_BUS_PUBLIC_SAMESITE_WS``: legacy opt-in flag for the downgrade
-  behaviour described above. The downgrade is now the default; the
-  variable is still accepted but has no effect.
-"""
-
 import base64
 import bisect
 import functools
@@ -83,23 +53,11 @@ JITTER_ON_POOL_ERROR = 0.3
 
 @contextmanager
 def acquire_cursor(db):
-    """Try to acquire a cursor up to `MAX_TRY_ON_POOL_ERROR`.
-
-    Uses explicit context manager protocol to avoid ``suppress(PoolError)``
-    accidentally swallowing PoolErrors raised by the caller's code after
-    ``yield``.
-    """
     delay = DELAY_ON_POOL_ERROR
     try:
         for attempt in range(1, MAX_TRY_ON_POOL_ERROR + 1):
-            # Yield before trying to acquire the cursor to let other
-            # threads release their cursor.
             time.sleep(0)
             try:
-                # Open the cursor straight from the connection pool instead of
-                # Registry(db).cursor(): outgoing messages no longer need a built
-                # registry, and building one here needlessly can block the gevent
-                # server CPU (odoo/odoo#277524).
                 cm = db_connect(db).cursor()
                 cr = cm.__enter__()
             except PoolError:
@@ -116,14 +74,7 @@ def acquire_cursor(db):
             time.sleep(delay + random.uniform(0, JITTER_ON_POOL_ERROR))
             delay *= 1.5
     finally:
-        # Yield after releasing the cursor to let waiting threads
-        # immediately pick up the freed connection.
         time.sleep(0)
-
-
-# ------------------------------------------------------
-# EXCEPTIONS
-# ------------------------------------------------------
 
 
 class UpgradeRequired(HTTPException):
@@ -134,8 +85,6 @@ class UpgradeRequired(HTTPException):
         headers = super().get_headers(environ)
         headers.append(
             (
-                # Comma-separated: this is an HTTP list header (RFC 6455 §4.4),
-                # not a parameterised one.
                 "Sec-WebSocket-Version",
                 ", ".join(sorted(WebsocketConnectionHandler.SUPPORTED_VERSIONS)),
             )
@@ -144,14 +93,11 @@ class UpgradeRequired(HTTPException):
 
 
 class WebsocketError(Exception):
-    """Base class for all websockets exceptions"""
+    pass
 
 
 class ConnectionClosedError(WebsocketError):
-    """
-    Raised when the other end closes the socket without performing
-    the closing handshake.
-    """
+    pass
 
 
 class InvalidCloseCodeError(WebsocketError):
@@ -160,49 +106,30 @@ class InvalidCloseCodeError(WebsocketError):
 
 
 class InvalidDatabaseError(WebsocketError):
-    """
-    When raised: the database probably does not exists anymore, the
-    database is corrupted or the database version doesn't match the
-    server version.
-    """
+    pass
 
 
 class InvalidStateError(WebsocketError):
-    """
-    Raised when an operation is forbidden in the current state.
-    """
+    pass
 
 
 class InvalidWebsocketRequestError(WebsocketError):
-    """
-    Raised when a websocket request is invalid (format, wrong args).
-    """
+    pass
 
 
 class PayloadTooLargeError(WebsocketError):
-    """
-    Raised when a websocket message is too large.
-    """
+    pass
 
 
 class ProtocolError(WebsocketError):
-    """
-    Raised when a frame format doesn't match expectations.
-    """
+    pass
 
 
 class RateLimitExceededError(Exception):
-    """
-    Raised when a client exceeds the number of request in a given
-    time.
-    """
+    pass
 
 
-# Idea taken from the python cookbook:
-# https://github.com/dabeaz/python-cookbook/blob/6e46b7/src/12/polling_multiple_thread_queues/pqueue.py
 class PollablePriorityQueue(PriorityQueue):
-    """A custom PriorityQueue than can be polled"""
-
     def __init__(self, maxsize=0):
         super().__init__(maxsize)
         self._putsocket, self._getsocket = socket.socketpair()
@@ -223,19 +150,9 @@ class PollablePriorityQueue(PriorityQueue):
         self._getsocket.close()
 
 
-# ------------------------------------------------------
-# WEBSOCKET LIFECYCLE
-# ------------------------------------------------------
-
-
 class LifecycleEvent(IntEnum):
     OPEN = 0
     CLOSE = 1
-
-
-# ------------------------------------------------------
-# WEBSOCKET
-# ------------------------------------------------------
 
 
 class Opcode(IntEnum):
@@ -272,8 +189,6 @@ class ConnectionState(IntEnum):
     CLOSED = 2
 
 
-# Used to maintain order of commands in the queue according to their priority
-# (IntEnum) and then the order of reception.
 _command_uid = count(0)
 
 
@@ -311,8 +226,6 @@ class Frame:
 class CloseFrame(Frame):
     __slots__ = ("code", "reason")
 
-    # Control frames are limited to a 125 byte payload (RFC 6455 §5.5); the
-    # close code takes 2 bytes, leaving 123 bytes for the reason.
     MAX_REASON_LENGTH = 123
 
     def __init__(self, code, reason):
@@ -322,11 +235,6 @@ class CloseFrame(Frame):
         if reason:
             encoded_reason = reason.encode("utf-8")
             if len(encoded_reason) > self.MAX_REASON_LENGTH:
-                # Truncate on a codepoint boundary: a hard byte cut could
-                # split a multi-byte sequence and produce invalid UTF-8,
-                # which peers reject with INCONSISTENT_DATA. Reasons are
-                # free-form diagnostics (often ``str(exc)``), truncation is
-                # preferable to failing to close cleanly.
                 reason = encoded_reason[: self.MAX_REASON_LENGTH].decode(
                     "utf-8", errors="ignore"
                 )
@@ -337,87 +245,34 @@ class CloseFrame(Frame):
         super().__init__(Opcode.CLOSE, payload)
 
 
-# Origin-downgraded (CSWSH) connections are all unauthenticated and carry no
-# per-user state, so they share a single persisted public session per database
-# instead of minting (and saving) one session file per handshake. ``/websocket``
-# is ``auth="public"``, so without this a cross-origin peer could exhaust the
-# session filestore (reclaimed only by the ~weekly mtime vacuum) by repeatedly
-# reconnecting. Guarded by a lock: several serving threads open connections
-# concurrently.
 _public_session_lock = threading.Lock()
 _public_session_sid_by_db = {}
 
 
 _websocket_instances = WeakSet()
-# ``WeakSet`` iteration is guarded against GC removals, but a concurrent
-# ``add`` from a serving thread while another thread snapshots the set
-# (``list(...)`` in ``_kick_all``) still raises ``RuntimeError: set changed
-# size during iteration``. Serialize additions and snapshots.
 _websocket_instances_lock = threading.Lock()
 
 
 class NotificationDispatchState:
-    """Per-websocket bookkeeping for bus notification dispatching.
-
-    Deduplicates notifications by id while holding the low-water-mark id
-    (``last_id``) back for a few seconds, so that notifications committed out of
-    id order by concurrent transactions are not skipped. See
-    ``Websocket.MAX_NOTIFICATION_HISTORY_SEC`` for the full rationale.
-
-    Kept free of any socket/ORM coupling so the tricky ordering logic can be
-    unit-tested in isolation.
-    """
-
     __slots__ = ("_clock", "_history", "_retention_sec", "last_id")
 
-    # Hard bound on the history length: ``record_dispatched`` runs an O(n)
-    # insort and ``ignore_ids`` copies the whole list on every poll, so a
-    # pathological notification burst must not let the history grow without
-    # limit. Expired ids are trimmed on every call; the cap only bites when
-    # more than this many ids are dispatched *within* ``_retention_sec``.
     MAX_HISTORY_LENGTH = 5000
 
     def __init__(self, retention_sec, clock=None):
-        # Injectable clock (unit tests). Monotonic by default: a backward
-        # NTP step must not pin the history retention logic.
         self._clock = clock if clock is not None else time.monotonic
-        # Seconds a dispatched id is kept in history before it may raise last_id.
         self._retention_sec = retention_sec
-        # Id of the last dispatched notification no longer held in _history.
         self.last_id = 0
-        # Dispatched notifications as (id, dispatch_time), always sorted by id ASC.
         self._history = []
 
     @property
     def ignore_ids(self):
-        """Ids already dispatched but still held back, to exclude from polling."""
         return [nid for nid, _sent_at in self._history]
 
     def initialize_last_id(self, last):
-        """Adopt the client's ``last`` id, but only while still at the initial 0.
-
-        After the first assignment the server's own tracking is authoritative
-        (the client may reconnect with a stale value).
-        """
         if self.last_id == 0:
             self.last_id = last
 
     def record_dispatched(self, notif_ids):
-        """Record that ``notif_ids`` were dispatched now and advance
-        ``last_id`` past the contiguous prefix of expired ids.
-
-        Only the contiguous run of the lowest expired ids may be dropped: an id
-        cannot be forgotten while any smaller id is still held back, otherwise
-        the next ``id > last_id`` poll would fetch it again.
-
-        For example, if the threshold is 10s and the state is
-        ``last_id 2, history [(3, 8s), (6, 10s), (7, 7s)]``: if 6 were removed
-        because it is above the threshold, the next query would be
-        ``id > 2 AND id NOT IN (3, 7)`` which would fetch 6 again. 6 can only be
-        removed after 3 reaches the threshold and is removed as well; and if 4
-        appears in the meantime, 3 can be removed but 6 must wait for 4 to reach
-        the threshold too.
-        """
         now = self._clock()
         for nid in notif_ids:
             bisect.insort(self._history, (nid, now), key=lambda entry: entry[0])
@@ -432,11 +287,6 @@ class NotificationDispatchState:
             self._history = self._history[last_index + 1 :]
         overflow = len(self._history) - self.MAX_HISTORY_LENGTH
         if overflow > 0:
-            # Cap hit: drop the oldest (lowest) ids even though they are
-            # still within the retention window, advancing ``last_id`` past
-            # them so they cannot be re-fetched. Notifications with a lower
-            # id committed late may then be skipped -- an accepted trade-off
-            # against unbounded memory/CPU growth.
             self.last_id = self._history[overflow - 1][0]
             del self._history[:overflow]
             _logger.debug(
@@ -448,119 +298,36 @@ class NotificationDispatchState:
 
 class Websocket:
     __event_callbacks = defaultdict(set)
-    # Maximum size for a message in bytes, whether it is sent as one
-    # frame or many fragmented ones.
     MESSAGE_MAX_SIZE = 2**20
-    # How much time (in second) the history of last dispatched notifications is
-    # kept in memory for each websocket.
-    # To avoid duplicate notifications, we fetch them based on their ids.
-    # However during parallel transactions, ids are assigned immediately (when
-    # they are requested), but the notifications are dispatched at the time of
-    # the commit. This means lower id notifications might be dispatched after
-    # higher id notifications.
-    # Simply incrementing the last id is sufficient to guarantee no duplicates,
-    # but it is not sufficient to guarantee all notifications are dispatched,
-    # and in particular not sufficient for those with a lower id coming after a
-    # higher id was dispatched.
-    # To solve the issue of missed notifications, the lowest id, stored in
-    # ``NotificationDispatchState.last_id``, is held back by a few seconds to
-    # give time for concurrent transactions to finish. To avoid dispatching
-    # duplicate notifications, the history of already dispatched notifications
-    # during this period is kept in memory and the corresponding notifications
-    # are discarded from subsequent dispatching even if their id is higher than
-    # ``last_id``.
-    # In practice, what is important functionally is the time between the create
-    # of the notification and the commit of the transaction in business code.
-    # If this time exceeds this threshold, the notification will never be
-    # dispatched if the target user receive any other notification in the
-    # meantime.
-    # Transactions known to be long should therefore create their notifications
-    # at the end, as close as possible to their commit.
     MAX_NOTIFICATION_HISTORY_SEC = NOTIFICATION_HOLD_BACK_SECONDS
-    # How many requests can be made in excess of the given rate.
-    # Clamped to >= 1: `_limit_rate` indexes the timestamp deque, and a
-    # zero-length deque (burst 0) would raise IndexError on every frame
-    # instead of the intended RateLimitExceededError.
     RL_BURST = max(1, int(config["websocket_rate_limit_burst"]))
-    # How many seconds between each request.
     RL_DELAY = float(config["websocket_rate_limit_delay"])
-    # Control frames (PING/PONG/CLOSE) and continuation frames of a
-    # fragmented message do not count against the data-message budget above
-    # (a PONG burst answering server PINGs, or a well-behaved client
-    # fragmenting a large message, must not trip the limit). They still get
-    # their own limiter, this many times more generous, so a PING or
-    # empty-continuation flood cannot bypass rate limiting entirely.
     RL_CONTROL_FACTOR = 10
-    # How long (seconds, monotonic) a successful session validation
-    # (session-store read + ``check_session``) is trusted before
-    # ``_dispatch_bus_notifications`` re-validates. Trade-off: a session that
-    # is logged out / expired keeps receiving notifications for at most this
-    # long before the socket is closed with SESSION_EXPIRED; in exchange,
-    # each DISPATCH is spared a session-store read and an HMAC check. Set to
-    # 0 to re-validate on every dispatch (used by tests that need exact
-    # session-expiry semantics).
     SESSION_VALIDITY_TTL = 60
-    # Hard bound on receiving ONE frame, and on any single socket recv/sendall.
-    #
-    # Without it, a peer that starts a frame and then stalls (one byte of a
-    # header, or a header announcing more payload than it sends) blocks the
-    # serving thread inside ``_get_next_frame``'s ``recv_bytes`` forever: the
-    # keep-alive / PING / command-queue logic all lives in ``get_messages``,
-    # which is never reached again. The connection then survives indefinitely,
-    # out of reach of ``_kick_all`` too, holding a thread (or greenlet + fd),
-    # its ``ImDispatch`` channel registrations, and -- because ``_terminate``
-    # never runs -- leaving ``_on_websocket_closed`` uncalled, so e.g. the
-    # user stays "online" to everyone else forever.
-    #
-    # Both halves are needed: the socket timeout makes a blocked ``recv``
-    # return so the deadline can be observed at all, and the whole-frame
-    # deadline stops a peer from renewing that timeout with one byte at a
-    # time (``_limit_rate`` counts frames, so a drip *inside* one frame is
-    # otherwise entirely unmetered).
-    #
-    # 15s is ~70KB/s for a maximum-size (``MESSAGE_MAX_SIZE``) frame, orders
-    # of magnitude above what bus traffic actually is, and fragmented messages
-    # get this budget per fragment rather than for the whole message.
     FRAME_RECEIVE_TIMEOUT = 15
 
     def __init__(self, sock, session, cookies, *, clock=None):
-        # Injectable monotonic clock (unit tests). Shared with the
-        # TimeoutManager and used by every time-based decision on this instance
-        # (rate limiting, session-validity caching, terminate drain deadline)
-        # so a single manual clock drives the whole connection deterministically.
         self._clock = clock if clock is not None else time.monotonic
-        # Session linked to the current websocket connection.
         self._session = session
-        # Cookies linked to the current websocket connection.
         self._cookies = cookies
         self._db = session.db
         self.__socket = sock
-        # See FRAME_RECEIVE_TIMEOUT. Bounds every recv/sendall on this socket;
-        # `_terminate` narrows it further for the orderly-shutdown drain.
         sock.settimeout(self.FRAME_RECEIVE_TIMEOUT)
         self._close_sent = False
         self._close_received = False
         self._timeout_manager = TimeoutManager(clock=self._clock)
-        # Used for rate limiting: message-starting data frames on one side,
-        # control/continuation frames on the other (see RL_CONTROL_FACTOR).
         self._incoming_frame_timestamps = deque(maxlen=self.RL_BURST)
         self._incoming_control_frame_timestamps = deque(
             maxlen=self.RL_BURST * self.RL_CONTROL_FACTOR
         )
-        # Command queue used to manage the websocket instance externally, such
-        # as triggering notification dispatching or terminating the connection.
         self.__cmd_queue = PollablePriorityQueue()
         self._waiting_for_dispatch = False
         self._channels = set()
-        # Session validity cache, see ``SESSION_VALIDITY_TTL``.
         self._session_validated_until = 0.0
         self._validated_session_sid = None
-        # Notification dedup / hold-back bookkeeping, see
-        # ``MAX_NOTIFICATION_HISTORY_SEC`` and ``NotificationDispatchState``.
         self._dispatch_state = NotificationDispatchState(
             self.MAX_NOTIFICATION_HISTORY_SEC
         )
-        # Websocket start up
         self.__selector = selectors.DefaultSelector()
         self.__selector.register(self.__socket, selectors.EVENT_READ)
         self.__selector.register(self.__cmd_queue, selectors.EVENT_READ)
@@ -568,10 +335,6 @@ class Websocket:
         with _websocket_instances_lock:
             _websocket_instances.add(self)
         self._trigger_lifecycle_event(LifecycleEvent.OPEN)
-
-    # ------------------------------------------------------
-    # PUBLIC METHODS
-    # ------------------------------------------------------
 
     def get_messages(self):
         while self.state is not ConnectionState.CLOSED:
@@ -605,13 +368,6 @@ class Websocket:
                 self._handle_transport_error(exc)
 
     def close(self, code, reason=None):
-        """Notify the socket to initiate closure. The closing handshake
-        will start in the subsequent iteration of the event loop.
-
-        Callers may race with the serving thread terminating the
-        connection (which closes the command queue): a close request for
-        an already-terminated socket is a no-op, not an error.
-        """
         with suppress(OSError):
             self._send_control_command(
                 ControlCommand.CLOSE, {"code": code, "reason": reason}
@@ -628,58 +384,22 @@ class Websocket:
         return func
 
     def subscribe(self, channels, last):
-        """Subscribe to bus channels."""
         self._channels = channels
-        # Force a session re-validation on the next dispatch: a (re)subscribe
-        # is the natural point where the session may just have changed.
         self._session_validated_until = 0.0
-        # Only assign the last id according to the client once: the server is
-        # more reliable later on, see ``MAX_NOTIFICATION_HISTORY_SEC``.
         self._dispatch_state.initialize_last_id(last)
-        # Dispatch past notifications if there are any.
         self.trigger_notification_dispatching()
 
     def trigger_notification_dispatching(self):
-        """
-        Warn the socket that notifications are available. Ignore if a
-        dispatch is already planned or if the socket is already in the
-        closing state.
-        """
         if self.state is not ConnectionState.OPEN or self._waiting_for_dispatch:
             return
         self._waiting_for_dispatch = True
-        # Ignore if the socket was closed in the meantime.
         with suppress(OSError):
             self._send_control_command(ControlCommand.DISPATCH)
 
-    # ------------------------------------------------------
-    # PRIVATE METHODS
-    # ------------------------------------------------------
-
     def _get_next_frame(self):
-        #     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-        #    +-+-+-+-+-------+-+-------------+-------------------------------+
-        #    |F|R|R|R| opcode|M| Payload len |    Extended payload length    |
-        #    |I|S|S|S|  (4)  |A|     (7)     |             (16/64)           |
-        #    |N|V|V|V|       |S|             |   (if payload len==126/127)   |
-        #    | |1|2|3|       |K|             |                               |
-        #    +-+-+-+-+-------+-+-------------+ - - - - - - - - - - - - - - - +
-        #    |     Extended payload length continued, if payload len == 127  |
-        #    + - - - - - - - - - - - - - - - +-------------------------------+
-        #    |                               |Masking-key, if MASK set to 1  |
-        #    +-------------------------------+-------------------------------+
-        #    | Masking-key (continued)       |          Payload Data         |
-        #    +-------------------------------- - - - - - - - - - - - - - - - +
-        #    :                     Payload Data continued ...                :
-        #    + - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - +
-        #    |                     Payload Data continued ...                |
-        #    +---------------------------------------------------------------+
-        # A frame must arrive whole within this budget; see
-        # FRAME_RECEIVE_TIMEOUT for why a per-recv timeout alone is not enough.
         frame_deadline = self._clock() + self.FRAME_RECEIVE_TIMEOUT
 
         def recv_bytes(n):
-            """Pull n bytes from the socket, bounded by the frame deadline."""
             data = bytearray()
             while len(data) < n:
                 if self._clock() > frame_deadline:
@@ -694,14 +414,9 @@ class Websocket:
             return data
 
         def is_bit_set(byte, n):
-            """
-            Check whether nth bit of byte is set or not (from left
-            to right).
-            """
             return byte & (1 << (7 - n))
 
         def apply_mask(payload, mask):
-            # see: https://www.willmcgugan.com/blog/tech/post/speeding-up-websockets-60x/
             a, b, c, d = (_XOR_TABLE[n] for n in mask)
             payload[::4] = payload[::4].translate(a)
             payload[1::4] = payload[1::4].translate(b)
@@ -741,20 +456,11 @@ class Websocket:
         return frame
 
     def _process_next_message(self):
-        """
-        Process the next message coming through the socket. If a
-        data message can be extracted, return its decoded payload.
-        As per the RFC, only control frames will be processed once
-        the connection reaches the closing state.
-        """
         frame = self._get_next_frame()
         if frame.opcode in CTRL_OP:
             self._handle_control_frame(frame)
             return None
         if self.state is not ConnectionState.OPEN:
-            # After receiving a control frame indicating the connection
-            # should be closed, a peer discards any further data
-            # received.
             return None
         if frame.opcode is Opcode.CONTINUE:
             raise ProtocolError("Unexpected continuation frame")
@@ -772,8 +478,6 @@ class Websocket:
         while True:
             frame = self._get_next_frame()
             if frame.opcode in CTRL_OP:
-                # Control frames can be received in the middle of a
-                # fragmented message, process them as soon as possible.
                 self._handle_control_frame(frame)
                 if self.state is not ConnectionState.OPEN:
                     return None
@@ -832,56 +536,31 @@ class Websocket:
         ):
             self._terminate()
             return
-        # After sending a control frame indicating the connection
-        # should be closed, a peer does not send any further data.
         self.__selector.unregister(self.__cmd_queue)
 
     def _send_close_frame(self, code, reason=None):
-        """Send a close frame."""
         self._send_frame(CloseFrame(code, reason))
 
     def _send_ping_frame(self):
-        """Send a ping frame"""
         self._send_frame(Frame(Opcode.PING))
 
     def _send_pong_frame(self, payload):
-        """Send a pong frame"""
         self._send_frame(Frame(Opcode.PONG, payload))
 
     def _disconnect(self, code, reason=None):
-        """Initiate the closing handshake. Once the acknowledgment is received,
-        `self._terminate` will be invoked to execute a graceful shutdown of the
-        TCP connection. If the connection is already dead, skip the handshake
-        and terminate immediately. This is a low level method, meant to be
-        called from the WebSocket event loop. To close the connection, use
-        `self.close`.
-        """
         if code in (CloseCode.ABNORMAL_CLOSURE, CloseCode.KILL_NOW):
             self._terminate()
         else:
             self._send_close_frame(code, reason)
 
     def _terminate(self):
-        """Close the underlying TCP socket."""
         if self.state == ConnectionState.CLOSED:
             return
         self.state = ConnectionState.CLOSED
-        # Unsubscribe before the socket/selector teardown: an unexpected
-        # exception below must not leave this websocket registered in
-        # ``ImDispatch._channels_to_ws`` (dispatch-to-dead-socket leak).
         dispatch.unsubscribe(self)
         with suppress(OSError, TimeoutError):
             self.__socket.shutdown(socket.SHUT_WR)
-            # Call recv until obtaining a return value of 0 indicating
-            # the other end has performed an orderly shutdown. A timeout
-            # is set to ensure the connection will be closed even if
-            # the other end does not close the socket properly.
             self.__socket.settimeout(1)
-            # The per-recv timeout does not bound the drain as a whole: a
-            # peer that keeps streaming after our shutdown would keep this
-            # loop (and the serving thread) alive indefinitely. Give the
-            # orderly-shutdown wait a hard deadline and cut the connection
-            # loose past it.
             drain_deadline = self._clock() + 5
             while self.__socket.recv(4096):
                 if self._clock() > drain_deadline:
@@ -894,32 +573,10 @@ class Websocket:
             self.__socket.close()
         with suppress(OSError):
             self.__cmd_queue.close()
-        # Application-level teardown (CLOSE callbacks and the ir.websocket
-        # `_on_websocket_closed` hook) is best-effort: it acquires a cursor and
-        # may raise — most notably ``PoolError`` under connection-pool
-        # exhaustion, exactly when many sockets terminate at once. Such a
-        # failure must not escape ``_terminate``: doing so would propagate out
-        # of the event loop (killing the serving thread) and, more importantly,
-        # skip ``_on_websocket_closed`` inconsistently (leaving e.g. presence
-        # state stale). The socket/selector are already closed above, so it is
-        # safe to swallow and log here.
         try:
             self._trigger_lifecycle_event(LifecycleEvent.CLOSE)
             with acquire_cursor(self._db) as cr:
                 env = self.new_env(cr, self._session)
-                # Through `retrying`, like the lifecycle callbacks above, NOT
-                # as a bare call. `_on_websocket_closed` is an extension point
-                # whose implementations write (mail flips the user's presence
-                # to offline), and an ORM assignment only lands in the
-                # transaction's cache -- something must flush it. A bare call
-                # left that to whatever the pooled cursor's transaction
-                # happened to do at commit, so the write persisted or was
-                # silently dropped depending on connection lifetime: measured
-                # on the same build, a socket torn down after ~60s flushed,
-                # one torn down after ~17s did not, and the user stayed
-                # "online" to everyone forever. `retrying` also gives the hook
-                # the serialization-error handling such a write needs (mail's
-                # own presence update mutes and retries those).
                 retrying(
                     functools.partial(
                         env["ir.websocket"]._on_websocket_closed, self._cookies
@@ -939,21 +596,14 @@ class Websocket:
             if len(frame.payload) >= 2:
                 code = struct.unpack("!H", frame.payload[:2])[0]
                 if code not in VALID_CLOSE_CODES and code not in RESERVED_CLOSE_CODES:
-                    # RFC 6455 §7.4: 1005/1006/1015, codes below 1000 and
-                    # unassigned codes must not appear on the wire. Echoing
-                    # them back would itself be a protocol violation (and
-                    # raise InvalidCloseCodeError); answer PROTOCOL_ERROR.
                     code, reason = CloseCode.PROTOCOL_ERROR, "Invalid close code"
                 else:
                     try:
                         reason = frame.payload[2:].decode("utf-8")
                     except UnicodeDecodeError:
-                        # RFC 6455 §5.5.1: the close reason must be UTF-8.
                         code = CloseCode.INCONSISTENT_DATA
                         reason = "Malformed close reason"
             elif frame.payload:
-                # RFC 6455 §5.5.1: a 1-byte close payload is malformed (the
-                # close code alone takes two bytes).
                 code, reason = CloseCode.PROTOCOL_ERROR, "Malformed closing frame"
             if not self._close_sent:
                 self._send_close_frame(code, reason)
@@ -961,22 +611,10 @@ class Websocket:
                 self._terminate()
 
     def _handle_transport_error(self, exc):
-        """
-        Find out which close code should be sent according to given
-        exception and call `self._disconnect` in order to close the
-        connection cleanly.
-        """
         code, reason = CloseCode.SERVER_ERROR, str(exc)
         if isinstance(exc, (ConnectionClosedError, OSError)):
             code = CloseCode.ABNORMAL_CLOSURE
             if isinstance(exc, TimeoutError):
-                # A socket timeout here is NOT an ordinary disconnect: the peer
-                # is alive but could not keep up with a frame inside
-                # ``FRAME_RECEIVE_TIMEOUT``, and it will reconnect and be handed
-                # a comparable frame again. Left on the silent ABNORMAL_CLOSURE
-                # path this looked exactly like a client closing its tab, so a
-                # client stuck in that loop was invisible: the log showed only a
-                # 101 per attempt and nothing else. Name it.
                 _logger.warning(
                     "Websocket timed out after %ss mid-frame; the peer is too "
                     "slow for the frame being written and will reconnect. "
@@ -1002,55 +640,21 @@ class Websocket:
                 registry = registry.check_signaling()
                 registry_reloaded = sequence != registry.registry_sequence
             except Exception:
-                # Loading the registry itself can fail (database dropped,
-                # connection refused, ...). This method runs inside the event
-                # loop's exception handler: letting a second exception escape
-                # would kill the serving thread without `_terminate`, leaking
-                # the channel registrations in `ImDispatch`.
                 registry_reloaded = False
             if registry_reloaded:
                 _logger.warning("Bus operation aborted; registry has been reloaded")
             else:
-                # `exc_info=exc`, not `.exception()`: this method is handed the
-                # exception, so there is no reason to read it back out of the
-                # ambient `sys.exc_info()`. That coupling is silently wrong the
-                # moment anything calls `_handle_transport_error` outside an
-                # `except` block -- it would log "NoneType: None" instead of the
-                # error -- and it is what `ruff`'s LOG004 flags here.
                 _logger.error("Unhandled exception in websocket handler", exc_info=exc)
         if self.state is ConnectionState.OPEN:
             try:
                 self._disconnect(code, reason)
             except Exception:
-                # Emitting the close frame writes to the socket and can fail
-                # (e.g. BrokenPipeError) precisely when the peer misbehaved and
-                # then vanished -- the common trigger for a non-abnormal
-                # transport error. This handler runs *outside* the ``get_messages``
-                # try/except, so an escape here would propagate out of the event
-                # loop, kill the serving thread and skip ``_terminate`` -- leaving
-                # the websocket registered in ``ImDispatch._channels_to_ws`` (a
-                # dispatch-to-dead-socket leak) and ``_on_websocket_closed``
-                # uncalled. Fall back to a hard close, which is idempotent.
                 _logger.debug("Failed to emit close frame, terminating", exc_info=True)
                 self._terminate()
         else:
             self._terminate()
 
     def _limit_rate(self, opcode):
-        """
-        This method is a simple rate limiter designed not to allow
-        more than one message by `RL_DELAY` seconds. `RL_BURST` specify
-        how many messages can be made in excess of the given rate at the
-        beginning. When messages are received too fast, raises the
-        `RateLimitExceededError`.
-
-        Only data frames that *begin* a message (TEXT/BINARY) count against
-        that budget: continuation frames of a fragmented message and control
-        frames (PING/PONG/CLOSE) are accounted separately against a
-        ``RL_CONTROL_FACTOR`` times larger budget, so well-behaved clients
-        are not disconnected for fragmenting or answering PINGs while a
-        control-frame flood still cannot bypass rate limiting.
-        """
         if opcode in DATA_OP:
             timestamps = self._incoming_frame_timestamps
             delay = self.RL_DELAY
@@ -1066,11 +670,6 @@ class Websocket:
         timestamps.append(now)
 
     def _trigger_lifecycle_event(self, event_type):
-        """
-        Trigger a lifecycle event that is, call every function
-        registered for this event type. Every callback is given both the
-        environment and the related websocket.
-        """
         if not self.__event_callbacks[event_type]:
             return
         with acquire_cursor(self._db) as cr:
@@ -1086,19 +685,9 @@ class Websocket:
                     )
 
     def _send_control_command(self, command, data=None):
-        """Send a command to the websocket event loop.
-
-        :param ControlCommand command: The command to be executed.
-        :param dict | None data: An optional dictionary of parameters.
-        """
         self.__cmd_queue.put((command, next(_command_uid), data))
 
     def _process_control_command(self, command, data):
-        """Process a command received in `self.__cmd_queue`.
-
-        :param ControlCommand command: The command to be executed. This key is required.
-        :param dict | None data: An optional dictionary of parameters.
-        """
         match command:
             case ControlCommand.DISPATCH:
                 self._dispatch_bus_notifications()
@@ -1106,17 +695,6 @@ class Websocket:
                 self._disconnect(data["code"], data.get("reason"))
 
     def _dispatch_bus_notifications(self):
-        """
-        Dispatch notifications related to the registered channels. If
-        the session is expired, close the connection with the
-        `SESSION_EXPIRED` close code. If no cursor can be acquired,
-        close the connection with the `TRY_LATER` close code.
-
-        The session-store read and the ``check_session`` HMAC check are
-        cached for ``SESSION_VALIDITY_TTL`` seconds: an expired/logged-out
-        session is still disconnected, at worst one TTL after invalidation
-        (see ``SESSION_VALIDITY_TTL`` for the trade-off).
-        """
         now = self._clock()
         must_validate = (
             now >= self._session_validated_until
@@ -1125,7 +703,6 @@ class Websocket:
         if must_validate:
             self._session = _follow_session_chain(self._session)
         session = self._session
-        # Mark the notification request as processed.
         self._waiting_for_dispatch = False
         with acquire_cursor(session.db) as cr:
             env = self.new_env(cr, session)
@@ -1144,22 +721,10 @@ class Websocket:
         self._dispatch_state.record_dispatched([notif["id"] for notif in notifications])
         self._send(notifications)
         if truncated:
-            # More is waiting than one frame may carry. Re-arm instead of
-            # widening the frame: an unbounded batch is exactly what could not be
-            # written inside the send deadline (see ``MAX_NOTIFICATIONS_PER_POLL``).
-            # Progress is guaranteed even while ``last_id`` is still held back,
-            # because the ids just dispatched are in ``ignore_ids`` and so cannot
-            # come back in the next batch.
             self.trigger_notification_dispatching()
 
     def new_env(self, cr, session, *, set_lang=False):
-        """
-        Create a new environment.
-        Make sure the transaction has a `default_env` and if requested, set the
-        language of the user in the context.
-        """
         uid = session.uid
-        # lang is not guaranteed to be correct, set None
         ctx = dict(session.context, lang=None)
         env = api.Environment(cr, uid, ctx)
         if set_lang:
@@ -1171,34 +736,15 @@ class Websocket:
 
 
 class TimeoutManager:
-    """
-    Track WebSocket activity to determine when a response has timed out,
-    when a ping should be sent, and when the connection has exceeded its
-    keep-alive duration.
-    """
-
     TIMEOUT = 15
-    # Timeout specifying how many seconds the connection should be kept
-    # alive.
     KEEP_ALIVE_TIMEOUT = int(config["websocket_keep_alive_timeout"])
-    # Proxies and NATs usually close a connection after 1 minute of inactivity.
-    # Therefore, a PING frame should be sent if the connection has been idle for
-    # a while. Since the selector can block for up to `TIMEOUT` seconds, the
-    # worst case delay is 55 seconds (`INACTIVITY_TIMEOUT` + `TIMEOUT`), which
-    # is enough to keep the connection alive.
     CONNECTION_TIMEOUT = 60
     INACTIVITY_TIMEOUT = CONNECTION_TIMEOUT - 20
 
     def __init__(self, clock=None):
         super().__init__()
-        # Injectable clock (unit tests). Monotonic by default: a backward
-        # NTP step must not stall keep-alive/ping bookkeeping.
         self._clock = clock if clock is not None else time.monotonic
-        # Maps an awaited response opcode (i.e. PONG, CLOSE) to the
-        # time by which the response must be received.
         self._expiration_time_by_opcode = {}
-        # Custom keep alive timeout for each TimeoutManager to avoid multiple
-        # connections timing out at the same time.
         self._keep_alive_timeout = self.KEEP_ALIVE_TIMEOUT + random.uniform(
             0, self.KEEP_ALIVE_TIMEOUT / 2
         )
@@ -1211,10 +757,6 @@ class TimeoutManager:
         self._expiration_time_by_opcode.pop(frame.opcode, None)
 
     def acknowledge_frame_sent(self, frame):
-        """
-        Acknowledge a frame was sent. If this frame is a PING/CLOSE
-        frame, start waiting for an answer.
-        """
         now = self._clock()
         self._next_ping_time = now + self.INACTIVITY_TIMEOUT
         if frame.opcode in (Opcode.PING, Opcode.CLOSE):
@@ -1226,10 +768,6 @@ class TimeoutManager:
         return self._clock() >= self._keep_alive_expiration_time
 
     def has_frame_response_timed_out(self):
-        """
-        Check if any pending PING or CLOSE frame has been waiting for an answer
-        for at least `TIMEOUT` seconds.
-        """
         now = self._clock()
         return any(
             now >= expiration for expiration in self._expiration_time_by_opcode.values()
@@ -1243,19 +781,7 @@ class TimeoutManager:
         )
 
 
-# ------------------------------------------------------
-# WEBSOCKET SERVING
-# ------------------------------------------------------
-
-
 def _follow_session_chain(initial_session):
-    """Resolve a session, following ``next_sid`` rotation chains.
-
-    Returns the final (non-rotated) session.  Raises
-    :class:`~odoo.http.SessionExpiredException` if any session in the
-    chain is missing or if the chain exceeds 10 hops (which indicates a
-    bug or circular rotation).
-    """
     session = root.session_store.get(initial_session.sid)
     for _ in range(10):
         if not session:
@@ -1276,13 +802,7 @@ class WebsocketRequest:
         self.httprequest = httprequest
         self.session = None
         self.ws = websocket
-        # Stands in for ``http.Request`` wherever a caller accepts either
-        # (``res.device._update_device``), so it carries the same collaborator:
-        # both hand it to ``GeoIP``, which takes its databases from the app.
         self.app = root
-        # Assigned by ``serve_websocket_message``; initialized here so that
-        # accessors used before a message is served (e.g. the ``cookies``
-        # cached_property via ``wsrequest``) don't hit an AttributeError.
         self.registry = None
 
     def __enter__(self):
@@ -1296,13 +816,10 @@ class WebsocketRequest:
         try:
             jsonrequest = orjson.loads(message)
             if not isinstance(jsonrequest, dict):
-                # A top-level scalar/list would raise TypeError below and land
-                # in the generic exception-with-traceback handler; reject it on
-                # the same quiet path as any other client-controlled garbage.
                 raise InvalidWebsocketRequestError(
                     "Websocket request must be a JSON object"
                 )
-            event_name = jsonrequest["event_name"]  # mandatory
+            event_name = jsonrequest["event_name"]
         except KeyError as exc:
             raise InvalidWebsocketRequestError(
                 f"Key {exc.args[0]!r} is missing from request"
@@ -1315,14 +832,6 @@ class WebsocketRequest:
         self.session = self._get_session()
 
         try:
-            # `check_signaling()` RETURNS the live registry and may return a
-            # different object than the one it was called on: when another
-            # worker has signalled a change, it rebuilds and publishes a
-            # replacement, and the receiver stays behind as a fully-formed,
-            # `ready` registry with its own model classes. Discarding the return
-            # left `self.registry` holding that superseded object, and
-            # `cookies` below reads `self.registry["ir.http"]._sanitize_cookies`
-            # off it -- the pre-reload class, for the life of the connection.
             self.registry = Registry(self.db).check_signaling()
             threading.current_thread().dbname = self.registry.db_name
         except (
@@ -1340,31 +849,20 @@ class WebsocketRequest:
             )
 
     def _serve_ir_websocket(self, event_name, data):
-        """Process websocket events, in particular authenticate and subscribe, and delegate extra
-        processing to the ir.websocket model which is extensible by applications."""
         self.env["ir.websocket"]._authenticate()
         if event_name == "subscribe":
             self.env["ir.websocket"]._subscribe(data)
         self.env["ir.websocket"]._serve_ir_websocket(event_name, data)
 
     def _get_session(self):
-        """Return the current session, following at most 10 next_sid hops."""
         session = _follow_session_chain(self.ws._session)
         self.ws._session = session
         return session
 
     def update_env(self, user=None, context=None, su=None):
-        """
-        Update the environment of the current websocket request.
-        """
         Request.update_env(self, user, context, su)
 
     def update_context(self, **overrides):
-        """
-        Override the environment context of the current request with the
-        values of ``overrides``. To replace the entire context, please
-        use :meth:`~update_env` instead.
-        """
         self.update_env(context=dict(self.env.context, **overrides))
 
     @functools.cached_property
@@ -1377,17 +875,7 @@ class WebsocketRequest:
 
 class WebsocketConnectionHandler:
     SUPPORTED_VERSIONS = {"13"}
-    # Given by the RFC in order to generate Sec-WebSocket-Accept from
-    # Sec-WebSocket-Key value.
     _HANDSHAKE_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
-    # Note the absence of ``origin``: it is deliberately NOT required.
-    # RFC 6455 only mandates it for browser clients, and rejecting a handshake
-    # without it buys nothing -- an absent (or empty, or foreign) Origin
-    # already fails ``_is_trusted_origin`` and is downgraded to a public
-    # session by ``_handle_public_configuration``, which is the actual CSWSH
-    # defence. Requiring it only broke the non-browser clients this module
-    # otherwise goes out of its way to support (see the worker-version check
-    # in ``_serve_forever``).
     _REQUIRED_HANDSHAKE_HEADERS = {
         "connection",
         "host",
@@ -1395,39 +883,19 @@ class WebsocketConnectionHandler:
         "sec-websocket-version",
         "upgrade",
     }
-    # Latest version of the websocket worker. This version should be incremented
-    # every time `websocket_worker.js` is modified to force the browser to fetch
-    # the new worker bundle.
     _VERSION = "19.0-10"
 
     @classmethod
     def websocket_allowed(cls, request):
-        # WebSockets are disabled during tests because the test environment and
-        # the WebSocket thread use the same cursor, leading to race conditions.
-        # However, they are enabled during tours as RPC requests and WebSocket
-        # instances both use the `TestCursor` class wich is locked.
-        # See `HttpCase@browser_js`.
         return not modules.module.current_test
 
     @classmethod
     def open_connection(cls, request, version):
-        """
-        Open a websocket connection if the handshake is successful.
-        :return: Response indicating the server performed a connection
-        upgrade.
-        :raise: UpgradeRequired if there is no intersection between the
-        versions the client supports and those we support.
-        :raise: BadRequest if the handshake data is incorrect.
-        """
         if not cls.websocket_allowed(request):
             raise ServiceUnavailable("Websocket is disabled in test mode")
         try:
             response = cls._get_handshake_response(request.httprequest.headers)
             socket = request.httprequest.raw_environ["socket"]
-            # Only create (and persist) a downgraded public session once the
-            # handshake was validated and the socket is available: doing it
-            # earlier left orphaned session records behind every malformed
-            # handshake.
             public_session = cls._handle_public_configuration(request)
             session, db, httprequest = (
                 (public_session or request.session),
@@ -1443,13 +911,6 @@ class WebsocketConnectionHandler:
                 )
             )
             if public_session is None:
-                # Force save the session so the serving thread can look it up
-                # for WebSocket authentication. On the downgrade path this is
-                # skipped: the shared public session is already persisted, and
-                # persisting the (often anonymous/throwaway) request session
-                # would mint one session file per cross-origin handshake. The
-                # client keeps its own session cookie either way — it is not
-                # switched to the public session.
                 request.session.is_dirty = True
             return response
         except KeyError as err:
@@ -1457,22 +918,12 @@ class WebsocketConnectionHandler:
                 "Websocket unavailable on this port. Use the evented service port."
             ) from err
         except HTTPException as exc:
-            # The HTTP stack does not log exceptions derivated from the
-            # HTTPException class since they are valid responses.
             _logger.error(exc)
             raise
 
     @classmethod
     def _get_handshake_response(cls, headers):
-        """
-        :return: Response indicating the server performed a connection
-        upgrade.
-        :raise: BadRequest
-        :raise: UpgradeRequired
-        """
         cls._assert_handshake_validity(headers)
-        # sha-1 is used as it is required by
-        # https://datatracker.ietf.org/doc/html/rfc6455#page-7
         accept_header = hashlib.sha1(
             (headers["sec-websocket-key"] + cls._HANDSHAKE_GUID).encode()
         ).digest()
@@ -1488,22 +939,6 @@ class WebsocketConnectionHandler:
 
     @classmethod
     def _handle_public_configuration(cls, request):
-        """Guard against cross-site WebSocket hijacking (CSWSH).
-
-        Browsers do not apply the same-origin policy to WebSocket
-        handshakes: any web page may open a websocket to this server and
-        the browser attaches the session cookie (subject only to its
-        SameSite policy). When the ``Origin`` header does not match the
-        request host, downgrade the connection to a brand new public
-        (unauthenticated) session so a cross-site page cannot act with the
-        victim's session. Deployments that legitimately serve websockets
-        cross-origin can allow specific origins through the
-        ``ODOO_BUS_TRUSTED_ORIGINS`` environment variable (see the module
-        docstring).
-
-        :return: the public session to use instead of the request's one,
-            or ``None`` when the origin is trusted.
-        """
         origin = request.httprequest.headers.get("origin", "")
         if cls._is_trusted_origin(origin, request):
             return None
@@ -1520,15 +955,6 @@ class WebsocketConnectionHandler:
 
     @staticmethod
     def _get_shared_public_session(db):
-        """Return the shared, persisted anonymous public session for ``db``.
-
-        All origin-downgraded connections reuse it (see
-        ``_public_session_sid_by_db``): they are unauthenticated and hold no
-        per-user state, so one persisted session per db suffices and no session
-        file is minted per handshake. The session is recreated transparently if
-        it was reclaimed by the session vacuum in the meantime (a missing sid
-        loads as an empty, falsy session).
-        """
         with _public_session_lock:
             sid = _public_session_sid_by_db.get(db)
             session = root.session_store.get(sid) if sid else None
@@ -1541,8 +967,6 @@ class WebsocketConnectionHandler:
 
     @staticmethod
     def _normalize_origin(origin):
-        """Normalize an origin string to ``scheme://netloc`` (lowercase,
-        default ports stripped) for comparison purposes."""
         url = urlparse(origin.strip())
         scheme = url.scheme.lower()
         netloc = url.netloc.lower()
@@ -1554,15 +978,6 @@ class WebsocketConnectionHandler:
 
     @classmethod
     def _is_trusted_origin(cls, origin, request):
-        """Whether the handshake ``Origin`` is the request host itself or an
-        explicitly allowlisted origin (``ODOO_BUS_TRUSTED_ORIGINS``).
-
-        The expected origin is computed from the request the way
-        ``odoo.http`` sees it: under ``proxy_mode`` the ``X-Forwarded-*``
-        headers were already folded into the WSGI environ (werkzeug
-        ``ProxyFix``, see ``Application._apply_proxy_fix``), so
-        ``httprequest.scheme``/``host`` reflect the client-facing origin.
-        """
         origin = cls._normalize_origin(origin)
         expected = cls._normalize_origin(
             f"{request.httprequest.scheme}://{request.httprequest.host}"
@@ -1578,14 +993,6 @@ class WebsocketConnectionHandler:
 
     @classmethod
     def _assert_handshake_validity(cls, headers):
-        """
-        :raise: UpgradeRequired if there is no intersection between
-        the version the client supports and those we support.
-        :raise: BadRequest in case of invalid handshake.
-        """
-        # Empty as well as missing: an empty ``upgrade``/``host`` is as
-        # unusable as an absent one, and the error message has always claimed
-        # to cover both.
         missing_or_empty_headers = {
             header
             for header in cls._REQUIRED_HANDSHAKE_HEADERS
@@ -1613,44 +1020,17 @@ class WebsocketConnectionHandler:
 
     @classmethod
     def _serve_forever(cls, websocket, db, httprequest, version):
-        """
-        Process incoming messages and dispatch them to the application.
-        """
         current_thread = threading.current_thread()
         current_thread.type = "websocket"
         if httprequest.user_agent and version != cls._VERSION:
-            # Close the connection from an outdated worker. We can't use a
-            # custom close code because the connection is considered successful,
-            # preventing exponential reconnect backoff. This would cause old
-            # workers to reconnect frequently, putting pressure on the server.
-            # Clean closes don't trigger reconnections, assuming they are
-            # intentional. The reason indicates to the origin worker not to
-            # reconnect, preventing old workers from lingering after updates.
-            # Non browsers are ignored since IOT devices do not provide the
-            # worker version.
             websocket.close(CloseCode.CLEAN, "OUTDATED_VERSION")
         for message in websocket.get_messages():
             if message == b"\x00":
-                # Ignore internal sentinel message used to detect dead/idle connections.
                 continue
-            # One frame per message, on purpose. ``get_messages`` blocks between
-            # messages, and an idle websocket can sit there for hours; a request
-            # bound in *this* frame would stay reachable for all of it, and with
-            # it the environment and the registry it holds. Once that registry
-            # leaves ``Registry.registries`` -- LRU eviction, or a drop -- this
-            # would be the reference keeping it alive, so the memory the drop was
-            # meant to reclaim is never returned. Serving from a callee makes the
-            # release structural rather than a ``del`` a later edit can lose.
             cls._serve_message(db, httprequest, websocket, message)
 
     @classmethod
     def _serve_message(cls, db, httprequest, websocket, message):
-        """Serve one websocket message, releasing its request on return.
-
-        Split out of ``_serve_forever`` so the request -- and the environment and
-        registry it references -- cannot outlive the message it served. See the
-        comment at the call site.
-        """
         with WebsocketRequest(db, httprequest, websocket) as req:
             try:
                 req.serve_websocket_message(message)
@@ -1659,14 +1039,6 @@ class WebsocketConnectionHandler:
             except PoolError:
                 websocket.close(CloseCode.TRY_LATER)
             except InvalidDatabaseError:
-                # The database is gone, corrupted, or its version no longer
-                # matches this server (mid-migration, restore in progress).
-                # Nothing this connection does can ever succeed again, yet
-                # without closing it the client keeps sending and the
-                # server keeps logging a full traceback per message,
-                # forever. TRY_LATER rather than a clean close so the
-                # worker reconnects with its exponential backoff once the
-                # database is serviceable again.
                 _logger.warning(
                     "Closing websocket: database %r is unavailable or "
                     "incompatible with this server",
@@ -1678,19 +1050,6 @@ class WebsocketConnectionHandler:
                 ValueError,
                 AccessDenied,
             ) as exc:
-                # Client-controlled input (malformed JSON, bad subscribe
-                # payload shape, non-string channels, ...): reject the
-                # message without the log noise of a full traceback --
-                # any anonymous peer can send garbage at will.
-                #
-                # AccessDenied belongs here for the same reason: the channel
-                # list is client-supplied, and a public visitor subscribing
-                # to an ``editor_collaboration:*`` channel raises it from
-                # ``html_editor``'s guard. (An *authenticated* user failing
-                # the read/write check never reaches us -- that guard
-                # catches AccessError and drops the channel silently.) So
-                # the only way to produce this is an anonymous peer, which
-                # was logging a full ERROR traceback per attempt.
                 _logger.warning("Invalid websocket request: %s", exc)
             except Exception:
                 _logger.exception(
@@ -1699,12 +1058,6 @@ class WebsocketConnectionHandler:
 
 
 def _kick_all(code=CloseCode.GOING_AWAY):
-    """Disconnect all the websocket instances."""
-    # Snapshot the WeakSet under the lock shared with ``Websocket.__init__``:
-    # serving threads keep opening websockets concurrently and a concurrent
-    # ``add`` during the snapshot raises RuntimeError, which would abort the
-    # kick for the remaining sockets (GC removals are internally deferred by
-    # WeakSet during iteration and are not a hazard).
     with _websocket_instances_lock:
         websockets = list(_websocket_instances)
     for websocket in websockets:

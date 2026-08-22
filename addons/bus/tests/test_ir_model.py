@@ -10,22 +10,15 @@ from odoo.tests import HttpCase, TransactionCase, new_test_user, tagged
 @odoo.tests.tagged("-at_install", "post_install")
 class TestGetModelDefinitions(HttpCase):
     def test_access_cr(self):
-        """Checks that get_model_definitions does not return anything else than models"""
         with self.assertRaises(KeyError):
             self.env["ir.model"]._get_model_definitions(["res.users", "cr"])
 
     def test_access_all_model_fields(self):
-        """
-        Check that get_model_definitions return all the models
-        and their fields
-        """
         model_definitions = self.env["ir.model"]._get_model_definitions(
             ["res.users", "res.partner"]
         )
-        # models are retrieved
         self.assertIn("res.users", model_definitions)
         self.assertIn("res.partner", model_definitions)
-        # check that model fields are retrieved
         self.assertGreaterEqual(
             model_definitions["res.partner"]["fields"].keys(),
             {"active", "name", "user_ids"},
@@ -36,13 +29,9 @@ class TestGetModelDefinitions(HttpCase):
         )
 
     def test_inaccessible_models_are_omitted(self):
-        """Models the user cannot read (model-level ACL) are silently omitted
-        from the definitions, so any authenticated user cannot enumerate the
-        schema of restricted models, while batch requests keep working."""
         portal_user = new_test_user(
             self.env, login="bus_portal_defs", groups="base.group_portal"
         )
-        # Sanity: portal can read res.partner but not ir.cron.
         self.assertTrue(
             self.env["res.partner"].with_user(portal_user).has_access("read")
         )
@@ -60,25 +49,19 @@ class TestGetModelDefinitions(HttpCase):
             model_definitions,
             "restricted models must be omitted, not returned nor raised",
         )
-        # Accessible models still expose their fields.
         self.assertIn("name", model_definitions["res.partner"]["fields"])
 
     def test_admin_can_read_restricted_models(self):
-        """A user allowed to read the model still gets its definition."""
         model_definitions = self.env["ir.model"]._get_model_definitions(["ir.cron"])
         self.assertIn("ir.cron", model_definitions)
 
     def _csrf_token(self, session):
-        """Forge a CSRF token for ``session`` (same math as
-        ``Request.csrf_token``: HMAC of the stored sid prefix + expiry)."""
         secret = self.env["ir.config_parameter"].sudo().get_param("database.secret")
         max_ts = int(time.time() + 3600)
         msg = f"{session.sid[:STORED_SESSION_BYTES]}{max_ts}".encode()
         return f"{hmac.new(secret.encode(), msg, hashlib.sha256).hexdigest()}o{max_ts}"
 
     def test_route_rejects_unknown_models(self):
-        """An unknown model name (client-controlled input) is a 400, not a 500
-        with a traceback."""
         session = self.authenticate("admin", "admin")
         response = self.url_open(
             "/bus/get_model_definitions",
@@ -88,7 +71,6 @@ class TestGetModelDefinitions(HttpCase):
             },
         )
         self.assertEqual(response.status_code, 400)
-        # And a valid request still succeeds.
         response = self.url_open(
             "/bus/get_model_definitions",
             data={
@@ -100,13 +82,7 @@ class TestGetModelDefinitions(HttpCase):
         self.assertIn(b"res.partner", response.content)
 
     def test_relational_fields_with_missing_model(self):
-        """
-        Check that get_model_definitions only returns relational fields
-        if the model is requested
-        """
         model_definitions = self.env["ir.model"]._get_model_definitions(["res.partner"])
-        # since res.country is not requested, country_id shouldn't be in
-        # the model definition fields
         self.assertNotIn("country_id", model_definitions["res.partner"]["fields"])
 
         model_definitions = self.env["ir.model"]._get_model_definitions(
@@ -115,32 +91,22 @@ class TestGetModelDefinitions(HttpCase):
                 "res.country",
             ]
         )
-        # res.country is requested, country_id should be present on res.partner
         self.assertIn("country_id", model_definitions["res.partner"]["fields"])
 
 
 @tagged("-at_install", "post_install")
 class TestGetModelDefinitionsPayload(TransactionCase):
     def test_duplicate_model_names_are_collapsed(self):
-        """A repeated name must not redo the whole per-model pass.
-
-        The payload is client-controlled and the result is keyed by model
-        name, so a duplicate only ever overwrote its own entry -- while
-        paying for another ``fields_get`` and inverse-field scan.
-        """
         once = self.env["ir.model"]._get_model_definitions(["res.partner"])
         many = self.env["ir.model"]._get_model_definitions(["res.partner"] * 50)
         self.assertEqual(many, once)
 
     def test_relational_fields_still_resolved_against_the_request(self):
-        """Deduplication must not change which relations are kept."""
         both = self.env["ir.model"]._get_model_definitions(
             ["res.partner", "res.users", "res.partner"]
         )
         self.assertIn("res.partner", both)
         self.assertIn("res.users", both)
-        # A relation pointing at a requested model is retained...
         self.assertIn("partner_id", both["res.users"]["fields"])
-        # ...and one pointing outside the request is dropped.
         alone = self.env["ir.model"]._get_model_definitions(["res.users"])
         self.assertNotIn("partner_id", alone["res.users"]["fields"])

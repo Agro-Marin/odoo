@@ -86,31 +86,13 @@ class WebTourHttp(HttpCase):
         ResUsers = self.env["res.users"]
         IrAsset = self.env["ir.asset"]
         admin = ResUsers.search(ResUsers._get_login_domain("admin"))
-        # Do not start any onboarding tour on startup
         admin.tour_enabled = False
 
         tour_auto_bundle = IrAsset._get_asset_paths("web_tour.automatic", {})
         self.assertTrue(len(tour_auto_bundle) > 0)
 
-        # Upstream eagerly bundles ``web_tour.automatic`` into
-        # ``web.assets_tests`` and this test stripped it with ir.asset
-        # "remove" directives to prove tours still load lazily.  Post-ESM
-        # this fork never puts tour code in ``web.assets_tests`` at all
-        # (see web_tour/__manifest__.py: it ships only through the lazy
-        # ESM child bundle loaded by tour_service) — so there is nothing
-        # to remove, and "remove" directives for paths absent from the
-        # bundle crash asset resolution.  The sanity check is the direct
-        # assertion: even with test assets loaded, the automatic-tour
-        # modules must not be registered until a tour actually starts.
-
-        # Wait for page and resources to be loaded
-        # This should ensure all tour files have been executed
         ready = "document.readyState === 'complete'"
 
-        # Assert lazy resources are not available
-        # Post-ESM there is no odoo.define()/AMD deferral: the injected code
-        # runs after ``ready`` (page fully loaded, every bundle evaluated), so
-        # a plain IIFE probing ``odoo.loader.modules`` is the correct form.
         code = """
         (() => {
             const errors = [];
@@ -134,12 +116,8 @@ class WebTourHttp(HttpCase):
         IrAsset = self.env["ir.asset"]
         ResUsers = self.env["res.users"]
         admin = ResUsers.search(ResUsers._get_login_domain("admin"))
-        # Do not start any onboarding tour on startup
         admin.tour_enabled = False
 
-        # We want to boot Odoo as in real life (not loading assets for tests)
-        # debug will be equal to 0
-        # and the **server** debug mode to False
         self.env["ir.ui.view"].create({
             "name": "test_sanity_onboarding",
             "inherit_id": self.env.ref("web.conditional_assets_tests").id,
@@ -150,13 +128,8 @@ class WebTourHttp(HttpCase):
             """
         })
 
-        # This should ensure all tour files have been executed
         ready = "document.readyState === 'complete'"
 
-        # Assert lazy resources are not available
-        # Post-ESM there is no odoo.define()/AMD deferral: the injected code
-        # runs after ``ready`` (page fully loaded, every bundle evaluated), so
-        # a plain IIFE probing ``odoo.loader.modules`` is the correct form.
         code = """
         (() => {
             const errors = [];

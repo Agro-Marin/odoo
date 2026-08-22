@@ -931,38 +931,6 @@ class TestPoSBasicConfig(TestPoSCommon):
 
         self.open_new_session()
 
-        """ Test for orders: one with invoice
-
-        3 orders
-        - order 1, paid by cash
-        - order 2, paid by bank
-        - order 3, paid by bank, invoiced
-
-        Orders
-        ======
-        +---------+----------+---------------+----------+-----+-------+
-        | order   | payments | invoiced?     | product  | qty | total |
-        +---------+----------+---------------+----------+-----+-------+
-        | order 1 | bank     | no            | product1 |   6 |    60 |
-        |         |          |               | product4 |   4 | 39.84 |
-        +---------+----------+---------------+----------+-----+-------+
-        | order 2 | bank     | yes           | product4 |   3 | 29.88 |
-        |         |          |               | product2 |  20 |   400 |
-        +---------+----------+---------------+----------+-----+-------+
-
-        Expected Result
-        ===============
-        +---------------------+---------+
-        | account             | balance |
-        +---------------------+---------+
-        | sale                | -596,56 |
-        | pos receivable bank |  516,64 |
-        | Rounding applied    |   -0,01 |
-        +---------------------+---------+
-        | Total balance       |     0.0 |
-        +---------------------+---------+
-        """
-
         orders = []
 
         orders = []

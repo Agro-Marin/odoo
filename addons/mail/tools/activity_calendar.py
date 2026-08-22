@@ -17,7 +17,6 @@ from typing import Literal
 from odoo.libs.datetime import all_timezones, timezone
 
 ANCHOR_MINUTES = 15
-"""Quarter-hour quantum `tz_anchor` rounds down to. See `tz_anchor`."""
 
 
 @functools.lru_cache(maxsize=4)

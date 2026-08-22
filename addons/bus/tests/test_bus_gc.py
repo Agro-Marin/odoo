@@ -9,21 +9,12 @@ from odoo.addons.bus.models.bus import DEFAULT_GC_RETENTION_SECONDS
 
 
 def _utcnow():
-    """Explicit UTC base for freeze_time.
-
-    ``bus.bus.create_date`` is written with the (real, unfrozen) database
-    clock in UTC, and ``_gc_messages`` compares it against
-    ``fields.Datetime.now()`` (naive UTC).  Freezing with an aware UTC
-    datetime keeps the arithmetic correct regardless of the host timezone,
-    unlike a naive ``datetime.now()`` that freezegun would interpret as UTC.
-    """
     return datetime.now(UTC)
 
 
 @tagged("-at_install", "post_install")
 class TestBusGC(TransactionCase):
     def _create_one_bus_message(self):
-        """Helper: clear all bus messages, create one, and return the model."""
         self.env["bus.bus"].search([]).unlink()
         self.env["bus.bus"].create({"channel": "foo", "message": "bar"})
         self.assertEqual(self.env["bus.bus"].search_count([]), 1)
@@ -57,11 +48,9 @@ class TestBusGC(TransactionCase):
             self.assertEqual(self.env["bus.bus"].search_count([]), 0)
 
     def test_zero_gc_retention_falls_back_to_default(self):
-        """Zero retention is invalid; GC must fall back to DEFAULT_GC_RETENTION_SECONDS."""
         self.env["ir.config_parameter"].set_param("bus.gc_retention_seconds", 0)
         self._create_one_bus_message()
 
-        # Just past DEFAULT — message should be gone (default was used, not 0)
         with freeze_time(
             _utcnow() + timedelta(seconds=DEFAULT_GC_RETENTION_SECONDS + 1)
         ):
@@ -71,11 +60,9 @@ class TestBusGC(TransactionCase):
             self.assertEqual(self.env["bus.bus"].search_count([]), 0)
 
     def test_negative_gc_retention_falls_back_to_default(self):
-        """Negative retention is invalid; GC must fall back to DEFAULT_GC_RETENTION_SECONDS."""
         self.env["ir.config_parameter"].set_param("bus.gc_retention_seconds", -3600)
         self._create_one_bus_message()
 
-        # Message is still fresh — well within default window
         with freeze_time(
             _utcnow() + timedelta(seconds=DEFAULT_GC_RETENTION_SECONDS / 2)
         ):
@@ -84,7 +71,6 @@ class TestBusGC(TransactionCase):
                 mock_logger.warning.assert_called_once()
             self.assertEqual(self.env["bus.bus"].search_count([]), 1)
 
-        # Past the default window — message should now be deleted
         with freeze_time(
             _utcnow() + timedelta(seconds=DEFAULT_GC_RETENTION_SECONDS + 1)
         ):
@@ -92,14 +78,11 @@ class TestBusGC(TransactionCase):
             self.assertEqual(self.env["bus.bus"].search_count([]), 0)
 
     def test_non_numeric_gc_retention_falls_back_to_default(self):
-        """Non-numeric retention is invalid; GC must warn and fall back to
-        DEFAULT_GC_RETENTION_SECONDS (consistent with zero/negative values)."""
         self.env["ir.config_parameter"].set_param(
             "bus.gc_retention_seconds", "not_a_number"
         )
         self._create_one_bus_message()
 
-        # Message is still fresh — well within default window
         with freeze_time(
             _utcnow() + timedelta(seconds=DEFAULT_GC_RETENTION_SECONDS / 2)
         ):
@@ -110,7 +93,6 @@ class TestBusGC(TransactionCase):
                 self.assertEqual(warned_value, "not_a_number")
             self.assertEqual(self.env["bus.bus"].search_count([]), 1)
 
-        # Past the default window — message should now be deleted
         with freeze_time(
             _utcnow() + timedelta(seconds=DEFAULT_GC_RETENTION_SECONDS + 1)
         ):

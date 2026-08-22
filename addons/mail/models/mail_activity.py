@@ -42,21 +42,8 @@ PYTHON_DEADLINE_OPERATORS = {
     ">=": operator_module.ge,
     ">": operator_module.gt,
 }
-"""The same five operators `_DEADLINE_SQL_OPERATORS` renders, for in-memory use.
-
-Kept beside it so a sixth cannot be added to one and not the other.
-"""
 
 ORPHAN_BUCKET = "mail.activity"
-"""Model name a document-less activity is filed under.
-
-Its own model name, so that an activity with no document and an activity filed
-*against* a ``mail.activity`` record key the same way and count once. The systray
-(``res.users._group_activity_ids_by_record``) and the bus delta
-(``mail.activity._todo_key``) must agree on this or the badge desyncs from the
-notification -- which is what ``TestActivityOnAnActivity`` in test_mail exists to
-catch. One spelling, imported by both.
-"""
 
 
 class MailActivity(models.Model):
@@ -296,14 +283,6 @@ class MailActivity(models.Model):
         ">=": SQL(">="),
         ">": SQL(">"),
     }
-    """The operators `_domain_deadline_today` renders, as SQL it did not build.
-
-    A dict, not `SQL(operator)`: the operator reaches `_domain_deadline_today`
-    from `_search_state` and from `mixin.mail.activity`, and interpolating a
-    string into `SQL()` is exactly the shape `test_lint`'s SQL-injection checker
-    exists to refuse. Naming the five makes the set reviewable and an unknown one
-    a `KeyError` at build time rather than a query.
-    """
 
     @api.model
     def _domain_deadline_today(

@@ -948,10 +948,6 @@ class TestFetchmailAccounting(FetchmailCommon):
         self.assertIsNone(outcome.exception, "our arithmetic is not their fault")
         self.assertEqual(outcome.remaining, 0)
         self.assertEqual(len(connection.acknowledged), 3, "all three still delivered")
-        # The miscount is tolerated, not hidden: the warning is the operator's
-        # only signal that their mailbox under-announced. Capturing it here
-        # pins that signal and keeps it out of a clean run's log, which is why
-        # this reads the record rather than muting the logger outright.
         self.assertTrue(
             any(
                 "announced 1 unread message(s) and yielded 3" in line

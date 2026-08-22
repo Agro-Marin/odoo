@@ -778,9 +778,6 @@ class TestPickShip(TestStockCommon):
             "assigned",
             "Return ship picking should automatically be assigned",
         )
-        """ We created the return for ship picking. The origin/destination
-        link between return moves should have been created during return creation.
-        """
         self.assertTrue(
             return_ship_picking.move_ids
             in return_pick_picking.move_ids.mapped("move_orig_ids"),
@@ -2888,7 +2885,6 @@ class TestSinglePicking(TestStockCommon):
 
     def test_owner_1(self):
         self.env.user.group_ids += self.env.ref("stock.group_tracking_owner")
-        """Make a receipt, set an owner and validate"""
         owner1 = self.env["res.partner"].create({"name": "owner"})
         receipt = self.env["stock.picking"].create(
             {

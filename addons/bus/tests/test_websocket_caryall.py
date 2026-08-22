@@ -30,8 +30,6 @@ from .common import WebsocketCase
 
 
 class ManualClock:
-    """Deterministic, injectable clock for timeout/dispatch-state tests."""
-
     def __init__(self, now=0.0):
         self.now = now
 
@@ -66,23 +64,6 @@ class TestWebsocketCaryall(WebsocketCase):
             self.assertEqual(events, ["open", "close"])
 
     def test_on_websocket_closed_runs_through_retrying(self):
-        """The teardown hook must be flushed/committed, not called bare.
-
-        `_on_websocket_closed` is an extension point whose implementations
-        write -- mail flips the user's presence to offline. An ORM assignment
-        only lands in the transaction's cache, so something has to flush it.
-        Called bare, that was left to whatever the pooled cursor's transaction
-        happened to do at commit, and the result depended on the connection's
-        lifetime: measured against a live server on this build, a socket torn
-        down after ~60s flushed while one torn down after ~17s did not, so the
-        user stayed "online" to everyone else forever.
-
-        This asserts the mechanism rather than the symptom on purpose: under
-        `HttpCase` the websocket runs on a `TestCursor` that shares the test
-        transaction, so the lost write is not reproducible here -- which is
-        exactly why the bug survived. `retrying` is what the lifecycle
-        callbacks a few lines above already use.
-        """
         seen = []
         original_retrying = websocket_module.retrying
 
@@ -104,8 +85,6 @@ class TestWebsocketCaryall(WebsocketCase):
             first_ws.close(CloseCode.CLEAN)
             second_ws.close(CloseCode.CLEAN)
             self.wait_remaining_websocket_connections()
-            # serve_forever_patch prevent websocket instances from being
-            # collected. Stop it now.
             self._serve_forever_patch.stop()
             gc.collect()
             self.assertEqual(len(websocket_module._websocket_instances), 0)
@@ -113,8 +92,6 @@ class TestWebsocketCaryall(WebsocketCase):
     def test_timeout_manager_no_response_timeout(self):
         clock = ManualClock()
         timeout_manager = TimeoutManager(clock=clock)
-        # A PING frame was just sent, if no pong has been received
-        # within TIMEOUT seconds, the connection should have timed out.
         timeout_manager.acknowledge_frame_sent(Frame(Opcode.PING))
         clock.tick(TimeoutManager.TIMEOUT / 2)
         self.assertFalse(timeout_manager.has_frame_response_timed_out())
@@ -123,8 +100,6 @@ class TestWebsocketCaryall(WebsocketCase):
 
         clock = ManualClock()
         timeout_manager = TimeoutManager(clock=clock)
-        # A CLOSE frame was just sent, if no close has been received
-        # within TIMEOUT seconds, the connection should have timed out.
         timeout_manager.acknowledge_frame_sent(Frame(Opcode.CLOSE))
         clock.tick(TimeoutManager.TIMEOUT / 2)
         self.assertFalse(timeout_manager.has_frame_response_timed_out())
@@ -151,13 +126,11 @@ class TestWebsocketCaryall(WebsocketCase):
     def test_timeout_manager_reset_wait_for(self):
         clock = ManualClock()
         timeout_manager = TimeoutManager(clock=clock)
-        # PING frame
         timeout_manager.acknowledge_frame_sent(Frame(Opcode.PING))
         timeout_manager.acknowledge_frame_receipt(Frame(Opcode.PONG))
         clock.tick(timeout_manager.TIMEOUT + 1)
         self.assertFalse(timeout_manager.has_frame_response_timed_out())
 
-        # CLOSE frame
         timeout_manager.acknowledge_frame_sent(Frame(Opcode.CLOSE))
         timeout_manager.acknowledge_frame_receipt(Frame(Opcode.CLOSE))
         clock.tick(timeout_manager.TIMEOUT + 1)
@@ -167,9 +140,6 @@ class TestWebsocketCaryall(WebsocketCase):
         websocket = self.websocket_connect()
         new_test_user(self.env, login="test_user", password="Password!1")
         self.authenticate("test_user", "Password!1")
-        # The session with whom the websocket connected has been
-        # deleted. WebSocket should disconnect in order for the
-        # session to be updated.
         self.subscribe(websocket, wait_for_dispatch=False)
         self.assert_close_with_code(websocket, CloseCode.SESSION_EXPIRED)
 
@@ -178,26 +148,16 @@ class TestWebsocketCaryall(WebsocketCase):
         user_session = self.authenticate("test_user", "Password!1")
         websocket = self.websocket_connect(cookie=f"session_id={user_session.sid};")
         self.url_open("/web/session/logout")
-        # The session with whom the websocket connected has been
-        # deleted. WebSocket should disconnect in order for the
-        # session to be updated.
         self.subscribe(websocket, wait_for_dispatch=False)
         self.assert_close_with_code(websocket, CloseCode.SESSION_EXPIRED)
 
     def test_user_logout_outgoing_message(self):
-        # Session validity is cached between dispatches (see
-        # ``Websocket.SESSION_VALIDITY_TTL``): with the default TTL the
-        # logout below would only be detected up to a TTL later. Disable the
-        # cache to keep the exact session-expired semantics under test.
         self.startPatcher(patch.object(Websocket, "SESSION_VALIDITY_TTL", 0))
         new_test_user(self.env, login="test_user", password="Password!1")
         user_session = self.authenticate("test_user", "Password!1")
         websocket = self.websocket_connect(cookie=f"session_id={user_session.sid};")
         self.subscribe(websocket, ["channel1"], self.env["bus.bus"]._bus_last_id())
         self.url_open("/web/session/logout")
-        # Simulate postgres notify. The session with whom the websocket
-        # connected has been deleted. WebSocket should be closed without
-        # receiving the message.
         self.env["bus.bus"]._sendone("channel1", "notif type", "message")
         self.trigger_notification_dispatching(["channel1"])
         self.assert_close_with_code(websocket, CloseCode.SESSION_EXPIRED)
@@ -205,14 +165,11 @@ class TestWebsocketCaryall(WebsocketCase):
     def test_channel_subscription_disconnect(self):
         websocket = self.websocket_connect()
         self.subscribe(websocket, ["my_channel"], self.env["bus.bus"]._bus_last_id())
-        # channel is added as expected to the channel to websocket map.
         self.assertIn(
             (self.env.registry.db_name, "my_channel"), dispatch._channels_to_ws
         )
         websocket.close(CloseCode.CLEAN)
         self.wait_remaining_websocket_connections()
-        # channel is removed as expected when removing the last
-        # websocket that was listening to this channel.
         self.assertNotIn(
             (self.env.registry.db_name, "my_channel"), dispatch._channels_to_ws
         )
@@ -220,12 +177,10 @@ class TestWebsocketCaryall(WebsocketCase):
     def test_channel_subscription_update(self):
         websocket = self.websocket_connect()
         self.subscribe(websocket, ["my_channel"], self.env["bus.bus"]._bus_last_id())
-        # channel is added as expected to the channel to websocket map.
         self.assertIn(
             (self.env.registry.db_name, "my_channel"), dispatch._channels_to_ws
         )
         self.subscribe(websocket, ["my_channel_2"], self.env["bus.bus"]._bus_last_id())
-        # channel is removed as expected when updating the subscription.
         self.assertNotIn(
             (self.env.registry.db_name, "my_channel"), dispatch._channels_to_ws
         )
@@ -242,26 +197,16 @@ class TestWebsocketCaryall(WebsocketCase):
         self.env["bus.bus"]._sendone("my_channel", "notif_type", "another_message")
         self.trigger_notification_dispatching(["my_channel"])
         notifications = json.loads(websocket.recv())
-        # First notification has been received, we should only receive
-        # the second one.
         self.assertEqual(1, len(notifications))
         self.assertEqual(notifications[0]["message"]["type"], "notif_type")
         self.assertEqual(notifications[0]["message"]["payload"], "another_message")
 
     def test_malformed_subscribe_data_keeps_connection_alive(self):
-        """Client-controlled garbage in the subscribe payload is rejected with
-        a warning (no traceback) and must not kill the connection."""
-        # The test sends ~12 frames back to back (5 payloads x subscribe+ping,
-        # plus the connect ping and the final valid subscribe). On a fast
-        # machine that trips the default rate limiter (burst 10 / delay 0.2s)
-        # and the server closes with TRY_LATER instead of exercising the
-        # malformed-payload path. Raise the burst: rate limiting has its own
-        # dedicated tests (test_websocket_rate_limiting).
         self.startPatcher(patch.object(Websocket, "RL_BURST", 100))
         websocket = self.websocket_connect()
         malformed_payloads = [
             "not-a-dict",
-            {"last": 0},  # missing channels
+            {"last": 0},
             {"channels": "not-a-list"},
             {"channels": [1, 2]},
             {"channels": [], "last": "not-an-int"},
@@ -271,15 +216,12 @@ class TestWebsocketCaryall(WebsocketCase):
                 "odoo.addons.bus.websocket", level="WARNING"
             ) as capture:
                 websocket.send(json.dumps({"event_name": "subscribe", "data": data}))
-                # Frames are handled in order: once the pong arrives, the
-                # malformed subscribe above has been processed.
                 websocket.ping()
-                websocket.recv_data_frame(control_frame=True)  # pong
+                websocket.recv_data_frame(control_frame=True)
             self.assertTrue(
                 any("Invalid websocket request" in line for line in capture.output),
                 f"payload {data!r} should be rejected with a warning",
             )
-        # The connection survived and a valid subscription still works.
         self.subscribe(websocket, ["my_channel"], self.env["bus.bus"]._bus_last_id())
         self.env["bus.bus"]._sendone("my_channel", "notif_type", "message")
         self.trigger_notification_dispatching(["my_channel"])
@@ -288,16 +230,9 @@ class TestWebsocketCaryall(WebsocketCase):
         self.assertEqual(notifications[0]["message"]["payload"], "message")
 
     def test_subscribe_without_last_defaults_to_zero(self):
-        """A subscribe without the optional ``last`` key is valid (the JS
-        worker always sends it, but hand-rolled clients may not)."""
-        # last=0 makes `_poll` fall back to a create_date window (TIMEOUT
-        # seconds), which picks up any notification committed shortly before
-        # the test — e.g. the `bundle_changed` broadcasts emitted when assets
-        # were (re)generated during module install. Start from a clean table
-        # so the assertions below only see this test's notification.
         self.env["bus.bus"].sudo().search([]).unlink()
         websocket = self.websocket_connect()
-        self.subscribe(websocket, ["my_channel"])  # no "last" key sent
+        self.subscribe(websocket, ["my_channel"])
         self.env["bus.bus"]._sendone("my_channel", "notif_type", "message")
         self.trigger_notification_dispatching(["my_channel"])
         notifications = json.loads(websocket.recv())
@@ -306,10 +241,6 @@ class TestWebsocketCaryall(WebsocketCase):
 
     def test_trigger_notification_unsupported_language(self):
         websocket = self.websocket_connect()
-        # set session lang to what a websitor visitor could have (based on their
-        # preferred language), this could be a unknown language (ex. territorial
-        # specific) or a known language that is uninstalled; in all cases this
-        # should not crash the notif. dispatching.
         self.session.context["lang"] = "fr_LU"
         http.root.session_store.save(self.session)
         self.subscribe(websocket, ["my_channel"], self.env["bus.bus"]._bus_last_id())
@@ -388,11 +319,6 @@ class TestWebsocketCaryall(WebsocketCase):
                 self.assertFalse(mock.called)
 
     def _connect_and_capture_server_session(self, cookie, **connect_kwargs):
-        """Open a websocket and return ``(client_ws, server_session)`` where
-        ``server_session`` is the session the server attached to the
-        websocket instance. The capture happens on the serving thread; all
-        assertions must run on the test thread.
-        """
         captured_sessions = []
         serve_forever_called_event = Event()
         original_serve_forever = WebsocketConnectionHandler._serve_forever
@@ -413,9 +339,6 @@ class TestWebsocketCaryall(WebsocketCase):
         return ws, captured_sessions[0]
 
     def test_mismatched_origin_downgrades_to_public_session(self):
-        """Cross-origin handshakes are downgraded to a public session by
-        default (CSWSH protection), without any opt-in environment variable.
-        """
         new_test_user(self.env, login="test_user", password="Password!1")
         user_session = self.authenticate("test_user", "Password!1")
         with mute_logger("odoo.addons.bus.websocket"):
@@ -425,11 +348,6 @@ class TestWebsocketCaryall(WebsocketCase):
             )
         self.assertNotEqual(server_session.sid, user_session.sid)
         self.assertFalse(server_session.uid)
-        # The client must not be switched to the downgraded public session: its
-        # cookie stays its own. The downgrade path does not re-persist the
-        # request session (that minted a session file per cross-origin
-        # handshake), so no set-cookie is sent and the browser keeps the
-        # original session_id; if one is sent it must never be the public one.
         set_cookie = ws.getheaders().get("set-cookie")
         if set_cookie:
             self.assertTrue(set_cookie.startswith(f"session_id={user_session.sid}"))
@@ -437,7 +355,6 @@ class TestWebsocketCaryall(WebsocketCase):
 
     @patch.dict(os.environ, {"ODOO_BUS_PUBLIC_SAMESITE_WS": "True"})
     def test_mismatched_origin_downgrades_with_legacy_env_var(self):
-        """The legacy opt-in flag is still accepted (and redundant)."""
         new_test_user(self.env, login="test_user", password="Password!1")
         user_session = self.authenticate("test_user", "Password!1")
         with mute_logger("odoo.addons.bus.websocket"):
@@ -449,9 +366,6 @@ class TestWebsocketCaryall(WebsocketCase):
         self.assertFalse(server_session.uid)
 
     def test_downgraded_connections_share_one_public_session(self):
-        """Cross-origin downgrades reuse a single persisted public session per
-        db instead of minting one session file per handshake — the fix for the
-        unauthenticated session-store exhaustion vector on ``/websocket``."""
         new_test_user(self.env, login="test_user", password="Password!1")
         user_session = self.authenticate("test_user", "Password!1")
         with mute_logger("odoo.addons.bus.websocket"):
@@ -473,8 +387,6 @@ class TestWebsocketCaryall(WebsocketCase):
         )
 
     def test_matching_origin_keeps_session(self):
-        """A same-origin handshake keeps the request's authenticated session
-        (websocket-client sends a matching Origin header by default)."""
         new_test_user(self.env, login="test_user", password="Password!1")
         user_session = self.authenticate("test_user", "Password!1")
         _ws, server_session = self._connect_and_capture_server_session(
@@ -490,8 +402,6 @@ class TestWebsocketCaryall(WebsocketCase):
         },
     )
     def test_trusted_origin_allowlist_keeps_session(self):
-        """An origin allowlisted in ODOO_BUS_TRUSTED_ORIGINS is not
-        downgraded even though it does not match the request host."""
         new_test_user(self.env, login="test_user", password="Password!1")
         user_session = self.authenticate("test_user", "Password!1")
         _ws, server_session = self._connect_and_capture_server_session(
@@ -502,9 +412,6 @@ class TestWebsocketCaryall(WebsocketCase):
         self.assertEqual(server_session.uid, user_session.uid)
 
     def test_session_validity_cached_between_dispatches(self):
-        """`_dispatch_bus_notifications` re-validates the session at most
-        once per SESSION_VALIDITY_TTL; a (re)subscribe forces an immediate
-        re-validation."""
         self.startPatcher(patch.object(Websocket, "SESSION_VALIDITY_TTL", 1000))
         new_test_user(self.env, login="test_user", password="Password!1")
         user_session = self.authenticate("test_user", "Password!1")
@@ -539,8 +446,6 @@ class TestWebsocketCaryall(WebsocketCase):
             )
 
     def test_session_validity_ttl_zero_validates_every_dispatch(self):
-        """With a zero TTL every dispatch re-validates: the exact (uncached)
-        session-expiry semantics used by the session-expired tests."""
         self.startPatcher(patch.object(Websocket, "SESSION_VALIDITY_TTL", 0))
         new_test_user(self.env, login="test_user", password="Password!1")
         user_session = self.authenticate("test_user", "Password!1")
@@ -570,7 +475,6 @@ class TestWebsocketCaryall(WebsocketCase):
             self.assertTrue(mock.called)
 
     def test_disconnect_when_version_outdated(self):
-        # Outdated version, connection should be closed immediately
         with (
             patch.object(WebsocketConnectionHandler, "_VERSION", "17.0-1"),
             patch.object(
@@ -582,7 +486,6 @@ class TestWebsocketCaryall(WebsocketCase):
             )
             self.assert_close_with_code(websocket, CloseCode.CLEAN, "OUTDATED_VERSION")
 
-        # Version not passed, User-Agent present, should be considered as outdated
         with (
             patch.object(WebsocketConnectionHandler, "_VERSION", "17.0-1"),
             patch.object(self, "_WEBSOCKET_URL", self._BASE_WEBSOCKET_URL),
@@ -591,15 +494,13 @@ class TestWebsocketCaryall(WebsocketCase):
                 ping_after_connect=False, header={"User-Agent": "Chrome/126.0.0.0"}
             )
             self.assert_close_with_code(websocket, CloseCode.CLEAN, "OUTDATED_VERSION")
-        # Version not passed, User-Agent not present, should not be considered
-        # as outdated
         with (
             patch.object(WebsocketConnectionHandler, "_VERSION", "17.0-1"),
             patch.object(self, "_WEBSOCKET_URL", self._BASE_WEBSOCKET_URL),
         ):
             websocket = self.websocket_connect()
             websocket.ping()
-            websocket.recv_data_frame(control_frame=True)  # pong
+            websocket.recv_data_frame(control_frame=True)
 
     def test_websocket_terminates_after_closing_timeout(self):
         orig_disconnect = Websocket._disconnect
@@ -622,13 +523,13 @@ class TestWebsocketCaryall(WebsocketCase):
             freeze_time("2022-08-19") as frozen_time,
         ):
             ws = self.websocket_connect(ping_after_connect=False)
-            ws.send(b"\x00")  # Wake up the WebSocket loop.
+            ws.send(b"\x00")
             self.assertTrue(
                 disconnect_done_event.wait(timeout=5),
                 "Server should have initiated the closing handshake as the keep alive timeout is exceeded.",
             )
             frozen_time.tick(delta=timedelta(seconds=TimeoutManager.TIMEOUT + 1))
-            ws.send(b"\x00")  # Wake up the WebSocket loop.
+            ws.send(b"\x00")
             self.assertTrue(
                 terminate_done_event.wait(timeout=5),
                 "Server should have terminated the connection as it didn't receive any response.",

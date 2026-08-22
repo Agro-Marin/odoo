@@ -86,7 +86,6 @@ SEND_RENDER_FIELDS = frozenset(
 ACCUMULATED_VALUE_KEYS = frozenset({"attachment_ids", "attachments", "partner_ids"})
 
 NO_RECORD_RES_ID = 0
-"""Stand-in res_id for rendering a template with no record behind it."""
 
 
 _MODIFYING_STATEMENT = re.compile(

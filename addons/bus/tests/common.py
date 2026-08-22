@@ -29,22 +29,10 @@ from ..websocket import CloseCode, Websocket, WebsocketConnectionHandler
 
 
 def channel_key(env, channel):
-    """The key ``dispatch`` matches subscriptions on, for one raw channel.
-
-    A raw channel list is heterogeneous by design -- plain strings, recordsets,
-    ``(recordset, subchannel)`` pairs and pre-qualified tuples all travel in the
-    same list -- so asserting over it element-wise compares a recordset against
-    a string, which answers False only by way of the ORM's "unsupported operand"
-    warning. ``Bus.subscribe`` puts every form through ``channel_with_db``
-    before it reaches ``_channels_to_ws``, so it is these keys, not the raw
-    objects, that decide whether a notification is delivered: a test asserting
-    on them asserts on the thing that actually carries the message.
-    """
     return hashable(channel_with_db(env.cr.dbname, channel))
 
 
 def channel_keys(env, channels):
-    """:func:`channel_key` over a whole raw channel list."""
     return [channel_key(env, channel) for channel in channels]
 
 
@@ -67,19 +55,12 @@ class WebsocketCase(HttpCase):
     def setUp(self):
         super().setUp()
         self._websockets = set()
-        # Used to ensure websocket connections have been closed properly.
-        # One close event is registered per *accepted* connection, at
-        # handshake time rather than at serving time: a connection accepted
-        # but whose serving thread has not started yet by the time the test
-        # tears down must be waited on too.
         self._websocket_close_events = []
         self._pending_websocket_close_events = SimpleQueue()
         original_open_connection = WebsocketConnectionHandler.open_connection
 
         def _mocked_open_connection(*args, **kwargs):
             response = original_open_connection(*args, **kwargs)
-            # Only register the event once the handshake succeeded: a
-            # rejected handshake never reaches `_serve_forever`.
             websocket_closed_event = Event()
             self._websocket_close_events.append(websocket_closed_event)
             self._pending_websocket_close_events.put(websocket_closed_event)
@@ -93,11 +74,6 @@ class WebsocketCase(HttpCase):
         original_serve_forever = WebsocketConnectionHandler._serve_forever
 
         def _mocked_serve_forever(*args):
-            # `open_connection` queued the event before the 101 response was
-            # even sent, and `_serve_forever` runs on the same thread once
-            # the response closes: the queue cannot be empty here. Which
-            # event is paired with which connection does not matter, they
-            # are indistinguishable counters.
             try:
                 websocket_closed_event = (
                     self._pending_websocket_close_events.get_nowait()
@@ -116,7 +92,7 @@ class WebsocketCase(HttpCase):
         self.startPatcher(self._serve_forever_patch)
         self.enterContext(
             release_test_lock()
-        )  # Release the lock during websocket tests
+        )
         self.http_request_key = "websocket"
 
     def tearDown(self):
@@ -124,10 +100,6 @@ class WebsocketCase(HttpCase):
         super().tearDown()
 
     def _close_websockets(self):
-        """
-        Close all the connected websockets and wait for the connection
-        to terminate.
-        """
         for ws in self._websockets:
             if ws.connected:
                 ws.close(CloseCode.CLEAN)
@@ -135,15 +107,11 @@ class WebsocketCase(HttpCase):
 
     @contextlib.contextmanager
     def allow_requests(self, *args, **kwargs):
-        # As the lock is always unlocked, we reacquire it before allowing request
-        # to avoid exceptions.
         with _registry_test_lock, super().allow_requests(*args, **kwargs):
             yield
 
     def assertCanOpenTestCursor(self):
-        # As the lock is always unlocked during WebsocketCases we have a whitelist of
-        # methods which must match. We also default to super if we are coming from a cursor.
-        allowed_methods = [  # function + filename
+        allowed_methods = [
             ("acquire_cursor", Like(".../bus/websocket.py")),
         ]
         if (
@@ -158,36 +126,19 @@ class WebsocketCase(HttpCase):
         raise BadRequest("Opening a cursor from an unknown method in websocket test.")
 
     def websocket_connect(self, *args, ping_after_connect=True, **kwargs):
-        """
-        Connect a websocket. If no cookie is given, the connection is
-        opened with a default session. The created websocket is closed
-        at the end of the test.
-        """
         if "cookie" not in kwargs:
             self.session = self.authenticate(None, None)
             kwargs["cookie"] = f"session_id={self.session.sid}"
-        # Large default so a slow dispatch never escapes the test. Tests that
-        # assert *absence* of a notification must pass a short timeout: for them
-        # the wait is dead time, not a safety margin.
         kwargs.setdefault("timeout", 10)
-        # The cursor lock is already released, we just need to pass the right cookie.
         kwargs["cookie"] += f";{TEST_CURSOR_COOKIE_NAME}={self.http_request_key}"
         ws = websocket.create_connection(self._WEBSOCKET_URL, *args, **kwargs)
         if ping_after_connect:
             ws.ping()
-            ws.recv_data_frame(control_frame=True)  # pong
+            ws.recv_data_frame(control_frame=True)
         self._websockets.add(ws)
         return ws
 
     def subscribe(self, websocket, channels=None, last=None, wait_for_dispatch=True):
-        """Subscribe the websocket to the given channels.
-
-        :param websocket: The websocket of the client.
-        :param channels: The list of channels to subscribe to.
-        :param last: The last notification id the client received.
-        :param wait_for_dispatch: Whether to wait for the notification
-            dispatching trigerred by the subscription.
-        """
         dispatch_bus_notification_done = Event()
         original_dispatch_bus_notifications = Websocket._dispatch_bus_notifications
 
@@ -216,11 +167,7 @@ class WebsocketCase(HttpCase):
                 )
 
     def trigger_notification_dispatching(self, channels):
-        """Notify the websockets subscribed to the given channels that new
-        notifications are available. Usefull since the bus is not able to do
-        it during tests.
-        """
-        self.env.cr.precommit.run()  # trigger the creation of bus.bus records
+        self.env.cr.precommit.run()
         channels = [
             hashable(channel_with_db(self.registry.db_name, c)) for c in channels
         ]
@@ -231,11 +178,6 @@ class WebsocketCase(HttpCase):
             websocket.trigger_notification_dispatching()
 
     def wait_remaining_websocket_connections(self):
-        """Wait for the websocket connections to terminate.
-
-        A connection that never terminates fails the test instead of
-        stalling silently: it would leak a serving thread past the test.
-        """
         for event in self._websocket_close_events:
             self.assertTrue(
                 event.wait(5),
@@ -243,21 +185,15 @@ class WebsocketCase(HttpCase):
             )
 
     def assert_close_with_code(self, websocket, expected_code, expected_reason=None):
-        """
-        Assert that the websocket is closed with the expected_code.
-        """
         opcode, payload = websocket.recv_data()
-        # ensure it's a close frame
         self.assertEqual(opcode, 8)
         code = struct.unpack("!H", payload[:2])[0]
-        # ensure the close code is the one we expected
         self.assertEqual(code, expected_code)
         if expected_reason:
-            # ensure the close reason is the one we expected
             self.assertEqual(payload[2:].decode(), expected_reason)
 
 
 class BusCase:
     def _reset_bus(self):
-        self.env.cr.precommit.run()  # trigger the creation of bus.bus records
+        self.env.cr.precommit.run()
         self.env["bus.bus"].sudo().search([]).unlink()

@@ -26,7 +26,6 @@ _logger = logging.getLogger(__name__)
 
 PERSONAL_MAIL_SERVER_SMTP_PORT = 587
 PERSONAL_MAIL_SERVER_SMTP_ENCRYPTION = "starttls"
-"""Submission over STARTTLS -- what every provider offering a personal server takes."""
 
 
 class ResUsers(models.Model):
