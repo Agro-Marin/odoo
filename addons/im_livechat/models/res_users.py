@@ -134,8 +134,24 @@ class ResUsers(models.Model):
         if vals.get("group_ids"):
             operator_group = self.env.ref("im_livechat.im_livechat_group_user")
             if operator_group in self.all_group_ids:
+                # Losing the group is a *difference*, not a snapshot of the end
+                # state: `self` can carry users who never had it, and they must
+                # not be unlinked from channels a manager put them in.  Same
+                # shape as `res.groups.write` next door.
+                #
+                # Not `filtered_domain`: `all_group_ids` carries a `search=`, so
+                # a domain on it is answered by `_search_all_group_ids`, i.e. by
+                # the path `group_ids.all_implied_ids`.  A negative operator on a
+                # path binds to the leaf, not to the traversal -- it reads as
+                # "has a group whose implied groups exclude this one" -- so a user
+                # left with no group at all matches nothing and never looks lost.
+                operators = self.filtered(
+                    lambda user: operator_group in user.all_group_ids
+                )
                 result = super().write(vals)
-                lost_operators = self.filtered_domain([("all_group_ids", "not in", operator_group.id)])
+                lost_operators = operators.filtered(
+                    lambda user: operator_group not in user.all_group_ids
+                )
                 # sudo - im_livechat.channel: user manager can remove user from livechat channels
                 self.env["im_livechat.channel"].sudo() \
                     .search([("user_ids", "in", lost_operators.ids)]) \

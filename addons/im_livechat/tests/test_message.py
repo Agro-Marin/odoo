@@ -192,6 +192,7 @@ class TestImLivechatMessage(ChatbotCase, MailCommon):
                 "mixin.mail.thread": self._filter_threads_fields(
                     {
                         "display_name": "test1 Ernest Employee",
+                        "has_mail_thread": True,
                         "id": channel_livechat_1.id,
                         "model": "discuss.channel",
                         "module_icon": "/mail/static/description/icon.png",
@@ -220,7 +221,11 @@ class TestImLivechatMessage(ChatbotCase, MailCommon):
                     },
                 ),
                 "res.users": self._filter_users_fields(
-                    {"id": self.users[1].id, "share": False},
+                    {
+                        "id": self.users[1].id,
+                        "partner_id": self.users[1].partner_id.id,
+                        "share": False,
+                    },
                 ),
             },
         )
@@ -274,8 +279,11 @@ class TestImLivechatMessage(ChatbotCase, MailCommon):
                                         "date": fields.Datetime.to_string(message.date),
                                         "default_subject": "Chell Gladys Ernest Employee",
                                         "id": message.id,
-                                        "incoming_email_cc": False,
-                                        "incoming_email_to": False,
+                                        # No envelope fields: `_is_envelope_visible`
+                                        # hides them from a non-internal target on an
+                                        # authored message, which is what this portal
+                                        # user is.  `email_from` is absent for the
+                                        # same reason.
                                         "message_link_preview_ids": [],
                                         "message_type": "notification",
                                         "model": "discuss.channel",

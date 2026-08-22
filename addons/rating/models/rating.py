@@ -33,7 +33,12 @@ class RatingRating(models.Model):
         compute='_compute_resource_ref', readonly=True)
     parent_res_name = fields.Char('Parent Document Name', compute='_compute_parent_res_name', store=True)
     parent_res_model_id = fields.Many2one('ir.model', 'Parent Related Document Model', index=True, ondelete='cascade')
-    parent_res_model = fields.Char('Parent Document Model', store=True, related='parent_res_model_id.model', index=True, readonly=False)
+    # readonly, like its `res_model` sibling above: writable would make it an
+    # inversable related, and every write of it would then write `model` back
+    # onto `ir.model` -- a no-op by construction, since the value can only ever
+    # be what the related read already returns, but one that costs write access
+    # on `ir.model` and so fails for any non-administrator.
+    parent_res_model = fields.Char('Parent Document Model', store=True, related='parent_res_model_id.model', index=True)
     parent_res_id = fields.Integer('Parent Document', index=True)
     parent_ref = fields.Reference(
         string='Parent Ref', selection='_selection_target_model',
@@ -146,16 +151,14 @@ class RatingRating(models.Model):
     def _get_parent_data(self, values):
         """Determine the parent res_model/res_id, based on the values to create or write.
 
-        Returns ``parent_res_model_id``, ``parent_res_model`` (the stored char),
-        and ``parent_res_id``.  The char value is included explicitly because
-        ``parent_res_model`` is a stored related field with ``readonly=False``
-        — the ORM does not always recompute it when only the M2o source changes.
+        Returns ``parent_res_model_id`` and ``parent_res_id``.  The stored char
+        ``parent_res_model`` is not among them: it is related to
+        ``parent_res_model_id.model`` and the ORM keeps it in step on its own.
         """
         current_model_name = self.env['ir.model'].sudo().browse(values['res_model_id']).model
         current_record = self.env[current_model_name].browse(values['res_id'])
         data = {
             'parent_res_model_id': False,
-            'parent_res_model': False,
             'parent_res_id': False,
         }
         if hasattr(current_record, '_rating_get_parent_field_name'):
@@ -163,7 +166,6 @@ class RatingRating(models.Model):
             if current_record_parent:
                 parent_res_model = getattr(current_record, current_record_parent)
                 data['parent_res_model_id'] = self.env['ir.model']._get(parent_res_model._name).id
-                data['parent_res_model'] = parent_res_model._name
                 data['parent_res_id'] = parent_res_model.id
         return data
 

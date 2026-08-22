@@ -5,6 +5,7 @@ from freezegun import freeze_time
 from unittest.mock import patch
 
 from odoo import Command
+from odoo.fields import Datetime
 from odoo.addons.im_livechat.tests.common import TestImLivechatCommon
 from odoo.tests.common import new_test_user, tagged
 
@@ -79,7 +80,11 @@ class TestImLivechatReport(TestImLivechatCommon):
 
     @classmethod
     def _create_message(cls, channel, author, date):
-        with patch.object(cls.env.cr, 'now', lambda: date):
+        # `cr.now()` is annotated to return a datetime and callers rely on it --
+        # `mail_thread._is_notification_scheduled` reads `.tzinfo` off it -- so the
+        # mock returns one whether the caller passed a string or a datetime.
+        posted_on = Datetime.to_datetime(date)
+        with patch.object(cls.env.cr, 'now', lambda: posted_on):
             return channel.message_post(author_id=author.id, body=f'Message {date}')
 
     def test_redirect_to_form_from_pivot(self):

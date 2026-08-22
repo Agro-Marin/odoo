@@ -14,6 +14,13 @@ patch(Thread.prototype, {
         this.livechat_conversation_tag_ids = fields.Many(
             "im_livechat.conversation.tag",
         );
+        // Inverse of `Chatbot.thread`.  `Chatbot` itself is a core/common model
+        // -- it ships in every bundle this file ships in, and the server fills
+        // this relation for every target through `chatbot_current_step` -- so
+        // the inverse has to be declared here rather than in the embed patch,
+        // or `makeStore` refuses the pair in the bundles that carry only one
+        // half of it.
+        this.chatbot = fields.One("Chatbot");
         this.livechatVisitorMember = fields.One("discuss.channel.member", {
             compute() {
                 if (this.channel_type !== "livechat") {

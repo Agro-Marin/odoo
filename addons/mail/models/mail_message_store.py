@@ -291,9 +291,6 @@ class MailMessage(models.Model):
             return self.env["ir.attachment"]._get_fields_store_ownership()
         return []
 
-    def _get_fields_store_partner_name(self) -> list[StoreFieldSpec]:
-        return ["name"]
-
     def _get_fields_store_linked_messages(self) -> list[StoreFieldSpec]:
         by_message, linked_messages = self._get_linked_messages()
         record_by_message = linked_messages._record_by_message()

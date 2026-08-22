@@ -48,6 +48,7 @@ declare module "models" {
         "im_livechat.expertise": StaticMailRecord<LivechatExpertise, typeof LivechatExpertiseClass>;
     }
     export interface Thread {
+        chatbot: Chatbot;
         composerDisabled: Readonly<boolean>;
         composerDisabledText: Readonly<string>;
         livechat_conversation_tag_ids: LivechatConversationTag[];
