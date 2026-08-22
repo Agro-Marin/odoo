@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/commands/default_providers */
-
 import { Component } from "@odoo/owl";
 import { isMacOS } from "@web/core/browser/feature_detection";
 import { adoptAccessKeys } from "@web/core/browser/hotkeys";
@@ -12,7 +10,7 @@ import { _t } from "@web/core/translation";
 import { getVisibleElements } from "@web/core/utils/dom/ui";
 import { capitalize } from "@web/core/utils/format/strings";
 
-import { DefaultCommandItem } from "./command_palette.js";
+import { COMMAND_ITEM_PROPS, DefaultCommandItem } from "./command_palette.js";
 
 const commandSetupRegistry = registry.category("command_setup");
 commandSetupRegistry.add("default", {
@@ -22,25 +20,20 @@ commandSetupRegistry.add("default", {
 
 export class HotkeyCommandItem extends Component {
     static template = "web.HotkeyCommandItem";
-    static props = [
-        "hotkey",
-        "hotkeyOptions?",
-        "name?",
-        "searchValue?",
-        "executeCommand",
-        "slots",
-    ];
+    static props = {
+        ...COMMAND_ITEM_PROPS,
+        hotkey: { type: String },
+        hotkeyOptions: { type: Object, optional: true },
+    };
     setup() {
         useHotkey(this.props.hotkey, this.props.executeCommand);
     }
 
     /**
-     * @param {{ hotkey: string }} command
      * @returns {string[]}
      */
-    getKeysToPress(command) {
-        const { hotkey } = command;
-        let result = hotkey.split("+");
+    get keysToPress() {
+        let result = this.props.hotkey.split("+");
         if (isMacOS()) {
             result = result
                 .map((x) => x.replace("control", "command"))
@@ -87,10 +80,11 @@ commandProviderRegistry.add("command", {
             action: command.action,
             category: command.category,
             name: command.name,
-            props: {
-                hotkey: command.hotkey,
-                hotkeyOptions: command.hotkeyOptions,
-            },
+            href: command.href,
+            className: command.className,
+            props: command.hotkey
+                ? { hotkey: command.hotkey, hotkeyOptions: command.hotkeyOptions }
+                : {},
         }));
     },
 });
@@ -98,9 +92,8 @@ commandProviderRegistry.add("command", {
 commandProviderRegistry.add("data-hotkeys", {
     provide: (env, options = {}) => {
         const commands = [];
-        const overlayModifier = /** @type {any} */ (
-            registry.category("services").get("hotkey")
-        ).overlayModifier;
+        const overlayModifier = /** @type {any} */ (env.services.hotkey)
+            .overlayModifier;
         adoptAccessKeys(options.activeElement ?? document);
         for (const el of getVisibleElements(
             options.activeElement,

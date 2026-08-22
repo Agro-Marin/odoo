@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/user_menu/user_menu */
-
 import { Component } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -38,12 +36,6 @@ export class UserMenu extends Component {
     }
 
     /**
-     * Each element carries the registry key it was built from, so the menu can
-     * be keyed by identity: `show()` is re-evaluated on every render (the PWA
-     * entry appears once the browser offers an install prompt), and keying such
-     * a list by index makes OWL reconcile every entry after the insertion point
-     * against the wrong element.
-     *
      * @returns {Object[]}
      */
     getElements() {
@@ -51,12 +43,9 @@ export class UserMenu extends Component {
             .getEntries()
             .map(([key, element]) => ({
                 ...element(/** @type {import("@web/env").OdooEnv} */ (this.env)),
-                // Last, so the registry key always wins: `t-key` needs it unique.
                 key,
             }))
-            .filter(
-                (element) => !element.hide && (element.show ? element.show() : true),
-            )
+            .filter((element) => !element.hide)
             .sort((x, y) => (x.sequence ?? 100) - (y.sequence ?? 100));
         return sortedItems;
     }

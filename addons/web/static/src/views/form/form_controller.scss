@@ -542,8 +542,6 @@
 
     .o_horizontal_separator {
         font-weight: $o-font-weight-semibold;
-        // See `list_renderer.scss`: `$o-gray-500` is a divider tone in the dark
-        // ramp, so group titles were illegible there.
         color: o-palette-token(--o-text-muted, $o-main-color-muted);
 
         &:not(:empty) {
@@ -966,9 +964,6 @@
     }
 
     &.oe_form_configuration .o_form_renderer {
-        .o_inner_group .o_form_label {
-            white-space: nowrap;
-        }
         h2 {
             margin-top: 32px !important;
         }

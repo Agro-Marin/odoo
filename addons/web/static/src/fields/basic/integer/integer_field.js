@@ -1,12 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/integer/integer_field */
-
 import { formatInteger } from "@web/core/formatters";
 import { parseInteger } from "@web/core/parsers";
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
+import {
+    enableFormattingOption,
+    humanReadableOptions,
+    numericInputOptions,
+} from "@web/fields/field_options";
 import { extractNumericOptions, isFalseEmpty } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -43,22 +46,15 @@ export class IntegerField extends NumericInputFieldBase {
         );
     }
 
-    /** @returns {string} */
-    get formattedValue() {
-        if (
-            !this.props.formatNumber ||
-            (this.props.inputType === "number" && !this.props.readonly)
-        ) {
-            return this.rawValue;
-        }
-        if (this.props.humanReadable && !this.state.hasFocus) {
-            return formatInteger(this.value, {
-                humanReadable: true,
-                decimals: this.props.decimals,
-            });
-        } else {
-            return formatInteger(this.value, { humanReadable: false });
-        }
+    /**
+     * @param {boolean} humanReadable
+     * @returns {string}
+     */
+    formatValue(humanReadable) {
+        return formatInteger(this.value, {
+            humanReadable,
+            ...(humanReadable ? { decimals: this.props.decimals } : {}),
+        });
     }
 }
 
@@ -67,25 +63,8 @@ export const integerField = {
     component: IntegerField,
     displayName: _t("Integer"),
     supportedOptions: [
-        {
-            label: _t("Format number"),
-            name: "enable_formatting",
-            type: "boolean",
-            help: _t(
-                "Format the value according to your language setup - e.g. thousand separators, rounding, etc.",
-            ),
-            default: true,
-        },
-        {
-            label: _t("Type"),
-            name: "type",
-            type: "string",
-        },
-        {
-            label: _t("Step"),
-            name: "step",
-            type: "number",
-        },
+        enableFormattingOption(),
+        ...numericInputOptions(),
         {
             label: _t("Minimum"),
             name: "min",
@@ -102,23 +81,7 @@ export const integerField = {
                 "Upper bound of the number input. Only applies with Type 'number'.",
             ),
         },
-        {
-            label: _t("User-friendly format"),
-            name: "human_readable",
-            type: "boolean",
-            help: _t(
-                "Use a human readable format (e.g.: 500G instead of 500,000,000,000).",
-            ),
-        },
-        {
-            label: _t("Decimals"),
-            name: "decimals",
-            type: "number",
-            default: 0,
-            help: _t(
-                "Use it with the 'User-friendly format' option to customize the formatting.",
-            ),
-        },
+        ...humanReadableOptions(),
     ],
     supportedTypes: ["integer"],
     isEmpty: isFalseEmpty,

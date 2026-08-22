@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/properties/property_text */
-
 import { Component, useRef } from "@odoo/owl";
 import { ModelEvent } from "@web/core/events";
 import { useAutoresize } from "@web/core/utils/dom/autoresize";

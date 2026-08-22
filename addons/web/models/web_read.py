@@ -1,10 +1,3 @@
-"""Web CRUD operations on the base model.
-
-Provides ``web_read``, ``web_save``, ``web_search_read``, ``web_name_search``,
-and ``web_resequence`` — the fundamental data-access methods consumed by the
-webclient's relational model layer.
-"""
-
 from collections import defaultdict
 from typing import Any
 
@@ -18,8 +11,6 @@ from odoo.tools.cache_version import versioned, versioned_envelope
 
 
 class lazymapping(defaultdict):
-    """defaultdict whose factory receives the missing *key* as argument."""
-
     def __missing__(self, key: Any) -> Any:
         value = self.default_factory(key)
         self[key] = value
@@ -39,7 +30,6 @@ class Base(models.AbstractModel):
         operator: str = "ilike",
         limit: int = 100,
     ) -> list[dict]:
-        """Search by name and return records formatted per *specification*."""
         id_name_pairs = self.name_search(name, domain, operator, limit)
         if len(specification) == 1 and "display_name" in specification:
             records = (
@@ -71,7 +61,6 @@ class Base(models.AbstractModel):
         order: str | None = None,
         count_limit: int | None = None,
     ) -> dict[str, int | list]:
-        """Search records and return them formatted per *specification*."""
         specification = self._screen_fields_spec(specification)
         query = self._search(
             domain, offset=offset, limit=limit, order=order or self._order
@@ -102,7 +91,6 @@ class Base(models.AbstractModel):
         count_limit: int | None = None,
         _query: Any = None,
     ) -> dict[str, int | list]:
-        """Wrap *records* with a length estimate for pager support."""
         if not records:
             if not offset:
                 return {"length": 0, "records": []}
@@ -137,30 +125,7 @@ class Base(models.AbstractModel):
         last_write_date=None,
         known_values=None,
     ) -> list[dict]:
-        """Create or write a record and return it formatted per *specification*.
-
-        Optimistic concurrency control:
-
-        * *known_values* — the fields being written, as the client originally
-          read them, for a **field-scoped** check: ``UserError`` is raised only
-          if one of *those* fields was changed on the server since the client
-          read it. Concurrent writes to *other* fields (e.g. stored-compute
-          recomputations triggered by related records) touch disjoint columns,
-          cannot cause a lost update, and are ignored. The comparison is
-          type-aware and fails OPEN — any field that cannot be safely compared
-          is skipped rather than risk a false conflict. Two shapes, chosen by
-          record count: a singleton passes a flat ``{field: baseline}``; a
-          list mass-edit (same *vals* to several records) passes per-record
-          ``{id: {field: baseline}}`` so each record is checked against its own
-          baseline in one bulk query.
-        * *last_write_date* — legacy / urgent (sendBeacon) fallback: a coarser
-          row-level ``write_date`` check.
-
-        Both prevent silent data loss from concurrent edits; the field-scoped
-        path additionally avoids false conflicts from unrelated background
-        writes.
-        """
-        self._validate_web_save_vals(vals)
+        self._check_web_save_vals(vals)
         if self:
             if known_values is not None:
                 is_multi = known_values and all(
@@ -205,23 +170,7 @@ class Base(models.AbstractModel):
         Command.LINK,
     )
 
-    def _validate_web_save_vals(self, vals: dict) -> None:
-        """Validate client-supplied *vals* at the web boundary, before write().
-
-        Two cheap checks against raw client JSON, both raising a clean,
-        translated ``UserError`` instead of an opaque 500:
-
-        * Unknown field names (a stale cached form view still referencing a
-          field removed by a module upgrade) — the write would otherwise die
-          in a raw KeyError. The values are deliberately NOT silently dropped
-          (unlike read paths, which degrade): discarding user-entered data on
-          save is worse than failing, so the user is told to reload.
-        * Non-integer row ids in x2many command lists — the JS model can leak
-          a virtual id (e.g. ``[1, "virtual_zz", {...}]``), which otherwise
-          reaches SQL and fails as a raw psycopg error. Shallow on purpose:
-          only the command lists themselves are inspected, never the nested
-          command vals.
-        """
+    def _check_web_save_vals(self, vals: dict) -> None:
         unknown = [name for name in vals if name not in self._fields]
         if unknown:
             raise UserError(
@@ -276,10 +225,7 @@ class Base(models.AbstractModel):
         )
     )
 
-    def _concurrency_checkable_fields(self, vals):
-        """Field names in *vals* whose value can be safely concurrency-checked
-        (model-level: independent of which record). See _CONCURRENCY_SAFE_TYPES.
-        """
+    def _get_fields_concurrency_checkable(self, vals):
         return [
             n
             for n in vals
@@ -290,23 +236,10 @@ class Base(models.AbstractModel):
             and self._fields[n].type in self._CONCURRENCY_SAFE_TYPES
         ]
 
-    def _field_concurrently_modified(self, name, server_raw, baseline_raw, new_raw):
-        """True iff the server moved *name* away from the client's baseline AND
-        the user's write would not land on the server's current value anyway.
-
-        Type-aware and fails OPEN: any value that cannot be safely coerced is
-        treated as non-conflicting rather than risk a false positive. Shared by
-        the singleton and multi-record concurrency checks so their comparison
-        semantics can never drift.
-        """
+    def _is_field_modified_concurrently(self, name, server_raw, baseline_raw, new_raw):
         try:
             field = self._fields[name]
             if field.type == "many2one" and server_raw:
-                # A form spec asks for subfields, and web_read blanks the value
-                # then, so the client baseline is False while the column holds a
-                # real id — a PERMANENT conflict no reload clears. Skipping is
-                # deliberately broader than that blanking: when the target is
-                # unreadable, a lost update on it beats blocking every save.
                 co_record = self.env[field.comodel_name].browse(server_raw)
                 if not co_record.with_context(active_test=False)._filtered_access(
                     "read"
@@ -320,16 +253,9 @@ class Base(models.AbstractModel):
             return False
 
     def _check_concurrent_field_changes(self, vals, known_values):
-        """Field-scoped optimistic lock for a SINGLE record :meth:`web_save`.
-
-        Raise ``UserError`` if a field being written (*vals*) was changed on the
-        server since the client read it (*known_values* is the client's flat
-        ``{field: baseline}`` map). Concurrent writes to *other* fields are
-        ignored — they touch disjoint columns and cannot lose the user's edit.
-        """
         self.ensure_one()
         names = [
-            n for n in self._concurrency_checkable_fields(vals) if n in known_values
+            n for n in self._get_fields_concurrency_checkable(vals) if n in known_values
         ]
         if not names:
             return
@@ -344,7 +270,7 @@ class Base(models.AbstractModel):
         conflicts = [
             self._fields[name].string or name
             for name, server_raw in zip(names, row, strict=True)
-            if self._field_concurrently_modified(
+            if self._is_field_modified_concurrently(
                 name, server_raw, known_values[name], vals[name]
             )
         ]
@@ -359,43 +285,20 @@ class Base(models.AbstractModel):
             )
 
     def _check_concurrent_field_changes_multi(self, vals, known_values):
-        """Per-record field-scoped optimistic lock for a MULTI-record
-        :meth:`web_save` (list mass-edit: the SAME *vals* written to every
-        record, each carrying its OWN baseline). *known_values* is
-        ``{id: {field: baseline}}``.
-        """
         self._check_concurrent_field_changes_records(
             dict.fromkeys(self.ids, vals), known_values
         )
 
     def _check_concurrent_field_changes_multi_list(self, vals_list, known_values):
-        """Per-record field-scoped optimistic lock for :meth:`web_save_multi`,
-        where each record has its OWN *vals* (a relative Field Operation, e.g.
-        ``qty += 5``, resolves client-side to a distinct absolute value per
-        record). *vals_list* is aligned with ``self``; *known_values* is
-        ``{id: {field: baseline}}``.
-        """
         self._check_concurrent_field_changes_records(
             dict(zip(self.ids, vals_list, strict=True)), known_values
         )
 
     def _check_concurrent_field_changes_records(self, vals_by_id, known_values):
-        """Core per-record field-scoped optimistic lock. *vals_by_id* maps each
-        record id to the vals being written to IT — shared by the mass-edit
-        (same vals everywhere) and :meth:`web_save_multi` (per-record vals)
-        callers so their comparison semantics can never drift.
-
-        One bulk ``SELECT`` reads every record's current values (no N+1: the
-        query is batched over the whole set); the comparison is then in-memory
-        and reuses the exact same per-field semantics as the singleton path,
-        failing OPEN per (record, field). A record with no baseline is skipped.
-        Concurrent writes to other fields, or to the value the user is writing
-        anyway, are ignored.
-        """
         if not vals_by_id:
             return
         all_keys = set().union(*(v.keys() for v in vals_by_id.values()))
-        checkable = self._concurrency_checkable_fields(dict.fromkeys(all_keys))
+        checkable = self._get_fields_concurrency_checkable(dict.fromkeys(all_keys))
         if not checkable:
             return
         baselines = {}
@@ -423,7 +326,7 @@ class Base(models.AbstractModel):
             for name in checkable:
                 if name not in baseline or name not in vals:
                     continue
-                if self._field_concurrently_modified(
+                if self._is_field_modified_concurrently(
                     name, server_row[name], baseline[name], vals[name]
                 ):
                     conflict_ids.add(rec_id)
@@ -441,19 +344,6 @@ class Base(models.AbstractModel):
 
     @staticmethod
     def _coerce_concurrency_value(field, value):
-        """Normalise *value* to a canonical primitive for concurrency compare.
-
-        Handles the client's serialized form (m2o as ``{id, display_name}``,
-        dates as ISO strings) and the raw DB form (m2o as FK id, dates as
-        ``date`` objects) to the same primitive so equal values compare equal.
-
-        Raises on a baseline whose *shape* is not one this can compare, so the
-        caller's ``except`` fails the field OPEN. ``str()`` accepts anything, so
-        without the guard a container baseline coerces to a stable-but-bogus
-        string that matches nothing: the save is refused as a phantom conflict
-        no reload can clear -- fail CLOSED, the one outcome this check must
-        never produce.
-        """
         ftype = field.type
         if value is None or value is False:
             return {
@@ -488,26 +378,12 @@ class Base(models.AbstractModel):
         specification: dict[str, dict],
         known_values=None,
     ) -> list[dict]:
-        """Write multiple records at once and return them formatted.
-
-        Groups records with identical vals dicts and issues a single
-        ``write()`` per group, amortising access-check, ``modified()``,
-        and validation overhead.  Records with unhashable vals (x2many
-        commands) fall back to individual writes.
-
-        *known_values* (``{id: {field: baseline}}``) enables the same
-        field-scoped optimistic concurrency check as :meth:`web_save`, but
-        per-record: this path carries a DISTINCT vals per record (a relative
-        Field Operation resolves to a different absolute value for each), so
-        each record is checked against its own vals and baseline. The check
-        runs BEFORE any write.
-        """
         if len(self) != len(vals_list):
             msg = "Each record must have a corresponding vals entry."
             raise ValueError(msg)
 
         for vals in vals_list:
-            self._validate_web_save_vals(vals)
+            self._check_web_save_vals(vals)
 
         if known_values is not None:
             self._check_concurrent_field_changes_multi_list(vals_list, known_values)
@@ -534,13 +410,6 @@ class Base(models.AbstractModel):
     @api.readonly
     @versioned_envelope
     def web_read(self, specification: dict[str, dict]) -> list[dict]:
-        """Read records and recursively resolve sub-specifications.
-
-        This is the main entry point used by the webclient to fetch record
-        data.  It handles many2one, x2many, reference, many2one_reference,
-        and properties fields by recursively calling ``web_read`` on
-        co-records according to *specification*.
-        """
         fields_to_read = list(specification) or ["id"]
 
         if set(fields_to_read) == {"id"}:
@@ -555,7 +424,6 @@ class Base(models.AbstractModel):
             return values_list
 
         def cleanup(vals: dict) -> dict:
-            """Fixup vals['id'] of a new record."""
             if not vals["id"]:
                 vals["id"] = vals["id"].origin or False
             return vals
@@ -847,23 +715,6 @@ class Base(models.AbstractModel):
         field_name: str = "sequence",
         offset: int = 0,
     ) -> list[dict]:
-        """Re-sequences a number of records in the model, by their ids.
-
-        The re-sequencing starts at the first record of ``ids``, the
-        sequence number starts at ``offset`` and is incremented by one
-        after each record.
-
-        The returning value is a read of the resequenced records with
-        the specification given in the parameter.
-
-        :param specification: specification for the read of the
-            resequenced records
-        :param field_name: field used for sequence specification,
-            defaults to ``"sequence"``
-        :param offset: sequence number for first record in ``ids``,
-            allows starting the resequencing from an arbitrary number,
-            defaults to ``0``
-        """
         if field_name not in self._fields:
             return []
         if not self:

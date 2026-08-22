@@ -6,11 +6,8 @@ from odoo.http import request
 
 
 class BaseSetup(http.Controller):
-    """HTTP endpoints for the General Settings dashboard widgets."""
-
     @http.route("/base_setup/data", type="jsonrpc", auth="user")
     def base_setup_data(self, **kw) -> dict[str, Any]:
-        """Return active/pending user counts and a pending-user action for the invite widget."""
         if not request.env.user.has_group("base.group_erp_manager"):
             raise AccessError(_("Access Denied"))
 
@@ -56,5 +53,6 @@ class BaseSetup(http.Controller):
 
     @http.route("/base_setup/demo_active", type="jsonrpc", auth="user")
     def base_setup_is_demo(self, **kwargs) -> bool:
-        """Return whether the database was initialised with demo data."""
-        return bool(request.env["ir.module.module"].search_count([("demo", "=", True)]))
+        return bool(
+            request.env["ir.module.module"].search_count([("demo", "=", True)], limit=1)
+        )

@@ -1,15 +1,17 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/media/binary/binary_field */
-
-import { Component } from "@odoo/owl";
 import { FileUploader } from "@web/core/file_upload/file_handler";
 import { download } from "@web/core/network/download";
 import { _t } from "@web/core/translation";
 import { isBinarySize, toBase64Length } from "@web/core/utils/format/binary";
 import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
+import { FieldComponent } from "@web/fields/field_component";
+import {
+    acceptedFileExtensionsOption,
+    filenameAttribute,
+} from "@web/fields/field_options";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export const MAX_FILENAME_SIZE_BYTES = 0xff;
@@ -38,7 +40,7 @@ function truncateToByteLength(str, maxBytes) {
     return str.slice(0, end);
 }
 
-export class BinaryField extends Component {
+export class BinaryField extends FieldComponent {
     static template = "web.BinaryField";
     static components = {
         FileUploader,
@@ -63,7 +65,7 @@ export class BinaryField extends Component {
         if (fileName) {
             return truncateToByteLength(fileName, MAX_FILENAME_SIZE_BYTES);
         }
-        let value = this.props.record.data[this.props.name];
+        let value = this.field.value;
         value = value && typeof value === "string" ? value : "";
         return value.slice(0, toBase64Length(MAX_FILENAME_SIZE_BYTES));
     }
@@ -90,9 +92,7 @@ export class BinaryField extends Component {
             filename_field: this.props.fileNameField,
             filename: this.fileName || "",
             download: true,
-            data: isBinarySize(this.props.record.data[this.props.name])
-                ? null
-                : this.props.record.data[this.props.name],
+            data: isBinarySize(this.field.value) ? null : this.field.value,
         };
     }
 
@@ -113,22 +113,15 @@ export const binaryField = {
     component: BinaryField,
     displayName: _t("File"),
     supportedOptions: [
-        {
-            label: _t("Accepted file extensions"),
-            name: "accepted_file_extensions",
-            type: "string",
-        },
+        acceptedFileExtensionsOption(),
         {
             label: _t("Allowed file mimetype"),
             name: "allowed_mime_type",
             type: "string",
         },
     ],
+    supportedAttributes: [filenameAttribute()],
     supportedTypes: ["binary"],
-    // Read to label and name the download, and written on upload, so it has to
-    // be loaded even when the view does not render it -- otherwise `fileName`
-    // falls through to slicing the base64 payload and the file is shown, and
-    // downloaded, under a blob of base64.
     fieldDependencies: ({ attrs }) =>
         attrs.filename ? [{ name: attrs.filename, optional: true, written: true }] : [],
     extractProps: ({ attrs, options }) => ({
@@ -138,7 +131,7 @@ export const binaryField = {
     }),
 };
 
-export const listBinaryField = {
+const listBinaryField = {
     ...binaryField,
     component: ListBinaryField,
 };

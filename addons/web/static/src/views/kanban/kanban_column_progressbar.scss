@@ -1,6 +1,3 @@
-// `$-background` is a parameter because `kanban.print_variables.scss` sets
-// `$o-kanban-background` to white, so it cannot be read ambiently by a block
-// that states the dark scheme's answer.
 @mixin o-kanban-css-filter($class, $accent-color, $-background: $o-kanban-background) {
     &.o_kanban_group_show_#{$class} {
         --KanbanGroup-background: #{mix($accent-color, $-background, 5%)};

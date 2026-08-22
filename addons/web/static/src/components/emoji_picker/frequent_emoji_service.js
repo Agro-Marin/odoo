@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/emoji_picker/frequent_emoji_service */
-
 import { reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import {
@@ -13,11 +11,11 @@ import {
 import { registry } from "@web/core/registry";
 
 const STORAGE_KEY = "web.emoji.frequent";
-/** @see incrementEmojiUsage */
 const MAX_TRACKED = 200;
 /**
  * @typedef {Object} FrequentEmojiState
  * @property {Record<string, number>} all
+ * @property {number} revision
  * @property {(codepoints: string) => void} incrementEmojiUsage
  * @property {(limit?: number) => string[]} getMostFrequent
  * @property {() => void} destroy
@@ -46,6 +44,15 @@ export const frequentEmojiService = {
                 validate: isPlainObject,
             }),
             /**
+             * Bumped on every change to `all`. Consumers that cache a
+             * derivation of it need a cheap "has this moved" answer;
+             * without one, `EmojiPicker` was building a string of every
+             * tracked codepoint and its count on every render to compare
+             * against the last -- O(tracked) work, up to `MAX_TRACKED`, to
+             * answer a question an integer answers.
+             */
+            revision: 0,
+            /**
              * @param {string} codepoints
              */
             incrementEmojiUsage(codepoints) {
@@ -64,6 +71,7 @@ export const frequentEmojiService = {
                         }
                     }
                 }
+                state.revision++;
                 writeJSONStorage(STORAGE_KEY, state.all);
             },
             /**
@@ -85,8 +93,10 @@ export const frequentEmojiService = {
         const onStorage = (ev) => {
             if (ev.key === STORAGE_KEY) {
                 state.all = parseFrequent(ev.newValue);
+                state.revision++;
             } else if (ev.key === null) {
                 state.all = {};
+                state.revision++;
             }
         };
         browser.addEventListener("storage", onStorage);

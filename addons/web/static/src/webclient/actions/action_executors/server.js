@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/action_executors/server */
-
 import { markup } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
 import { rpc } from "@web/core/network/rpc";

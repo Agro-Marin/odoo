@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/template_inheritance */
-
 const RSTRIP_REGEXP = /(?=\n[ \t]*$)/;
 
 /** @type {string | null} */
@@ -55,15 +53,6 @@ export function applyContextToTextNode() {
     contextByTextNode.clear();
 }
 
-/**
- * Drop the text nodes collected so far without wrapping them.
- *
- * ``contextByTextNode`` holds strong references and spans the whole
- * inheritance chain of one template, so it can only be drained once the chain
- * is complete. A chain that throws half-way never reaches
- * ``applyContextToTextNode``, which both retains the discarded tree and leaks
- * its nodes into the *next* template's drain.
- */
 export function discardPendingTranslationContexts() {
     contextByTextNode.clear();
 }
@@ -294,9 +283,6 @@ function expressionOperator(attributeName, separator) {
 const WORD_CHAR_REGEXP = /[\w$]/;
 
 /**
- * Split ``value`` on the occurrences of ``operator`` that join its operands:
- * those at bracket depth 0 and outside string literals.
- *
  * @param {string} value
  * @param {string} operator
  * @returns {string[]}
@@ -360,12 +346,6 @@ function normalizeOperand(operand) {
 }
 
 /**
- * Remove ``remove`` from ``value``, an ``operator``-joined expression.
- *
- * Matching is done on whole operands, not on substrings: removing ``a`` from
- * ``"ba and c"`` used to find ``"a and "`` inside ``"ba and c"`` and yield the
- * silently wrong -- but still syntactically valid -- expression ``"bc"``.
- *
  * @param {string} value
  * @param {string} remove
  * @param {string} operator

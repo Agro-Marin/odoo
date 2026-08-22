@@ -1,9 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/ir_ui_view_ace/ace_field */
-
-/** @odoo-module native */
 import { registerField } from "@web/fields/_registry";
 import { AceField, aceField } from "@web/fields/specialized/ace/ace_field";
 import { IrUiViewCodeEditor } from "@web/fields/specialized/ir_ui_view_ace/ir_ui_view_code_editor";
@@ -15,7 +12,7 @@ export class IrUiViewAceField extends AceField {
 }
 
 /** @type {import("registries").FieldsRegistryItemShape} */
-export const irUiViewAceField = {
+const irUiViewAceField = {
     ...aceField,
     component: IrUiViewAceField,
     additionalClasses: ["o_field_ace"],

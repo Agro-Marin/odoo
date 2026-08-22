@@ -162,7 +162,7 @@ built for esbuild is not automatically servable that way. esbuild walks the
 import graph from disk, so a member's relative `./sibling.js` resolves whether or
 not the sibling is in the bundle's file list; served per-file there is no such
 walk, and the specifier would fetch a second copy of a module some other bundle
-on the page already owns. `_validate_lazy_bundle_relative_imports` refuses that,
+on the page already owns. `_check_lazy_bundle_relative_imports` refuses that,
 and `TestDynamicBundleIntegrity` sweeps every bundle in `runtime_bundle_names` so
 the refusal lands in CI rather than as an HTTP 500.
 
@@ -313,7 +313,7 @@ env['ir.config_parameter'].sudo().set_param('web.esbuild.timeout_s', '60')
 | Requests serve un-minified bundles | Circuit open after failure | `odoo.assets.fallback WARNING event=circuit_open` (at trip) then `DEBUG event=circuit_blocked` (per request) |
 | Duplicate CPU on cold start | Multiple workers cold-building same bundle | `odoo.assets.lock INFO event=contention` |
 | `[registry] Duplicate add for key "…" … (first registration wins)` console.warn in debug | Module loaded twice (separate instances) — `registry.add` is first-wins and warns rather than throwing | Missing bridge shim (happy path is an attachment URL; `data:` URI only as the read-only-cursor fallback); check `_build_native_to_legacy_bridge` |
-| Test `patchWithCleanup(Klass.prototype, …)` has no effect; production code keeps using unpatched method | Parent + satellite each load their own copy of the same `@web/*` module → `Klass` in test bundle is a different class than the one the production controller instantiates | Add fingerprint logger to module body — two distinct `MODULE LOADED` events means two evaluations. Root cause is usually a sibling manifest (e.g. `spreadsheet/__manifest__.py` pulls `web/static/src/views/graph/graph_model.js` into `spreadsheet.o_spreadsheet`, which is then `('include',)`'d by the satellite test bundle). Fix wires the satellite import through the parent's self-bridge via the `prod_import_map[alias] = shim` override in `_esm_prod_nodes` (`ir_qweb_assets.py`). |
+| Test `patchWithCleanup(Klass.prototype, …)` has no effect; production code keeps using unpatched method | Parent + satellite each load their own copy of the same `@web/*` module → `Klass` in test bundle is a different class than the one the production controller instantiates | Add fingerprint logger to module body — two distinct `MODULE LOADED` events means two evaluations. Root cause is usually a sibling manifest (e.g. `spreadsheet/__manifest__.py` pulls `web/static/src/views/graph/graph_model.js` into `spreadsheet.o_spreadsheet`, which is then `('include',)`'d by the satellite test bundle). Fix wires the satellite import through the parent's self-bridge via the `prod_import_map[alias] = shim` override in `_get_esm_nodes_prod` (`ir_qweb_assets.py`). |
 
 ## Cache invalidation on source change — no manual flush needed
 
@@ -333,7 +333,7 @@ Stale content is impossible once the version differs; the old attachment is
 just GC'd later.
 
 The one caveat is the `cache="assets"` **ormcache** on
-`ir_qweb._generate_asset_links_cache` / `ir_asset._get_asset_paths`: its key
+`ir_qweb._get_asset_links_cached` / `ir_asset._get_asset_paths`: its key
 does NOT include mtime (it's `bundle`/`assets_params`/`rtl`/…), and it's only
 bypassed when `dev_mode` contains `"xml"` (`@tools.conditional`,
 `ir_qweb_assets.py`). But that ormcache is **in-memory, per-process**, so:
@@ -362,7 +362,7 @@ a missing row is a hard 404, and regeneration happens through the render
 path after `ir.attachment.unlink`'s assets-cache clear.
 
 Persistence is decoupled from the request transaction:
-`IrQweb._persist_esm_attachment_rows` (bundle/templates/sourcemap) and
+`IrQweb._save_esm_attachment_rows` (bundle/templates/sourcemap) and
 `BridgeShimManager._persist_bridges_via_rw_cursor` (loader bridges) create
 attachment rows through a dedicated read-write registry cursor that commits
 independently, so a request rollback can never orphan an ormcached bundle
@@ -383,7 +383,7 @@ release (a one-thread/two-cursor cycle Postgres cannot break). Both savers
 therefore persist on the current cursor when there is no request. **The two
 guards are intentionally NOT identical:**
 
-- `_persist_esm_attachment_rows`: `if _module.current_test or not request:`
+- `_save_esm_attachment_rows`: `if _module.current_test or not request:`
   → current cursor. The `current_test` term is required because a plain
   `TransactionCase`'s `registry.cursor()` is a REAL cursor whose out-of-band
   commit would leak rows past the test rollback.

@@ -13,18 +13,11 @@ $o-line-height-base: 1.5 !default;
 $o-line-height-sm: 1.25 !default;
 $o-line-height-lg: 2 !default;
 
-// Tracking. Inter's spacing is drawn for text sizes, so it reads loose as soon
-// as a heading gets large and cramped as soon as it is uppercased. The
-// correction is optical and scales with size, which is why these are banded
-// rather than one global value — and why body text keeps Inter's own spacing.
 $o-tracking-display: -0.022em !default;
 $o-tracking-heading: -0.015em !default;
 $o-tracking-tight: -0.006em !default;
 $o-tracking-wide: 0.05em !default;
 
-// One ratio for the whole heading ramp. The sizes were hand-picked and stepped
-// 1.29, 1.27, 1.15, then 1.09, so h4/h5/h6 landed within 1.4px of each other
-// and read as a single size while the top of the scale carried no weight.
 $o-type-scale-ratio: 1.2 !default;
 
 $o-system-fonts: (
@@ -49,9 +42,6 @@ $o-font-weight-medium: 500 !default;
 $o-font-weight-semibold: 600 !default;
 $o-font-weight-bold: 700 !default;
 
-// $o-white, $o-black and the grey ramp come from primitives.scss, which
-// resolves ahead of every palette so themes can read them without restating.
-
 $o-grays: (
     100: $o-gray-100,
     200: $o-gray-200,
@@ -71,10 +61,6 @@ $o-enterprise-action-color: #06b6d4 !default;
 $o-brand-odoo: $o-community-color !default;
 $o-brand-primary: $o-community-color !default;
 
-// The brand as a *fill that carries a label*. `.btn-primary` puts a 14px white
-// label on it, which needs WCAG AA's 4.5:1 - a threshold a hue picked for
-// surfaces does not necessarily meet. This palette's brand does (4.86:1), so it
-// is the fill; palettes whose brand is lighter override it.
 $o-brand-primary-filled: $o-brand-primary !default;
 
 $o-brand-secondary: $o-gray-500 !default;
@@ -86,9 +72,6 @@ $o-info: #3b82f6 !default;
 $o-warning: #f59e0b !default;
 $o-danger: #ef4444 !default;
 
-// Text-only variants of the theme colours: the solid `$o-success`/`$o-warning`/…
-// hues are tuned for fills and do not reach WCAG AA (4.5:1) as body text on
-// `$o-webclient-background-color`. Every value here is verified against it.
 $o-theme-text-colors: (
     "primary": #9333ea,
     "success": #047857,
@@ -97,10 +80,6 @@ $o-theme-text-colors: (
     "danger": #dc2626,
 ) !default;
 
-// The same split for `$o-action`, which `$link-color` and `.text-action` render
-// as text while `$o-bg-colors-custom` keeps using it as a fill. Community's
-// action colour is the brand purple and already clears AA, so the default is the
-// fill itself; palettes whose accent is tuned only for fills override this.
 $o-action-text: $o-action !default;
 
 $o-opacity-disabled: 0.5 !default;
@@ -129,10 +108,6 @@ $o-font-family-monospace: o-add-unicode-support-font(
     )
 ) !default;
 
-// Headings share the body stack. The previous value listed "Inter" ahead of
-// "SF Pro Display" but "Inter" already leads `$o-system-fonts` and is a shipped
-// webfont, so it always resolved first and nothing behind it was ever reached -
-// the two extra entries were dead, and one of them was a duplicate.
 $o-headings-font-family: $o-font-family-sans-serif !default;
 
 $o-main-text-color: $o-gray-900 !default;
@@ -168,9 +143,6 @@ $o-bg-colors-custom: (
     "favourite": $o-main-favorite-color,
 ) !default;
 
-// `.text-bg-*` exists to be a legible pair, so it is paired at the WCAG AA text
-// threshold rather than the global `$min-contrast-ratio` (3), which also drives
-// borders and other non-text decisions and would repaint far more than this.
 $o-text-bg-contrast: 4.5 !default;
 
 $o-btn-custom: (
@@ -184,12 +156,6 @@ $o-input-bg: transparent !default;
 $o-input-invalid-bg: mix($o-danger, $o-input-bg, 10%) !default;
 $o-input-border-required: $o-brand-primary !default;
 
-// The boundary of an *unchecked* control is the only thing that identifies it,
-// so it answers to WCAG 2.2 SC 1.4.11 (3:1). Named rather than spelled as a step
-// of the grey ramp because the two schemes do not agree on what a step means:
-// this palette reads `$o-gray-500` as a mid grey, while an inverted dark ramp
-// reads the same step as muted text and drops the boundary to 2.22:1. A palette
-// that renumbers the ramp overrides this instead.
 $o-input-boundary-color: $o-gray-500 !default;
 
 $o-spacer: 16px !default;
@@ -306,17 +272,6 @@ $o-duration-fast: 150ms !default;
 $o-duration-normal: 200ms !default;
 $o-duration-slow: 300ms !default;
 
-// The ink is the ramp's darkest step, so it inverts with the scheme — and
-// stated as `rgba($o-gray-900, …)` it inverts only by being compiled twice.
-// Through the token it follows the attribute instead, which is what lets one
-// stylesheet carry both: four definitions answer 162 declarations.
-//
-// `color-mix(… N%, transparent)` is `rgba(C, .N)`: mixing is premultiplied, so
-// the result is C at that alpha rather than C blended toward black. Written
-// once here, every consumer inherits it — none of the twenty does colour maths
-// on the value, they assign it.
-// The compiled colour is kept as a fallback: this palette reaches bundles the
-// token layer does not, and there the shadow should be what it always was.
 @function o-shadow-ink($-alpha) {
     @return unquote(
         "color-mix(in srgb, var(--o-gray-900, #{$o-gray-900}) #{$-alpha}, transparent)"
@@ -334,29 +289,15 @@ $o-shadow-lg:
     0 10px 15px -3px o-shadow-ink(10%),
     0 4px 6px -4px o-shadow-ink(10%) !default;
 
-// A surface that stays dark chrome in either scheme, so it inverts against the
-// ramp rather than with it: the file viewer's toolbar sits over a document, not
-// over the application background.
 $o-bg-chrome: $o-gray-800 !default;
 
-// A surface reading as inert. Light dims a light grey by half so the grid shows
-// through; dark cannot do the same without muddying it, so it steps up the ramp
-// instead. Two answers to one idea, which is why it belongs here.
 $o-bg-disabled: rgba($o-gray-200, 0.5) !default;
 
-// One step above the view: a hover fill, a tooltip, a raised card. The ramp
-// inverts, so the step that reads as "slightly raised" is not the same index in
-// both schemes — which is the whole reason each consumer used to ship a dark
-// sibling saying so.
 $o-bg-raised: $o-gray-200 !default;
 
 $o-glass-bg: $o-white !default;
 
 $o-ring-width: 2px !default;
-// Opaque, and reusing the contrast-checked text primary: a translucent ring
-// composites towards the page background and drops under the 3:1 that
-// WCAG 2.2 SC 1.4.11 requires of a focus indicator.
 $o-ring-color: map-get($o-theme-text-colors, "primary") !default;
 $o-ring-offset: 2px !default;
-// The same 3:1 floor, as a value `o-ring-color-for()` can test a surface against.
 $o-ring-min-contrast: 3 !default;

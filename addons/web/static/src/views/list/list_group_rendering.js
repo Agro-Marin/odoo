@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_group_rendering */
-
 import {
     countRecordsInGroup,
     getAggregateColumns as getAggregateColumnsUtil,
@@ -21,7 +19,7 @@ export const listGroupRenderingMixin = {
     async addInGroup(group) {
         const left = await this.props.list.leaveEditMode({ canAbandon: false });
         if (left) {
-            group.addNewRecord({}, this.props.editable === "top");
+            group.addNewRecord({ position: this.props.editable });
         }
     },
 
@@ -108,9 +106,6 @@ export const listGroupRenderingMixin = {
             onUpdate: async ({ offset, limit }) => {
                 if (await this.props.list.leaveEditMode()) {
                     await list.load({ limit, offset });
-                    // Not forced: `load()` replaces the group's datapoints and the
-                    // rows re-render off their own subscriptions. A forced render
-                    // here would re-render every row in every group.
                     this.render();
                 }
             },

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/network/model_mutation */
-
 import { RpcEvent } from "@web/core/events";
 import { rpcBus, RPCError } from "@web/core/network/rpc";
 

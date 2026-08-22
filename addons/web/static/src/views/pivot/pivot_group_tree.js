@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/pivot/pivot_group_tree */
-
 import { sortBy } from "@web/core/utils/collections/arrays";
 /**
  * @param {Object} groupTree

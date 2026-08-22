@@ -1,21 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates>
-    <!--
-        A bottom sheet renders this twice: once in the toggler, once in the
-        sheet. Only one of them may be the combobox, because two elements
-        advertising the same `aria-controls` are two controls for one listbox,
-        and an `id` or `name` a caller hands over cannot sit on both or
-        `getElementById` and `label[for]` resolve to the box the user is not
-        typing into. `isPrimaryInput` says which one it is; the other stays an
-        ordinary text box mirroring the value, which is all it ever was, and
-        parks its ref under a name nothing reads, since `t-ref` cannot be
-        conditional and `inputRef` must resolve to one element.
-    -->
+    <!-- Only the primary input is reachable by ref below. The other name is empty
+         rather than a second identifier nothing reads: this sub-template renders
+         twice on a bottom sheet, and owl's ref wrapper throws on a name used twice
+         in one component, so the two calls must differ. -->
     <t t-name="web.SelectMenu.search">
         <input
             type="text"
             t-attf-class="o_input {{inputClass}}"
-            t-ref="{{ isPrimaryInput ? 'inputRef' : 'mirrorInputRef' }}"
+            t-ref="{{ isPrimaryInput ? 'inputRef' : '' }}"
             t-on-input="onSearchInput"
             t-on-focus="onInputFocus"
             t-on-blur="onInputBlur"
@@ -25,7 +18,7 @@
             t-att-name="isPrimaryInput ? props.name : undefined"
             t-att-disabled="props.disabled"
             t-on-click="onInputClick"
-            autocomplete="selectMenuAutocompleteOff"
+            autocomplete="off"
             autocorrect="off"
             spellcheck="false"
             t-att-role="isPrimaryInput ? 'combobox' : undefined"
@@ -71,7 +64,10 @@
                         t-att-aria-expanded="dropdownState.isOpen ? 'true' : 'false'"
                         t-att-aria-controls="listboxId">
                         <span class="o_select_menu_toggler_slot text-start text-truncate">
-                            <span t-if="props.placeholder and !props.value" class="text-muted" t-out="props.placeholder"/>
+                            <!-- `hasSelection`, not `!props.value`: under multiSelect the
+                                 value is an array, and an empty array is truthy, so the
+                                 placeholder could never render. -->
+                            <span t-if="props.placeholder and !hasSelection" class="text-muted" t-out="props.placeholder"/>
                             <t t-slot="default" />
                         </span>
                         <span t-if="canDeselect" t-on-click.stop="onInputClear" class="o_select_menu_toggler_clear position-absolute top-50 end-0 me-3">

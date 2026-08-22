@@ -6,17 +6,6 @@ _CSS_UNSAFE = str.maketrans("", "", "{};\n\r<>")
 
 
 class ReportTheme(models.Model):
-    """A named bundle of report design tokens (skin), orthogonal to
-    ``report.layout`` (structure) and to the company brand colors.
-
-    The token values are emitted verbatim as CSS custom properties
-    (``--rp-*``) by the ``web.styles_company_report`` template, scoped to the
-    per-company ``.o_company_<id>_layout`` selector. Report SCSS consumes those
-    tokens, so a theme change re-skins every printed document at once without
-    touching a single report template. Fields hold raw CSS values so WeasyPrint
-    resolves them directly during PDF rendering.
-    """
-
     _name = "report.theme"
     _description = "Report Theme"
     _order = "sequence, id"
@@ -56,43 +45,23 @@ class ReportTheme(models.Model):
     )
 
     def write(self, vals):
-        """Reflow the shared company stylesheet when a skin token changes.
-
-        Editing a theme changes every company that uses it, but the asset is
-        only regenerated on res.company writes — so without this the edit would
-        not reach any rendered report until an unrelated company write.
-        """
         res = super().write(vals)
         if not self._STYLE_FIELDS.isdisjoint(vals):
             self.env["res.company"]._update_asset_style()
         return res
 
     def unlink(self):
-        """Reflow the stylesheet when a theme still in use is deleted.
-
-        The referencing companies fall back to the built-in token defaults, so
-        the shared asset must be rebuilt to match.
-        """
         in_use = bool(
             self.env["res.company"]
             .sudo()
-            .search_count([("report_theme_id", "in", self.ids)])
+            .search_count([("report_theme_id", "in", self.ids)], limit=1)
         )
         res = super().unlink()
         if in_use:
             self.env["res.company"]._update_asset_style()
         return res
 
-    def _report_css_vars(self, primary: str, secondary: str, base_font: str) -> Markup:
-        """Return the ``--rp-*`` custom-property block as raw (unescaped) CSS.
-
-        Called from ``web.styles_company_report`` per company. Emitting raw is
-        required because font stacks contain quotes/commas that ``t-out`` would
-        HTML-escape into ``&#39;`` — invalid inside a stylesheet. Values are
-        stripped of characters that could break out of the declaration; colors
-        come from the company brand, the rest from this theme (defaults when no
-        theme is set, i.e. ``self`` is an empty recordset).
-        """
+    def _get_css_vars(self, primary: str, secondary: str, base_font: str) -> Markup:
         theme = self[:1]
 
         def css(value: str) -> str:

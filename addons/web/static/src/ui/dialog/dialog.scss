@@ -70,17 +70,6 @@
     }
 }
 
-// No z-index for `.o_inactive_modal`: every dialog is rendered inside its own
-// `.o-overlay-item`, which is `position: fixed` with a z-index and therefore a
-// stacking context of its own, so a z-index set on the inner `.modal` can only
-// order it against siblings that do not exist. Stacked dialogs are ordered by
-// the overlay container, which sorts by sequence and then by insertion id — the
-// later dialog is later in the DOM and wins. The class itself stays: ~150 tests
-// and tours select the topmost dialog with `.modal:not(.o_inactive_modal)`.
-
-// A dialog whose `onClose` is still running stays mounted on purpose (a button
-// action reloading the view behind it keeps it up until the reload lands). Say
-// so, instead of looking frozen.
 .o_dialog_closing {
     cursor: progress;
 

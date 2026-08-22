@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/settings/settings_block */
-
 import {
     Component,
     onWillRender,

@@ -1,33 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/network */
-
-/**
- * The network module's published interface.
- *
- * Everything under `core/network/` that another addon imports today is re-exported here,
- * and nothing else. The names below are the contract; the 6 files behind them
- * are not, and may be renamed, split or moved without touching a
- * consumer OUTSIDE `web`. Inside it they are imported directly and a
- * rename does reach them — the face constrains other addons, which is
- * the only direction `js_face_boundary` enforces.
- *
- * Descriptive rather than aspirational: a face invented ahead of demand is a
- * guess. A consumer needing something not listed adds it here — one visible,
- * reviewable edit instead of a reach into a file.
- *
- * A face is a SIBLING file, not `network/index.js`:
- * `ir_qweb_assets._specifier_to_static_url` maps `@web/core/network` to
- * `/web/static/src/core/network.js` by appending `.js`, with no directory-index step.
- */
-
-// x2many command tuples are ORM *wire* vocabulary — what a create/write
-// RPC carries — not model implementation. They lived under
-// `model/relational_model/`, whose face is 42 files, so any consumer
-// outside `web` had to pull the whole model layer for 39 dependency-free
-// lines; a frontend page carries this face but not that one, which is why
-// the tour recorder could not save a tour from the website.
 export { x2ManyCommands } from "./network/commands.js";
 export { download, downloadFile } from "./network/download.js";
 export { get, post } from "./network/http_service.js";

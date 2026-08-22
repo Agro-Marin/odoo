@@ -1,9 +1,9 @@
 /** @odoo-module alias=@odoo/hoot-dom default=false */
 
-import * as dom from "./helpers/dom.js";
-import * as events from "./helpers/events.js";
-import * as time from "./helpers/time.js";
-import { interactor } from "./hoot_dom_utils.js";
+import * as dom from "@odoo/hoot-dom-helpers-dom";
+import * as events from "@odoo/hoot-dom-helpers-events";
+import * as time from "@odoo/hoot-dom-helpers-time";
+import { interactor } from "@odoo/hoot-dom-utils";
 
 /**
  * @typedef {import("./helpers/dom").Dimensions} Dimensions
@@ -51,8 +51,8 @@ export {
     queryRect,
     queryText,
     queryValue,
-} from "./helpers/dom.js";
-export { on } from "./helpers/events.js";
+} from "@odoo/hoot-dom-helpers-dom";
+export { on } from "@odoo/hoot-dom-helpers-events";
 export {
     animationFrame,
     cancelAllTimers,
@@ -64,7 +64,7 @@ export {
     setFrameRate,
     tick,
     waitUntil,
-} from "./helpers/time.js";
+} from "@odoo/hoot-dom-helpers-time";
 
 export const observe = interactor("query", dom.observe);
 export const waitFor = interactor("query", dom.waitFor);
@@ -99,9 +99,9 @@ export const advanceFrame = interactor("time", time.advanceFrame);
 export const advanceTime = interactor("time", time.advanceTime);
 export const runAllTimers = interactor("time", time.runAllTimers);
 
-export { exposeHelpers } from "./hoot_dom_utils.js";
+export { exposeHelpers } from "@odoo/hoot-dom-utils";
 
-import { exposeHelpers } from "./hoot_dom_utils.js";
+import { exposeHelpers } from "@odoo/hoot-dom-utils";
 export default { ...dom, ...events, ...time,
     observe, waitFor, waitForNone,
     check, clear, click, dblclick, drag, edit, fill, hover,

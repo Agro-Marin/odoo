@@ -2,7 +2,6 @@ declare module "services" {
     import { ServicesRegistryShape } from "registries";
 
     // Core infrastructure services
-    import { allowedQwebExpressionsService } from "@web/core/allowed_qweb_expressions_service";
     import { errorService } from "@web/core/errors/error_service";
     import { fieldService } from "@web/core/field_service";
     import { fileUploadService } from "@web/core/file_upload/file_upload_service";
@@ -66,7 +65,6 @@ declare module "services" {
 
     export interface Services {
         action: typeof actionService;
-        allowed_qweb_expressions: typeof allowedQwebExpressionsService;
         bottom_sheet: typeof bottomSheetService;
         color_scheme: typeof colorSchemeService;
         command: typeof commandService;

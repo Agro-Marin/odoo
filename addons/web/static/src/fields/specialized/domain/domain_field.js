@@ -1,9 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/domain/domain_field */
-
-import { Component, useState } from "@odoo/owl";
+import { useState } from "@odoo/owl";
 import { DomainSelector } from "@web/components/domain_selector/domain_selector";
 import { useGetDefaultLeafDomain } from "@web/components/domain_selector/utils";
 import { DomainSelectorDialog } from "@web/components/domain_selector_dialog/domain_selector_dialog";
@@ -16,11 +14,12 @@ import { domainContainsExpressions } from "@web/core/tree/domain_contains_expres
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useBus, useOwnedDialogs, useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
+import { FieldComponent } from "@web/fields/field_component";
 import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-export class DomainField extends Component {
+export class DomainField extends FieldComponent {
     static template = "web.DomainField";
     static components = {
         DomainSelector,
@@ -223,8 +222,6 @@ export class DomainField extends Component {
                 })(),
             );
         } catch (error) {
-            // A newer facet load took over. Clearing here would blank the
-            // facets a load that is still running is about to fill in.
             if (error instanceof SupersededError) {
                 return;
             }
@@ -276,8 +273,6 @@ export class DomainField extends Component {
                 }),
             );
         } catch (error) {
-            // Superseded is not an invalid domain: reporting it as one flags a
-            // domain the user is still typing as broken.
             if (error instanceof SupersededError) {
                 return;
             }
@@ -345,7 +340,7 @@ export class DomainField extends Component {
         if (!isDebugEdited) {
             this.debugDomain = null;
         }
-        this.props.record.update({ [this.props.name]: domain });
+        this.field.update(domain);
         this._setIsDirty(false);
     }
 

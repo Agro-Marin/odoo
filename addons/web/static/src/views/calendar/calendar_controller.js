@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_controller */
-
 import { Component, reactive, useState } from "@odoo/owl";
 import { CallbackRecorder, useSetupAction } from "@web/core/action_hook";
 import { useAction } from "@web/core/action_port";

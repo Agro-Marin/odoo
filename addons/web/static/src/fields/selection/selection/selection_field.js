@@ -1,13 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/selection/selection/selection_field */
-
 import { SelectMenu } from "@web/components/select_menu/select_menu";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
-import { fieldHandle } from "@web/fields/field_handle";
+import { placeholderFieldOption } from "@web/fields/field_options";
 import { isFalseEmpty } from "@web/fields/field_utils";
 import { SelectionLikeField } from "@web/fields/selection/selection_like_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -28,11 +26,6 @@ export class SelectionField extends SelectionLikeField {
     static defaultProps = {
         autosave: false,
     };
-
-    /** @returns {import("@web/fields/field_handle").FieldHandle} */
-    get field() {
-        return fieldHandle(this);
-    }
 
     get choices() {
         return this.options.map(([value, label]) => ({ value, label }));
@@ -61,9 +54,6 @@ export class SelectionField extends SelectionLikeField {
                 } else {
                     const option = this.options.find((option) => option[0] === value);
                     if (!option) {
-                        // `options` is a name_search result that reloads on its
-                        // own; a value that is no longer offered is not one we
-                        // can name, so writing it would store a blank label.
                         return;
                     }
                     this.field.update(
@@ -82,28 +72,18 @@ export class SelectionField extends SelectionLikeField {
 export const selectionField = {
     component: SelectionField,
     displayName: _t("Selection"),
-    supportedOptions: [
-        {
-            label: _t("Dynamic Placeholder"),
-            name: "placeholder_field",
-            type: "field",
-            availableTypes: ["char"],
-        },
-    ],
+    supportedOptions: [placeholderFieldOption()],
     supportedTypes: ["many2one", "selection"],
     isEmpty: isFalseEmpty,
+    interactiveOutsideEdition: ({ viewType }) => viewType === "kanban",
     extractProps({ viewType, placeholder }, dynamicInfo) {
-        const props = {
+        return {
             autosave: viewType === "kanban",
             placeholder,
             required: dynamicInfo.required,
             domain: dynamicInfo.domain,
             context: dynamicInfo.context,
         };
-        if (viewType === "kanban") {
-            props.readonly = dynamicInfo.readonly;
-        }
-        return props;
     },
 };
 

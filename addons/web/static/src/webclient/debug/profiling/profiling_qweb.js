@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/debug/profiling/profiling_qweb */
-
 import {
     Component,
     onMounted,
@@ -95,7 +93,7 @@ export class ProfilingQwebView extends Component {
 
     /**
      * @private
-     * @returns {Promise<viewObjects>}
+     * @returns {Promise<void>}
      */
     async _fetchViewData() {
         const viewIDs = Array.from(
@@ -120,6 +118,40 @@ export class ProfilingQwebView extends Component {
             view.delay = Math.ceil(view.delay * 10) / 10;
         }
         this.viewObjects = viewObjects;
+        this._indexProfile();
+    }
+
+    _indexProfile() {
+        /** @type {Map<string, any[]>} */
+        this._linesByXpath = new Map();
+        for (const line of this.profile.data) {
+            const key = `${line.view_id}\0${line.xpath}`;
+            let bucket = this._linesByXpath.get(key);
+            if (!bucket) {
+                bucket = [];
+                this._linesByXpath.set(key, bucket);
+            }
+            bucket.push(line);
+        }
+    }
+
+    /**
+     * @param {string} xpath
+     * @param {boolean} [withDescendants]
+     * @returns {any[]}
+     */
+    _linesAt(xpath, withDescendants = false) {
+        const prefix = `${this.state.viewID}\0`;
+        if (!withDescendants) {
+            return this._linesByXpath?.get(prefix + xpath) || [];
+        }
+        const lines = [];
+        for (const [key, bucket] of this._linesByXpath ?? []) {
+            if (key.startsWith(prefix) && key.slice(prefix.length).startsWith(xpath)) {
+                lines.push(...bucket);
+            }
+        }
+        return lines;
     }
 
     /**
@@ -171,12 +203,128 @@ export class ProfilingQwebView extends Component {
         }
     }
 
+    /**
+     * @private
+     * @param {any} node
+     * @param {any[]} arch
+     * @param {any} parent
+     */
+    _popOnEndTagClose(node, arch, parent) {
+        let previous = node;
+        while ((previous = /** @type {any} */ (previous.previousElementSibling))) {
+            if (previous?.classList.contains("ace_tag-name")) {
+                break;
+            }
+        }
+        if (parent.tag === previous?.textContent) {
+            arch.pop();
+        }
+    }
+
+    /**
+     * @private
+     * @param {any} node
+     * @param {any[]} arch
+     * @param {any} parent
+     */
+    _popOnEndTagOpen(node, arch, parent) {
+        if (parent.tag === node.nextElementSibling?.textContent) {
+            arch.pop();
+        }
+    }
+
+    /**
+     * @private
+     * @param {any} node
+     * @param {any} parent
+     * @param {string} xpath
+     */
+    _annotateDirective(node, parent, xpath) {
+        const directive = node.textContent;
+        parent.directive.push({ el: node, directive });
+        let delay = 0;
+        let query = 0;
+        for (const line of this._linesAt(xpath)) {
+            if (line.directive.includes(directive)) {
+                delay += line.delay;
+                query += line.query;
+            }
+        }
+        if (delay || query) {
+            this._renderHover(delay, query, node);
+        }
+    }
+
+    /**
+     * @private
+     * @param {string} xpath
+     * @param {any} row
+     */
+    _renderOpenTagInfo(xpath, row) {
+        const closed = !!row.querySelector(".ace_closed");
+        const delays = [];
+        const querys = [];
+        const groups = {};
+        let displayDetail = false;
+        for (const line of this._linesAt(xpath, closed)) {
+            delays.push(line.delay);
+            querys.push(line.query);
+            const directive = line.directive.split("=")[0];
+            if (!groups[directive]) {
+                groups[directive] = { delays: [], querys: [] };
+            } else {
+                displayDetail = true;
+            }
+            groups[directive].delays.push(this._formatDelay(line.delay));
+            groups[directive].querys.push(line.query);
+        }
+        if (delays.length) {
+            this._renderInfo(delays, querys, displayDetail, groups, row);
+        }
+    }
+
+    /**
+     * @private
+     * @param {any} node
+     * @param {any[]} arch
+     * @param {Record<string, any>} flat
+     * @param {any} parent
+     * @param {string} xpath the parent's xpath, extended and returned
+     * @param {any} rows
+     * @returns {string}
+     */
+    _openTag(node, arch, flat, parent, xpath, rows) {
+        const nodeTagName = node.nextElementSibling;
+        const aceLine = nodeTagName.parentNode;
+        const index = [...aceLine.parentNode.children].indexOf(
+            /** @type {Element} */ (aceLine),
+        );
+        const row = rows[index];
+
+        xpath += `/${nodeTagName.textContent}`;
+        let i = 1;
+        while (flat[`${xpath}[${i}]`]) {
+            i++;
+        }
+        xpath += `[${i}]`;
+        flat[xpath] = {
+            xpath,
+            tag: nodeTagName.textContent,
+            children: [],
+            directive: [],
+        };
+        arch.push(flat[xpath]);
+        parent.children.push(flat[xpath]);
+
+        this._renderOpenTagInfo(xpath, row);
+        return xpath;
+    }
+
     renderProfilingInformation() {
         this._clearInjectedBadges();
 
+        /** @type {Record<string, any>} */
         const flat = {};
-        // Same shape as the nodes pushed below: a `t-*` directive reaching the
-        // root as its parent would otherwise push onto an undefined `directive`.
         const arch = [{ xpath: "", children: [], directive: [] }];
         const rows = this.ace.el.querySelectorAll(".ace_gutter .ace_gutter-cell");
         const elems = this.ace.el.querySelectorAll(
@@ -186,98 +334,13 @@ export class ProfilingQwebView extends Component {
             const parent = arch.at(-1);
             let xpath = parent.xpath;
             if (node.classList.contains("ace_end-tag-close")) {
-                let previous = node;
-                while (
-                    (previous = /** @type {any} */ (previous.previousElementSibling))
-                ) {
-                    if (previous?.classList.contains("ace_tag-name")) {
-                        break;
-                    }
-                }
-                const tag = previous?.textContent;
-                if (parent.tag === tag) {
-                    arch.pop();
-                }
+                this._popOnEndTagClose(node, arch, parent);
             } else if (node.classList.contains("ace_end-tag-open")) {
-                const tag = node.nextElementSibling?.textContent;
-                if (parent.tag === tag) {
-                    arch.pop();
-                }
+                this._popOnEndTagOpen(node, arch, parent);
             } else if (node.classList.contains("ace_qweb")) {
-                const directive = node.textContent;
-                parent.directive.push({
-                    el: node,
-                    directive: directive,
-                });
-
-                let delay = 0;
-                let query = 0;
-                for (const line of this.profile.data) {
-                    if (
-                        line.view_id === this.state.viewID &&
-                        line.xpath === xpath &&
-                        line.directive.includes(directive)
-                    ) {
-                        delay += line.delay;
-                        query += line.query;
-                    }
-                }
-
-                if (delay || query) {
-                    this._renderHover(delay, query, node);
-                }
+                this._annotateDirective(node, parent, xpath);
             } else if (node.classList.contains("ace_tag-open")) {
-                const nodeTagName = node.nextElementSibling;
-                const aceLine = nodeTagName.parentNode;
-                const index = [...aceLine.parentNode.children].indexOf(
-                    /** @type {Element} */ (aceLine),
-                );
-                const row = rows[index];
-
-                xpath += `/${nodeTagName.textContent}`;
-                let i = 1;
-                while (flat[`${xpath}[${i}]`]) {
-                    i++;
-                }
-                xpath += `[${i}]`;
-                flat[xpath] = {
-                    xpath: xpath,
-                    tag: nodeTagName.textContent,
-                    children: [],
-                    directive: [],
-                };
-                arch.push(flat[xpath]);
-                parent.children.push(flat[xpath]);
-
-                const closed = !!row.querySelector(".ace_closed");
-                const delays = [];
-                const querys = [];
-                const groups = {};
-                let displayDetail = false;
-                for (const line of this.profile.data) {
-                    if (
-                        line.view_id === this.state.viewID &&
-                        (closed ? line.xpath.startsWith(xpath) : line.xpath === xpath)
-                    ) {
-                        delays.push(line.delay);
-                        querys.push(line.query);
-                        const directive = line.directive.split("=")[0];
-                        if (!groups[directive]) {
-                            groups[directive] = {
-                                delays: [],
-                                querys: [],
-                            };
-                        } else {
-                            displayDetail = true;
-                        }
-                        groups[directive].delays.push(this._formatDelay(line.delay));
-                        groups[directive].querys.push(line.query);
-                    }
-                }
-
-                if (delays.length) {
-                    this._renderInfo(delays, querys, displayDetail, groups, row);
-                }
+                xpath = this._openTag(node, arch, flat, parent, xpath, rows);
             }
             node.setAttribute("data-xpath", xpath);
         });
@@ -297,34 +360,44 @@ export class ProfilingQwebView extends Component {
         }
         this.state.view = view;
     }
-    _renderHover(delay, query, node) {
-        const xml = renderToString("web.ProfilingQwebView.hover", {
-            delay: this._formatDelay(delay),
-            query: query,
-        });
+    /**
+     * @param {string} template
+     * @param {Record<string, any>} context
+     * @param {Element} node
+     */
+    _appendBadge(template, context, node) {
         const div = new DOMParser()
-            .parseFromString(xml, "text/html")
-            .querySelector("div");
-        node.appendChild(div);
-    }
-    _renderInfo(delays, querys, displayDetail, groups, node) {
-        const xml = renderToString("web.ProfilingQwebView.info", {
-            delay: this._formatDelay(delays.reduce((a, b) => a + b, 0)),
-            query: querys.reduce((a, b) => a + b, 0) || ".",
-            displayDetail: displayDetail,
-            groups: groups,
-        });
-        const div = new DOMParser()
-            .parseFromString(xml, "text/html")
+            .parseFromString(renderToString(template, context), "text/html")
             .querySelector("div");
         node.appendChild(div);
     }
 
+    _renderHover(delay, query, node) {
+        this._appendBadge(
+            "web.ProfilingQwebView.hover",
+            { delay: this._formatDelay(delay), query },
+            node,
+        );
+    }
+
+    _renderInfo(delays, querys, displayDetail, groups, node) {
+        const sum = (values) => values.reduce((a, b) => a + b, 0);
+        this._appendBadge(
+            "web.ProfilingQwebView.info",
+            {
+                delay: this._formatDelay(sum(delays)),
+                query: sum(querys) || ".",
+                displayDetail,
+                groups,
+            },
+            node,
+        );
+    }
+
     /**
      * @private
-     * @param {MouseEvent} ev
+     * @param {number} viewID
      */
-    /** @param {number} viewID */
     _onSelectView(viewID) {
         this.state.viewID = viewID;
         this._renderView();
@@ -332,7 +405,7 @@ export class ProfilingQwebView extends Component {
 }
 
 /** @type {import("registries").FieldsRegistryItemShape} */
-export const profilingQwebView = {
+const profilingQwebView = {
     component: ProfilingQwebView,
     supportedTypes: ["text"],
 };

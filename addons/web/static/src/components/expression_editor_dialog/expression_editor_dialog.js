@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/expression_editor_dialog/expression_editor_dialog */
-
 import { Component, useRef, useState } from "@odoo/owl";
 import { ExpressionEditor } from "@web/components/expression_editor/expression_editor";
 import { evaluateExpr } from "@web/core/py_js/py";

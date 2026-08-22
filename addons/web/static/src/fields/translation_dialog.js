@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/translation_dialog */
-
 import { Component, onWillStart } from "@odoo/owl";
 import { jsToPyLocale } from "@web/core/l10n/utils";
 import { _t, loadLanguages } from "@web/core/translation";

@@ -1,34 +1,31 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_bar_menu/search_bar_menu */
-
-import { Component, useState } from "@odoo/owl";
+import { Component, onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { AccordionItem } from "@web/components/dropdown/accordion_item";
 import { CheckboxItem } from "@web/components/dropdown/checkbox_item";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useAction } from "@web/core/action_port";
+import { isActivationKey } from "@web/core/browser/hotkeys";
 import { SearchModelEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { sortBy } from "@web/core/utils/collections/arrays";
 import { useBus } from "@web/core/utils/hooks";
 import { CustomGroupByItem } from "@web/search/custom_group_by_item/custom_group_by_item";
+/** @import { EnrichedSearchItem } from "@web/search/search_types" */
 import { PropertiesGroupByItem } from "@web/search/properties_group_by_item/properties_group_by_item";
 import {
     editFavoriteFilter,
     FACET_ICONS,
+    getDisplayedRegistryItems,
     GROUPABLE_TYPES,
+    MENU_REGISTRY_VALIDATION,
 } from "@web/search/utils/misc";
 
 const favoriteMenuRegistry = registry.category("favoriteMenu");
 
-favoriteMenuRegistry.addValidation({
-    Component: Function,
-    groupNumber: { type: Number, optional: true },
-    isDisplayed: { type: Function, optional: true },
-    "*": true,
-});
+favoriteMenuRegistry.addValidation(MENU_REGISTRY_VALIDATION);
 
 export class SearchBarMenu extends Component {
     static template = "web.SearchBarMenu";
@@ -51,14 +48,31 @@ export class SearchBarMenu extends Component {
         dropdownState: { ...Dropdown.props.state },
     };
 
+    /** @type {{Component: Function, groupNumber: number, key: string}[]} */
+    otherItems = [];
+
     setup() {
         this.facet_icons = FACET_ICONS;
         this.actionService = useAction();
         this.state = useState({ sharedFavoritesExpanded: false });
+        onWillStart(async () => {
+            this.otherItems = await this._registryItems();
+        });
+        onWillUpdateProps(async () => {
+            this.otherItems = await this._registryItems();
+        });
         useBus(
             this.env.searchModel,
             SearchModelEvent.UPDATE,
             /** @type {any} */ (this.render),
+        );
+    }
+
+    /** @returns {Promise<{Component: Function, groupNumber: number, key: string}[]>} */
+    _registryItems() {
+        return getDisplayedRegistryItems(
+            favoriteMenuRegistry,
+            /** @type {import("@web/env").OdooEnv} */ (this.env),
         );
     }
 
@@ -79,8 +93,9 @@ export class SearchBarMenu extends Component {
 
     /** @returns {Object[]} */
     get filterItems() {
-        return this.env.searchModel.getSearchItems((searchItem) =>
-            ["filter", "dateFilter"].includes(searchItem.type),
+        return this.env.searchModel.getSearchItems(
+            (/** @type {EnrichedSearchItem} */ searchItem) =>
+                ["filter", "dateFilter"].includes(searchItem.type),
         );
     }
 
@@ -89,7 +104,7 @@ export class SearchBarMenu extends Component {
     }
 
     /**
-     * @param {Object} param0
+     * @param {object} param0
      * @param {number} param0.itemId
      * @param {number} [param0.optionId]
      */
@@ -113,9 +128,9 @@ export class SearchBarMenu extends Component {
      */
     get groupByItems() {
         return this.env.searchModel.getSearchItems(
-            (searchItem) =>
+            (/** @type {EnrichedSearchItem} */ searchItem) =>
                 ["groupBy", "dateGroupBy"].includes(searchItem.type) &&
-                !searchItem.isProperty,
+                !(/** @type {any} */ (searchItem).isProperty),
         );
     }
 
@@ -124,13 +139,18 @@ export class SearchBarMenu extends Component {
      * @param {Object} field
      * @returns {boolean}
      */
+    /**
+     * @param {string} fieldName
+     * @param {Record<string, any>} field
+     * @returns {boolean}
+     */
     validateField(fieldName, field) {
         const { groupable, type } = field;
         return groupable && fieldName !== "id" && GROUPABLE_TYPES.includes(type);
     }
 
     /**
-     * @param {Object} param0
+     * @param {object} param0
      * @param {number} param0.itemId
      * @param {number} [param0.optionId]
      */
@@ -152,7 +172,7 @@ export class SearchBarMenu extends Component {
     /** @returns {Object[]} */
     get favorites() {
         return this.env.searchModel.getSearchItems(
-            (searchItem) =>
+            (/** @type {any} */ searchItem) =>
                 searchItem.type === "favorite" && searchItem.userIds.length === 1,
         );
     }
@@ -160,7 +180,7 @@ export class SearchBarMenu extends Component {
     /** @returns {Object[]} */
     get allSharedFavorites() {
         return this.env.searchModel.getSearchItems(
-            (searchItem) =>
+            (/** @type {any} */ searchItem) =>
                 searchItem.type === "favorite" && searchItem.userIds.length !== 1,
         );
     }
@@ -171,27 +191,6 @@ export class SearchBarMenu extends Component {
         const expanded =
             this.state.sharedFavoritesExpanded || sharedFavorites.length <= 4;
         return expanded ? sharedFavorites : sharedFavorites.slice(0, 3);
-    }
-
-    /** @returns {{ Component: Function, groupNumber: number, key: string }[]} */
-    get otherItems() {
-        const registryMenus = [];
-        for (const item of favoriteMenuRegistry.getAll()) {
-            if (
-                "isDisplayed" in item
-                    ? item.isDisplayed(
-                          /** @type {import("@web/env").OdooEnv} */ (this.env),
-                      )
-                    : true
-            ) {
-                registryMenus.push({
-                    Component: item.Component,
-                    groupNumber: item.groupNumber,
-                    key: item.Component.name,
-                });
-            }
-        }
-        return registryMenus;
     }
 
     /** @param {number} itemId */
@@ -212,7 +211,7 @@ export class SearchBarMenu extends Component {
      * @param {number} itemId
      */
     onEditFavoriteKeydown(ev, itemId) {
-        if (ev.key !== "Enter" && ev.key !== " ") {
+        if (!isActivationKey(ev)) {
             return;
         }
         ev.preventDefault();

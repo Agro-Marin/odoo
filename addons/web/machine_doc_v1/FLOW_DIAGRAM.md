@@ -4,7 +4,7 @@ End-to-end flows, entry to exit. Flow numbers cross-reference the Component
 Diagram audit areas.
 
 Measured at base `b48ae612546`, 2026-08-01.
-Structural claims guarded by `bash addons/web/doc/factcheck.sh`.
+Structural claims guarded by `bash addons/web/machine_doc_v1/factcheck.sh`.
 Ordering claims are not machine checkable — read the code.
 
 ---
@@ -81,9 +81,12 @@ Browser                          Server (Python)                    Database
   │  │                               │                                  │
   │  │  main.js:                     │                                  │
   │  │  └─ startWebClient(WebClient) │                                  │
-  │  │     ├─ Set odoo.info (db, version, isEnterprise)                 │
+  │  │     ├─ publishOdooInfo() — db, version, isEnterprise             │
   │  │     ├─ Setup RPC cache (RAM + AES-GCM encrypted IndexedDB)       │
   │  │     │  └─ only in secure context when browser_cache_secret set   │
+  │  │     ├─ await whenReady() — ALSO the template barrier: the        │
+  │  │     │  generated registerTemplate() block is appended AFTER      │
+  │  │     │  the esbuild output, so it runs during this suspension     │
   │  │     ├─ mountComponent(WebClient, body)                           │
   │  │     │  ├─ makeEnv()                                              │
   │  │     │  │  └─ { bus, isReady, services:{}, debug, isSmall }       │
@@ -97,6 +100,8 @@ Browser                          Server (Python)                    Database
   │  │     │  │  ├─ hotkey_service                                      │
   │  │     │  │  ├─ pwa_service ── registers service worker             │
   │  │     │  │  └─ ... (20+ services)                                  │
+  │  │     │  ├─ beforeMount → body CSS classes (o_rtl,                 │
+  │  │     │  │  o_is_superuser, o_touch_device) — BEFORE first render  │
   │  │     │  └─ App.mount(document.body)                               │
   │  │     │     └─ WebClient.setup()                                   │
   │  │     │        ├─ loadRouterState()                                │
@@ -106,7 +111,7 @@ Browser                          Server (Python)                    Database
   │  │     │           ├─ NavBar (menus, systray)                       │
   │  │     │           ├─ ActionContainer (current view)                │
   │  │     │           └─ MainComponentsContainer                       │
-  │  │     └─ Set body CSS classes (o_debug, o_rtl, ...)                │
+  │  │     └─ odoo.isReady = true                                       │
   │  │                               │                                  │
   │  ▼                               │                                  │
   │  READY — User sees the UI        │                                  │

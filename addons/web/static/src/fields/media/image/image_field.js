@@ -1,9 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/media/image/image_field */
-
-import { Component, onWillRender, status, useState } from "@odoo/owl";
+import { onWillRender, status, useState } from "@odoo/owl";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { FileUploader } from "@web/core/file_upload/file_handler";
 import { DateTime } from "@web/core/l10n/luxon";
@@ -12,6 +10,12 @@ import { isBinarySize } from "@web/core/utils/format/binary";
 import { useService } from "@web/core/utils/hooks";
 import { imageUrl } from "@web/core/utils/urls";
 import { registerField } from "@web/fields/_registry";
+import { FieldComponent } from "@web/fields/field_component";
+import { fieldHandleFor } from "@web/fields/field_handle";
+import {
+    acceptedFileExtensionsOption,
+    imageSizeOption,
+} from "@web/fields/field_options";
 import {
     convertUploadToWebp,
     createWebpVariantAttachments,
@@ -29,7 +33,7 @@ export const fileTypeMagicWordMap = {
 };
 const placeholder = "/web/static/img/placeholder.png";
 
-export class ImageField extends Component {
+export class ImageField extends FieldComponent {
     static template = "web.ImageField";
     static components = {
         FileUploader,
@@ -60,8 +64,10 @@ export class ImageField extends Component {
     orm;
     /** @type {{ isValid: boolean }} */
     state;
-    /** @type {{ field: string, url: string } | undefined} */
-    lastURL;
+    /**
+     * @type {Map<string, string>}
+     */
+    urlCache;
 
     setup() {
         this.notification = useService("notification");
@@ -70,18 +76,18 @@ export class ImageField extends Component {
         this.state = useState({
             isValid: true,
         });
-        this.lastURL = undefined;
+        this.urlCache = new Map();
 
         if (this.fieldType === "many2one" && !this.props.previewImage) {
             throw new Error(
                 "ImageField: previewImage must be provided when set on a many2one field",
             );
         }
-        const field = this.props.record.fields[this.props.name];
+        const field = this.field.definition;
         const isDottedRelated = field.related?.includes(".");
         this.uniqueId = this.props.record.data.write_date;
         let resId = this.props.record.resId;
-        let value = this.props.record.data[this.props.name];
+        let value = this.field.value;
         const valueChanged = (value, nextValue) =>
             this.fieldType === "many2one"
                 ? value?.id !== nextValue?.id ||
@@ -89,13 +95,13 @@ export class ImageField extends Component {
                 : value !== nextValue;
         onWillRender(() => {
             const { record } = this.props;
-            const nextValue = record.data[this.props.name];
+            const nextValue = fieldHandleFor(record, this.props.name).value;
             if (record.resId !== resId) {
                 this.uniqueId = record.data.write_date;
-                this.lastURL = undefined;
+                this.urlCache.clear();
                 this.state.isValid = true;
             } else if (valueChanged(value, nextValue)) {
-                this.lastURL = undefined;
+                this.urlCache.clear();
                 this.state.isValid = true;
                 this.uniqueId =
                     isDottedRelated || this.fieldType === "many2one"
@@ -108,18 +114,20 @@ export class ImageField extends Component {
     }
 
     get imgAlt() {
-        if (this.fieldType === "many2one" && this.props.record.data[this.props.name]) {
-            return this.props.record.data[this.props.name].display_name;
+        if (this.fieldType === "many2one" && this.field.value) {
+            return this.field.value.display_name;
         }
         return this.props.alt;
     }
 
     get imgClass() {
-        return ["img", "img-fluid", ...this.props.imgClass.split(" ")].join(" ");
+        return ["img", "img-fluid", ...this.props.imgClass.split(" ")]
+            .filter(Boolean)
+            .join(" ");
     }
 
     get fieldType() {
-        return this.props.record.fields[this.props.name].type;
+        return this.field.type;
     }
 
     get rawCacheKey() {
@@ -143,37 +151,42 @@ export class ImageField extends Component {
         return style;
     }
     get hasTooltip() {
-        return this.props.enableZoom && this.props.record.data[this.props.name];
+        return this.props.enableZoom && this.field.value;
     }
+    /**
+     * @returns {Record<string, string>}
+     */
     get tooltipAttributes() {
+        if (!this.hasTooltip) {
+            return {};
+        }
         const fieldName =
             this.fieldType === "many2one" ? this.props.previewImage : this.props.name;
         return {
-            template: "web.ImageZoomTooltip",
-            info: JSON.stringify({ url: this.getUrl(fieldName) }),
+            "data-tooltip-template": "web.ImageZoomTooltip",
+            "data-tooltip-info": JSON.stringify({ url: this.getUrl(fieldName) }),
+            ...(this.props.zoomDelay
+                ? { "data-tooltip-delay": String(this.props.zoomDelay) }
+                : {}),
         };
     }
 
     getUrl(imageFieldName) {
-        if (!this.props.record.data[this.props.name] || !this.state.isValid) {
+        if (!this.field.value || !this.state.isValid) {
             return placeholder;
         }
-        if (
-            !this.props.reload &&
-            this.lastURL &&
-            this.lastURL.field === imageFieldName
-        ) {
-            return this.lastURL.url;
+        if (!this.props.reload && this.urlCache.has(imageFieldName)) {
+            return /** @type {string} */ (this.urlCache.get(imageFieldName));
         }
         let url;
         if (this.fieldType === "many2one") {
             url = imageUrl(
-                this.props.record.fields[this.props.name].relation,
-                this.props.record.data[this.props.name].id,
+                this.field.definition.relation,
+                this.field.value.id,
                 imageFieldName,
                 { unique: this.rawCacheKey },
             );
-        } else if (isBinarySize(this.props.record.data[this.props.name])) {
+        } else if (isBinarySize(this.field.value)) {
             url = imageUrl(
                 this.props.record.resModel,
                 this.props.record.resId,
@@ -181,17 +194,15 @@ export class ImageField extends Component {
                 { unique: this.rawCacheKey },
             );
         } else {
-            const magic =
-                fileTypeMagicWordMap[this.props.record.data[this.props.name][0]] ||
-                "png";
-            url = `data:image/${magic};base64,${this.props.record.data[this.props.name]}`;
+            const magic = fileTypeMagicWordMap[this.field.value[0]] || "png";
+            url = `data:image/${magic};base64,${this.field.value}`;
         }
-        this.lastURL = { field: imageFieldName, url };
+        this.urlCache.set(imageFieldName, url);
         return url;
     }
     onFileRemove() {
         this.state.isValid = true;
-        this.props.record.update({ [this.props.name]: false });
+        this.field.update(false);
     }
     async onFileUploaded(info) {
         const record = this.props.record;
@@ -215,7 +226,7 @@ export class ImageField extends Component {
         if (record !== this.props.record || status(this) === "destroyed") {
             return;
         }
-        record.update({ [this.props.name]: info.data });
+        this.field.update(info.data);
     }
     onLoadFailed() {
         this.state.isValid = false;
@@ -257,21 +268,8 @@ export const imageField = {
                 "Delay the apparition of the zoomed image with a value in milliseconds",
             ),
         },
-        {
-            label: _t("Accepted file extensions"),
-            name: "accepted_file_extensions",
-            type: "string",
-        },
-        {
-            label: _t("Size"),
-            name: "size",
-            type: "selection",
-            choices: [
-                { label: _t("Small"), value: "[0,90]" },
-                { label: _t("Medium"), value: "[0,180]" },
-                { label: _t("Large"), value: "[0,270]" },
-            ],
-        },
+        acceptedFileExtensionsOption(),
+        imageSizeOption(),
         {
             label: _t("Preview image"),
             name: "preview_image",

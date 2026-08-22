@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_service */
-
 import { RpcEvent } from "@web/core/events";
 import { onModelMutation, UPDATE_METHODS } from "@web/core/network/model_mutation";
 import { rpcBus } from "@web/core/network/rpc";
@@ -46,12 +44,19 @@ import { registry } from "@web/core/registry";
  * @property {boolean} loadIrFilters
  */
 
-/** @typedef {Record<string, ViewDescription>} ViewDescriptions */
-
 /**
- * Models whose mutation invalidates a cached `get_views`. A view description is
- * derived from all of them, so a write to any one makes the cache stale.
+ * What `loadViews` actually answers. It was declared
+ * `Record<string, ViewDescription>`, which describes only the `views` member --
+ * `@ts-check` could not see the difference because the object is built through
+ * an `any` cast, and every caller uses the real shape (`view.js` reads
+ * `result.views[type]` and `result.fields`).
+ *
+ * @typedef {Object} ViewDescriptions
+ * @property {Record<string, any>} fields the requested model's own fields
+ * @property {Record<string, any>} relatedModels every model reached by the arch
+ * @property {Record<string, ViewDescription>} views one per requested view type
  */
+
 const GET_VIEWS_MODELS = [
     "ir.ui.view",
     "ir.filters",
@@ -61,19 +66,7 @@ const GET_VIEWS_MODELS = [
     "ir.model.fields",
 ];
 
-/**
- * The `view` service.
- *
- * A class rather than a closure returning an object literal; see
- * `core/hotkeys/hotkey_service.js` for the reasoning and
- * `tooling/architecture/js_service_shape.py` for the budget.
- *
- * The closure published `{ loadViews }` and there is nothing else to keep
- * private, so no method needed underscoring here (hazard 6). `GET_VIEWS_MODELS`
- * moved to module scope: it is a constant, and rebuilding the array on every
- * `start()` said otherwise.
- */
-export class ViewService {
+class ViewService {
     /**
      * @param {import("@web/env").OdooEnv} env
      * @param {{ orm: any }} services
@@ -81,19 +74,18 @@ export class ViewService {
     constructor(env, { orm }) {
         this.env = env;
         this.orm = orm;
-        // `create_filter` is `ir.filters`' dedicated favorite-creation RPC, not a
-        // plain `create`, so it is not in the default UPDATE_METHODS -- yet it
-        // makes a cached `get_views` (which carries `ir.filters`) stale just the
-        // same. Watching it here keeps every `get_views` invalidation in this one
-        // declarative place, instead of the favorites mixin hand-firing the same
-        // CLEAR_CACHES after its own `create_filter` call.
-        onModelMutation(
+        this.stopWatching = onModelMutation(
             GET_VIEWS_MODELS,
             () => {
                 rpcBus.trigger(RpcEvent.CLEAR_CACHES, "get_views");
             },
             { methods: [...UPDATE_METHODS, "create_filter"] },
         );
+    }
+
+    destroy() {
+        this.stopWatching();
+        this.stopWatching = () => {};
     }
 
     /**

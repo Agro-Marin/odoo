@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/network/rpc_dedup */
-
 /**
  * @param {any} value
  * @returns {string | undefined}

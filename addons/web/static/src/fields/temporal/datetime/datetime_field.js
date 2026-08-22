@@ -1,12 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/temporal/datetime/datetime_field */
-
-import { Component, onWillRender, useEffect, useRef, useState } from "@odoo/owl";
+import { onWillRender, useEffect, useRef, useState } from "@odoo/owl";
 import { useDateTimePicker } from "@web/components/datetime/datetime_picker_hook";
 import { ModelEvent } from "@web/core/events";
-import { formatDate, formatDateTime } from "@web/core/formatters";
+import { formatFieldDate, formatFieldDateTime } from "@web/core/formatters";
 import {
     areDatesEqual,
     deserializeDate,
@@ -22,42 +20,47 @@ import { exprToBoolean } from "@web/core/utils/format/strings";
 import { useBus } from "@web/core/utils/hooks";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { registerField } from "@web/fields/_registry";
+import { FieldComponent } from "@web/fields/field_component";
 import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
+import {
+    datePrecisionOptions,
+    placeholderFieldOption,
+} from "@web/fields/field_options";
 import { FIELD_WIDTHS } from "@web/fields/field_widths";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 function getFormattedPlaceholder(value, type, options) {
     if (value instanceof DateTime) {
         return type === "date"
-            ? formatDate(value, options)
-            : formatDateTime(value, options);
+            ? formatFieldDate(value, options)
+            : formatFieldDateTime(value, options);
     }
     return value || "";
 }
 
 /**
  * @typedef {import("@web/fields/standard_field_props").StandardFieldProps & {
- *  endDateField?: string;
- *  maxDate?: string;
- *  minDate?: string;
- *  placeholder?: string;
- *  required?: boolean;
- *  rounding?: number;
- *  startDateField?: string;
- *  warnFuture?: boolean;
- *  showSeconds?: boolean;
- *  showTime?: boolean;
- *  numeric?: boolean;
- *  minPrecision?: string;
- *  maxPrecision?: string;
- *  alwaysRange?: boolean;
+ * endDateField?: string;
+ * maxDate?: string;
+ * minDate?: string;
+ * placeholder?: string;
+ * required?: boolean;
+ * rounding?: number;
+ * startDateField?: string;
+ * warnFuture?: boolean;
+ * showSeconds?: boolean;
+ * showTime?: boolean;
+ * numeric?: boolean;
+ * minPrecision?: string;
+ * maxPrecision?: string;
+ * alwaysRange?: boolean;
  * }} DateTimeFieldProps
  * @typedef {import("@web/components/datetime/datetime_picker").DateTimePickerProps} DateTimePickerProps
  * @typedef {import("@web/core/l10n/dates").NullableDateRange} NullableDateRange
  */
 
-/** @extends {Component<DateTimeFieldProps>} */
-export class DateTimeField extends Component {
+/** @extends {FieldComponent<DateTimeFieldProps>} */
+export class DateTimeField extends FieldComponent {
     static props = {
         ...standardFieldProps,
         endDateField: { type: String, optional: true },
@@ -95,8 +98,8 @@ export class DateTimeField extends Component {
         return this.relatedField ? this.props.endDateField || this.props.name : null;
     }
 
-    get field() {
-        return this.props.record.fields[this.props.name];
+    get fieldDefinition() {
+        return this.field.definition;
     }
 
     get relatedField() {
@@ -113,68 +116,9 @@ export class DateTimeField extends Component {
 
     setup() {
         useRenderCounter("fields.DateTimeField");
-        const getPickerProps = () => {
-            const value = this.getRecordValue();
-            /** @type {DateTimePickerProps} */
-            const pickerProps = {
-                value,
-                type: /** @type {any} */ (this.field.type),
-                range: this.isRange(value),
-                showRangeToggler: Boolean(
-                    this.relatedField &&
-                    !this.props.required &&
-                    !(/** @type {any} */ (this.props).alwaysRange),
-                ),
-                onToggleRange,
-            };
-            if (this.props.maxDate) {
-                pickerProps.maxDate = this.parseLimitDate(this.props.maxDate, "max");
-            }
-            if (this.props.minDate) {
-                pickerProps.minDate = this.parseLimitDate(this.props.minDate, "min");
-            }
-            if (!isNaN(/** @type {any} */ (this.props.rounding))) {
-                pickerProps.rounding = this.props.rounding;
-            } else if (this.props.showSeconds) {
-                pickerProps.rounding = 0;
-            }
-            if (this.props.maxPrecision) {
-                pickerProps.maxPrecision = /** @type {any} */ (this.props.maxPrecision);
-            }
-            if (this.props.minPrecision) {
-                pickerProps.minPrecision = /** @type {any} */ (this.props.minPrecision);
-            }
-            return pickerProps;
-        };
+        this._pendingFocusField = "";
 
-        const onToggleRange = () => {
-            this.state.range = !this.state.range;
-
-            if (this.state.range) {
-                // Whichever end is missing is derived an hour from the other;
-                // with neither set, "now" anchors the pair. Written as one
-                // expression so the non-null side is evident per branch: the
-                // previous form assigned through an index and reassigned the
-                // array, which no reader — or checker — can narrow.
-                const [start, end] = this.values;
-                const anchor = end || DateTime.local();
-                /** @type {NullableDateRange} */
-                const values = start
-                    ? [start, start.plus({ hours: 1 })]
-                    : [anchor.minus({ hours: 1 }), anchor];
-
-                this.state.focusedDateIndex = 0;
-                this.state.value = values;
-            } else {
-                const mainFieldIndex = this.props.name === this.startDateField ? 0 : 1;
-
-                this.state.focusedDateIndex = mainFieldIndex;
-                this.state.value[mainFieldIndex ? 0 : 1] = false;
-            }
-        };
-
-        let pendingFocusField = "";
-
+        const getPickerProps = () => this.getPickerProps();
         const dateTimePicker = useDateTimePicker({
             target: "root",
             showSeconds: this.props.showSeconds,
@@ -187,31 +131,7 @@ export class DateTimeField extends Component {
             onClose: () => {
                 this.picker.activeInput = "";
             },
-            onApply: async () => {
-                const toUpdate = {};
-                if (Array.isArray(this.state.value)) {
-                    [toUpdate[this.startDateField], toUpdate[this.endDateField]] =
-                        this.state.value;
-                } else {
-                    toUpdate[this.props.name] = this.state.value;
-                }
-
-                for (const fieldName of Object.keys(toUpdate)) {
-                    if (
-                        areDatesEqual(
-                            toUpdate[fieldName],
-                            this.props.record.data[fieldName],
-                        )
-                    ) {
-                        delete toUpdate[fieldName];
-                    }
-                }
-
-                if (Object.keys(toUpdate).length) {
-                    pendingFocusField = this.picker.activeInput;
-                    await this.props.record.update(toUpdate);
-                }
-            },
+            onApply: () => this.applyPickedValues(),
         });
         this.state = useState(dateTimePicker.state);
         this.picker = useState({ activeInput: "" });
@@ -227,7 +147,15 @@ export class DateTimeField extends Component {
 
         this.startDate = useRef("start-date");
         this.endDate = useRef("end-date");
+        this.setupFocusRestore();
 
+        this.setFieldDirty = useFieldDirtySignal();
+        onWillRender(() => this.triggerIsDirty());
+
+        this.futureWarningMsg = _t("This date is in the future");
+    }
+
+    setupFocusRestore() {
         useEffect(
             () => {
                 [this.startDate, this.endDate].forEach((ref, index) => {
@@ -236,13 +164,13 @@ export class DateTimeField extends Component {
                         ref.el.focus();
                         this.openPicker(index);
                     } else if (
-                        pendingFocusField &&
+                        this._pendingFocusField &&
                         ref.el?.tagName === "BUTTON" &&
-                        fieldAttr === pendingFocusField
+                        fieldAttr === this._pendingFocusField
                     ) {
                         this._suppressNextFocus = true;
                         ref.el.focus();
-                        pendingFocusField = "";
+                        this._pendingFocusField = "";
                     }
                 });
             },
@@ -252,11 +180,86 @@ export class DateTimeField extends Component {
                 this.picker.activeInput,
             ],
         );
+    }
 
-        this.setFieldDirty = useFieldDirtySignal();
-        onWillRender(() => this.triggerIsDirty());
+    /**
+     * @returns {Promise<void>}
+     */
+    async applyPickedValues() {
+        const toUpdate = {};
+        if (Array.isArray(this.state.value)) {
+            [toUpdate[this.startDateField], toUpdate[this.endDateField]] =
+                this.state.value;
+        } else {
+            toUpdate[this.props.name] = this.state.value;
+        }
 
-        this.futureWarningMsg = _t("This date is in the future");
+        for (const fieldName of Object.keys(toUpdate)) {
+            if (areDatesEqual(toUpdate[fieldName], this.props.record.data[fieldName])) {
+                delete toUpdate[fieldName];
+            }
+        }
+
+        if (Object.keys(toUpdate).length) {
+            this._pendingFocusField = this.picker.activeInput;
+            await this.props.record.update(toUpdate);
+        }
+    }
+
+    onToggleRange() {
+        this.state.range = !this.state.range;
+
+        if (this.state.range) {
+            const [start, end] = this.values;
+            const anchor = end || DateTime.local();
+            /** @type {NullableDateRange} */
+            const values = start
+                ? [start, start.plus({ hours: 1 })]
+                : [anchor.minus({ hours: 1 }), anchor];
+
+            this.state.focusedDateIndex = 0;
+            this.state.value = values;
+        } else {
+            const mainFieldIndex = this.props.name === this.startDateField ? 0 : 1;
+
+            this.state.focusedDateIndex = mainFieldIndex;
+            this.state.value[mainFieldIndex ? 0 : 1] = false;
+        }
+    }
+
+    /**
+     * @returns {DateTimePickerProps}
+     */
+    getPickerProps() {
+        const value = this.getRecordValue();
+        /** @type {DateTimePickerProps} */
+        const pickerProps = {
+            value,
+            type: /** @type {any} */ (this.fieldDefinition.type),
+            range: this.isRange(value),
+            showRangeToggler: Boolean(
+                this.relatedField && !this.props.required && !this.props.alwaysRange,
+            ),
+            onToggleRange: () => this.onToggleRange(),
+        };
+        if (this.props.maxDate) {
+            pickerProps.maxDate = this.parseLimitDate(this.props.maxDate, "max");
+        }
+        if (this.props.minDate) {
+            pickerProps.minDate = this.parseLimitDate(this.props.minDate, "min");
+        }
+        if (!isNaN(/** @type {any} */ (this.props.rounding))) {
+            pickerProps.rounding = this.props.rounding;
+        } else if (this.props.showSeconds) {
+            pickerProps.rounding = 0;
+        }
+        if (this.props.maxPrecision) {
+            pickerProps.maxPrecision = /** @type {any} */ (this.props.maxPrecision);
+        }
+        if (this.props.minPrecision) {
+            pickerProps.minPrecision = /** @type {any} */ (this.props.minPrecision);
+        }
+        return pickerProps;
     }
 
     /**
@@ -292,15 +295,15 @@ export class DateTimeField extends Component {
             return "";
         }
         const { showSeconds, showTime } = this.props;
-        if (this.field.type === "date") {
-            return formatDate(value, { numeric });
+        if (this.fieldDefinition.type === "date") {
+            return formatFieldDate(value, { numeric });
         } else {
             const showDate =
                 !showTime ||
                 valueIndex !== 1 ||
                 !values[0] ||
                 !values[0].hasSame(value, "day");
-            return formatDateTime(value, {
+            return formatFieldDateTime(value, {
                 numeric,
                 showSeconds,
                 showTime,
@@ -319,7 +322,7 @@ export class DateTimeField extends Component {
                 this.props.record.data[this.endDateField],
             ];
         } else {
-            return this.props.record.data[this.props.name];
+            return this.field.value;
         }
     }
 
@@ -327,7 +330,7 @@ export class DateTimeField extends Component {
      * @param {number} index
      */
     isDateInTheFuture(index) {
-        const now = this.field.type === "date" ? today() : DateTime.local();
+        const now = this.fieldDefinition.type === "date" ? today() : DateTime.local();
         return this.values[index] > now;
     }
 
@@ -347,7 +350,7 @@ export class DateTimeField extends Component {
             return false;
         }
         return (
-            /** @type {any} */ (this.props).alwaysRange ||
+            this.props.alwaysRange ||
             this.props.required ||
             ensureArray(value).filter(Boolean).length === 2
         );
@@ -361,7 +364,7 @@ export class DateTimeField extends Component {
         if (value === "today") {
             return value;
         }
-        if (this.field.type === "date") {
+        if (this.fieldDefinition.type === "date") {
             return deserializeDate(value);
         }
         if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -375,19 +378,14 @@ export class DateTimeField extends Component {
      * @return {boolean}
      */
     shouldShowSeparator() {
-        return (
-            /** @type {any} */ (
-                this.props.alwaysRange &&
-                    (this.props.readonly
-                        ? !this.isEmpty(this.startDateField) ||
-                          !this.isEmpty(this.endDateField)
-                        : true)
-            ) ||
-            (this.state.range &&
-                (this.props.required ||
-                    (!this.isEmpty(this.startDateField) &&
-                        !this.isEmpty(this.endDateField))))
-        );
+        const bothEnds =
+            !this.isEmpty(this.startDateField) && !this.isEmpty(this.endDateField);
+        const eitherEnd =
+            !this.isEmpty(this.startDateField) || !this.isEmpty(this.endDateField);
+        if (this.props.alwaysRange) {
+            return this.props.readonly ? eitherEnd : true;
+        }
+        return Boolean(this.state.range && (this.props.required || bothEnds));
     }
 
     /**
@@ -430,34 +428,7 @@ export const dateField = {
             type: "boolean",
             help: _t("Displays a warning icon if the input dates are in the future."),
         },
-        {
-            label: _t("Minimal precision"),
-            name: "min_precision",
-            type: "selection",
-            help: _t(
-                "Choose which minimal precision (days, months, ...) you want in the datetime picker.",
-            ),
-            choices: [
-                { label: _t("Days"), value: "days" },
-                { label: _t("Months"), value: "months" },
-                { label: _t("Years"), value: "years" },
-                { label: _t("Decades"), value: "decades" },
-            ],
-        },
-        {
-            label: _t("Maximal precision"),
-            name: "max_precision",
-            type: "selection",
-            help: _t(
-                "Choose which maximal precision (days, months, ...) you want in the datetime picker.",
-            ),
-            choices: [
-                { label: _t("Days"), value: "days" },
-                { label: _t("Months"), value: "months" },
-                { label: _t("Years"), value: "years" },
-                { label: _t("Decades"), value: "decades" },
-            ],
-        },
+        ...datePrecisionOptions(),
         {
             label: _t("Date Format"),
             name: "numeric",
@@ -474,12 +445,7 @@ export const dateField = {
                 { label: _t("31/01/%s", today().year), value: true },
             ],
         },
-        {
-            label: _t("Dynamic Placeholder"),
-            name: "placeholder_field",
-            type: "field",
-            availableTypes: ["date", "char"],
-        },
+        placeholderFieldOption(["date", "char"]),
     ],
     supportedTypes: ["date"],
     extractProps: ({ options, placeholder, type }, dynamicInfo) => {
@@ -504,10 +470,6 @@ export const dateField = {
             ? FIELD_WIDTHS.numeric_date
             : FIELD_WIDTHS.date,
     fieldDependencies: ({ type, attrs, options }) => {
-        // The companion date carries the node's own modifiers -- it is edited
-        // through the same picker -- but nothing else: `attrs` also holds
-        // presentation attributes (class, placeholder, ...) that have no
-        // meaning on a field dependency.
         const modifiers = pick(attrs, "invisible", "readonly", "required");
         const dependency = (name) => ({ name, type, readonly: false, ...modifiers });
         if (options[START_DATE_FIELD_OPTION]) {
@@ -556,12 +518,7 @@ export const dateTimeField = {
                 `Displays or hides the seconds in the datetime value. Affect only the readable datetime format.`,
             ),
         },
-        {
-            label: _t("Dynamic Placeholder"),
-            name: "placeholder_field",
-            type: "field",
-            availableTypes: ["datetime", "char"],
-        },
+        placeholderFieldOption(["datetime", "char"]),
     ],
     extractProps: ({ attrs, options, placeholder, type }, dynamicInfo) => {
         const showSeconds = exprToBoolean(options.show_seconds ?? false);
@@ -590,9 +547,6 @@ export const dateTimeField = {
         if (exprToBoolean(options.numeric ?? false)) {
             return FIELD_WIDTHS.numeric_datetime;
         }
-        // A scalar listViewWidth pins the column (minWidth === maxWidth), so
-        // sizing every datetime for a seconds string only `show_seconds` ever
-        // renders costs ~13% of the column in every list, permanently.
         return exprToBoolean(options.show_seconds ?? false)
             ? FIELD_WIDTHS.datetime_seconds
             : FIELD_WIDTHS.datetime;
@@ -626,12 +580,7 @@ export const dateRangeField = {
                 `Set to true the full range input has to be display by default, even if empty.`,
             ),
         },
-        {
-            label: _t("Dynamic Placeholder"),
-            name: "placeholder_field",
-            type: "field",
-            availableTypes: ["date", "datetime", "char"],
-        },
+        placeholderFieldOption(["date", "datetime", "char"]),
     ],
     supportedTypes: ["date", "datetime"],
     listViewWidth: ({ type, options }) => {
@@ -639,32 +588,25 @@ export const dateRangeField = {
             type === "datetime"
                 ? dateTimeField.listViewWidth({ options })
                 : dateField.listViewWidth({ options });
-        // undefined when the locale-dependent widths are not measurable yet
         return width ? 2 * width + 30 : undefined;
     },
     isValid: (record, fieldname, fieldInfo) => {
         if (fieldInfo.widget === "daterange") {
-            if (
-                !record.data[fieldInfo.options[END_DATE_FIELD_OPTION]] !==
-                    !record.data[fieldname] &&
-                evaluateBooleanExpr(
-                    record.activeFields[fieldInfo.options[END_DATE_FIELD_OPTION]]
-                        ?.required,
-                    record.evalContextWithVirtualIds,
-                )
-            ) {
-                return false;
-            }
-            if (
-                !record.data[fieldInfo.options[START_DATE_FIELD_OPTION]] !==
-                    !record.data[fieldname] &&
-                evaluateBooleanExpr(
-                    record.activeFields[fieldInfo.options[START_DATE_FIELD_OPTION]]
-                        ?.required,
-                    record.evalContextWithVirtualIds,
-                )
-            ) {
-                return false;
+            const filled = !record.data[fieldname];
+            for (const option of [END_DATE_FIELD_OPTION, START_DATE_FIELD_OPTION]) {
+                const otherEnd = fieldInfo.options[option];
+                if (!otherEnd) {
+                    continue;
+                }
+                if (
+                    !record.data[otherEnd] !== filled &&
+                    evaluateBooleanExpr(
+                        record.activeFields[otherEnd]?.required,
+                        record.evalContextWithVirtualIds,
+                    )
+                ) {
+                    return false;
+                }
             }
         }
         return !record.isFieldInvalid(fieldname);

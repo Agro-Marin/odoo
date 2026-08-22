@@ -1,9 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_common/calendar_common_renderer */
-
-import { Component, onWillUnmount } from "@odoo/owl";
+import { onWillUnmount } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { ModelEvent } from "@web/core/events";
 import { getLocalYearAndWeek } from "@web/core/l10n/dates";
@@ -14,13 +12,11 @@ import { useBus } from "@web/core/utils/hooks";
 import { renderToFragment, renderToString } from "@web/core/utils/render";
 import { useReactiveModel } from "@web/model/model";
 import { CalendarCommonPopover } from "@web/views/calendar/calendar_common/calendar_common_popover";
-import { makeWeekColumn } from "@web/views/calendar/calendar_common/calendar_common_week_column";
+import { CalendarRendererBase } from "@web/views/calendar/calendar_renderer_base";
 import { convertRecordToEvent, getColor } from "@web/views/calendar/calendar_utils";
 import { useCalendarPopover } from "@web/views/calendar/hooks/calendar_popover_hook";
 import {
-    dayCellClassNames,
-    dayHeaderClassNames,
-    fcInternalClassName,
+    fcViewClassOptions,
     fromFcDate,
     getFullCalendarTimeZone,
     useFullCalendar,
@@ -64,7 +60,7 @@ const HOUR_FORMATS = {
     },
 };
 
-export class CalendarCommonRenderer extends Component {
+export class CalendarCommonRenderer extends CalendarRendererBase {
     static components = {
         Popover: CalendarCommonPopover,
     };
@@ -91,9 +87,6 @@ export class CalendarCommonRenderer extends Component {
     popover;
 
     setup() {
-        // Subscribe to the model rather than reading it off the raw prop, so a
-        // `notify()` re-renders this component on its own instead of relying on
-        // the controller's blanket deep render.
         this.model = useReactiveModel(this.props.model);
         this.fc = useFullCalendar("fullCalendar", () => this.options);
         this.clickTimeoutId = null;
@@ -116,19 +109,11 @@ export class CalendarCommonRenderer extends Component {
 
     get options() {
         return {
-            class: "fc",
-            viewClass: ({ view }) =>
-                view && view.type ? `fc-view fc-${view.type}-view` : "fc-view",
-            dayCellClass: this.dayCellClass,
-            dayCellInnerClass: "fc-daygrid-day-frame",
-            dayCellTopClass: "fc-daygrid-day-top",
-            dayCellTopInnerClass: "fc-daygrid-day-number",
-            dayHeaderClass: dayHeaderClassNames,
+            ...fcViewClassOptions(this.dayCellClass),
             eventClass: "fc-event",
             eventInnerClass: "fc-event-main",
             rowEventClass: "fc-daygrid-event",
             columnEventClass: "fc-timegrid-event",
-            backgroundEventClass: "fc-bg-event",
             backgroundEventInnerClass: "fc-event-main",
             eventTimeClass: "fc-time fc-event-time",
             columnMoreLinkClass: "fc-more-link",
@@ -222,26 +207,6 @@ export class CalendarCommonRenderer extends Component {
         };
     }
 
-    viewDidMount({ el, view, options }) {
-        if (!options) {
-            return;
-        }
-        const showWeek = this.options.weekNumbers;
-        const weekText = options.weekTextShort ?? this.options.weekText ?? "";
-        const weekColumn = !this.customOptions.weekNumbersWithinDays;
-        if (showWeek && weekColumn) {
-            makeWeekColumn(/** @type {any} */ ({ el, weekText }));
-        }
-        const scrollerClass = fcInternalClassName("internalScroller");
-        const liquidClass = fcInternalClassName("liquid");
-        for (const scrollerEl of el.querySelectorAll(`.${scrollerClass}`)) {
-            scrollerEl.classList.add("fc-scroller");
-            if (scrollerEl.classList.contains(liquidClass)) {
-                scrollerEl.classList.add("fc-scroller-liquid-y");
-            }
-        }
-    }
-
     getStartTime(record) {
         return record.start.toFormat(this.timeFormat);
     }
@@ -266,12 +231,6 @@ export class CalendarCommonRenderer extends Component {
         )) {
             el.classList.remove(className);
         }
-    }
-    /** @returns {Object[]} */
-    mapRecordsToEvents() {
-        return Object.values(this.model.records).map((r) =>
-            this.convertRecordToEvent(r),
-        );
     }
     convertRecordToEvent(record) {
         return convertRecordToEvent(record);
@@ -307,18 +266,6 @@ export class CalendarCommonRenderer extends Component {
             return;
         }
         this.props.createRecord(this.fcEventToRecord(info));
-    }
-    getDayCellClassNames(info) {
-        const date = fromFcDate(info.date).toISODate();
-        if (this.model.unusualDays.includes(date)) {
-            return ["o_calendar_disabled"];
-        }
-        return [];
-    }
-    dayCellClass(info) {
-        const base = dayCellClassNames(info);
-        const extras = this.getDayCellClassNames(info);
-        return extras.length ? `${base} ${extras.join(" ")}` : base;
     }
     onDblClick(info) {
         const record = this.model.records[info.event.id];
@@ -384,25 +331,11 @@ export class CalendarCommonRenderer extends Component {
         }
         return true;
     }
-    eventClassNames({ event }) {
-        const classesToAdd = [];
-        classesToAdd.push("o_event");
-        const record = this.model.records[event.id];
+    eventClassNames(info) {
+        const record = this.model.records[info.event.id];
+        const classesToAdd = super.eventClassNames(info);
 
         if (record) {
-            const color = getColor(record.colorIndex);
-            if (typeof color === "number") {
-                classesToAdd.push(`o_calendar_color_${color}`);
-            } else if (typeof color !== "string") {
-                classesToAdd.push("o_calendar_color_0");
-            }
-
-            if (record.isHatched) {
-                classesToAdd.push("o_event_hatched");
-            }
-            if (record.isStriked) {
-                classesToAdd.push("o_event_striked");
-            }
             if (record.duration <= 0.25) {
                 classesToAdd.push("o_event_oneliner");
             }
@@ -422,10 +355,7 @@ export class CalendarCommonRenderer extends Component {
         return classesToAdd;
     }
     onDayCellDidMount(info) {
-        const classes = this.getDayCellClassNames(info);
-        if (classes.length && info.el) {
-            info.el.classList.add(...classes);
-        }
+        super.onDayCellDidMount(info);
         this.injectMobileWeekNumber(info);
     }
     /**
@@ -455,12 +385,8 @@ export class CalendarCommonRenderer extends Component {
         row.prepend(weekCell);
     }
     onEventDidMount(info) {
+        super.onEventDidMount(info);
         const { el, event } = info;
-        const classes = this.eventClassNames(info);
-        if (classes.length) {
-            el.classList.add(...classes);
-        }
-        el.dataset.eventId = event.id;
         const record = this.model.records[event.id];
 
         if (record) {
@@ -470,10 +396,6 @@ export class CalendarCommonRenderer extends Component {
                     "gap-1",
                     "text-truncate",
                 );
-            }
-            const color = getColor(record.colorIndex);
-            if (typeof color === "string") {
-                el.style.backgroundColor = color;
             }
 
             if (!el.classList.contains("fc-bg")) {

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/user_menu/user_menu_items */
-
 import { Component, markup } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { isMacOS } from "@web/core/browser/feature_detection";
@@ -112,6 +110,10 @@ function odooAccountItem(env) {
     };
 }
 
+const scopedAppRegistry = registry.category("scoped_app_installers");
+
+scopedAppRegistry.addValidation((entry) => entry === true);
+
 /**
  * @param {Object} env
  * @returns {Object}
@@ -119,12 +121,12 @@ function odooAccountItem(env) {
 function installPWAItem(env) {
     let description = _t("Install App");
     let callback = () => env.services.pwa.show();
-    let show = () => env.services.pwa.isAvailable;
+    let hide = !env.services.pwa.isAvailable;
     const currentApp = env.services.menu.getCurrentApp();
     if (
         currentApp &&
         currentApp.webIcon &&
-        ["barcode", "field-service", "shop-floor"].includes(currentApp.actionPath)
+        scopedAppRegistry.contains(currentApp.actionPath)
     ) {
         description = _t("Install %s", currentApp.name);
         callback = () => {
@@ -134,14 +136,14 @@ function installPWAItem(env) {
                 )}`,
             );
         };
-        show = () => !env.services.pwa.isScopedApp;
+        hide = env.services.pwa.isScopedApp;
     }
     return {
         type: "item",
         id: "install_pwa",
         description,
         callback,
-        show,
+        hide,
         sequence: 65,
     };
 }
@@ -162,11 +164,6 @@ function logOutItem(env) {
         href: `${browser.location.origin}${route}`,
         callback: async () => {
             browser.navigator.serviceWorker?.controller?.postMessage("user_logout");
-            // The service worker purges the static Cache storage; the on-disk RPC
-            // cache is IndexedDB, which it does not touch -- delete it here so a
-            // user's cached data does not outlive their session on a shared
-            // browser. Awaited (it self-resolves on block/absence) so it runs
-            // before the navigation tears the page down.
             await rpc.purgeCacheStorage();
             browser.location.href = route;
         },

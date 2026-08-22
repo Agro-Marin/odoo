@@ -118,6 +118,12 @@ li.oe-nested {
         max-width: 11rem;
     }
 
+    .o_shape_bubble_1 ~ table & {
+        margin-bottom: map-get($spacers, 1) !important;
+        max-height: 3rem;
+        max-width: 9rem;
+    }
+
     &_big {
         max-height: 6rem;
         max-width: 14rem;

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/urls */
-
 import { browser } from "@web/core/browser/browser";
 import { DateTime } from "@web/core/l10n/luxon";
 import { session } from "@web/session";
@@ -135,14 +133,8 @@ export function getDataURLFromFile(file) {
 const SAFE_URL_SCHEMES = ["http", "https", "ftp", "ftps", "mailto", "tel"];
 
 /**
- * The default list governs urls that arrive as DATA — a record's url field, a
- * link in a server-sent notification. `extraSchemes` is for the callers that
- * also dispatch urls the app built itself, where a scheme meaningless as data
- * is meaningful as a target: `blob:` can only name an object this document
- * created, so it is inert in a record but real in an `ir.actions.act_url`.
- *
  * @param {string} href
- * @param {string[]} [extraSchemes] lowercase, without the colon
+ * @param {string[]} [extraSchemes]
  * @returns {boolean}
  */
 export function isSafeUrlScheme(href, extraSchemes = []) {
@@ -155,7 +147,7 @@ export function isSafeUrlScheme(href, extraSchemes = []) {
         start++;
     }
     cleaned = cleaned.slice(start);
-    if (/^\/\//.test(cleaned)) {
+    if (/^[/\\]{2}/.test(cleaned)) {
         return false;
     }
     const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(cleaned);

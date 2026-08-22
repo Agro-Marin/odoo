@@ -1,9 +1,3 @@
-"""Web onchange and form-processing operations on the base model.
-
-Provides ``onchange`` (the webclient's onchange RPC entry point) and
-``web_override_translations``.
-"""
-
 import itertools
 import logging
 from typing import Any
@@ -24,37 +18,6 @@ class Base(models.AbstractModel):
     def onchange(
         self, values: dict, field_names: list[str], fields_spec: dict
     ) -> dict[str, Any]:
-        """
-        Perform an onchange on the given fields, and return the result.
-
-        :param values: dictionary mapping field names to values on the form view,
-            giving the current state of modification
-        :param field_names: names of the modified fields
-        :param fields_spec: dictionary specifying the fields in the view,
-            just like the one used by :meth:`web_read`; it is used to format
-            the resulting values
-
-        When creating a record from scratch, the client should call this with an
-        empty list as ``field_names``. In that case, the method first adds
-        default values to ``values``, computes the remaining fields, applies
-        onchange methods to them, and return all the fields in ``fields_spec``.
-
-        The result is a dictionary with two optional keys. The key ``"value"``
-        returns field values that should be modified on the caller.
-        The corresponding value is a dict mapping field names to their value,
-        in the format of :meth:`web_read`, except for x2many fields, where the
-        value is a list of commands to be applied on the caller's field value.
-
-        The key ``"warning"`` provides a warning message to the caller. The
-        corresponding value is a dictionary like::
-
-            {
-                "title": "Be careful!",  # subject of message
-                "message": "Blah blah blah.",  # full warning message
-                "type": "dialog",  # how to display the warning
-            }
-
-        """
         self.env.flush_all()
 
         env = self.env
@@ -227,22 +190,6 @@ class Base(models.AbstractModel):
     def _screen_fields_spec(
         self, fields_spec: dict, _dropped: list[str] | None = None
     ) -> dict:
-        """Return *fields_spec* with unknown field names dropped, recursively.
-
-        A stale/cached view (e.g. a module upgrade removed a field) can send a
-        web spec referencing that field at ANY nesting level. This applies the
-        single unknown-field policy of the web boundary — degrade gracefully,
-        warn, keep serving the valid fields — the same way ``read()`` (and thus
-        ``web_read``) tolerates unknown names. Consumed by :meth:`onchange` and
-        :meth:`web_search_read`.
-
-        Recurses into relational sub-specs (``fields`` of many2one/x2many);
-        ``reference``/``many2one_reference`` sub-specs cannot be screened
-        statically (comodel unknown until the value is read) and ``properties``
-        sub-keys are property names, not model fields — both pass through
-        untouched. All dropped names are collected and logged in ONE warning
-        per request. The input dicts are never mutated.
-        """
         top_call = _dropped is None
         if top_call:
             _dropped = []
@@ -274,13 +221,6 @@ class Base(models.AbstractModel):
         return screened
 
     def web_override_translations(self, values: dict[str, str]) -> None:
-        """
-        Override all the modal translations of the given fields with the
-        provided value for each field.
-
-        :param values: dictionary of the translations to apply for each field name
-            ex: ``{ "field_name": "new_value" }``
-        """
         self.ensure_one()
         for field_name, value in values.items():
             field = self._fields.get(field_name)

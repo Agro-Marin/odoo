@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/many2x_autocomplete */
-
 import { Component } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 import {
@@ -27,11 +25,6 @@ import {
     useService,
 } from "@web/core/utils/hooks";
 
-/**
- * Terms kept per (domain, context) before the memo is dropped. A user cannot
- * type unboundedly many distinct empty searches, but the set is scoped to a
- * long-lived component, so it gets a ceiling.
- */
 const EMPTY_SEARCH_MEMO_LIMIT = 64;
 
 /**
@@ -133,18 +126,6 @@ export class Many2XAutocomplete extends Component {
     /** @type {any} */
     selectCreate;
     /**
-     * Terms already known to return nothing for the *current* domain/context.
-     *
-     * Only the last term used to be remembered, so the very next keystroke
-     * overwrote it and the memo never fired -- every keystroke past an empty
-     * result paid a provably empty RPC.
-     *
-     * This container is allocated once and only ever mutated in place. The
-     * component is reached through more than one reactive proxy, and
-     * *reassigning* the field makes a writer and a reader end up on two
-     * different objects -- which is why invalidation silently stopped working
-     * when this was a plain reassignment.
-     *
      * @type {{ signature: string | null, names: Set<string> }}
      */
     emptySearchMemo = { signature: null, names: new Set() };
@@ -155,11 +136,6 @@ export class Many2XAutocomplete extends Component {
         this.autoCompleteContainer = useForwardRefToParent("autocomplete_container");
         const { activeActions, resModel, isToMany, fieldString } = this.props;
 
-        // `loadOptionsSource` supersedes its own in-flight suggestion by
-        // adding a resolved promise; rejecting makes that abandonment visible
-        // to the caller instead of leaving the previous `suggest` pending for
-        // the life of the component. AutoComplete ignores a `SupersededError`
-        // from a source rather than reporting it.
         this.keepLast = new KeepLast({ rejectSuperseded: true });
 
         this.openMany2X =
@@ -285,7 +261,7 @@ export class Many2XAutocomplete extends Component {
 
     /**
      * @param {{ name: string, limit: number, domain: any[], context: Object,
-     *           specification?: Object }} params
+     * specification?: Object }} params
      * @returns {Promise<Array<Object>>}
      */
     nameSearch({ name, limit, domain, context, specification }) {
@@ -325,9 +301,6 @@ export class Many2XAutocomplete extends Component {
     }
 
     /**
-     * The memo is scoped to one (domain, context) pair: a change to either can
-     * turn a previously empty search into a matching one.
-     *
      * @param {any[]} domain
      * @param {Object} context
      * @returns {{ names: Set<string> } | null}
@@ -346,13 +319,6 @@ export class Many2XAutocomplete extends Component {
     }
 
     /**
-     * `substring` exploits the monotonicity of `ilike '%term%'`: if `%ab%`
-     * matched nothing then `%abc%` cannot match either. That only holds for
-     * models whose `name_search` is a pure ilike -- `product.product`, for one,
-     * ORs in `barcode = term`, so a longer term can match where a shorter one
-     * did not. Hence `exact` is the default: it never skips a search that was
-     * not literally performed already.
-     *
      * @param {Set<string>} names
      * @param {string} name
      * @returns {boolean}

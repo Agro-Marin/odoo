@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/feature_flags */
-
 import { browser } from "@web/core/browser/browser";
 import { session } from "@web/session";
 
@@ -10,8 +8,8 @@ import { session } from "@web/session";
 
 /**
  * @typedef {{
- *   default?: FeatureFlagValue;
- *   description?: string;
+ * default?: FeatureFlagValue;
+ * description?: string;
  * }} FeatureFlagOptions
  */
 
@@ -46,9 +44,7 @@ function _parseValue(raw) {
             if (typeof unquoted === "string") {
                 return unquoted;
             }
-        } catch {
-            // Not valid JSON — fall through and keep the raw token.
-        }
+        } catch {}
     }
     return trimmed;
 }
@@ -120,6 +116,11 @@ function _getUrlOverrides() {
 }
 
 /**
+ * @type {Map<string, FeatureFlagValue | undefined>}
+ */
+const _fromSources = new Map();
+
+/**
  * @param {string} name
  * @returns {FeatureFlagValue | undefined}
  */
@@ -153,19 +154,31 @@ function _readServer(name) {
  * @returns {FeatureFlagValue}
  */
 export function featureFlag(name, options = {}) {
-    const urlOverrides = _getUrlOverrides();
-    if (urlOverrides.has(name)) {
-        return /** @type {FeatureFlagValue} */ (urlOverrides.get(name));
-    }
-    const fromLs = _readLocalStorage(name);
-    if (fromLs !== undefined) {
-        return fromLs;
-    }
-    const fromServer = _readServer(name);
-    if (fromServer !== undefined) {
-        return fromServer;
+    const fromSources = _readSources(name);
+    if (fromSources !== undefined) {
+        return fromSources;
     }
     return options.default === undefined ? false : options.default;
+}
+
+/**
+ * @param {string} name
+ * @returns {FeatureFlagValue | undefined}
+ */
+function _readSources(name) {
+    if (_fromSources.has(name)) {
+        return _fromSources.get(name);
+    }
+    const urlOverrides = _getUrlOverrides();
+    let value;
+    if (urlOverrides.has(name)) {
+        value = urlOverrides.get(name);
+    } else {
+        const fromLs = _readLocalStorage(name);
+        value = fromLs !== undefined ? fromLs : _readServer(name);
+    }
+    _fromSources.set(name, value);
+    return value;
 }
 
 /**
@@ -173,6 +186,7 @@ export function featureFlag(name, options = {}) {
  * @param {FeatureFlagValue} value
  */
 export function setFeatureFlag(name, value) {
+    _fromSources.delete(name);
     try {
         browser.localStorage?.setItem(LS_PREFIX + name, _serializeValue(value));
     } catch {}
@@ -182,6 +196,7 @@ export function setFeatureFlag(name, value) {
  * @param {string} name
  */
 export function clearFeatureFlag(name) {
+    _fromSources.delete(name);
     try {
         browser.localStorage?.removeItem(LS_PREFIX + name);
     } catch {}
@@ -189,6 +204,7 @@ export function clearFeatureFlag(name) {
 
 export function _resetFeatureFlagsCache() {
     _urlOverrides = null;
+    _fromSources.clear();
 }
 
 /**

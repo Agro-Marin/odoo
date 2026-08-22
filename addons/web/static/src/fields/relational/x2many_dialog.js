@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/x2many_dialog */
-
 import { Component, useComponent, useEffect, useEnv, useSubEnv } from "@odoo/owl";
 import { useAction } from "@web/core/action_port";
 import { makeContext } from "@web/core/context";
@@ -62,10 +60,6 @@ export class X2ManyFieldDialog extends Component {
         useSubEnv({ config: this.props.config });
         this.env.dialogData.dismiss = () => this.discard();
 
-        // Not forced. This is the per-dialog form of the blanket that used to
-        // live in `useModelWithSampleData`: the dialog re-renders on a model
-        // update, but its children re-render off their own subscriptions
-        // rather than being swept along unconditionally.
         useBus(this.record.model.bus, ModelEvent.UPDATE, () => this.render());
 
         this.modalRef = useChildRef();
@@ -276,6 +270,131 @@ async function getFormViewInfo({ list, context, activeField, viewService, env })
  * @param {boolean} params.isMany2Many
  * @returns {Function}
  */
+/**
+ * @param {{ string: string }} activeField
+ * @param {any} record
+ * @param {string} [title]
+ * @returns {{ title: string, newRecordTitle: string | undefined }}
+ */
+function getDialogTitles(activeField, record, title) {
+    if (title) {
+        return { title, newRecordTitle: undefined };
+    }
+    return {
+        title: record
+            ? _t("Open: %s", activeField.string)
+            : _t("Create %s", activeField.string),
+        newRecordTitle: _t("New: %s", activeField.string),
+    };
+}
+
+/**
+ * @param {{ isMany2Many: boolean, activeActions: any, readonly: boolean }} params
+ * @returns {"edit" | "readonly"}
+ */
+function getDialogMode({ isMany2Many, activeActions, readonly }) {
+    if (isMany2Many) {
+        return activeActions.write ? "edit" : "readonly";
+    }
+    return readonly || !activeActions.write ? "readonly" : "edit";
+}
+
+/**
+ * @param {{ record: any, activeActions: any, viewMode: string }} params
+ * @returns {{ deleteRecord: (() => any) | null | undefined, deleteButtonLabel: string | undefined }}
+ */
+function getDialogDeleteAction({ record, activeActions, viewMode }) {
+    if (!record) {
+        return { deleteRecord: undefined, deleteButtonLabel: undefined };
+    }
+    const { delete: canDelete, onDelete } = activeActions;
+    return {
+        deleteRecord:
+            viewMode === "kanban" && canDelete ? () => onDelete(record) : null,
+        deleteButtonLabel:
+            activeActions.type === "one2many" ? _t("Delete") : _t("Remove"),
+    };
+}
+
+/**
+ * @typedef {{
+ *   activeField: any, activeActions: any, viewMode: string,
+ *   getList: () => any, updateRecord: Function, saveRecord: Function,
+ *   isMany2Many: boolean, viewService: any, env: any, component: any,
+ *   addDialog: Function,
+ * }} X2ManyDialogContext
+ */
+
+/**
+ * @param {X2ManyDialogContext} ctx
+ * @param {{ record?: any, readonly?: boolean, context?: any, title?: string, controls?: any, onClose?: Function }} params
+ */
+async function openX2ManyRecord(
+    ctx,
+    { record, readonly, context, title, controls, onClose },
+) {
+    const { activeField, activeActions, viewMode, isMany2Many, getList } = ctx;
+    const titles = getDialogTitles(activeField, record, title);
+    const list = getList();
+    let { archInfo, fields: _fields } = await getFormViewInfo({
+        list,
+        context,
+        activeField,
+        viewService: ctx.viewService,
+        env: ctx.env,
+    });
+    if (!ctx.component.props.record.isInEdition) {
+        archInfo = {
+            ...archInfo,
+            activeActions: { ...archInfo.activeActions, edit: false },
+        };
+    }
+    const { activeFields, fields } = extractFieldsFromArchInfo(archInfo, _fields);
+
+    const isDuplicate = !!record;
+    const params = {
+        activeFields,
+        fields,
+        mode: getDialogMode({ isMany2Many, activeActions, readonly }),
+    };
+    const creationParams = {
+        ...params,
+        context: makeContext([list.context, context]),
+        withoutParent: isMany2Many,
+    };
+    const { deleteRecord, deleteButtonLabel } = getDialogDeleteAction({
+        record,
+        activeActions,
+        viewMode,
+    });
+    record = await list.extendRecord(record ? params : creationParams, record);
+
+    ctx.addDialog(
+        X2ManyFieldDialog,
+        {
+            config: ctx.env.config,
+            archInfo,
+            record,
+            controls,
+            addNew: () => getList().extendRecord(creationParams),
+            save: (rec) =>
+                isDuplicate && rec.id === record.id
+                    ? ctx.updateRecord(rec)
+                    : ctx.saveRecord(rec),
+            title: titles.title,
+            newRecordTitle: titles.newRecordTitle,
+            delete: deleteRecord,
+            deleteButtonLabel,
+        },
+        {
+            onClose: () => {
+                list.editedRecord?.switchMode("readonly");
+                onClose?.();
+            },
+        },
+    );
+}
+
 export function useOpenX2ManyRecord({
     activeField,
     activeActions,
@@ -284,90 +403,20 @@ export function useOpenX2ManyRecord({
     saveRecord,
     isMany2Many,
 }) {
-    const viewService = useService("view");
-    const env = useEnv();
-    const component = useComponent();
-
-    const addDialog = useOwnedDialogs();
-    const viewMode = activeField.viewMode;
-
-    async function openRecord({ record, readonly, context, title, controls, onClose }) {
-        let newRecordTitle;
-        if (!title) {
-            title = record
-                ? _t("Open: %s", activeField.string)
-                : _t("Create %s", activeField.string);
-            newRecordTitle = _t("New: %s", activeField.string);
-        }
-        const list = getList();
-        let { archInfo, fields: _fields } = await getFormViewInfo({
-            list,
-            context,
-            activeField,
-            viewService,
-            env,
-        });
-        if (!component.props.record.isInEdition) {
-            archInfo = {
-                ...archInfo,
-                activeActions: { ...archInfo.activeActions, edit: false },
-            };
-        }
-
-        const { activeFields, fields } = extractFieldsFromArchInfo(archInfo, _fields);
-
-        let deleteRecord;
-        let deleteButtonLabel = undefined;
-        const isDuplicate = !!record;
-
-        const params = { activeFields, fields };
-        if (isMany2Many) {
-            params.mode = activeActions.write ? "edit" : "readonly";
-        } else {
-            params.mode = readonly || !activeActions.write ? "readonly" : "edit";
-        }
-        const creationParams = {
-            ...params,
-            context: makeContext([list.context, context]),
-            withoutParent: isMany2Many,
-        };
-        if (record) {
-            const { delete: canDelete, onDelete } = activeActions;
-            deleteRecord =
-                viewMode === "kanban" && canDelete ? () => onDelete(record) : null;
-            deleteButtonLabel =
-                activeActions.type === "one2many" ? _t("Delete") : _t("Remove");
-        }
-        record = await list.extendRecord(record ? params : creationParams, record);
-
-        const _onClose = () => {
-            list.editedRecord?.switchMode("readonly");
-            onClose?.();
-        };
-
-        addDialog(
-            X2ManyFieldDialog,
-            {
-                config: env.config,
-                archInfo,
-                record,
-                controls,
-                addNew: () => getList().extendRecord(creationParams),
-                save: (rec) => {
-                    if (isDuplicate && rec.id === record.id) {
-                        return updateRecord(rec);
-                    } else {
-                        return saveRecord(rec);
-                    }
-                },
-                title,
-                newRecordTitle,
-                delete: deleteRecord,
-                deleteButtonLabel: deleteButtonLabel,
-            },
-            { onClose: _onClose },
-        );
-    }
+    /** @type {X2ManyDialogContext} */
+    const ctx = {
+        activeField,
+        activeActions,
+        viewMode: activeField.viewMode,
+        getList,
+        updateRecord,
+        saveRecord,
+        isMany2Many,
+        viewService: useService("view"),
+        env: useEnv(),
+        component: useComponent(),
+        addDialog: useOwnedDialogs(),
+    };
 
     let recordIsOpen = false;
     return async (params) => {
@@ -388,7 +437,7 @@ export function useOpenX2ManyRecord({
         };
 
         try {
-            return await openRecord(params);
+            return await openX2ManyRecord(ctx, params);
         } catch (e) {
             recordIsOpen = false;
             throw e;

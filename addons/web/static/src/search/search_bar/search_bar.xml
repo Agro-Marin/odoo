@@ -2,9 +2,6 @@
 <templates xml:space="preserve">
 
  <t t-name="web.SearchBar.Facets">
- <!-- role="listitem" is only meaningful inside a list; the facets used to sit
- directly in the input container, which also holds the text input and so
- cannot itself be the list. d-contents keeps them flex children of it. -->
  <div t-if="env.searchModel.facets.length" class="d-contents" role="list" aria-label="Active search filters">
  <t t-foreach="env.searchModel.facets" t-as="facet" t-key="facet.groupId.toString()">
  <div class="o_searchview_facet position-relative d-inline-flex align-items-stretch rounded-2 bg-200 text-nowrap opacity-trigger-hover mw-100"

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_date_range */
-
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 /**
  * @param {string} scale

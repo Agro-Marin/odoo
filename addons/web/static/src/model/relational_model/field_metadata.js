@@ -1,18 +1,21 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/field_metadata */
-
 /**
  * @param {boolean | string} value
  * @returns {string}
  */
 
+import { isX2Many, isX2ManyType } from "@web/core/field_types";
 import { omit } from "@web/core/utils/collections/objects";
 
 import { invalidateAggregateSpecs } from "./field_values.js";
 import { invalidateModifierDependencies } from "./record_utils.js";
 
+/**
+ * @param {boolean | string} value
+ * @returns {string}
+ */
 function convertBoolToPyExpr(value) {
     if (value === true || value === false) {
         return value ? "True" : "False";
@@ -22,28 +25,16 @@ function convertBoolToPyExpr(value) {
 
 /**
  * @typedef {{
- *   context?: string;
- *   invisible?: boolean | string;
- *   readonly?: boolean | string;
- *   required?: boolean | string;
- *   onChange?: boolean | string;
- *   forceSave?: boolean;
- *   isHandle?: boolean;
+ * context?: string;
+ * invisible?: boolean | string;
+ * readonly?: boolean | string;
+ * required?: boolean | string;
+ * onChange?: boolean | string;
+ * forceSave?: boolean;
+ * isHandle?: boolean;
  * }} ActiveFieldOptions
  */
 
-/**
- * Registry validation for a `fieldDependencies` declaration, shared by the
- * `fields` and `view_widgets` registries so the two cannot drift.
- *
- * Only `name` is required: {@link addFieldDependencies} reads `optional` and
- * `readonly`, uses `type` solely to bootstrap an x2many `related` bucket, and
- * forwards the rest to {@link makeActiveField}. Modifiers are python
- * expressions as often as booleans, hence `[Boolean, String]`.
- *
- * The element schema must nest under `element`; a `shape` sibling of `element`
- * is silently ignored by owl's validator (it checks `element` first).
- */
 export const FIELD_DEPENDENCIES_VALIDATION = {
     type: [
         Function,
@@ -65,9 +56,30 @@ export const FIELD_DEPENDENCIES_VALIDATION = {
     optional: true,
 };
 
+export const RELATED_FIELDS_VALIDATION = {
+    type: [
+        Function,
+        {
+            type: Array,
+            element: {
+                type: Object,
+                shape: {
+                    name: String,
+                    type: { type: String, optional: true },
+                    relation: { type: String, optional: true },
+                    readonly: { type: Boolean, optional: true },
+                    selection: { type: Array, optional: true },
+                    "*": true,
+                },
+            },
+        },
+    ],
+    optional: true,
+};
+
 /**
  * @param {ActiveFieldOptions} [options]
- * @returns {Object}
+ * @returns {Record<string, any>}
  */
 export function makeActiveField({
     context,
@@ -110,6 +122,12 @@ export function cloneActiveFields(activeFields) {
     return cloned;
 }
 
+/**
+ * @param {Record<string, any>} activeFields
+ * @param {Record<string, any>} fields
+ * @param {any[]} [fieldDependencies]
+ * @returns {void}
+ */
 export function addFieldDependencies(activeFields, fields, fieldDependencies = []) {
     if (fieldDependencies.length) {
         invalidateModifierDependencies(activeFields);
@@ -119,19 +137,6 @@ export function addFieldDependencies(activeFields, fields, fieldDependencies = [
         if (field.optional && !fields[field.name]) {
             continue;
         }
-        // A dependency is a *read* by default, and that default is load-bearing:
-        // a readonly active field is dropped from web_save, so leaving it
-        // implicit on a field the widget writes makes the write vanish -- the
-        // value round-trips through the input and is silently lost.
-        //
-        // `readonly: false` is not the cure, because it is not "don't care":
-        // patchActiveFields combines readonly with AND, so a false dependency
-        // *overrides* an arch `readonly="..."` on the same field and unlocks it.
-        //
-        // `written: true` is the third case -- "this widget edits the field".
-        // It must be writable when this declaration is what puts it in the view,
-        // and when the arch already carries the field the arch keeps ownership
-        // of its modifiers, so no patch is applied at all.
         const alreadyActive = field.name in activeFields;
         if (!("readonly" in field)) {
             field.readonly = !field.written;
@@ -142,7 +147,7 @@ export function addFieldDependencies(activeFields, fields, fieldDependencies = [
             }
         } else {
             activeFields[field.name] = makeActiveField(field);
-            if (["one2many", "many2many"].includes(field.type)) {
+            if (isX2Many(field)) {
                 activeFields[field.name].related = {
                     activeFields: {},
                     fields: {},
@@ -166,6 +171,11 @@ export function addFieldDependencies(activeFields, fields, fieldDependencies = [
     }
 }
 
+/**
+ * @param {Record<string, any>} activeField
+ * @param {Record<string, any>} extra
+ * @returns {void}
+ */
 function completeActiveField(activeField, extra) {
     if (extra.related) {
         invalidateModifierDependencies(activeField.related.activeFields);
@@ -186,6 +196,11 @@ function completeActiveField(activeField, extra) {
     }
 }
 
+/**
+ * @param {Record<string, any>} activeFields
+ * @param {Record<string, any>} extraActiveFields
+ * @returns {void}
+ */
 export function completeActiveFields(activeFields, extraActiveFields) {
     invalidateModifierDependencies(activeFields);
     for (const fieldName of Object.keys(extraActiveFields)) {
@@ -201,11 +216,15 @@ export function completeActiveFields(activeFields, extraActiveFields) {
     }
 }
 
+/**
+ * @param {Record<string, any>} property
+ * @returns {Record<string, any>}
+ */
 export function createPropertyActiveField(property) {
     const { type } = property;
 
     const activeField = makeActiveField();
-    if (type === "one2many" || type === "many2many") {
+    if (isX2ManyType(type)) {
         activeField.related = {
             fields: {
                 id: { name: "id", type: "integer" },
@@ -220,6 +239,12 @@ export function createPropertyActiveField(property) {
     return activeField;
 }
 
+/**
+ * @param {boolean | string | undefined} mod1
+ * @param {boolean | string | undefined} mod2
+ * @param {"AND" | "OR"} operator
+ * @returns {boolean | string | undefined}
+ */
 export function combineModifiers(mod1, mod2, operator) {
     if (operator !== "AND" && operator !== "OR") {
         throw new Error(
@@ -260,6 +285,11 @@ export function combineModifiers(mod1, mod2, operator) {
     }
 }
 
+/**
+ * @param {Record<string, any>} activeField
+ * @param {Record<string, any>} patch
+ * @returns {void}
+ */
 export function patchActiveFields(activeField, patch) {
     activeField.invisible = combineModifiers(
         activeField.invisible,
@@ -301,123 +331,154 @@ export function patchActiveFields(activeField, patch) {
     }
 }
 
+/**
+ * @param {any} declaration
+ * @param {any} node
+ * @returns {any[] | undefined}
+ */
+function resolveFieldDependencies(declaration, node) {
+    return typeof declaration === "function" ? declaration(node) : declaration;
+}
+
+/**
+ * @param {Record<string, any>} activeField
+ * @param {any} fieldNode
+ * @returns {void}
+ */
+function attachX2manyViews(activeField, fieldNode) {
+    activeField.related = { activeFields: {}, fields: {} };
+    const viewDescr = fieldNode.views?.[fieldNode.viewMode];
+    if (!viewDescr) {
+        return;
+    }
+    activeField.related = extractFieldsFromArchInfo(viewDescr, viewDescr.fields);
+    activeField.limit = viewDescr.limit;
+    activeField.defaultOrderBy = viewDescr.defaultOrder;
+
+    if (fieldNode.views.form) {
+        const formArchInfo = extractFieldsFromArchInfo(
+            fieldNode.views.form,
+            fieldNode.views.form.fields,
+        );
+        completeActiveFields(
+            activeField.related.activeFields,
+            formArchInfo.activeFields,
+        );
+        Object.assign(activeField.related.fields, formArchInfo.fields);
+    }
+
+    if (fieldNode.viewMode !== "default" && fieldNode.views.default) {
+        const defaultArchInfo = extractFieldsFromArchInfo(
+            fieldNode.views.default,
+            fieldNode.views.default.fields,
+        );
+        for (const name of Object.keys(defaultArchInfo.activeFields)) {
+            if (name in activeField.related.activeFields) {
+                patchActiveFields(
+                    activeField.related.activeFields[name],
+                    defaultArchInfo.activeFields[name],
+                );
+            } else {
+                activeField.related.activeFields[name] = {
+                    ...defaultArchInfo.activeFields[name],
+                };
+            }
+        }
+        activeField.related.fields = Object.assign(
+            {},
+            defaultArchInfo.fields,
+            activeField.related.fields,
+        );
+    }
+}
+
+/**
+ * @param {any} fieldNode
+ * @param {Record<string, any>} fields
+ * @returns {Record<string, any>}
+ */
+function buildActiveFieldFromNode(fieldNode, fields) {
+    const fieldName = fieldNode.name;
+    const activeField = makeActiveField({
+        context: fieldNode.context,
+        invisible: combineModifiers(
+            fieldNode.invisible,
+            fieldNode.column_invisible,
+            "OR",
+        ),
+        readonly: fieldNode.readonly,
+        required: fieldNode.required,
+        onChange: fieldNode.onChange,
+        forceSave: fieldNode.forceSave,
+        isHandle: fieldNode.isHandle,
+    });
+    if (isX2Many(fields[fieldName])) {
+        attachX2manyViews(activeField, fieldNode);
+        if (fieldNode.field?.useSubView) {
+            activeField.required = "False";
+        }
+    }
+    if (
+        ["many2one", "many2one_reference"].includes(fields[fieldName].type) &&
+        fieldNode.views
+    ) {
+        const viewDescr = fieldNode.views.default;
+        activeField.related = extractFieldsFromArchInfo(viewDescr, viewDescr.fields);
+    }
+    return activeField;
+}
+
+/**
+ * @param {Record<string, any>} activeFields
+ * @param {Record<string, any>} fields
+ * @param {any} fieldNode
+ * @returns {void}
+ */
+function addNodeFieldDependencies(activeFields, fields, fieldNode) {
+    if (fieldNode.field) {
+        addFieldDependencies(
+            activeFields,
+            fields,
+            resolveFieldDependencies(fieldNode.field.fieldDependencies, fieldNode),
+        );
+    }
+    if (fieldNode.options?.placeholder_field) {
+        addFieldDependencies(activeFields, fields, [
+            {
+                name: fieldNode.options.placeholder_field,
+                type: fields[fieldNode.options.placeholder_field]?.type,
+                readonly: true,
+                optional: true,
+            },
+        ]);
+    }
+}
+
+/**
+ * @param {{ fieldNodes: Record<string, any>, widgetNodes?: Record<string, any> }} archInfo
+ * @param {Record<string, any>} fields
+ * @returns {{ activeFields: Record<string, any>, fields: Record<string, any> }}
+ */
 export function extractFieldsFromArchInfo({ fieldNodes, widgetNodes }, fields) {
+    /** @type {Record<string, any>} */
     const activeFields = {};
     for (const fieldNode of Object.values(fieldNodes)) {
         const fieldName = fieldNode.name;
-        const activeField = makeActiveField({
-            context: fieldNode.context,
-            invisible: combineModifiers(
-                fieldNode.invisible,
-                fieldNode.column_invisible,
-                "OR",
-            ),
-            readonly: fieldNode.readonly,
-            required: fieldNode.required,
-            onChange: fieldNode.onChange,
-            forceSave: fieldNode.forceSave,
-            isHandle: fieldNode.isHandle,
-        });
-        if (["one2many", "many2many"].includes(fields[fieldName].type)) {
-            activeField.related = {
-                activeFields: {},
-                fields: {},
-            };
-            if (fieldNode.views) {
-                const viewDescr = fieldNode.views[fieldNode.viewMode];
-                if (viewDescr) {
-                    activeField.related = extractFieldsFromArchInfo(
-                        viewDescr,
-                        viewDescr.fields,
-                    );
-                    activeField.limit = viewDescr.limit;
-                    activeField.defaultOrderBy = viewDescr.defaultOrder;
-                    if (fieldNode.views.form) {
-                        const formArchInfo = extractFieldsFromArchInfo(
-                            fieldNode.views.form,
-                            fieldNode.views.form.fields,
-                        );
-                        completeActiveFields(
-                            activeField.related.activeFields,
-                            formArchInfo.activeFields,
-                        );
-                        Object.assign(activeField.related.fields, formArchInfo.fields);
-                    }
-
-                    if (fieldNode.viewMode !== "default" && fieldNode.views.default) {
-                        const defaultArchInfo = extractFieldsFromArchInfo(
-                            fieldNode.views.default,
-                            fieldNode.views.default.fields,
-                        );
-                        for (const fieldName of Object.keys(
-                            defaultArchInfo.activeFields,
-                        )) {
-                            if (fieldName in activeField.related.activeFields) {
-                                patchActiveFields(
-                                    activeField.related.activeFields[fieldName],
-                                    defaultArchInfo.activeFields[fieldName],
-                                );
-                            } else {
-                                activeField.related.activeFields[fieldName] = {
-                                    ...defaultArchInfo.activeFields[fieldName],
-                                };
-                            }
-                        }
-                        activeField.related.fields = Object.assign(
-                            {},
-                            defaultArchInfo.fields,
-                            activeField.related.fields,
-                        );
-                    }
-                }
-            }
-            if (fieldNode.field?.useSubView) {
-                activeField.required = "False";
-            }
-        }
-        if (
-            ["many2one", "many2one_reference"].includes(fields[fieldName].type) &&
-            fieldNode.views
-        ) {
-            const viewDescr = fieldNode.views.default;
-            activeField.related = extractFieldsFromArchInfo(
-                viewDescr,
-                viewDescr.fields,
-            );
-        }
-
+        const activeField = buildActiveFieldFromNode(fieldNode, fields);
         if (fieldName in activeFields) {
             patchActiveFields(activeFields[fieldName], activeField);
         } else {
             activeFields[fieldName] = activeField;
         }
-
-        if (fieldNode.field) {
-            let fieldDependencies = fieldNode.field.fieldDependencies;
-            if (typeof fieldDependencies === "function") {
-                fieldDependencies = fieldDependencies(fieldNode);
-            }
-            addFieldDependencies(activeFields, fields, fieldDependencies);
-        }
-
-        if (fieldNode.options?.placeholder_field) {
-            addFieldDependencies(activeFields, fields, [
-                {
-                    name: fieldNode.options.placeholder_field,
-                    type: fields[fieldNode.options.placeholder_field]?.type,
-                    readonly: true,
-                    optional: true,
-                },
-            ]);
-        }
+        addNodeFieldDependencies(activeFields, fields, fieldNode);
     }
 
     for (const widgetInfo of Object.values(widgetNodes || {})) {
-        let fieldDependencies = widgetInfo.widget.fieldDependencies;
-        if (typeof fieldDependencies === "function") {
-            fieldDependencies = fieldDependencies(widgetInfo);
-        }
-        addFieldDependencies(activeFields, fields, fieldDependencies);
+        addFieldDependencies(
+            activeFields,
+            fields,
+            resolveFieldDependencies(widgetInfo.widget.fieldDependencies, widgetInfo),
+        );
     }
     return { activeFields, fields };
 }

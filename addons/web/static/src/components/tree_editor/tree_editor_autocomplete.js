@@ -1,8 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/tree_editor/tree_editor_autocomplete */
-
+import { isAvatarModel } from "@web/components/record_selectors/avatar_models";
 import { MultiRecordSelector } from "@web/components/record_selectors/multi_record_selector";
 import { RecordSelector } from "@web/components/record_selectors/record_selector";
 import { formatAST } from "@web/core/py_js/py";
@@ -60,6 +59,17 @@ export class DomainSelectorAutocomplete extends MultiRecordSelector {
      * @returns {Array<{text: string, colorIndex: number, onDelete: Function, img: string|false}>}
      */
     getTags(props, displayNames) {
+        // The model comes from `props`, not `this.props` -- see the note on
+        // `MultiRecordSelector.getTags`. This override is the copy where the
+        // two are *measured* to diverge: changing a condition's path in the
+        // domain editor keeps the component instance (verified) and reaches
+        // here with `props.resModel` already moved while `this.props.resModel`
+        // still holds the relation being left.
+        //
+        // `onDelete` deliberately keeps reading `this.props`: it must splice
+        // the list as it stands when the tag is clicked, not a snapshot taken
+        // when the tag was built.
+        const withAvatar = isAvatarModel(props.resModel);
         return props.resIds.map((val, index) => {
             const { text, colorIndex } = getFormat(val, displayNames);
             return {
@@ -72,9 +82,9 @@ export class DomainSelectorAutocomplete extends MultiRecordSelector {
                     ]);
                 },
                 img:
-                    this.isAvatarModel &&
+                    withAvatar &&
                     isId(val) &&
-                    imageUrl(this.props.resModel, val, "avatar_128"),
+                    imageUrl(props.resModel, val, "avatar_128"),
             };
         });
     }

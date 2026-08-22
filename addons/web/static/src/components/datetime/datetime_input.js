@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/datetime/datetime_input */
-
 import { Component } from "@odoo/owl";
 import { omit } from "@web/core/utils/collections/objects";
 
@@ -12,11 +10,11 @@ import { useDateTimePicker } from "./datetime_picker_hook.js";
 
 /**
  * @typedef {import("./datetime_picker").DateTimePickerProps & {
- *  format?: string;
- *  id?: string;
- *  onApply?: (value: DateTime) => any;
- *  onChange?: (value: DateTime) => any;
- *  placeholder?: string;
+ * format?: string;
+ * id?: string;
+ * onApply?: (value: DateTime) => any;
+ * onChange?: (value: DateTime) => any;
+ * placeholder?: string;
  * }} DateTimeInputProps
  */
 

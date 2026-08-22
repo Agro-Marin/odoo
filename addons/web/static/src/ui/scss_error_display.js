@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/scss_error_display */
-
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
 import { _t, translationIsReady } from "@web/core/translation";
@@ -16,19 +14,7 @@ export function canActOnScssErrors() {
     return Boolean(user.isAdmin || odoo.debug);
 }
 
-/**
- * The `scss_error_display` service.
- *
- * A class rather than a closure returning an object literal; see
- * `core/hotkeys/hotkey_service.js` for the reasoning and
- * `tooling/architecture/js_service_shape.py` for the budget.
- *
- * **The three guards stay in `start()`**, as in `web_vitals` and `profiling`:
- * they decide whether there is a service at all — a null origin, a browser that
- * cannot read cross-origin rules, and no matching stylesheets all mean nothing
- * to watch — and a constructor cannot decline to construct.
- */
-export class ScssErrorDisplayService {
+class ScssErrorDisplayService {
     /**
      * @param {{ notification: any }} services
      * @param {CSSStyleSheet[]} assets
@@ -40,10 +26,6 @@ export class ScssErrorDisplayService {
         translationIsReady.then(() => this.report());
     }
 
-    /**
-     * Runs once translations are loaded, so the notification is translated.
-     * Silent if the service was destroyed while waiting.
-     */
     report() {
         if (this.destroyed) {
             return;
@@ -91,12 +73,8 @@ export class ScssErrorDisplayService {
     }
 }
 
-export const scssErrorNotificationService = {
+const scssErrorNotificationService = {
     dependencies: ["notification"],
-    /**
-     * @param {import("@web/env").OdooEnv} env
-     * @param {{ notification: any }} services
-     */
     /**
      * @param {import("@web/env").OdooEnv} env
      * @param {{ notification: any }} services

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/errors/error_dialogs */
-
 import { Component, markup, useState } from "@odoo/owl";
 import { CopyButton } from "@web/components/copy_button/copy_button";
 import { useAction } from "@web/core/action_port";
@@ -44,28 +42,15 @@ export const standardErrorDialogProps = {
     close: Function,
 };
 
-/** @type {Map<string, string>} */
-export const odooExceptionTitleMap = new Map(
-    Object.entries({
-        "odoo.addons.base.models.ir_mail_server.MailDeliveryError":
-            _t("MailDeliveryError"),
-        "odoo.addons.base.models.ir_mail_server.MailDeliveryException": _t(
-            "MailDeliveryException",
-        ),
-        "odoo.exceptions.AccessDenied": _t("Access Denied"),
-        "odoo.exceptions.MissingError": _t("Missing Record"),
-        "odoo.addons.web.controllers.action.MissingActionError": _t("Missing Action"),
-        "odoo.addons.base.models.ir_actions_server.ServerActionWithWarningsError":
-            _t("Invalid Operation"),
-        "odoo.addons.base.models.ir_actions.ServerActionWithWarningsError":
-            _t("Invalid Operation"),
-        "odoo.exceptions.UserError": _t("Invalid Operation"),
-        "odoo.exceptions.ValidationError": _t("Validation Error"),
-        "odoo.exceptions.AccessError": _t("Access Error"),
-        "werkzeug.exceptions.Forbidden": _t("Access Denied"),
-        "odoo.exceptions.Warning": _t("Warning"),
-    }),
-);
+/**
+ * @param {string | null | undefined} exceptionName
+ * @returns {string | undefined}
+ */
+function titleForException(exceptionName) {
+    return exceptionName
+        ? odooExceptionTitleMap.get(exceptionName)?.toString()
+        : undefined;
+}
 
 export class ErrorDialog extends Component {
     static template = "web.ErrorDialog";
@@ -79,23 +64,49 @@ export class ErrorDialog extends Component {
         this.state = useState({
             showTraceback: false,
         });
-        this.contextDetails = "Occurred ";
-        if (this.props.serverHost) {
-            this.contextDetails += `on ${this.props.serverHost} `;
-        }
-        if (this.props.model) {
-            this.contextDetails += `on model ${this.props.model} `;
-        }
-        this.contextDetails += `on ${DateTime.now()
+        const when = `${DateTime.now()
             .setZone("UTC")
             .toFormat("yyyy-MM-dd HH:mm:ss")} GMT`;
+        const { model, serverHost: host } = this.props;
+        if (host && model) {
+            this.contextDetails = _t(
+                "Occurred on %(host)s on model %(model)s on %(when)s",
+                { host, model, when },
+            );
+        } else if (host) {
+            this.contextDetails = _t("Occurred on %(host)s on %(when)s", {
+                host,
+                when,
+            });
+        } else if (model) {
+            this.contextDetails = _t("Occurred on model %(model)s on %(when)s", {
+                model,
+                when,
+            });
+        } else {
+            this.contextDetails = _t("Occurred on %(when)s", { when });
+        }
+    }
+
+    /**
+     * @returns {string}
+     */
+    get title() {
+        return /** @type {any} */ (this.constructor).title;
+    }
+
+    /**
+     * @returns {string | null | undefined}
+     */
+    get traceback() {
+        return this.props.traceback;
     }
 
     /**
      * @returns {string}
      */
     get clipboardReport() {
-        return `${this.props.name}\n\n${this.props.message}\n\n${this.contextDetails}\n\n${this.props.traceback}`;
+        return `${this.props.name}\n\n${this.props.message}\n\n${this.contextDetails}\n\n${this.traceback}`;
     }
 
     /** @returns {string} */
@@ -116,41 +127,30 @@ RequestEntityTooLargeErrorDialog.title = _t(
 );
 
 export class RPCErrorDialog extends ErrorDialog {
-    setup() {
-        super.setup();
-        this.inferTitle();
-        this.traceback = this.props.traceback;
-        if (this.props.data && this.props.data.debug) {
-            this.traceback = `${this.props.data.debug}\nThe above server error caused the following client error:\n${this.traceback}`;
-        }
-    }
-    inferTitle() {
-        if (
-            this.props.exceptionName &&
-            odooExceptionTitleMap.has(this.props.exceptionName)
-        ) {
-            this.title = odooExceptionTitleMap.get(this.props.exceptionName).toString();
-            return;
-        }
-        if (!this.props.type) {
-            return;
+    /** @returns {string} */
+    get title() {
+        const known = titleForException(this.props.exceptionName);
+        if (known) {
+            return known;
         }
         switch (this.props.type) {
             case "server":
-                this.title = _t("Odoo Server Error");
-                break;
+                return _t("Odoo Server Error");
             case "script":
-                this.title = _t("Odoo Client Error");
-                break;
+                return _t("Odoo Client Error");
             case "network":
-                this.title = _t("Odoo Network Error");
-                break;
+                return _t("Odoo Network Error");
         }
+        return super.title;
     }
 
-    /** @returns {string} */
-    get clipboardReport() {
-        return `${this.props.name}\n\n${this.props.message}\n\n${this.contextDetails}\n\n${this.traceback}`;
+    /** @returns {string | null | undefined} */
+    get traceback() {
+        const debug = this.props.data?.debug;
+        if (!debug) {
+            return this.props.traceback;
+        }
+        return `${debug}\nThe above server error caused the following client error:\n${this.props.traceback}`;
     }
 }
 
@@ -175,13 +175,11 @@ export class WarningDialog extends Component {
      * @returns {string}
      */
     inferTitle() {
-        if (
-            this.props.exceptionName &&
-            odooExceptionTitleMap.has(this.props.exceptionName)
-        ) {
-            return odooExceptionTitleMap.get(this.props.exceptionName).toString();
-        }
-        return this.props.title || _t("Odoo Warning");
+        return (
+            titleForException(this.props.exceptionName) ||
+            this.props.title ||
+            _t("Odoo Warning")
+        );
     }
 }
 
@@ -189,6 +187,9 @@ export class RedirectWarningDialog extends Component {
     static template = "web.RedirectWarningDialog";
     static components = { Dialog };
     static props = { ...standardErrorDialogProps };
+
+    /** @type {import("@web/core/action_port").ActionPort} */
+    actionService;
 
     setup() {
         this.actionService = useAction();
@@ -233,23 +234,70 @@ export class SessionExpiredDialog extends Component {
     }
 }
 
-registry
-    .category("error_dialogs")
-    .add("odoo.exceptions.AccessDenied", WarningDialog)
-    .add("odoo.exceptions.AccessError", WarningDialog)
-    .add("odoo.exceptions.MissingError", WarningDialog)
-    .add("odoo.addons.web.controllers.action.MissingActionError", WarningDialog)
-    .add(
-        "odoo.addons.base.models.ir_actions_server.ServerActionWithWarningsError",
-        WarningDialog,
-    )
-    .add(
-        "odoo.addons.base.models.ir_actions.ServerActionWithWarningsError",
-        WarningDialog,
-    )
-    .add("odoo.exceptions.UserError", WarningDialog)
-    .add("odoo.exceptions.ValidationError", WarningDialog)
-    .add("odoo.exceptions.RedirectWarning", RedirectWarningDialog)
-    .add("odoo.http.SessionExpiredException", SessionExpiredDialog)
-    .add("werkzeug.exceptions.Forbidden", WarningDialog)
-    .add("504", Error504Dialog);
+/**
+ * @type {{name: string, title?: any, Dialog?: import("@odoo/owl").ComponentConstructor}[]}
+ */
+const ODOO_EXCEPTIONS = [
+    {
+        name: "odoo.addons.base.models.ir_mail_server.MailDeliveryError",
+        title: _t("MailDeliveryError"),
+    },
+    {
+        name: "odoo.exceptions.AccessDenied",
+        title: _t("Access Denied"),
+        Dialog: WarningDialog,
+    },
+    {
+        name: "odoo.exceptions.AccessError",
+        title: _t("Access Error"),
+        Dialog: WarningDialog,
+    },
+    {
+        name: "odoo.exceptions.MissingError",
+        title: _t("Missing Record"),
+        Dialog: WarningDialog,
+    },
+    {
+        name: "odoo.addons.web.controllers.action.MissingActionError",
+        title: _t("Missing Action"),
+        Dialog: WarningDialog,
+    },
+    {
+        name: "odoo.addons.base.models.ir_actions_server.ServerActionWithWarningsError",
+        title: _t("Invalid Operation"),
+        Dialog: WarningDialog,
+    },
+    {
+        name: "odoo.exceptions.UserError",
+        title: _t("Invalid Operation"),
+        Dialog: WarningDialog,
+    },
+    {
+        name: "odoo.exceptions.ValidationError",
+        title: _t("Validation Error"),
+        Dialog: WarningDialog,
+    },
+    {
+        name: "werkzeug.exceptions.Forbidden",
+        title: _t("Access Denied"),
+        Dialog: WarningDialog,
+    },
+    { name: "odoo.exceptions.RedirectWarning", Dialog: RedirectWarningDialog },
+    { name: "odoo.http.SessionExpiredException", Dialog: SessionExpiredDialog },
+    { name: "504", Dialog: Error504Dialog },
+];
+
+/** @type {Map<string, any>} */
+export const odooExceptionTitleMap = new Map(
+    ODOO_EXCEPTIONS.filter((entry) => entry.title).map((entry) => [
+        entry.name,
+        entry.title,
+    ]),
+);
+
+const errorDialogRegistry = registry.category("error_dialogs");
+for (const { name, Dialog } of ODOO_EXCEPTIONS) {
+    if (Dialog) {
+        errorDialogRegistry.add(name, Dialog);
+    }
+}

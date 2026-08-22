@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/monetary/monetary_field */
-
 import { useEffect, useRef } from "@odoo/owl";
 import { getCurrency } from "@web/core/currency";
 import { formatMonetary } from "@web/core/formatters";
@@ -11,6 +9,11 @@ import { _t } from "@web/core/translation";
 import { nbsp } from "@web/core/utils/format/strings";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { registerField } from "@web/fields/_registry";
+import {
+    archAttribute,
+    enableFormattingOption,
+    hideTrailingZerosOption,
+} from "@web/fields/field_options";
 import { isFalseEmpty } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -69,7 +72,7 @@ export class MonetaryField extends NumericInputFieldBase {
     get currencyId() {
         const currencyField =
             this.props.currencyField ||
-            this.props.record.fields[this.props.name].currency_field ||
+            this.field.definition.currency_field ||
             "currency_id";
         const currency = this.props.record.data[currencyField];
         return currency?.id;
@@ -91,7 +94,7 @@ export class MonetaryField extends NumericInputFieldBase {
     /** @returns {[number, number] | null} */
     get currencyDigits() {
         if (this.props.useFieldDigits) {
-            return this.props.record.fields[this.props.name].digits;
+            return this.field.definition.digits;
         }
         const currency = this.currency;
         if (!currency) {
@@ -100,19 +103,16 @@ export class MonetaryField extends NumericInputFieldBase {
         return currency.digits;
     }
 
-    /** @returns {string} */
-    get formattedValue() {
-        if (
-            !this.props.formatNumber ||
-            (this.props.inputType === "number" && !this.props.readonly)
-        ) {
-            return this.rawValue;
-        }
+    /**
+     * @override
+     * @param {boolean} _humanReadable
+     * @returns {string}
+     */
+    formatValue(_humanReadable) {
         return formatMonetary(this.value, {
             digits: this.currencyDigits,
             minDigits:
-                this.props.useFieldDigits &&
-                this.props.record.fields[this.props.name].min_display_digits,
+                this.props.useFieldDigits && this.field.definition.min_display_digits,
             currencyId: this.currencyId,
             noSymbol: !this.props.readonly || this.props.hideSymbol,
             trailingZeros: this.props.trailingZeros,
@@ -128,15 +128,7 @@ export class MonetaryField extends NumericInputFieldBase {
 export const monetaryField = {
     component: MonetaryField,
     supportedOptions: [
-        {
-            label: _t("Format number"),
-            name: "enable_formatting",
-            type: "boolean",
-            default: true,
-            help: _t(
-                "Format the value according to your language setup - e.g. thousand separators, rounding, etc.",
-            ),
-        },
+        enableFormattingOption(),
         {
             label: _t("Hide symbol"),
             name: "no_symbol",
@@ -154,22 +146,18 @@ export const monetaryField = {
             type: "boolean",
             help: _t("Round using the field's own digits instead of the currency's."),
         },
-        {
-            label: _t("Hide trailing zeros"),
-            name: "hide_trailing_zeros",
-            type: "boolean",
+        hideTrailingZerosOption(),
+    ],
+    supportedAttributes: [
+        archAttribute("type", _t("Input type"), {
             help: _t(
-                "Hide zeros to the right of the last non-zero digit, e.g. 1.20 becomes 1.2",
+                "Set to `number` for a native numeric input; the value is then left unformatted while editing.",
             ),
-        },
+        }),
     ],
     supportedTypes: ["monetary", "float", "integer"],
     displayName: _t("Monetary"),
     isEmpty: isFalseEmpty,
-    // `currencyId` reads the override straight out of `record.data`, so a view
-    // that names the option but not the field rendered the amount with no
-    // symbol and the wrong digits. The default currency field comes from the
-    // field's own metadata and is already part of the read.
     fieldDependencies: ({ options }) =>
         options.currency_field
             ? [{ name: options.currency_field, optional: true, readonly: true }]

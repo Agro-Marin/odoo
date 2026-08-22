@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/controller_component */
-
 import {
     Component,
     onError,
@@ -24,25 +22,43 @@ const ControllerComponentTemplate = xml`<t t-component="Component" t-props="comp
 /** @import { ActionManager } from "./action_service.js" */
 
 /**
+ * The three recorders a controller exposes to whatever it renders: what to run
+ * before leaving, and the two state exporters. A dialog has none -- it is never
+ * left, restored or pushed to the url.
+ *
+ * `View` is the exception to the sub-env: it takes the recorders as props
+ * instead, so handing them down twice would give its descendants two paths to
+ * the same object.
+ *
+ * @param {any} component the ControllerComponent being set up
+ * @param {any} action
+ * @param {ActionManager} am
+ */
+function useControllerStateRecorders(component, action, am) {
+    if (action.target === "new") {
+        return;
+    }
+    component.__beforeLeave__ = new CallbackRecorder();
+    component.__getGlobalState__ = new CallbackRecorder();
+    component.__getLocalState__ = new CallbackRecorder();
+    useBus(am.env.bus, AppEvent.CLEAR_UNCOMMITTED_CHANGES, (ev) => {
+        ev.detail.push(...component.__beforeLeave__.callbacks);
+    });
+    if (component.Component !== View) {
+        useChildSubEnv({
+            __beforeLeave__: component.__beforeLeave__,
+            __getGlobalState__: component.__getGlobalState__,
+            __getLocalState__: component.__getLocalState__,
+        });
+    }
+}
+
+/**
  * @param {ActionManager} am
  */
 export function makeControllerComponent(am) {
     return class ControllerComponent extends Component {
         static template = ControllerComponentTemplate;
-        /**
-         * Everything except `_context` is the wrapped component's own prop bag,
-         * forwarded verbatim by `componentProps` — so the schema has to stay
-         * open. `_context` is the one prop this class reads, and it reads it
-         * five times without a guard (`controller`, `action`, `nextStack`,
-         * `commit`, `fail`, `discard`). Declaring it turns "the action manager
-         * forgot to pass its context" from a `TypeError` inside `setup` — which
-         * surfaces as a destroyed root and an empty screen — into a named props
-         * error at the boundary that was actually violated.
-         *
-         * `updateActionState` is declared for the same reason: `componentProps`
-         * wraps it unconditionally, so a controller reaching this class without
-         * one fails on the next render rather than here.
-         */
         static props = {
             _context: { type: Object },
             updateActionState: { type: Function, optional: true },
@@ -62,23 +78,7 @@ export function makeControllerComponent(am) {
                     am.pushState(nextStack, { sync: true });
                 },
             });
-            if (action.target !== "new") {
-                this.__beforeLeave__ = new CallbackRecorder();
-                this.__getGlobalState__ = new CallbackRecorder();
-                this.__getLocalState__ = new CallbackRecorder();
-                useBus(am.env.bus, AppEvent.CLEAR_UNCOMMITTED_CHANGES, (ev) => {
-                    const callbacks = ev.detail;
-                    const beforeLeaveFns = this.__beforeLeave__.callbacks;
-                    callbacks.push(...beforeLeaveFns);
-                });
-                if (this.Component !== View) {
-                    useChildSubEnv({
-                        __beforeLeave__: this.__beforeLeave__,
-                        __getGlobalState__: this.__getGlobalState__,
-                        __getLocalState__: this.__getLocalState__,
-                    });
-                }
-            }
+            useControllerStateRecorders(this, action, am);
             onMounted(this.onMounted);
             onWillUnmount(this.onWillUnmount);
             onWillDestroy(this.onWillDestroy);
@@ -124,8 +124,10 @@ export function makeControllerComponent(am) {
             const { _context, ...componentProps } = this.props;
             const { controller } = _context;
             const updateActionState = componentProps.updateActionState;
-            componentProps.updateActionState = (/** @type {any} */ newState) =>
-                updateActionState(controller, newState);
+            if (updateActionState) {
+                componentProps.updateActionState = (/** @type {any} */ newState) =>
+                    updateActionState(controller, newState);
+            }
             if (this.Component === View) {
                 componentProps.__beforeLeave__ = this.__beforeLeave__;
                 componentProps.__getGlobalState__ = this.__getGlobalState__;

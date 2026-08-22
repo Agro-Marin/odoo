@@ -1,13 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/control_panel/control_panel */
-
 import { Component, onMounted, useEffect, useRef, useState } from "@odoo/owl";
-import { CheckBox } from "@web/components/checkbox/checkbox";
-import { AccordionItem } from "@web/components/dropdown/accordion_item";
 import { Dropdown } from "@web/components/dropdown/dropdown";
-import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { Pager } from "@web/components/pager/pager";
 import { useAction } from "@web/core/action_port";
@@ -18,23 +13,23 @@ import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { _t } from "@web/core/translation";
 import { useChildRef, useService } from "@web/core/utils/hooks";
 import { Breadcrumbs } from "@web/search/breadcrumbs/breadcrumbs";
-import {
-    EmbeddedActionsBar,
-    useEmbeddedActions,
-} from "@web/search/embedded_actions_bar/embedded_actions_bar";
+import { useEmbeddedActions } from "@web/search/embedded_actions_bar/embedded_actions";
+import { EmbeddedActionsBar } from "@web/search/embedded_actions_bar/embedded_actions_bar";
+import { EmbeddedActionsDropdown } from "@web/search/embedded_actions_bar/embedded_actions_dropdown";
 import { SearchBar } from "@web/search/search_bar/search_bar";
 import { useCommand } from "@web/ui/commands/command_hook";
 
 const STICKY_CLASS = "o_mobile_sticky";
 
 /**
- * @returns {{showEmbedded: boolean, embeddedActions: any[], visibleEmbeddedActions: any[], newActionIsShared: boolean, newActionName: string, currentEmbeddedAction: any}}
+ * @returns {{showEmbedded: boolean, embeddedActions: any[], visibleEmbeddedActions: any[], showAllEmbeddedActions: boolean, newActionIsShared: boolean, newActionName: string, currentEmbeddedAction: any}}
  */
 function makeNoEmbeddedInfos() {
     return {
         showEmbedded: false,
         embeddedActions: [],
         visibleEmbeddedActions: [],
+        showAllEmbeddedActions: false,
         newActionIsShared: false,
         newActionName: "",
         currentEmbeddedAction: undefined,
@@ -49,9 +44,8 @@ export class ControlPanel extends Component {
         Dropdown,
         DropdownItem,
         Breadcrumbs,
-        AccordionItem,
-        CheckBox,
         EmbeddedActionsBar,
+        EmbeddedActionsDropdown,
     };
     static props = {
         display: { type: Object, optional: true },
@@ -69,15 +63,11 @@ export class ControlPanel extends Component {
     /** @type {any} */
     orm;
     /**
-     * @type {import("@web/search/embedded_actions_bar/embedded_actions_bar").EmbeddedActions | null}
+     * @type {import("@web/search/embedded_actions_bar/embedded_actions").EmbeddedActions | null}
      */
     embeddedActions;
-    /** @type {import("@web/components/dropdown/dropdown_hooks").DropdownState} */
-    embeddedActionsDropdown;
     /** @type {{el: HTMLElement | null}} */
     root;
-    /** @type {{el: HTMLElement | null}} */
-    newActionNameRef;
     /** @type {any} */
     adaptiveMenuRef;
     /**
@@ -110,8 +100,6 @@ export class ControlPanel extends Component {
         this.adaptiveMenuRef = useChildRef();
 
         this.embeddedActions = useEmbeddedActions();
-        this.embeddedActionsDropdown = useDropdownState();
-        this.newActionNameRef = useRef("newActionNameRef");
         this.state = useState({
             embeddedInfos: this.embeddedActions
                 ? this.embeddedActions.embeddedInfos
@@ -204,6 +192,7 @@ export class ControlPanel extends Component {
     /**
      * @returns {Object}
      */
+    /** @returns {Record<string, any>} */
     get display() {
         return {
             layoutActions: true,
@@ -211,78 +200,8 @@ export class ControlPanel extends Component {
         };
     }
 
-    /**
-     * @param {import("@web/search/embedded_actions_bar/embedded_actions_bar").EmbeddedAction} action
-     * @returns {boolean}
-     */
-    _isEmbeddedActionVisible(action) {
-        return this.state.embeddedInfos.visibleEmbeddedActions.includes(action.id);
-    }
-
-    /**
-     * @param {import("@web/search/embedded_actions_bar/embedded_actions_bar").EmbeddedAction} action
-     * @returns {string}
-     */
-    getDropdownClass(action) {
-        return (!this.env.isSmall && this._isEmbeddedActionVisible(action)) ||
-            (this.env.isSmall &&
-                this.state.embeddedInfos.currentEmbeddedAction?.id === action.id)
-            ? "selected"
-            : "";
-    }
-
     async onClickShowEmbedded() {
         await this.embeddedActions.toggleBar();
-    }
-
-    /**
-     * @param {import("@web/search/embedded_actions_bar/embedded_actions_bar").EmbeddedAction} action
-     */
-    async onEmbeddedActionClick(action) {
-        return this.embeddedActions.openAction(action);
-    }
-
-    /**
-     * @param {number|false} actionId
-     */
-    _setVisibility(actionId) {
-        return this.embeddedActions.toggleActionVisibility(actionId);
-    }
-
-    /**
-     * @param {import("@web/search/embedded_actions_bar/embedded_actions_bar").EmbeddedAction} action
-     */
-    openConfirmationDialog(action) {
-        return this.embeddedActions.confirmDelete(action);
-    }
-
-    /**
-     * @param {KeyboardEvent} ev
-     * @param {import("@web/search/embedded_actions_bar/embedded_actions_bar").EmbeddedAction} action
-     */
-    onDeleteKeydown(ev, action) {
-        if (ev.key !== "Enter" && ev.key !== " ") {
-            return;
-        }
-        ev.preventDefault();
-        ev.stopPropagation();
-        this.openConfirmationDialog(action);
-    }
-
-    _onShareCheckboxChange() {
-        this.state.embeddedInfos.newActionIsShared =
-            !this.state.embeddedInfos.newActionIsShared;
-    }
-
-    /**
-     * @param {Event} ev
-     */
-    async _saveNewAction(ev) {
-        const saved = await this.embeddedActions.saveNewAction();
-        if (!saved) {
-            ev.stopPropagation();
-            this.newActionNameRef.el?.focus();
-        }
     }
 
     onScrollThrottled() {

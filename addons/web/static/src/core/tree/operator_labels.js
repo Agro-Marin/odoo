@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/operator_labels */
-
 import { parseExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
 

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/assets */
-
 import { Component, onWillStart, whenReady, xml } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { session } from "@web/session";
@@ -21,10 +19,10 @@ const log = makeAssetLog("js");
 
 /**
  * @typedef {{
- *  cssLibs: string[];
- *  jsLibs: string[];
- *  esmSpecifiers: string[] | null;
- *  esmImportMap: Record<string, string> | null;
+ * cssLibs: string[];
+ * jsLibs: string[];
+ * esmSpecifiers: string[] | null;
+ * esmImportMap: Record<string, string> | null;
  * }} BundleFileNames
  */
 
@@ -44,19 +42,6 @@ const injectedImportMapKeys = __odoo_assets_state__.injectedImportMapKeys;
 const crossDocImportMapKeys = __odoo_assets_state__.crossDocImportMapKeys;
 
 /**
- * A specifier already mapped in a document cannot be remapped: a later import
- * map carrying the same key has that rule dropped ("An import map rule for
- * specifier X was removed, as it conflicted with an existing rule"). So every
- * document gets its own record of what has been mapped in it.
- *
- * The record is specifier -> TARGET, not a bare set of names. Whether a
- * specifier is already claimed and whether it is claimed by the URL this bundle
- * wants are different questions, and only the second one predicts whether
- * `import(specifier)` returns the right module. Tracking names alone made the
- * two indistinguishable, so a bundle whose specifier had been claimed by
- * someone else's bridge silently imported that bridge instead — see
- * `resolveSpecifierTarget`.
- *
  * @param {Document} targetDoc
  * @returns {Map<string, string>}
  */
@@ -73,9 +58,6 @@ function getInjectedImportMapKeys(targetDoc) {
 }
 
 /**
- * Absolute form of an import-map target, so two spellings of one URL compare
- * equal. `data:` targets are already absolute and `URL` leaves them alone.
- *
  * @param {string} url
  * @param {Document} targetDoc
  * @returns {string}
@@ -110,7 +92,6 @@ function seedInjectedImportMapKeys(targetDoc, keys) {
             const imports = parsed && parsed.imports;
             if (imports && typeof imports === "object") {
                 for (const [spec, url] of Object.entries(imports)) {
-                    // First rule wins, in the record exactly as in the browser.
                     if (!injected.has(spec)) {
                         injected.set(spec, absoluteTarget(url, targetDoc));
                         seeded++;
@@ -123,19 +104,6 @@ function seedInjectedImportMapKeys(targetDoc, keys) {
 }
 
 /**
- * What to hand `import()` for one of a bundle's own specifiers.
- *
- * Normally the specifier itself: the import map resolves it. But when the
- * document already maps it somewhere else, no import map can take it back —
- * the browser drops the conflicting rule — so importing the specifier would
- * return whichever module claimed the name first. That is how a bundle came to
- * load against a bridge shim whose producer was never on the page, giving
- * `undefined` for every export.
- *
- * Importing the URL directly sidesteps the map for this one module, and
- * registering the result under the specifier repairs the rest of the graph:
- * the bridges other modules resolve to read `odoo.loader.modules.get(spec)`.
- *
  * @param {string} specifier
  * @param {Record<string, string> | null | undefined} importMap
  * @param {Map<string, string>} injected
@@ -169,11 +137,6 @@ function getAssetCache(targetDoc) {
     if (!cacheMap) {
         cacheMap = new Map();
         assetCacheByDocument.set(targetDoc, cacheMap);
-        // Seeded on creation rather than for `document` alone: an iframe
-        // carries its own assets in its own markup -- a website preview and a
-        // mass-mailing frame both do -- and loading a bundle into it used to
-        // append a second copy of every asset it already had, running each of
-        // those scripts a second time in that document.
         seedFromDocument(targetDoc, cacheMap);
     }
     return cacheMap;
@@ -188,11 +151,6 @@ function seedFromDocument(targetDoc, cacheMap) {
     if (!head) {
         return;
     }
-    // Records what the page itself delivered, so nobody re-requests it. An
-    // entry that is already there tracks a load *we* started and may still be
-    // running -- `loadJS` appends its script to the same head, so this would
-    // find it and overwrite the pending promise with a resolved one, telling
-    // the next caller the asset was ready while it was still executing.
     const seed = (/** @type {string | null} */ url) => {
         if (url && !cacheMap.has(url)) {
             cacheMap.set(url, Promise.resolve());
@@ -207,8 +165,6 @@ function seedFromDocument(targetDoc, cacheMap) {
 }
 
 /**
- * Re-seed a document whose ``<head>`` has grown since its cache was created.
- *
  * @param {Document} targetDoc
  */
 function computeBundleCacheMap(targetDoc) {
@@ -501,8 +457,6 @@ export const assets = {
                     } else if (claimed === wanted) {
                         nDup++;
                     } else {
-                        // Not re-mappable, and not the same module: the bundle's
-                        // own import below goes to the URL instead.
                         conflicts.push(spec);
                     }
                 }
@@ -519,9 +473,6 @@ export const assets = {
                     nFresh + nDup + conflicts.length,
                 );
                 if (conflicts.length) {
-                    // Loud: a conflict means some earlier bundle mapped this
-                    // specifier somewhere else, and every module that imports it
-                    // by name — including any bridge — still gets that one.
                     log("loadESMBundle:specifier already claimed elsewhere", conflicts);
                 }
                 if (nFresh) {
@@ -603,10 +554,6 @@ export const assets = {
             }
         }
         Object.assign(extraMap, serverMap);
-        // Same filtering the same-document branch does: a second bundle loaded
-        // into this iframe repeats every specifier the first one mapped, and
-        // re-declaring one is not an error -- the browser silently drops the
-        // new rule and keeps the old target.
         const injected = getInjectedImportMapKeys(targetDoc);
         seedInjectedImportMapKeys(targetDoc, injected);
         /** @type {Record<string, any>} */
@@ -645,11 +592,6 @@ export const assets = {
         const token = ++__odoo_assets_state__.crossDocLoadSeq;
         const doneEvent = `__odoo_esm_bundle_loaded_${token}`;
         const errorEvent = `__odoo_esm_bundle_error_${token}`;
-        // `[specifier, whatToImport]` rather than the bare specifier: for a
-        // specifier this document already maps elsewhere, importing the name
-        // returns whatever claimed it first, so the URL is passed instead and
-        // the result is still registered under the specifier. Same reasoning as
-        // `resolveSpecifierTarget` in the same-document branch.
         const importPairs = specifiers.map((specifier) => [
             specifier,
             resolveSpecifierTarget(specifier, extraMap, injected, targetDoc).target,
@@ -749,12 +691,6 @@ export const assets = {
                     linkEl,
                     resolve,
                     async (error) => {
-                        // Detached on *every* failure, not just before a retry.
-                        // A dead `<link>` left in the head is not merely litter:
-                        // `seedFromDocument` walks `link[rel=stylesheet][href]`
-                        // and seeds each href it finds with a resolved promise,
-                        // so the next `loadCSS` for this url would be told the
-                        // stylesheet was already delivered.
                         linkEl.remove();
                         const retryable = !url.includes("/web/assets/");
                         if (retryable && attempt < assets.retries.count) {
@@ -808,9 +744,6 @@ export const assets = {
                 scriptEl,
                 resolve,
                 (error) => {
-                    // See `loadCSS`: a failed `<script src>` left in the head is
-                    // what `seedFromDocument` would later read as "already
-                    // delivered", masking the failure from the next caller.
                     scriptEl.remove();
                     evictIfCurrent(cacheMap, url, () => promise);
                     reject(

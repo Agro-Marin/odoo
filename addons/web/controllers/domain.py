@@ -8,10 +8,6 @@ from odoo.tools.misc import mute_logger
 class Domain(Controller):
     @http.route("/web/domain/validate", type="jsonrpc", auth="user", readonly=True)
     def validate(self, model: str, domain: list) -> bool:
-        """Parse `domain` and verify that it can be used to search on `model`
-        :return: True when the domain is valid, otherwise False
-        :raises ValidationError: if `model` is invalid
-        """
         Model = request.env.get(model)
         if Model is None:
             raise ValidationError(_("Invalid model: %s", model))
@@ -22,5 +18,5 @@ class Domain(Controller):
             with mute_logger("odoo.db"):
                 request.env.cr.execute(sql)
             return True
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             return False

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/properties_group_by_item/properties_group_by_item */
-
 import { Component, useChildSubEnv, useState } from "@odoo/owl";
 import { ACCORDION, AccordionItem } from "@web/components/dropdown/accordion_item";
 import { CheckboxItem } from "@web/components/dropdown/checkbox_item";
@@ -31,10 +29,7 @@ export class PropertiesGroupByItem extends Component {
     /**
      * @returns {Object[]}
      */
-    get groupByItems() {
-        if (!this.state.definitionsLoaded) {
-            return [];
-        }
+    get modelGroupByItems() {
         return this.env.searchModel.getSearchItems(
             (/** @type {any} */ searchItem) =>
                 ["groupBy", "dateGroupBy"].includes(searchItem.type) &&
@@ -44,10 +39,17 @@ export class PropertiesGroupByItem extends Component {
     }
 
     /**
+     * @returns {Object[]}
+     */
+    get groupByItems() {
+        return this.state.definitionsLoaded ? this.modelGroupByItems : [];
+    }
+
+    /**
      * @returns {boolean}
      */
     get isActive() {
-        return this.groupByItems.some((item) => item.isActive);
+        return this.modelGroupByItems.some((/** @type {any} */ item) => item.isActive);
     }
 
     /**
@@ -55,7 +57,7 @@ export class PropertiesGroupByItem extends Component {
      */
     get isSingleParent() {
         const uniqueNames = new Set(
-            this.groupByItems.map((item) => item.definitionRecordId),
+            this.groupByItems.map((/** @type {any} */ item) => item.definitionRecordId),
         );
         return uniqueNames.size < 2;
     }

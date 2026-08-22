@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/effects/rainbow_man */
-
 import { Component, useEffect, useExternalListener, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 /**

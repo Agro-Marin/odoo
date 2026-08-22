@@ -1,29 +1,9 @@
 $enable-deprecation-messages: false !default;
 
-// A `var(--token)` reaches Sass as an unquoted string, so anything that has to
-// do colour maths on a value must ask first.
 @function o-is-color($-value) {
     @return type-of($-value) == "color";
 }
 
-// These two live with `web._assets_helpers`, not with the backend helpers,
-// because their callers travel in bundles that do not carry
-// `web._assets_backend_helpers`: `bootstrap_review_backend.scss` rides
-// `web._assets_bootstrap_backend`, the components calling `o-text-color()` ride
-// `web._assets_core`, and account_reports, account_followup, frontdesk and
-// hr_attendance pull those without the backend helpers. Sass then fails the
-// whole bundle on the first call it cannot resolve.
-// Mirrors `button-variant`'s output rather than calling it, because a spec is
-// allowed to carry `var(--token)` where Bootstrap assumes a colour. Bootstrap
-// itself only assigns the nine values it is handed — the maths lives in
-// whoever builds the spec — but two of its results are computed and would
-// reject a token: `$disabled-color` defaults to `color-contrast($background)`,
-// and the focus shadow to `to-rgb(mix($color, $border, 15%))`.
-//
-// A spec of plain colours emits exactly what it did before. A spec carrying
-// tokens keeps them intact, and drops only the focus-shadow tint, which cannot
-// be derived without knowing the colour: give the spec `focus-shadow-rgb` to
-// state it.
 @mixin o-button-variant-from($-spec) {
     $-background: map-get($-spec, background);
     $-border: map-get($-spec, border);
@@ -177,16 +157,6 @@ $o-color-extras-nesting-selector: "&" !default;
     }
 }
 
-/// A dark button spec with everything `o-button-variant-from` would otherwise
-/// derive from the compiling palette.
-///
-/// It mirrors Bootstrap's `button-variant` and passes tokens through, so it
-/// needs no scheme of its own — with one exception: it derives `disabled-color`
-/// with `color-contrast()` when the spec does not state one, and that answers
-/// for whichever palette is compiling. Stated here instead.
-///
-/// The specs are `$o-dark-btns-bs-override` and its outline counterpart, moved
-/// out of `primary_variables.dark.scss` so a light bundle can read them.
 @function o-dark-button-spec($-spec, $-scheme) {
     @if map-get($-spec, disabled-color) {
         @return $-spec;
@@ -205,15 +175,6 @@ $o-color-extras-nesting-selector: "&" !default;
     );
 }
 
-/// Bootstrap's `button-variant()` for a scheme that is not compiling.
-///
-/// Every default the mixin declares is derived from the compiling palette, so
-/// each one is handed in instead and Bootstrap's own body still emits the rule.
-/// `to-rgb(mix($color, $border, 15%))` is the only expression left inside it,
-/// and it reads neither palette.
-/// `$-color` and `$-hover-background` mirror `button-variant`'s own optional
-/// arguments: a caller that states either wants it, and stating one changes
-/// which way the rest tint or shade.
 @mixin o-scheme-button-variant(
     $-background,
     $-border,
@@ -272,9 +233,6 @@ $o-color-extras-nesting-selector: "&" !default;
     );
 }
 
-/// `text-emphasis-variant()` for a scheme that is not compiling. Only the hover
-/// colour needs handing in: it is `shift-color()`, which tints where the dark
-/// scheme shades.
 @mixin o-scheme-text-emphasis-variant($-parent, $-color, $-scheme, $-shade) {
     @include text-emphasis-variant(
         $-parent,
@@ -283,20 +241,6 @@ $o-color-extras-nesting-selector: "&" !default;
     );
 }
 
-/// `.bg-*-light`: a theme colour at half opacity, with a label picked against
-/// what it will sit on. Stated once because `webclient.scss` and
-/// `report_stock_reception.scss` both need it — and had drifted into
-/// byte-identical copies of the same loop.
-///
-/// `$-extend-reset` is the only thing the dark half changes. It controls an
-/// `@extend` whose output is `h1..h6 { color: inherit }` — no colour in it, so
-/// the light half's rule already answers under the attribute and the dark half
-/// must not restate it. It cannot, either: an `@extend` composes the *whole*
-/// current selector into the placeholder's rule, so emitting this under a scope
-/// carries that ancestor into every other selector sharing the placeholder and
-/// hoists it to wherever the placeholder landed —
-/// `.o_colored_level :root[data-color-scheme="dark"] .bg-dark-light h1`, which
-/// matches nothing.
 @mixin o-bg-light-variants(
     $-theme-colors,
     $-view-background,

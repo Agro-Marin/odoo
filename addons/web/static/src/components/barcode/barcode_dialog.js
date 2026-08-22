@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/barcode/barcode_dialog */
-
 import { Component, useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { Dialog } from "@web/ui/dialog/dialog";

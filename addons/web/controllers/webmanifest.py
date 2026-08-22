@@ -91,7 +91,6 @@ class WebManifest(http.Controller):
         readonly=True,
     )
     def webmanifest(self) -> Response:
-        """Return the WebManifest describing this app for browser/OS-level PWA installation."""
         return request.make_json_response(
             self._get_webmanifest(),
             {"Content-Type": "application/manifest+json"},
@@ -114,7 +113,6 @@ class WebManifest(http.Controller):
         )
 
     def _get_service_worker_content(self) -> str:
-        """Returns a ServiceWorker javascript file scoped for the backend (aka. '/odoo')"""
         with file_open("web/static/src/service_worker.js") as f:
             return f.read()
 
@@ -129,7 +127,6 @@ class WebManifest(http.Controller):
         readonly=True,
     )
     def offline(self) -> Response:
-        """Returns the offline page delivered by the service worker"""
         with file_open(self._icon_path(), "rb") as f:
             odoo_icon = base64.b64encode(f.read())
         return request.render(
@@ -145,7 +142,6 @@ class WebManifest(http.Controller):
         readonly=True,
     )
     def scoped_app(self, app_id: str, path: str = "", app_name: str = "") -> Response:
-        """Return the shortcut page used to install app_id as a PWA."""
         app_name = unquote(app_name) if app_name else self._get_scoped_app_name(app_id)
         path = f"/{unquote(path)}"
         scoped_app_values = {
@@ -166,7 +162,6 @@ class WebManifest(http.Controller):
         readonly=True,
     )
     def scoped_app_icon_png(self, app_id: str, add_padding: bool = False) -> Response:
-        """Return a fixed-size (180x180) PNG app icon, required by Safari for PWA install."""
         if isinstance(add_padding, str):
             add_padding = str2bool(add_padding, False)
         app_icon = self._get_scoped_app_icons(app_id)[0]
@@ -203,9 +198,6 @@ class WebManifest(http.Controller):
     def scoped_app_manifest(
         self, app_id: str, path: str, app_name: str = ""
     ) -> Response:
-        """Returns a WebManifest dedicated to the scope of the given app. A custom scope and start
-        url are set to make sure no other installed PWA can overlap the scope (e.g. /odoo)
-        """
         path = unquote(path)
         app_name = unquote(app_name) if app_name else self._get_scoped_app_name(app_id)
         webmanifest = {

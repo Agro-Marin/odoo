@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_panel/search_panel_fetch */
-
 /**
  * @param {any[]} groupIds
  * @param {Map<any, {name: string, sequence?: number}>} groups
@@ -31,8 +29,8 @@ function sortGroupIds(groupIds, groups) {
 }
 
 /**
- * @param {Object} category
- * @param {Object} result
+ * @param {Record<string, any>} category
+ * @param {Record<string, any>} result
  * @param {Function} ensureCategoryValue
  */
 export function createCategoryTree(category, result, ensureCategoryValue) {
@@ -69,17 +67,17 @@ export function createCategoryTree(category, result, ensureCategoryValue) {
     category.rootIds = [false];
     for (const value of values) {
         const { parentId } = category.values.get(value.id);
-        if (!parentId) {
+        if (!parentId || !category.values.has(parentId)) {
             category.rootIds.push(value.id);
         }
     }
-    const valueIds = [false, ...values.map((val) => val.id)];
+    const valueIds = [false, ...values.map((/** @type {any} */ val) => val.id)];
     ensureCategoryValue(category, valueIds);
 }
 
 /**
- * @param {Object} filter
- * @param {Object} result
+ * @param {Record<string, any>} filter
+ * @param {Record<string, any>} result
  */
 export function createFilterTree(filter, result) {
     const { error_msg } = result;
@@ -91,7 +89,7 @@ export function createFilterTree(filter, result) {
         delete filter.errorMsg;
     }
 
-    values.forEach((value) => {
+    values.forEach((/** @type {any} */ value) => {
         const oldValue = filter.values.get(value.id);
         value.checked = oldValue ? oldValue.checked : false;
     });

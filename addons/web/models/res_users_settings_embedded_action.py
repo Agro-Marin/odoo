@@ -73,12 +73,11 @@ class ResUsersSettingsEmbeddedAction(models.Model):
 
     @staticmethod
     def _parse_id_list(value: str) -> list[int | bool]:
-        """Deserialize a comma-separated list of integer IDs or "false" strings."""
         if not value:
             return []
         return [False if token == "false" else int(token) for token in value.split(",")]
 
-    def _embedded_action_settings_format(self) -> dict[str, dict[str, Any]]:
+    def _format_embedded_action_settings(self) -> dict[str, dict[str, Any]]:
         return {
             f"{setting.action_id.id}+{setting.res_id or ''}": {
                 "embedded_actions_order": self._parse_id_list(

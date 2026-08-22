@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/translation_button */
-
 import { Component } from "@odoo/owl";
 import { localization } from "@web/core/l10n/localization";
 import { _t } from "@web/core/translation";
@@ -18,7 +16,7 @@ const _langCache = { code: undefined, language: "" };
 /**
  * @returns {(params: { record: Object, fieldName: string }) => Promise<void>}
  */
-export function useTranslationDialog() {
+function useTranslationDialog() {
     const addDialog = useOwnedDialogs();
 
     /** @param {{ record: any, fieldName: string }} param0 */

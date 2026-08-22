@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/settings/settings_app */
-
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 
 export class SettingsApp extends Component {

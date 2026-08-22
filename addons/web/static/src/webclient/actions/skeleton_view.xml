@@ -2,13 +2,6 @@
 <templates xml:space="preserve">
 
     <t t-name="web.SkeletonView">
-        <!-- Decoration standing in for a view that has not loaded. Hidden from
-             assistive technology so a screen reader does not walk a hundred
-             empty placeholder cells as if they were the record list; the
-             announcement belongs to LoadingIndicator, which is a live region
-             and is not confined to this one transition. Nothing here may
-             contribute text either: `.o_action_manager` is asserted to be empty
-             between actions. -->
         <div class="o_skeleton_view d-flex flex-column h-100" aria-hidden="true">
             <div class="o_skeleton_cp d-flex align-items-center px-3 py-2 border-bottom bg-view"
                  t-if="props.withControlPanel">

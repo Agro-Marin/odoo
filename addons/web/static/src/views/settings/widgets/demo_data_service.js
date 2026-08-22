@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/widgets/demo_data_service */
-
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 export const demoDataService = {

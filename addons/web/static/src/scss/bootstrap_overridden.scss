@@ -1,20 +1,8 @@
-// Deliberately the Bootstrap 4 hues, not Bootstrap 5's. The named colour
-// utilities (`.text-blue`, `.bg-green`, …) are addressed by name from stored
-// user content, so their appearance is frozen for backward compatibility. The
-// semantic palette (`$o-success`, `$o-info`, …) is what the design system
-// moves; these four are not aliases of it and are not meant to match.
 $blue: #007bff !default;
 $pink: #e83e8c !default;
 $green: #28a745 !default;
 $cyan: #17a2b8 !default;
 
-// Says that Bootstrap's palette is this palette, for `tokens.scss` to read.
-// It cannot tell on its own: it rides the frontend too, where Bootstrap keeps
-// its own greys on purpose (`--gray-200` is #e9ecef there against this ramp's
-// #e2e8f0, which `test_lint`'s TestGreyRampToken exists to keep apart). The
-// wiring below is the fact, and this is the file that knows it.
-// Plain, not `!default`: `functions.scss` declares the flag false so every
-// bundle can read it, and a `!default` here would never fire.
 $o-bootstrap-follows-palette: true;
 
 $white: $o-white !default;
@@ -39,16 +27,6 @@ $info: $o-info !default;
 $warning: $o-warning !default;
 $danger: $o-danger !default;
 
-// Bootstrap spells these `rgba($black, …)`, and `$black` is `$o-black`, which
-// inverts -- so its shadows are a compiled colour that only follows the scheme
-// by the bundle being built twice. Through the token they follow the attribute,
-// as `$o-shadow-*` does. Same reading in either bundle: mixing towards
-// `transparent` is premultiplied, so this is `$black` at that alpha.
-//
-// With the compiled colour as a fallback, because this file travels further
-// than `tokens.scss` does: `report_assets_common` has no token layer on purpose
-// (a dark block there would print), and three more served bundles carry the one
-// and not the other. There the shadow is simply what it was.
 @function o-shadow-ink-white($-alpha) {
     @return unquote(
         "color-mix(in srgb, var(--o-white, #{$white}) #{$-alpha}, transparent)"
@@ -65,9 +43,6 @@ $box-shadow: 0 0.5rem 1rem o-shadow-ink-black(15%) !default;
 $box-shadow-sm: 0 0.125rem 0.25rem o-shadow-ink-black(7.5%) !default;
 $box-shadow-lg: 0 1rem 3rem o-shadow-ink-black(17.5%) !default;
 $box-shadow-inset: inset 0 1px 2px o-shadow-ink-black(7.5%) !default;
-// `rgba($black, .125)`, and `$black` inverts -- so every `.btn-*` carried a
-// compiled `--btn-active-shadow` in each bundle, the one declaration the button
-// specs could not reach.
 $btn-active-box-shadow: inset 0 3px 5px o-shadow-ink-black(12.5%) !default;
 
 $min-contrast-ratio: 3 !default;
@@ -111,8 +86,6 @@ $font-weight-normal: $o-font-weight-normal !default;
 $font-weight-bold: $o-font-weight-medium !default;
 
 $font-family-sans-serif: $o-font-family-sans-serif !default;
-// Unmapped, `<code>`/`<pre>`/`--font-monospace` fell back to Bootstrap's own
-// stack while the components reading `$o-font-family-monospace` used another.
 $font-family-monospace: $o-font-family-monospace !default;
 
 $font-size-base: $o-font-size-base !default;
@@ -123,9 +96,6 @@ $line-height-base: $o-line-height-base !default;
 $line-height-sm: $o-line-height-sm !default;
 $line-height-lg: $o-line-height-lg !default;
 
-// Derived rather than hand-picked, so every step is the same visual interval.
-// `$h6-font-size` is spelled out because Bootstrap defaults it after this file
-// and the ramp is built upwards from it.
 $h6-font-size: $font-size-base !default;
 $h5-font-size: $h6-font-size * $o-type-scale-ratio !default;
 $h4-font-size: $h5-font-size * $o-type-scale-ratio !default;
@@ -202,12 +172,6 @@ $tooltip-color: o-palette-token(--o-gray-200, $o-gray-200) !default;
 $tooltip-opacity: 1 !default;
 
 $popover-header-color: o-token(--heading-color, $o-main-headings-color) !default;
-// The button's resting elevation, as ink on the palette's own white and black.
-//
-// `$focus-ring-box-shadow` is *not* converted beside it, twice attempted: it
-// feeds `$input-btn-focus-box-shadow`, which Bootstrap composes into a rule for
-// every control, and the `var()` costs 34 KB a bundle to answer three
-// declarations. Those three are restated under the scope instead.
 $btn-box-shadow: inset 0 1px 0 o-shadow-ink-white(15%),
     0 1px 1px o-shadow-ink-black(7.5%) !default;
 
@@ -215,11 +179,6 @@ $blockquote-footer-color: o-palette-token(--o-gray-600, $gray-600) !default;
 $btn-link-disabled-color: o-palette-token(--o-gray-600, $gray-600) !default;
 $carousel-dark-indicator-active-bg: o-token(--o-black, $black) !default;
 $carousel-dark-caption-color: o-token(--o-black, $black) !default;
-// Bootstrap's own `.navbar-dark` and `.dropdown-menu-dark`, which are a
-// component asking for a dark *treatment* rather than the page's colour scheme
-// — but they are built from `$white` and the ramp, both of which invert, so
-// they were compiled twice like everything else. `$navbar-dark-active-color`
-// and `$input-focus-border-color` stay colours: `rgba()` reads them.
 $navbar-dark-hover-color: o-shadow-ink-white(75%) !default;
 $navbar-dark-disabled-color: o-shadow-ink-white(25%) !default;
 $navbar-dark-toggler-border-color: o-shadow-ink-white(10%) !default;
@@ -281,10 +240,6 @@ $kbd-box-shadow:
 
 $input-bg: $o-input-bg !default;
 $input-focus-border-color: $o-brand-primary !default;
-// A checkbox boundary is "visual information required to identify a user
-// interface component" under WCAG 2.2 SC 1.4.11, so it needs 3:1 - unlike the
-// dividers `$border-color` exists for, which Bootstrap points this at by
-// default. Inheriting the divider tone left unchecked boxes at 1.48:1.
 $form-check-input-border: var(--border-width) solid #{$o-input-boundary-color} !default;
 $form-check-input-checked-color: $o-brand-lightsecondary !default;
 $form-check-input-checked-border-color: $o-brand-primary !default;

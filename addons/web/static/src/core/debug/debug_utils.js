@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/debug/debug_utils */
-
 import { getAction } from "@web/core/action_port";
 
 /**

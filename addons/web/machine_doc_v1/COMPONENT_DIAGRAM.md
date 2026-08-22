@@ -6,10 +6,23 @@ session.
 Measured at base `b48ae612546`, 2026-08-01.
 Lines = `wc -l`. Directory counts = `find <dir> -type f | wc -l`, all extensions.
 
-Guard: `bash addons/web/doc/factcheck.sh` — read-only, exits 1 on drift.
-Checks line counts, directory counts, cited paths, quoted constants, and claims
-of absence. Separate from `machine_doc_v1/factcheck.sh`, which scopes itself to
-`machine_doc_v1/`.
+Guard: `bash addons/web/machine_doc_v1/factcheck.sh` — read-only, exits 1 on
+drift. Checks line counts, directory counts, cited paths, quoted constants, and
+claims of absence.
+
+There is **one** harness, and it is not scoped to `machine_doc_v1/` — it reads
+`static/`, `controllers/`, `models/` and the repo's `.github/workflows/` too.
+This header used to name a second guard under a since-deleted addons/web/doc
+directory and call the two separate. That was true until `b6c0619c571`
+dissolved that directory, folding its 164 lines into this one; the sentence
+outlived the split it described. Nothing caught it because the path sat inside
+a backticked *command*, which the harness's own cited-path scan did not look
+inside — fixed there, so a stale path in a `bash …` span now fails.
+
+The dead path is spelled without backticks on purpose: in these docs a
+backticked path is an assertion that the file exists, and the guard resolves
+every one of them. Naming a deliberately-absent file is the one case where
+prose must not reach for them.
 
 ---
 
@@ -152,8 +165,8 @@ of absence. Separate from `machine_doc_v1/factcheck.sh`, which scopes itself to
 
 | Layer | File | Lines | Role |
 |-------|------|-------|------|
-| JS | `static/src/boot/main.js` | 14 | Entry point — imports WebClient, calls `startWebClient()`, paints the boot-failure overlay if it rejects |
-| JS | `static/src/boot/start.js` | 144 | `startWebClient()` — `odoo.info`, RPC cache, `mountComponent`, body CSS classes; `paintBootFailureOverlay()` |
+| JS | `static/src/boot/main.js` | 12 | Entry point — imports WebClient, calls `startWebClient()`. No `.catch`: the failure boundary moved INTO `startWebClient`, because `enterprise/web_enterprise` replaces this file and a handler here covers only the community bundle |
+| JS | `static/src/boot/start.js` | 183 | `startWebClient()` — `publishOdooInfo()`, `applyUserTimezone()` (validated: an unknown IANA zone makes every luxon DateTime invalid, silently), RPC cache, `whenReady()`, `mountComponent()`. Wraps its whole body: paints `paintBootFailureOverlay()` with the failing phase and never rejects. `applyBootBodyClasses()` runs via `mountComponent`'s `beforeMount`, i.e. BEFORE the first render |
 | JS | `static/src/env.js` | 410 | `makeEnv()`, `startServices()`, `ensureServicesStarted()`, `mountComponent()`, `customDirectives`, `globalValues` |
 | JS | `static/src/session.js` | 19 | Reads `odoo.__session_info__` into the exported `session`. **Does not delete it**: no `delete` exists in the tree; the raw payload stays on the `odoo` global for the page lifetime. |
 | JS | `static/src/module_loader.js` | 187 | Two jobs. (1) Installs `globalThis.odoo.loader` = `OdooModuleLoader`, 5 members: `modules` Map, `bus`, `registerNativeModules`, `handleAssetLoadError`, `_reloadPage`. Sibling esbuild bundles share singletons through `modules`; conflicting re-register → `module_rebind`. Not an ES module loader (AMD loader removed in the 2026 ESM migration). (2) JS error telemetry: global `error` / `unhandledrejection` → deduped beacon to `/web/observability/js_error`; failed `/web/assets/` tag → one page reload, guarded by a 60 s `sessionStorage` key. |

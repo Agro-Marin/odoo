@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/action_hook */
-
 import { onMounted, useComponent, useEffect, useExternalListener } from "@odoo/owl";
 
 export const scrollSymbol = Symbol("scroll");
@@ -16,12 +14,6 @@ export class CallbackRecorder {
      * @type {{ owner: any, callback: Function }[]}
      */
     _callbacks = [];
-    constructor() {
-        this.setup();
-    }
-    setup() {
-        this._callbacks = [];
-    }
     /**
      * @returns {Function[]}
      */

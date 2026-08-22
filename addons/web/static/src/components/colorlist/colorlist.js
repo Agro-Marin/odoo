@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/colorlist/colorlist */
-
 import { Component, onWillUpdateProps, useEffect, useRef, useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { useClickAway } from "@web/core/utils/dom/click_away";
@@ -43,8 +41,6 @@ export class ColorList extends Component {
     setup() {
         this.colorlistRef = useRef("colorlist");
         this.state = useState({ isExpanded: this.props.isExpanded });
-        // The toggle also moves this, so it cannot simply mirror the prop: only
-        // a caller that actually changes its mind gets to overrule the user.
         onWillUpdateProps((nextProps) => {
             if (nextProps.isExpanded !== this.props.isExpanded) {
                 this.state.isExpanded = nextProps.isExpanded;
@@ -54,10 +50,6 @@ export class ColorList extends Component {
             getAnchor: () => this.colorlistRef.el,
             getContentEl: () => this.colorlistRef.el,
         });
-        // Focus follows the *act* of expanding, not the state of being
-        // expanded. A list that arrives open -- `isExpanded`/`forceExpanded`
-        // set by the caller -- was not opened by the user, so taking focus
-        // there yanks the caret out of whatever they were actually in.
         let hasRun = false;
         useEffect(
             (isExpanded) => {
@@ -72,7 +64,7 @@ export class ColorList extends Component {
             () => [this.state.isExpanded],
         );
     }
-    /** @returns {string[]} the translated name of each colour index */
+    /** @returns {string[]} */
     get colorNames() {
         return /** @type {any} */ (this.constructor).COLORS;
     }

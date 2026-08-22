@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/widgets/ribbon/ribbon */
-
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -35,7 +33,7 @@ export class RibbonWidget extends Component {
 }
 
 /** @type {import("registries").ViewWidgetsRegistryItemShape} */
-export const ribbonWidget = {
+const ribbonWidget = {
     component: RibbonWidget,
     extractProps: ({ attrs }) => ({
         text: attrs.title || attrs.text || "",

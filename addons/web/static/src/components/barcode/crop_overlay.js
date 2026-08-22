@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/barcode/crop_overlay */
-
 import { Component, useEffect, useRef } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { isIOS } from "@web/core/browser/feature_detection";
@@ -23,18 +21,20 @@ export class CropOverlay extends Component {
         },
     };
 
+    localStorageKey = "o-barcode-scanner-overlay";
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    cropContainerRef;
+    isMoving = false;
+    boundaryOverlay = { left: 0, top: 0, width: 0, height: 0 };
+    relativePosition = { x: 0, y: 0 };
+    hasInitialPosition = false;
+    /** @type {{x: number, y: number, width: number, height: number} | null} */
+    notifiedArea = null;
+    /** @type {boolean} */
+    isIOS;
+
     setup() {
-        this.localStorageKey = "o-barcode-scanner-overlay";
-        this.cropContainerRef = useRef("crop-container");
-        this.isMoving = false;
-        this.boundaryOverlay = {};
-        this.relativePosition = {
-            x: 0,
-            y: 0,
-        };
-        this.hasInitialPosition = false;
-        /** @type {{x: number, y: number, width: number, height: number} | null} */
-        this.notifiedArea = null;
+        this.cropContainerRef = /** @type {any} */ (useRef("crop-container"));
         useEffect(
             (el, isReady) => {
                 if (!el || !isReady) {
@@ -89,8 +89,10 @@ export class CropOverlay extends Component {
 
     computeOverlayPosition() {
         const cropOverlayElement =
-            this.cropContainerRef.el.querySelector(".o_crop_overlay");
-        this.boundaryOverlay = cropOverlayElement.getBoundingClientRect();
+            this.cropContainerRef.el?.querySelector(".o_crop_overlay");
+        if (cropOverlayElement) {
+            this.boundaryOverlay = cropOverlayElement.getBoundingClientRect();
+        }
     }
 
     notifyResize() {
@@ -103,25 +105,14 @@ export class CropOverlay extends Component {
             width: this.boundaryOverlay.width - 2 * transparentRec.x,
             height: this.boundaryOverlay.height - 2 * transparentRec.y,
         };
-        if (
-            this.notifiedArea &&
-            AREA_KEYS.every((key) => this.notifiedArea[key] === area[key])
-        ) {
+        const notified = this.notifiedArea;
+        if (notified && AREA_KEYS.every((key) => notified[key] === area[key])) {
             return;
         }
         this.notifiedArea = area;
         this.props.onResize(area);
     }
 
-    /**
-     * What is stored is the handle's own position, because that is what
-     * `computeDefaultPoint` reads it back into. Storing the transparent rect
-     * instead put the two in different coordinate spaces: the rect is the
-     * handle mirrored about the centre, and mirroring is idempotent, so the
-     * crop area came back right while the handle came back on the opposite
-     * corner. A value written by the previous spelling is already a mirrored
-     * point, which restores to the same area it always did.
-     */
     persistPosition() {
         browser.localStorage.setItem(
             this.localStorageKey,
@@ -130,8 +121,12 @@ export class CropOverlay extends Component {
     }
 
     computeDefaultPoint() {
+        const firstChild = this.cropContainerRef.el?.firstChild;
+        if (!firstChild) {
+            return;
+        }
         const firstChildComputedStyle = getComputedStyle(
-            /** @type {Element} */ (this.cropContainerRef.el.firstChild),
+            /** @type {Element} */ (firstChild),
         );
         const elementWidth = parseFloat(firstChildComputedStyle.width);
         const elementHeight = parseFloat(firstChildComputedStyle.height);
@@ -173,19 +168,17 @@ export class CropOverlay extends Component {
     }
 
     setCropValue(point, iconPoint) {
+        const el = this.cropContainerRef.el;
+        if (!el) {
+            return;
+        }
         if (!iconPoint) {
             iconPoint = point;
         }
-        this.cropContainerRef.el.style.setProperty("--o-crop-x", `${point.x}px`);
-        this.cropContainerRef.el.style.setProperty("--o-crop-y", `${point.y}px`);
-        this.cropContainerRef.el.style.setProperty(
-            "--o-crop-icon-x",
-            `${iconPoint.x}px`,
-        );
-        this.cropContainerRef.el.style.setProperty(
-            "--o-crop-icon-y",
-            `${iconPoint.y}px`,
-        );
+        el.style.setProperty("--o-crop-x", `${point.x}px`);
+        el.style.setProperty("--o-crop-y", `${point.y}px`);
+        el.style.setProperty("--o-crop-icon-x", `${iconPoint.x}px`);
+        el.style.setProperty("--o-crop-icon-y", `${iconPoint.y}px`);
     }
 
     pointerDown(event) {

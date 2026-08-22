@@ -74,9 +74,6 @@ $o-cw-popup-avatar-size: 16px;
     }
 }
 
-/// Token references rather than colours, so a consumer of this map — this file
-/// and `appointment` — emits one declaration for the whole ramp instead of one
-/// per scheme. Unquoted, so `map-get()` prints them as the CSS they are.
 @function o-build-web-calendar-colors() {
     $-calendar-colors: ();
     @for $i from 1 through length($o-colors-complete) {

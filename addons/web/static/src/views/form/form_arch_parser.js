@@ -1,15 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/form/form_arch_parser */
-
 import { visitXML } from "@web/core/utils/dom/xml";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { parseFieldNode } from "@web/views/field_arch";
 import { getActiveActions } from "@web/views/view_utils";
 import { Widget } from "@web/views/widgets/widget";
 
-export class FormArchParser {
+import { ViewArchParser } from "../view_arch_parser.js";
+
+export class FormArchParser extends ViewArchParser {
     /**
      * @param {Element} xmlDoc
      * @param {Object} models

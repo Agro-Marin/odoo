@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/py_js/token_type */
-
 export const TokenType = {
     /** @type {0} */ Number: 0,
     /** @type {1} */ String: 1,

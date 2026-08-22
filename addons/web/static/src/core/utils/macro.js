@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/macro */
-
 import { validate } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { isVisible } from "@web/core/utils/dom/ui";
@@ -110,9 +108,6 @@ export async function waitUntil(predicate, { signal } = {}) {
     return new Promise((resolve, reject) => {
         onAbort = () =>
             reject(new DOMException("waitUntil has been aborted", "AbortError"));
-        // `once` only fires on abort, so a call that settles normally leaves
-        // its listener behind: polling the same long-lived signal accumulated
-        // one per call.
         signal?.addEventListener("abort", onAbort, { once: true });
         const runCheck = () => {
             let result;
@@ -186,12 +181,6 @@ export class Macro {
         await this.advance();
     }
 
-    /**
-     * Runs from the current index to the end. Iterative rather than
-     * self-recursive: every hop crossed an `await`, so a tour of N steps left N
-     * suspended frames alive until the last one returned, and `stop()` was only
-     * ever reached from the innermost.
-     */
     async advance() {
         while (true) {
             if (this.isComplete || this.currentIndex >= this.steps.length) {
@@ -317,10 +306,6 @@ export class MacroMutationObserver {
      * @param {ShadowRoot[]} [shadowRoots]
      */
     findAllShadowRoots(node, shadowRoots = []) {
-        // Iterative and over `children`, not `childNodes`: this runs inside the
-        // MutationObserver callback for every added node, so it walks whole
-        // subtrees on a mutation-heavy page. Only elements can host a shadow
-        // root, so text and comment nodes are pure overhead.
         /** @type {any[]} */
         const stack = [node];
         while (stack.length) {
@@ -329,9 +314,6 @@ export class MacroMutationObserver {
             if (!children) {
                 continue;
             }
-            // Pushed in reverse, shadow root last, so popping reproduces the
-            // recursive version's order: self, own shadow tree, then children
-            // in document order.
             for (let i = children.length - 1; i >= 0; i--) {
                 stack.push(children[i]);
             }
@@ -368,11 +350,6 @@ export class MacroMutationObserver {
      */
     observeIframe(iframeEl, observer, callback) {
         const { signal } = this.abortController;
-        // No listener on `contentDocument` itself: `load` is fired at the
-        // window, so a listener bound to the document never runs, and by the
-        // time the iframe's own `load` brings us here that document has
-        // finished loading anyway. The `iframeEl` listener below is the one
-        // that fires on every subsequent navigation.
         const observeIframeContent = () => {
             const contentDocument = iframeEl.contentDocument;
             if (

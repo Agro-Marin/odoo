@@ -1,7 +1,3 @@
-
-// This file always loads after `primary_variables.scss`, so the palette is
-// sourced from `$o-*` rather than copied: a third literal copy of the ramp
-// (next to `primary_variables` and `bootstrap_overridden`) silently diverges.
 $white: $o-white !default;
 $gray-100: $o-gray-100 !default;
 $gray-200: $o-gray-200 !default;
@@ -85,90 +81,43 @@ $theme-colors: map-merge(
     $theme-colors
 );
 
-
-// = Mask icons
-// ============================================================================
-// `bootstrap_review.scss` paints these four as a mask rather than a background
-// image, so the SVG says only *where* and the colour is an ordinary
-// declaration that follows the scheme. A mask reads only the alpha channel, so
-// the colour interpolated here would be dead weight -- and it is the one thing
-// in an icon a single stylesheet cannot carry, because a custom property inside
-// a `data:` URI is inert.
-//
-// The markup is copied from `_variables.scss` with the interpolation replaced
-// by an opaque literal. That is the cost of the approach: an upstream change to
-// an icon's *shape* has to be brought over. A change to its colour no longer
-// means anything here.
-//
-// `$accordion-button-active-icon` is gone: it was the same arrow in a different
-// colour, and under a mask the colour is the whole of the difference.
 $carousel-control-prev-icon-bg: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='#000'><path d='M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0'/></svg>") !default;
 $carousel-control-next-icon-bg: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='#000'><path d='M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708'/></svg>") !default;
 $btn-close-bg: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='#000'><path d='M.293.293a1 1 0 0 1 1.414 0L8 6.586 14.293.293a1 1 0 1 1 1.414 1.414L9.414 8l6.293 6.293a1 1 0 0 1-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 0 1-1.414-1.414L6.586 8 .293 1.707a1 1 0 0 1 0-1.414'/></svg>") !default;
 $accordion-button-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='#000' stroke-linecap='round' stroke-linejoin='round'><path d='m2 5 6 6 6-6'/></svg>") !default;
 $accordion-button-active-icon: $accordion-button-icon !default;
 
-// The toggler keeps its own neutral copy rather than neutralising
-// `$navbar-light-toggler-icon-bg`: `website.scss` masks the header overlay with
-// that variable, where the colour's *alpha* is what softens the mask. Two uses,
-// two alphas, so they cannot share one icon.
-$o-navbar-toggler-mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'><path stroke='#000' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/></svg>");
-
-
-// = Overlay icons
-// ============================================================================
-// These nine cannot be masks: each sits on top of a filled control -- the tick
-// on a brand-filled box, the knob on its track -- and a mask would take the
-// fill with it. So the colour stays interpolated, and the markup moves into a
-// function the scoped rule can call with the other scheme's colour.
-//
-// Same trade as the mask icons: the shape is copied from `_variables.scss` and
-// an upstream change to it has to be brought over. Unlike them, the colour
-// still matters here, which is why these need a function rather than a literal.
-//
-// Bootstrap's own variables are left alone -- they already build the light
-// icon. These exist so `scheme_rules.scss` can build the same shape in the
-// other scheme's colour.
-
 @function o-check-icon($-color) {
     @return url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><path fill='none' stroke='#{$-color}' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='m6 10 3 3 6-6'/></svg>");
 }
-
 
 @function o-radio-icon($-color) {
     @return url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'><circle r='2' fill='#{$-color}'/></svg>");
 }
 
-
 @function o-indeterminate-icon($-color) {
     @return url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><path fill='none' stroke='#{$-color}' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M6 10h8'/></svg>");
 }
-
 
 @function o-switch-icon($-color) {
     @return url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'><circle r='3' fill='#{$-color}'/></svg>");
 }
 
-
 @function o-switch-focus-icon($-color) {
     @return url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'><circle r='3' fill='#{$-color}'/></svg>");
 }
-
 
 @function o-switch-checked-icon($-color) {
     @return url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'><circle r='3' fill='#{$-color}'/></svg>");
 }
 
-
 @function o-navbar-toggler-icon($-color) {
     @return url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'><path stroke='#{$-color}' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/></svg>");
 }
 
-
 @function o-select-caret-icon($-color) {
     @return url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path fill='none' stroke='#{$-color}' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/></svg>");
 }
-
 
 /// The bare `<select>` caret. `$o-caret-down` is the same triangle for the
 /// rules that paint it as a mask, where the fill is inert; a `<select>` cannot
@@ -179,13 +128,10 @@ $o-navbar-toggler-mask: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/20
     @return url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='7' height='4' viewBox='0 0 7 4'><polygon fill='#{$-color}' points='3.5 4 7 0 0 0'/></svg>");
 }
 
-
 @function o-valid-icon($-color) {
     @return url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'><path fill='#{$-color}' d='M2.3 6.73.6 4.53c-.4-1.04.46-1.4 1.1-.8l1.1 1.4 3.4-3.8c.6-.63 1.6-.27 1.2.7l-4 4.6c-.43.5-.8.4-1.1.1'/></svg>");
 }
 
-
 @function o-invalid-icon($-color) {
     @return url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='#{$-color}'><circle cx='6' cy='6' r='4.5'/><path stroke-linejoin='round' d='M5.8 3.6h.4L6 6.5z'/><circle cx='6' cy='8.2' r='.6' fill='#{$-color}' stroke='none'/></svg>");
 }
-

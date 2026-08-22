@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/record_selectors/record_autocomplete */
-
 import { Component } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 import {
@@ -21,15 +19,6 @@ import { getSelectCreateDialog } from "@web/core/record_dialog_port";
 import { _t } from "@web/core/translation";
 import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
 
-/**
- * The plain quick-search autocomplete behind `RecordSelector` and
- * `MultiRecordSelector`. It shares its search core — call shape, limits,
- * overflow rule, "Search more..." dialog helpers — with `Many2XAutocomplete`
- * (see `@web/components/autocomplete/name_search`), and deliberately stays
- * simple otherwise: no create actions, no empty-search memoization (its
- * hosts are short-lived editors, and stale in-flight searches are aborted
- * instead).
- */
 export class RecordAutocomplete extends Component {
     static props = {
         resModel: String,
@@ -53,6 +42,10 @@ export class RecordAutocomplete extends Component {
     nameService;
     /** @type {import("services").ServiceFactories["orm"]} */
     orm;
+    /**
+     * @type {any}
+     */
+    lastProm = null;
 
     setup() {
         this.orm = useService("orm");
@@ -68,9 +61,6 @@ export class RecordAutocomplete extends Component {
     }
 
     /**
-     * Feed the display names we already fetched to the name service, so the
-     * host selectors render the new selection without a second round-trip.
-     *
      * @param {Array<{ id: number, display_name: any }>} records
      */
     addNames(records) {
@@ -88,7 +78,7 @@ export class RecordAutocomplete extends Component {
      * @param {string} name
      */
     async loadOptionsSource(name) {
-        /** @type {any} */ (this.lastProm)?.abort(true);
+        this.lastProm?.abort(true);
         const prom = (this.lastProm = this.search(name, SEARCH_LIMIT + 1));
         let fetched;
         try {
@@ -98,6 +88,10 @@ export class RecordAutocomplete extends Component {
                 return [];
             }
             throw error;
+        } finally {
+            if (this.lastProm === prom) {
+                this.lastProm = null;
+            }
         }
         this.addNames(fetched);
         const { records, hasMore } = splitOverflow(fetched, SEARCH_LIMIT);
@@ -167,8 +161,7 @@ export class RecordAutocomplete extends Component {
     /**
      * @param {string} name
      * @param {number} limit
-     * @returns {Promise<Array<Record<string, any>>>} the server's matches;
-     *  the promise keeps the ORM's `abort()`
+     * @returns {Promise<Array<Record<string, any>>>}
      */
     search(name, limit) {
         return webNameSearch(this.orm, this.props.resModel, {
@@ -180,9 +173,6 @@ export class RecordAutocomplete extends Component {
     }
 
     /**
-     * Multi-line display names are cut to their first line, nameless records
-     * labelled.
-     *
      * @param {Array<Record<string, any>>} records
      * @returns {Array<{ id: number, display_name: any }>}
      */

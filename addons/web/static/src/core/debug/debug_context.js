@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/debug/debug_context */
-
 import { useEffect, useEnv, useSubEnv } from "@odoo/owl";
 import { Registry, registry } from "@web/core/registry";
 import { user } from "@web/core/user";

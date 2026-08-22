@@ -1,10 +1,3 @@
-"""Helper functions for the /json route controller.
-
-Provides ``get_view_id_and_type``, ``get_default_domain``,
-``get_date_domain``, and ``get_groupby`` — view/domain resolution logic
-consumed by ``WebJsonController`` in ``json.py``.
-"""
-
 import ast
 from collections import defaultdict
 from datetime import date
@@ -21,14 +14,6 @@ from odoo.tools.safe_eval import safe_eval
 
 
 class _UidSubstitutor(ast.NodeTransformer):
-    """Replace the bare ``uid`` *identifier* with the current user id.
-
-    Operates on the parsed AST so only identifier positions are rewritten;
-    a ``uid`` occurring inside a string literal (e.g. ``('ref', '=', 'uid')``)
-    is left untouched — unlike a textual ``re.sub`` over the domain string,
-    which corrupted such values.
-    """
-
     def __init__(self, uid: int) -> None:
         self._uid = uid
 
@@ -39,12 +24,6 @@ class _UidSubstitutor(ast.NodeTransformer):
 
 
 def _eval_stored_domain(domain_str: str, uid: int):
-    """Parse a stored ``ir.filters`` domain, substituting the ``uid`` name.
-
-    Uses ``literal_eval`` semantics (no arbitrary code execution): only
-    literals plus the single ``uid`` identifier are accepted.  A malformed
-    stored domain raises ``BadRequest`` rather than escaping as a 500.
-    """
     try:
         tree = ast.parse((domain_str or "[]").strip() or "[]", mode="eval")
         tree = _UidSubstitutor(uid).visit(tree)
@@ -58,7 +37,6 @@ def _eval_stored_domain(domain_str: str, uid: int):
 def get_view_id_and_type(
     action, view_type: str | None
 ) -> tuple[int | Literal[False], str]:
-    """Extract the view id and type from *action*."""
     if action._name != "ir.actions.act_window":
         msg = f"Expected ir.actions.act_window, got {action._name}"
         raise TypeError(msg)
@@ -86,7 +64,6 @@ def get_view_id_and_type(
 
 
 def get_default_domain(model, action, context, eval_context):
-    """Build the default domain from user filters or search defaults."""
     for ir_filter in model.env["ir.filters"].get_filters(
         model._name, action._origin.id
     ):
@@ -129,7 +106,6 @@ def get_default_domain(model, action, context, eval_context):
 
 
 def get_date_domain(start_date, end_date, view_tree):
-    """Build a date-range domain for calendar/gantt/cohort views."""
     if not start_date or not end_date:
         start_date = date.today() + relativedelta(day=1)
         end_date = start_date + relativedelta(months=1)
@@ -141,13 +117,6 @@ def get_date_domain(start_date, end_date, view_tree):
 
 
 def get_groupby(view_tree, groupby=None, fields=None):
-    """Parse the given groupby and fields, falling back to the view
-    definition when not given. Returns groupby as a list.
-
-    :param view_tree: The xml tree of the view
-    :param groupby: string or None
-    :param fields: string or None
-    """
     if groupby:
         groupby = groupby.split(",")
     if fields:

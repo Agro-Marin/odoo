@@ -1,10 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/domain */
-
 import { foldForCaseInsensitiveCompare } from "@web/core/l10n/utils/unaccent";
 import { shallowEqual } from "@web/core/utils/collections/objects";
+import { LruCache } from "@web/core/utils/lru_cache";
 import { session } from "@web/session";
 
 import { ASTType } from "./py_js/ast_type.js";
@@ -196,12 +195,6 @@ export class Domain {
     }
 
     /**
-     * Build a domain from already-normalized AST nodes.
-     *
-     * ``ast`` must not be mutated once ``compile()`` has memoized a predicate
-     * for the instance, so every builder assembles its nodes first and hands
-     * them over in one go rather than pushing into a live ``Domain``.
-     *
      * @param {AST[]} value
      * @returns {Domain}
      */
@@ -245,13 +238,20 @@ export class Domain {
      * @returns {RecordPredicate}
      */
     compile() {
-        let predicate = compiledDomains.get(this);
-        if (!predicate) {
-            predicate = isLiteralAST(this.ast)
-                ? compileDomainList(evaluate(this.ast, {}))
-                : (record) => matchDomain(record, evaluate(this.ast, record));
-            compiledDomains.set(this, predicate);
+        const ast = this.ast;
+        let predicate = compiledDomains.get(ast);
+        if (predicate) {
+            return predicate;
         }
+        const key = `${serverFoldsAccents() ? "u" : "-"}\x00${formatAST(ast)}`;
+        predicate = compiledDomainsByKey.get(key);
+        if (!predicate) {
+            predicate = isLiteralAST(ast)
+                ? compileDomainList(evaluate(ast, {}))
+                : (record) => matchDomain(record, evaluate(ast, record));
+            compiledDomainsByKey.set(key, predicate);
+        }
+        compiledDomains.set(ast, predicate);
         return predicate;
     }
 
@@ -308,10 +308,6 @@ const TRUE_LEAF = [1, "=", 1];
 /** @type {Condition} */
 const FALSE_LEAF = [0, "=", 1];
 /**
- * Shared singletons: every builder spreads their nodes into other domains, and
- * `compile()` memoizes a predicate per instance while `ast` stays public. Frozen
- * so the convention `fromASTValue` documents is enforced rather than assumed.
- *
  * @template {Domain} T
  * @param {T} domain
  * @returns {T}
@@ -460,9 +456,6 @@ function parseLikePattern(value, anchored) {
             escaped = false;
             literal += ch;
         } else if (ch === "\\") {
-            // A trailing lone backslash escapes nothing and is dropped, which
-            // is what the server's in-memory matcher does (its
-            // `build_like_regex` leaves `escaped` set and emits nothing).
             escaped = true;
         } else if (ch === "%") {
             flushLiteral();
@@ -484,12 +477,6 @@ function parseLikePattern(value, anchored) {
 }
 
 /**
- * Index of the character after the one starting at ``index``.
- *
- * ``_`` matches one *character*, and the server counts characters the way
- * Python does -- by code point. Stepping by one UTF-16 code unit made
- * ``'a😀b' =like 'a_b'`` false here and true on the server.
- *
  * @param {string} str
  * @param {number} index
  * @returns {number}
@@ -543,11 +530,6 @@ function likeMatch(tokens, str) {
 }
 
 /**
- * ``False`` and ``None`` both spell "unset" in a domain: the server leaves them
- * alone through the whole optimizer (``odoo/orm/domain/optimizations.py``) and
- * every operator treats them alike, so the two must select the same records
- * here too.
- *
  * @param {any} value
  * @returns {boolean}
  */
@@ -564,11 +546,6 @@ function isAbsentValue(value) {
 }
 
 /**
- * Whether this database's ``ilike`` folds accents.
- *
- * Read per compilation rather than captured at module load: the session is not
- * populated when this module is first evaluated, and tests patch it.
- *
  * @returns {boolean}
  */
 function serverFoldsAccents() {
@@ -740,10 +717,6 @@ function compileCondition(condition) {
                 return likeMatch(tokens, subject) !== isNot;
             };
         }
-        // A subquery the client cannot run. `any!` and `not any!` are the
-        // server's internal spellings (`INTERNAL_CONDITION_OPERATORS`) and mean
-        // the same thing here; they used to fall through to "could not match
-        // domain".
         case "any":
         case "any!":
         case "child_of":
@@ -832,6 +805,11 @@ function isLiteralAST(ast) {
 }
 
 /**
- * @type {WeakMap<Domain, RecordPredicate>}
+ * @type {WeakMap<ASTList, RecordPredicate>}
  */
 const compiledDomains = new WeakMap();
+
+/**
+ * @type {LruCache}
+ */
+const compiledDomainsByKey = new LruCache(512);

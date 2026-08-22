@@ -1,13 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module views/list/list_aggregates_row */
-
 import { Component, onWillRender, useRef } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { useAutofocus } from "@web/core/utils/hooks";
 
-import { useListAggregates } from "./list_aggregates.js";
 import {
     getAggregateColumns as getAggregateColumnsUtil,
     getGroupNameCellColSpan as getGroupNameCellColSpanUtil,
@@ -20,6 +17,8 @@ export class ListAggregatesRow extends Component {
     static template = "web.ListAggregatesRow";
 
     static props = {
+        /** @type {any} */
+        agg: Object,
         /** @type {any} */
         list: Object,
         /** @type {any} */
@@ -49,8 +48,6 @@ export class ListAggregatesRow extends Component {
     _renderId;
     /** @type {{ renderId: number, value: any }} */
     _aggregatesCache;
-    /** @type {ReturnType<typeof useListAggregates>} */
-    agg;
     /** @type {import("@odoo/owl").Ref} */
     groupInputRef;
 
@@ -58,20 +55,18 @@ export class ListAggregatesRow extends Component {
         this.groupInputRef = useRef("groupInput");
         useAutofocus({ refName: "groupInput" });
 
-        // This row is not a full ListRenderer, so it passes the aggregates hook a
-        // partial grid context -- exactly the four getters the hook reads.
-        this.agg = useListAggregates({
-            getColumns: () => this.columns,
-            getFields: () => this.props.list.fields,
-            getProps: () => this.props,
-            getOptionalActiveFields: () => this.props.optionalActiveFields,
-        });
-
         this._renderId = 0;
         this._aggregatesCache = { renderId: -1, value: null };
         onWillRender(() => {
             this._renderId++;
         });
+    }
+
+    /**
+     * @returns {ReturnType<typeof import("./list_aggregates").useListAggregates>}
+     */
+    get agg() {
+        return this.props.agg;
     }
 
     /** @returns {any[]} */

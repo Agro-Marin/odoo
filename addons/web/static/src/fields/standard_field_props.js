@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/standard_field_props */
-
 /**
  * @typedef StandardFieldProps
  * @property {string} [id]

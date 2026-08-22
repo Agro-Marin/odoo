@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/settings_confirmation_dialog */
-
 import { _t } from "@web/core/translation";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 

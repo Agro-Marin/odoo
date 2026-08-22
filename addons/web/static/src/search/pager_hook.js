@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/pager_hook */
-
 import { onWillRender, useEnv, useState, useSubEnv } from "@odoo/owl";
 
 /**

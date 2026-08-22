@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/position/position_hook */
-
 import {
     EventBus,
     onWillDestroy,

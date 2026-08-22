@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/badge/badge_colors */
-
 /**
  * @param {import("@web/model/relational_model/record").RelationalRecord} record
  * @param {string | undefined} colorField

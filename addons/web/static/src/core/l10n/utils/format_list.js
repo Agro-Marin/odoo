@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/l10n/utils/format_list */
-
 import { localization } from "@web/core/l10n/localization";
 import { pyToJsLocale } from "@web/core/l10n/utils/locales";
 
@@ -47,8 +45,8 @@ const _listFormatCache = new Map();
 /**
  * @param {Iterable<string>} values
  * @param {{
- *  localeCode?: string;
- *  style?: FormatListStyle;
+ * localeCode?: string;
+ * style?: FormatListStyle;
  * }} [options]
  * @returns {string}
  */

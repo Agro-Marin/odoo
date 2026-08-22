@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/registry */
-
 import { EventBus, onWillDestroy, useState, validate } from "@odoo/owl";
 import { reportJsError } from "@web/core/errors/error_beacon";
 import { makeAssetLog } from "@web/core/utils/asset_log";
@@ -10,7 +8,7 @@ import { globalSingleton } from "@web/core/utils/global_singleton";
 
 const log = makeAssetLog("registry");
 
-export class KeyNotFoundError extends Error {}
+class KeyNotFoundError extends Error {}
 
 /**
  * @param {string} message
@@ -126,8 +124,6 @@ export class Registry extends EventBus {
                 if (odoo.debug) {
                     console.warn(`[registry] ${msg}`);
                 } else {
-                    // Same contract as validation failures: a silently-dropped
-                    // registration must stay observable in production.
                     reportRegistryAnomaly(msg);
                 }
                 return this;

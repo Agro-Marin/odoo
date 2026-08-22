@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/menus/menu_service */
-
 import { browser } from "@web/core/browser/browser";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
@@ -43,7 +41,7 @@ async function fetchMenus(reload, cachedHash) {
 class MenuTree {
     /** @type {Object} */
     menusData;
-    /** @type {Map<number|string, Object> | null} */
+    /** @type {Map<number|string, (number|string)[]> | null} */
     _appByAction = null;
     /** @type {Map<number|string, Object>} */
     _treeByMenuId = new Map();
@@ -69,7 +67,9 @@ class MenuTree {
 
     /** @param {number|string} menuId */
     getMenu(menuId) {
-        return this.menusData[menuId];
+        return Object.hasOwn(this.menusData, menuId)
+            ? this.menusData[menuId]
+            : undefined;
     }
 
     getAll() {
@@ -93,10 +93,6 @@ class MenuTree {
     }
 
     /**
-     * The resolved tree is memoized per menu id rather than written back onto
-     * the payload: `setData` would otherwise have to scrub a `childrenTree`
-     * left on menus it reuses, and consumers would see the cache as data.
-     *
      * @param {number|string} menuID
      */
     getMenuAsTree(menuID) {
@@ -145,32 +141,13 @@ class MenuTree {
     }
 }
 
-/**
- * The `menu` service.
- *
- * A class rather than a closure returning an object literal; see
- * `core/hotkeys/hotkey_service.js` for the reasoning and
- * `tooling/architecture/js_service_shape.py` for the budget.
- *
- * **The async bootstrap moved into the class, not into `start()`.** `start` is
- * `async` here, and the obvious split — fetch in `start`, then construct —
- * would have separated the bootstrap from `reload()`, which shares
- * `fetchGeneration` with it: both bump it and then check whether they are still
- * the newest request before writing. Splitting them would have left the
- * background revalidation racing a `reload()` with no shared counter to arbitrate.
- * So `start()` constructs and awaits `load()`, and the counter stays one field.
- */
-export class MenuService {
+class MenuService {
     /**
      * @param {import("@web/env").OdooEnv} env
      * @param {{ action: any }} services
      */
     constructor(env, { action }) {
         this.env = env;
-        // Injected, not reached through `env.services.action`. The service has
-        // always declared `dependencies: ["action"]`; taking it from the
-        // injection point is what that declaration is for, and it is the
-        // difference between a dependency and an ambient lookup.
         this.action = action;
         this.fetchGeneration = 0;
         const {
@@ -185,9 +162,15 @@ export class MenuService {
     }
 
     /**
-     * Fills the tree: from cache plus a background revalidation when there is a
-     * usable cached copy, otherwise by fetching before the client boots.
+     * @param {Object} menus
+     * @param {string} [hash]
      */
+    _persist(menus, hash) {
+        menuStorage.write(menus, hash);
+        this.storedRaw = JSON.stringify(menus);
+        this.storedHash = hash;
+    }
+
     async load() {
         if (this.cachedMenus) {
             const generation = ++this.fetchGeneration;
@@ -199,12 +182,13 @@ export class MenuService {
                     if (!res?.menus) {
                         return;
                     }
-                    if (JSON.stringify(res.menus) !== this.storedRaw) {
-                        menuStorage.write(res.menus, res.hash);
+                    const changed = JSON.stringify(res.menus) !== this.storedRaw;
+                    if (changed || (res.hash && res.hash !== this.storedHash)) {
+                        this._persist(res.menus, res.hash);
+                    }
+                    if (changed) {
                         this.tree.setData(res.menus);
                         this.env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
-                    } else if (res.hash && res.hash !== this.storedHash) {
-                        menuStorage.write(res.menus, res.hash);
                     }
                 })
                 .catch((error) => {
@@ -213,19 +197,12 @@ export class MenuService {
             return;
         }
         let res = await fetchMenus().catch(() => null);
-        // `undefined` is the parse-time opt-out: the PoS UI, the documents
-        // portal and project sharing all set `loadMenusPromise` to a
-        // promise of nothing to say this page has no menus to load. `null`
-        // is a 304 or an outright failure, and with no usable cached copy
-        // that has to be refetched or the client boots blank. Both are
-        // falsy, so asking `!res?.menus` sent the opted-out pages a
-        // request they had explicitly declined.
         if (res === null) {
             res = await fetchMenus(true).catch(() => null);
         }
         if (res?.menus) {
             this.tree.setData(res.menus);
-            menuStorage.write(res.menus, res.hash);
+            this._persist(res.menus, res.hash);
         } else if (this.storedRaw) {
             this.tree.setData(menuStorage.parse(this.storedRaw) || EMPTY_MENUS);
         }
@@ -240,10 +217,6 @@ export class MenuService {
     }
 
     /**
-     * Mirrors `MenuTree.getMenu`'s own `{number|string}`: the tree accepts the
-     * string ids the fixtures use ("root"), and narrowing this to `number`
-     * would be precision the implementation does not have.
-     *
      * @param {number|string} menuId
      */
     getMenu(menuId) {
@@ -260,14 +233,6 @@ export class MenuService {
     }
 
     /**
-     * `action` is `any` for parity with the closure this replaced, whose params
-     * were untyped. Mirroring `MenuTree.getAppIdByAction`'s own
-     * `{number|string}` would be *better*, and surfaces exactly one real
-     * mismatch — `webclient.js:86` passes
-     * `router.current.actionStack?.[0]?.action`, which is wider than that. Left
-     * as a separate fix rather than widening this conversion's blast radius
-     * into a file it does not otherwise touch.
-     *
      * @param {any} action
      * @param {number|string} [preferredAppId]
      * @returns {number|string|undefined}
@@ -295,8 +260,6 @@ export class MenuService {
         await this.action.doAction(menu.actionID, {
             clearBreadcrumbs: true,
             onActionReady: () => {
-                // Routed through `this` so a downstream patch of
-                // `setCurrentMenu` applies to this caller too.
                 this.setCurrentMenu(menu);
             },
         });
@@ -310,7 +273,7 @@ export class MenuService {
         }
         if (res?.menus) {
             this.tree.setData(res.menus);
-            menuStorage.write(res.menus, res.hash);
+            this._persist(res.menus, res.hash);
         }
         this.env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
     }

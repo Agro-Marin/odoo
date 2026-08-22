@@ -1,10 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/domain_selector/utils */
-
 import { getDomainDisplayedOperators } from "@web/components/domain_selector/domain_selector_operator_editor";
-import { getDefaultValue } from "@web/components/tree_editor/tree_editor_value_editors";
+import { getDefaultValue } from "@web/components/tree_editor";
 import { condition } from "@web/core/tree/condition_tree";
 import { domainFromTree } from "@web/core/tree/domain_from_tree";
 import { getDefaultPath } from "@web/core/tree/utils";

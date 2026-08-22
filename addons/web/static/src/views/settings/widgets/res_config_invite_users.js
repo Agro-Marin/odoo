@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/widgets/res_config_invite_users */
-
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { useAction } from "@web/core/action_port";
 import { registry } from "@web/core/registry";
@@ -24,7 +22,7 @@ class ResConfigInviteUsers extends Component {
     notification;
     /** @type {import("services").ServiceFactories["orm"]} */
     orm;
-    /** @type {{ status: string; emails: string; invite: null }} */
+    /** @type {{ status: string; emails: string; invite: Record<string, any> | null }} */
     state;
 
     setup() {
@@ -36,7 +34,7 @@ class ResConfigInviteUsers extends Component {
         this.state = useState({
             status: "idle",
             emails: "",
-            invite: null,
+            invite: /** @type {Record<string, any> | null} */ (null),
         });
 
         onWillStart(async () => {
@@ -102,10 +100,16 @@ class ResConfigInviteUsers extends Component {
     }
 
     onClickMore(ev) {
+        if (!this.state.invite) {
+            return;
+        }
         this.action.doAction(this.state.invite.action_pending_users);
     }
 
     onClickUser(ev, user) {
+        if (!this.state.invite) {
+            return;
+        }
         const action = { ...this.state.invite.action_pending_users, res_id: user[0] };
         this.action.doAction(action);
     }
@@ -135,8 +139,8 @@ class ResConfigInviteUsers extends Component {
 
         this.state.status = "inviting";
 
-        const pendingUserEmails = this.state.invite.pending_users.map(
-            (user) => user[1],
+        const pendingUserEmails = (this.state.invite?.pending_users ?? []).map(
+            (/** @type {any[]} */ user) => user[1],
         );
         const emailsLeftToProcess = this.emails.filter(
             (email) => !pendingUserEmails.includes(email),
@@ -162,7 +166,7 @@ class ResConfigInviteUsers extends Component {
 }
 
 /** @type {import("registries").ViewWidgetsRegistryItemShape} */
-export const resConfigInviteUsers = {
+const resConfigInviteUsers = {
     component: ResConfigInviteUsers,
 };
 

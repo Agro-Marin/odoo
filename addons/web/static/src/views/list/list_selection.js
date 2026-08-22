@@ -1,32 +1,22 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_selection */
-
 import {
     useLongTouchSelection,
     useRecordSelection,
 } from "@web/views/multi_record_selection";
 
 /**
- * List-specific composition of the shared multi-record selection layer
- * (`@web/views/multi_record_selection`): the anchor/range/expand core and the
- * long-touch timer come from there; this hook adds the list's own guards
- * (selector availability, touch propagation while a selection exists) and the
- * small-screen selection-mode click handlers.
- *
  * @param {Pick<import("./list_renderer").ListGridContext, "getProps" | "getAllowSelectors" | "toggleRecordSelection" | "getEnv">} ctx
- *   the subset of the grid context this hook reads; the ListRenderer passes its
- *   full `gridContext`.
  * @param {object} config
  * @param {number} config.longTouchThreshold
  * @returns {ReturnType<typeof useRecordSelection> & {
- *   onRowTouchStart: (record: object, ev: TouchEvent) => void,
- *   onRowTouchEnd: (record: object) => void,
- *   onRowTouchMove: (record: object) => void,
- *   resetLongTouchTimer: () => void,
- *   onClickCapture: (record: object, ev: PointerEvent) => void,
- *   ignoreEventInSelectionMode: (ev: MouseEvent) => void,
+ * onRowTouchStart: (record: object, ev: TouchEvent) => void,
+ * onRowTouchEnd: (record: object) => void,
+ * onRowTouchMove: (record: object) => void,
+ * resetLongTouchTimer: () => void,
+ * onClickCapture: (record: object, ev: PointerEvent) => void,
+ * ignoreEventInSelectionMode: (ev: MouseEvent) => void,
  * }}
  */
 export function useListSelection(ctx, { longTouchThreshold }) {

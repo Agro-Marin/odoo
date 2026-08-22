@@ -2,28 +2,21 @@
 /** @odoo-module native */
 /* eslint-disable no-console -- QA automation bot; progress/results output to console is its purpose */
 
-/** @module @web/webclient/clickbot/clickbot */
-
 import { App, reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { AppEvent, RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network/rpc";
 import { getPopoverForTarget } from "@web/ui/popover/popover";
+import {
+    CLICKBOT_RUNNING_KEY,
+    clickbotHomeMenuSelectors,
+    clickbotSkippedMenus,
+} from "@web/webclient/clickbot/clickbot_state";
 
 export const SUCCESS_SIGNAL = "clickbot test succeeded";
 
 const MOUSE_EVENTS = ["mouseover", "mouseenter", "mousedown", "mouseup", "click"];
-const BLACKLISTED_MENUS = [
-    "base.menu_theme_store",
-    "base.menu_third_party",
-    "event.menu_event_registration_desk",
-    "hr_attendance.menu_action_open_form",
-    "hr_attendance.menu_hr_attendance_onboarding",
-    "mrp_workorder.menu_mrp_workorder_root",
-    "pos_enterprise.menu_point_kitchen_display_root",
-];
 const STUDIO_SYSTRAY_ICON_SELECTOR = ".o_web_studio_navbar_item:not(.o_disabled) i";
-const RUNNING_KEY = "running.clickbot";
 const STEP_TIMEOUT = 30000;
 const POLL_INTERVAL = 25;
 
@@ -60,7 +53,7 @@ async function triggerClick(target, elDescription) {
 }
 
 /**
- * @returns {number} the number of tasks OWL still has scheduled, across apps.
+ * @returns {number}
  */
 function scheduledTaskCount() {
     let size = 0;
@@ -71,7 +64,7 @@ function scheduledTaskCount() {
 }
 
 /**
- * @returns {string} the names of those tasks, for a timeout message.
+ * @returns {string}
  */
 function scheduledTaskNames() {
     const names = [];
@@ -87,8 +80,11 @@ async function ensureHomeMenu() {
     const homeMenu = document.querySelector("div.o_home_menu");
     if (!homeMenu) {
         let menuToggle = document.querySelector("nav.o_main_navbar > a.o_menu_toggle");
-        if (!menuToggle) {
-            menuToggle = document.querySelector(".o_stock_barcode_home_menu");
+        for (const selector of clickbotHomeMenuSelectors.getAll()) {
+            if (menuToggle) {
+                break;
+            }
+            menuToggle = document.querySelector(selector);
         }
         await triggerClick(menuToggle, "home menu toggle button");
     }
@@ -102,33 +98,24 @@ async function ensureAppsMenu() {
     }
 }
 
-/**
- * Walks every app, menu, view and filter of a running webclient and fails on
- * the first error dialog.
- *
- * One run is one instance. The bot used to keep its whole world in module
- * globals -- the progress state, the in-flight RPC map, the bus counters, the
- * cached app list -- so a second `clickEverywhere()` landed in the middle of
- * the first one's state, and the bus/rpc listeners `cleanup` removed were
- * whichever the last `setup` had installed. Fields and bound handlers make each
- * run self-contained and let a test drive one directly.
- */
-export class ClickBot {
+class ClickBot {
     /**
      * @param {Object} [options]
-     * @param {boolean} [options.light] skip filters, views and sub-menus
-     * @param {Record<string, any>} [options.currentState] resume a stored run
+     * @param {boolean} [options.light]
+     * @param {Record<string, any>} [options.currentState]
      */
     constructor({ light = false, currentState } = {}) {
         this.env = /** @type {any} */ (odoo).__WOWL_DEBUG__.root.env;
         this.isEnterprise = Boolean(odoo.info && odoo.info.isEnterprise);
 
-        /** @type {Record<number, string>} in-flight RPCs, by id */
+        /** @type {Record<number, string>} */
         this.calledRPC = {};
         /** @type {Record<string, any> | undefined} */
         this.errorRPC = undefined;
         this.actionCount = 0;
         this.settledCount = 0;
+        this._persistQueued = false;
+        this._stopped = false;
         /** @type {NodeListOf<Element> | null} */
         this.apps = null;
 
@@ -148,9 +135,6 @@ export class ClickBot {
             () => this.persist(),
         );
 
-        // Bound once: `removeEventListener` only matches the identity it was
-        // given, and the module-level handlers it used to pass were shared by
-        // every run.
         this.onUiUpdate = () => this.actionCount++;
         this.onActionSettled = () => this.settledCount++;
         this.onRPCRequest = ({ detail }) => {
@@ -168,7 +152,21 @@ export class ClickBot {
     }
 
     persist() {
-        browser.localStorage.setItem(RUNNING_KEY, JSON.stringify(this.state));
+        if (this._persistQueued) {
+            return;
+        }
+        this._persistQueued = true;
+        Promise.resolve().then(() => {
+            this._persistQueued = false;
+            this.persistNow();
+        });
+    }
+
+    persistNow() {
+        if (this._stopped) {
+            return;
+        }
+        browser.localStorage.setItem(CLICKBOT_RUNNING_KEY, JSON.stringify(this.state));
     }
 
     start() {
@@ -177,7 +175,7 @@ export class ClickBot {
         stopButton.classList.add("btn", "btn-danger");
         stopButton.textContent = "Stop ClickAll!";
         stopButton.onclick = () => {
-            browser.localStorage.removeItem(RUNNING_KEY);
+            browser.localStorage.removeItem(CLICKBOT_RUNNING_KEY);
             browser.location.reload();
         };
         document.body.appendChild(stopButton);
@@ -193,11 +191,12 @@ export class ClickBot {
         rpcBus.addEventListener(RpcEvent.REQUEST, this.onRPCRequest);
         rpcBus.addEventListener(RpcEvent.RESPONSE, this.onRPCResponse);
 
-        this.persist();
+        this.persistNow();
     }
 
     stop() {
-        browser.localStorage.removeItem(RUNNING_KEY);
+        this._stopped = true;
+        browser.localStorage.removeItem(CLICKBOT_RUNNING_KEY);
         this.env.bus.removeEventListener(
             AppEvent.ACTION_MANAGER_UI_UPDATED,
             this.onUiUpdate,
@@ -212,7 +211,7 @@ export class ClickBot {
     }
 
     /**
-     * @throws {Error} an error dialog appeared, or nothing settled in time.
+     * @throws {Error}
      * @returns {boolean}
      */
     checkForErrorDialog() {
@@ -299,9 +298,6 @@ export class ClickBot {
                 );
             }
             if (!dropdownMenu) {
-                // A toggler that opens nothing is a dropdown regression, not
-                // the end of the menus: report it loudly and move on to the
-                // next menu instead of silently ending the walk.
                 browser.console.error(
                     `Menu toggler "${
                         /** @type {HTMLElement} */ (menuToggle).innerText.trim()
@@ -469,7 +465,7 @@ export class ClickBot {
         const el = /** @type {HTMLElement} */ (element);
         const menu = el.dataset.menuXmlid;
         const menuDescription = `${el.innerText.trim()} ${menu}`;
-        if (BLACKLISTED_MENUS.includes(menu)) {
+        if (clickbotSkippedMenus.contains(menu)) {
             browser.console.log(`Skipping blacklisted menu ${menuDescription}`);
             return;
         }
@@ -478,10 +474,6 @@ export class ClickBot {
             this.state.testedMenus.push(menu);
         }
         const startActionCount = this.actionCount;
-        // A menu whose action changes nothing on screen -- a server action that
-        // returns no action, say -- pushes no UI update, so waiting on one can
-        // only ever time out and fail the run on a menu that behaved correctly.
-        // ACTION_MANAGER:SETTLED reports the dispatch itself, whatever it did.
         const startSettledCount = this.settledCount;
         await triggerClick(element, `menu item "${el.innerText.trim()}"`);
         try {
@@ -570,7 +562,7 @@ export class ClickBot {
     }
 
     /**
-     * @param {string} [xmlId] restrict the run to one app
+     * @param {string} [xmlId]
      * @returns {Promise<void>}
      */
     async run(xmlId) {
@@ -618,8 +610,6 @@ function clickEverywhere(xmlId, light = false, currentState) {
         browser.console.error("A clickbot run is already in progress; ignoring.");
         return;
     }
-    // Reserved synchronously, so two calls in the same tick cannot both
-    // schedule a run onto the same page.
     currentRun = /** @type {any} */ ({});
     browser.setTimeout(async () => {
         const bot = new ClickBot({ light, currentState });

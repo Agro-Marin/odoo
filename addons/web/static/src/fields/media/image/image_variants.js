@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/media/image/image_variants */
-
 const VARIANT_SIZES = [1920, 1024, 512, 256, 128];
 
 const NON_CONVERTIBLE_TYPES = ["image/gif", "image/svg+xml", "image/webp"];

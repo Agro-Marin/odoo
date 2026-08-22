@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/action_container */
-
 import { Component, onWillDestroy, xml } from "@odoo/owl";
 import { AppEvent } from "@web/core/events";
 

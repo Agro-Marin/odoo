@@ -19,30 +19,6 @@
     </Dialog>
 </t>
 
-<t t-name="web.Many2XAutocomplete" >
-    <div class="o_input_dropdown" t-ref="autocomplete_container">
-        <input t-if="env.isSmall and props.dropdown"
-            type="text"
-            t-att-id="props.id"
-            class="o_input"
-            readonly=""
-            autocomplete="off"
-            t-att-placeholder="props.placeholder"
-            t-att-value="props.value"
-            t-on-click="onSearchMore"
-            t-on-barcode-search="onBarcodeSearch"
-        />
-        <AutoComplete t-else="" t-props="autoCompleteProps">
-            <t t-set-slot="option" t-slot-scope="optionScope">
-                <t t-slot="{{ optionScope.data.slotName }}" t-props="optionScope.data" label="optionScope.label">
-                    <t t-out="optionScope.label"/>
-                </t>
-            </t>
-        </AutoComplete>
-        <span class="o_dropdown_button" />
-    </div>
-</t>
-
 <t t-name="web.X2ManyFieldDialogDefaultButtons">
     <t t-if="record.isInEdition">
         <t t-if="canCreate">
@@ -66,5 +42,4 @@
         <button class="btn btn-primary o_form_button_cancel" t-on-click="() => this.props.close()" data-hotkey="j">Close</button>
     </t>
 </t>
-
 </templates>

@@ -1,10 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_button/view_button */
-
 import { Component } from "@odoo/owl";
-import { useDropdownCloser } from "@web/components/dropdown/dropdown_hooks";
+import { useDropdownCloser } from "@web/components/dropdown/dropdown_hook";
 import { sharedComponents } from "@web/core/shared_components";
 import { pick } from "@web/core/utils/collections/objects";
 import { debounce as debounceFn } from "@web/core/utils/timing";
@@ -61,6 +59,7 @@ export class ViewButton extends Component {
         tag: { type: String, optional: true },
         record: { type: Object, optional: true },
         attrs: { type: Object, optional: true },
+        modifiers: { type: Object, optional: true },
         className: { type: String, optional: true },
         context: { type: [Object, String], optional: true },
         clickParams: { type: Object, optional: true },
@@ -80,6 +79,7 @@ export class ViewButton extends Component {
         className: "",
         clickParams: {},
         attrs: {},
+        modifiers: {},
     };
 
     /** @type {any} */
@@ -118,10 +118,10 @@ export class ViewButton extends Component {
                 string: this.props.string,
                 help: this.clickParams.help,
                 context: this.clickParams.context,
-                invisible: this.props.attrs.invisible,
-                column_invisible: this.props.attrs.column_invisible,
-                readonly: this.props.attrs.readonly,
-                required: this.props.attrs.required,
+                invisible: this.props.modifiers.invisible,
+                column_invisible: this.props.modifiers.column_invisible,
+                readonly: this.props.modifiers.readonly,
+                required: this.props.modifiers.required,
                 special: this.clickParams.special,
                 type: this.clickParams.type,
                 name: this.clickParams.name,
@@ -150,6 +150,14 @@ export class ViewButton extends Component {
             return this.props.onClick();
         }
 
+        return this.execute(newWindow);
+    }
+
+    /**
+     * @param {boolean} [newWindow]
+     * @returns {any}
+     */
+    execute(newWindow) {
         return this.env.onClickViewButton({
             clickParams: this.clickParams,
             getResParams: () =>

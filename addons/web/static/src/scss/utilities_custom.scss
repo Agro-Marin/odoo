@@ -148,17 +148,10 @@ $utilities: map-merge(
                     values: $order-array,
                 )
             ),
-        // Safari only dropped the prefix in 17. Emitting it through the API
-        // rather than as a hand-written `.user-select-none` rule in
-        // `bootstrap_overridden.scss` - a variables file - also covers `all`
-        // and `auto`, which that rule never did.
         "user-select": map-merge(
                 map-get($utilities, "user-select"),
                 (
                     property: -webkit-user-select user-select,
-                    // Explicit: the API names the class after the *first*
-                    // property, so adding the prefix renamed every class to
-                    // `.-webkit-user-select-*`.
                     class: user-select,
                 )
             ),
@@ -213,9 +206,6 @@ $utilities: map-merge(
     display: none !important;
 }
 
-// A utility, like its neighbours above: without `!important` it loses to any
-// component rule emitted later in the bundle that also sets `font-size`
-// (`.badge`, `.btn`, `small`), which is every real use of it.
 .smaller {
     font-size: $o-font-size-base-smaller !important;
 }

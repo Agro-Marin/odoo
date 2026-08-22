@@ -1,12 +1,21 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/file_viewer/file_viewer */
-
-import { Component, onWillUpdateProps, useEffect, useRef, useState } from "@odoo/owl";
+import {
+    Component,
+    onWillUpdateProps,
+    useEffect,
+    useExternalListener,
+    useRef,
+    useState,
+} from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
+import { download } from "@web/core/network/download";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { hidePDFJSButtons } from "@web/core/utils/pdfjs";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
+
+const PRINT_CLOSE_FALLBACK = 1000;
 /**
  * @typedef {Object} File
  * @property {string} name
@@ -28,7 +37,6 @@ import { useThrottleForAnimation } from "@web/core/utils/timing";
  */
 export class FileViewer extends Component {
     static template = "web.FileViewer";
-    static components = {};
     static props = ["files", "startIndex", "close?", "modal?"];
     static defaultProps = {
         modal: true,
@@ -55,6 +63,14 @@ export class FileViewer extends Component {
             y: 0,
         };
 
+        this.viewport = useState({
+            innerWidth: browser.innerWidth,
+            innerHeight: browser.innerHeight,
+        });
+        useExternalListener(browser, "resize", () => {
+            this.viewport.innerWidth = browser.innerWidth;
+            this.viewport.innerHeight = browser.innerHeight;
+        });
         this.state = useState({
             index: this.props.startIndex,
             file: this.props.files[this.props.startIndex],
@@ -64,8 +80,6 @@ export class FileViewer extends Component {
             isIframeLoaded: false,
         });
         this.ui = useService("ui");
-        // Dragging fires far faster than the screen refreshes, and each call
-        // measures the image and the viewport before writing a transform back.
         this.throttledUpdateZoomerStyle = useThrottleForAnimation(() =>
             this.updateZoomerStyle(),
         );
@@ -86,9 +100,8 @@ export class FileViewer extends Component {
         this.state.imageLoaded = true;
     }
 
-    onIframeLoaded(ev) {
-        const iFrameEl = ev.target;
-        iFrameEl.contentWindow.requestAnimationFrame(() => {
+    onIframeLoaded() {
+        requestAnimationFrame(() => {
             this.state.isIframeLoaded = true;
         });
     }
@@ -122,14 +135,9 @@ export class FileViewer extends Component {
         }
         const index = this.state.file ? files.indexOf(this.state.file) : -1;
         if (index !== -1) {
-            // Same file, it may only have moved.
             this.state.index = index;
             return;
         }
-        // The file we were on is gone. Falling back on the index needs it to be
-        // a real position: emptying the list parks it at -1, and comparing that
-        // against a still-missing file used to read as "nothing changed", which
-        // left the viewer blank for good once the list refilled.
         const fallback = Math.min(Math.max(this.state.index, 0), files.length - 1);
         this.activateFile(fallback, files);
     }
@@ -314,7 +322,8 @@ export class FileViewer extends Component {
             `rotate(${this.state.angle}deg);`;
 
         if (this.state.angle % 180 !== 0) {
-            style += `max-height: ${window.innerWidth}px; max-width: ${window.innerHeight}px;`;
+            const { innerWidth, innerHeight } = this.viewport;
+            style += `max-height: ${innerWidth}px; max-width: ${innerHeight}px;`;
         } else {
             style += "max-height: 100%; max-width: 100%;";
         }
@@ -322,18 +331,25 @@ export class FileViewer extends Component {
     }
 
     onClickPrint() {
-        const printWindow = window.open();
+        const printWindow = browser.open();
         if (!printWindow) {
             return;
         }
         const image = printWindow.document.createElement("img");
         const printAndClose = () => {
+            printWindow.addEventListener("afterprint", () => printWindow.close(), {
+                once: true,
+            });
             printWindow.print();
-            printWindow.setTimeout(() => printWindow.close(), 10);
+            printWindow.setTimeout(() => printWindow.close(), PRINT_CLOSE_FALLBACK);
         };
         image.addEventListener("load", printAndClose, { once: true });
         image.addEventListener("error", printAndClose, { once: true });
         image.src = this.state.file.defaultSource;
         printWindow.document.body.appendChild(image);
+    }
+
+    onClickDownload() {
+        download({ data: {}, url: this.state.file.downloadUrl });
     }
 }

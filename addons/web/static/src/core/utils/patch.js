@@ -1,14 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/patch */
-
 /**
  * @typedef {{
- *      originalProperties: Map<string, PropertyDescriptor | undefined>;
- *      skeleton: object;
- *      extensions: Set<object>;
- *  }} PatchDescription
+ * originalProperties: Map<string, PropertyDescriptor | undefined>;
+ * skeleton: object;
+ * extensions: Set<object>;
+ * }} PatchDescription
  */
 
 /** @type {WeakMap<object, PatchDescription>} */
@@ -102,10 +100,6 @@ export function patch(objToPatch, extension) {
     }
 
     const properties = Object.getOwnPropertyDescriptors(extension);
-    // Each patch stores the descriptors it shadows on its *own* skeleton,
-    // chained after the previous extension. Writing them onto the previous
-    // extension instead stamped foreign own-properties on an object the caller
-    // still owns, which is what `extensionDeclaredKeys` used to exist to undo.
     const skeleton = Object.create(description.skeleton);
     for (const [key, newProperty] of Object.entries(properties)) {
         const oldProperty = Object.getOwnPropertyDescriptor(objToPatch, key);
@@ -130,21 +124,11 @@ export function patch(objToPatch, extension) {
         Object.defineProperty(objToPatch, key, newProperty);
     }
 
-    // `super` resolves through the extension's own prototype (its methods'
-    // [[HomeObject]]), so the extension must be the one re-parented.
     Object.setPrototypeOf(extension, skeleton);
     description.skeleton = extension;
 
     return () => {
-        // Read the description back rather than closing over the one captured
-        // above: unpatching re-applies the surviving extensions, and each of
-        // those `patch()` calls builds a *fresh* description. A closure holding
-        // the stale one would restore the wrong originals when two patches are
-        // undone in registration order.
         const current = patchDescriptions.get(objToPatch);
-        // Nothing left to undo: this closure already ran, or the target has
-        // since been patched by someone else. Undoing anyway used to wipe that
-        // unrelated patch and deregister it, so its own unpatch became a no-op.
         if (!current?.extensions.has(extension)) {
             return;
         }

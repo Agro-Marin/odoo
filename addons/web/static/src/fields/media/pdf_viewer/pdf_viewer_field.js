@@ -1,10 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/media/pdf_viewer/pdf_viewer_field */
-
 import {
-    Component,
     onWillDestroy,
     onWillRender,
     onWillUpdateProps,
@@ -19,9 +16,11 @@ import { useService } from "@web/core/utils/hooks";
 import { hidePDFJSButtons } from "@web/core/utils/pdfjs";
 import { url } from "@web/core/utils/urls";
 import { registerField } from "@web/fields/_registry";
+import { FieldComponent } from "@web/fields/field_component";
+import { filenameAttribute } from "@web/fields/field_options";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-export class PdfViewerField extends Component {
+export class PdfViewerField extends FieldComponent {
     static template = "web.PdfViewerField";
     static components = {
         FileUploader,
@@ -68,7 +67,6 @@ export class PdfViewerField extends Component {
                 if (el) {
                     hidePDFJSButtons(el, {
                         hideDownload: true,
-                        hidePrint: true,
                     });
                 }
             },
@@ -98,7 +96,7 @@ export class PdfViewerField extends Component {
     }
 
     get url() {
-        if (!this.state.isValid || !this.props.record.data[this.props.name]) {
+        if (!this.state.isValid || !this.field.value) {
             return null;
         }
         if (!this.state.objectUrl && !this.props.record.resId) {
@@ -151,18 +149,11 @@ export class PdfViewerField extends Component {
 }
 
 /** @type {import("registries").FieldsRegistryItemShape} */
-export const pdfViewerField = {
+const pdfViewerField = {
     component: PdfViewerField,
     displayName: _t("PDF Viewer"),
+    supportedAttributes: [filenameAttribute()],
     supportedTypes: ["binary"],
-    // Written on upload and compared against on every update; a value that is
-    // never loaded makes that comparison always mismatch.
-    //
-    // `<name>_page` is the page the viewer opens on. It was read straight out of
-    // `record.data` without ever being declared, so it was absent from every
-    // record and the viewer always opened on page 1 -- the option could not work
-    // even on a model that defines the field. `optional` makes the declaration a
-    // no-op on the models that do not.
     fieldDependencies: ({ name, attrs }) => [
         ...(attrs.filename
             ? [{ name: attrs.filename, optional: true, written: true }]

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/load_state */
-
 import { AppEvent } from "@web/core/events";
 import { user } from "@web/core/user";
 
@@ -11,22 +9,6 @@ import { actionStorage } from "./action_storage.js";
 /** @import { ActionManager } from "./action_service.js" */
 
 /**
- * The crumbs that sit below the action `getActionParams` settled on.
- *
- * `poppedLeaves` counts entries of the url's `actionStack`; the controller list
- * is shorter than that stack whenever `loadBreadcrumbs` could not name a crumb
- * and dropped it. Dropping the last `popped` SURVIVORS mixed the two, and cut
- * one crumb too many as soon as a drop landed inside the popped tail — the
- * common case being a leaf that popped BECAUSE its record was unreadable, which
- * is also why the server could not name it. Each controller carries the index
- * it was built from, so the cut is made where `poppedLeaves` was measured.
- *
- * Only ever reached with a `popped` that `getActionParams` produced, and it
- * only pops inside `actionStack?.length > 1` — so the stack it needs is there.
- * `controllersFromState` may have indexed against a state it took from
- * `actionStorage` instead of this one, but only after finding the two render
- * to the same url, and a url carries the whole stack.
- *
  * @param {any[]} controllers
  * @param {Record<string, any>} state
  * @param {number} popped
@@ -45,9 +27,6 @@ function crumbsBelowDispatched(controllers, state, popped) {
 export async function loadState(am, state) {
     /** @type {Record<string, any>} */
     const routeState = state ?? am.router.current;
-    // A loadState is a navigation like any other: minting on the shared clock
-    // is what lets a newer navigation supersede the reconstruction below, and
-    // what cancels an in-flight load the user just navigated away from.
     const token = am.navigation.mint();
     const lang = actionStorage.getLang();
     if (lang && lang !== user.lang) {
@@ -81,14 +60,6 @@ export async function loadState(am, state) {
                 error.exceptionName ===
                 "odoo.addons.web.controllers.action.MissingActionError"
             ) {
-                // `routeState`, not the `state` parameter. `state` is optional
-                // and is undefined on the initial load, which is exactly when a
-                // url naming a missing action is most likely -- a stale link or
-                // a pasted one. Reading it there made `actionStack` undefined,
-                // so the "fall back to the previous action" arm was skipped and
-                // the `else` silently loaded the default app instead. Every
-                // other read in this function already goes through the resolved
-                // state; this one was the odd one out.
                 const actionStack = routeState?.actionStack;
                 if (actionStack?.length > 1) {
                     const newState = {

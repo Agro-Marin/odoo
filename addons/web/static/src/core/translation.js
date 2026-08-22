@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/translation */
-
 import { localization } from "@web/core/l10n/localization";
 import { formatList, pyToJsLocale } from "@web/core/l10n/utils";
 import { isIterable } from "@web/core/utils/collections/arrays";
@@ -148,13 +146,6 @@ export class TranslatedString extends String {
     }
 
     /**
-     * The translated value, which is ``Markup`` when any substitution was.
-     * Kept apart from ``valueOf``/``toString`` because those must hand back a
-     * primitive: ``Markup extends String``, so returning one from both left
-     * ``ToPrimitive`` with nothing to fall back on and every conversion of such
-     * an instance — ``String(x)``, a template literal, ``x + ""``, and hence
-     * ``htmlEscape`` — threw "Cannot convert object to primitive value".
-     *
      * @returns {string | Markup}
      */
     translate() {

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/dropdown/_behaviours/dropdown_popover */
-
 import {
     Component,
     onMounted,

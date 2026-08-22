@@ -1,9 +1,3 @@
-"""Temporal expansion, group filling, and field-type formatters for web_read_group.
-
-Extracted from ``web_read_group.py`` to keep the core API and the
-formatting / expansion logic in separate files.
-"""
-
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Sequence
 from datetime import UTC
@@ -30,20 +24,17 @@ from odoo.tools import (
 
 
 def AND(domains: Iterable) -> list:
-    """Flatten a list of domains with ``&`` operator."""
     return list(Domain.AND(domains))
 
 
 def OR(domains: Iterable) -> list:
-    """Flatten a list of domains with ``|`` operator."""
     return list(Domain.OR(domains))
 
 
 class Base(models.AbstractModel):
     _inherit = "base"
 
-    def _web_read_group_field_expand(self, groupby: Sequence[str]) -> Any:
-        """Return the field that should be expanded, if any."""
+    def _web_read_group_get_field_expand(self, groupby: Sequence[str]) -> Any:
         if (
             len(groupby) == 1
             and self.env.context.get("read_group_expand")
@@ -62,11 +53,6 @@ class Base(models.AbstractModel):
         aggregates: tuple[str, ...],
         order: str,
     ) -> list[tuple]:
-        """Expand the result of _read_group to show empty groups.
-
-        Used by the webclient for some view types (e.g. empty columns for
-        kanban view).  See ``Field.group_expand`` attribute.
-        """
         field_name = groupby_spec.split(".", maxsplit=1)[0].split(":", maxsplit=1)[0]
         field = self._fields[field_name]
 
@@ -114,93 +100,6 @@ class Base(models.AbstractModel):
         fill_to: str | bool = False,
         min_groups: int | bool = False,
     ) -> list[tuple]:
-        """Fill date/datetime 'holes' in a grouped result for the first groupby.
-
-        We are in a use case where data are grouped by a date field (typically
-        months but it could be any other interval) and displayed in a chart.
-
-        Assume we group records by month, and we only have data for June,
-        September and December. By default, plotting the result gives something
-        like::
-
-                                                ___
-                                      ___      |   |
-                                     |   | ___ |   |
-                                     |___||___||___|
-                                      Jun  Sep  Dec
-
-        The problem is that December data immediately follow September data,
-        which is misleading for the user. Adding explicit zeroes for missing
-        data gives something like::
-
-                                                           ___
-                             ___                          |   |
-                            |   |           ___           |   |
-                            |___| ___  ___ |___| ___  ___ |___|
-                             Jun  Jul  Aug  Sep  Oct  Nov  Dec
-
-        To customize this output, the context key "fill_temporal" can be used
-        under its dictionary format, which has 3 attributes : fill_from,
-        fill_to, min_groups (see params of this function)
-
-        Fill between bounds:
-        Using either `fill_from` and/or `fill_to` attributes, we can further
-        specify that at least a certain date range should be returned as
-        contiguous groups. Any group outside those bounds will not be removed,
-        but the filling will only occur between the specified bounds. When not
-        specified, existing groups will be used as bounds, if applicable.
-        By specifying such bounds, we can get empty groups before/after any
-        group with data.
-
-        If we want to fill groups only between August (fill_from)
-        and October (fill_to)::
-
-                                                     ___
-                                 ___                |   |
-                                |   |      ___      |   |
-                                |___| ___ |___| ___ |___|
-                                 Jun  Aug  Sep  Oct  Dec
-
-        We still get June and December. To filter them out, we should match
-        `fill_from` and `fill_to` with the domain e.g. ``['&',
-        ('date_field', '>=', 'YYYY-08-01'), ('date_field', '<', 'YYYY-11-01')]``::
-
-                                         ___
-                                    ___ |___| ___
-                                    Aug  Sep  Oct
-
-        Minimal filling amount:
-        Using `min_groups`, we can specify that we want at least that amount of
-        contiguous groups. This amount is guaranteed to be provided from
-        `fill_from` if specified, or from the lowest existing group otherwise.
-        This amount is not restricted by `fill_to`. If there is an existing
-        group before `fill_from`, `fill_from` is still used as the starting
-        group for min_groups, because the filling does not apply on that
-        existing group. If neither `fill_from` nor `fill_to` is specified, and
-        there is no existing group, no group will be returned.
-
-        If we set min_groups = 4::
-
-                                         ___
-                                    ___ |___| ___ ___
-                                    Aug  Sep  Oct Nov
-
-        :param list[tuple] groups: groups returned by _read_group
-        :param list[str] groupby: list of fields being grouped on
-        :param Sequence[str] aggregates: list of "<key_name>:<aggregate specification>"
-        :param fill_from: (inclusive) string representation of a
-            date/datetime, start bound of the fill_temporal range
-            formats: date -> %Y-%m-%d, datetime -> %Y-%m-%d %H:%M:%S
-        :type fill_from: str | bool
-        :param fill_to: (inclusive) string representation of a
-            date/datetime, end bound of the fill_temporal range
-            formats: date -> %Y-%m-%d, datetime -> %Y-%m-%d %H:%M:%S
-        :type fill_to: str | bool
-        :param min_groups: minimal amount of required groups for the
-            fill_temporal range (should be >= 1)
-        :type min_groups: int | bool
-        :rtype: list[tuple]
-        """
         groupby_name = groupby[0]
         field_name = groupby_name.split(":")[0].split(".")[0]
         field = self._fields[field_name]
@@ -277,21 +176,16 @@ class Base(models.AbstractModel):
 
         return result
 
-    def _web_read_group_groupby_formatter(
+    def _web_read_group_get_groupby_formatter(
         self, groupby_spec: str, values: Any
     ) -> Callable:
-        """Return a formatter that yields ``(value_label, domain)`` pairs.
-
-        The returned callable is used by ``_web_read_group_format`` to convert
-        raw ``_read_group`` values into webclient-friendly dicts.
-        """
         field_path = groupby_spec.split(":", maxsplit=1)[0]
         field_name, _dot, remaining_path = field_path.partition(".")
         field = self._fields[field_name]
 
         if remaining_path and field.type == "many2one":
             model = self.env[field.comodel_name]
-            sub_formatter = model._web_read_group_groupby_formatter(
+            sub_formatter = model._web_read_group_get_groupby_formatter(
                 groupby_spec.split(".", 1)[1], values
             )
 
@@ -308,6 +202,7 @@ class Base(models.AbstractModel):
             return formatter_follow_many2one
 
         if field.type == "many2many":
+
             def formatter_many2many(value):
                 if not value:
                     return False, [(field_name, "not any", [])]
@@ -396,18 +291,17 @@ class Base(models.AbstractModel):
             raise ValueError(f"{granularity!r} isn't a valid granularity")
 
         if field.type == "properties":
-            return self._web_read_group_groupby_properties_formatter(
+            return self._web_read_group_get_groupby_formatter_properties(
                 groupby_spec, values
             )
 
         return lambda value: (value, [(field_name, "=", value)])
 
-    def _web_read_group_groupby_properties_formatter(
+    def _web_read_group_get_groupby_formatter_properties(
         self,
         groupby_spec: str,
         values: Any,
     ) -> Callable:
-        """Return a formatter for property-type group-by fields."""
         if "." not in groupby_spec:
             msg = "You must choose the property you want to group by."
             raise ValueError(msg)
@@ -495,6 +389,7 @@ class Base(models.AbstractModel):
 
         if property_type in ("date", "datetime"):
             if func in READ_GROUP_NUMBER_GRANULARITY:
+
                 def formatter_property_date_number(value):
                     if value is None:
                         return None, [(fullname, "=", value)]

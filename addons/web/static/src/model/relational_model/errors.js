@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/errors */
-
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 export class FetchRecordError extends Error {

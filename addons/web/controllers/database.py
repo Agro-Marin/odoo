@@ -26,27 +26,25 @@ from odoo.addons.base.models.ir_qweb import render as qweb_render
 
 _logger = logging.getLogger(__name__)
 
-#: Failures that mean "the request was rejected", not "the server broke".  Every
-#: one of them is already rendered back to the caller by ``_render_template``,
-#: so a stack trace at ERROR adds nothing an operator can act on while making a
-#: log look like it holds a fault: posting an unknown backup format to
-#: ``/web/database/backup`` — which ``test_backup_invalid_format_rejected`` does
-#: on purpose — printed a full traceback under ``ERROR``.
 REJECTED_INPUT_ERRORS = (ValueError, odoo.exceptions.AccessDenied)
 
 
 def _log_operation_failure(operation: str, exc: BaseException) -> None:
-    """Log a database-manager failure at the level its cause deserves."""
     if isinstance(exc, REJECTED_INPUT_ERRORS):
         _logger.warning("%s: %s", operation, exc)
     else:
-        _logger.exception(operation)
+        # `exc_info=exc` rather than `.exception()`: every caller today is
+        # inside an `except` block, so `.exception()` happens to find the
+        # traceback through `sys.exc_info()` -- but that makes the helper
+        # correct only by virtue of where it is called from, which its
+        # signature does not say. The exception is already a parameter; naming
+        # it logs the right traceback from anywhere, and a caller that ever
+        # logs a stored exception outside a handler gets a traceback instead
+        # of "NoneType: None".
+        _logger.error(operation, exc_info=exc)
 
 
 def _is_loopback(addr: str | None) -> bool:
-    """Whether *addr* is a loopback address (127.0.0.0/8, ::1, or an
-    IPv4-mapped loopback like ``::ffff:127.0.0.1``). Anything unparseable —
-    including ``None`` — is treated as non-loopback (fail closed)."""
     try:
         ip = ipaddress.ip_address(addr)
     except ValueError, TypeError:
@@ -63,11 +61,6 @@ DATABASE_MANAGER_TEMPLATES = {
 
 
 def render_database_manager(values: dict) -> Markup:
-    """Render the database manager page from *values*.
-
-    Free of ``request`` so that the templates — which the page's JS addresses by
-    id — can be rendered, and asserted on, for any combination of values.
-    """
     templates = {}
     for name, path in DATABASE_MANAGER_TEMPLATES.items():
         with file_open(path, "r") as fd:
@@ -81,33 +74,11 @@ def render_database_manager(values: dict) -> Markup:
         )
         return (fromstring(templates[template_name]), template_name)
 
-    # a doctype written in the template is dropped by the lxml round-trip, and
-    # without one the page renders in quirks mode: <body> stretches to the
-    # viewport, document.scrollingElement becomes <body>, and Bootstrap is
-    # unsupported there
     return Markup("<!DOCTYPE html>\n") + qweb_render("database_manager", values, load)
 
 
 class Database(http.Controller):
     def _handle_insecure_password(self, master_pwd: str) -> None:
-        """Upgrade the admin password if it is still the insecure default
-        'admin' — but ONLY for loopback callers.
-
-        Promoting the master password is a silent, permanent state change:
-        the next operation's ``check_super`` then validates against the just-set
-        value. Left ungated, a REMOTE request to an exposed database manager
-        could adopt an attacker-chosen secret and lock the real admin out of the
-        manager (backup = full data exfiltration, drop = destruction). Gating to
-        loopback keeps the "auto-secure a fresh install on first use"
-        convenience for a local admin while removing the remote-lockout vector;
-        a non-loopback caller must instead set ``admin_passwd`` in the config or
-        change the password from localhost. Both the promotion and a refusal
-        (default password still in place, request from elsewhere) are logged.
-
-        Behind a reverse proxy the client IP is only accurate with
-        ``--proxy-mode`` and a trusted proxy; otherwise ``remote_addr`` is the
-        proxy's own (possibly loopback) address.
-        """
         if not (odoo.tools.config.verify_admin_password("admin") and master_pwd):
             return
         remote_addr = request.httprequest.remote_addr
@@ -290,15 +261,6 @@ class Database(http.Controller):
             ts = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d_%H-%M-%S")
             filename = f"{name}_{ts}.{backup_format}"
             dump_stream = odoo.service.db.dump_db(name, None, backup_format, filestore)
-            # Announce the length.  ``dump_db`` hands back a seekable temp file
-            # already fully written, so measuring it is free — and without a
-            # Content-Length the body is delimited by nothing but the
-            # connection closing.  A transfer cut short mid-download (flaky
-            # link, proxy giving up on a multi-GB response) then lands in the
-            # browser as a *successful* download of a truncated archive, which
-            # only surfaces later as an unrestorable backup.  Declaring the
-            # size turns that silent corruption into a visible short read, and
-            # lets clients show real progress.
             dump_size = dump_stream.seek(0, os.SEEK_END)
             dump_stream.seek(0)
             headers = [
@@ -388,9 +350,4 @@ class Database(http.Controller):
 
     @http.route("/web/database/list", type="jsonrpc", auth="none")
     def list(self) -> list[str]:
-        """List available databases; used by the Mobile app.
-
-        :return: list of database names
-        :rtype: list[str]
-        """
         return http.db_list()

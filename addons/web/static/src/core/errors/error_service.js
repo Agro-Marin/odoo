@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/errors/error_service */
-
 import { browser } from "@web/core/browser/browser";
 import { isBrowserChrome, isBrowserFirefox } from "@web/core/browser/feature_detection";
 import { reportJsError } from "@web/core/errors/error_beacon";
@@ -36,26 +34,31 @@ class HTMLElementLoadingError extends Error {
 }
 
 /**
- * The `error` service.
- *
- * A class rather than a closure returning an object literal; see
- * `core/hotkeys/hotkey_service.js` for the reasoning and
- * `tooling/architecture/js_service_shape.py` for the budget.
- *
- * `shouldLogError` stays a plain nested function inside `handleError`: it reads
- * only that call's `uncaughtError` and touches no instance state, so it is
- * per-call logic rather than service behaviour and does not need the receiver
- * (hazard 5 applies only to helpers that do).
+ * @param {any} ev
+ * @param {any} uncaughtError
  */
-export class ErrorService {
+function assumeBrowserLogging(ev, uncaughtError) {
+    if (ev.defaultPrevented) {
+        return;
+    }
+    ev.preventDefault();
+    uncaughtError.browserLogSuppressed = true;
+    try {
+        Object.defineProperty(ev, "preventDefault", {
+            configurable: true,
+            value: () => {
+                uncaughtError.logSuppressed = true;
+            },
+        });
+    } catch {}
+}
+
+class ErrorService {
     /**
      * @param {import("@web/env").OdooEnv} env
      */
     constructor(env) {
         this.env = env;
-        // Stored wrappers, not bound methods: one stable reference for
-        // `removeEventListener`, while the handler resolves through the
-        // prototype so a patch of `onError` is reached.
         this._onError = (/** @type {any} */ ev) => this.onError(ev);
         this._onUnhandledRejection = (/** @type {any} */ ev) =>
             this.onUnhandledRejection(ev);
@@ -101,12 +104,6 @@ export class ErrorService {
         if (shouldLogError()) {
             uncaughtError.event.preventDefault();
             console.error(uncaughtError.traceback);
-            // Beacon only what we log: a genuine client defect. Business errors
-            // (UserError/ValidationError/RedirectWarning) are handled and
-            // default-prevented above, so `shouldLogError()` is false for them
-            // and they never reach the js_error stream. Post-boot this is the
-            // sole beaconing path -- module_loader's generic handlers defer to
-            // it once `odoo.isReady` -- so the stream is defects, not popups.
             reportJsError({
                 kind: uncaughtError.event.type,
                 message: String(
@@ -154,18 +151,7 @@ export class ErrorService {
             /** @type {any} */ (uncaughtError).event = ev;
             if (error instanceof Error) {
                 /** @type {any} */ (error).errorEvent = ev;
-                if (!ev.defaultPrevented) {
-                    ev.preventDefault();
-                    /** @type {any} */ (uncaughtError).browserLogSuppressed = true;
-                    try {
-                        Object.defineProperty(ev, "preventDefault", {
-                            configurable: true,
-                            value: () => {
-                                /** @type {any} */ (uncaughtError).logSuppressed = true;
-                            },
-                        });
-                    } catch {}
-                }
+                assumeBrowserLogging(ev, uncaughtError);
                 const annotated = this.env.debug?.includes("assets");
                 await completeUncaughtError(uncaughtError, error, annotated);
             }
@@ -204,17 +190,8 @@ export class ErrorService {
         /** @type {any} */ (uncaughtError).event = ev;
         uncaughtError.traceback = traceback ?? null;
         const willReportTraceback = error instanceof Error || Boolean(traceback);
-        if (willReportTraceback && !ev.defaultPrevented) {
-            ev.preventDefault();
-            /** @type {any} */ (uncaughtError).browserLogSuppressed = true;
-            try {
-                Object.defineProperty(ev, "preventDefault", {
-                    configurable: true,
-                    value: () => {
-                        /** @type {any} */ (uncaughtError).logSuppressed = true;
-                    },
-                });
-            } catch {}
+        if (willReportTraceback) {
+            assumeBrowserLogging(ev, uncaughtError);
         }
         if (error instanceof Error) {
             /** @type {any} */ (error).errorEvent = ev;
@@ -231,7 +208,7 @@ export class ErrorService {
     }
 }
 
-export const errorService = {
+const errorService = {
     /**
      * @param {import("@web/env").OdooEnv} env
      * @returns {ErrorService}

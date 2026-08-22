@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/effects/effect_service */
-
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
@@ -21,15 +19,7 @@ const effectRegistry = registry.category("effects");
  * @param {Object} [params.props]
  */
 function rainbowMan(env, params = {}) {
-    let message = params.message;
-    if (/** @type {any} */ (message) instanceof Element) {
-        console.warn(
-            "Providing an HTML element to an effect is deprecated. Note that all event handlers will be lost.",
-        );
-        message = message.outerHTML;
-    } else if (!message) {
-        message = _t("Well Done!");
-    }
+    const message = params.message || _t("Well Done!");
     if (user.showEffect) {
         /** @type {import("./rainbow_man").RainbowManProps} */
         const props = {
@@ -41,18 +31,13 @@ function rainbowMan(env, params = {}) {
         };
         return { Component: RainbowMan, props };
     }
-    // The fallback still opened something dismissable; hand its handle back so
-    // `effect.add` can return one whichever branch ran.
     return { remove: env.services.notification.add(message) };
 }
 effectRegistry.add("rainbow_man", rainbowMan);
 
 effectRegistry.addValidation((v) => typeof v === "function");
 
-export const effectService = {
-    // `notification` because the registry's own `rainbow_man` falls back to it
-    // when the user has effects switched off. It reads the service at `add`
-    // time rather than at start, which is why the edge could stay undeclared.
+const effectService = {
     dependencies: ["notification", "overlay"],
     /**
      * @param {import("@web/env").OdooEnv} env
@@ -60,10 +45,8 @@ export const effectService = {
      */
     start(env, { overlay }) {
         /**
-         * @param {{ type?: string, [key: string]: any }} [params] forwarded
-         *   verbatim to the registered effect, which declares its own options
-         *   (see `rainbowMan` above for the `rainbow_man` set)
-         * @returns {() => void} dismisses what this call opened
+         * @param {{ type?: string, [key: string]: any }} [params]
+         * @returns {() => void}
          */
         const add = (params = {}) => {
             const type = params.type || "rainbow_man";

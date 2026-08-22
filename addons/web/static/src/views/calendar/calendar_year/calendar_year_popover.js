@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_year/calendar_year_popover */
-
 import { Component } from "@odoo/owl";
 import { formatDate } from "@web/core/l10n/dates";
 import { Dialog } from "@web/ui/dialog/dialog";

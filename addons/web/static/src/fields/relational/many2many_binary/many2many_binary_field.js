@@ -1,19 +1,17 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/many2many_binary/many2many_binary_field */
-
-import { Component } from "@odoo/owl";
 import { FileInput } from "@web/components/file_input/file_input";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
-import { fieldHandle } from "@web/fields/field_handle";
+import { FieldComponent } from "@web/fields/field_component";
+import { acceptedFileExtensionsOption, archAttribute } from "@web/fields/field_options";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 import { useX2ManyCrud } from "../x2many_crud.js";
 
-export class Many2ManyBinaryField extends Component {
+export class Many2ManyBinaryField extends FieldComponent {
     static template = "web.Many2ManyBinaryField";
     static components = {
         FileInput,
@@ -24,11 +22,6 @@ export class Many2ManyBinaryField extends Component {
         className: { type: String, optional: true },
         numberOfFiles: { type: Number, optional: true },
     };
-
-    /** @returns {import("@web/fields/field_handle").FieldHandle} */
-    get field() {
-        return fieldHandle(this);
-    }
 
     /** @type {import("services").ServiceFactories["notification"]} */
     notification;
@@ -119,16 +112,17 @@ export class Many2ManyBinaryField extends Component {
 export const many2ManyBinaryField = {
     component: Many2ManyBinaryField,
     supportedOptions: [
-        {
-            label: _t("Accepted file extensions"),
-            name: "accepted_file_extensions",
-            type: "string",
-        },
+        acceptedFileExtensionsOption(),
         {
             label: _t("Number of files"),
             name: "number_of_files",
             type: "integer",
         },
+    ],
+    supportedAttributes: [
+        archAttribute("class", _t("CSS class"), {
+            help: _t("Class list put on the file-list container."),
+        }),
     ],
     supportedTypes: ["many2many"],
     isEmpty: () => false,

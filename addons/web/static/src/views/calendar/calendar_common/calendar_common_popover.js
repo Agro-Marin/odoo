@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_common/calendar_common_popover */
-
 import { Component, useExternalListener } from "@odoo/owl";
 import { is24HourFormat } from "@web/core/l10n/time";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";

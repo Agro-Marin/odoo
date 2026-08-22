@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/model_field_selector/model_field_selector */
-
 import { Component, onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
@@ -52,7 +50,7 @@ export class ModelFieldSelector extends Component {
         this.popover = usePopover(
             /** @type {any} */ (this.constructor).components.Popover,
             {
-                popoverClass: "o_popover_field_selector",
+                class: "o_popover_field_selector",
                 onClose: async () => {
                     if (this.newPath !== null) {
                         const fieldInfo = await this.fieldService.loadFieldInfo(

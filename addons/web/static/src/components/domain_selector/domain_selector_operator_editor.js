@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/domain_selector/domain_selector_operator_editor */
-
 /**
  * @param {Record<string, any>} [fieldDef]
  * @returns {string[]}

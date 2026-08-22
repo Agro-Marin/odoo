@@ -1,9 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/fields/upgrade_dialog */
-
 import { Component } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
 import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog/dialog";
 
@@ -26,7 +25,7 @@ export class UpgradeDialog extends Component {
         const usersCount = await this.orm.call("res.users", "search_count", [
             [["share", "=", false]],
         ]);
-        window.open(
+        browser.open(
             "https://www.odoo.com/odoo-enterprise/upgrade?num_users=" + usersCount,
             "_blank",
         );

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/browser/router */
-
 import { EventBus } from "@odoo/owl";
 import { isDisplayStandalone } from "@web/core/browser/feature_detection";
 import { RouterEvent } from "@web/core/events";
@@ -18,37 +16,26 @@ export const PATH_KEYS = ["resId", "action", "active_id", "model"];
 
 /**
  * @typedef {{
- *  bus: EventBus,
- *  started: boolean,
- *  state: Record<string, any>,
- *  pushTimeout: ReturnType<typeof browser.setTimeout> | undefined,
- *  pushArgs: PushArgs,
- *  lockedKeys: Set<string>,
- *  hiddenKeysFromUrl: Set<string>,
- *  ephemeralStack: (object | null)[],
- *  unwindingEphemerals: boolean,
+ * bus: EventBus,
+ * started: boolean,
+ * state: Record<string, any>,
+ * pushTimeout: ReturnType<typeof browser.setTimeout> | undefined,
+ * pushArgs: PushArgs,
+ * lockedKeys: Set<string>,
+ * hiddenKeysFromUrl: Set<string>,
+ * ephemeralStack: (object | null)[],
+ * unwindingEphemerals: boolean,
  * }} RouterState
- *
  * @typedef {{
- *  replace: boolean,
- *  reload: boolean,
- *  state: Record<string, any>,
- *  mode: "push" | "replace",
- *  title?: string,
+ * replace: boolean,
+ * reload: boolean,
+ * state: Record<string, any>,
+ * mode: "push" | "replace",
+ * title?: string,
  * }} PushArgs
  */
 
 /**
- * Anchored on the global store like `rpc`, `registry`, `templates` and
- * `assets`. Evaluating this module twice otherwise gives two buses and two
- * current routes -- half the application listening to one and half pushing to
- * the other -- and registers its three window listeners a second time, so every
- * `popstate` is handled twice.
- *
- * The factory's return type is annotated rather than the binding: the literal
- * is inferred on its own, so a `@type` on `_router` alone leaves `pushTimeout`
- * and `ephemeralStack` implicitly `any`.
- *
  * @type {RouterState}
  */
 const _router = globalSingleton(
@@ -401,9 +388,6 @@ function onClick(/** @type {any} */ ev) {
         return;
     }
     const target = /** @type {Element} */ (ev.target);
-    // A click can be dispatched at a non-Element target (`document`, a text
-    // node): this is a window-level capture listener, so an unguarded
-    // `closest()` threw out of the capture phase for every other handler too.
     if (typeof target?.closest !== "function") {
         return;
     }
@@ -487,9 +471,20 @@ function makeDebouncedPush(mode) {
         Object.assign(pushArgs.state, state);
         browser.clearTimeout(_router.pushTimeout);
         const push = () => {
-            doPush();
-            _router.pushTimeout = undefined;
-            _router.pushArgs = makePushArgs();
+            try {
+                doPush();
+            } catch (error) {
+                if (
+                    error.name !== "NS_ERROR_ILLEGAL_VALUE" &&
+                    error.name !== "DataCloneError"
+                ) {
+                    throw error;
+                }
+                console.error(error);
+            } finally {
+                _router.pushTimeout = undefined;
+                _router.pushArgs = makePushArgs();
+            }
         };
         if (options.sync) {
             push();
@@ -532,16 +527,6 @@ export const router = {
         );
     },
 
-    /**
-     * Forget every ephemeral entry WITHOUT traversing history.
-     *
-     * For a caller that is leaving the document: `releaseEphemeral` unwinds
-     * with `history.go(-1)`, and a history traversal cancels a navigation
-     * already in flight -- the response arrives and the browser discards it.
-     * Nothing needs unwinding when the page itself is going away, so a caller
-     * about to navigate drops the stack first and the overlays that close on
-     * the way out find nothing left to unwind.
-     */
     dropEphemerals: () => {
         _router.ephemeralStack.length = 0;
     },
@@ -564,9 +549,6 @@ export const router = {
     },
 };
 
-// Guarded, not because the module is expected to be evaluated twice, but
-// because if it is, a second `startRouter()` would wipe the route the first
-// one is serving and each listener would run twice per event.
 if (!_router.started) {
     _router.started = true;
     browser.addEventListener("popstate", onPopState);

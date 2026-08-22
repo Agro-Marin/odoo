@@ -1,10 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/display/statusbar/statusbar_field */
-
 import {
-    Component,
     onWillRender,
     onWillUnmount,
     useEffect,
@@ -18,6 +15,9 @@ import { _t } from "@web/core/translation";
 import { groupBy } from "@web/core/utils/collections/arrays";
 import { throttleForAnimation } from "@web/core/utils/timing";
 import { registerField } from "@web/fields/_registry";
+import { FieldComponent } from "@web/fields/field_component";
+import { fieldHandleFor } from "@web/fields/field_handle";
+import { archAttribute } from "@web/fields/field_options";
 import { useSpecialData } from "@web/fields/relational/special_data";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { getFieldDomain } from "@web/model/relational_model/utils";
@@ -25,11 +25,11 @@ import { useCommand } from "@web/ui/commands/command_hook";
 
 /**
  * @typedef {import("@web/fields/standard_field_props").StandardFieldProps & {
- *  domain?: [Array, Function];
- *  foldField?: string;
- *  isDisabled?: boolean;
- *  visibleSelection?: string[];
- *  withCommand?: boolean;
+ * domain?: [Array, Function];
+ * foldField?: string;
+ * isDisabled?: boolean;
+ * visibleSelection?: string[];
+ * withCommand?: boolean;
  * }} StatusBarFieldProps
  * @typedef StatusBarItem
  * @property {number} value
@@ -51,8 +51,80 @@ const hide = (...els) => els.forEach((el) => el.classList.add("d-none"));
  */
 const show = (...els) => els.forEach((el) => el.classList.remove("d-none"));
 
-/** @extends {Component<StatusBarFieldProps>} */
-export class StatusBarField extends Component {
+/**
+ * @param {StatusBarItem[] | null} a
+ * @param {StatusBarItem[]} b
+ * @returns {boolean}
+ */
+function sameStatusBarItems(a, b) {
+    if (!a || a.length !== b.length) {
+        return false;
+    }
+    return a.every(
+        (item, i) =>
+            item.value === b[i].value &&
+            item.label === b[i].label &&
+            item.isFolded === b[i].isFolded &&
+            item.isSelected === b[i].isSelected,
+    );
+}
+
+/**
+ * @param {any} component
+ * @returns {{ markItemsStale: () => void }}
+ */
+function useOverflowAdjust(component) {
+    let status = "idle";
+    /** @type {StatusBarItem[] | null} */
+    let lastItems = null;
+    /** @type {number | null} */
+    let lastWidth = null;
+    let forceRecomputeItems = false;
+
+    const adjust = () => {
+        status = "adjusting";
+        component.adjustVisibleItems();
+        component.render();
+    };
+
+    useEffect(() => {
+        if (status !== "shouldAdjust") {
+            return;
+        }
+        const width = component.rootRef.el?.getBoundingClientRect().width ?? null;
+        if (width === lastWidth && sameStatusBarItems(lastItems, component.allItems)) {
+            status = "idle";
+            return;
+        }
+        lastItems = component.allItems;
+        lastWidth = width;
+        adjust();
+    });
+
+    onWillRender(() => {
+        component.allItems = component.getAllItems();
+        if (status !== "adjusting" || forceRecomputeItems) {
+            Object.assign(component.items, component.getSortedItems());
+            status = "shouldAdjust";
+        } else {
+            status = "idle";
+        }
+        forceRecomputeItems = false;
+    });
+
+    const throttledAdjust = throttleForAnimation(adjust);
+    useExternalListener(window, "resize", throttledAdjust);
+    onWillUnmount(() => throttledAdjust.cancel());
+
+    return {
+        markItemsStale: () => {
+            forceRecomputeItems = true;
+        },
+    };
+}
+
+/** @extends {FieldComponent<StatusBarFieldProps>} */
+export class StatusBarField extends FieldComponent {
     static template = "web.StatusBarField";
     static RELATION_LIMIT = 100;
     static components = {
@@ -78,134 +150,109 @@ export class StatusBarField extends Component {
         this.afterRef = useRef("after");
         this.dropdownRef = useRef("dropdown");
 
-        let status = "idle";
-        const adjust = () => {
-            status = "adjusting";
-            this.adjustVisibleItems();
-            this.render();
-        };
-
-        // What the visible window actually depends on: the items themselves and
-        // the room available for them. Every render used to schedule a full
-        // adjust pass, so editing an unrelated field elsewhere on the form paid
-        // one -- and a pass hides items one at a time, forcing a layout per
-        // step. Re-check both cheaply and skip the pass when neither moved.
-        let lastSignature = null;
-        let lastWidth = null;
-        useEffect(() => {
-            if (status !== "shouldAdjust") {
-                return;
-            }
-            const signature = JSON.stringify(this.allItems);
-            const width = this.rootRef.el?.getBoundingClientRect().width ?? null;
-            if (signature === lastSignature && width === lastWidth) {
-                status = "idle";
-                return;
-            }
-            lastSignature = signature;
-            lastWidth = width;
-            adjust();
-        });
-
-        let forceRecomputeItems = false;
-        onWillRender(() => {
-            this.allItems = this.getAllItems();
-            if (status !== "adjusting" || forceRecomputeItems) {
-                Object.assign(this.items, this.getSortedItems());
-                status = "shouldAdjust";
-            } else {
-                status = "idle";
-            }
-            forceRecomputeItems = false;
-        });
-
-        this.throttledAdjust = throttleForAnimation(adjust);
-        useExternalListener(window, "resize", this.throttledAdjust);
-        onWillUnmount(() => this.throttledAdjust.cancel());
-
-        if (this.field.type === "many2one") {
-            this.specialData = useSpecialData(async (orm, props) => {
-                const { foldField, name: fieldName, record, context } = props;
-                const { relation } = record.fields[fieldName];
-                const fieldNames = this.getFieldNames(props);
-                if (foldField) {
-                    fieldNames.push(foldField);
-                }
-                const value = record.data[fieldName];
-                let domain = getFieldDomain(record, fieldName, props.domain);
-                domain = Domain.and([this.getDomain(props), domain]).toList();
-                if (domain.length && value) {
-                    domain = Domain.or([[["id", "=", value.id]], domain]).toList(
-                        record.evalContext,
-                    );
-                }
-                const res = await orm.searchRead(relation, domain, fieldNames, {
-                    context,
-                    limit: /** @type {any} */ (this.constructor).RELATION_LIMIT,
-                });
-                forceRecomputeItems = true;
-                return res;
-            });
+        const { markItemsStale } = useOverflowAdjust(this);
+        if (this.fieldDefinition.type === "many2one") {
+            this.setupRelationData(markItemsStale);
         }
-
         if (this.props.withCommand) {
-            const moveToCommandName = _t("Move to %s...", this.field.string);
-            useCommand(
-                moveToCommandName,
-                () => ({
-                    placeholder: moveToCommandName,
-                    providers: [
-                        {
-                            provide: () =>
-                                /** @type {any} */ (
-                                    this.getAllItems().map((item) => ({
-                                        name: item.label,
-                                        action: () => this.selectItem(item),
-                                    }))
-                                ),
-                        },
-                    ],
-                }),
-                {
-                    category: "smart_action",
-                    hotkey: "alt+shift+x",
-                    isAvailable: () => !this.props.isDisabled,
-                },
-            );
-            useCommand(
-                _t("Move to next %s", this.field.string),
-                () => {
-                    const items = this.getAllItems();
-                    const nextIndex = items.findIndex((item) => item.isSelected) + 1;
-                    this.selectItem(items[nextIndex]);
-                },
-                {
-                    category: "smart_action",
-                    hotkey: "alt+x",
-                    isAvailable: () => {
-                        if (this.props.isDisabled) {
-                            return false;
-                        }
-                        const items = this.getAllItems();
-                        return items.length && !items.at(-1).isSelected;
-                    },
-                },
-            );
+            this.setupCommands();
         }
+    }
+
+    /**
+     * @param {() => void} markItemsStale
+     */
+    setupRelationData(markItemsStale) {
+        this.specialData = useSpecialData(async (orm, props) => {
+            const { foldField, name: fieldName, record, context } = props;
+            const field = fieldHandleFor(record, fieldName);
+            const { relation } = field.definition;
+            const fieldNames = this.getFieldNames(props);
+            if (foldField) {
+                fieldNames.push(foldField);
+            }
+            const value = field.value;
+            let domain = getFieldDomain(record, fieldName, props.domain);
+            domain = Domain.and([this.getDomain(props), domain]).toList();
+            if (domain.length && value) {
+                domain = Domain.or([[["id", "=", value.id]], domain]).toList(
+                    record.evalContext,
+                );
+            }
+            const res = await orm.searchRead(relation, domain, fieldNames, {
+                context,
+                limit: /** @type {any} */ (this.constructor).RELATION_LIMIT,
+            });
+            markItemsStale();
+            return res;
+        });
+    }
+
+    setupCommands() {
+        const moveToCommandName = _t("Move to %s...", this.fieldDefinition.string);
+        useCommand(
+            moveToCommandName,
+            () => ({
+                placeholder: moveToCommandName,
+                providers: [
+                    {
+                        provide: () =>
+                            /** @type {any} */ (
+                                this.getAllItems().map((item) => ({
+                                    name: item.label,
+                                    action: () => this.selectItem(item),
+                                }))
+                            ),
+                    },
+                ],
+            }),
+            {
+                category: "smart_action",
+                hotkey: "alt+shift+x",
+                isAvailable: () => !this.props.isDisabled,
+            },
+        );
+        useCommand(
+            _t("Move to next %s", this.fieldDefinition.string),
+            () => {
+                const items = this.getAllItems();
+                const nextIndex = items.findIndex((item) => item.isSelected) + 1;
+                this.selectItem(items[nextIndex]);
+            },
+            {
+                category: "smart_action",
+                hotkey: "alt+x",
+                isAvailable: () => {
+                    if (this.props.isDisabled) {
+                        return false;
+                    }
+                    const items = this.getAllItems();
+                    return Boolean(items.length) && !items.at(-1).isSelected;
+                },
+            },
+        );
     }
 
     /**
      * @returns {{ selection?: [string, string][], string: string, type: "many2one" | "selection" }}
      */
-    get field() {
-        return /** @type {any} */ (this.props.record.fields[this.props.name]);
+    get fieldDefinition() {
+        return /** @type {any} */ (this.field.definition);
     }
 
-    getDomain(props) {
+    /**
+     * @param {Record<string, any>} _props
+     * @returns {import("@web/core/domain").DomainListRepr}
+     */
+    getDomain(_props) {
         return [];
     }
 
-    getFieldNames(props) {
+    /**
+     * @param {Record<string, any>} _props
+     * @returns {string[]}
+     */
+    getFieldNames(_props) {
         return ["display_name"];
     }
 
@@ -241,11 +288,6 @@ export class StatusBarField extends Component {
             return;
         }
 
-        // Every item hidden below costs a forced synchronous layout, and the
-        // loop used to pay two of them per step: one for the root, one to
-        // re-derive the height of a single row. The children all sit in the
-        // same wrapping flex row, so that second measurement is invariant for
-        // the whole pass -- take it once.
         this._rowHeight = null;
         try {
             while (this.areItemsWrapping()) {
@@ -284,9 +326,9 @@ export class StatusBarField extends Component {
      * @returns {StatusBarItem[]}
      */
     getAllItems() {
-        const { foldField, name, record } = this.props;
-        const currentValue = record.data[name];
-        if (this.field.type === "many2one") {
+        const { foldField } = this.props;
+        const currentValue = this.field.value;
+        if (this.fieldDefinition.type === "many2one") {
             return this.specialData.data.map((option) => ({
                 value: option.id,
                 label: option.display_name,
@@ -294,7 +336,7 @@ export class StatusBarField extends Component {
                 isSelected: Boolean(currentValue && option.id === currentValue.id),
             }));
         } else {
-            let { selection } = this.field;
+            let { selection } = this.fieldDefinition;
             const { visibleSelection } = this.props;
             if (visibleSelection?.length) {
                 selection = selection.filter(
@@ -349,13 +391,12 @@ export class StatusBarField extends Component {
      * @param {StatusBarItem} item
      */
     async selectItem(item) {
-        const { name, record } = this.props;
         const value =
-            this.field.type === "many2one"
+            this.fieldDefinition.type === "many2one"
                 ? { id: item.value, display_name: item.label }
                 : item.value;
-        await record.update({ [name]: value });
-        await record.save();
+        await this.field.update(value);
+        await this.props.record.save();
     }
 
     /**
@@ -388,8 +429,14 @@ export const statusBarField = {
             ),
         },
     ],
+    supportedAttributes: [
+        archAttribute("statusbar_visible", _t("Always-visible steps"), {
+            help: _t(
+                "Comma-separated selection values that stay inline even when folded.",
+            ),
+        }),
+    ],
     supportedTypes: ["many2one", "selection"],
-    isEmpty: (record, fieldName) => !record.data[fieldName],
     extractProps: ({ attrs, options, viewType }, dynamicInfo) => ({
         isDisabled: !options.clickable || dynamicInfo.readonly,
         visibleSelection: attrs.statusbar_visible?.trim()

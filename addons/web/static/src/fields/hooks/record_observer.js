@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/hooks/record_observer */
-
 import { onWillDestroy, onWillStart, onWillUpdateProps, useComponent } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { Deferred } from "@web/core/utils/concurrency";

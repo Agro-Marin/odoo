@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_components/multi_currency_popover */
-
 import {
     Component,
     onWillStart,
@@ -26,7 +24,7 @@ export class MultiCurrencyPopover extends Component {
 
     /** @type {import("@odoo/owl").Ref} */
     rootRef;
-    /** @type {{ rates: null }} */
+    /** @type {{ rates: Record<number, { toCompanyRate: number, date: any }> | null }} */
     state;
 
     setup() {
@@ -47,15 +45,18 @@ export class MultiCurrencyPopover extends Component {
 
     /** @returns {Array<Object>} */
     get currencies() {
+        const rates = this.state.rates;
+        if (!rates) {
+            return [];
+        }
         return this.props.currencyIds.reduce((currencies, currencyId) => {
-            const rateInfo = this.state.rates[currencyId];
+            const rateInfo = rates[currencyId];
             if (currencyId && currencyId !== this.defaultCurrency && rateInfo) {
                 currencies.push({
                     ...getCurrency(currencyId),
                     id: currencyId,
                     toCompanyRate: rateInfo.toCompanyRate,
                     date: toLocaleDateString(rateInfo.date),
-                    // props.value is already in the company currency
                     value: this.props.value / rateInfo.toCompanyRate,
                 });
             }

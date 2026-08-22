@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_view */
-
 import { registry } from "@web/core/registry";
 import { defaultViewProps } from "@web/views/view_utils";
 
@@ -27,7 +25,6 @@ export const calendarView = {
      * @param {Record<string, any>} view
      * @returns {Record<string, any>}
      */
-    // Exactly the shared projection, with nothing of its own to add.
     props: defaultViewProps,
 };
 

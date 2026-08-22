@@ -1,12 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/public/login */
-
 import { registry } from "@web/core/registry";
 import { addLoadingEffect } from "@web/core/utils/dom/ui";
-
-import { Interaction } from "./interaction.js";
+import { Interaction } from "@web/public/interaction";
 export class Login extends Interaction {
     static selector = ".oe_login_form";
     dynamicContent = {
@@ -18,11 +15,6 @@ export class Login extends Interaction {
      */
     onSubmit(ev) {
         const rootEl = /** @type {HTMLElement} */ (ev.currentTarget);
-        // the login form carries more than one submit button -- "Log in as
-        // superuser" sits next to "Log in" -- and the effect belongs on the one
-        // that was pressed, not on whichever comes first in the markup. The
-        // fallback covers a submit that names no submitter, such as one raised
-        // from script or by a keypress.
         const submitter = /** @type {SubmitEvent} */ (ev).submitter;
         const submitEl =
             submitter instanceof HTMLButtonElement && rootEl.contains(submitter)

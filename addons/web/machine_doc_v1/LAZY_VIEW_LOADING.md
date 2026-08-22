@@ -36,7 +36,7 @@ consumer. Re-introduce only alongside one.
 ### Measured ROI (esbuild `--metafile` bytes)
 
 The metafile is persisted beside every bundle as a `.meta.json` `ir.attachment`
-(`ir_qweb_assets.py`, `_persist_esm_attachment_rows`), read here from
+(`ir_qweb_assets.py`, `_save_esm_attachment_rows`), read here from
 `web.assets_web` (web + web_enterprise, minified).
 
 **Point-in-time reading of a 2026-07-23 build.** Re-deriving needs a rebuild;

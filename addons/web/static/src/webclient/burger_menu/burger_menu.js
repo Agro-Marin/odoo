@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/burger_menu/burger_menu */
-
 import { Component, useState } from "@odoo/owl";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/dialog/dialog */
-
 import {
     Component,
     onWillDestroy,

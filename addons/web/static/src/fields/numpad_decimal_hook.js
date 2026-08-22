@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/numpad_decimal_hook */
-
 import { useEffect, useRef } from "@odoo/owl";
 import { isIOS } from "@web/core/browser/feature_detection";
 import { localization } from "@web/core/l10n/localization";

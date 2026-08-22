@@ -1,34 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/file_upload/file_upload_service */
-
 import { EventBus, reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { FileUploadEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
-/**
- * The `file_upload` service.
- *
- * A class rather than a closure returning an object literal; see
- * `core/hotkeys/hotkey_service.js` for the reasoning and
- * `tooling/architecture/js_service_shape.py` for the budget.
- *
- * **`createXhr` deliberately stays on the service object below, not on this
- * class.** Three suites replace it — `patchWithCleanup(fileUploadService, {
- * createXhr })`, and `mrp`'s calls `super.createXhr(...)` — so it is a live
- * facade method in exactly the sense `hotkeyService.overlayModifier` is a live
- * facade property. `upload()` therefore names `fileUploadService.createXhr()`
- * rather than `this.createXhr()`, so the patched one is what runs.
- *
- * `upload()`'s three helpers stay nested inside it on purpose: they close over
- * one request's `xhr`, `route` and upload record, so they are per-call state,
- * not service behaviour. That leaves `upload` over the function-length budget,
- * which is why this conversion moves `jsserviceshape` but not `jsfunclen` —
- * splitting it is separate work with a separate justification.
- */
-export class FileUploadService {
+class FileUploadService {
     /**
      * @param {{ notification: any }} services
      */
@@ -47,9 +25,9 @@ export class FileUploadService {
      * @param {string} route
      * @param {FileList | File[]} files
      * @param {{
-     *   buildFormData?: (formData: FormData) => void,
-     *   displayErrorNotification?: boolean,
-     *   [key: string]: any,
+     * buildFormData?: (formData: FormData) => void,
+     * displayErrorNotification?: boolean,
+     * [key: string]: any,
      * }} [params]
      */
     async upload(route, files, params = {}) {

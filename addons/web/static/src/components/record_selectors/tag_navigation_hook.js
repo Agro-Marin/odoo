@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/record_selectors/tag_navigation_hook */
-
 import { useRef } from "@odoo/owl";
 import { useNavigation } from "@web/core/navigation/navigation";
 /**
@@ -17,30 +15,35 @@ export function useTagNavigation(refName, options = {}) {
     const isEnabled = options.isEnabled ?? (() => true);
 
     const canRemoveTag = (target) =>
-        options.delete && (target.tagName.toLowerCase() !== "input" || !target.value);
+        Boolean(options.delete) &&
+        (target.tagName.toLowerCase() !== "input" || !target.value);
 
     const onBackspaceKeydown = (navigator) => {
+        const deleteTag = options.delete;
+        if (!deleteTag) {
+            return;
+        }
         const el = navigator.activeItem.el;
         const tagItems = navigator.items.filter((item) =>
             item.el.classList.contains("o_tag"),
         );
         if (el.classList.contains("o-autocomplete--input")) {
             if (!el.value && tagItems.length) {
-                options.delete(tagItems.length - 1);
+                deleteTag(tagItems.length - 1);
             }
         } else {
-            options.delete(tagItems.indexOf(navigator.activeItem));
+            deleteTag(tagItems.indexOf(navigator.activeItem));
         }
         const inputItem = navigator.items.find((item) =>
             item.el.classList.contains("o-autocomplete--input"),
         );
-        (inputItem ?? navigator.items.at(-1)).setActive();
+        (inputItem ?? navigator.items.at(-1))?.setActive();
     };
 
     const canNavigateFromInput = (navigator, navNext) => {
         const el = navigator.activeItem.el;
         if (el.classList.contains("o-autocomplete--input")) {
-            const menu = tagsContainerRef.el.querySelector(
+            const menu = tagsContainerRef.el?.querySelector(
                 ".o-autocomplete--dropdown-menu",
             );
             const index = navNext ? el.value.length : 0;

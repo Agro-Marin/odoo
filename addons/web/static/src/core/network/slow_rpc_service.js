@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/network/slow_rpc_service */
-
 import { browser } from "@web/core/browser/browser";
 import { RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network/rpc";
@@ -11,19 +9,7 @@ import { _t } from "@web/core/translation";
 
 export const SLOW_RPC_CONFIG = { thresholdMs: 5000 };
 
-/**
- * The `slow_rpc` service.
- *
- * A class rather than a closure returning an object literal; see
- * `core/hotkeys/hotkey_service.js` for the reasoning and
- * `tooling/architecture/js_service_shape.py` for the budget.
- *
- * The two bus handlers are registered through stored wrappers, not as bare
- * method references: `removeEventListener` needs the same function object it was
- * given, while the handler itself must resolve through the prototype so a patch
- * of `onRequest`/`onResponse` is reached (hazard 2).
- */
-export class SlowRpcService {
+class SlowRpcService {
     /**
      * @param {{ notification: { add: (msg: string, opts?: any) => () => void } }} services
      */
@@ -101,7 +87,7 @@ export class SlowRpcService {
     }
 }
 
-export const slowRpcService = {
+const slowRpcService = {
     dependencies: ["notification"],
     /**
      * @param {import("@web/env").OdooEnv} _env

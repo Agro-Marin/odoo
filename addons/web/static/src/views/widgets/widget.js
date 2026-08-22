@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/widgets/widget */
-
 import { Component, xml } from "@odoo/owl";
 import { evaluateBooleanExpr, evaluateExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";

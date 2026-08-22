@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/record_selectors/record_selector */
-
 import { useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { isId } from "@web/core/tree/utils";

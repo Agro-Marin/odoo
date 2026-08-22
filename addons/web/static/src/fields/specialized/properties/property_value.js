@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/properties/property_value */
-
 import { Component, useRef } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { DateTimeInput } from "@web/components/datetime/datetime_input";
@@ -303,7 +301,17 @@ export class PropertyValue extends Component {
             }
         }
 
-        return this.props.onChange(newValue);
+        const committed = this.props.onChange(newValue);
+        await committed;
+        this.resyncInput();
+        return committed;
+    }
+
+    resyncInput() {
+        const el = this.inputRef?.el;
+        if (el && el.value !== this.displayValue) {
+            el.value = this.displayValue;
+        }
     }
 
     /**

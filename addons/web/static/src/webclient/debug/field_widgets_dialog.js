@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/debug/field_widgets_dialog */
-
 import { Component, useState, xml } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -20,7 +18,7 @@ export class FieldWidgetsDialog extends Component {
                     <input
                         type="search"
                         class="form-control flex-grow-1"
-                        placeholder="Filter by name, display name, or supported type…"
+                        t-att-placeholder="labels.filter"
                         t-model="state.filter"
                         autofocus="true"
                     />
@@ -32,11 +30,11 @@ export class FieldWidgetsDialog extends Component {
                     <table class="table table-sm table-hover table-striped mb-0">
                         <thead class="position-sticky top-0 bg-white">
                             <tr>
-                                <th>Name</th>
-                                <th>Display name</th>
-                                <th>Supported types</th>
-                                <th>Component</th>
-                                <th class="text-end">Options</th>
+                                <th t-esc="labels.name"/>
+                                <th t-esc="labels.displayName"/>
+                                <th t-esc="labels.supportedTypes"/>
+                                <th t-esc="labels.component"/>
+                                <th class="text-end" t-esc="labels.options"/>
                             </tr>
                         </thead>
                         <tbody>
@@ -48,9 +46,8 @@ export class FieldWidgetsDialog extends Component {
                                 <td class="text-end" t-esc="optionCount(entry[1])"/>
                             </tr>
                             <tr t-if="!filteredEntries.length">
-                                <td colspan="5" class="text-center text-muted py-3">
-                                    No widgets match the filter.
-                                </td>
+                                <td colspan="5" class="text-center text-muted py-3"
+                                    t-esc="labels.empty"/>
                             </tr>
                         </tbody>
                     </table>
@@ -65,6 +62,15 @@ export class FieldWidgetsDialog extends Component {
 
     setup() {
         this.title = _t("Field Widgets");
+        this.labels = {
+            filter: _t("Filter by name, display name, or supported type…"),
+            name: _t("Name"),
+            displayName: _t("Display name"),
+            supportedTypes: _t("Supported types"),
+            component: _t("Component"),
+            options: _t("Options"),
+            empty: _t("No widgets match the filter."),
+        };
         this.entries = [...registry.category("fields").getEntries()].sort(([a], [b]) =>
             a.localeCompare(b),
         );

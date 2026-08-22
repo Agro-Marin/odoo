@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/dropdown/dropdown */
-
 import {
     Component,
     onMounted,
@@ -18,9 +16,10 @@ import {
 import { useDropdownGroup } from "@web/components/dropdown/_behaviours/dropdown_group_hook";
 import { useDropdownNesting } from "@web/components/dropdown/_behaviours/dropdown_nesting";
 import { DropdownPopover } from "@web/components/dropdown/_behaviours/dropdown_popover";
-import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
+import { useDropdownState } from "@web/components/dropdown/dropdown_hook";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { mergeNavigationOptions, useNavigation } from "@web/core/navigation/navigation";
+import { getComponentElement } from "@web/core/utils/components";
 import { mergeClasses } from "@web/core/utils/dom/classname";
 import { uniqueId } from "@web/core/utils/functions";
 import { useChildRef, useService } from "@web/core/utils/hooks";
@@ -39,44 +38,14 @@ const MENU_BOTTOM_SHEET_CLASSES = "o-dropdown--menu dropdown-menu show";
 const MENU_INLINE_CLASSES = "o-dropdown--menu dropdown-menu mx-0";
 const MENU_SUBMENU_CLASS = "o-dropdown--menu-submenu";
 
-/**
- * The menu classes the popover owns. syncMenuClass never removes one of these,
- * so a caller repeating a name in `menuClass` cannot strip it.
- */
 const STATIC_MENU_CLASSES = new Set([
     ...MENU_BOTTOM_SHEET_CLASSES.split(" "),
     ...MENU_INLINE_CLASSES.split(" "),
     MENU_SUBMENU_CLASS,
 ]);
 
-/**
- * @param {any} node
- * @returns {HTMLElement | null}
- */
-export function getFirstElementOfNode(node) {
-    if (!node) {
-        return null;
-    }
-    if (node.el) {
-        return node.el.nodeType === Node.ELEMENT_NODE ? node.el : null;
-    }
-    if (node.bdom || node.child) {
-        return getFirstElementOfNode(node.bdom || node.child);
-    }
-    if (node.children) {
-        for (const child of node.children) {
-            const el = getFirstElementOfNode(child);
-            if (el) {
-                return el;
-            }
-        }
-    }
-    return null;
-}
-
 export class Dropdown extends Component {
     static template = xml`<t t-slot="default"/>`;
-    static components = {};
 
     /** @type {string[]} */
     _menuClassNames;
@@ -115,7 +84,6 @@ export class Dropdown extends Component {
         onOpened: { type: Function, optional: true },
         onStateChanged: { type: Function, optional: true },
 
-        /** @see useDropdownState */
         state: {
             type: Object,
             shape: {
@@ -170,11 +138,6 @@ export class Dropdown extends Component {
         this.nesting = useDropdownNesting(this.state);
         this.group = useDropdownGroup();
 
-        // mergeNavigationOptions, not `{...deepMerge(…)}`: a spread reads every
-        // key and writes its value, so an option a caller declared as a getter
-        // -- SelectMenu's `virtualFocus`, which follows `props.searchable` --
-        // froze here at whatever it returned during setup. Precedence is
-        // unchanged: own defaults, then nesting, then props.
         this.navigation = useNavigation(
             this.menuRef,
             mergeNavigationOptions(
@@ -251,11 +214,6 @@ export class Dropdown extends Component {
             () => [this.target],
         );
 
-        // The popover reads its `class` option once, when the overlay is added,
-        // so a menuClass that moves afterwards -- a theme toggle, a viewport
-        // crossing the small breakpoint -- never reaches the open menu. The
-        // option still supplies the opening value, so there is no flash; this
-        // only reconciles what changes after it.
         this._menuClassNames = [];
         useEffect(
             (menuEl) => {
@@ -279,9 +237,6 @@ export class Dropdown extends Component {
     }
 
     /**
-     * The class names `menuClass` currently asks for, flattened out of the
-     * string-or-object the prop accepts.
-     *
      * @returns {string[]}
      */
     get menuClassNames() {
@@ -292,10 +247,6 @@ export class Dropdown extends Component {
     }
 
     /**
-     * Only what menuClass itself put on the element is ever taken off it: the
-     * static part of the menu's class is the popover's, and a caller repeating
-     * one of those names must not be able to strip it.
-     *
      * @param {HTMLElement} menuEl
      */
     syncMenuClass(menuEl) {
@@ -320,7 +271,7 @@ export class Dropdown extends Component {
 
     /** @type {HTMLElement|null} */
     get target() {
-        return getFirstElementOfNode(/** @type {any} */ (this).__owl__.bdom);
+        return getComponentElement(this);
     }
 
     handleClick(event) {
@@ -435,10 +386,6 @@ export class Dropdown extends Component {
             target.addEventListener("mouseenter", this._boundHandleMouseEnter);
         }
 
-        // The target is a slotted element this dropdown does not own: when the
-        // slot swaps it for another one, everything written here has to come
-        // back off, or the abandoned element keeps advertising a menu it no
-        // longer toggles.
         return () => {
             target.removeEventListener("click", this._boundHandleClick);
             target.removeEventListener("mouseenter", this._boundHandleMouseEnter);
@@ -514,12 +461,7 @@ export class Dropdown extends Component {
     }
 
     onOpened() {
-        // First point at which the menu element exists: opening does not
-        // re-render this component, so the effect that tracks later changes
-        // has nothing to bind to until now.
-        if (this.menuRef.el) {
-            this.syncMenuClass(this.menuRef.el);
-        }
+        this.syncMenuClass(this.menuRef.el);
         this.activeEl = this.uiService.activeElement;
         this.navigation.registerHotkeys();
         this.navigation.update();
@@ -530,16 +472,17 @@ export class Dropdown extends Component {
             this.target.ariaExpanded = "true";
             this.target.classList.add("show");
         }
-        this.observer = new MutationObserver(() => this.navigation.update());
-        this.observer.observe(this.menuRef.el, {
-            childList: true,
-            subtree: true,
-        });
+        const menuEl = this.menuRef.el;
+        if (menuEl) {
+            this.observer = new MutationObserver(() => this.navigation.update());
+            this.observer.observe(menuEl, {
+                childList: true,
+                subtree: true,
+            });
+        }
     }
 
     onClosed() {
-        // The element they were on is gone; the next open starts from the
-        // popover's own class again.
         this._menuClassNames = [];
         this.navigation.unregisterHotkeys();
         this.navigation.update();

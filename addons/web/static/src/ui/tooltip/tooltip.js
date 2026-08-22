@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/tooltip/tooltip */
-
 import { Component } from "@odoo/owl";
 
 export class Tooltip extends Component {

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/properties/card_properties_field */
-
 import { registerField } from "@web/fields/_registry";
 
 import { PropertiesField, propertiesField } from "./properties_field.js";
@@ -15,7 +13,7 @@ export class CardPropertiesField extends PropertiesField {
     }
 }
 
-export const cardPropertiesField = {
+const cardPropertiesField = {
     ...propertiesField,
     component: CardPropertiesField,
 };

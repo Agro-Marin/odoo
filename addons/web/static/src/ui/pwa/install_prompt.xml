@@ -5,11 +5,6 @@
             <t t-set-slot="header">
                 <div class="d-flex w-100">
                     <h4>How to get the application</h4>
-                    <!-- A real <button>: as a <div> this was unreachable by
-                         keyboard (no tabindex) and exposed to assistive
-                         technology as a generic container, so the only way out
-                         of the dialog was ESC. `type` is meaningless on a div
-                         and was being ignored. -->
                     <button
                         t-on-click="onClose"
                         type="button"

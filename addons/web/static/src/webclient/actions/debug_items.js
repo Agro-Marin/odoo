@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/debug_items */
-
 import { editModelDebug } from "@web/core/debug/debug_utils";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -12,10 +10,6 @@ import { _t } from "@web/core/translation";
 const debugRegistry = registry.category("debug");
 
 /**
- * ``ir.model`` ids are immutable for a given model, so one lookup per env is
- * enough. Keyed by env rather than module-global so a test's cache dies with
- * its env instead of leaking into the next one.
- *
  * @type {WeakMap<object, Map<string, Promise<number>>>}
  */
 const modelIdCaches = new WeakMap();

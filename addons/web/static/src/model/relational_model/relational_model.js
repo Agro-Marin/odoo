@@ -1,10 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/relational_model */
-
 import { markRaw, toRaw } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
+import { reportUncaught } from "@web/core/errors/error_utils";
 import { ModelEvent } from "@web/core/events";
 import { modelLog } from "@web/core/utils/asset_log";
 import { deepCopy } from "@web/core/utils/collections/objects";
@@ -40,72 +39,72 @@ import { UrgentSaveCoordinator } from "./urgent_save_coordinator.js";
 
 /**
  * @typedef {{
- *  changes?: Record<string, any>;
- *  fieldNames?: string[];
- *  evalContext?: any;
- *  onError?: (error: unknown) => unknown;
- *  cache?: Object;
- *  [key: string]: any;
+ * changes?: Record<string, any>;
+ * fieldNames?: string[];
+ * evalContext?: any;
+ * onError?: (error: unknown) => unknown;
+ * cache?: Object;
+ * [key: string]: any;
  * }} OnChangeParams
  * @typedef {SearchParams & {
- *  fields: Record<string, Field>;
- *  activeFields: Record<string, FieldInfo>;
- *  fieldsToAggregate: string[];
- *  isMonoRecord: boolean;
- *  isRoot: boolean;
- *  resIds?: number[];
- *  mode?: "edit" | "readonly";
- *  loadId?: string;
- *  limit?: number;
- *  offset?: number;
- *  countLimit?: number;
- *  groupsLimit?: number;
- *  groups?: Record<string, unknown>;
- *  currentGroups?: Record<string, unknown>;
- *  openGroupsByDefault?: boolean;
- *  extraDomain?: import("@web/core/domain").DomainListRepr;
- *  isFolded?: boolean;
- *  isGroupList?: boolean;
- *  rawContext?: Record<string, unknown>;
- *  [key: string]: any;
+ * fields: Record<string, Field>;
+ * activeFields: Record<string, FieldInfo>;
+ * fieldsToAggregate: string[];
+ * isMonoRecord: boolean;
+ * isRoot: boolean;
+ * resIds?: number[];
+ * mode?: "edit" | "readonly";
+ * loadId?: string;
+ * limit?: number;
+ * offset?: number;
+ * countLimit?: number;
+ * groupsLimit?: number;
+ * groups?: Record<string, unknown>;
+ * currentGroups?: Record<string, unknown>;
+ * openGroupsByDefault?: boolean;
+ * extraDomain?: import("@web/core/domain").DomainListRepr;
+ * isFolded?: boolean;
+ * isGroupList?: boolean;
+ * rawContext?: Record<string, unknown>;
+ * [key: string]: any;
  * }} RelationalModelConfig
  * @typedef {{
- *  config: RelationalModelConfig;
- *  state?: RelationalModelState;
- *  hooks?: { lifecycle?: Partial<LifecycleHooks>; ui?: Partial<UIHooks> };
- *  limit?: number;
- *  countLimit?: number;
- *  groupsLimit?: number;
- *  defaultOrderBy?: import("@web/core/utils/order_by").OrderTerm[];
- *  maxGroupByDepth?: number;
- *  multiEdit?: boolean;
- *  groupByInfo?: Record<string, { activeFields: Record<string, FieldInfo>; fields: Record<string, Field> }>;
- *  activeIdsLimit?: number;
- *  useSendBeaconToSaveUrgently?: boolean;
- *  canUseSampleModel?: boolean;
- *  isAlive?: () => boolean;
+ * config: RelationalModelConfig;
+ * state?: RelationalModelState;
+ * hooks?: { lifecycle?: Partial<LifecycleHooks>; ui?: Partial<UIHooks> };
+ * limit?: number;
+ * countLimit?: number;
+ * groupsLimit?: number;
+ * defaultOrderBy?: import("@web/core/utils/order_by").OrderTerm[];
+ * maxGroupByDepth?: number;
+ * multiEdit?: boolean;
+ * groupByInfo?: Record<string, { activeFields: Record<string, FieldInfo>; fields: Record<string, Field> }>;
+ * activeIdsLimit?: number;
+ * useSendBeaconToSaveUrgently?: boolean;
+ * canUseSampleModel?: boolean;
+ * isAlive?: () => boolean;
  * }} RelationalModelParams
  * @typedef {{
- *  config: RelationalModelConfig;
- *  specialDataCaches: import("./special_data_cache.js").SpecialDataCache;
+ * config: RelationalModelConfig;
+ * specialDataCaches: import("./special_data_cache.js").SpecialDataCache;
  * }} RelationalModelState
  */
 
 /**
  * @typedef {{
- *  onWillLoadRoot: (config: RelationalModelConfig) => any;
- *  onRootLoaded: (root: DataPoint) => any;
- *  onWillSaveRecord: (record: RelationalRecord, changes: Record<string, unknown>) => any;
- *  onRecordSaved: (record: RelationalRecord, changes: Record<string, unknown>) => any;
- *  onWillSaveMulti: (record: RelationalRecord, changes: Object) => any;
- *  onSavedMulti: (records: RelationalRecord[]) => any;
- *  onWillSetInvalidField: (record: RelationalRecord, fieldName: string) => any;
- *  onRecordChanged: (record: RelationalRecord, changes: Record<string, unknown>) => any;
- *  onWillDisplayOnchangeWarning: (warning: Object) => any;
- *  onAskMultiSaveConfirmation: (changes: Object, validRecords: RelationalRecord[]) => any;
+ * onWillLoadRoot: (config: RelationalModelConfig) => any;
+ * onRootLoaded: (root: DataPoint) => any;
+ * onWillSaveRecord: (record: RelationalRecord, changes: Record<string, unknown>) => any;
+ * onRecordSaved: (record: RelationalRecord, changes: Record<string, unknown>) => any;
+ * onWillSaveMulti: (record: RelationalRecord, changes: Object) => any;
+ * onSavedMulti: (records: RelationalRecord[]) => any;
+ * onWillSetInvalidField: (record: RelationalRecord, fieldName: string) => any;
+ * onRecordChanged: (record: RelationalRecord, changes: Record<string, unknown>) => any;
+ * onWillDisplayOnchangeWarning: (warning: Object) => any;
+ * onAskMultiSaveConfirmation: (changes: Object, validRecords: RelationalRecord[]) => any;
  * }} LifecycleHooks
  */
-export const DEFAULT_LIFECYCLE_HOOKS = /** @type {LifecycleHooks} */ ({
+const DEFAULT_LIFECYCLE_HOOKS = /** @type {LifecycleHooks} */ ({
     onWillLoadRoot: () => {},
     onRootLoaded: () => {},
     onWillSaveRecord: () => {},
@@ -120,17 +119,17 @@ export const DEFAULT_LIFECYCLE_HOOKS = /** @type {LifecycleHooks} */ ({
 
 /**
  * @typedef {{
- *  onDisplayOnchangeWarning: (warning: {type: string, title: string, message: string, className?: string, sticky?: boolean}) => void;
- *  onDisplayInvalidFields: () => (() => void);
- *  onDisplayUrgentSave: (message: string) => (() => void);
- *  onDisplayPropertyWarning: (message: string) => void;
- *  onDisplayArchiveAction: (action: Object, reload: () => Promise<any>) => any;
- *  onConfirmArchive: (archiveFn: Function, dialogProps?: Object) => void;
- *  onConfirmDuplicate: (resIds: number[], copyFn: Function) => void;
- *  onDisplayLimitNotification: (msg: string) => void;
+ * onDisplayOnchangeWarning: (warning: {type: string, title: string, message: string, className?: string, sticky?: boolean}) => void;
+ * onDisplayInvalidFields: () => (() => void);
+ * onDisplayUrgentSave: (message: string) => (() => void);
+ * onDisplayPropertyWarning: (message: string) => void;
+ * onDisplayArchiveAction: (action: Object, reload: () => Promise<any>) => any;
+ * onConfirmArchive: (archiveFn: Function, dialogProps?: Object) => void;
+ * onConfirmDuplicate: (resIds: number[], copyFn: Function) => void;
+ * onDisplayLimitNotification: (msg: string) => void;
  * }} UIHooks
  */
-export const DEFAULT_UI_HOOKS = /** @type {UIHooks} */ ({
+const DEFAULT_UI_HOOKS = /** @type {UIHooks} */ ({
     onDisplayOnchangeWarning: () => {},
     onDisplayInvalidFields: () => () => {},
     onDisplayUrgentSave: () => () => {},
@@ -156,10 +155,6 @@ export class RelationalModel extends Model {
     static DEFAULT_OPEN_GROUP_LIMIT = 10;
     static withCache = true;
 
-    // No class-field declarations: `Model`'s constructor calls `setup()` (it
-    // says so at model.js:259), and a subclass field initialiser runs after
-    // `super()` returns, so one would blank what `setup()` assigned.
-
     /** @returns {typeof RelationalModel} */
     get Class() {
         return /** @type {typeof RelationalModel} */ (this.constructor);
@@ -170,11 +165,6 @@ export class RelationalModel extends Model {
      * @param {Object} _services
      */
     setup(params, _services) {
-        // `rejectSuperseded` so a dropped load settles its caller instead of
-        // leaving the promise pending forever; `load()` catches
-        // `SupersededError` and resolves, matching the callers that
-        // `await model.load()`. Same contract calendar, graph and pivot already
-        // use.
         this.keepLast = markRaw(new KeepLast({ rejectSuperseded: true }));
         this.countKeepLast = markRaw(new KeepLast({ rejectSuperseded: true }));
         this.mutex = markRaw(new Mutex());
@@ -194,9 +184,6 @@ export class RelationalModel extends Model {
         };
         /** @type {Map<string, Set<Function>>} */
         this._lifecycleListeners = new Map();
-        this.hasOnRecordChangedHook =
-            this.hooks.lifecycle.onRecordChanged !==
-            DEFAULT_LIFECYCLE_HOOKS.onRecordChanged;
 
         this.initialLimit = params.limit || this.Class.DEFAULT_LIMIT;
         this.initialGroupsLimit = params.groupsLimit;
@@ -249,16 +236,27 @@ export class RelationalModel extends Model {
     }
 
     /**
-     * Shows the "changes too large to save automatically" notification, keeping
-     * its disposer. The model owns that disposer because the notification
-     * outlives the save that raised it: a later save, a discard, or leaving edit
-     * mode all have to take it down, and none of them can be handed the closure.
-     *
+     * @returns {LifecycleHooks}
+     */
+    get lifecycleHooks() {
+        return /** @type {{ lifecycle: LifecycleHooks, ui: UIHooks }} */ (this.hooks)
+            .lifecycle;
+    }
+
+    /**
+     * @returns {UIHooks}
+     */
+    get uiHooks() {
+        return /** @type {{ lifecycle: LifecycleHooks, ui: UIHooks }} */ (this.hooks)
+            .ui;
+    }
+
+    /**
      * @param {ReturnType<typeof import("@web/core/translation")._t>} message
      * @returns {void}
      */
     displayUrgentSaveNotification(message) {
-        this._closeUrgentSaveNotification = this.hooks.ui.onDisplayUrgentSave(message);
+        this._closeUrgentSaveNotification = this.uiHooks.onDisplayUrgentSave(message);
     }
 
     /**
@@ -293,8 +291,7 @@ export class RelationalModel extends Model {
             this.root = this._createEmptyRoot(config);
             this.config = config;
         }
-        this.hooks.lifecycle.onWillLoadRoot(config);
-        this._notifyLifecycle("onWillLoadRoot", config);
+        this.notifyLifecycleSync("onWillLoadRoot", config);
         const rootLoadDef = new Deferred();
         this._retireRootLoadDef();
         this._rootLoadDef = rootLoadDef;
@@ -304,9 +301,6 @@ export class RelationalModel extends Model {
             performance.mark("model:loadData:start");
         }
         let data;
-        // Cancels the RPCs this load issues if a newer one supersedes it. The
-        // controller reaches them through `_scopedOrm`; `KeepLast` runs the
-        // abort at the moment it stops caring about the result.
         const loadAbort = new AbortController();
         try {
             data = await this.keepLast.add(
@@ -315,10 +309,6 @@ export class RelationalModel extends Model {
             );
         } catch (error) {
             if (error instanceof SupersededError) {
-                // A newer load owns `_rootLoadDef` now -- retiring here would
-                // retire *its* deferred, not ours. Drop this load silently and
-                // resolve, which is what the caller means by "a newer load took
-                // over".
                 return;
             }
             this._retireRootLoadDef();
@@ -336,50 +326,74 @@ export class RelationalModel extends Model {
         if (!this.isReady) {
             this.isReady = true;
         }
-        await this.hooks.lifecycle.onRootLoaded(this.root);
-        const notified = this._notifyLifecycle("onRootLoaded", this.root);
-        if (notified) {
-            await notified;
-        }
+        await this.notifyLifecycle("onRootLoaded", this.root);
     }
 
     /**
-     * Subscribes an ADDITIONAL listener to a lifecycle hook, run after the hook
-     * itself. Unlike assigning `hooks.lifecycle.<name>`, which is a single slot
-     * and silently replaces whatever was there, subscriptions compose: several
-     * independent features can observe the same hook, and unsubscribing one
-     * cannot resurrect a stale version of another.
-     *
-     * @param {string} name a key of `hooks.lifecycle`
+     * @param {keyof LifecycleHooks} name
      * @param {Function} listener
-     * @returns {() => void} unsubscribe
+     * @returns {() => void}
      */
     subscribeLifecycle(name, listener) {
+        if (!(name in DEFAULT_LIFECYCLE_HOOKS)) {
+            throw new Error(
+                `RelationalModel.subscribeLifecycle: unknown lifecycle "${name}". ` +
+                    `Known: ${Object.keys(DEFAULT_LIFECYCLE_HOOKS).join(", ")}.`,
+            );
+        }
         let listeners = this._lifecycleListeners.get(name);
         if (!listeners) {
             listeners = new Set();
             this._lifecycleListeners.set(name, listeners);
         }
         listeners.add(listener);
-        return () => listeners.delete(listener);
+        return () => {
+            listeners.delete(listener);
+            if (!listeners.size) {
+                this._lifecycleListeners.delete(name);
+            }
+        };
     }
 
     /**
-     * Returns a promise ONLY when there is something to run. An `async` method
-     * would resolve to a promise even with no listeners, and awaiting it would
-     * insert a microtask tick into the load path on every call — enough to
-     * reorder the render/response interleaving callers observe.
-     *
-     * @param {string} name
+     * @param {keyof LifecycleHooks} name
      * @param {...any} args
-     * @returns {Promise<void> | undefined}
+     * @returns {Promise<any>}
      */
-    _notifyLifecycle(name, ...args) {
+    async notifyLifecycle(name, ...args) {
+        const hook = /** @type {(...a: any[]) => any} */ (this.lifecycleHooks[name]);
+        const result = await hook(...args);
         const listeners = this._lifecycleListeners.get(name);
-        if (!listeners?.size) {
-            return;
+        if (listeners?.size) {
+            await this._runLifecycleListeners([...listeners], args);
         }
-        return this._runLifecycleListeners([...listeners], args);
+        return result;
+    }
+
+    /**
+     * @param {keyof LifecycleHooks} name
+     * @param {...any} args
+     * @returns {any}
+     */
+    notifyLifecycleSync(name, ...args) {
+        const hook = /** @type {(...a: any[]) => any} */ (this.lifecycleHooks[name]);
+        const result = hook(...args);
+        const listeners = this._lifecycleListeners.get(name);
+        if (listeners?.size) {
+            this._runLifecycleListeners([...listeners], args).catch(reportUncaught);
+        }
+        return result;
+    }
+
+    /**
+     * @returns {boolean}
+     */
+    get hasOnRecordChangedHook() {
+        return (
+            this.lifecycleHooks.onRecordChanged !==
+                DEFAULT_LIFECYCLE_HOOKS.onRecordChanged ||
+            Boolean(this._lifecycleListeners.get("onRecordChanged")?.size)
+        );
     }
 
     /**
@@ -430,23 +444,11 @@ export class RelationalModel extends Model {
     }
 
     /**
-     * A reload replaces every datapoint, so anything a widget is still holding
-     * locally is lost with them. Draining `_askChanges()` first is what makes
-     * "type in a cell, then change the search facet" keep the typed value.
-     *
-     * Guarded on `mutex.locked` because that is the only state in which there
-     * can be an in-flight update to settle; asking unconditionally would add a
-     * bus round trip and a microtask to every idle reload.
-     *
-     * Returns the pending settle, or nothing at all when the mutex is free --
-     * the caller must be able to skip awaiting in the idle case. See the note
-     * on `Model#settleBeforeReload`.
-     *
      * @override
      * @returns {Promise<void> | void}
      */
     settleBeforeReload() {
-        if (this.mutex.locked) {
+        if (this.mutex.locked || this._compoundUpdates.size) {
             return this._askChanges();
         }
     }
@@ -506,13 +508,6 @@ export class RelationalModel extends Model {
     }
 
     /**
-     * The ORM this load should talk to: cache proxy when the load is cacheable,
-     * signal proxy when it is cancellable, both when it is both.
-     *
-     * Replaces four copies of `cache ? this.orm.cache(cache) : this.orm`, which
-     * is where the signal has to be applied -- every RPC the load path issues
-     * goes through one of them.
-     *
      * @param {Object} [cache]
      * @param {AbortSignal} [signal]
      * @returns {import("@web/core/network/orm_service").ORM}
@@ -551,32 +546,22 @@ export class RelationalModel extends Model {
     }
 
     /**
-     * Stale-while-revalidate: apply a disk-cache background refresh to the live
-     * root, but only when doing so cannot corrupt what the user is looking at
-     * or editing. This is the subtlest guard in the load path — every early
-     * return below is a distinct "do not touch the root" condition.
-     *
-     * @param {any} result   the freshly revalidated payload
-     * @param {boolean} hasChanged   whether it differs from what was served
+     * @param {any} result
+     * @param {boolean} hasChanged
      * @param {{ rootLoadDef: Promise<any>, currentResId: any }} ctx
      */
     async _applyBackgroundRefresh(result, hasChanged, { rootLoadDef, currentResId }) {
-        // The served copy was already current — nothing to reconcile.
         if (!hasChanged) {
             return;
         }
-        // The root's own load never resolved, so there is no root to refresh.
         const loaded = await rootLoadDef;
         if (!loaded) {
             return;
         }
         const { root, loadId } = loaded;
-        // The record navigated away between serve and revalidate.
         if (root.config.isMonoRecord && currentResId !== root.config.resId) {
             return;
         }
-        // A different root is mounted now; only feed it if it is sample data
-        // still waiting for its first real payload.
         if (root.id !== this.root.id) {
             if (this.useSampleModel) {
                 this.useSampleModel = false;
@@ -588,7 +573,6 @@ export class RelationalModel extends Model {
             }
             return;
         }
-        // A newer load of this same root has already superseded us.
         if (loadId !== this.root.config.loadId) {
             return;
         }
@@ -601,8 +585,6 @@ export class RelationalModel extends Model {
             }
             return root._setData(result[0], { keepChanges: true });
         }
-        // A visible record is being edited or is selected — refreshing would
-        // discard the user's in-flight work.
         if (
             root.records.some((r) => r.isInEdition || r.hasPendingChanges || r.selected)
         ) {
@@ -631,7 +613,7 @@ export class RelationalModel extends Model {
     /**
      * @param {RelationalModelConfig} config
      * @param {Object} [cache]
-     * @param {AbortSignal} [signal] cancels this load's RPCs when a newer load supersedes it
+     * @param {AbortSignal} [signal]
      */
     async _loadData(config, cache, signal) {
         config.loadId = getId("load");
@@ -644,9 +626,6 @@ export class RelationalModel extends Model {
             return records[0];
         }
         if (config.resIds) {
-            // Defaults first: this branch used to slice with a `limit` nothing
-            // had filled in yet, so `offset + undefined` was NaN and the slice
-            // silently produced an empty list instead of the first page.
             Object.assign(config, {
                 limit: config.limit || this.initialLimit,
                 offset: config.offset || 0,
@@ -684,7 +663,7 @@ export class RelationalModel extends Model {
         );
         if (config.offset && !records.length) {
             config.offset = 0;
-            return this._loadData(config, cache);
+            return this._loadData(config, cache, signal);
         }
         return { records, length };
     }
@@ -692,7 +671,7 @@ export class RelationalModel extends Model {
     /**
      * @param {RelationalModelConfig} config
      * @param {Object} [cache]
-     * @param {AbortSignal} [signal] cancels this load's RPCs when a newer load supersedes it
+     * @param {AbortSignal} [signal]
      */
     async loadGroupedList(config, cache, signal) {
         config.offset = config.offset || 0;
@@ -729,14 +708,10 @@ export class RelationalModel extends Model {
     }
 
     /**
-     * The default is what every in-repo caller passes explicitly. Leaving it
-     * required made an omission evaluate every field spec against `undefined`
-     * instead of failing — a silent contract for out-of-repo subclasses.
-     *
      * @param {RelationalModelConfig} config
      * @param {Context} [evalContext]
      * @param {Object} [cache]
-     * @param {AbortSignal} [signal] cancels this load's RPCs when a newer load supersedes it
+     * @param {AbortSignal} [signal]
      */
     async _loadRecords(
         config,
@@ -770,7 +745,7 @@ export class RelationalModel extends Model {
     /**
      * @param {RelationalModelConfig} config
      * @param {Object} [cache]
-     * @param {AbortSignal} [signal] cancels this load's RPCs when a newer load supersedes it
+     * @param {AbortSignal} [signal]
      * @returns {Promise<{ records: any[]; length: number }>}
      */
     async _loadUngroupedList(config, cache, signal) {
@@ -839,10 +814,10 @@ export class RelationalModel extends Model {
         }
         if (response.warning) {
             Promise.resolve(
-                this.hooks.lifecycle.onWillDisplayOnchangeWarning(response.warning),
+                this.notifyLifecycle("onWillDisplayOnchangeWarning", response.warning),
             )
                 .then(() => {
-                    this.hooks.ui.onDisplayOnchangeWarning(response.warning);
+                    this.uiHooks.onDisplayOnchangeWarning(response.warning);
                 })
                 .catch((error) => console.error(error));
         }
@@ -864,7 +839,7 @@ export class RelationalModel extends Model {
      * @param {RelationalModelConfig} config
      * @param {Partial<RelationalModelConfig>} patch
      * @param {{
-     *  commit?: (data: Record<string, unknown>) => unknown;
+     * commit?: (data: Record<string, unknown>) => unknown;
      * }} [options]
      */
     async _reloadWithConfig(config, patch, { commit } = {}) {
@@ -875,8 +850,7 @@ export class RelationalModel extends Model {
         markRaw(tmpConfig.activeFields);
         markRaw(tmpConfig.fields);
         if (tmpConfig.isRoot) {
-            this.hooks.lifecycle.onWillLoadRoot(tmpConfig);
-            this._notifyLifecycle("onWillLoadRoot", tmpConfig);
+            this.notifyLifecycleSync("onWillLoadRoot", tmpConfig);
         }
         const data = await this._loadData(tmpConfig);
         this._patchConfig(config, tmpConfig);
@@ -884,11 +858,7 @@ export class RelationalModel extends Model {
             commit(data);
         }
         if (config.isRoot) {
-            await this.hooks.lifecycle.onRootLoaded(this.root);
-            const notified = this._notifyLifecycle("onRootLoaded", this.root);
-            if (notified) {
-                await notified;
-            }
+            await this.notifyLifecycle("onRootLoaded", this.root);
         }
     }
 
@@ -896,7 +866,7 @@ export class RelationalModel extends Model {
      * @param {RelationalModelConfig} config
      * @returns {Promise<number>}
      */
-    async _updateCount(config) {
+    async _fetchExactCount(config) {
         const count = await this.countKeepLast.add(
             this.orm.searchCount(config.resModel, config.domain, {
                 context: config.context,
@@ -927,7 +897,7 @@ export class RelationalModel extends Model {
     /**
      * @param {RelationalModelConfig} config
      * @param {Object} cache
-     * @param {AbortSignal} [signal] cancels this load's RPCs when a newer load supersedes it
+     * @param {AbortSignal} [signal]
      * @returns {Promise<{ groups: any[]; length: number }>}
      */
     async webReadGroup(config, cache, signal) {

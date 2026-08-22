@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/media/attachment_image/attachment_image_field */
-
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
@@ -14,7 +12,7 @@ export class AttachmentImageField extends Component {
 }
 
 /** @type {import("registries").FieldsRegistryItemShape} */
-export const attachmentImageField = {
+const attachmentImageField = {
     component: AttachmentImageField,
     displayName: _t("Attachment Image"),
     supportedTypes: ["many2one"],

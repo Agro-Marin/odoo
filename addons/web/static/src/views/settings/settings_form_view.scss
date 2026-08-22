@@ -1,12 +1,3 @@
-body:not(.o_touch_device) .o_settings_container .o_field_selection {
-    &:not(:hover):not(:focus-within) {
-        & select:not(:hover) {
-            background-color: var(--o-text, #{o-token(--o-text, $o-main-text-color)});
-            mask: $o-caret-down no-repeat right center;
-        }
-    }
-}
-
 .o_base_settings_view .o_form_renderer {
     height: 100%;
     overflow: auto;
@@ -78,10 +69,7 @@ body:not(.o_touch_device) .o_settings_container .o_field_selection {
             overflow: auto;
 
             .selected {
-                background-color: var(
-                    --settings__tab-bg--active,
-                    var(--o-bg-active)
-                );
+                background-color: var(--settings__tab-bg--active, var(--o-bg-active));
                 box-shadow: inset 2px 0 0 $o-component-active-border;
             }
 
@@ -134,10 +122,7 @@ body:not(.o_touch_device) .o_settings_container .o_field_selection {
                 }
 
                 .o_settings_container {
-                    max-width: map-get(
-                        $grid-breakpoints,
-                        lg
-                    );
+                    max-width: map-get($grid-breakpoints, lg);
                     @include media-breakpoint-up(md) {
                         @include o-base-settings-horizontal-padding(0);
                     }

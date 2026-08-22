@@ -1,15 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/**
- * @module @web/webclient/debug/debug_menu_items
- */
-
 import { browser } from "@web/core/browser/browser";
 import { router } from "@web/core/browser/router";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
+
+import { enterTestMode, leaveDebugMode as leaveDebug } from "./debug_affordances.js";
 
 /**
  * @typedef {Object} DebugMenuItemDescriptor
@@ -33,9 +31,7 @@ function activateTestsAssetsDebugging({ env }) {
     return {
         type: "item",
         description: _t("Activate Test Mode"),
-        callback: () => {
-            router.pushState({ debug: "assets,tests" }, { reload: true });
-        },
+        callback: enterTestMode,
         sequence: 580,
         section: "tools",
     };
@@ -86,9 +82,7 @@ function leaveDebugMode() {
     return {
         type: "item",
         description: _t("Leave Debug Mode"),
-        callback: () => {
-            router.pushState({ debug: 0 }, { reload: true });
-        },
+        callback: leaveDebug,
         sequence: 650,
     };
 }

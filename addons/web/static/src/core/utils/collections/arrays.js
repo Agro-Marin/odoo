@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/collections/arrays */
-
 /**
  * @template T
  * @template {string | number | symbol} K

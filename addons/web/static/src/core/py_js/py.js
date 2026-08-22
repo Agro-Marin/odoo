@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/py_js/py */
+import { LruCache } from "@web/core/utils/lru_cache";
 
 import { ASTType } from "./ast_type.js";
 import { BUILTINS } from "./py_builtin.js";
@@ -20,18 +20,11 @@ export { formatAST } from "./py_utils.js";
  */
 
 /**
- * @type {Map<string, AST>}
+ * @type {LruCache}
  */
-const _astCache = new Map();
-const _AST_CACHE_MAX = 512;
+const _astCache = new LruCache(512);
 
 /**
- * Cached ASTs are handed to every caller of the same expression -- ``Domain``,
- * ``Expression`` and all six ``tree/`` constructors hold onto them -- so the
- * cache is only sound while nobody writes into one. Freezing on the way in
- * makes that an error instead of a convention: an in-place edit now throws
- * where it used to silently poison every later reader of that expression.
- *
  * @template {AST} T
  * @param {T} node
  * @returns {T}
@@ -51,19 +44,12 @@ function deepFreeze(node) {
  * @returns { AST }
  */
 export function parseExpr(expr) {
-    let ast = _astCache.get(expr);
+    let ast = /** @type {AST | undefined} */ (_astCache.get(expr));
     if (ast) {
-        // LRU refresh: re-insert so eviction targets the least recently used
-        // entry, not merely the oldest-inserted one.
-        _astCache.delete(expr);
-        _astCache.set(expr, ast);
         return ast;
     }
     const tokens = tokenize(expr);
     ast = deepFreeze(parse(tokens));
-    if (_astCache.size >= _AST_CACHE_MAX) {
-        _astCache.delete(_astCache.keys().next().value);
-    }
     _astCache.set(expr, ast);
     return ast;
 }
@@ -98,7 +84,7 @@ export function evaluateExpr(expr, context = {}) {
 }
 
 /**
- * @param {unknown} expr an expression, or an already-evaluated modifier value
+ * @param {unknown} expr
  * @param {{[key: string]: any}} [context]
  * @returns {boolean}
  */
@@ -109,12 +95,6 @@ export function evaluateBooleanExpr(expr, context = {}) {
     if (expr === "True" || expr === "1") {
         return true;
     }
-    // Applying `bool` to the result rather than splicing `bool(...)` around the
-    // source: the wrapped spelling parsed and cached a second AST for every
-    // expression, and reported syntax errors against text the caller never
-    // wrote. It also stringified whatever it was handed, which is the only
-    // reason a non-string modifier value ever worked -- so keep answering for
-    // one, explicitly.
     if (typeof expr !== "string") {
         return BUILTINS.bool(expr);
     }

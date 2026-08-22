@@ -1,25 +1,29 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/many2many_tags/many2many_tags_field */
-
 import { Component, useRef } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { ColorList } from "@web/components/colorlist/colorlist";
 import { useTagNavigation } from "@web/components/record_selectors/tag_navigation_hook";
 import { TagsList } from "@web/components/tags_list/tags_list";
-import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
 import { Mutex } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { registerField } from "@web/fields/_registry";
+import { FieldComponent } from "@web/fields/field_component";
+import {
+    colorFieldOption,
+    createPermissionAttribute,
+    writePermissionAttribute,
+} from "@web/fields/field_options";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { getFieldDomain } from "@web/model/relational_model/utils";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
 import {
     extractCreatePermissions,
+    extractWritePermission,
     m2oSupportedOptions,
 } from "../many2one/many2one_field.js";
 import { Many2XAutocomplete, useOpenMany2XRecord } from "../many2x_autocomplete.js";
@@ -41,7 +45,22 @@ class Many2ManyTagsFieldColorListPopover extends Component {
     };
 }
 
-export class Many2ManyTagsField extends Component {
+/**
+ * @param {Record<string, any>} a
+ * @param {Record<string, any>} b
+ * @returns {boolean}
+ */
+function sameTagProps(a, b) {
+    const keys = Object.keys(a);
+    if (keys.length !== Object.keys(b).length) {
+        return false;
+    }
+    return keys.every((key) =>
+        typeof a[key] === "function" ? typeof b[key] === "function" : a[key] === b[key],
+    );
+}
+
+export class Many2ManyTagsField extends FieldComponent {
     static template = "web.Many2ManyTagsField";
     static components = {
         TagsList,
@@ -86,6 +105,8 @@ export class Many2ManyTagsField extends Component {
     activeActions;
     /** @type {((name: string) => Promise<any>) | undefined} */
     quickCreate;
+    /** @type {{ records: any[], tags: any[] } | null} */
+    _tagsMemo = null;
 
     setup() {
         useRenderCounter("fields.Many2ManyTagsField");
@@ -99,7 +120,7 @@ export class Many2ManyTagsField extends Component {
         this.mutex = new Mutex();
 
         const { linkRecords, removeRecord } = useX2ManyCrud(
-            () => this.props.record.data[this.props.name],
+            () => this.field.value,
             true,
         );
         this.linkRecords = linkRecords;
@@ -126,7 +147,7 @@ export class Many2ManyTagsField extends Component {
                     write: true,
                 },
                 onRecordSaved: (record) => {
-                    const records = this.props.record.data[this.props.name].records;
+                    const records = this.field.value.records;
                     return records.find((r) => r.resId === record.resId)?.load();
                 },
             }),
@@ -157,9 +178,7 @@ export class Many2ManyTagsField extends Component {
         if (!recordList || !recordList.length) {
             return;
         }
-        const linkedResIds = new Set(
-            this.props.record.data[this.props.name].records.map((r) => r.resId),
-        );
+        const linkedResIds = new Set(this.field.value.records.map((r) => r.resId));
         const resIds = recordList
             .filter((element) => !linkedResIds.has(element.id))
             .map((rec) => rec.id);
@@ -171,13 +190,11 @@ export class Many2ManyTagsField extends Component {
 
     /** @returns {string} */
     get relation() {
-        return this.props.record.fields[this.props.name].relation;
+        return this.field.definition.relation;
     }
     /** @returns {string} */
     get string() {
-        return (
-            this.props.string || this.props.record.fields[this.props.name].string || ""
-        );
+        return this.props.string || this.field.definition.string || "";
     }
 
     /**
@@ -196,11 +213,23 @@ export class Many2ManyTagsField extends Component {
         };
     }
 
-    /** @returns {Array<Object>} */
+    /**
+     * @returns {Array<Object>}
+     */
     get tags() {
-        return this.props.record.data[this.props.name].records.map((record) =>
-            this.getTagProps(record),
-        );
+        const records = this.field.value.records;
+        const tags = records.map((record) => this.getTagProps(record));
+        const memo = this._tagsMemo;
+        if (
+            memo &&
+            memo.records.length === records.length &&
+            memo.records.every((record, i) => record === records[i]) &&
+            memo.tags.every((tag, i) => sameTagProps(tag, tags[i]))
+        ) {
+            return memo.tags;
+        }
+        this._tagsMemo = { records: [...records], tags };
+        return tags;
     }
 
     /** @returns {boolean} */
@@ -209,11 +238,6 @@ export class Many2ManyTagsField extends Component {
     }
 
     /**
-     * Every prop the embedded autocomplete gets, in one place. Each template
-     * used to spell its own list, so the subclass templates quietly dropped the
-     * props the base one passed -- `create_name_field` and `search_threshold`
-     * were declared options that did nothing on `many2many_tags_avatar`.
-     *
      * @returns {Object}
      */
     get many2XAutocompleteProps() {
@@ -254,7 +278,7 @@ export class Many2ManyTagsField extends Component {
      * @param {string} id
      */
     _forgetTag(id) {
-        const list = this.props.record.data[this.props.name];
+        const list = this.field.value;
         const tagRecord = list.records.find((record) => record.id === id);
         if (!tagRecord) {
             return;
@@ -272,7 +296,7 @@ export class Many2ManyTagsField extends Component {
      * @returns {boolean}
      */
     isSelected(record) {
-        const records = this.props.record.data[this.props.name].records;
+        const records = this.field.value.records;
         return records.some((r) => r.resId === record.id);
     }
 }
@@ -281,10 +305,6 @@ export const many2ManyTagsField = {
     component: Many2ManyTagsField,
     displayName: _t("Tags"),
     supportedOptions: [
-        // The many2one options the tags widget actually honours. Inheriting the
-        // whole list and subtracting one name let every option later added to
-        // many2one leak in: `can_scan_barcode` has no button in this template,
-        // and `search_memoization` was advertised without being forwarded.
         ...(m2oSupportedOptions ?? []).filter(
             (o) => !["no_open", "can_scan_barcode"].includes(o.name),
         ),
@@ -294,15 +314,11 @@ export const many2ManyTagsField = {
             type: "string",
             help: _t("Write a domain to allow the creation of records conditionnally."),
         },
-        {
-            label: _t("Color field"),
-            name: "color_field",
-            type: "field",
+        colorFieldOption(_t("Set an integer field to use colors with the tags."), {
             isRelationalField: true,
-            availableTypes: ["integer"],
-            help: _t("Set an integer field to use colors with the tags."),
-        },
+        }),
     ],
+    supportedAttributes: [createPermissionAttribute()],
     supportedTypes: ["many2many", "one2many"],
     relatedFields: ({ options }) => {
         const relatedFields = [{ name: "display_name", type: "char" }];
@@ -434,6 +450,10 @@ export class Many2ManyTagsFieldColorEditable extends Many2ManyTagsField {
 export const many2ManyTagsFieldColorEditable = {
     ...many2ManyTagsField,
     component: Many2ManyTagsFieldColorEditable,
+    supportedAttributes: [
+        ...many2ManyTagsField.supportedAttributes,
+        writePermissionAttribute(),
+    ],
     supportedOptions: [
         ...many2ManyTagsField.supportedOptions,
         {
@@ -451,11 +471,10 @@ export const many2ManyTagsFieldColorEditable = {
         },
     ],
     extractProps: (/** @type {any} */ fieldInfo, /** @type {any} */ dynamicInfo) => {
-        const { attrs, options } = fieldInfo;
-        const hasEditPermission = attrs.can_write
-            ? evaluateBooleanExpr(attrs.can_write)
-            : true;
-        const canEditTags = options.edit_tags ? hasEditPermission : false;
+        const { options } = fieldInfo;
+        const canEditTags = options.edit_tags
+            ? extractWritePermission(fieldInfo)
+            : false;
         return {
             ...many2ManyTagsField.extractProps(fieldInfo, dynamicInfo),
             canEditTags,

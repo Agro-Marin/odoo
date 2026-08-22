@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/currency */
-
 import { reactive } from "@odoo/owl";
 import { UserEvent } from "@web/core/events";
 import { parseDate } from "@web/core/l10n/dates";
@@ -42,9 +40,6 @@ function applyRates(records) {
         records.map((r) => [
             r.id,
             {
-                // `res.currency.inverse_rate` = units of the COMPANY currency
-                // per 1 unit of this currency, i.e. the multiplier that takes
-                // an amount INTO the company currency.
                 toCompanyRate: r.inverse_rate,
                 date: parseDate(r.date),
             },

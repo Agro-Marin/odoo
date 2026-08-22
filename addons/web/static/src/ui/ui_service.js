@@ -1,18 +1,20 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/ui_service */
-
 import { EventBus, reactive, useEffect, useRef } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
+import {
+    publishEnclosingScopeResolver,
+    useOwnedActiveElement,
+} from "@web/core/utils/active_element_scope";
 import { getTabableElements, isFocusable } from "@web/core/utils/dom/ui";
 import { useService } from "@web/core/utils/hooks";
 import { makeActiveElementStack } from "@web/ui/active_element_stack";
 import { BlockUI } from "@web/ui/block/block_ui";
 import { mainComponentEntry } from "@web/ui/main_components_container";
-import { getMediaQueryLists, sizeOf, SIZES } from "@web/ui/viewport";
+import { getMediaQueryLists, SIZES, utils } from "@web/ui/viewport";
 
 /**
  * @param {HTMLElement} el
@@ -24,6 +26,43 @@ export function getFirstAndLastTabableElements(el) {
 }
 
 /**
+ * Keeps Tab inside the active element. Closes over nothing -- it reads the
+ * element it is bound to off the event -- so it is one function for every
+ * active element rather than one per `useActiveElement` call.
+ *
+ * @param {KeyboardEvent} e
+ */
+function trapFocus(e) {
+    const hotkey = getActiveHotkey(e);
+    if (!["tab", "shift+tab"].includes(hotkey)) {
+        return;
+    }
+    const el = /** @type {HTMLElement} */ (e.currentTarget);
+    const [firstTabableEl, lastTabableEl] = getFirstAndLastTabableElements(el);
+    if (!firstTabableEl && !lastTabableEl) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+    }
+    switch (hotkey) {
+        case "tab":
+            if (document.activeElement === lastTabableEl) {
+                firstTabableEl?.focus();
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            break;
+        case "shift+tab":
+            if (document.activeElement === firstTabableEl) {
+                lastTabableEl?.focus();
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            break;
+    }
+}
+
+/**
  * @param {string} refName
  */
 export function useActiveElement(refName) {
@@ -32,36 +71,7 @@ export function useActiveElement(refName) {
     }
     const uiService = useService("ui");
     const ref = useRef(refName);
-
-    function trapFocus(/** @type {KeyboardEvent} */ e) {
-        const hotkey = getActiveHotkey(e);
-        if (!["tab", "shift+tab"].includes(hotkey)) {
-            return;
-        }
-        const el = /** @type {HTMLElement} */ (e.currentTarget);
-        const [firstTabableEl, lastTabableEl] = getFirstAndLastTabableElements(el);
-        if (!firstTabableEl && !lastTabableEl) {
-            e.preventDefault();
-            e.stopPropagation();
-            return;
-        }
-        switch (hotkey) {
-            case "tab":
-                if (document.activeElement === lastTabableEl) {
-                    firstTabableEl?.focus();
-                    e.preventDefault();
-                    e.stopPropagation();
-                }
-                break;
-            case "shift+tab":
-                if (document.activeElement === firstTabableEl) {
-                    lastTabableEl?.focus();
-                    e.preventDefault();
-                    e.stopPropagation();
-                }
-                break;
-        }
-    }
+    const scope = useOwnedActiveElement();
 
     useEffect(
         (el) => {
@@ -71,6 +81,7 @@ export function useActiveElement(refName) {
                     return;
                 }
                 const oldActiveElement = document.activeElement;
+                scope.el = el;
                 uiService.activateElement(el);
 
                 el.addEventListener("keydown", trapFocus);
@@ -83,6 +94,7 @@ export function useActiveElement(refName) {
                     el.focus();
                 }
                 return () => {
+                    scope.el = null;
                     uiService.deactivateElement(el);
                     el.removeEventListener("keydown", trapFocus);
 
@@ -106,48 +118,48 @@ export function useActiveElement(refName) {
     );
 }
 
-/**
- * The `ui` service.
- *
- * A class **wrapped in `reactive`**, for the same reason as `pwa_service`: 79
- * templates read `ui.isSmall` / `ui.activeElement` and 145 modules take the
- * service, so the returned object has to stay reactive or a resize would update
- * nothing. `reactive(new UiService(env))` keeps that and puts the behaviour on a
- * prototype.
- *
- * Reactive data are **own** properties; everything that writes them runs on the
- * proxy, never on the raw instance — see `setup()`.
- */
-export class UiService {
+class UiService {
     /** @param {import("@web/env").OdooEnv} env */
     constructor(env) {
         this.env = env;
         this.bus = new EventBus();
-        this.medias = getMediaQueryLists();
+        /**
+         * @type {MediaQueryList[]}
+         */
+        this.subscribedMedias = [];
         this.blockCount = 0;
         this.activeElements = makeActiveElementStack();
+        /**
+         * Withdraws the enclosing-scope resolver this service published into
+         * core, so a destroyed service stops answering for a live one.
+         *
+         * @type {(() => void) | null}
+         */
+        this.withdrawScopeResolver = null;
 
-        const initialSize = sizeOf(this.medias);
+        const initialSize = this.getSize();
         this.size = initialSize;
         /** @type {Document | HTMLElement} */
         this.activeElement = document;
+        // `isBlocked` and `isSmall` are stored, not derived from `blockCount`
+        // and `size`. The service is reactive, so each is its own subscription
+        // key: a component that wraps this service in `useState` and reads
+        // `isSmall` is invalidated when the answer flips, where a getter reading
+        // `this.size` would invalidate it on every breakpoint crossed. (Readers
+        // of `env.isSmall` gain nothing either way -- that is a plain getter on
+        // the env and subscribes nobody; they re-render on `AppEvent.RESIZE`.)
         this.isBlocked = false;
         this.isSmall = initialSize <= SIZES.SM;
     }
 
-    /**
-     * Runs on the REACTIVE proxy, so the media listener and the `env.isSmall`
-     * getter both close over it rather than over the raw instance. Registering
-     * them in the constructor would capture the instance, and a resize would
-     * then write through it — bypassing the proxy every consumer is reading.
-     */
     setup() {
         registry
             .category("main_components")
             .add("BlockUI", mainComponentEntry(BlockUI));
 
         this._onMediaChange = () => this.updateSize();
-        for (const media of this.medias) {
+        this.subscribedMedias = getMediaQueryLists();
+        for (const media of this.subscribedMedias) {
             media.addEventListener?.("change", this._onMediaChange);
         }
 
@@ -157,8 +169,11 @@ export class UiService {
         });
     }
 
+    /**
+     * @returns {number}
+     */
     getSize() {
-        return sizeOf(this.medias);
+        return utils.getSize();
     }
 
     updateSize() {
@@ -221,20 +236,25 @@ export class UiService {
         return this.activeElements.activeElementOf(el);
     }
 
+    /**
+     * @param {Node | null} node
+     * @returns {Document | HTMLElement}
+     */
+    getScopeOf(node) {
+        return this.activeElements.scopeOf(node);
+    }
+
     destroy() {
-        for (const media of this.medias) {
+        this.withdrawScopeResolver?.();
+        this.withdrawScopeResolver = null;
+        for (const media of this.subscribedMedias) {
             media.removeEventListener?.("change", this._onMediaChange);
         }
-        // The stack and the block counter outlive the components that
-        // pushed onto them otherwise, so anything still holding this
-        // service reads ancestors that claim to be active and a UI that
-        // claims to be blocked.
+        this.subscribedMedias = [];
         this.activeElements.reset();
         this.activeElement = this.activeElements.current;
         this.blockCount = 0;
         this.isBlocked = false;
-        // Symmetric with setup(): the getter closes over this (now dead)
-        // service; leaving it would keep serving its last size forever.
         delete (/** @type {any} */ (this.env).isSmall);
     }
 }
@@ -247,6 +267,11 @@ export const uiService = {
     start(env) {
         const service = reactive(new UiService(env));
         service.setup();
+        // core asks "which active element encloses this node" through a port it
+        // owns, because naming the ui service from core would invert the layers.
+        service.withdrawScopeResolver = publishEnclosingScopeResolver((node) =>
+            service.getScopeOf(node),
+        );
         return service;
     },
 };

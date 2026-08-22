@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/public/public_boot_instance */
-
 import lazyloader from "@web/public/lazyloader";
 import { startPublicApp } from "@web/public/public_boot";
 

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/colors/colors */
-
 import { colorScheme } from "@web/core/color_scheme";
 import { clamp } from "@web/core/utils/format/numbers";
 

@@ -1,42 +1,61 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/file_viewer/file_model */
-
 import { url } from "@web/core/utils/urls";
+
+const IMAGE_MIMETYPES = new Set([
+    "image/bmp",
+    "image/gif",
+    "image/jpeg",
+    "image/png",
+    "image/svg+xml",
+    "image/tiff",
+    "image/x-icon",
+    "image/webp",
+]);
+
+const TEXT_MIMETYPES = new Set([
+    "application/javascript",
+    "application/json",
+    "text/css",
+    "text/html",
+    "text/plain",
+]);
+
+const VIDEO_MIMETYPES = new Set([
+    "audio/mpeg",
+    "video/x-matroska",
+    "video/mp4",
+    "video/webm",
+]);
+
+/**
+ * @typedef {Object} FileModelData
+ * @property {string} [access_token]
+ * @property {string} [checksum]
+ * @property {string} [extension]
+ * @property {number} [id]
+ * @property {string} [mimetype]
+ * @property {string} [name]
+ * @property {string} [ownership_token]
+ * @property {string} [raw_access_token]
+ * @property {"binary"|"url"} [type]
+ * @property {string} [tmpUrl]
+ * @property {string|false|null} [url]
+ * @property {boolean} [uploading]
+ */
+
 export const FileModelMixin = (T) =>
     class extends T {
-        access_token;
-        checksum;
-        extension;
-        id;
-        mimetype;
-        name;
-        /** @type {string} */
-        ownership_token;
-        /** @type {string} */
-        raw_access_token;
-        /** @type {"binary"|"url"} */
-        type;
-        /** @type {string} */
-        tmpUrl;
-        /**
-         * A binary attachment carries no URL, so this is not always a string —
-         * see the typeof guard in isUrlYoutube.
-         * @type {string | false | null}
-         */
-        url;
-        /** @type {boolean} */
-        uploading;
-
         get defaultSource() {
             const route = url(this.urlRoute, this.urlQueryParams);
             const encodedRoute = encodeURIComponent(route);
             if (this.isPdf) {
                 return `/web/static/lib/pdfjs/web/viewer.html?file=${encodedRoute}#pagemode=none`;
             }
-            if (this.isUrlYoutube) {
-                return `https://www.youtube.com/embed/${this.youtubeVideoId}`;
+            const youtubeVideoId = this.youtubeVideoId;
+            if (youtubeVideoId) {
+                return `https://www.youtube.com/embed/${youtubeVideoId}`;
             }
             return route;
         }
@@ -49,17 +68,7 @@ export const FileModelMixin = (T) =>
         }
 
         get isImage() {
-            const imageMimetypes = [
-                "image/bmp",
-                "image/gif",
-                "image/jpeg",
-                "image/png",
-                "image/svg+xml",
-                "image/tiff",
-                "image/x-icon",
-                "image/webp",
-            ];
-            return imageMimetypes.includes(this.mimetype);
+            return IMAGE_MIMETYPES.has(this.mimetype);
         }
 
         get isPdf() {
@@ -69,18 +78,12 @@ export const FileModelMixin = (T) =>
         }
 
         get isText() {
-            const textMimeType = [
-                "application/javascript",
-                "application/json",
-                "text/css",
-                "text/html",
-                "text/plain",
-            ];
-            return textMimeType.includes(this.mimetype);
+            return TEXT_MIMETYPES.has(this.mimetype);
         }
 
+        /** @returns {boolean} */
         get isUrl() {
-            return this.type === "url" && this.url;
+            return this.type === "url" && Boolean(this.url);
         }
 
         get isUrlYoutube() {
@@ -115,13 +118,7 @@ export const FileModelMixin = (T) =>
         }
 
         get isVideo() {
-            const videoMimeTypes = [
-                "audio/mpeg",
-                "video/x-matroska",
-                "video/mp4",
-                "video/webm",
-            ];
-            return videoMimeTypes.includes(this.mimetype);
+            return VIDEO_MIMETYPES.has(this.mimetype);
         }
 
         get isViewable() {

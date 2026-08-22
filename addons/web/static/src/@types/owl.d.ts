@@ -29,6 +29,8 @@ declare module "@odoo/owl" {
 
     export interface AppConfig<E extends Env = Env> {
         env?: E;
+        /** `App` stores it as `this.props = config.props || {}`. */
+        props?: any;
         getTemplate?: (name: string) => Element | string | null | undefined;
         dev?: boolean;
         warnIfNoStaticProps?: boolean;
@@ -50,6 +52,17 @@ declare module "@odoo/owl" {
     }
 
     export class Component<P = any, E extends Env = Env> {
+        /**
+         * Odoo's fallback env for an `App` built without an explicit one —
+         * `website/js/utils.js` and `portal/interactions/portal_composer.js`
+         * read it. OWL itself never assigns it: there is no `Component.env`
+         * anywhere in `owl.es.js`, and `App` deliberately keeps its own frozen
+         * copy (`Object.freeze(Object.create(...))`). `env.js` assigns this one
+         * at mount time. Declared here because it is our convention, not part
+         * of OWL's export surface — the exception to this file's rule that the
+         * export list comes from the bundle.
+         */
+        static env?: Env;
         static template?: string;
         static components?: any;
         static props?: any;

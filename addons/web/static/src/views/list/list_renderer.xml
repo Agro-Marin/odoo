@@ -37,8 +37,8 @@
  </div>
  <span
  class="o_resize position-absolute top-0 end-0 bottom-0 ps-1 bg-black-25 opacity-0 opacity-50-hover z-1"
- t-on-pointerdown.stop.prevent="this.columnWidths.onStartResize"
- t-on-dblclick="this.columnWidths.resetWidths"/>
+ t-on-pointerdown.stop.prevent="(ev) => this.columnWidths.onStartResize(ev)"
+ t-on-dblclick="() => this.columnWidths.resetWidths()"/>
  </t>
  </th>
  <th t-else="" t-on-keydown="(ev) => this.onCellKeydown(ev)" t-att-class="{'o_list_button w-print-0 p-print-0': column.type === 'button_group'}"/>
@@ -92,6 +92,7 @@
  </tbody>
  <tfoot t-on-click="() => props.list.leaveEditMode()" class="o_list_footer cursor-default" t-att-class="{o_sample_data_disabled: props.list.model.useSampleModel}">
  <ListAggregatesRow
+ agg="agg"
  list="props.list"
  archInfo="props.archInfo"
  columns="columns"
@@ -198,7 +199,7 @@
  t-if="control.type === 'create' and !evalColumnInvisible(control.invisible)"
  href="#"
  role="button"
- t-att-class="control_index !== 0 ? 'ml16' : ''"
+ t-att-class="`${control_index !== 0 ? 'ml16' : ''} ${control.class or ''}`.trim()"
  t-att-tabindex="props.list.editedRecord ? '-1' : '0'"
  t-on-click.stop.prevent="() => this.add({ context: control.context })"
  >

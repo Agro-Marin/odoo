@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/collections/cache */
-
 /**
  * @param {any} segment
  */
@@ -53,11 +51,6 @@ export class Cache {
         for (const segment of path) {
             assertPrimitiveSegment(segment);
         }
-        // Each arity gets its own root, as `memoize` does, so one slot never
-        // has to be both a value and a subtree: `read("a")` followed by
-        // `read("a", "b")` used to walk *into* the value stored for `["a"]`,
-        // stamping a property on the object the first caller still holds, and
-        // a cached falsy value there was replaced by an internal node outright.
         const roots = [path.length, ...path.slice(0, -1)];
         for (const segment of roots) {
             if (!cache[segment]) {

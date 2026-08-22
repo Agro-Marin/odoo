@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/datapoint */
-
 import { markRaw } from "@odoo/owl";
 import { SignalStore } from "@web/core/utils/reactive";
 
@@ -12,23 +10,14 @@ import { getId } from "./field_context.js";
 /** @import { RelationalModel, RelationalModelConfig } from "./relational_model.js" */
 
 /**
- * What a subclass is constructed from, which is not one shape.
- *
- * `RelationalRecord` receives a values object keyed by field name;
- * `StaticList` receives the row array it slices its page out of, and calls
- * `data.slice(...)` on it directly. Declaring only the record's half here made
- * every list-building test pass an array against a `Record<string, unknown>`
- * parameter — three of them were reported as errors while the production call
- * sites, which go through `any`-typed helpers, were not.
- *
  * @typedef {Record<string, unknown> | unknown[]} DataPointPayload
  */
 
 export class DataPoint extends SignalStore {
-    /** @type {RecordEditState} Owned by `RelationalRecord`. */
+    /** @type {RecordEditState} */
     _editState;
 
-    /** @type {Set<string>} Owned by `RelationalRecord`. */
+    /** @type {Set<string>} */
     _loadedFieldNames;
 
     /**

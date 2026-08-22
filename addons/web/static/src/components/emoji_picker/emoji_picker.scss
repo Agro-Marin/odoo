@@ -67,7 +67,6 @@
 }
 
 
-// The dark half, folded in from `emoji_picker.dark.scss`.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
         .o-EmojiPicker {

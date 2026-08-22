@@ -1,9 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/record */
-
 import { Component, onWillStart, onWillUpdateProps, useState, xml } from "@odoo/owl";
+import { isX2ManyType } from "@web/core/field_types";
 import { isObject, pick } from "@web/core/utils/collections/objects";
 import { useService } from "@web/core/utils/hooks";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
@@ -15,13 +14,13 @@ import { getFieldsSpec } from "@web/model/relational_model/utils";
 
 /**
  * @typedef {{
- *   resModel: string;
- *   resId?: number | false;
- *   mode?: "edit" | "readonly";
- *   context?: {[key: string]: any};
- *   hooks?: {[key: string]: Function};
- *   activeFields?: {[key: string]: Partial<FieldInfo>};
- *   fieldNames?: string[];
+ * resModel: string;
+ * resId?: number | false;
+ * mode?: "edit" | "readonly";
+ * context?: {[key: string]: any};
+ * hooks?: {[key: string]: Function};
+ * activeFields?: {[key: string]: Partial<FieldInfo>};
+ * fieldNames?: string[];
  * }} RecordInfo
  */
 
@@ -37,12 +36,103 @@ class StandaloneRelationalModel extends RelationalModel {
             return super.load(params);
         }
         const config = this._getNextConfig(this.config, params);
-        this.hooks.lifecycle.onWillLoadRoot(config);
+        this.notifyLifecycleSync("onWillLoadRoot", config);
         this.root = this._createRoot(config, params.values);
         this.config = config;
         this.isReady = true;
-        await this.hooks.lifecycle.onRootLoaded(this.root);
+        await this.notifyLifecycle("onRootLoaded", this.root);
     }
+}
+
+/**
+ * @param {ServiceFactories["orm"]} orm
+ * @param {{[key: string]: any}} activeField
+ * @param {string} resModel
+ * @param {number[]} resIds
+ * @returns {Promise<{[key: string]: any}[]>}
+ */
+async function readX2manyRows(orm, activeField, resModel, resIds) {
+    const { activeFields, fields } = activeField.related;
+    return orm.webRead(resModel, resIds, {
+        context: activeField.context || {},
+        specification: getFieldsSpec(activeFields, fields, {}),
+    });
+}
+
+/**
+ * @param {ServiceFactories["orm"]} orm
+ * @param {{[key: string]: any}} activeField
+ * @param {string} resModel
+ * @param {number | [number, string?] | { id: number, display_name?: string }} value
+ * @returns {Promise<{ id: number, display_name: string } | any>}
+ */
+async function completeMany2one(orm, activeField, resModel, value) {
+    const readDisplayName = async (/** @type {number} */ resId) => {
+        const records = await orm.webRead(resModel, [resId], {
+            context: activeField.context || {},
+            specification: { display_name: {} },
+        });
+        return records[0]?.display_name ?? "";
+    };
+    if (typeof value === "number") {
+        return { id: value, display_name: await readDisplayName(value) };
+    }
+    if (Array.isArray(value)) {
+        const [id, displayName] = value;
+        return {
+            id,
+            display_name:
+                displayName === undefined ? await readDisplayName(id) : displayName,
+        };
+    }
+    if (isObject(value)) {
+        const { id, display_name: displayName } = /** @type {any} */ (value);
+        return {
+            id,
+            display_name:
+                displayName === undefined ? await readDisplayName(id) : displayName,
+        };
+    }
+    return value;
+}
+
+/**
+ * @param {ServiceFactories["orm"]} orm
+ * @param {{ fields: {[key: string]: any}, activeFields: {[key: string]: any} }} schema
+ * @param {{[key: string]: any}} rawValues
+ * @returns {Promise<{[key: string]: any}>}
+ */
+async function prepareValues(orm, { fields, activeFields }, rawValues) {
+    const values = pick(rawValues, ...Object.keys(activeFields));
+    const proms = [];
+    for (const fieldName of Object.keys(values)) {
+        const { type, relation } = fields[fieldName];
+        const value = values[fieldName];
+        if (
+            isX2ManyType(type) &&
+            value.length &&
+            typeof value[0] === "number" &&
+            activeFields[fieldName].related
+        ) {
+            proms.push(
+                readX2manyRows(orm, activeFields[fieldName], relation, value).then(
+                    (records) => {
+                        values[fieldName] = records;
+                    },
+                ),
+            );
+        } else if (type === "many2one") {
+            proms.push(
+                completeMany2one(orm, activeFields[fieldName], relation, value).then(
+                    (completed) => {
+                        values[fieldName] = completed;
+                    },
+                ),
+            );
+        }
+    }
+    await Promise.all(proms);
+    return values;
 }
 
 class _Record extends Component {
@@ -51,14 +141,12 @@ class _Record extends Component {
     setup() {
         /** @type {ServiceFactories["orm"]} */
         this.orm = useService("orm");
-        const resModel = this.props.info.resModel;
-        const activeFields = this.getActiveFields();
         const modelParams = {
             config: {
-                resModel,
+                resModel: this.props.info.resModel,
                 fields: this.props.fields,
                 isMonoRecord: true,
-                activeFields,
+                activeFields: this.getActiveFields(),
                 resId: this.props.info.resId,
                 mode: this.props.info.mode,
                 context: this.props.info.context,
@@ -80,104 +168,13 @@ class _Record extends Component {
             ),
         );
 
-        /**
-         * @param {{[key: string]: any}} values
-         * @returns {Promise<{[key: string]: any}>}
-         */
-        const prepareLoadWithValues = async (values) => {
-            values = pick(values, ...Object.keys(modelParams.config.activeFields));
-            const proms = [];
-            for (const fieldName of Object.keys(values)) {
-                if (
-                    ["one2many", "many2many"].includes(
-                        this.props.fields[fieldName].type,
-                    )
-                ) {
-                    if (
-                        values[fieldName].length &&
-                        typeof values[fieldName][0] === "number"
-                    ) {
-                        const resModel = this.props.fields[fieldName].relation;
-                        const resIds = values[fieldName];
-                        const activeField = modelParams.config.activeFields[fieldName];
-                        if (activeField.related) {
-                            const { activeFields, fields } = activeField.related;
-                            const fieldSpec = getFieldsSpec(activeFields, fields, {});
-                            const kwargs = {
-                                context: activeField.context || {},
-                                specification: fieldSpec,
-                            };
-                            proms.push(
-                                this.orm
-                                    .webRead(resModel, resIds, kwargs)
-                                    .then((records) => {
-                                        values[fieldName] = records;
-                                    }),
-                            );
-                        }
-                    }
-                }
-                if (this.props.fields[fieldName].type === "many2one") {
-                    const loadDisplayName = async (/** @type {number} */ resId) => {
-                        const resModel = this.props.fields[fieldName].relation;
-                        const activeField = modelParams.config.activeFields[fieldName];
-                        const kwargs = {
-                            context: activeField.context || {},
-                            specification: { display_name: {} },
-                        };
-                        const records = await this.orm.webRead(
-                            resModel,
-                            [resId],
-                            kwargs,
-                        );
-                        return records[0]?.display_name ?? "";
-                    };
-                    if (typeof values[fieldName] === "number") {
-                        const prom = loadDisplayName(values[fieldName]);
-                        prom.then((displayName) => {
-                            values[fieldName] = {
-                                id: values[fieldName],
-                                display_name: displayName,
-                            };
-                        });
-                        proms.push(prom);
-                    } else if (Array.isArray(values[fieldName])) {
-                        if (values[fieldName][1] === undefined) {
-                            const originalId = values[fieldName][0];
-                            const prom = loadDisplayName(originalId);
-                            prom.then((displayName) => {
-                                values[fieldName] = {
-                                    id: originalId,
-                                    display_name: displayName,
-                                };
-                            });
-                            proms.push(prom);
-                        }
-                        values[fieldName] = {
-                            id: values[fieldName][0],
-                            display_name: values[fieldName][1],
-                        };
-                    } else if (isObject(values[fieldName])) {
-                        if (values[fieldName].display_name === undefined) {
-                            const prom = loadDisplayName(values[fieldName].id);
-                            prom.then((displayName) => {
-                                values[fieldName] = {
-                                    id: values[fieldName].id,
-                                    display_name: displayName,
-                                };
-                            });
-                            proms.push(prom);
-                        }
-                        values[fieldName] = {
-                            id: values[fieldName].id,
-                            display_name: values[fieldName].display_name,
-                        };
-                    }
-                }
-            }
-            await Promise.all(proms);
-            return values;
+        const schema = {
+            fields: this.props.fields,
+            activeFields: modelParams.config.activeFields,
         };
+        const prepareLoadWithValues = (/** @type {{[key: string]: any}} */ values) =>
+            prepareValues(this.orm, schema, values);
+
         onWillStart(async () => {
             if (this.props.values) {
                 const values = await prepareLoadWithValues(this.props.values);

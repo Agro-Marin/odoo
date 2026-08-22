@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/tree_processor_service */
-
 import {
     deserializeDate,
     deserializeDateTime,
@@ -220,12 +218,6 @@ function extractIdsFromTree(tree, getFieldDef) {
     return idsByModel;
 }
 
-// `TreeProcessorServiceAPI` used to be declared here: a hand-written typedef
-// listing the five methods the returned literal exposed, because a closure's
-// return value has no type of its own. `TreeProcessorService` is that type now,
-// derived from the implementation instead of restated beside it, so the two can
-// no longer disagree. Nothing outside this file ever imported the typedef.
-
 /**
  * @typedef {Object} TreeContext
  * @property {(path: string) => Record<string, any> | null} getFieldDef
@@ -239,21 +231,7 @@ function extractIdsFromTree(tree, getFieldDef) {
  * @property {{ values: any[], join: string, addParenthesis: boolean, bracketWhenNested: boolean } | null} valueDescription
  */
 
-/**
- * The `tree_processor` service.
- *
- * A class rather than a closure returning an object literal; see
- * `core/hotkeys/hotkey_service.js` for the reasoning and
- * `tooling/architecture/js_service_shape.py` for the budget.
- *
- * This one holds **no mutable state** — only its two injected services — so the
- * conversion is the cleanest of the set: twelve functions that already called
- * each other become twelve methods that do. Three of those calls were routed
- * through the returned object by the `js_patch_blind_facade` fix, so that a
- * downstream patch of `makeGetFieldDef` or `getDomainTreeDescription` was
- * visible to the service's own callers; `this.` gives that for free.
- */
-export class TreeProcessorService {
+class TreeProcessorService {
     /**
      * @param {{ field: any, name: any }} services
      */
@@ -372,9 +350,6 @@ export class TreeProcessorService {
         let { operator, value } = node;
         const isRangeValue =
             operator === "in range" && Array.isArray(value) && value.length === 4;
-        // A named period is stored as a `custom range` over its two dates, so
-        // ask the providers whether these bounds have a name before falling
-        // back to spelling the dates out. See `@web/core/tree/in_range_providers`.
         const periodLabel = isRangeValue
             ? describeInRangeProviderOption(value[0], value[2], value[3])
             : null;
@@ -671,7 +646,7 @@ export class TreeProcessorService {
     }
 }
 
-export const treeProcessorService = {
+const treeProcessorService = {
     dependencies: ["field", "name"],
     async: [
         "getDomainTreeDescription",

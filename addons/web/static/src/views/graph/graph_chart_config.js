@@ -1,10 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/**
- * @module @web/views/graph/graph_chart_config
- */
-
 import { markup } from "@odoo/owl";
 import { colorScheme } from "@web/core/color_scheme";
 import {
@@ -16,7 +12,7 @@ import {
     lightenColor,
 } from "@web/core/colors/colors";
 import { getFieldCodec } from "@web/core/field_codec";
-import { formatFloat, formatMonetary } from "@web/core/formatters";
+import { formatFieldFloat, formatMonetary } from "@web/core/formatters";
 import { _t } from "@web/core/translation";
 import { sortBy } from "@web/core/utils/collections/arrays";
 
@@ -24,8 +20,6 @@ import { SEP } from "./graph_model.js";
 
 const NO_DATA = _t("No data");
 
-// One definition per colour pair. The helpers resolve the scheme themselves,
-// so these stay honest without caching anything that could go stale.
 const graphLegendColor = () => getCustomColor("#111827", "#ffffff");
 const graphGridColor = () => getCustomColor("rgba(0,0,0,.1)", "rgba(255,255,255,.15)");
 const graphLabelColor = () => getCustomColor("#111827", "#E4E4E4");
@@ -116,13 +110,13 @@ function formatValue(value, allIntegers = true, formatType = "") {
         return String(value);
     }
     if (largeNumber) {
-        return formatFloat(value, {
+        return formatFieldFloat(value, {
             humanReadable: true,
             decimals: 2,
             minIntegerDigits: 1,
         });
     }
-    return formatFloat(value);
+    return formatFieldFloat(value);
 }
 
 /**

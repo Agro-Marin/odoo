@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/py_js/py_compare */
-
 import { NotSupportedError, PyDate, PyDateTime, PyTime } from "./py_date.js";
 import { EvaluationError } from "./py_errors.js";
 import { isPyTuple } from "./py_tuple.js";
@@ -106,7 +104,6 @@ export function isEqual(left, right) {
             return false;
         }
         if (isPyTuple(left) !== isPyTuple(right)) {
-            // A list never equals a tuple in Python, however alike their items.
             return false;
         }
         return (

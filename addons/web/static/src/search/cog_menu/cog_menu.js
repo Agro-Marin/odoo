@@ -1,22 +1,19 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/cog_menu/cog_menu */
-
 import { onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { ActionMenus } from "@web/search/action_menus/action_menus";
+import {
+    getDisplayedRegistryItems,
+    MENU_REGISTRY_VALIDATION,
+} from "@web/search/utils/misc";
 
 const cogMenuRegistry = registry.category("cogMenu");
 
-cogMenuRegistry.addValidation({
-    Component: Function,
-    groupNumber: { type: Number, optional: true },
-    isDisplayed: { type: Function, optional: true },
-    "*": true,
-});
+cogMenuRegistry.addValidation(MENU_REGISTRY_VALIDATION);
 
 /**
  * @extends ActionMenus
@@ -62,35 +59,17 @@ export class CogMenu extends ActionMenus {
     /**
      * @returns {Promise<Array<{Component: import("@odoo/owl").ComponentConstructor, groupNumber: number, key: string}>>}
      */
-    async _registryItems() {
-        const registryItems = cogMenuRegistry.getAll();
-        const areDisplayed = await Promise.all(
-            registryItems.map((item) =>
-                "isDisplayed" in item
-                    ? /** @type {Function} */ (item.isDisplayed)(
-                          /** @type {import("@web/env").OdooEnv} */ (this.env),
-                      )
-                    : true,
-            ),
+    _registryItems() {
+        return getDisplayedRegistryItems(
+            cogMenuRegistry,
+            /** @type {import("@web/env").OdooEnv} */ (this.env),
         );
-        const items = [];
-        for (let i = 0; i < registryItems.length; i++) {
-            if (areDisplayed[i]) {
-                const item = registryItems[i];
-                items.push({
-                    Component: item.Component,
-                    groupNumber: item.groupNumber,
-                    key: item.Component.name,
-                });
-            }
-        }
-        return items;
     }
 
     /**
      * @returns {Array<
-     *   | {Component: import("@odoo/owl").ComponentConstructor, groupNumber: number, key: string}
-     *   | {key: string, groupNumber: number, description?: string, action?: any, callback?: Function}
+     * | {Component: import("@odoo/owl").ComponentConstructor, groupNumber: number, key: string}
+     * | {key: string, groupNumber: number, description?: string, action?: any, callback?: Function}
      * >}
      */
     get cogItems() {

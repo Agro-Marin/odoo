@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/domain_selector_dialog/domain_selector_dialog */
-
 import { Component, useRef, useState } from "@odoo/owl";
 import { DomainSelector } from "@web/components/domain_selector/domain_selector";
 import { Domain } from "@web/core/domain";

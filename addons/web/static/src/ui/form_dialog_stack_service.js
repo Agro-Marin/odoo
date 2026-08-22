@@ -1,19 +1,17 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/form_dialog_stack_service */
-
 import { registry } from "@web/core/registry";
 
 /**
  * @typedef {{
- *   push: () => void,
- *   pop: () => void,
- *   readonly count: number,
- *   readonly isEmpty: boolean,
+ * push: () => void,
+ * pop: () => void,
+ * readonly count: number,
+ * readonly isEmpty: boolean,
  * }} FormDialogStackService
  */
-export const formDialogStackService = {
+const formDialogStackService = {
     /**
      * @returns {FormDialogStackService}
      */

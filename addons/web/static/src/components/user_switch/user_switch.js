@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/user_switch/user_switch */
-
 import { Component, onMounted, useEffect, useRef, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -13,6 +11,15 @@ export class UserSwitch extends Component {
     static template = "web.login_user_switch";
     static props = {};
 
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    root;
+    /** @type {{ users: any[], displayUserChoice: boolean }} */
+    state;
+    /**
+     * @type {HTMLFormElement | null}
+     */
+    form = null;
+
     setup() {
         const users = getLastConnectedUsers();
         this.root = useRef("root");
@@ -20,8 +27,6 @@ export class UserSwitch extends Component {
             users,
             displayUserChoice: users.length > 1,
         });
-        /** @type {HTMLFormElement | null} */
-        this.form = null;
         onMounted(() => {
             this.form = document.querySelector("form.oe_login_form");
             if (!this.form) {
@@ -55,10 +60,6 @@ export class UserSwitch extends Component {
     }
 
     /**
-     * One label per row rather than one shared wording: a reader moving
-     * through the list would otherwise hear the same sentence at every stop,
-     * with nothing to say which account it drops.
-     *
      * @param {{ name: string }} user
      * @returns {string}
      */

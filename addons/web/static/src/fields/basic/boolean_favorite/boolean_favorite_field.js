@@ -1,17 +1,16 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/boolean_favorite/boolean_favorite_field */
-
-import { Component } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { registerField } from "@web/fields/_registry";
-import { fieldHandle } from "@web/fields/field_handle";
+import { FieldComponent } from "@web/fields/field_component";
+import { archAttribute } from "@web/fields/field_options";
+import { autosaveOption } from "@web/fields/field_options";
 import { extractAutosave } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-export class BooleanFavoriteField extends Component {
+export class BooleanFavoriteField extends FieldComponent {
     static template = "web.BooleanFavoriteField";
     static props = {
         ...standardFieldProps,
@@ -22,11 +21,6 @@ export class BooleanFavoriteField extends Component {
         noLabel: false,
         autosave: true,
     };
-
-    /** @returns {import("@web/fields/field_handle").FieldHandle} */
-    get field() {
-        return fieldHandle(this);
-    }
 
     /** @returns {string} */
     get iconClass() {
@@ -51,21 +45,17 @@ export class BooleanFavoriteField extends Component {
 export const booleanFavoriteField = {
     component: BooleanFavoriteField,
     displayName: _t("Favorite"),
+    supportedAttributes: [
+        archAttribute("nolabel", _t("No label"), {
+            type: "boolean",
+            help: _t("Render the star without the field label beside it."),
+        }),
+    ],
     supportedTypes: ["boolean"],
     isEmpty: () => false,
     interactiveOutsideEdition: true,
     listViewWidth: ({ hasLabel }) => (!hasLabel ? 20 : false),
-    supportedOptions: [
-        {
-            label: _t("Autosave"),
-            name: "autosave",
-            type: "boolean",
-            default: true,
-            help: _t(
-                "If checked, the record will be saved immediately when the field is modified.",
-            ),
-        },
-    ],
+    supportedOptions: [autosaveOption()],
     extractProps: ({ attrs, options }, dynamicInfo) => ({
         noLabel: exprToBoolean(attrs.nolabel),
         autosave: extractAutosave(options),

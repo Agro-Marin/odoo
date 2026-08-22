@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/py_js/py_parser */
-
 import { ASTType } from "./ast_type.js";
 import { binaryOperators, comparators } from "./py_tokenizer.js";
 import { TokenType } from "./token_type.js";
@@ -20,12 +18,7 @@ class ParserError extends Error {}
 
 const MAX_PARSE_DEPTH = 200;
 
-// "not" is in `comparators` only so the tokenizer can glue "not in" / "is not";
-// on its own it is never a comparison, so it cannot continue a chain either.
 const chainedOperators = new Set(comparators.filter((op) => op !== "not"));
-// "not" reaches the parser only as a prefix (`not x`) or already glued into
-// "not in" / "is not"; on its own it is not an infix operator, and treating it
-// as one let `1 < 2 not 3` parse and fail at evaluation instead.
 const infixOperators = new Set(
     [...binaryOperators, ...comparators].filter((op) => op !== "not"),
 );
@@ -35,10 +28,6 @@ class TokenCursor {
     constructor(tokens) {
         this._tokens = tokens;
         this._pos = 0;
-        // Depth belongs to the parse in progress, not to the module. It was a
-        // module-level counter that `parse()` reset on entry, which is only
-        // sound because nothing reparses re-entrantly; the interpreter already
-        // keeps its equivalent per evaluation.
         this._depth = 0;
     }
     enter() {
@@ -292,11 +281,6 @@ function parseInfix(left, current, cur) {
                     chainedOperators.has(/** @type {string} */ (current.value)) &&
                     continuesAChain()
                 ) {
-                    // `a < b < c` is one node, not `(a < b) and (b < c)`: the
-                    // desugaring put the *same* node on both sides, so the
-                    // middle operand was evaluated twice -- `t1 < now() < t2`
-                    // read the clock twice -- and formatAST rewrote the user's
-                    // expression on every round trip through the editors.
                     const operands = [left, right];
                     const operators = [/** @type {string} */ (current.value)];
                     while (continuesAChain()) {

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/dropdown/_behaviours/dropdown_group_hook */
-
 import { useComponent, useEffect, useEnv } from "@odoo/owl";
 import { DROPDOWN_GROUP } from "@web/components/dropdown/dropdown_group";
 

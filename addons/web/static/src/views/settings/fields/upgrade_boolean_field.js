@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/fields/upgrade_boolean_field */
-
 import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
 import { BooleanField, booleanField } from "@web/fields/basic/boolean/boolean_field";

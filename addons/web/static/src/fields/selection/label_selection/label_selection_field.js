@@ -1,16 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/selection/label_selection/label_selection_field */
-
-import { Component } from "@odoo/owl";
 import { formatSelection } from "@web/core/formatters";
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
-import { fieldHandle } from "@web/fields/field_handle";
+import { FieldComponent } from "@web/fields/field_component";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-export class LabelSelectionField extends Component {
+export class LabelSelectionField extends FieldComponent {
     static template = "web.LabelSelectionField";
     static props = {
         ...standardFieldProps,
@@ -19,11 +16,6 @@ export class LabelSelectionField extends Component {
     static defaultProps = {
         classesObj: {},
     };
-
-    /** @returns {import("@web/fields/field_handle").FieldHandle} */
-    get field() {
-        return fieldHandle(this);
-    }
 
     /** @returns {string} */
     get className() {
@@ -38,7 +30,7 @@ export class LabelSelectionField extends Component {
 }
 
 /** @type {import("registries").FieldsRegistryItemShape} */
-export const labelSelectionField = {
+const labelSelectionField = {
     component: LabelSelectionField,
     displayName: _t("Label Selection"),
     supportedOptions: [

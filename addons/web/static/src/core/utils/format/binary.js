@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/format/binary */
-
 import { localization } from "@web/core/l10n/localization";
 import { _t } from "@web/core/translation";
 

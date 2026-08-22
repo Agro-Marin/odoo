@@ -1,9 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/ace/ace_field */
-
-import { Component, useState } from "@odoo/owl";
+import { useState } from "@odoo/owl";
 import { CodeEditor } from "@web/components/code_editor/code_editor";
 import { colorScheme } from "@web/core/color_scheme";
 import { ModelEvent } from "@web/core/events";
@@ -11,11 +9,13 @@ import { formatText } from "@web/core/formatters";
 import { _t } from "@web/core/translation";
 import { useBus } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
+import { FieldComponent } from "@web/fields/field_component";
 import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
+import { fieldHandleFor } from "@web/fields/field_handle";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-export class AceField extends Component {
+export class AceField extends FieldComponent {
     static template = "web.AceField";
     static props = {
         ...standardFieldProps,
@@ -36,7 +36,7 @@ export class AceField extends Component {
         useRecordObserver((record) => {
             if (this.editedValue === undefined || !this.isDirty) {
                 /** @type {any} */ (this.state).initialValue = formatText(
-                    record.data[this.props.name],
+                    fieldHandleFor(record, this.props.name).value,
                 );
             }
         });
@@ -76,9 +76,7 @@ export class AceField extends Component {
     async commitChanges() {
         if (!this.props.readonly && this.isDirty) {
             if (/** @type {any} */ (this.state).initialValue !== this.editedValue) {
-                await this.props.record.update({
-                    [this.props.name]: this.editedValue,
-                });
+                await this.field.update(this.editedValue);
             }
             this.isDirty = false;
             this.setFieldDirty(false);

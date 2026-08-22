@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/group */
-
 import { Domain } from "@web/core/domain";
 
 import { DataPoint } from "./datapoint.js";
@@ -62,16 +60,23 @@ export class Group extends DataPoint {
         return this.list.records;
     }
 
-    async addExistingRecord(resId, atFirstPosition = false) {
-        const record = await this.list.addExistingRecord(resId, atFirstPosition);
+    /**
+     * @param {number} resId
+     * @param {import("./editable_list_datapoint.js").ListInsertion} [options]
+     */
+    async addExistingRecord(resId, options = {}) {
+        const record = await this.list.addExistingRecord(resId, options);
         this.count++;
         return record;
     }
 
-    async addNewRecord(_unused, atFirstPosition = false) {
+    /**
+     * @param {import("./editable_list_datapoint.js").ListInsertion} [options]
+     */
+    async addNewRecord(options = {}) {
         const canProceed = await this.model.root.leaveEditMode();
         if (canProceed) {
-            const record = await this.list.addNewRecord(atFirstPosition);
+            const record = await this.list.addNewRecord(options);
             if (record) {
                 this.count++;
             }

@@ -1,9 +1,16 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/collections/objects */
-
 import { toRaw } from "@odoo/owl";
+
+/**
+ * @param {any} a
+ * @param {any} b
+ * @returns {boolean}
+ */
+function sameValue(a, b) {
+    return a === b || (Number.isNaN(a) && Number.isNaN(b));
+}
 
 /**
  * @template T
@@ -12,7 +19,7 @@ import { toRaw } from "@odoo/owl";
  * @param {(a: any, b: any) => boolean} [comparisonFn]
  * @returns {boolean}
  */
-export function shallowEqual(obj1, obj2, comparisonFn = (a, b) => a === b) {
+export function shallowEqual(obj1, obj2, comparisonFn = sameValue) {
     if (obj1 !== Object(obj1) || obj2 !== Object(obj2)) {
         return obj1 === obj2;
     }
@@ -43,11 +50,8 @@ export function deepEqual(obj1, obj2) {
  * @returns {boolean}
  */
 function _deepEqual(a, b, seen) {
-    if (a === b) {
+    if (sameValue(a, b)) {
         return true;
-    }
-    if (typeof a === "number" && typeof b === "number") {
-        return Number.isNaN(a) && Number.isNaN(b);
     }
     if (a === null || b === null || typeof a !== "object" || typeof b !== "object") {
         return false;
@@ -207,8 +211,14 @@ export function deepCopy(object) {
     } catch {
         try {
             return structuredClone(toRawDeep(object));
-        } catch {
-            return JSON.parse(JSON.stringify(toRawDeep(object)));
+        } catch (error) {
+            const copy = JSON.parse(JSON.stringify(toRawDeep(object)));
+            console.warn(
+                "deepCopy fell back to JSON and may have dropped keys " +
+                    "(functions, symbols, undefined) from the result:",
+                error,
+            );
+            return copy;
         }
     }
 }
@@ -231,13 +241,40 @@ export function isObject(value) {
 export function omit(object, ...properties) {
     /** @type {any} */
     const result = {};
-    const propertiesSet = new Set(properties);
-    for (const key of Object.keys(object)) {
-        if (!propertiesSet.has(/** @type {any} */ (key))) {
-            result[key] = /** @type {Record<string, any>} */ (object)[key];
+    const excluded = new Set(/** @type {PropertyKey[]} */ (properties));
+    const source = /** @type {Record<PropertyKey, any>} */ (object);
+    for (const key of Object.keys(source)) {
+        if (!excluded.has(key)) {
+            result[key] = source[key];
+        }
+    }
+    for (const symbol of Object.getOwnPropertySymbols(source)) {
+        if (
+            !excluded.has(symbol) &&
+            Object.prototype.propertyIsEnumerable.call(source, symbol)
+        ) {
+            result[symbol] = source[symbol];
         }
     }
     return result;
+}
+
+/**
+ * @param {any} object
+ * @param {PropertyKey} property
+ * @returns {boolean}
+ */
+function hasPropertyBelowObject(object, property) {
+    for (
+        let current = object;
+        current !== null && current !== undefined && current !== Object.prototype;
+        current = Object.getPrototypeOf(current)
+    ) {
+        if (Object.hasOwn(current, property)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /**
@@ -248,13 +285,15 @@ export function omit(object, ...properties) {
  * @returns {Pick<T, K>}
  */
 export function pick(object, ...properties) {
-    return /** @type {Pick<T, K>} */ (
-        Object.fromEntries(
-            properties
-                .filter((prop) => prop in /** @type {any} */ (object))
-                .map((prop) => [prop, /** @type {any} */ (object)[prop]]),
-        )
-    );
+    /** @type {any} */
+    const result = {};
+    const source = /** @type {Record<PropertyKey, any>} */ (object);
+    for (const property of properties) {
+        if (hasPropertyBelowObject(source, /** @type {PropertyKey} */ (property))) {
+            result[property] = source[/** @type {PropertyKey} */ (property)];
+        }
+    }
+    return result;
 }
 
 /**
@@ -291,6 +330,9 @@ export function deepMerge(target, extension) {
     }
     if (isObject(extension)) {
         for (const key of Reflect.ownKeys(extension)) {
+            if (!Object.getOwnPropertyDescriptor(extension, key)?.enumerable) {
+                continue;
+            }
             const extensionValue = extension[key];
             if (extensionValue === undefined) {
                 continue;

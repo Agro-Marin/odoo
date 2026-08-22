@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/selection/selection/filterable_selection_field */
-
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
 import {
@@ -46,7 +44,7 @@ export class FilterableSelectionField extends SelectionField {
     }
 }
 
-export const filterableSelectionField = {
+const filterableSelectionField = {
     ...selectionField,
     component: FilterableSelectionField,
     supportedOptions: [

@@ -12,11 +12,6 @@
                 </button>
                 <t t-set-slot="content">
                     <t t-foreach="sectionEntries" t-as="entry" t-key="entry[0]">
-                        <!-- Items may carry no section (`leaveDebugMode` does),
-                             and those group under the "" key whose label is
-                             itself "". Rendering the header unconditionally put
-                             an empty `dropdown-header` — a blank strip — in
-                             every debug menu. -->
                         <t t-set="sectionLabel" t-value="getSectionLabel(entry[0])"/>
                         <div t-if="sectionLabel" class="dropdown-menu_group dropdown-header">
                             <t t-esc="sectionLabel"/>

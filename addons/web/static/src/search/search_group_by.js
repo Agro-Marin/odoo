@@ -1,17 +1,19 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module search/search_group_by */
-
 import { rankInterval } from "./utils/dates.js";
 
+/** @import { ActiveItem, QueryElement, QueryGroup, SearchItems } from "./search_types" */
+
 /**
- * @param {Object[]} query
- * @param {Object} searchItems
- * @returns {Object[]}
+ * @param {QueryElement[]} query
+ * @param {SearchItems} searchItems
+ * @returns {QueryGroup[]}
  */
 export function getQueryGroups(query, searchItems) {
+    /** @type {Map<number, {id: number, queryElements: QueryElement[]}>} */
     const preGroupMap = new Map();
+    /** @type {{id: number, queryElements: QueryElement[]}[]} */
     const preGroups = [];
     for (const queryElem of query) {
         const { searchItemId } = queryElem;
@@ -24,11 +26,19 @@ export function getQueryGroups(query, searchItems) {
         }
         preGroup.queryElements.push(queryElem);
     }
+    /** @type {QueryGroup[]} */
     const groups = [];
     for (const preGroup of preGroups) {
         const { queryElements, id } = preGroup;
+        /** @type {Map<number, ActiveItem>} */
         const activeItemMap = new Map();
+        /** @type {ActiveItem[]} */
         const activeItems = [];
+        /**
+         * @param {number} searchItemId
+         * @param {Partial<ActiveItem>} init
+         * @returns {any}
+         */
         const ensureActiveItem = (searchItemId, init) => {
             let activeItem = activeItemMap.get(searchItemId);
             if (!activeItem) {
@@ -59,7 +69,8 @@ export function getQueryGroups(query, searchItems) {
         for (const activeItem of activeItems) {
             if ("intervalIds" in activeItem) {
                 activeItem.intervalIds.sort(
-                    (g1, g2) => rankInterval(g1) - rankInterval(g2),
+                    (/** @type {string} */ g1, /** @type {string} */ g2) =>
+                        rankInterval(g1) - rankInterval(g2),
                 );
             }
         }
@@ -69,7 +80,7 @@ export function getQueryGroups(query, searchItems) {
 }
 
 /**
- * @param {Object} searchItems
+ * @param {SearchItems} searchItems
  * @returns {number|undefined}
  */
 export function findGroupByGroupId(searchItems) {
@@ -80,8 +91,8 @@ export function findGroupByGroupId(searchItems) {
 }
 
 /**
- * @param {Object} activeItem
- * @param {Object} searchItems
+ * @param {ActiveItem} activeItem
+ * @param {SearchItems} searchItems
  * @returns {string[]|null}
  */
 export function computeSearchItemGroupBys(activeItem, searchItems) {
@@ -104,8 +115,8 @@ export function computeSearchItemGroupBys(activeItem, searchItems) {
 }
 
 /**
- * @param {Object} params
- * @param {Object[]} params.groups
+ * @param {object} params
+ * @param {QueryGroup[]} params.groups
  * @param {string[]} params.globalGroupBy
  * @param {string[]} [params.defaultGroupBy]
  * @param {boolean} params.fallbackOnDefault
@@ -140,8 +151,8 @@ export function computeGroupBy({
  */
 
 /**
- * @param {Object[]} groups
- * @param {Object} searchItems
+ * @param {QueryGroup[]} groups
+ * @param {SearchItems} searchItems
  * @param {string[]} groupBy
  * @param {string|false} orderByCount
  * @param {OrderTerm[]} globalOrderBy
@@ -171,9 +182,9 @@ export function computeOrderBy(
 }
 
 /**
- * @param {Object[]} query
+ * @param {QueryElement[]} query
  * @param {number} dateFilterId
- * @returns {Array}
+ * @returns {any[]}
  */
 export function getSelectedGeneratorIds(query, dateFilterId) {
     const selectedOptionIds = [];

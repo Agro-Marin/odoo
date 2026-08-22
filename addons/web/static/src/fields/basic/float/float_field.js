@@ -1,14 +1,18 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/float/float_field */
-
-import { formatFloat } from "@web/core/formatters";
+import { formatFieldFloat } from "@web/core/formatters";
 import { parseFloat } from "@web/core/parsers";
 import { _t } from "@web/core/translation";
 import { extractDigits } from "@web/core/utils/format/digits";
 import { registerField } from "@web/fields/_registry";
-import { fieldHandle } from "@web/fields/field_handle";
+import {
+    digitsAttribute,
+    enableFormattingOption,
+    hideTrailingZerosOption,
+    humanReadableOptions,
+    numericInputOptions,
+} from "@web/fields/field_options";
 import { extractNumericOptions, isFalseEmpty } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -35,11 +39,6 @@ export class FloatField extends NumericInputFieldBase {
         trailingZeros: true,
     };
 
-    /** @returns {import("@web/fields/field_handle").FieldHandle} */
-    get field() {
-        return fieldHandle(this);
-    }
-
     /**
      * @param {string} value
      * @returns {number | import("@web/core/utils/operation").Operation}
@@ -50,32 +49,19 @@ export class FloatField extends NumericInputFieldBase {
         );
     }
 
-    /** @returns {string} */
-    get formattedValue() {
-        if (
-            !this.props.formatNumber ||
-            (this.props.inputType === "number" && !this.props.readonly)
-        ) {
-            return this.rawValue;
-        }
-        const options = {
+    /**
+     * @param {boolean} humanReadable
+     * @returns {string}
+     */
+    formatValue(humanReadable) {
+        return formatFieldFloat(this.value, {
             digits: this.props.digits,
             minDigits: this.props.minDigits,
             field: this.field.definition,
             trailingZeros: this.props.trailingZeros,
-        };
-        if (this.props.humanReadable && !this.state.hasFocus) {
-            return formatFloat(this.value, {
-                ...options,
-                humanReadable: true,
-                decimals: this.props.decimals,
-            });
-        } else {
-            return formatFloat(this.value, {
-                ...options,
-                humanReadable: false,
-            });
-        }
+            humanReadable,
+            ...(humanReadable ? { decimals: this.props.decimals } : {}),
+        });
     }
 }
 
@@ -83,15 +69,7 @@ export const floatField = {
     component: FloatField,
     displayName: _t("Float"),
     supportedOptions: [
-        {
-            label: _t("Format number"),
-            name: "enable_formatting",
-            type: "boolean",
-            help: _t(
-                "Format the value according to your language setup - e.g. thousand separators, rounding, etc.",
-            ),
-            default: true,
-        },
+        enableFormattingOption(),
         {
             label: _t("Digits"),
             name: "digits",
@@ -102,42 +80,11 @@ export const floatField = {
             name: "min_display_digits",
             type: "digits",
         },
-        {
-            label: _t("Type"),
-            name: "type",
-            type: "string",
-        },
-        {
-            label: _t("Step"),
-            name: "step",
-            type: "number",
-        },
-        {
-            label: _t("User-friendly format"),
-            name: "human_readable",
-            type: "boolean",
-            help: _t(
-                "Use a human readable format (e.g.: 500G instead of 500,000,000,000).",
-            ),
-        },
-        {
-            label: _t("Hide trailing zeros"),
-            name: "hide_trailing_zeros",
-            type: "boolean",
-            help: _t(
-                "Hide zeros to the right of the last non-zero digit, e.g. 1.20 becomes 1.2",
-            ),
-        },
-        {
-            label: _t("Decimals"),
-            name: "decimals",
-            type: "number",
-            default: 0,
-            help: _t(
-                "Use it with the 'User-friendly format' option to customize the formatting.",
-            ),
-        },
+        ...numericInputOptions(),
+        ...humanReadableOptions(),
+        hideTrailingZerosOption(),
     ],
+    supportedAttributes: [digitsAttribute()],
     supportedTypes: ["float", "monetary"],
     isEmpty: isFalseEmpty,
     /**

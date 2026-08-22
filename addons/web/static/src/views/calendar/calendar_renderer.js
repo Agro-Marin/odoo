@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_renderer */
-
 import { Component } from "@odoo/owl";
 import { ActionSwiper } from "@web/components/action_swiper/action_swiper";
 import { useReactiveModel } from "@web/model/model";
@@ -30,9 +28,6 @@ export class CalendarRenderer extends Component {
         cleanSquareSelection: Function,
     };
     setup() {
-        // Subscribe to the model rather than reading it off the raw prop, so a
-        // `notify()` re-renders this component on its own instead of relying on
-        // the controller's blanket deep render.
         this.model = useReactiveModel(this.props.model);
     }
 

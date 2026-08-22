@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/properties/properties_sortable_hook */
-
 import { useSortable } from "@web/core/utils/dnd/sortable_owl";
 
 /**
@@ -17,19 +15,40 @@ import { useSortable } from "@web/core/utils/dnd/sortable_owl";
  */
 
 /**
+ * @param {{ parent: HTMLElement, element: HTMLElement, next: HTMLElement | null, previous: HTMLElement | null }} drop
+ * @param {() => Array<{ name: string; elements: Array<{ name: string }> }>} getGroupedPropertiesList
+ * @returns {{ to: string | null, moveBefore: boolean }}
+ */
+function resolveDropTarget({ parent, next, previous }, getGroupedPropertiesList) {
+    const afterPrevious = previous?.getAttribute("property-name");
+    if (afterPrevious) {
+        return { to: afterPrevious, moveBefore: false };
+    }
+    if (next) {
+        const sibling = next.classList.contains("o_field_property_group_label")
+            ? next.closest(".o_property_group")
+            : next;
+        const to = sibling.getAttribute("property-name");
+        if (to) {
+            return { to, moveBefore: true };
+        }
+    }
+    const groupName = parent.getAttribute("property-name");
+    const group = getGroupedPropertiesList().find((g) => g.name === groupName);
+    if (!group) {
+        return { to: null, moveBefore: false };
+    }
+    return {
+        to: group.elements.length ? group.elements.at(-1).name : groupName,
+        moveBefore: false,
+    };
+}
+
+/**
  * @param {PropertiesSortableOptions} options
  */
-export function usePropertiesSortable(options) {
-    const {
-        propertiesRef,
-        getEnabled,
-        getRenderedColumnsCount,
-        getGroupedPropertiesList,
-        onPropertyMoveTo,
-        onGroupMoveTo,
-        onToggleSeparators,
-    } = options;
-
+function useSortableProperties(options) {
+    const { propertiesRef, getEnabled, getRenderedColumnsCount } = options;
     useSortable({
         enable: getEnabled,
         ref: propertiesRef,
@@ -47,50 +66,38 @@ export function usePropertiesSortable(options) {
             group.classList.add("o_property_drag_group");
             /** @type {HTMLElement} */ (document.activeElement).blur();
         },
-        onDrop: async ({ parent, element, next, previous }) => {
-            const from = element.getAttribute("property-name");
-            let to = previous?.getAttribute("property-name");
-            let moveBefore = false;
-            if (!to && next) {
-                if (next.classList.contains("o_field_property_group_label")) {
-                    next = next.closest(".o_property_group");
-                }
-                to = next.getAttribute("property-name");
-                moveBefore = !!to;
-            }
-            if (!to) {
-                const groupName = parent.getAttribute("property-name");
-                const group = /** @type {any} */ (
-                    getGroupedPropertiesList().find((g) => g.name === groupName)
-                );
-                if (!group) {
-                    to = null;
-                    moveBefore = false;
-                } else {
-                    to = group.elements.length ? group.elements.at(-1).name : groupName;
-                }
-            }
-            await onPropertyMoveTo(from, to, moveBefore);
+        onDrop: async (drop) => {
+            const { to, moveBefore } = resolveDropTarget(
+                drop,
+                options.getGroupedPropertiesList,
+            );
+            await options.onPropertyMoveTo(
+                drop.element.getAttribute("property-name"),
+                to,
+                moveBefore,
+            );
         },
         onDragEnd: ({ element }) => {
             propertiesRef.el.classList.remove("o_property_dragging");
             element.classList.remove("o_property_drag_item");
-            const targetGroup = propertiesRef.el.querySelector(
-                ".o_property_drag_group",
-            );
-            if (targetGroup) {
-                targetGroup.classList.remove("o_property_drag_group");
-            }
+            propertiesRef.el
+                .querySelector(".o_property_drag_group")
+                ?.classList.remove("o_property_drag_group");
         },
         onGroupEnter: ({ group }) => {
             group.classList.add("o_property_drag_group");
-            onToggleSeparators([group.getAttribute("property-name")], false);
+            options.onToggleSeparators([group.getAttribute("property-name")], false);
         },
         onGroupLeave: ({ group }) => {
             group.classList.remove("o_property_drag_group");
         },
     });
+}
 
+/**
+ * @param {PropertiesSortableOptions} options
+ */
+function useSortableGroups({ propertiesRef, getEnabled, onGroupMoveTo }) {
     useSortable({
         enable: getEnabled,
         ref: propertiesRef,
@@ -102,14 +109,22 @@ export function usePropertiesSortable(options) {
             element.classList.add("o_property_drag_item");
             /** @type {HTMLElement} */ (document.activeElement).blur();
         },
-        onDrop: async ({ element, previous }) => {
-            const from = element.getAttribute("property-name");
-            const to = previous?.getAttribute("property-name");
-            await onGroupMoveTo(from, to);
-        },
+        onDrop: async ({ element, previous }) =>
+            onGroupMoveTo(
+                element.getAttribute("property-name"),
+                previous?.getAttribute("property-name"),
+            ),
         onDragEnd: ({ element }) => {
             propertiesRef.el.classList.remove("o_property_dragging");
             element.classList.remove("o_property_drag_item");
         },
     });
+}
+
+/**
+ * @param {PropertiesSortableOptions} options
+ */
+export function usePropertiesSortable(options) {
+    useSortableProperties(options);
+    useSortableGroups(options);
 }

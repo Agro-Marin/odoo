@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/decorations */
-
 /**
  * @param {string} decoration
  * @returns {string}

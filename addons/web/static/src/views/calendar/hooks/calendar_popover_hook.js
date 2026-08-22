@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/hooks/calendar_popover_hook */
-
 import { useComponent, useExternalListener } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { usePopover } from "@web/ui/popover/popover_hook";
@@ -13,15 +11,15 @@ import { usePopover } from "@web/ui/popover/popover_hook";
  */
 export function useCalendarPopover(component) {
     const owner = useComponent();
-    let popoverClass = "";
+    let popoverClasses = "";
     /** @type {any} */
     const popoverOptions = {
         extendedFlipping: true,
         position: "right",
         onClose: cleanup,
     };
-    Object.defineProperty(popoverOptions, "popoverClass", {
-        get: () => popoverClass,
+    Object.defineProperty(popoverOptions, "class", {
+        get: () => popoverClasses,
     });
     const popover = usePopover(component, popoverOptions);
     const dialog = useService("dialog");
@@ -48,7 +46,7 @@ export function useCalendarPopover(component) {
     }
     return {
         close,
-        open(target, props, popoverClassToUse) {
+        open(target, props, classToUse) {
             const targetFcPopover = target.closest(".fc-popover");
             if (owner.env.isSmall) {
                 close();
@@ -56,7 +54,7 @@ export function useCalendarPopover(component) {
                     onClose: cleanup,
                 });
             } else {
-                popoverClass = popoverClassToUse;
+                popoverClasses = classToUse;
                 popover.open(target, props);
             }
             fcPopover = targetFcPopover;

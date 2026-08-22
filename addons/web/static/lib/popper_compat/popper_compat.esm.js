@@ -244,6 +244,7 @@ function reposition(popper, target, options) {
     const existingMaxHeight = getComputedStyle(popper).maxHeight;
     const applied = existingMaxHeight !== "none" ? `min(${existingMaxHeight}, ${maxHeight}px)` : `${maxHeight}px`;
     popper.style.maxHeight = applied;
+    popper.style.overflowY = "auto";
     popperMaxHeightState.set(popper, { authored: authoredMaxHeight, applied });
   } else {
     popperMaxHeightState.delete(popper);

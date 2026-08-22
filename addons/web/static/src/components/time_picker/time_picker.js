@@ -1,19 +1,17 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/time_picker/time_picker */
-
-import { Component, onPatched, onWillUpdateProps, useRef, useState } from "@odoo/owl";
+import { Component, onWillUpdateProps, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
-import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
+import { useDropdownState } from "@web/components/dropdown/dropdown_hook";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { parseTime, Time } from "@web/core/l10n/time";
 import { mergeClasses } from "@web/core/utils/dom/classname";
 import { uniqueId } from "@web/core/utils/functions";
-import { useChildRef } from "@web/core/utils/hooks";
+import { useChildRef, useSyncedInputProperty } from "@web/core/utils/hooks";
 
-const HOURS = [...Array(24)].map((_, i) => i);
-const MINUTES = [...Array(60)].map((_, i) => i);
+const HOURS_PER_DAY = 24;
+const MINUTES_PER_HOUR = 60;
 
 /**
  * @typedef TimePickerProps
@@ -56,8 +54,29 @@ export class TimePicker extends Component {
         minutesRounding: 5,
     };
 
+    /** @type {{ el: HTMLInputElement | null }} */
+    inputRef;
+    /** @type {string} */
+    menuId;
+    /** @type {any} */
+    menuRef;
+    /** @type {import("@web/components/dropdown/dropdown_hook").DropdownState} */
+    dropdownState;
+    /** @type {{ value: Time | null, inputValue: string, isValid: boolean }} */
+    state;
+    suggestions = [];
+    navigatedValue = null;
+    isDirty = false;
+    /** @type {number | undefined} */
+    suggestionsStep;
+    /** @type {Time | null | undefined} */
+    lastValue;
+    /** @type {any} */
+    navigator;
+    /** @type {import("@web/core/navigation/navigation").NavigationOptions} */
+    navigationOptions;
+
     setup() {
-        /** @type {{ el: HTMLInputElement | null }} */
         this.inputRef = /** @type {any} */ (useRef("inputRef"));
         this.menuId = uniqueId("o_time_picker_menu_");
         this.menuRef = useChildRef();
@@ -69,29 +88,14 @@ export class TimePicker extends Component {
             isValid: true,
         });
 
-        /** @type {Time[]} */
-        this.suggestions = [];
-        // The suggestion the arrow keys walked to, if any. It is only written
-        // into the box, and a programmatic write leaves the input's dirty flag
-        // clear, so the browser fires no `change` on the way out: every exit
-        // route has to commit it explicitly or it is lost.
-        /** @type {Time | null} */
-        this.navigatedValue = null;
-        this.isDirty = false;
         this.navigationOptions = this.getNavigationOptions();
         this.onPropsUpdated(this.props);
 
         onWillUpdateProps((nextProps) => this.onPropsUpdated(nextProps));
-        // Typing moves the DOM value without owl's vdom seeing it, so resetting
-        // the state back to the value it last rendered is a no-op patch and the
-        // rejected text stays on screen. Reconciling here is what actually makes
-        // the input controlled.
-        onPatched(() => {
-            const el = this.inputRef.el;
-            if (el && el.value !== this.state.inputValue) {
-                el.value = this.state.inputValue;
-            }
-        });
+        useSyncedInputProperty(
+            () => this.inputRef.el,
+            () => this.state.inputValue,
+        );
     }
 
     get cssClass() {
@@ -130,7 +134,7 @@ export class TimePicker extends Component {
                             return;
                         }
                         const value = parseTime(
-                            this.inputRef.el.value,
+                            this.inputRef.el?.value ?? "",
                             this.props.showSeconds,
                         );
                         if (value) {
@@ -181,7 +185,16 @@ export class TimePicker extends Component {
      * @returns {number}
      */
     getSuggestionStep(props) {
-        return props.minutesRounding <= 5 ? 15 : props.minutesRounding;
+        const rounding = props.minutesRounding ?? 5;
+        return rounding <= 5 ? 15 : rounding;
+    }
+
+    /**
+     * @param {number} step
+     * @returns {number}
+     */
+    getSuggestionsPerHour(step) {
+        return Math.ceil(MINUTES_PER_HOUR / step);
     }
 
     /**
@@ -190,9 +203,8 @@ export class TimePicker extends Component {
      */
     getSuggestions(step) {
         const suggestions = [];
-        const minutes = MINUTES.filter((m) => !(m % step));
-        for (const hour of HOURS) {
-            for (const minute of minutes) {
+        for (let hour = 0; hour < HOURS_PER_DAY; hour++) {
+            for (let minute = 0; minute < MINUTES_PER_HOUR; minute += step) {
                 suggestions.push(new Time({ hour, minute }));
             }
         }
@@ -204,30 +216,35 @@ export class TimePicker extends Component {
      * @returns {number}
      */
     getNearestSuggestionIndex(value) {
-        if (!value) {
+        if (!value || !this.suggestions.length) {
             return 0;
         }
-        const toMinutes = (/** @type {any} */ time) =>
-            time.hour * 60 + time.minute + time.second / 60;
-        const target = toMinutes(value);
-        let nearestIndex = 0;
-        let nearestDistance = Infinity;
-        for (const [index, suggestion] of this.suggestions.entries()) {
-            const distance = Math.abs(toMinutes(suggestion) - target);
-            if (distance < nearestDistance) {
-                nearestDistance = distance;
-                nearestIndex = index;
-            }
-        }
-        return nearestIndex;
+        const step = /** @type {number} */ (this.suggestionsStep);
+        const perHour = this.getSuggestionsPerHour(step);
+        const target = value.hour * MINUTES_PER_HOUR + value.minute + value.second / 60;
+        const withinHour = Math.min(
+            Math.floor((value.minute + value.second / 60) / step),
+            perHour - 1,
+        );
+        const floorIndex = Math.min(
+            value.hour * perHour + withinHour,
+            this.suggestions.length - 1,
+        );
+        const nextIndex = Math.min(floorIndex + 1, this.suggestions.length - 1);
+        const distance = (/** @type {number} */ index) => {
+            const suggestion = this.suggestions[index];
+            return Math.abs(
+                suggestion.hour * MINUTES_PER_HOUR + suggestion.minute - target,
+            );
+        };
+        return distance(nextIndex) < distance(floorIndex) ? nextIndex : floorIndex;
     }
 
     /**
      * @param {Time|null} newValue
-     * @param {boolean} [cleanValue=true]
      */
-    setValue(newValue, cleanValue = true) {
-        if (newValue && cleanValue) {
+    setValue(newValue) {
+        if (newValue) {
             newValue = newValue.copy();
             if (this.props.minutesRounding > 1) {
                 newValue.roundMinutes(this.props.minutesRounding);
@@ -245,12 +262,6 @@ export class TimePicker extends Component {
     }
 
     /**
-     * The text in the box is derived from (value, showSeconds), so it has to be
-     * rewritten whenever either changes -- including when only the format does.
-     * The one exception is an edit in progress: those keystrokes belong to the
-     * user until they commit, and a commit always rewrites the box, so a
-     * rejected edit cannot leave unparseable text behind.
-     *
      * @param {Time|null} newValue
      * @param {TimePickerProps} [props]
      * @param {boolean} [force=false]
@@ -286,7 +297,7 @@ export class TimePicker extends Component {
     }
 
     /**
-     * @returns {boolean} whether a browsed suggestion was committed
+     * @returns {boolean}
      */
     commitNavigatedValue() {
         const value = this.navigatedValue;
@@ -299,8 +310,6 @@ export class TimePicker extends Component {
     }
 
     onBlur() {
-        // Typing already commits through `change`; only an arrowed suggestion
-        // is still uncommitted by the time focus leaves.
         this.commitNavigatedValue();
     }
 
@@ -310,10 +319,9 @@ export class TimePicker extends Component {
     onInput(event) {
         this.ensureOpen();
         this.isDirty = true;
-        // Typing supersedes wherever the arrows had got to.
         this.navigatedValue = null;
 
-        const value = parseTime(this.inputRef.el.value, this.props.showSeconds);
+        const value = parseTime(this.inputRef.el?.value ?? "", this.props.showSeconds);
         this.state.isValid = value !== null;
 
         if (!this.navigator) {
@@ -333,9 +341,8 @@ export class TimePicker extends Component {
     }
 
     onChange() {
-        const value = parseTime(this.inputRef.el.value, this.props.showSeconds);
+        const value = parseTime(this.inputRef.el?.value ?? "", this.props.showSeconds);
         this.state.isValid = value !== null;
-        // The edit is over either way: from here the box shows the value.
         this.isDirty = false;
         this.navigatedValue = null;
         if (this.state.isValid) {
@@ -356,7 +363,7 @@ export class TimePicker extends Component {
         this.navigatedValue = null;
         this.dropdownState.open();
         if (selectAll) {
-            this.inputRef.el.select();
+            this.inputRef.el?.select();
         }
     }
 

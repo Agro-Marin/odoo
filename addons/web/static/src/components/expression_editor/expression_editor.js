@@ -1,14 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/expression_editor/expression_editor */
-
 import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { getExpressionDisplayedOperators } from "@web/components/expression_editor/expression_editor_operator_editor";
 import { ModelFieldSelector } from "@web/components/model_field_selector/model_field_selector";
-import { TreeEditor } from "@web/components/tree_editor/tree_editor";
-import { getOperatorEditorInfo } from "@web/components/tree_editor/tree_editor_operator_editor";
-import { getDefaultValue } from "@web/components/tree_editor/tree_editor_value_editors";
+import {
+    getDefaultValue,
+    getOperatorEditorInfo,
+    TreeEditor,
+} from "@web/components/tree_editor";
 import { _t } from "@web/core/translation";
 import { condition } from "@web/core/tree/condition_tree";
 import { expressionFromTree } from "@web/core/tree/expression_from_tree";
@@ -23,6 +23,11 @@ export class ExpressionEditor extends Component {
         expression: String,
         update: Function,
     };
+
+    /**
+     * @type {Record<string, Record<string, any>>}
+     */
+    filteredFields = {};
 
     setup() {
         onWillStart(() => this.onPropsUpdated(this.props));
@@ -64,6 +69,15 @@ export class ExpressionEditor extends Component {
     }
 
     /**
+     * Deliberately ignores the `fieldDefs` argument `TreeEditor` passes
+     * (`tree_editor.js:115`), unlike `DomainSelector.getDefaultCondition`.
+     * That argument is `fieldService.loadFields(resModel)` -- every field on the
+     * model -- whereas an expression may only name the curated set the caller
+     * handed in `props.fields`. Honouring it was tried and is wrong: it lets the
+     * default condition name a field the editor then reports as unsupported,
+     * which is what `no special fields in fields` and `no field of type
+     * properties in model field selector` catch.
+     *
      * @returns {Object}
      */
     getDefaultCondition() {

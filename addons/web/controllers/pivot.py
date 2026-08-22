@@ -16,17 +16,10 @@ MAX_CELL_CHARS = 32_767
 
 
 def _cell(value):
-    """Truncate an over-long client string; pass non-strings (numbers) through."""
     return value[:MAX_CELL_CHARS] if isinstance(value, str) else value
 
 
 def _clamp_int(value, hi):
-    """Coerce a client-supplied count/size to ``0..hi``.
-
-    Raw JSON can carry a non-numeric value (e.g. ``"measure_count": "x"``); a
-    bare ``min(value, hi)`` would then raise ``TypeError`` (Py3 forbids str/int
-    comparison) → 500. Coerce defensively so bad input degrades to ``0`` instead.
-    """
     try:
         return max(0, min(int(value), hi))
     except TypeError, ValueError:
@@ -83,7 +76,7 @@ class TableExporter(http.Controller):
                             worksheet.write(y, x + j, "", header_plain)
                         if cell["height"] > 1:
                             carry.append({"x": x, "height": cell["height"] - 1})
-                        x = x + measure_count
+                        x += measure_count
                     width = _clamp_int(header["width"], 100000)
                     height = _clamp_int(header["height"], 100000)
                     for j in range(width):
@@ -95,14 +88,14 @@ class TableExporter(http.Controller):
                         )
                     if height > 1:
                         carry.append({"x": x, "height": height - 1})
-                    x = x + width
+                    x += width
                 while carry and carry[0]["x"] == x:
                     cell = carry.popleft()
                     for j in range(measure_count):
                         worksheet.write(y, x + j, "", header_plain)
                     if cell["height"] > 1:
                         carry.append({"x": x, "height": cell["height"] - 1})
-                    x = x + measure_count
+                    x += measure_count
                 x, y = 1, y + 1
 
             measure_headers = jdata["measure_headers"]
@@ -112,7 +105,7 @@ class TableExporter(http.Controller):
                 for measure in measure_headers:
                     style = header_bold if measure["is_bold"] else header_plain
                     worksheet.write(y, x, _cell(measure["title"]), style)
-                    x = x + 1
+                    x += 1
                 x, y = 1, y + 1
             worksheet.freeze_panes(y, 1)
 
@@ -126,7 +119,7 @@ class TableExporter(http.Controller):
                     header_plain,
                 )
                 for cell in row["values"]:
-                    x = x + 1
+                    x += 1
                     if cell.get("is_bold", False):
                         worksheet.write(y, x, _cell(cell["value"]), bold)
                     else:

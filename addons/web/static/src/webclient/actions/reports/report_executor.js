@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/reports/report_executor */
-
 import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
 
@@ -13,7 +11,9 @@ registry
     .category("ir.actions.report handlers")
     .addValidation((entry) => typeof entry === "function");
 
-/** @import { ActionManager, ActionOptions, ReportAction as ReportActionType } from "../action_service.js" */
+/**
+ * @import { ActionManager, ActionOptions, ReportAction as ReportActionType } from "../action_service.js"
+ */
 
 /**
  * @param {ReportActionType} action
@@ -78,11 +78,11 @@ export async function executeReportAction(action, options, am) {
         action.report_type === "qweb-text"
     ) {
         const type = action.report_type === "qweb-pdf" ? "pdf" : "text";
-        am.env.services.ui.block();
+        am.uiService.block();
         try {
             await downloadReport(action, type, user.context);
         } finally {
-            am.env.services.ui.unblock();
+            am.uiService.unblock();
         }
         return finishReport(action, options, am);
     } else {

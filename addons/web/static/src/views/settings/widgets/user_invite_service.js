@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/widgets/user_invite_service */
-
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 export const userInviteService = {

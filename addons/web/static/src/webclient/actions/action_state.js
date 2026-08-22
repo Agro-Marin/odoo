@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/action_state */
-
 import { markup } from "@odoo/owl";
 import { PATH_KEYS } from "@web/core/browser/router";
 import { user } from "@web/core/user";
@@ -12,7 +10,7 @@ import { parseActiveIds } from "./action_constants.js";
 import { resolveClientAction } from "./action_loader.js";
 import { actionStorage } from "./action_storage.js";
 
-/** @import { ActionOptions, ActionRequest, Controller } from "./action_service.js" */
+/** @import { ActionOptions, ActionRequest, Context, Controller } from "./action_service.js" */
 
 /**
  * @param {Controller[]} controllerStack
@@ -66,96 +64,142 @@ export function makeActionState(controllerStack) {
 
 /**
  * @param {Record<string, any>} state
+ * @returns {Context}
+ */
+function buildActiveContext(state) {
+    /** @type {Context} */
+    const context = {};
+    if (state.active_id) {
+        context.active_id = state.active_id;
+    }
+    if (state.active_ids) {
+        context.active_ids = parseActiveIds(state.active_ids);
+    } else if (state.active_id) {
+        context.active_ids = [state.active_id];
+    }
+    return context;
+}
+
+/**
+ * Whether the action kept in session storage is the one the url names, so it can
+ * be replayed with its domain and context instead of re-loaded by key. Embedded
+ * actions are excluded: the stored copy carries the parent's own view, not the
+ * embedded one the url is asking for.
+ *
+ * @param {Record<string, any>} lastAction
+ * @param {Record<string, any>} state
+ * @param {Context} context
+ * @returns {boolean}
+ */
+function storedActionAnswersTo(lastAction, state, context) {
+    return (
+        [lastAction.id, lastAction.path, lastAction.xml_id]
+            .filter(Boolean)
+            .includes(state.action) &&
+        (!lastAction.context?.active_id ||
+            lastAction.context?.active_id === context.active_id) &&
+        (!lastAction.context?.active_ids ||
+            shallowEqual(lastAction.context?.active_ids, context.active_ids)) &&
+        !lastAction.embedded_action_ids?.length
+    );
+}
+
+/**
+ * @param {Record<string, any>} state
+ * @param {Record<string, any>} lastAction
+ * @param {Record<string, any>} options mutated in place
+ * @returns {ActionRequest | null}
+ */
+function resolveActionFromKey(state, lastAction, options) {
+    const context = buildActiveContext(state);
+    const [actionRequestKey, clientAction] = resolveClientAction(state.action);
+    let actionRequest;
+    if (actionRequestKey && clientAction) {
+        actionRequest = /** @type {any} */ ({
+            context,
+            params: state,
+            tag: actionRequestKey,
+            type: "ir.actions.client",
+        });
+        if (/** @type {any} */ (clientAction).path) {
+            actionRequest.path = /** @type {any} */ (clientAction).path;
+        }
+    } else {
+        Object.assign(options, {
+            additionalContext: context,
+            viewType: state.resId ? "form" : state.view_type,
+        });
+        actionRequest = storedActionAnswersTo(lastAction, state, context)
+            ? lastAction
+            : state.action;
+    }
+    if (state.resId && state.resId !== "new") {
+        options.props = { resId: state.resId };
+    }
+    return actionRequest;
+}
+
+/**
+ * A url naming a model rather than an action can only be replayed exactly when
+ * the stored action is for that same model. Failing that, a record still opens
+ * as a bare form -- the id identifies it -- but a multi-record view does not:
+ * rebuilding one without the original domain would show a wider set than the
+ * url ever meant.
+ *
+ * @param {Record<string, any>} state
+ * @param {Record<string, any>} lastAction
+ * @param {Record<string, any>} options mutated in place
+ * @returns {ActionRequest | null}
+ */
+function resolveActionFromModel(state, lastAction, options) {
+    if (!state.resId && state.view_type !== "form") {
+        if (lastAction.res_model !== state.model) {
+            return null;
+        }
+        options.viewType = state.view_type;
+        return lastAction;
+    }
+    const resId = state.resId === "new" ? undefined : state.resId;
+    if (!lastAction.id && lastAction.res_model === state.model) {
+        options.props = { resId };
+        options.viewType = "form";
+        if (state.view_id) {
+            lastAction.views = [[state.view_id, "form"]];
+        }
+        return lastAction;
+    }
+    return /** @type {any} */ ({
+        res_model: state.model,
+        res_id: resId,
+        type: "ir.actions.act_window",
+        views: [[state.view_id ? state.view_id : false, "form"]],
+    });
+}
+
+/**
+ * @param {Record<string, any>} state
  * @returns {{ actionRequest: ActionRequest, options: ActionOptions } | null}
  */
 export function getActionParams(state) {
     /**
      * @type {{
-     *   additionalContext?: Object,
-     *   viewType?: string,
-     *   poppedLeaves?: number,
-     *   props?: { resId?: any, globalState?: any },
+     * additionalContext?: Object,
+     * viewType?: string,
+     * poppedLeaves?: number,
+     * props?: { resId?: any, globalState?: any },
      * }}
      */
     const options = {};
     let actionRequest = null;
-    // Re-read per recursion level rather than hoisted: the block below mutates
-    // what it returns (`help`, `context`, `views`), and each level needs a
-    // pristine copy.
     const lastAction = actionStorage.getCurrentAction();
     delete lastAction.context?.allowed_company_ids;
     if (lastAction.help) {
         lastAction.help = markup(lastAction.help);
     }
     if (state.action) {
-        const context = {};
-        if (state.active_id) {
-            context.active_id = state.active_id;
-        }
-        if (state.active_ids) {
-            context.active_ids = parseActiveIds(state.active_ids);
-        } else if (state.active_id) {
-            context.active_ids = [state.active_id];
-        }
-        const [actionRequestKey, clientAction] = resolveClientAction(state.action);
-        if (actionRequestKey && clientAction) {
-            actionRequest = /** @type {any} */ ({
-                context,
-                params: state,
-                tag: actionRequestKey,
-                type: "ir.actions.client",
-            });
-            if (/** @type {any} */ (clientAction).path) {
-                actionRequest.path = /** @type {any} */ (clientAction).path;
-            }
-        } else {
-            Object.assign(options, {
-                additionalContext: context,
-                viewType: state.resId ? "form" : state.view_type,
-            });
-            if (
-                [lastAction.id, lastAction.path, lastAction.xml_id]
-                    .filter(Boolean)
-                    .includes(state.action) &&
-                (!lastAction.context?.active_id ||
-                    lastAction.context?.active_id === context.active_id) &&
-                (!lastAction.context?.active_ids ||
-                    shallowEqual(lastAction.context?.active_ids, context.active_ids)) &&
-                !lastAction.embedded_action_ids?.length
-            ) {
-                actionRequest = lastAction;
-            } else {
-                actionRequest = state.action;
-            }
-        }
-        if (state.resId && state.resId !== "new") {
-            options.props = { resId: state.resId };
-        }
+        actionRequest = resolveActionFromKey(state, lastAction, options);
     } else if (state.model) {
-        if (state.resId || state.view_type === "form") {
-            if (!lastAction.id && lastAction.res_model === state.model) {
-                actionRequest = lastAction;
-                options.props = {
-                    resId: state.resId === "new" ? undefined : state.resId,
-                };
-                if (state.view_id) {
-                    actionRequest.views = [[state.view_id, "form"]];
-                }
-                options.viewType = "form";
-            } else {
-                actionRequest = {
-                    res_model: state.model,
-                    res_id: state.resId === "new" ? undefined : state.resId,
-                    type: "ir.actions.act_window",
-                    views: [[state.view_id ? state.view_id : false, "form"]],
-                };
-            }
-        } else {
-            if (lastAction.res_model === state.model) {
-                actionRequest = lastAction;
-                options.viewType = state.view_type;
-            }
-        }
+        actionRequest = resolveActionFromModel(state, lastAction, options);
     }
     if (actionRequest && state.globalState) {
         options.props = { ...options.props, globalState: state.globalState };

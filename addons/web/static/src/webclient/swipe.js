@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/swipe */
-
 export const SWIPE_ACTIVATION_THRESHOLD = 100;
 
 export const SWIPE_LEFT = -1;

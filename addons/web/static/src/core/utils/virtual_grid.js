@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/virtual_grid */
-
 import { useComponent, useEffect, useExternalListener } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { pick, shallowEqual } from "@web/core/utils/collections/objects";

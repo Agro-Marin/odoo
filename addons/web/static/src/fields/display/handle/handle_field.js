@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/display/handle/handle_field */
-
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";

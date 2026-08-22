@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dnd/sortable */
-
 import { pick } from "@web/core/utils/collections/objects";
 import {
     DRAGGED_CLASS,

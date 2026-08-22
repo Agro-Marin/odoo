@@ -9,21 +9,21 @@
                         <t t-if="_isEmbeddedActionVisible(action)">
                             <button class="btn btn-secondary o_draggable"
                                     t-att-class="{ 'active': state.embeddedInfos.currentEmbeddedAction?.id === action.id}"
-                                    t-on-click="() => this.onEmbeddedActionClick(action)"
+                                    t-on-click="() => props.embeddedActions.openAction(action)"
                                     t-att-data-embedded-index="action_index"
                             >
                                 <span t-out="action.name"/>
                             </button>
                         </t>
                     </t>
-                    <t t-call="web.embeddedActionsDropdown" />
+                    <EmbeddedActionsDropdown embeddedActions="props.embeddedActions" state="dropdownState"/>
                 </div>
             </Transition>
         </div>
     </t>
 
-    <t t-name="web.embeddedActionsDropdown">
-        <Dropdown state="embeddedActionsDropdown" menuClass="'o_embedded_actions_dropdown_menu'">
+    <t t-name="web.EmbeddedActionsDropdown">
+        <Dropdown state="dropdownState" menuClass="'o_embedded_actions_dropdown_menu'">
             <button name="openEmbeddedActions" class="btn btn-secondary" title="Embedded actions" aria-label="Embedded actions">
                 <i class="fa-solid fa-sliders"/>
             </button>
@@ -31,7 +31,7 @@
                 <t t-foreach="state.embeddedInfos.embeddedActions" t-as="action" t-key="action.id">
                     <DropdownItem
                         class="this.getDropdownClass(action)"
-                        onSelected="() => this.env.isSmall ? this.onEmbeddedActionClick(action) : this._setVisibility(action.id)"
+                        onSelected="() => this.env.isSmall ? this.onEmbeddedActionClick(action) : this.setVisibility(action.id)"
                         closingMode="'none'"
                     >
                         <div class="d-flex p-0 pe-1 align-items-center justify-content-between">
@@ -48,12 +48,12 @@
                             class="o_input mb-2"
                             t-model.trim="state.embeddedInfos.newActionName"
                         />
-                        <CheckBox value="state.embeddedInfos.newActionIsShared" onChange.bind="_onShareCheckboxChange">
+                        <CheckBox value="state.embeddedInfos.newActionIsShared" onChange.bind="onShareCheckboxChange">
                             <span data-tooltip="Make this embedded action available to other users">Shared</span>
                         </CheckBox>
                     </div>
                     <div class="px-3 py-2">
-                        <button class="o_save_favorite btn btn-primary w-100" t-on-click="_saveNewAction">
+                        <button class="o_save_favorite btn btn-primary w-100" t-on-click="saveNewAction">
                             Save
                         </button>
                     </div>

@@ -1,11 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/progress_bar_hook */
-
 import { onWillDestroy, reactive } from "@odoo/owl";
 import { Domain } from "@web/core/domain";
 import { _t } from "@web/core/translation";
+import { KeepLast, KeepLastByKey, SupersededError } from "@web/core/utils/concurrency";
 import { debounce } from "@web/core/utils/timing";
 import {
     extractAggregatesFromGroupData,
@@ -19,6 +18,22 @@ const FALSE = Symbol("False");
 const MOVE_RECONCILE_DELAY = 300;
 
 /**
+ * @template T
+ * @param {() => Promise<T>} load
+ * @returns {Promise<T | undefined>}
+ */
+async function latestOnly(load) {
+    try {
+        return await load();
+    } catch (error) {
+        if (error instanceof SupersededError) {
+            return undefined;
+        }
+        throw error;
+    }
+}
+
+/**
  * @type {{ activeBar: string | null, bars: Object[], total: number, isReady: boolean }}
  */
 const EMPTY_GROUP_INFO = Object.freeze({
@@ -29,13 +44,6 @@ const EMPTY_GROUP_INFO = Object.freeze({
 });
 
 /**
- * Identity key for a group's server value.
- *
- * `getGroupServerValue` wraps many2many values in a freshly allocated array, so
- * two server values denoting the same group are never `===`. Every internal map
- * in this module is therefore keyed by this canonical string rather than by the
- * server value itself.
- *
  * @param {*} serverValue
  * @returns {string}
  */
@@ -64,7 +72,7 @@ function _createFilterDomain(fieldName, bars, value) {
  * @param {Object[]} groups
  * @param {string[]} groupBy
  * @param {Object} fields
- * @returns {Map<string, Object>} aggregates by {@link groupKey}
+ * @returns {Map<string, Object>}
  */
 function _groupsToAggregatesByKey(groups, groupBy, fields) {
     return new Map(
@@ -91,15 +99,17 @@ class ProgressBarState {
         this.model = model;
         this._groupsInfo = {};
         this._aggregateFields = aggregateFields;
-        /** @type {Record<string, Object>} keyed by {@link groupKey} */
+        /** @type {Record<string, Object>} */
         this.activeBars = activeBars;
-        /** @type {Map<string, Object>} aggregates by {@link groupKey} */
+        /** @type {Map<string, Object>} */
         this._aggregatesByKey = new Map();
         this._pbCounts = null;
-        this._pbEpoch = 0;
-        this._aggEpoch = 0;
-        /** @type {Map<*, number>} */
-        this._groupAggEpochs = new Map();
+        /** @type {KeepLast<any>} */
+        this._pbLoads = new KeepLast({ rejectSuperseded: true });
+        /** @type {KeepLast<any>} */
+        this._aggLoads = new KeepLast({ rejectSuperseded: true });
+        /** @type {KeepLastByKey<any>} */
+        this._groupAggLoads = new KeepLastByKey({ rejectSuperseded: true });
         this._pendingBarDeselections = new Set();
         this._recordMoves = new Map();
     }
@@ -118,12 +128,6 @@ class ProgressBarState {
         return this._groupsInfo[group.id];
     }
 
-    /**
-     * Seeds every current group up front. `getGroupInfo` is read from render
-     * (kanban header / renderer), and this state is `reactive`: seeding lazily
-     * from there is a write to a subscribed object mid-render, which costs an
-     * extra render pass per group. Called once per load instead.
-     */
     _seedAllGroups() {
         if (this._pbCounts === null) {
             return;
@@ -163,13 +167,6 @@ class ProgressBarState {
             activeBar.aggregates = this._aggregatesByKey.get(key);
         }
 
-        // `activeBar` is a PLAIN property, deliberately not a getter closing
-        // over `this`. A closure would always read `activeBars` through the
-        // proxy that happened to seed the group, so a component reading
-        // `groupInfo.activeBar` during render could never subscribe to it --
-        // the value changed and nothing re-rendered. That invisible dependency
-        // used to be masked by a blanket `render(true)` on every model update.
-        // Kept in sync by `_syncActiveBar`, which every mutation funnels through.
         this._groupsInfo[group.id] = {
             activeBar: this.activeBars[key]?.value || null,
             bars,
@@ -180,10 +177,6 @@ class ProgressBarState {
     }
 
     /**
-     * Single source of truth for the derived counts: the "Other" bucket, the
-     * group total and the active bar's count. Every path that mutates a bar
-     * count funnels through here so the bars can never disagree.
-     *
      * @param {Group} group
      */
     _recomputeTotals(group) {
@@ -201,7 +194,7 @@ class ProgressBarState {
             (/** @type {any} */ bar) => bar.value === FALSE,
         );
         if (otherBar) {
-            otherBar.count = Math.max(0, group.count - coloredCount);
+            otherBar.count = Math.max(0, (group.count ?? 0) - coloredCount);
         }
         groupInfo.total = groupInfo.bars.reduce(
             (/** @type {any} */ sum, /** @type {any} */ bar) => sum + bar.count,
@@ -218,10 +211,6 @@ class ProgressBarState {
     }
 
     /**
-     * Mirror `activeBars[key]` onto the group's rendered info. The two are
-     * separate objects, so nothing keeps them in step implicitly -- every
-     * selection and deselection funnels through here.
-     *
      * @param {Group} group
      */
     _syncActiveBar(group) {
@@ -312,9 +301,9 @@ class ProgressBarState {
         proms.push(
             group.applyFilter(filterDomain).then(() => {
                 const groupInfo = this.getGroupInfo(group);
-                nextActiveBar.count = groupInfo.bars.find(
-                    (x) => x.value === nextActiveBar.value,
-                ).count;
+                nextActiveBar.count =
+                    groupInfo.bars.find((x) => x.value === nextActiveBar.value)
+                        ?.count ?? 0;
             }),
         );
         if (this._aggregateFields.length) {
@@ -334,8 +323,6 @@ class ProgressBarState {
      */
     async _updateAggregateGroup(group, bars, activeBar) {
         const key = groupKey(group.serverValue);
-        const epoch = (this._groupAggEpochs.get(key) || 0) + 1;
-        this._groupAggEpochs.set(key, epoch);
         const filterDomain = _createFilterDomain(
             this.progressAttributes.fieldName,
             bars,
@@ -347,14 +334,19 @@ class ProgressBarState {
         const domain = filterDomain
             ? Domain.and([group.groupDomain, filterDomain]).toList()
             : group.groupDomain;
-        const groups = await this.model.orm.formattedReadGroup(
-            resModel,
-            domain,
-            groupBy,
-            aggregateSpecs,
-            kwargs,
+        const groups = await latestOnly(() =>
+            this._groupAggLoads.add(
+                key,
+                this.model.orm.formattedReadGroup(
+                    resModel,
+                    domain,
+                    groupBy,
+                    aggregateSpecs,
+                    kwargs,
+                ),
+            ),
         );
-        if (epoch !== this._groupAggEpochs.get(key)) {
+        if (!groups) {
             return;
         }
         if (groups.length) {
@@ -457,7 +449,7 @@ class ProgressBarState {
         ) {
             return false;
         }
-        this._pbEpoch++;
+        this._pbLoads.cancel();
         this._applyMoveDelta(sourceGroup, move.sourceValue, -1);
         this._applyMoveDelta(targetGroup, record.data[fieldName], +1);
         if (this._aggregateFields.length) {
@@ -478,9 +470,7 @@ class ProgressBarState {
      */
     _applyMoveDelta(group, value, delta) {
         const { colors } = this.progressAttributes;
-        const bucket = Object.keys(colors).find(
-            (key) => key === value || key === String(value),
-        );
+        const bucket = Object.keys(colors).find((key) => key === String(value));
         if (bucket) {
             const counts = (this._pbCounts[this._pbCountKey(group)] ||= {});
             counts[bucket] = Math.max(0, (counts[bucket] || 0) + delta);
@@ -505,17 +495,20 @@ class ProgressBarState {
      * @returns {Promise<void>}
      */
     async _updateAggregatesForGroups(groupsToUpdate) {
-        const epoch = ++this._aggEpoch;
         const { context, fields, groupBy, resModel } = this.model.root;
         const domain = Domain.or(groupsToUpdate.map((g) => g.groupDomain)).toList();
-        const groups = await this.model.orm.formattedReadGroup(
-            resModel,
-            domain,
-            groupBy,
-            getAggregateSpecifications(this._aggregateFields),
-            { context },
+        const groups = await latestOnly(() =>
+            this._aggLoads.add(
+                this.model.orm.formattedReadGroup(
+                    resModel,
+                    domain,
+                    groupBy,
+                    getAggregateSpecifications(this._aggregateFields),
+                    { context },
+                ),
+            ),
         );
-        if (epoch !== this._aggEpoch) {
+        if (!groups) {
             return;
         }
         const aggregatesByKey = _groupsToAggregatesByKey(groups, groupBy, fields);
@@ -563,17 +556,20 @@ class ProgressBarState {
     }
 
     async _updateAggregates() {
-        const epoch = ++this._aggEpoch;
         const { context, fields, groupBy, domain, resModel } = this.model.root;
         const kwargs = { context };
-        const groups = await this.model.orm.formattedReadGroup(
-            resModel,
-            domain,
-            groupBy,
-            getAggregateSpecifications(this._aggregateFields),
-            kwargs,
+        const groups = await latestOnly(() =>
+            this._aggLoads.add(
+                this.model.orm.formattedReadGroup(
+                    resModel,
+                    domain,
+                    groupBy,
+                    getAggregateSpecifications(this._aggregateFields),
+                    kwargs,
+                ),
+            ),
         );
-        if (epoch !== this._aggEpoch) {
+        if (!groups) {
             return;
         }
         this._aggregatesByKey = _groupsToAggregatesByKey(groups, groupBy, fields);
@@ -596,17 +592,20 @@ class ProgressBarState {
     async _updateProgressBar() {
         const { context, domain, groupBy, resModel } = this.model.root;
         if (groupBy.length) {
-            const epoch = ++this._pbEpoch;
             const groupIds = new Set(
                 this.model.root.groups.map((/** @type {any} */ g) => g.id),
             );
-            const res = await this._fetchProgressBarCounts({
-                context,
-                domain,
-                groupBy,
-                resModel,
-            });
-            if (epoch !== this._pbEpoch) {
+            const res = await latestOnly(() =>
+                this._pbLoads.add(
+                    this._fetchProgressBarCounts({
+                        context,
+                        domain,
+                        groupBy,
+                        resModel,
+                    }),
+                ),
+            );
+            if (!res) {
                 return;
             }
             const currentIds = this.model.root.groups.map(
@@ -661,14 +660,17 @@ class ProgressBarState {
      */
     async loadProgressBar({ context, domain, groupBy, resModel }) {
         if (groupBy.length) {
-            const epoch = ++this._pbEpoch;
-            const res = await this._fetchProgressBarCounts({
-                context,
-                domain,
-                groupBy,
-                resModel,
-            });
-            if (epoch !== this._pbEpoch) {
+            const res = await latestOnly(() =>
+                this._pbLoads.add(
+                    this._fetchProgressBarCounts({
+                        context,
+                        domain,
+                        groupBy,
+                        resModel,
+                    }),
+                ),
+            );
+            if (!res) {
                 return;
             }
             this._pbCounts = res;
@@ -700,11 +702,7 @@ class ProgressBarState {
     }
 
     /**
-     * Key into `_pbCounts`, which is the raw `read_progress_bar` response and
-     * therefore uses the SERVER's group-value spelling — not {@link groupKey}.
-     *
      * @param {Group} group
-     * @return string
      */
     _pbCountKey(group) {
         if (group.value === true) {

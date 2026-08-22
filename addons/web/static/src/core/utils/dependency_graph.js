@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dependency_graph */
-
 /**
  * @param {Map<string, string[]>} graph
  * @returns {string[] | null}

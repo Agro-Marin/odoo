@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/main_components_container */
-
 import { Component, xml } from "@odoo/owl";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { localization } from "@web/core/l10n/localization";
@@ -18,7 +16,9 @@ mainComponents.addValidation({
     props: { type: Object, optional: true },
 });
 
-/** @type {WeakMap<import("@odoo/owl").ComponentConstructor, import("registries").MainComponentsRegistryItemShape>} */
+/**
+ * @type {WeakMap<import("@odoo/owl").ComponentConstructor, import("registries").MainComponentsRegistryItemShape>}
+ */
 const ENTRIES = new WeakMap();
 
 /**

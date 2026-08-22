@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/datetime/datetime_picker_service */
-
 import {
     markRaw,
     onPatched,
@@ -36,36 +34,36 @@ import { makePopover } from "@web/ui/popover/popover_hook";
  * @typedef {import("@odoo/owl").Component} Component
  * @typedef {ReturnType<typeof import("@odoo/owl").useRef>} OwlRef
  * @typedef {{
- *  createPopover?: (component: Component, options: PopoverServiceAddOptions) => PopoverHookReturnType;
- *  ensureVisibility?: () => boolean;
- *  format?: string;
- *  getInputs?: () => HTMLElement[];
- *  onApply?: (value: DateTimePickerProps["value"]) => any;
- *  onChange?: (value: DateTimePickerProps["value"]) => any;
- *  onClose?: () => any;
- *  pickerProps?: DateTimePickerProps;
- *  showSeconds?: boolean;
- *  target: HTMLElement | string;
- *  useOwlHooks?: boolean;
+ * createPopover?: (component: Component, options: PopoverServiceAddOptions) => PopoverHookReturnType;
+ * ensureVisibility?: () => boolean;
+ * format?: string;
+ * getInputs?: () => HTMLElement[];
+ * onApply?: (value: DateTimePickerProps["value"]) => any;
+ * onChange?: (value: DateTimePickerProps["value"]) => any;
+ * onClose?: () => any;
+ * pickerProps?: DateTimePickerProps;
+ * showSeconds?: boolean;
+ * target: HTMLElement | string;
+ * useOwlHooks?: boolean;
  * }} DateTimePickerServiceParams
  * @typedef {{
- *  enable: () => (() => void);
- *  disable: () => boolean;
- *  dispose: () => void;
- *  isOpen: () => boolean;
- *  open: (inputIndex: number) => void;
- *  close: () => void;
- *  commitInputs: () => Promise<void>;
- *  state: DateTimePickerProps;
+ * enable: () => (() => void);
+ * disable: () => boolean;
+ * dispose: () => void;
+ * isOpen: () => boolean;
+ * open: (inputIndex: number) => void;
+ * close: () => void;
+ * commitInputs: () => Promise<void>;
+ * state: DateTimePickerProps;
  * }} DateTimePickerHandle
  */
 
 /**
- * @template {object} T
- * @param {T} obj
+ * @param {Record<string, any>} obj
+ * @returns {Record<string, any>}
  */
 function markValuesRaw(obj) {
-    /** @type {any} */
+    /** @type {Record<string, any>} */
     const copy = {};
     for (const [key, value] of Object.entries(obj)) {
         if (value && typeof value === "object") {
@@ -198,12 +196,6 @@ export class DateTimePickerController {
         this.shouldFocus = true;
     };
 
-    /**
-     * The visibility spacer is borrowed from an element the controller does not
-     * own, so returning it is cleanup, not user-visible work: it has to happen
-     * even when the controller is being torn down. Idempotent, so both the close
-     * and the dispose path can call it.
-     */
     releaseTargetMargin = () => {
         this.restoreTargetMargin?.();
         this.restoreTargetMargin = null;
@@ -331,11 +323,12 @@ export class DateTimePickerController {
                 return this.getInput(1) ?? this.getTarget();
             }
             let parentElement = firstInput.parentElement;
-            const inputEls = this.getInputs();
-            while (
-                parentElement &&
-                !inputEls.every((inputEl) => parentElement.contains(inputEl))
-            ) {
+            const inputEls = this.getInputs().filter(Boolean);
+            while (parentElement) {
+                const candidate = parentElement;
+                if (inputEls.every((inputEl) => candidate.contains(inputEl))) {
+                    break;
+                }
                 parentElement = parentElement.parentElement;
             }
             return parentElement || firstInput;
@@ -520,16 +513,24 @@ export class DateTimePickerController {
         }
 
         let nextFocusedDateIndex = this.pickerProps.focusedDateIndex;
-        if (this.pickerProps.range && unit !== "time" && source === "picker") {
+        if (
+            this.pickerProps.range &&
+            Array.isArray(value) &&
+            unit !== "time" &&
+            source === "picker"
+        ) {
             if (!value[0]) {
                 nextFocusedDateIndex = 0;
             } else if (
                 this.pickerProps.focusedDateIndex === 0 ||
                 (value[1] && value[1] < value[0])
             ) {
-                const { year, month, day } = value[this.pickerProps.focusedDateIndex];
-                for (let i = 0; i < value.length; i++) {
-                    value[i] = value[i] && value[i].set({ year, month, day });
+                const focused = value[this.pickerProps.focusedDateIndex];
+                if (focused) {
+                    const { year, month, day } = focused;
+                    value = /** @type {any} */ (
+                        value.map((bound) => bound && bound.set({ year, month, day }))
+                    );
                 }
                 nextFocusedDateIndex = 1;
             } else {
@@ -599,7 +600,7 @@ export class DateTimePickerController {
     };
 }
 
-export const datetimePickerService = {
+const datetimePickerService = {
     dependencies: ["popover"],
     start(env, { popover: popoverService }) {
         /** @type {Set<DateTimePickerHandle>} */

@@ -1,16 +1,3 @@
-"""Core Web Vitals metric records — Recommendation #9 (Phases 2-3).
-
-Each row is a single beacon emitted by ``services/web_vitals/web_vitals_service.js``
-and persisted via ``controllers/observability.py``.  Data is high-volume,
-write-only-from-controller, and read-only-from-UI; the controller writes via
-``sudo()`` because beacons can arrive from anonymous frontend visitors.
-
-Phase 3 added a daily retention cron (``_gc_old_metrics``) driven by the
-``web.cwv.retention_days`` config parameter (default 30).  Pre-aggregation
-into a daily summary model is a separate phase — wait until volume warrants
-the indirection.
-"""
-
 import logging
 
 from odoo import api, fields, models
@@ -114,17 +101,6 @@ class WebCwvMetric(models.Model):
 
     @api.model
     def _record_beacon(self, values):
-        """Atomically insert a beacon, upserting on ``pageview_id``.
-
-        A single ``INSERT ... ON CONFLICT`` replaces the previous
-        search-then-write: it is race-free (the partial unique index is the
-        arbiter) and one round-trip instead of two. A NULL/empty pageview_id
-        never matches the partial index, so those always insert (preserving the
-        legacy "one row per beacon" behavior for pre-upsert clients).
-
-        The DB-level CHECK constraints still apply, and ``recorded_at`` is
-        stamped in UTC to match ``_gc_old_metrics``' cutoff convention.
-        """
         cols = (
             "url",
             "user_id",
@@ -177,22 +153,8 @@ class WebCwvMetric(models.Model):
         "Cumulative Layout Shift must be between 0 and 1000.",
     )
 
-
     @api.model
     def _gc_old_metrics(self):
-        """Daily cron — delete CWV records older than the retention window.
-
-        Reads the ``web.cwv.retention_days`` ``ir.config_parameter`` (default
-        ``30``).  A value of ``0`` disables retention (the cron becomes a
-        no-op) — useful for environments that pipe beacons to an external
-        TSDB and only need the model as a transit buffer.
-
-        Deletion is unbounded (one DELETE statement); on a 30-day window of
-        sampled data this is well under a million rows even on busy sites
-        and finishes in seconds.  If volume ever requires bounded batching,
-        switch to ``self.with_context(active_test=False).search([...]).unlink()``
-        with a ``LIMIT`` and a follow-up cron retry.
-        """
         days_str = (
             self.env["ir.config_parameter"]
             .sudo()

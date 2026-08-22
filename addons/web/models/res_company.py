@@ -28,7 +28,6 @@ class ResCompany(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        """Regenerate the report style asset when style fields change."""
         companies = super().create(vals_list)
         if any(
             not self._REPORT_STYLE_FIELDS.isdisjoint(values) for values in vals_list
@@ -37,14 +36,12 @@ class ResCompany(models.Model):
         return companies
 
     def write(self, vals: dict[str, Any]) -> bool:
-        """Regenerate the report style asset when style fields change."""
         res = super().write(vals)
         if not self._REPORT_STYLE_FIELDS.isdisjoint(vals):
             self._update_asset_style()
         return res
 
     def _get_asset_style_b64(self) -> bytes:
-        """Render the company-report stylesheet for all companies."""
         company_ids = self.sudo().search([])
         company_styles = self.env["ir.qweb"]._render(
             "web.styles_company_report",
@@ -56,19 +53,13 @@ class ResCompany(models.Model):
         return base64.b64encode(company_styles.encode())
 
     @api.model
-    def _set_default_report_theme(self) -> None:
-        """Assign the Modern theme to companies that have none.
-
-        Called once from data on web install/upgrade so pre-existing companies
-        adopt the token defaults. Idempotent: only fills unset values.
-        """
+    def _update_report_theme_default(self) -> None:
         modern = self.env.ref("web.report_theme_modern", raise_if_not_found=False)
         if not modern:
             return
         self.sudo().search([("report_theme_id", "=", False)]).report_theme_id = modern
 
     def _update_asset_style(self) -> None:
-        """Update the report-style attachment if the rendered content changed."""
         asset_attachment = self.env.ref(
             "web.asset_styles_company_report", raise_if_not_found=False
         )

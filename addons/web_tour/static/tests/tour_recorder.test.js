@@ -10,7 +10,7 @@ import {
     patchWithCleanup,
     serverState,
 } from "@web/../tests/web_test_helpers";
-import { AutoComplete } from "@web/components/autocomplete/autocomplete";
+import { AutoComplete } from "@web/components/autocomplete";
 import { browser } from "@web/core/browser/browser";
 import { useAutofocus } from "@web/core/utils/hooks";
 import { WebClient } from "@web/webclient/webclient";

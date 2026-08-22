@@ -21,7 +21,6 @@
     @include print-variable(o-caret-color, $input-color);
 }
 
-// Only the border: the caret is `$input-color`, which is already a token read.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
         @include print-variable(o-input-border-color, $o-dark-form-lightsecondary);
@@ -39,8 +38,14 @@
 }
 
 .o_field_invalid {
-    @include print-variable(o-input-border-color, o-token(--danger, map-get($theme-colors, "danger")));
-    @include print-variable(o-caret-color, o-token(--danger, map-get($theme-colors, "danger")));
+    @include print-variable(
+        o-input-border-color,
+        o-token(--danger, map-get($theme-colors, "danger"))
+    );
+    @include print-variable(
+        o-caret-color,
+        o-token(--danger, map-get($theme-colors, "danger"))
+    );
 }
 
 .o_input {

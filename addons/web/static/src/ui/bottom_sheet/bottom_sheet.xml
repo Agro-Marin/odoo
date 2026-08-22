@@ -24,13 +24,6 @@
 
                 <div class="o_bottom_sheet_spacer"/>
 
-                <!--
-                    `aria-modal` only when the sheet actually traps focus:
-                    `useActiveElement` runs off `setActiveElement`, and callers
-                    do turn it off (Dropdown does). Claiming modality while the
-                    page behind stays reachable would tell assistive tech the
-                    rest of the document is inert when it is not.
-                -->
                 <div
                     class="o_bottom_sheet_sheet offcanvas position-relative overflow-hidden"
                     role="dialog"
@@ -38,20 +31,6 @@
                     t-ref="sheet"
                     >
 
-                    <!--
-                        A real <button>, replacing a `role="button"` div that
-                        carried no accessible name: it was announced as a
-                        button and read out as its own (empty) content, so
-                        screen-reader users reaching it inside this
-                        `aria-modal` subtree got a nameless control.
-
-                        Deliberately still outside the focus trap, which spans
-                        the sheet BODY (`useActiveElement("ref")`): putting the
-                        handle in it would make it the first tabable element
-                        and steal the opening focus from the sheet's content.
-                        The keyboard path out of the sheet is `closeOnEscape`,
-                        not this control.
-                    -->
                     <button
                         type="button"
                         aria-label="Close"

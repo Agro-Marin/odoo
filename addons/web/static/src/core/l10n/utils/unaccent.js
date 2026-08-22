@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/l10n/utils/unaccent */
-
 import { UNACCENT_REPLACEMENTS, UNACCENT_SOURCES } from "./unaccent_table.js";
 
 /**
@@ -52,20 +50,8 @@ export function unaccent(str) {
 }
 
 /**
- * Fold a value the way this database's ``ilike`` does.
- *
- * PostgreSQL's ``unaccent`` extension is opt-in (``--unaccent`` defaults to
- * off, and Odoo only issues ``CREATE EXTENSION`` for it when the flag is set),
- * so the server folds accents only when the registry reports the function
- * present -- otherwise ``Field.filter_function`` folds through ``_identity``
- * and ``café`` simply is not ``cafe``. Folding unconditionally here made the
- * client select records the server would not.
- *
- * Unrelated to {@link normalize}, which powers fuzzy *UI* search and should
- * keep folding whatever the database can do.
- *
  * @param {string} str
- * @param {boolean} [foldAccents=true] defaults to the pre-session behaviour
+ * @param {boolean} [foldAccents=true]
  * @returns {string}
  */
 export function foldForCaseInsensitiveCompare(str, foldAccents = true) {

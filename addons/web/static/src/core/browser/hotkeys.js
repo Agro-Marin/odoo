@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/browser/hotkeys */
-
 import { isMacOS } from "@web/core/browser/feature_detection";
 
 const ALPHANUM_KEYS = "abcdefghijklmnopqrstuvwxyz0123456789".split("");
@@ -82,6 +80,14 @@ export function getActiveHotkey(ev) {
     }
 
     return hotkey.join("+");
+}
+
+/**
+ * @param {KeyboardEvent} ev
+ * @returns {boolean}
+ */
+export function isActivationKey(ev) {
+    return ev.key === "Enter" || ev.key === " ";
 }
 
 /**

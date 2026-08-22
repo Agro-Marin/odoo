@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dnd/nested_sortable */
-
 import { localization } from "@web/core/l10n/localization";
 import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
 

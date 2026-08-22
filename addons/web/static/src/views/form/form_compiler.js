@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/form/form_compiler */
-
 import { registry } from "@web/core/registry";
 import {
     append,
@@ -52,22 +50,6 @@ export function objectToString(obj) {
 }
 
 export class FormCompiler extends ViewCompiler {
-    // Label/field pairing protocol. A `<label for="X">` becomes a `FormLabel`
-    // bound to field X, but the arch may place the label before OR after its
-    // field, so compilation -- which walks the tree in document order -- resolves
-    // the pair from whichever side it meets first, via two maps keyed by X (the
-    // field's `id` or `name`):
-    //
-    //  - `compileField` claims any labels already PARKED for X (labels seen
-    //    before it) through `getLabels`, then records `encounteredFields[X]` = a
-    //    converter so labels seen AFTER it convert on the spot.
-    //  - `compileFormLabel` converts immediately if `encounteredFields[X]` is set
-    //    (field already met), else `pushLabel`s the raw label to await its field.
-    //
-    // `getLabels` clears its entry (parked labels are claimed once). This is the
-    // compiler's most order-sensitive seam: a change that visits fields and
-    // labels out of document order, or reuses a claimed entry, silently unpairs
-    // them (a bare `<label>` with no FormLabel behind it). Keep both directions.
     /** @type {Record<string, any>} */
     encounteredFields = {};
     /** @type {Record<string, Element[] | null>} */
@@ -104,10 +86,6 @@ export class FormCompiler extends ViewCompiler {
         if (!params.isSubView) {
             compiled.children[0].setAttribute("t-ref", "compiled_view_root");
         }
-        // Zero-height marker for the top of the scrolling sheet, which the
-        // statusbar's shadow tracks. Inserted once the form is assembled: the
-        // header and anything declared before <sheet> are moved into the same
-        // container afterwards, and the marker has to stay its first child.
         const sheetBG = compiled.querySelector(".o_form_sheet_bg");
         if (sheetBG) {
             sheetBG.prepend(
@@ -275,13 +253,6 @@ export class FormCompiler extends ViewCompiler {
         });
         if (!sheetNode) {
             for (const child of el.childNodes) {
-                // The button box is compiled and dropped rather than skipped:
-                // `compileButtonBox` is where its fields register themselves in
-                // `encounteredFields` and claim any `<label for=...>` already
-                // parked by `pushLabel`, replacing it in place in the tree kept
-                // here. Skipping it leaves such a label a bare `<label>` with
-                // no FormLabel behind it. `compileSheet` drops it the same way;
-                // `form_controller` compiles the box again on its own.
                 const compiled = this.compileNode(
                     /** @type {Element} */ (child),
                     params,
@@ -304,8 +275,6 @@ export class FormCompiler extends ViewCompiler {
                     /** @type {Element} */ (compiled).prepend(...compiledList);
                     compiledList = [];
                 } else if (compiled && compiled.nodeName !== "ButtonBox") {
-                    // Compiled and dropped, as in the no-sheet branch above:
-                    // `form_controller` compiles the box again on its own.
                     compiledList.push(compiled);
                 }
             }

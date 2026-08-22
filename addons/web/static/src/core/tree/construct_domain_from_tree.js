@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/construct_domain_from_tree */
-
 /** @typedef {import("../py_js/ast_type.js").AST} AST */
 /** @import { Tree } from "./condition_tree.js" */
 /** @import { Value } from "./condition_tree.js" */

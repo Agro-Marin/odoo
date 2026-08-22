@@ -273,17 +273,22 @@
         <div t-if="address" t-attf-class="address row mb-4" name="address_block"
             title="This block is not always present depending on the printed document.">
             <t t-if="information_block">
-                <t t-set="colclass" t-value="'col-5 offset-1'" />
-                <div name="information_block" class="col-6">
-                    <t t-out="information_block or None">
-                        <div
-                            class="bg-light border-1 rounded h-100 d-flex flex-column align-items-center justify-content-center p-4 opacity-75 text-muted text-center">
-                            <strong>Information block</strong>
-                            <div>Usually contains a source address or a complementary address.</div>
-                        </div>
-                    </t>
-                </div>
+                <t t-set="colclass"
+                    t-value="'col-5' + ('' if custom_layout_address else ' offset-1')" />
+                <t t-set="information_block_content">
+                    <div name="information_block" class="col-6">
+                        <t t-out="information_block or None">
+                            <div
+                                class="bg-light border-1 rounded h-100 d-flex flex-column align-items-center justify-content-center p-4 opacity-75 text-muted text-center">
+                                <strong>Information block</strong>
+                                <div>Usually contains a source address or a complementary address.</div>
+                            </div>
+                        </t>
+                    </div>
+                </t>
             </t>
+
+            <t t-if="not custom_layout_address" t-out="information_block_content" />
 
             <div name="address"
                 t-att-class="not custom_layout_address and colclass or information_block and colclass">
@@ -295,6 +300,8 @@
                     </div>
                 </t>
             </div>
+
+            <t t-if="custom_layout_address" t-out="information_block_content" />
         </div>
         <div class="oe_structure" t-else="" />
     </template>
@@ -538,7 +545,7 @@
                 <t t-set="custom_layout_address" t-value="true" />
                 <t t-call="web.address_layout" />
             </div>
-            <h3 t-if="report_type == 'pdf'" t-out="layout_document_title" class="opacity-0"
+            <h3 t-if="report_type == 'pdf'" t-out="layout_document_title or ' '" class="opacity-0"
                 t-att-style="'height: 0px'" />
             <t t-out="0" />
         </div>
@@ -603,7 +610,8 @@
                 <div t-field="company.report_footer" name="footer_text" />
                 <span t-if="report_type == 'pdf' and display_name_in_footer" class="text-muted"
                     t-out="str(o.name) + ', '">(document name)</span>
-                <span t-if="report_type == 'pdf'" class="text-muted" name="page_counter">Page <span
+                <span t-if="report_type == 'pdf'" class="text-muted text-nowrap"
+                    name="page_counter">Page <span
                         class="page" /> / <span class="topage" /></span>
             </div>
         </div>
@@ -631,7 +639,7 @@
                         <td class="p-0 text-end">
                             <img t-if="company.logo" class="o_company_logo mb-2" name="company_logo"
                                 t-att-src="image_data_uri(company.logo)" alt="Logo" />
-                            <div name="company_address">
+                            <div name="company_address" class="w-50 ms-auto">
                                 <t t-call="web.company_address_block" />
                             </div>
                         </td>
@@ -683,7 +691,8 @@
                 <div class="border-top pt-2" t-field="company.report_footer" name="footer_text" />
                 <span t-if="report_type == 'pdf' and display_name_in_footer" class="text-muted"
                     t-out="str(o.name) + ', '">(document name)</span>
-                <span t-if="report_type == 'pdf'" class="text-muted" name="page_counter">Page <span
+                <span t-if="report_type == 'pdf'" class="text-muted text-nowrap"
+                    name="page_counter">Page <span
                         class="page" /> / <span class="topage" /></span>
             </div>
         </div>
@@ -805,7 +814,7 @@
         --co-secondary: <t t-out="secondary" />; --co-font: <t t-out="company.font or 'Lato'" />; /*
         Report design tokens (skin). Colors track the company brand; typography/density/shape come
         from the report.theme. */ <t
-                t-out="company.report_theme_id._report_css_vars(primary, secondary, company.font or 'Lato')" />
+                t-out="company.report_theme_id._get_css_vars(primary, secondary, company.font or 'Lato')" />
             <t
                 t-if="layout == 'web.external_layout_boxed'"> /* Boxed: total row uses primary as
         background; text must contrast. */ &amp;.o_report_layout_boxed #total .o_total td strong {

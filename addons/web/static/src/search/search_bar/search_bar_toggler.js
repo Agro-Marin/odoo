@@ -1,13 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_bar/search_bar_toggler */
-
 import { Component, useEffect, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { useService } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
-export class SearchBarToggler extends Component {
+class SearchBarToggler extends Component {
     static template = "web.SearchBar.Toggler";
     static props = {
         isSmall: Boolean,

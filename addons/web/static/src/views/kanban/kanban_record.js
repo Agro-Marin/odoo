@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/kanban_record */
-
 import { Component, onWillStart, onWillUpdateProps, useRef } from "@odoo/owl";
 import { ColorList } from "@web/components/colorlist/colorlist";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -21,8 +19,8 @@ import { fileTypeMagicWordMap } from "@web/fields/media/image/image_field";
 import { useLongTouchSelection } from "@web/views/multi_record_selection";
 import { SELF_HANDLED_SELECTOR } from "@web/views/self_handled";
 import { ViewButton } from "@web/views/view_button/view_button";
-import { useViewCompiler } from "@web/views/view_compiler";
-import { getFormattedValue } from "@web/views/view_utils";
+import { compileViewTemplates } from "@web/views/view_compiler";
+import { buildOpenActionParams, getFormattedValue } from "@web/views/view_utils";
 import { Widget } from "@web/views/widgets/widget";
 
 import { KANBAN_CARD_ATTRIBUTE, KANBAN_MENU_ATTRIBUTE } from "./kanban_arch_parser.js";
@@ -228,11 +226,6 @@ export class KanbanRecord extends Component {
     static template = "web.KanbanRecord";
 
     setup() {
-        // The kanban analogue of `list.ListRecordRow`: the per-record component
-        // that exists in bulk, so it is the one whose render count is worth a
-        // budget. Without it a card-render assertion has to patch the
-        // prototype, which is exactly the ad-hoc instrumentation this facility
-        // replaces.
         useRenderCounter("kanban.KanbanRecord");
         this.LONG_TOUCH_THRESHOLD = this.props.canResequence ? 600 : 400;
         this.evaluateBooleanExpr = evaluateBooleanExpr;
@@ -244,7 +237,7 @@ export class KanbanRecord extends Component {
         const ViewCompiler = Compiler || KanbanCompiler;
         const { templateDocs: templates } = archInfo;
 
-        this.templates = useViewCompiler(ViewCompiler, templates);
+        this.templates = compileViewTemplates(ViewCompiler, templates);
 
         this.showMenu =
             /** @type {any} */ (this.constructor).KANBAN_MENU_ATTRIBUTE in templates;
@@ -347,20 +340,8 @@ export class KanbanRecord extends Component {
         const { archInfo, forceGlobalClick, openRecord, record } = this.props;
         if (!forceGlobalClick && archInfo.openAction) {
             this.action.doActionButton(
-                {
-                    name: archInfo.openAction.action,
-                    type: archInfo.openAction.type,
-                    resModel: record.resModel,
-                    resId: record.resId,
-                    resIds: record.resIds,
-                    context: record.context,
-                    onClose: async () => {
-                        await record.model.root.load();
-                    },
-                },
-                {
-                    newWindow,
-                },
+                buildOpenActionParams(archInfo.openAction, record),
+                { newWindow },
             );
         } else if (forceGlobalClick || this.props.archInfo.canOpenRecords) {
             openRecord(record, { newWindow });

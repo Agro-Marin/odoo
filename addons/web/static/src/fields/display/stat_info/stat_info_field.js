@@ -1,17 +1,16 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/display/stat_info/stat_info_field */
-
-import { Component } from "@odoo/owl";
 import { getFieldCodec } from "@web/core/field_codec";
 import { _t } from "@web/core/translation";
 import { extractDigits } from "@web/core/utils/format/digits";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { registerField } from "@web/fields/_registry";
+import { FieldComponent } from "@web/fields/field_component";
+import { archAttribute, digitsAttribute } from "@web/fields/field_options";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-export class StatInfoField extends Component {
+export class StatInfoField extends FieldComponent {
     static template = "web.StatInfoField";
     static props = {
         ...standardFieldProps,
@@ -23,14 +22,11 @@ export class StatInfoField extends Component {
 
     /** @returns {string} */
     get formattedValue() {
-        const field = this.props.record.fields[this.props.name];
-        return getFieldCodec(field.type).format(
-            this.props.record.data[this.props.name],
-            {
-                digits: this.props.digits,
-                field,
-            },
-        );
+        const field = this.field.definition;
+        return getFieldCodec(field.type).format(this.field.value, {
+            digits: this.props.digits,
+            field,
+        });
     }
     /** @returns {string} */
     get label() {
@@ -41,7 +37,7 @@ export class StatInfoField extends Component {
 }
 
 /** @type {import("registries").FieldsRegistryItemShape} */
-export const statInfoField = {
+const statInfoField = {
     component: StatInfoField,
     displayName: _t("Stat Info"),
     supportedOptions: [
@@ -56,6 +52,13 @@ export const statInfoField = {
             name: "digits",
             type: "digits",
         },
+    ],
+    supportedAttributes: [
+        digitsAttribute(),
+        archAttribute("nolabel", _t("No label"), {
+            type: "boolean",
+            help: _t("Render the figure without the field label beneath it."),
+        }),
     ],
     supportedTypes: ["float", "integer", "monetary", "char", "one2many", "many2one"],
     isEmpty: () => false,

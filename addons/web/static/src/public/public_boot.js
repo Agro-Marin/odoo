@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/public/public_boot */
-
 import { App, Component, whenReady } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { getTemplate } from "@web/core/templates";
@@ -61,9 +59,9 @@ export function setupGlobalPageBehaviors() {
         if (ev.defaultPrevented) {
             return;
         }
-        const undos = [
-            ...form.querySelectorAll('button[type="submit"], a.a-submit'),
-        ].map((btn) => markSubmitting(/** @type {HTMLElement} */ (btn)));
+        const undos = [...form.querySelectorAll('button[type="submit"]')].map((btn) =>
+            markSubmitting(/** @type {HTMLElement} */ (btn)),
+        );
         const preventDefault = ev.preventDefault.bind(ev);
         ev.preventDefault = () => {
             for (const undo of undos) {
@@ -71,14 +69,6 @@ export function setupGlobalPageBehaviors() {
             }
             preventDefault();
         };
-    });
-    delegate("click", (ev) => {
-        const el = /** @type {HTMLElement} */ (ev.target).closest(
-            ".js_disable_on_click",
-        );
-        if (el) {
-            el.classList.add("disabled");
-        }
     });
 
     for (const el of document.body.querySelectorAll(
@@ -116,7 +106,6 @@ export async function startPublicApp() {
     const env = makeEnv();
     await startServices(env);
 
-    // @ts-expect-error -- OWL Component.env is assigned at startup (legacy pattern)
     Component.env = env;
     const app = new App(/** @type {any} */ (MainComponentsContainer), {
         getTemplate,
@@ -130,8 +119,6 @@ export async function startPublicApp() {
         const root = await app.mount(document.body);
         // @ts-expect-error -- debug property assigned to odoo global at runtime
         odoo.__WOWL_DEBUG__ = { root };
-        // Hand generic-error beaconing over to the error service: the module
-        // loader's pre-boot safety net stands down once `odoo.isReady`.
         /** @type {any} */ (odoo).isReady = true;
     } finally {
         const settled = (/** @type {Promise<any>} */ prom) => prom.then(noop, noop);

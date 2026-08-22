@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module search/search_favorites */
-
 /** @import { OrderTerm } from "@web/core/utils/order_by" */
 
 import { makeContext } from "@web/core/context";
@@ -13,67 +11,69 @@ import { user } from "@web/core/user";
 import { FAVORITE_PRIVATE_GROUP, FAVORITE_SHARED_GROUP } from "./search_state.js";
 
 /**
- * @param {Object} irFilter
- * @param {Object} [fields=null]
- * @returns {Object}
+ * @param {string} rawContext
+ * @returns {{ context: Record<string, any>, isInvalid: boolean }}
  */
-export function irFilterToFavorite(irFilter, fields = null) {
-    const userIds = irFilter.user_ids;
-    const groupNumber =
-        userIds.length === 1 ? FAVORITE_PRIVATE_GROUP : FAVORITE_SHARED_GROUP;
-    let context;
+function parseFavoriteContext(rawContext) {
+    try {
+        return { context: evaluateExpr(rawContext, user.context), isInvalid: false };
+    } catch {
+        return { context: {}, isInvalid: true };
+    }
+}
+
+/**
+ * @param {Record<string, any>} context
+ * @param {Record<string, any>|null} fields
+ * @param {string} favoriteName
+ * @returns {string[]}
+ */
+function takeGroupBys(context, fields, favoriteName) {
+    if (!context.group_by) {
+        return [];
+    }
+    const groupBys = Array.isArray(context.group_by)
+        ? context.group_by
+        : [context.group_by];
+    delete context.group_by;
+    if (!fields || !Object.keys(fields).length) {
+        return groupBys;
+    }
+    return groupBys.filter((groupBy) => {
+        const fieldName = String(groupBy).split(":")[0];
+        const baseName = fieldName.split(".")[0];
+        const field = fields[baseName];
+        const isValid =
+            !!field && (baseName === fieldName || field.type === "properties");
+        if (!isValid) {
+            console.warn(
+                `Favorite "${favoriteName}": dropping group_by "${groupBy}" — unknown field "${baseName}"`,
+            );
+        }
+        return isValid;
+    });
+}
+
+/**
+ * @param {string} rawSort
+ * @returns {{ orderBy: {asc: boolean, name: string}[], isInvalid: boolean }}
+ */
+function parseIrFilterSort(rawSort) {
+    let sort;
     let isInvalid = false;
     try {
-        context = evaluateExpr(irFilter.context, user.context);
+        sort = JSON.parse(rawSort);
     } catch {
-        context = {};
-        isInvalid = true;
-    }
-    let groupBys = [];
-    if (context.group_by) {
-        groupBys = Array.isArray(context.group_by)
-            ? context.group_by
-            : [context.group_by];
-        delete context.group_by;
-        if (fields && Object.keys(fields).length) {
-            groupBys = groupBys.filter((groupBy) => {
-                const fieldName = String(groupBy).split(":")[0];
-                const baseName = fieldName.split(".")[0];
-                const field = fields[baseName];
-                const isValid =
-                    !!field && (baseName === fieldName || field.type === "properties");
-                if (!isValid) {
-                    console.warn(
-                        `Favorite "${irFilter.name}": dropping group_by "${groupBy}" — unknown field "${baseName}"`,
-                    );
-                }
-                return isValid;
-            });
-        }
-    }
-    let sort;
-    try {
-        sort = JSON.parse(irFilter.sort);
-    } catch {
-        isInvalid = true;
-        sort = [];
+        return { orderBy: [], isInvalid: true };
     }
     if (!Array.isArray(sort) || sort.some((s) => typeof s !== "string")) {
-        isInvalid = true;
-        sort = [];
-    }
-    if (irFilter.domain) {
-        try {
-            new Domain(irFilter.domain);
-        } catch {
-            isInvalid = true;
-        }
+        return { orderBy: [], isInvalid: true };
     }
     const orderBy = sort.flatMap((order) => {
-        let fieldName;
-        let asc;
         const trimmed = order.trim();
         const sqlNotation = trimmed.split(/\s+/);
+        let fieldName;
+        let asc;
         if (sqlNotation.length > 1) {
             fieldName = sqlNotation[0];
             asc = sqlNotation[1].toLowerCase() !== "desc";
@@ -87,6 +87,41 @@ export function irFilterToFavorite(irFilter, fields = null) {
         }
         return [{ asc, name: fieldName }];
     });
+    return { orderBy, isInvalid };
+}
+
+/**
+ * @param {string} domain
+ * @returns {boolean}
+ */
+function domainIsInvalid(domain) {
+    if (!domain) {
+        return false;
+    }
+    try {
+        new Domain(domain);
+        return false;
+    } catch {
+        return true;
+    }
+}
+
+/**
+ * @param {Record<string, any>} irFilter
+ * @param {Record<string, any>} [fields=null]
+ * @returns {Record<string, any>}
+ */
+export function irFilterToFavorite(irFilter, fields = null) {
+    const userIds = [...(irFilter.user_ids || [])];
+    const groupNumber =
+        userIds.length === 1 ? FAVORITE_PRIVATE_GROUP : FAVORITE_SHARED_GROUP;
+
+    const { context, isInvalid: badContext } = parseFavoriteContext(irFilter.context);
+    const groupBys = takeGroupBys(context, fields, irFilter.name);
+    const { orderBy, isInvalid: badSort } = parseIrFilterSort(irFilter.sort);
+    const isInvalid = badContext || badSort || domainIsInvalid(irFilter.domain);
+
+    /** @type {Record<string, any>} */
     const favorite = {
         context,
         description: irFilter.name,
@@ -107,9 +142,9 @@ export function irFilterToFavorite(irFilter, fields = null) {
 }
 
 /**
- * @param {Object} searchItems
- * @param {Object[]} query
- * @param {Object[]} irFilters
+ * @param {Record<string, any>} searchItems
+ * @param {Record<string, any>[]} query
+ * @param {Record<string, any>[]} irFilters
  * @param {Function} irFilterToFavoriteFn
  * @param {Function} createGroupOfFavoritesFn
  */
@@ -153,18 +188,18 @@ export function reconciliateFavorites(
 }
 
 /**
- * @param {Object} params
+ * @param {object} params
  * @param {string} params.description
  * @param {boolean} params.isDefault
  * @param {boolean} params.isShared
  * @param {number|false} [params.embeddedActionId]
- * @param {Object} params.localContext
+ * @param {Record<string, any>} params.localContext
  * @param {OrderTerm[]} [params.localOrderBy]
  * @param {Function} params.getContext
  * @param {Function} params.getDomain
  * @param {Function} params.getGroupBy
  * @param {Function} params.getOrderBy
- * @param {Object} params.globalContext
+ * @param {Record<string, any>} params.globalContext
  * @param {number} params.actionId
  * @param {string} params.resModel
  * @returns {{ preFavorite: Object, irFilter: Object }}
@@ -217,7 +252,10 @@ export function buildIrFilterDescription({
         embedded_parent_res_id: globalContext.active_id || false,
         is_default: isDefault,
         sort: JSON.stringify(
-            orderBy.map((o) => `${o.name}${o.asc === false ? " desc" : ""}`),
+            orderBy.map(
+                (/** @type {OrderTerm} */ o) =>
+                    `${o.name}${o.asc === false ? " desc" : ""}`,
+            ),
         ),
         user_ids: userIds,
         context: { ...context, group_by: groupBys },

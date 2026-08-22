@@ -1,22 +1,24 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/media/signature/signature_field */
-
-import { Component, onWillRender, useState } from "@odoo/owl";
+import { onWillRender, useState } from "@odoo/owl";
 import { SignatureDialog } from "@web/components/signature/signature_dialog";
+import { getSignatureDefaultName } from "@web/components/signature/signature_name";
 import { _t } from "@web/core/translation";
 import { isBinarySize } from "@web/core/utils/format/binary";
 import { useService } from "@web/core/utils/hooks";
 import { imageUrl } from "@web/core/utils/urls";
 import { registerField } from "@web/fields/_registry";
+import { FieldComponent } from "@web/fields/field_component";
+import { fieldHandleFor } from "@web/fields/field_handle";
+import { imageDimensionAttributes, imageSizeOption } from "@web/fields/field_options";
 import { parseDimensionAttr } from "@web/fields/field_utils";
 import { fileTypeMagicWordMap } from "@web/fields/media/image/image_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 const placeholder = "/web/static/img/placeholder.png";
 
-export class SignatureField extends Component {
+export class SignatureField extends FieldComponent {
     static template = "web.SignatureField";
     static props = {
         ...standardFieldProps,
@@ -55,7 +57,7 @@ export class SignatureField extends Component {
         let value = this.value;
         onWillRender(() => {
             const { record } = this.props;
-            const nextValue = record.data[this.props.name];
+            const nextValue = fieldHandleFor(record, this.props.name).value;
             if (record.resId !== resId || value !== nextValue) {
                 this.state.isValid = true;
             }
@@ -79,7 +81,7 @@ export class SignatureField extends Component {
                 });
             } else {
                 const magic = fileTypeMagicWordMap[this.value[0]] || "png";
-                return `data:image/${magic};base64,${this.props.record.data[this.props.name]}`;
+                return `data:image/${magic};base64,${this.field.value}`;
             }
         }
         return placeholder;
@@ -112,7 +114,7 @@ export class SignatureField extends Component {
 
     /** @returns {string|false} */
     get value() {
-        return this.props.record.data[this.props.name];
+        return this.field.value;
     }
 
     onClickSignature() {
@@ -122,18 +124,10 @@ export class SignatureField extends Component {
                 signatureType: this.props.type,
                 noInputName: true,
             };
-            const { fullName, record } = this.props;
-            let defaultName = "";
-            if (fullName) {
-                let signName;
-                const fullNameData = record.data[fullName];
-                if (record.fields[fullName].type === "many2one") {
-                    signName = fullNameData?.display_name;
-                } else {
-                    signName = fullNameData;
-                }
-                defaultName = signName === "" ? undefined : signName;
-            }
+            const defaultName = getSignatureDefaultName(
+                this.props.record,
+                this.props.fullName,
+            );
 
             nameAndSignatureProps.defaultFont = this.props.defaultFont;
 
@@ -155,9 +149,7 @@ export class SignatureField extends Component {
 
     /** @private */
     uploadSignature({ signatureImage }) {
-        return this.props.record.update({
-            [this.props.name]: signatureImage.split(",")[1] || false,
-        });
+        return this.field.update(signatureImage.split(",")[1] || false);
     }
 }
 
@@ -170,6 +162,7 @@ export const signatureField = {
             ? [{ name: options.full_name, optional: true, readonly: true }]
             : []),
     ],
+    supportedAttributes: [...imageDimensionAttributes()],
     supportedTypes: ["binary"],
     supportedOptions: [
         {
@@ -184,16 +177,7 @@ export const signatureField = {
             name: "default_font",
             type: "string",
         },
-        {
-            label: _t("Size"),
-            name: "size",
-            type: "selection",
-            choices: [
-                { label: _t("Small"), value: "[0,90]" },
-                { label: _t("Medium"), value: "[0,180]" },
-                { label: _t("Large"), value: "[0,270]" },
-            ],
-        },
+        imageSizeOption(),
         {
             label: _t("Preview image field"),
             name: "preview_image",

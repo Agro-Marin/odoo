@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/errors/uncaught_errors */
-
 import { getErrorTechnicalName } from "./error_utils.js";
 
 export class UncaughtError extends Error {

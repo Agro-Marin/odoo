@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/client_actions */
-
 import { markup } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { router } from "@web/core/browser/router";
@@ -17,7 +15,7 @@ import { isSafeUrlScheme } from "@web/core/utils/urls";
  * @param {Action} action
  * @returns {Object | undefined}
  */
-export function displayNotificationAction(env, action) {
+function displayNotificationAction(env, action) {
     const params = action.params || {};
     const options = {
         className: params.className || "",
@@ -72,7 +70,7 @@ function reload(env, action) {
 
 registry.category("actions").add("reload", reload);
 
-const HOME_POLL_INITIAL_DELAY = 1000;
+const HOME_POLL_RETRY_DELAY = 1000;
 const HOME_POLL_MAX_DELAY = 8000;
 const HOME_POLL_DEADLINE = 2 * 60 * 1000;
 
@@ -81,9 +79,8 @@ const HOME_POLL_DEADLINE = 2 * 60 * 1000;
  */
 async function waitForServer() {
     const deadline = Date.now() + HOME_POLL_DEADLINE;
-    let delay = HOME_POLL_INITIAL_DELAY;
+    let delay = HOME_POLL_RETRY_DELAY;
     for (;;) {
-        await new Promise((resolve) => browser.setTimeout(resolve, delay));
         try {
             await rpc("/web/webclient/version_info", {});
             return true;
@@ -91,8 +88,9 @@ async function waitForServer() {
             if (Date.now() >= deadline) {
                 return false;
             }
-            delay = Math.min(delay * 2, HOME_POLL_MAX_DELAY);
         }
+        await new Promise((resolve) => browser.setTimeout(resolve, delay));
+        delay = Math.min(delay * 2, HOME_POLL_MAX_DELAY);
     }
 }
 
@@ -112,9 +110,8 @@ registry.category("actions").add("reload_context", reload);
 
 /**
  * @param {import("@web/env").OdooEnv} env
- * @param {Action} action
  */
-async function softReload(env, action) {
+async function softReload(env) {
     const controller = env.services.action.currentController;
     if (controller) {
         await env.services.action.restore(controller.jsId);

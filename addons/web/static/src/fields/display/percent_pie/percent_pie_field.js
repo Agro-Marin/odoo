@@ -1,29 +1,23 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component } from "@odoo/owl";
-import { formatFloat } from "@web/core/formatters";
+import { formatFieldFloat } from "@web/core/formatters";
 import { _t } from "@web/core/translation";
 import { clamp } from "@web/core/utils/format/numbers";
 import { registerField } from "@web/fields/_registry";
-import { fieldHandle } from "@web/fields/field_handle";
+import { FieldComponent } from "@web/fields/field_component";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-export class PercentPieField extends Component {
+export class PercentPieField extends FieldComponent {
     static template = "web.PercentPieField";
     static props = {
         ...standardFieldProps,
         string: { type: String, optional: true },
     };
 
-    /** @returns {import("@web/fields/field_handle").FieldHandle} */
-    get field() {
-        return fieldHandle(this);
-    }
-
     /** @returns {string} */
     get formattedValue() {
-        return formatFloat(this.field.value, {
+        return formatFieldFloat(this.field.value, {
             trailingZeros: false,
         });
     }

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/field_tooltip */
-
 /**
  * @param {{ field: { name: string, string: string, help?: string, type: string, domain?: string, relation?: string, selection?: any[], change_default?: boolean, model_field?: string, default?: any }, fieldInfo: { widget?: string, field?: { displayName?: string }, help?: string, context?: string, domain?: string, invisible?: string, column_invisible?: string, readonly?: string, required?: string }, viewMode?: string, resModel?: string, help?: string }} params
  * @returns {string}

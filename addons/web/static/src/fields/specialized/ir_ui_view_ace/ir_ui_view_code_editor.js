@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/ir_ui_view_ace/ir_ui_view_code_editor */
-
 import { onMounted, useEffect } from "@odoo/owl";
 import { CodeEditor } from "@web/components/code_editor/code_editor";
 import { escapeRegExp } from "@web/core/utils/format/strings";

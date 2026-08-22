@@ -1,10 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/dynamic_record_list */
-
 import { DynamicList } from "./dynamic_list.js";
 
+/** @import { ListInsertion } from "./editable_list_datapoint.js" */
 /** @import { RelationalRecord } from "./record.js" */
 
 export class DynamicRecordList extends DynamicList {
@@ -22,7 +21,7 @@ export class DynamicRecordList extends DynamicList {
     _setData(data) {
         /** @type {RelationalRecord[]} */
         this._records = data.records.map((r) => this._createRecordDatapoint(r));
-        this._updateCount(data);
+        this._adoptCount(data);
         this._selectDomain(this.isDomainSelected);
     }
 
@@ -36,26 +35,26 @@ export class DynamicRecordList extends DynamicList {
 
     /**
      * @param {number} resId
-     * @param {boolean} [atFirstPosition]
+     * @param {ListInsertion} [options]
      * @returns {Promise<RelationalRecord>}
      */
-    addExistingRecord(resId, atFirstPosition) {
+    addExistingRecord(resId, { position } = {}) {
         return this.model.mutex.exec(async () => {
             const record = this._createRecordDatapoint({});
             await record._load({ resId });
-            this._addRecord(record, atFirstPosition ? 0 : this.records.length);
+            this._addRecord(record, position === "top" ? 0 : this.records.length);
             return record;
         });
     }
 
     /**
-     * @param {boolean} [atFirstPosition=false]
+     * @param {ListInsertion} [options]
      * @returns {Promise<RelationalRecord>}
      */
-    addNewRecord(atFirstPosition = false) {
+    addNewRecord({ position } = {}) {
         return this.model.mutex.exec(async () => {
             await this._leaveSampleMode();
-            return this._addNewRecord(atFirstPosition);
+            return this._addNewRecord(position === "top");
         });
     }
 
@@ -68,13 +67,9 @@ export class DynamicRecordList extends DynamicList {
     }
 
     async fetchCount() {
-        this.count = await this.model._updateCount(this.config);
+        this.count = await this.model._fetchExactCount(this.config);
         this.hasLimitedCount = false;
         return this.count;
-    }
-
-    moveRecord(dataRecordId, _dataGroupId, refId, _targetGroupId) {
-        return this.resequence(dataRecordId, refId);
     }
 
     async resequence(movedRecordId, targetRecordId) {
@@ -168,7 +163,10 @@ export class DynamicRecordList extends DynamicList {
         super._selectDomain(value);
     }
 
-    _updateCount(data) {
+    /**
+     * @param {{ length: number }} data
+     */
+    _adoptCount(data) {
         const length = data.length;
         if (length >= this.config.countLimit + 1) {
             this.hasLimitedCount = true;

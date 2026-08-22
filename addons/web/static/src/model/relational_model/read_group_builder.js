@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/read_group_builder */
-
 import { orderByToString } from "@web/core/utils/order_by";
 
 import { getSpecEvalContext } from "./field_context.js";
@@ -43,8 +41,6 @@ function buildOpeningInfo(groups) {
  */
 
 /**
- * `config.groups` is established by `loadGroupedList` before this runs.
- *
  * @param {RelationalModelConfig} config
  * @param {WebReadGroupBuilderDeps} deps
  * @returns {{ aggregates: string[]; params: Record<string, any> }}
@@ -81,7 +77,7 @@ export function buildWebReadGroupParams(config, deps) {
         unfold_read_specification: unfoldReadSpecification,
         unfold_read_default_limit: initialLimit,
         groupby_read_specification: groupByReadSpecification,
-        context: { read_group_expand: true, ...config.context },
+        context: { bin_size: true, read_group_expand: true, ...config.context },
     };
     return { aggregates, params };
 }

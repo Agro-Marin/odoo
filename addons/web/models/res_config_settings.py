@@ -86,7 +86,6 @@ class ResConfigSettings(models.TransientModel):
     )
 
     def open_company(self) -> dict[str, Any]:
-        """Open the current company form."""
         return {
             "type": "ir.actions.act_window",
             "name": "My Company",
@@ -97,7 +96,6 @@ class ResConfigSettings(models.TransientModel):
         }
 
     def open_new_user_default_groups(self) -> dict[str, Any]:
-        """Open (or create) the default access group for new users."""
         default_group = self.env.ref(
             "base.default_user_group", raise_if_not_found=False
         )
@@ -132,7 +130,6 @@ class ResConfigSettings(models.TransientModel):
 
     @api.model
     def _prepare_report_view_action(self, template: str) -> dict[str, Any]:
-        """Return an act_window action to edit the given QWeb report template."""
         template_id = self.env.ref(template)
         return {
             "type": "ir.actions.act_window",
@@ -142,7 +139,6 @@ class ResConfigSettings(models.TransientModel):
         }
 
     def edit_external_header(self) -> dict[str, Any] | bool:
-        """Open the external report layout template for editing."""
         if not self.external_report_layout_id:
             return False
         return self._prepare_report_view_action(self.external_report_layout_id.key)

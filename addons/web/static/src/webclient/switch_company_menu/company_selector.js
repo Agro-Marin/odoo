@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/switch_company_menu/company_selector */
-
 import { router } from "@web/core/browser/router";
 import { user } from "@web/core/user";
 import { symmetricalDifference } from "@web/core/utils/collections/arrays";
@@ -109,8 +107,6 @@ export class CompanySelector {
                 );
                 dropRecord = !hasReadRights;
             } catch (error) {
-                // Keeping the record is the safe default: a server that cannot
-                // answer is not evidence the user lost access to it.
                 console.warn(
                     "Could not check read access for the new company selection",
                     error,
@@ -190,17 +186,11 @@ export class CompanySelector {
     }
 
     /**
-     * `getCompany` is total over the ids reachable here: `ir_http._get_companies`
-     * filters every `child_ids` down to the hierarchy it ships, so a branch id
-     * is always itself part of `allowedCompaniesWithAncestors`. A miss means the
-     * server broke that contract, and throwing beats silently selecting the
-     * wrong set of companies.
-     *
      * @param {number} companyId
      * @returns {number[]}
      */
     _getBranches(companyId) {
-        return getCompany(companyId).child_ids || [];
+        return getCompany(companyId)?.child_ids ?? [];
     }
 
     _isSingleCompanyMode() {

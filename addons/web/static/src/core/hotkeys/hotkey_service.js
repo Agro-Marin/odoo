@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/hotkeys/hotkey_service */
-
 import { browser } from "@web/core/browser/browser";
 import {
     adoptAccessKeys,
@@ -24,33 +22,17 @@ export { getActiveHotkey };
  * @property {() => HTMLElement} [area]
  * @property {(target: HTMLElement) => boolean} [isAvailable]
  * @property {() => HTMLElement} [withOverlay]
+ * @property {() => Document | HTMLElement | null} [scope] the active element
+ * this hotkey belongs to. Supplied by `useHotkey` from the component's place in
+ * the DOM; pass it yourself only when that place is not where the hotkey
+ * belongs -- a component rendering the very dialog it registers hotkeys for.
  * @typedef {HotkeyOptions & {
- *  hotkey: string,
- *  callback: HotkeyCallback,
- *  activeElement: HTMLElement | null,
+ * hotkey: string,
+ * callback: HotkeyCallback,
+ * getScope: () => Document | HTMLElement,
  * }} HotkeyRegistration
  */
 
-/**
- * The `hotkey` service.
- *
- * A class rather than a closure returning an object literal, which is what the
- * other services in this tree still are. The difference is the extension seam:
- * against a closure the only way in is `patch(hotkeyService, { start() {…} })`,
- * which re-runs the whole 400-line factory and leaves the patcher owning every
- * line of it, upstream fixes included. Against a prototype, changing one
- * behaviour is `patch(HotkeyService.prototype, { dispatch() {…} })`, and two
- * addons doing it compose through `super`. `tooling/architecture/js_service_shape.py`
- * measures which services have that seam.
- *
- * **Nothing here is bound in the constructor, deliberately.** Binding a method
- * to the instance creates an own property that shadows the prototype, so a later
- * `patch(HotkeyService.prototype, …)` would be silently ignored for exactly the
- * methods that were bound — the seam this class exists to provide, defeated by
- * its own setup. `addListeners` instead registers arrow wrappers that call
- * `this.<method>()` at dispatch time, so the lookup goes through the prototype
- * on every event while `removeEventListener` still has a stable reference.
- */
 export class HotkeyService {
     /**
      * @param {{ ui: any }} services
@@ -69,23 +51,19 @@ export class HotkeyService {
     }
 
     /**
-     * Read from the service object, not copied into the instance: downstream
-     * changes it with `patch(hotkeyService, { overlayModifier })` and
-     * `ui/commands/default_providers.js` reads it off the registry entry, so it
-     * has to stay live rather than be snapshotted at construction.
-     *
+     * @returns {string}
+     */
+    get overlayModifier() {
+        return hotkeyService.overlayModifier;
+    }
+
+    /**
      * @param {string} hotkey
      * @returns {boolean}
      */
     includesOverlayModifier(hotkey) {
-        // Match modifiers as exact `+`-delimited tokens, not as substrings of
-        // the whole string: `hotkey.includes("alt")` would also match a future
-        // key token that merely contains "alt". Safe only by accident today
-        // (no AUTHORIZED_KEY contains a modifier name as a substring).
         const tokens = hotkey.split("+");
-        return hotkeyService.overlayModifier
-            .split("+")
-            .every((mod) => tokens.includes(mod));
+        return this.overlayModifier.split("+").every((mod) => tokens.includes(mod));
     }
 
     /**
@@ -129,7 +107,7 @@ export class HotkeyService {
             adoptAccessKeys(activeElement);
         }
 
-        if (!this.overlaysVisible && hotkey === hotkeyService.overlayModifier) {
+        if (!this.overlaysVisible && hotkey === this.overlayModifier) {
             this.addHotkeyOverlays(activeElement);
             event.preventDefault();
             return;
@@ -171,11 +149,11 @@ export class HotkeyService {
 
     /**
      * @param {{
-     *  activeElement: HTMLElement,
-     *  hotkey: string,
-     *  isRepeated: boolean,
-     *  target: EventTarget,
-     *  shouldProtectEditable: boolean,
+     * activeElement: HTMLElement,
+     * hotkey: string,
+     * isRepeated: boolean,
+     * target: EventTarget,
+     * shouldProtectEditable: boolean,
      * }} infos
      * @returns {boolean}
      */
@@ -200,7 +178,7 @@ export class HotkeyService {
                 ({ reg, area }) =>
                     (reg.allowRepeat || !isRepeated) &&
                     (reg.bypassEditableProtection || !shouldProtectEditable) &&
-                    (reg.global || reg.activeElement === activeElement) &&
+                    (reg.global || reg.getScope() === activeElement) &&
                     (!reg.isAvailable ||
                         reg.isAvailable(/** @type {HTMLElement} */ (target))) &&
                     (!reg.area ||
@@ -240,7 +218,7 @@ export class HotkeyService {
             return [];
         }
 
-        const overlayModParts = hotkeyService.overlayModifier.split("+");
+        const overlayModParts = this.overlayModifier.split("+");
         const cleanHotkey = hotkey
             .split("+")
             .filter((key) => !overlayModParts.includes(key))
@@ -251,7 +229,7 @@ export class HotkeyService {
         );
         return elems.map((el) => ({
             hotkey,
-            activeElement,
+            getScope: () => activeElement,
             bypassEditableProtection: true,
             callback: () => {
                 if (document.activeElement) {
@@ -269,16 +247,13 @@ export class HotkeyService {
     addHotkeyOverlays(activeElement) {
         const hotkeysFromHookToHighlight = [];
         for (const [, registration] of this.registrations) {
-            if (!registration.global && registration.activeElement !== activeElement) {
+            if (!registration.global && registration.getScope() !== activeElement) {
                 continue;
             }
             const overlayElement = registration.withOverlay?.();
             if (overlayElement) {
                 hotkeysFromHookToHighlight.push({
-                    hotkey: registration.hotkey.replace(
-                        `${hotkeyService.overlayModifier}+`,
-                        "",
-                    ),
+                    hotkey: registration.hotkey.replace(`${this.overlayModifier}+`, ""),
                     el: overlayElement,
                 });
             }
@@ -383,11 +358,18 @@ export class HotkeyService {
         }
 
         const token = this.nextToken++;
+        const capturedScope = this.ui.activeElement;
         /** @type {HotkeyRegistration} */
         const registration = {
             hotkey: [...modifiers, ...keys].join("+"),
             callback,
-            activeElement: null,
+            // Decided once, here. A deferred read of `ui.activeElement` binds the
+            // hotkey to whichever element is active when the deferral fires, so a
+            // dialog opening in the same task silently steals every hotkey
+            // registered beside it. `useHotkey` supplies a resolver derived from
+            // the component tree; a direct service call has no tree, so its scope
+            // is the element active at the moment it asks.
+            getScope: options?.scope ?? (() => capturedScope),
             allowRepeat: options?.allowRepeat,
             bypassEditableProtection: options?.bypassEditableProtection,
             global: options?.global,
@@ -395,10 +377,6 @@ export class HotkeyService {
             isAvailable: options?.isAvailable,
             withOverlay: options?.withOverlay,
         };
-
-        queueMicrotask(() => {
-            registration.activeElement = this.ui.activeElement;
-        });
 
         this.registrations.set(token, registration);
         let sameHotkeyRegistrations = this.registrationsByHotkey.get(

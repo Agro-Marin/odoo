@@ -3,11 +3,6 @@
 
 <t t-name="web.MobileSwitchCompanyMenu">
     <div class="o_burger_menu_companies p-3 pb-0">
-        <!-- A real disclosure button only when there is something to disclose:
-             below the threshold the list is always shown and toggleCollapsible
-             is a no-op, so a control there would announce an action it does not
-             perform. Above it the list starts COLLAPSED, which made a plain
-             clickable div the only way in — unreachable by keyboard. -->
         <button t-if="hasLotsOfCompanies" type="button"
             class="o_burger_menu_companies_toggle w-100 d-flex align-items-center border-0 bg-transparent p-0 text-start text-reset"
             t-att-aria-expanded="state.isOpen ? 'true' : 'false'"

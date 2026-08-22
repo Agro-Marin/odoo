@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dom/classname */
-
 /**
  * @param {HTMLElement} el
  * @param {...(string | object | undefined)} classes

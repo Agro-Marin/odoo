@@ -76,12 +76,6 @@ This module provides the core of the Odoo Web Client.
             "web/static/src/scss/mimetypes.scss",
             "web/static/src/scss/ui.scss",
             "web/static/src/fields/translation_dialog.scss",
-            # Bootstrap's JS is deliberately absent from the backend. Nothing in
-            # the web client reaches it: dropdowns, dialogs, popovers, tooltips,
-            # collapses, offcanvases and carousels are served by
-            # `web/static/src/ui` and `components/dropdown`, and arch written
-            # against the data-api is rewritten by `ViewCompiler`. It is still
-            # shipped to the frontend, where website content depends on it.
             "base/static/src/css/modules.css",
             "web/static/src/model/**/*",
             "web/static/src/search/**/*",
@@ -173,17 +167,14 @@ This module provides the core of the Odoo Web Client.
                 "remove",
                 "web/static/src/ui/commands/**/*",
             ),
-            "web/static/src/ui/commands/default_providers.js",
-            "web/static/src/ui/commands/command_palette.js",
+            (
+                "remove",
+                "web/static/src/ui/commands.js",
+            ),
             "web/static/src/components/**/*",
             "web/static/src/core/**/*",
-            # The debug menu moved from `services/debug/` to `webclient/debug/`,
-            # and `webclient/**` is not globbed here — so what used to arrive
-            # via `services/**` has to be named. Listed file by file rather than
-            # `webclient/debug/**`, because the set is the point: the frontend
-            # gets the BASIC menu and its providers, never `debug_menu.js`,
-            # which the old block removed by name for that reason.
             "web/static/src/webclient/debug/debug_menu_basic.js",
+            "web/static/src/webclient/debug/debug_affordances.js",
             "web/static/src/webclient/debug/debug_menu_items.js",
             "web/static/src/webclient/debug/debug_providers.js",
             "web/static/src/webclient/debug/debug_menu.scss",
@@ -195,25 +186,20 @@ This module provides the core of the Odoo Web Client.
                 "remove",
                 "web/static/src/components/emoji_picker/emoji_data.js",
             ),
-            # There is no dark frontend bundle, so a `*.dark.scss` reaching
-            # here is never the scheme answering: it compiles with the light
-            # palette and overrides the light file it was written against.
             (
                 "remove",
                 "web/static/src/**/*.dark.scss",
             ),
-            # frontend-only error handler: it swallows tracebacks for
-            # non-internal users, and it says so itself by warning when
-            # `session.is_frontend` and `isInternalUser` is missing. It lived in
-            # `webclient/**`, which only `assets_backend` pulls in, so it was
-            # dead code on the pages it exists for — every public-page failure
-            # reached `defaultHandler` and raised a dialog at the visitor.
             "web/static/src/webclient/errors/visitor_error_handler.js",
             "web/static/src/public/**/*.js",
             "web/static/src/public/**/*.xml",
             (
                 "remove",
                 "web/static/src/public/database_manager.js",
+            ),
+            (
+                "remove",
+                "web/static/src/public/database_manager_page.js",
             ),
         ],
         "web.assets_frontend_lazy": [
@@ -270,17 +256,6 @@ This module provides the core of the Odoo Web Client.
                 "include",
                 "web._assets_bootstrap_backend",
             ),
-            # Same slot it holds in `assets_backend`: after Bootstrap, whose
-            # `$color-contrast-light`/`$white`/`$black`/`$min-contrast-ratio`
-            # the schemes are built from. `bs_mixins_overrides.scss` arrives
-            # with `_assets_backend_helpers` above and `html_editor.common.scss`
-            # calls `o-cc-extras(..., o-light-scheme())` at the end of this
-            # bundle, so its functions are invoked here whether or not it is
-            # loaded -- and Sass emits an unknown function as literal CSS text
-            # rather than failing, so leaving it out did not raise "undefined
-            # function": it handed `button-variant()` the unevaluated call and
-            # broke every report with "is not a color". `scheme_rules.scss`
-            # deliberately stays out; its dark half is screen-only.
             "web/static/src/scss/tokens.scss",
             (
                 "remove",
@@ -310,9 +285,6 @@ This module provides the core of the Odoo Web Client.
             "web/static/src/webclient/actions/reports/report.scss",
             "web/static/src/webclient/actions/reports/report_tables.scss",
             "web/static/src/webclient/actions/reports/layout_assets/layout_*.scss",
-            # No file behind it: `web.asset_styles_company_report` is an
-            # ir.attachment that res.company regenerates, carrying each
-            # company's `.o_company_N_layout` brand and report.theme tokens.
             "web/static/asset_styles_company_report.scss",
         ],
         "web.report_assets_pdf": [
@@ -339,15 +311,7 @@ This module provides the core of the Odoo Web Client.
                 "web.assets_backend",
             ),
         ],
-        # Dark-mode variable layer. Every dark bundle includes it, and it is
-        # walked once: the anchors below place each `*.dark.scss` immediately
-        # ahead of the light file it answers, so `!default` resolves in favour
-        # of dark. Themes contribute their own anchors to this same bundle and
-        # land ahead of web's, which is why a theme must answer in dark every
-        # variable it overrides in light.
         "web._dark_mode_variables": [
-            # Ahead of the primitives, therefore ahead of every palette: a
-            # theme reads the inverted ramp rather than answering it.
             (
                 "before",
                 "web/static/src/scss/primitives.scss",
@@ -405,24 +369,13 @@ This module provides the core of the Odoo Web Client.
                 "remove",
                 "web/static/src/components/emoji_picker/emoji_data.js",
             ),
-            # Every consumer of this fragment is a light bundle -- backend,
-            # frontend, the PoS apps, the public sign page -- and the dark
-            # bundles take the whole tree by glob anyway. Excluding here means
-            # a new component's dark skin cannot leak into a light bundle just
-            # because that bundle globs this directory.
             (
                 "remove",
                 "web/static/src/**/*.dark.scss",
             ),
         ],
         "web._assets_primary_variables": [
-            # Before the primitives, and in every bundle rather than only the
-            # dark ones: `tokens.scss` publishes both schemes, so the dark
-            # values have to be resolvable at light-compile time.
             "web/static/src/scss/palette_dark.scss",
-            # First, so every palette downstream — themes included, since they
-            # anchor before primary_variables.scss — reads one definition of
-            # the raw values instead of restating them to be able to use them.
             "web/static/src/scss/primitives.scss",
             "web/static/src/scss/primary_variables.scss",
             "web/static/src/**/*.variables.scss",
@@ -485,9 +438,6 @@ This module provides the core of the Odoo Web Client.
             "web/static/tests/tours/**/*",
         ],
         "web.assets_unit_tests_setup": [
-            # Their suites import them directly, and the backend bundle no
-            # longer carries them — `website`, which does, is not installed in
-            # a web-only test database.
             "web/static/src/libs/popper_compat.js",
             "web/static/src/libs/bootstrap.js",
             "web/static/lib/hoot/**/*",
@@ -520,6 +470,11 @@ This module provides the core of the Odoo Web Client.
             (
                 "remove",
                 "web/static/src/public/error_notifications.js",
+            ),
+            "web/static/src/boot/**/*.js",
+            (
+                "remove",
+                "web/static/src/boot/main.js",
             ),
             "web/static/src/webclient/clickbot/clickbot.js",
         ],

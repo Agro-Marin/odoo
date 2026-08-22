@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/network/rpc_cache */
-
 import { browser } from "@web/core/browser/browser";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { RpcEvent } from "@web/core/events";
@@ -14,6 +12,7 @@ import {
 import { deepCopy, deepEqual } from "@web/core/utils/collections/objects";
 import { Deferred } from "@web/core/utils/concurrency";
 import { IDBQuotaExceededError, IndexedDB } from "@web/core/utils/indexed_db";
+import { LruCache } from "@web/core/utils/lru_cache";
 
 /**
  * @typedef {{
@@ -23,6 +22,7 @@ import { IDBQuotaExceededError, IndexedDB } from "@web/core/utils/indexed_db";
  * immutable?: boolean;
  * model?: string;
  * silent?: boolean;
+ * onRequestIssued?: (request: object) => void;
  * }} RPCCacheSettings
  */
 
@@ -78,11 +78,6 @@ function validateSettings(
 }
 
 /**
- * ``Object.freeze`` happens after the recursion, so a value that reaches itself
- * is not yet frozen when it comes back round: the ``isFrozen`` check cannot end
- * the walk, and a cycle overflowed the stack. RPC payloads are JSON today, but
- * this also runs over whatever a caller hands ``read()`` in a test.
- *
  * @template T
  * @param {T} value
  * @param {WeakSet<object>} [seen]
@@ -113,7 +108,7 @@ class Crypto {
      * @param {string} secret
      */
     constructor(secret) {
-        const bytes = secret.match(/../g) ?? [];
+        const bytes = /** @type {string[]} */ (secret.match(/../g));
         /**
          * @type {Promise<CryptoKey>}
          */
@@ -167,8 +162,19 @@ class RamCache {
         this.ram = Object.create(null);
         this.modelIndex = Object.create(null);
         this.keyModel = Object.create(null);
-        /** @type {Map<string, [string, string]>} */
-        this.lru = new Map();
+        this.lru = new LruCache(RAM_CACHE_MAX_ENTRIES, {
+            onEvict: (/** @type {string} */ _compositeKey, /** @type {any} */ entry) =>
+                this._dropEntry(entry[0], entry[1]),
+        });
+    }
+
+    /**
+     * @param {string} table
+     * @param {string} key
+     * @returns {string}
+     */
+    _compositeKey(table, key) {
+        return `${table}\x00${key}`;
     }
 
     /**
@@ -176,9 +182,7 @@ class RamCache {
      * @param {string} key
      */
     _touchLru(table, key) {
-        const ck = `${table}\x00${key}`;
-        this.lru.delete(ck);
-        this.lru.set(ck, [table, key]);
+        this.lru.set(this._compositeKey(table, key), [table, key]);
     }
 
     /**
@@ -186,13 +190,23 @@ class RamCache {
      * @param {string} key
      */
     _forgetLru(table, key) {
-        this.lru.delete(`${table}\x00${key}`);
+        this.lru.delete(this._compositeKey(table, key));
     }
 
-    _evictIfNeeded() {
-        while (this.lru.size > RAM_CACHE_MAX_ENTRIES) {
-            const [table, key] = this.lru.values().next().value;
-            this.delete(table, key);
+    /**
+     * @param {string} table
+     * @param {string} key
+     */
+    _dropEntry(table, key) {
+        delete this.ram[table]?.[key];
+        const model = this.keyModel[table]?.[key];
+        if (model) {
+            const set = this.modelIndex[table]?.get(model);
+            set?.delete(key);
+            if (set && !set.size) {
+                this.modelIndex[table].delete(model);
+            }
+            delete this.keyModel[table][key];
         }
     }
 
@@ -229,7 +243,6 @@ class RamCache {
             delete this.keyModel[table][key];
         }
         this._touchLru(table, key);
-        this._evictIfNeeded();
     }
 
     /**
@@ -249,17 +262,8 @@ class RamCache {
      * @param {string} key
      */
     delete(table, key) {
-        delete this.ram[table]?.[key];
+        this._dropEntry(table, key);
         this._forgetLru(table, key);
-        const model = this.keyModel[table]?.[key];
-        if (model) {
-            const set = this.modelIndex[table]?.get(model);
-            set?.delete(key);
-            if (set && !set.size) {
-                this.modelIndex[table].delete(model);
-            }
-            delete this.keyModel[table][key];
-        }
     }
 
     /**
@@ -282,7 +286,7 @@ class RamCache {
             this.ram = Object.create(null);
             this.modelIndex = Object.create(null);
             this.keyModel = Object.create(null);
-            this.lru = new Map();
+            this.lru.clear();
         }
     }
 
@@ -315,6 +319,12 @@ export class RPCCache {
      * @param {string | null} [secret]
      */
     constructor(name, version, secret = null) {
+        if (secret !== null && !/^(?:[0-9a-fA-F]{2})+$/.test(secret)) {
+            throw new Error(
+                `RPCCache: the disk-cache secret must be an even-length ` +
+                    `hexadecimal string, or null to disable the disk cache`,
+            );
+        }
         this.diskEnabled = Boolean(secret && browser.crypto?.subtle);
         this.crypto = this.diskEnabled
             ? new Crypto(/** @type {string} */ (secret))
@@ -324,7 +334,7 @@ export class RPCCache {
             : null;
         this.ramCache = new RamCache();
         /**
-         * @type {Record<string, { callbacks: { callback: Function, shape: Function }[], invalidated: boolean, model?: string }>}
+         * @type {Record<string, { callbacks: { callback: Function, shape: Function }[], invalidated: boolean, model?: string, table?: string }>}
          */
         this.pendingRequests = Object.create(null);
         /** @type {Record<string, number>} */
@@ -398,15 +408,13 @@ export class RPCCache {
         key,
         fallback,
         {
-            // No default no-op: `shape` is a full `deepCopy` of the payload,
-            // and it was being run to feed a callback that discards it. Half of
-            // every cached read's cloning was thrown away.
             callback,
             type = "ram",
             update = "once",
             immutable = false,
             model = undefined,
             silent = false,
+            onRequestIssued = undefined,
         } = {},
     ) {
         validateSettings({ type, update });
@@ -436,8 +444,10 @@ export class RPCCache {
                 callbacks: callback ? [{ callback, shape }] : [],
                 invalidated: false,
                 model,
+                table,
             };
             this.pendingRequests[requestKey] = request;
+            onRequestIssued?.(request);
 
             const prom = new Promise((resolve, reject) => {
                 const fromCache = new Deferred();
@@ -446,9 +456,6 @@ export class RPCCache {
                 let hasCacheValue = false;
                 const onFulfilled = (/** @type {any} */ result) => {
                     resolve(result);
-                    // `payloadChanged` deep-compares the whole payload and its
-                    // only consumer is the subscriber loop below, so it is not
-                    // worth computing when nobody subscribed.
                     const hasChanged =
                         hasCacheValue &&
                         request.callbacks.length > 0 &&
@@ -516,21 +523,9 @@ export class RPCCache {
                     }
                     if (hasCacheValue) {
                         if (error instanceof ConnectionAbortedError) {
-                            // The caller dropped its own refresh -- `rpc`'s
-                            // `abort()` rejects the inner request with this.
-                            // That is not a failure to report: it is the one
-                            // outcome the caller asked for, and warning about it
-                            // put a console line under every aborted
-                            // `update: "always"` read.
                             return;
                         }
                         if (error instanceof ConnectionLostError) {
-                            // Genuine connectivity loss -> the app is offline.
-                            // InvalidResponseError is no longer a ConnectionLostError
-                            // (e.g. a session-expired refresh returned a login page),
-                            // so it falls to the plain warning below rather than
-                            // signalling offline; session expiry surfaces on the next
-                            // real user action.
                             rpcBus.trigger(RpcEvent.BACKGROUND_REFRESH_FAILED, {
                                 error,
                             });
@@ -545,12 +540,6 @@ export class RPCCache {
                     reject(error);
                 };
                 if (ramValue) {
-                    // `onRejected` waits on `fromCache` before doing anything,
-                    // so the gate has to open on both settlements -- the disk
-                    // branch below already opens it from a `finally`. Opening
-                    // it only on fulfilment meant a cached promise that
-                    // rejected left this read's own failure stuck behind a gate
-                    // nobody would open again.
                     ramValue.then(
                         (/** @type {any} */ value) => {
                             resolve(value);
@@ -608,8 +597,7 @@ export class RPCCache {
     /**
      * @param {string} table
      * @param {string} key
-     * @param {object} [request] the entry this caller owns, so a caller that
-     *  aborts after its own request was superseded drops nothing
+     * @param {object} [request]
      */
     abortPending(table, key, request) {
         const requestKey = `${table}/${key}`;
@@ -636,9 +624,9 @@ export class RPCCache {
             this.pendingRequests = Object.create(null);
             return;
         }
-        const tableList = typeof tables === "string" ? [tables] : tables;
+        const tableList = new Set(typeof tables === "string" ? [tables] : tables);
         for (const requestKey of Object.keys(this.pendingRequests)) {
-            if (tableList.some((table) => requestKey.startsWith(`${table}/`))) {
+            if (tableList.has(this.pendingRequests[requestKey].table)) {
                 this.pendingRequests[requestKey].invalidated = true;
                 delete this.pendingRequests[requestKey];
             }
@@ -653,17 +641,10 @@ export class RPCCache {
         this.bumpDiskGeneration(tables);
         this.ramCache.invalidateByModel(tables, model);
         this.indexedDB?.invalidateByModel(tables, model);
-        // Scoped by table, like ram and disk two lines up and like
-        // `invalidate()`. Matching on the model alone dropped a request whose
-        // table nobody asked about while leaving its ram entry in place, and an
-        // invalidated request skips the cleanup in `onRejected` -- which is how
-        // a rejected promise ended up cached under a live key.
+        const tableSet = new Set(tables);
         for (const requestKey of Object.keys(this.pendingRequests)) {
             const request = this.pendingRequests[requestKey];
-            if (
-                request.model === model &&
-                tables.some((table) => requestKey.startsWith(`${table}/`))
-            ) {
+            if (request.model === model && tableSet.has(request.table)) {
                 request.invalidated = true;
                 delete this.pendingRequests[requestKey];
             }
@@ -671,13 +652,6 @@ export class RPCCache {
     }
 
     /**
-     * Delete the persisted (on-disk) cache entirely. Unlike `invalidate`, which
-     * marks entries stale but keeps the IndexedDB database, this removes the
-     * database itself -- used on logout so one user's cached model/table
-     * metadata does not outlive their session on a shared browser (the disk
-     * store survives a normal navigation; the RAM cache does not). Resolves even
-     * when the delete is blocked or unavailable, so logout never hangs on it.
-     *
      * @returns {Promise<void>}
      */
     async purgeStorage() {

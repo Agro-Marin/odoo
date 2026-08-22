@@ -1,19 +1,3 @@
-"""Client-side JS error records — the persistence half of the error beacon.
-
-Each row is one beacon emitted by ``module_loader.js`` (bootstrap shim),
-``@web/core/errors/error_beacon`` (ESM callers), or ``@web/env`` (services that
-never started), and persisted via ``controllers/observability.py``.  Like
-``web.cwv.metric`` the data is high-volume, write-only-from-controller and
-read-only-from-UI; the controller writes via ``sudo()`` because beacons arrive
-from anonymous frontend visitors as well as logged-in users.
-
-Retention is a daily cron (``_gc_old_errors``) driven by the
-``web.js_error.retention_days`` config parameter (default 30).  This matters
-more here than for CWV: the endpoint is ``auth="public"``, so a hostile caller
-bounded only by the per-client rate limit (120/60s) could add ~172k rows a day.
-The rate limit caps the burst, the cron caps the accumulation.
-"""
-
 import logging
 
 from odoo import api, fields, models
@@ -87,9 +71,6 @@ class WebJsError(models.Model):
     filename = fields.Char(string="File", size=500, readonly=True)
     line = fields.Integer(string="Line", readonly=True)
     col = fields.Integer(string="Column", readonly=True)
-    # No index: the search view reaches url through a `<field>` (ilike, which a
-    # btree cannot serve) and group_by, so an index would only add a tuple write
-    # per INSERT on a high-volume write-only table.
     url = fields.Char(string="URL", size=500, readonly=True)
     user_agent = fields.Char(string="User Agent", size=500, readonly=True)
     reloaded = fields.Selection(
@@ -102,9 +83,6 @@ class WebJsError(models.Model):
         "claim a reload was withheld when none was ever attempted.",
     )
 
-    # No CHECK for `message`: Char(size=4096) already emits varchar(4096), so
-    # the DB rejects an over-long value before a constraint could fire. `cause`
-    # and `stack` are Text, which carries no length of its own — hence theirs.
     _check_cause_len = models.Constraint(
         "CHECK(cause IS NULL OR char_length(cause) <= 4096)",
         "A JS error cause chain cannot exceed 4096 characters.",
@@ -116,16 +94,6 @@ class WebJsError(models.Model):
 
     @api.model
     def _record_beacon(self, values):
-        """Insert one beacon.
-
-        Raw INSERT rather than ``create``: the controller is on the hot path of
-        a page that is already failing, and the ORM's create machinery buys
-        nothing here — every field is a plain scalar the controller has already
-        validated and clamped.  Unlike ``web.cwv.metric`` there is no upsert
-        key: two identical errors from two sessions are two facts.
-
-        :param dict values: pre-clamped payload from the ``js_error`` endpoint
-        """
         self.env.cr.execute(
             f"""
             INSERT INTO {self._table}
@@ -154,12 +122,6 @@ class WebJsError(models.Model):
 
     @api.model
     def _gc_old_errors(self):
-        """Daily cron — delete JS error records older than the retention window.
-
-        Reads ``web.js_error.retention_days`` (default ``30``).  A value of
-        ``0`` disables retention, for environments shipping these to an
-        external sink and using the model as a transit buffer only.
-        """
         days_str = (
             self.env["ir.config_parameter"]
             .sudo()

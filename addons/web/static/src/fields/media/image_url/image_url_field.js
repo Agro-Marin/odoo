@@ -1,18 +1,18 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/media/image_url/image_url_field */
-
-import { Component, useState } from "@odoo/owl";
+import { useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
-import { fieldHandle } from "@web/fields/field_handle";
+import { FieldComponent } from "@web/fields/field_component";
+import { fieldHandleFor } from "@web/fields/field_handle";
+import { imageDimensionAttributes, imageSizeOption } from "@web/fields/field_options";
 import { parseDimensionAttr } from "@web/fields/field_utils";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-export class ImageUrlField extends Component {
+export class ImageUrlField extends FieldComponent {
     static template = "web.ImageUrlField";
     static props = {
         ...standardFieldProps,
@@ -21,11 +21,6 @@ export class ImageUrlField extends Component {
     };
 
     static fallbackSrc = "/web/static/img/placeholder.png";
-
-    /** @returns {import("@web/fields/field_handle").FieldHandle} */
-    get field() {
-        return fieldHandle(this);
-    }
 
     /** @type {{ src: any }} */
     state;
@@ -38,7 +33,7 @@ export class ImageUrlField extends Component {
         });
 
         useRecordObserver((record) => {
-            const incoming = record.data[this.props.name];
+            const incoming = fieldHandleFor(record, this.props.name).value;
             if (incoming === this.failedSrc) {
                 return;
             }
@@ -61,21 +56,11 @@ export class ImageUrlField extends Component {
 }
 
 /** @type {import("registries").FieldsRegistryItemShape} */
-export const imageUrlField = {
+const imageUrlField = {
     component: ImageUrlField,
     displayName: _t("Image"),
-    supportedOptions: [
-        {
-            label: _t("Size"),
-            name: "size",
-            type: "selection",
-            choices: [
-                { label: _t("Small"), value: "[0,90]" },
-                { label: _t("Medium"), value: "[0,180]" },
-                { label: _t("Large"), value: "[0,270]" },
-            ],
-        },
-    ],
+    supportedOptions: [imageSizeOption()],
+    supportedAttributes: [...imageDimensionAttributes()],
     supportedTypes: ["char"],
     extractProps: ({ attrs, options }) => ({
         width: options.size ? options.size[0] : parseDimensionAttr(attrs.width),

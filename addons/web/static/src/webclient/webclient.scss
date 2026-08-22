@@ -21,9 +21,6 @@ tfoot {
     direction: ltr;
     position: relative;
     background-color: o-palette-token(--body-bg, $o-webclient-background-color);
-    // `color-scheme` comes from `tokens.scss`, on the root and per scheme.
-    // Here it was read at compile time, so a light bundle could only say
-    // `light` — which is the whole of what `light-dark()` needs to work.
 }
 
 .o_icon_button {
@@ -61,7 +58,6 @@ kbd {
     border: 0;
     font-size: 0.85em;
     user-select: none;
-    font-weight: 500;
     @include o-text-overflow;
     transition: none;
     color: var(--o-black);

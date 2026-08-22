@@ -1,13 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/pdfjs */
-
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { makeLazyFacade } from "@web/core/module_bridge";
 
 /**
- * @link
  * @param {Element} rootElement
  * @param {Object} [options]
  * @param {boolean} [options.hideDownload]

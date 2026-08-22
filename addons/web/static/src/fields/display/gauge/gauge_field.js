@@ -1,24 +1,23 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/display/gauge/gauge_field */
-
-import { Component, onWillStart, useEffect, useRef } from "@odoo/owl";
-import { formatFloat } from "@web/core/formatters";
-import { Chart, loadChartJS } from "@web/core/lib/chartjs";
+import { formatFieldFloat } from "@web/core/formatters";
+import { Chart } from "@web/core/lib/chartjs";
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
+import { useChartCanvas } from "@web/fields/chart_canvas_hook";
+import { FieldComponent } from "@web/fields/field_component";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 /**
  * @typedef {import("@web/fields/standard_field_props").StandardFieldProps & {
- *     maxValueField?: string;
- *     maxValue?: number;
- *     title?: string;
+ * maxValueField?: string;
+ * maxValue?: number;
+ * title?: string;
  * }} GaugeFieldProps
  */
-/** @extends {Component<GaugeFieldProps>} */
-export class GaugeField extends Component {
+/** @extends {FieldComponent<GaugeFieldProps>} */
+export class GaugeField extends FieldComponent {
     static template = "web.GaugeField";
     static props = {
         ...standardFieldProps,
@@ -34,41 +33,18 @@ export class GaugeField extends Component {
     canvasRef;
 
     setup() {
-        this.chart = null;
-        this.canvasRef = useRef("canvas");
-
-        onWillStart(async () => {
-            await loadChartJS();
-        });
-
-        useEffect(
-            () => {
-                this.renderChart();
-                return () => {
-                    if (this.chart) {
-                        this.chart.destroy();
-                    }
-                };
-            },
-            () => {
-                const value = /** @type {Record<string, any>} */ (
-                    this.props.record.data
-                )[this.props.name];
-                const maxValue = this.props.maxValueField
-                    ? /** @type {Record<string, any>} */ (this.props.record.data)[
-                          this.props.maxValueField
-                      ]
-                    : this.props.maxValue;
-                return [value, maxValue, this.title];
-            },
-        );
+        this.canvasRef = useChartCanvas(() => [
+            this.field.value,
+            this.props.maxValueField
+                ? this.props.record.data[this.props.maxValueField]
+                : this.props.maxValue,
+            this.title,
+        ]);
     }
 
     /** @returns {string} */
     get title() {
-        return (
-            this.props.title || this.props.record.fields[this.props.name].string || ""
-        );
+        return this.props.title || this.field.definition.string || "";
     }
 
     /**
@@ -76,7 +52,7 @@ export class GaugeField extends Component {
      * @returns {string}
      */
     formatValue(value) {
-        return formatFloat(value, { humanReadable: true, decimals: 1 });
+        return formatFieldFloat(value, { humanReadable: true, decimals: 1 });
     }
 
     /** @returns {string} */

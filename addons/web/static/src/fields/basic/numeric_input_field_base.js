@@ -1,14 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/numeric_input_field_base */
-
-import { Component, useState } from "@odoo/owl";
+import { useState } from "@odoo/owl";
 import { InvalidNumberError } from "@web/core/parsers";
+import { FieldComponent } from "@web/fields/field_component";
 import { useInputField } from "@web/fields/input_field_hook";
 import { useNumpadDecimal } from "@web/fields/numpad_decimal_hook";
 
-export class NumericInputFieldBase extends Component {
+export class NumericInputFieldBase extends FieldComponent {
     /** @type {{ hasFocus: boolean }} */
     state;
 
@@ -56,7 +55,7 @@ export class NumericInputFieldBase extends Component {
 
     /** @returns {number | false} */
     get value() {
-        return this.props.record.data[this.props.name];
+        return this.field.value;
     }
 
     /**
@@ -64,5 +63,29 @@ export class NumericInputFieldBase extends Component {
      */
     get rawValue() {
         return this.value === false ? "" : String(this.value);
+    }
+
+    /**
+     * @abstract
+     * @param {boolean} humanReadable
+     * @returns {string}
+     */
+    formatValue(humanReadable) {
+        throw new Error(
+            `${this.constructor.name} must implement formatValue(humanReadable)`,
+        );
+    }
+
+    /** @returns {string} */
+    get formattedValue() {
+        if (
+            !this.props.formatNumber ||
+            (this.props.inputType === "number" && !this.props.readonly)
+        ) {
+            return this.rawValue;
+        }
+        return this.formatValue(
+            Boolean(this.props.humanReadable) && !this.state.hasFocus,
+        );
     }
 }

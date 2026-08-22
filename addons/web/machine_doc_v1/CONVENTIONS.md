@@ -236,7 +236,7 @@ The web module registers into 35 categories. The other 31:
 Field widgets live in `static/src/fields/` (top-level, organized into 7 subcategories:
 `basic/`, `display/`, `media/`, `relational/`, `selection/`, `specialized/`, `temporal/`).
 Each field type (char, integer, many2one, etc.) has a directory with its component,
-extractors, and optional variants. There are 68 widget directories and 110 fork-wide `registerField` /
+extractors, and optional variants. There are 68 widget directories and 112 fork-wide `registerField` /
 `registerFallbackField` sites (79 plain, 31 through the typed spec form).
 Import path: `@web/fields/*` (e.g. `@web/fields/basic/char/char_field`).
 
@@ -272,7 +272,7 @@ Extra keys come from a spec's `aliases` array
 (`registerField({ name: "one2many", aliases: ["many2many"] }, x2ManyField)`), so a
 grep for the key string alone finds nothing — read the spec object.
 
-Before renaming a widget file, run `grep -rn 'registerField(' addons/` to enumerate every key a file registers. Registration goes exclusively through `registerField()` / `registerFallbackField()` from `@web/fields/_registry` (97 call sites inside `fields/`, 110 fork-wide); `registry.category("fields").add(...)` appears only inside `_registry.js` itself, so grepping for it finds nothing.
+Before renaming a widget file, run `grep -rn 'registerField(' addons/` to enumerate every key a file registers. Registration goes exclusively through `registerField()` / `registerFallbackField()` from `@web/fields/_registry` (97 call sites inside `fields/`, 112 fork-wide); `registry.category("fields").add(...)` appears only inside `_registry.js` itself, so grepping for it finds nothing.
 
 ## Test Conventions
 
@@ -575,7 +575,7 @@ When refactoring a widget:
     environment. In debug mode it throws (fail fast for developers); in production
     it emits a `console.warn` prefixed `[registry]` so a single malformed
     registration cannot crash the page while still surfacing schema mismatches.
-    Schema coverage is **33 of 36 web-module categories**; `serializers` and
+    Schema coverage is **35 of 39 web-module categories**; `serializers` and
     `deserializers` (`core/field_codec.js`) and `in_range_providers`
     (`core/tree/in_range_providers.js`) have no schema yet. The `debug` registry IS
     schemable despite being "parent-only": its entries are sub-Registry instances

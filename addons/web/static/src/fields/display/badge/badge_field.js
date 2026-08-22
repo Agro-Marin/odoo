@@ -1,17 +1,16 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/display/badge/badge_field */
-
-import { Component } from "@odoo/owl";
 import { badgeColorClass } from "@web/core/badge/badge_colors";
 import { getFieldCodec } from "@web/core/field_codec";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
+import { FieldComponent } from "@web/fields/field_component";
+import { colorFieldOption } from "@web/fields/field_options";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-export class BadgeField extends Component {
+export class BadgeField extends FieldComponent {
     static template = "web.BadgeField";
     static props = {
         ...standardFieldProps,
@@ -24,8 +23,8 @@ export class BadgeField extends Component {
 
     /** @returns {string} */
     get formattedValue() {
-        const { type, selection } = this.props.record.fields[this.props.name];
-        return getFieldCodec(type).format(this.props.record.data[this.props.name], {
+        const { type, selection } = this.field.definition;
+        return getFieldCodec(type).format(this.field.value, {
             selection,
         });
     }
@@ -57,13 +56,7 @@ export const badgeField = {
     displayName: _t("Badge"),
     supportedTypes: ["selection", "many2one", "char"],
     supportedOptions: [
-        {
-            label: _t("Color field"),
-            name: "color_field",
-            type: "field",
-            availableTypes: ["integer"],
-            help: _t("Set an integer field to use colors with the badge."),
-        },
+        colorFieldOption(_t("Set an integer field to use colors with the badge.")),
     ],
     fieldDependencies: ({ options }) =>
         options.color_field

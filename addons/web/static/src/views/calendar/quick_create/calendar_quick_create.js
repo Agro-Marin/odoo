@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/quick_create/calendar_quick_create */
-
 import { Component } from "@odoo/owl";
 import { RPCError } from "@web/core/network/rpc";
 import { _t } from "@web/core/translation";

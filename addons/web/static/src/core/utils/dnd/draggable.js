@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dnd/draggable */
-
 import { pick } from "@web/core/utils/collections/objects";
 import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
 

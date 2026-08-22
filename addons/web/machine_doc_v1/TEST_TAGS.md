@@ -9,11 +9,11 @@ Quick reference for running targeted subsets of `addons/web/tests/`.
 
 | Tag | Type | Tests | Time |
 |-----|------|-------|------|
-| `web_unit` | TransactionCase (pure Python, + 1 stray HttpCase) | 304 tests | ~45s |
-| `web_http` | HttpCase (url_open, no browser) | 100 tests | ~5 min |
+| `web_unit` | TransactionCase (pure Python) | 294 tests | ~45s |
+| `web_http` | HttpCase (url_open, no browser) | 103 tests | ~5 min |
 | `web_tour` | HttpCase (start_tour/browser_js) | 5 tests | ~2 min |
 | `web_js` | Full JS suites (HOOT) | 37 tests | ~1-2 hr † |
-| `addon_js` | HOOT suites of addons with no runner of their own | 163 tests | depends on the DB's module set |
+| `addon_js` | HOOT suites of addons with no runner of their own | 75 tests | depends on the DB's module set |
 | `web_perf` | Query count regression (@warmup) | 26 tests | ~2 min |
 | `web_benchmark` | Statistical timing (run_benchmark) | 8 tests | ~5 min |
 | `click_all` | Click-everywhere (-standard) | 2 tests (TestMenusAdmin, TestMenusDemo) | ~1+ hr |
@@ -31,11 +31,6 @@ Quick reference for running targeted subsets of `addons/web/tests/`.
 > `odoo-bin -d <db> --test-enable --test-tags <tag> --stop-after-init` and read
 > `odoo.tests.result: … of N tests`. Give the HttpCase tags (`web_http`,
 > `web_js`, `click_all`) a real port — under `--no-http` they collect 0.
->
-> `web_unit` runs 302, not 304, under `--no-http`: `TestJsonExportRoute`
-> (`tests/test_json_export.py`) is an **`HttpCase` tagged `web_unit`** rather
-> than `web_http`, so its 2 tests disappear silently without a port. That tag
-> is inconsistent with this table's own definition of `web_unit`.
 
 > Note: `test_res_config_doc_links.py` is the one file a plain `/web` run can
 > never reach. It is `@tagged("-standard", "external", …)`, and **an include
@@ -162,13 +157,13 @@ mobile-only suite as a silent zero — see `tooling/hoot/README.md`.
 | `test_form` | `@web/views/form` | form view |
 | `test_kanban` | `@web/views/kanban` | kanban view |
 | `test_list` | `@web/views/list` | list view |
-| `test_graph_pivot` | `GRAPH_PIVOT_SUITES` in `tests/test_js.py` — `@web/views/{graph,pivot,pivot_view,field_arch,view_components,view_compiler,view_dialogs,widgets,layout,view_button,…}` | graph, pivot, misc view utilities |
+| `test_misc_views` | `MISC_VIEW_SUITES` in `tests/test_js.py` — `@web/views/{graph,pivot,pivot_view,field_arch,view_arch_parser,view_components,view_compiler,view_dialogs,widgets,layout,control_panel_render_budget,view_button,…,multi_record_*,settings}` | every `@web/views/*` suite with no runner of its own |
 | `test_search` | `@web/search` | search bar, filters, groupby |
 | `test_webclient` | `@web/webclient` | action manager, navbar, settings |
 | `test_public` | `@web/public` | public page components |
 | `test_html_editor` | `@html_editor` | rich text editor |
 | `test_model` | `@web/model` | client-side relational data model (Record, StaticList, DynamicList, etc.) |
-| `test_misc` | `MISC_SUITES` in `tests/test_js.py` — `@web/{env,reactivity,t_custom_click,helpers,interactions,l10n,libs,mock_server,modules}` | root-level and helper suites |
+| `test_misc` | `MISC_SUITES` in `tests/test_js.py` — `@web/{boot,env,reactivity,t_custom_click,test_isolation,helpers,interactions,l10n,libs,mock_server,modules}` | root-level and helper suites |
 
 ```bash
 # Single group — desktop only (~30s-2min)
@@ -274,7 +269,7 @@ addon's `src` reach for a model another addon's suite never defined, which the
 mock server can only answer with *"Cannot find a definition for model X"*.
 
 `_run_hoot` appends `&module_scope=<addon>`, derived from the `@<addon>`
-prefix its suite names already carry. `ir.asset._get_active_addons_list`
+prefix its suite names already carry. `ir.asset._get_addons_active`
 (`web/models/ir_asset.py`) narrows every bundle on that request to the addon's
 **manifest dependency closure** — for `mail` that is `{mail, web_tour,
 html_editor, bus, web, base}`. What cannot load cannot register.
@@ -288,7 +283,7 @@ them or the page loads foreign `src` anyway:
 | the bundles it links | the published URL — `/web/assets/scope/<addon>/<unique>/…` |
 | bundles `loadBundle` fetches later | `session_info['bundle_params']`, which `assets.js` copies into `/web/bundle/…` |
 
-- **Inert without the param.** No `module_scope` → `_get_asset_params()` is
+- **Inert without the param.** No `module_scope` → `_prepare_assets_params()` is
   unchanged → the ormcache key and the bundle are identical. Only honoured on
   the runner routes, and only for an installed addon, so a stray param cannot
   fragment the asset cache of ordinary pages and the number of variants it can
@@ -297,14 +292,14 @@ them or the page loads foreign `src` anyway:
   tells a scoped bundle apart from an unscoped one but describes neither —
   and `content_assets` re-resolves from the URL alone. While the scope lived
   only in `unique`, the scoped CSS 303'd to the unscoped bundle on every page
-  load: distinct URL, unservable. `_get_asset_url_segments` puts it in the path
+  load: distinct URL, unservable. `_get_asset_bundle_url_segments` puts it in the path
   and `content_assets_scoped` reads it back. Every asset param must contribute
   a segment this way — `web/tests/test_ir_asset_scope.py` asserts the two
   halves agree, so an override that adds one and forgets the other fails.
 - **Both directive sources are gated.** `_get_asset_paths` narrows the manifest
   side, but an `ir.asset` row names a path and no addon, so the closure has to
   reach `Resolution.active` — the single point deciding whether a path may
-  resolve. Fed from `_get_installed_addons_list` instead, `website`'s ~100 rows
+  resolve. Fed from `_get_addons_installed` instead, `website`'s ~100 rows
   aimed at `web.*` bundles walked straight through it.
 - **Suites are stricter.** A suite that would pass only because a foreign addon's
   `src` happened to be loaded fails instead. That is the point; treat such a

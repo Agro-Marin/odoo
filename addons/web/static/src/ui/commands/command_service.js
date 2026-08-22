@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/commands/command_service */
-
 import { Component, EventBus } from "@odoo/owl";
 import { CommandPaletteEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
@@ -13,29 +11,33 @@ import { CommandPalette } from "./command_palette.js";
 
 /**
  * @typedef {{
- *  name: string;
- *  action: ()=>(void | CommandPaletteConfig);
- *  category?: string;
- *  href?: string;
- *  className?: string;
+ * name: string;
+ * action: ()=>(void | CommandPaletteConfig);
+ * category?: string;
+ * href?: string;
+ * className?: string;
  * }} Command
  */
 
 /**
  * @typedef {{
- *  category?: string;
- *  isAvailable?: (...args: any[]) => boolean;
- *  global?: boolean;
- *  hotkey?: string;
- *  hotkeyOptions?: HotkeyOptions
+ * category?: string;
+ * isAvailable?: (...args: any[]) => boolean;
+ * global?: boolean;
+ * hotkey?: string;
+ * hotkeyOptions?: HotkeyOptions;
+ * activeElement?: HTMLElement;
+ * scope?: () => Document | HTMLElement;
+ * identifier?: string;
+ * href?: string;
+ * className?: string;
  * }} CommandOptions
  */
 
 /**
  * @typedef {Command & CommandOptions & {
- *  identifier?: string;
- *  activeElement?: HTMLElement;
- *  removeHotkey?: ()=>void;
+ * removeHotkey?: ()=>void;
+ * getScope: () => Document | HTMLElement;
  * }} CommandRegistration
  */
 
@@ -68,8 +70,11 @@ class DefaultFooter extends Component {
     static props = {
         switchNamespace: { type: Function },
     };
-    setup() {
-        this.elements = commandSetupRegistry
+    /**
+     * @returns {{ namespace: string, name: any }[]}
+     */
+    get elements() {
+        return commandSetupRegistry
             .getEntries()
             .map((el) => ({ namespace: el[0], name: el[1].name }))
             .filter((el) => el.name);
@@ -80,26 +85,7 @@ class DefaultFooter extends Component {
     }
 }
 
-/**
- * The `command` service.
- *
- * A class rather than a closure returning an object literal. See
- * `core/hotkeys/hotkey_service.js` for the full reasoning and
- * `tooling/architecture/js_service_shape.py` for the budget; in short, a
- * prototype lets a downstream addon replace one method instead of re-running
- * the whole factory and owning every line of it.
- *
- * **The facade-routing discipline `js_patch_blind_facade` enforces is now
- * structural.** The closure this replaced had to name its own returned object
- * (`commandServiceApi.openMainPalette()`) so that a patch replacing that method
- * — `enterprise/knowledge` neutralizing the palette on the portal webclient —
- * was visible to the service's own control+k registration. Calling the closure
- * identifier instead captured the pre-patch function and silently bypassed it,
- * which was a live bug (F-7). `this.openMainPalette()` cannot have that fault:
- * the lookup goes through the prototype on every call, so there is no
- * pre-patch identifier to capture.
- */
-export class CommandService {
+class CommandService {
     /**
      * @param {import("@web/env").OdooEnv} env
      * @param {{ dialog: any, hotkey: any, ui: any }} services
@@ -235,11 +221,6 @@ export class CommandService {
             ...options,
         });
         if (registration.hotkey) {
-            // Was `env.services.command.openPalette(config)`. The indirection
-            // existed so a downstream patch of `openPalette` was visible to this
-            // caller — the F-7 bug class — and `this.openPalette()` gives that
-            // for free, because the lookup goes through the prototype on every
-            // call. `this` IS the registered `command` service.
             const action = async () => {
                 const config = await command.action();
                 if (!this.isPaletteOpened && config) {
@@ -268,14 +249,18 @@ export class CommandService {
             );
         }
 
+        // The scope a command belongs to is decided here, once, and never by a
+        // later reader of `ui.activeElement`: a deferred read binds the command
+        // to whatever element happens to be active when the deferral fires,
+        // which is not the same thing and is not even the same element when an
+        // overlay opens in between. `useCommand` supplies a resolver derived
+        // from the component tree; a direct service call has no tree, so its
+        // scope is the element active at the moment it asks.
+        const captured = options.activeElement ?? this.ui.activeElement;
+        registration.getScope = options.scope ?? (() => captured);
+
         const token = this.nextToken++;
         this.registeredCommands.set(token, registration);
-        if (!(/** @type {any} */ (options).activeElement)) {
-            queueMicrotask(() => {
-                registration.activeElement = this.ui.activeElement;
-            });
-        }
-
         return token;
     }
 
@@ -309,7 +294,7 @@ export class CommandService {
      */
     getCommands(activeElement) {
         const commands = [...this.registeredCommands.values()].filter(
-            (command) => command.activeElement === activeElement || command.global,
+            (command) => command.getScope() === activeElement || command.global,
         );
         /** @type {Map<string, CommandRegistration[]>} */
         const byName = new Map();

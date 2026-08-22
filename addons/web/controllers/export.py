@@ -28,12 +28,6 @@ _logger = logging.getLogger(__name__)
 class Export(http.Controller):
     @http.route("/web/export/formats", type="jsonrpc", auth="user", readonly=True)
     def formats(self) -> list[dict[str, Any]]:
-        """Return all valid export formats.
-
-        :returns: for each export format, a dict with its identifier, printable
-            name and, for XLSX, an error message if the format is unavailable
-        :rtype: list[dict]
-        """
         try:
             import xlsxwriter  # noqa: F401 — availability probe (try/except gates xlsx export)
 
@@ -51,7 +45,6 @@ class Export(http.Controller):
         model: str,
         domain: list = (),
     ) -> dict[str, dict[str, Any]]:
-        """Return property fields existing for the *domain*."""
         property_fields = {}
         Model = request.env[model]
         for fname, field in fields.items():
@@ -209,7 +202,6 @@ class Export(http.Controller):
         return self.fields_info(model, export.export_fields.mapped("name"))
 
     def fields_info(self, model: str, export_fields: list[str]) -> list[dict[str, Any]]:
-        """Build field info dicts for the given *export_fields*."""
         field_info = []
         fields = request.env[model].fields_get(
             attributes=[
@@ -270,7 +262,6 @@ class Export(http.Controller):
         prefix_string: str,
         fields: list[str],
     ) -> typing.Iterator[dict[str, Any]]:
-        """Recursively build field info for sub-fields of *prefix*."""
         export_fields = [field.split("/", 1)[1] for field in fields]
         return (
             dict(
@@ -292,7 +283,6 @@ class ExportFormat:
         raise NotImplementedError
 
     def filename(self, base: str) -> str:
-        """Return the export filename, without extension, for model *base*."""
         if base not in request.env:
             return base
 
@@ -305,12 +295,6 @@ class ExportFormat:
         columns_headers: list[str],
         rows: list[list[Any]],
     ) -> str | bytes:
-        """Convert Odoo's export data to the current format's output.
-
-        :param fields: field metadata to export
-        :param columns_headers: header label for each field
-        :param rows: exported values, one row per record
-        """
         raise NotImplementedError
 
     def from_group_data(
@@ -322,12 +306,6 @@ class ExportFormat:
         raise NotImplementedError
 
     def base_response(self, data: str) -> Response:
-        """Run :meth:`base`, wrapping any error as an ``InternalServerError``.
-
-        Shared by the CSV and XLSX HTTP routes: on failure the exception is
-        logged and re-raised as a 500 carrying a serialized-exception payload
-        the web client can surface.
-        """
         try:
             return self.base(data)
         except Exception as exc:
@@ -342,7 +320,6 @@ class ExportFormat:
             raise InternalServerError(payload) from exc
 
     def base(self, data: str) -> Response:
-        """Core export logic shared by CSV and XLSX controllers."""
         params = json_loads(data)
         model, fields, ids, domain, import_compat = operator.itemgetter(
             "model", "fields", "ids", "domain", "import_compat"

@@ -217,7 +217,7 @@
     <t t-name="web.TreeEditor.complex_condition">
         <div class="o_tree_editor_row d-flex align-items-center">
             <div class="o_tree_editor_complex_condition flex-grow-1">
-                <input class="o_input w-100" t-att-value="node.value" t-att-readonly="props.readonly or !isDebugMode" t-on-change="(ev) => this.updateComplexCondition(node, ev.target.value)" />
+                <input class="o_input w-100" t-att-value="node.value" t-att-readonly="props.readonly or !isDebugMode" t-on-change="(ev) => this.updateComplexCondition(node, ev.target.value, ev.target)" />
             </div>
             <t t-call="web.TreeEditor.controls" />
         </div>

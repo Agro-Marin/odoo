@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/many2one_barcode/many2one_barcode_field */
-
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
 import {

@@ -1,16 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/form/form_utils */
-
 import { onWillDestroy } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
+import { isX2Many } from "@web/core/field_types";
 import { registry } from "@web/core/registry";
 import { sharedComponents } from "@web/core/shared_components";
 import { user } from "@web/core/user";
 import { parseXML } from "@web/core/utils/dom/xml";
 import { useService } from "@web/core/utils/hooks";
-import { isX2Many } from "@web/views/view_utils";
 
 const viewRegistry = registry.category("views");
 

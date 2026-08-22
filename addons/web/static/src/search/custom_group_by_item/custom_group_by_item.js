@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/custom_group_by_item/custom_group_by_item */
-
 import { Component } from "@odoo/owl";
 
 export class CustomGroupByItem extends Component {

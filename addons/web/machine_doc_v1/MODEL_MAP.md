@@ -44,7 +44,7 @@ Helper formatters extracted from web_read_group.
 **Key Methods:**
 - `_web_read_group_fill_temporal(groups, groupby, ...)` — Fill date/datetime gaps with zero-value groups for chart continuity.
 - `_web_read_group_expand(domain, groups, groupby_spec, aggregates, order)` — Call field's `group_expand` to show empty groups (e.g., all kanban stage columns).
-- `_web_read_group_groupby_formatter(groupby_spec, values)` — Returns formatter function for a groupby spec (handles m2o, m2m, date granularities, properties).
+- `_web_read_group_get_groupby_formatter(groupby_spec, values)` — Returns formatter function for a groupby spec (handles m2o, m2m, date granularities, properties).
 
 ### models/web_onchange.py — Base (`_inherit = 'base'`)
 
@@ -76,9 +76,9 @@ Search-panel RPC methods for sidebar filtering in list/kanban views.
 Internal helpers for search panel.
 
 **Key Methods:**
-- `_search_panel_field_image(field_name, ...)` — Returns `{value: {count, display_name}}` dict for filter options.
-- `_search_panel_global_counters(values_range, parent_name)` — Aggregate child counts to parent for hierarchical filters.
-- `_search_panel_sanitized_parent_hierarchy(records, parent_name, ids)` — Filter to maximal ancestor-closed subset.
+- `_search_panel_get_field_image(field_name, ...)` — Returns `{value: {count, display_name}}` dict for filter options.
+- `_search_panel_rollup_counters_global(values_range, parent_name)` — Aggregate child counts to parent for hierarchical filters.
+- `_search_panel_sanitize_parent_hierarchy(records, parent_name, ids)` — Filter to maximal ancestor-closed subset.
 
 ## Session and UI Bootstrap
 
@@ -91,10 +91,11 @@ Webclient context setup, session info, and request handling.
 - `CRAWLER_USER_AGENTS`: tuple of bot/crawler identifiers
 
 **Key Methods:**
-- `session_info()` — Main bootstrap RPC. Returns dict built by `_base_session_info` + `session_info` additions. Full key list:
-  - From `_base_session_info`: `uid`, `is_system`, `is_admin`, `is_public`, `is_internal_user`, `registry_hash`, `show_effect`, `currencies`, `quick_login`, `bundle_params`, `test_mode`, `cwv_sample_rate`, `feature_flags`, `has_unaccent`, optionally `server_version`, `server_version_info`
+- `session_info()` — Main bootstrap RPC. Returns dict built by `_get_session_info_base` + `session_info` additions. Full key list:
+  - From `_get_session_info_base`: `uid`, `is_system`, `is_admin`, `is_public`, `is_internal_user`, `registry_hash`, `menus_cache_version`, `show_effect`, `currencies`, `quick_login`, `bundle_params`, `test_mode`, `cwv_sample_rate`, `feature_flags`, `has_unaccent`, optionally `server_version`, `server_version_info`
   - `has_unaccent` (`self.env.registry.has_unaccent`) reports whether `ilike` folds accents on this database. Load-bearing: the client evaluates the same domains in memory (`@web/core/domain`) and must make the same choice — `--unaccent` defaults to off, so on a database without the extension `café` and `cafe` are different text and the client must not fold either
   - Added by `session_info`: `user_context`, `max_file_upload_size`, `active_ids_limit`, `db`, `support_url`, `name`, `username`, `partner_write_date`, `partner_display_name`, `partner_id`, `home_action_id`, `view_info`, `user_settings`, `groups`, `web.base.url`, conditionally `user_companies` (company hierarchy, only for internal users)
+  - `menus_cache_version` is `f"{registry_hash}:{session_uid}"`, composed server side **once** because two independent consumers compare against it: the boot-time menus preload inlined in `webclient_templates.xml` and `menu_storage.js`. Do not recompose it on either side — when each built its own they drifted apart silently, the only symptom being a lost 304 and a full menu payload on every load
   - `groups` is a single-flag dict `{"base.group_allow_export": bool}`, NOT a full list of the user's groups
   - `browser_cache_secret` is NOT part of `session_info()` — it is injected separately by `home.py` into the HTML template after `session_info()` returns
 - `get_frontend_session_info()` — Lightweight variant for public/website pages (no company hierarchy).
@@ -143,11 +144,11 @@ Also: **IrQwebFieldImage_Url** (`_inherit = 'ir.qweb.field.image_url'`) for URL-
 Narrows asset bundles to a HOOT suite's dependency closure (`&module_scope=`, see `TEST_TAGS.md`).
 
 **Key Methods:**
-- `_get_asset_params()` — Adds `unit_test_scope` to the asset params (and so to the ormcache key) when a scope is in effect.
+- `_prepare_assets_params()` — Adds `unit_test_scope` to the asset params (and so to the ormcache key) when a scope is in effect.
 - `_get_unit_test_scope()` — Returns the scoped addon, or `""`. Reads `module_scope` from the **request**, not the bundle, since the scope varies per run; only honoured on the runner routes (`UNIT_TEST_ROUTES` = `/web/tests` and `/web/bundle/`, the latter being where `loadBundle` lands) and only for an installed addon, so a stray param elsewhere cannot fragment the asset cache.
-- `_get_unit_test_scope_addons(scope)` — `scope` plus its transitive **manifest** dependency closure (`ormcache`d on `scope`). Addons outside the closure are exactly the ones a correct suite must not depend on.
-- `_get_active_addons_list(*, unit_test_scope=None, **params)` — Override that filters the active addons to that closure. Returns the unfiltered list when no scope is set. Feeds `Resolution.active` in base, which is what also gates `ir.asset` rows (they name a path, never an addon).
-- `_get_asset_url_segments(assets_params)` — Contributes `scope/<addon>` to the published URL, so `Binary.content_assets_scoped` can rebuild the bundle the page linked. `unique` alone distinguishes a scoped bundle but cannot describe it.
+- `_get_addons_in_unit_test_scope(scope)` — `scope` plus its transitive **manifest** dependency closure (`ormcache`d on `scope`). Addons outside the closure are exactly the ones a correct suite must not depend on.
+- `_get_addons_active(*, unit_test_scope=None, **params)` — Override that filters the active addons to that closure. Returns the unfiltered list when no scope is set. Feeds `Resolution.active` in base, which is what also gates `ir.asset` rows (they name a path, never an addon).
+- `_get_asset_bundle_url_segments(assets_params)` — Contributes `scope/<addon>` to the published URL, so `Binary.content_assets_scoped` can rebuild the bundle the page linked. `unique` alone distinguishes a scoped bundle but cannot describe it.
 
 ## User Preferences
 
@@ -232,7 +233,7 @@ A named bundle of report design tokens (a *skin*), orthogonal to `report.layout`
 **Key Methods:**
 - `write(vals)` — Calls `res.company._update_asset_style()` when any of `_STYLE_FIELDS` changes. Without this the edit would not reach a rendered report until an unrelated company write, since the asset is only regenerated on `res.company` writes.
 - `unlink()` — Same reflow when a theme still referenced by a company is deleted; referencing companies fall back to the built-in token defaults.
-- `_report_css_vars(primary, secondary, base_font)` — Returns the `--rp-*` block as `Markup` (raw, unescaped). Raw is required because font stacks contain quotes/commas that `t-out` would escape into `&#39;`, which is invalid inside a stylesheet. Values are run through `_CSS_UNSAFE` (strips `{};\n\r<>`) to prevent breaking out of the declaration. Colors come from the company brand; the rest from this theme, or defaults when `self` is an empty recordset.
+- `_get_css_vars(primary, secondary, base_font)` — Returns the `--rp-*` block as `Markup` (raw, unescaped). Raw is required because font stacks contain quotes/commas that `t-out` would escape into `&#39;`, which is invalid inside a stylesheet. Values are run through `_CSS_UNSAFE` (strips `{};\n\r<>`) to prevent breaking out of the declaration. Colors come from the company brand; the rest from this theme, or defaults when `self` is an empty recordset.
 
 ## Properties
 
@@ -268,7 +269,7 @@ addons offered there — not just web's own preference.
 vCard export for contact data.
 
 **Key Methods:**
-- `_build_vcard()` — Constructs vobject vCard from partner. Sets: `n` (structured name), `fn` (formatted name), `adr` (with optional `region`/`country`), `email` (`type_param="INTERNET"`), `tel` (`type_param="work"`), `url` (website), `org`, `title`, `photo` (base64 with `encoding_param="B"`).
+- `_prepare_vcard()` — Constructs vobject vCard from partner. Sets: `n` (structured name), `fn` (formatted name), `adr` (with optional `region`/`country`), `email` (`type_param="INTERNET"`), `tel` (`type_param="work"`), `url` (website), `org`, `title`, `photo` (base64 with `encoding_param="B"`).
 - `_get_vcard_file()` — Returns serialized vCard bytes.
 
 > **`vobject` is imported lazily, not at module top.** `_vobject()` (`res_partner.py`, `functools.cache`d) performs the `import vobject.vcard` and builds the `Proxy` classes on first use, because the proxy class bodies reference `vobject.base` at *definition* time. A top-level import would make the whole `web` addon fail to import when the library is absent. `controllers/vcard.py` guards the route with `importlib.util.find_spec("vobject")` and raises a clean `UserError` when it is missing — so the failure mode is a user-facing error on the vcard request, **not** an import-time crash.

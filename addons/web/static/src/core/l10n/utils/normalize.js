@@ -1,15 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/l10n/utils/normalize */
-
 import { unaccent } from "./unaccent.js";
 
 /**
  * @typedef {{
- *  match: string;
- *  start: number;
- *  end: number;
+ * match: string;
+ * start: number;
+ * end: number;
  * }} NormalizedMatchResult
  */
 
@@ -166,8 +164,6 @@ function stripCombiningMarks(str) {
 }
 
 /**
- * @see https://www.w3.org/TR/charmod-norm/#definitionCaseFolding
- * @see https://www.unicode.org/Public/UNIDATA/CaseFolding.txt
  * @param {string} str
  * @returns {string}
  */

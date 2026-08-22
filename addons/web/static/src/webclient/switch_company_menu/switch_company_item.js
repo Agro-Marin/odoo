@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/switch_company_menu/switch_company_item */
-
 import { Component, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { _t } from "@web/core/translation";

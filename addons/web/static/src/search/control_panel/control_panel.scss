@@ -173,11 +173,6 @@
 }
 
 
-// The dark half of `%-custom-button`. Only the button variables it emits are
-// scheme-dependent; the rest of the placeholder is geometry. Written here
-// rather than by scoping the `@extend` — an extend composes the whole current
-// selector into the placeholder's rule, so the scope would be carried into
-// every other selector sharing it.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] .o_bottom_sheet .o_cp_switch_buttons
         .o-dropdown-item {

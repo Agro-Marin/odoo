@@ -10,12 +10,7 @@ from .utils import clean_action
 
 
 class MissingActionError(UserError):
-    """Missing Action.
-
-    .. admonition:: Example
-
-        When you try to load a non-existing action.
-    """
+    pass
 
 
 class Action(Controller):

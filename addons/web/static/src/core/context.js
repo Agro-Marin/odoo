@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/context */
-
 import { ASTType } from "./py_js/ast_type.js";
 import { evaluateExpr, parseExpr } from "./py_js/py.js";
 import { BUILTINS } from "./py_js/py_builtin.js";
@@ -12,15 +10,15 @@ import { evaluate } from "./py_js/py_interpreter.js";
 
 /**
  * @typedef {{
- *  lang?: string;
- *  tz?: string;
- *  uid?: number | false;
- *  [key: string]: any;
+ * lang?: string;
+ * tz?: string;
+ * uid?: number | false;
+ * [key: string]: any;
  * }} Context
  * @typedef {Context | string | undefined} ContextDescription
  */
 
-export class InvalidContextError extends Error {}
+class InvalidContextError extends Error {}
 
 /**
  * @param {ContextDescription[]} contexts
@@ -74,8 +72,6 @@ export function evalPartialContext(_context, evaluationContext = {}) {
     /** @type {Record<string, any>} */
     const context = {};
     if (ast.type !== ASTType.Dictionary) {
-        // A list yielded {0: …, 1: …} and a bare name yielded one entry per
-        // character of its spelling, both silently.
         throw new InvalidContextError(
             `context must be a dict literal, got: ${_context}`,
         );

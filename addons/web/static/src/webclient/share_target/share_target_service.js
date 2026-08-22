@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/share_target/share_target_service */
-
 import { browser } from "@web/core/browser/browser";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
@@ -36,13 +34,6 @@ const getShareTargetDataFromServiceWorker = () =>
         serviceWorker.controller.postMessage("odoo_share_target");
     });
 
-/**
- * Action paths that can receive files shared into the app, most-preferred
- * first (`sequence`). An app claims the share target by registering its own
- * path here; `web` has no business naming one, and did — the sole candidate was
- * spelled `"expenses"` in this file, so `hr_expense` owned a behaviour it could
- * not see and no other app could take part.
- */
 const shareTargetRegistry = registry.category("share_target_apps");
 
 shareTargetRegistry.addValidation((entry) => typeof entry === "string");
@@ -61,18 +52,7 @@ function findShareTargetApp(menu) {
     }
 }
 
-/**
- * The `shareTarget` service.
- *
- * A class rather than a closure returning an object literal; see
- * `core/hotkeys/hotkey_service.js` for the reasoning and
- * `tooling/architecture/js_service_shape.py` for the budget.
- *
- * The share-target detection stays in the constructor rather than `start()`:
- * unlike `web_vitals` or `scss_error_display`, failing it does not mean there is
- * no service — `hasSharedFiles()` must still answer `false` for every caller.
- */
-export class ShareTargetService {
+class ShareTargetService {
     /**
      * @param {import("@web/env").OdooEnv} env
      * @param {{ menu: Object }} services

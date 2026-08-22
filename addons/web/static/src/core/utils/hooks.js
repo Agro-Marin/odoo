@@ -1,9 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/hooks */
-
 import {
+    onPatched,
     onWillUnmount,
     status,
     toRaw,
@@ -68,10 +67,6 @@ export function useAutofocus({ refName, selectAll, mobile } = {}) {
 }
 
 /**
- * ``EventBus.trigger`` always dispatches a ``CustomEvent`` carrying its payload
- * in ``detail``, so the callback is typed against that rather than the bare
- * ``EventListener`` an ``EventTarget`` would take.
- *
  * @param {import("@odoo/owl").EventBus} bus
  * @param {string} eventName
  * @param {(ev: CustomEvent<any>) => void} callback
@@ -105,25 +100,6 @@ export const useServiceProtectMethodHandling = {
 };
 
 /**
- * Both settle paths are withheld once the owner is destroyed, not just the
- * resolve one. Letting rejections through meant a request started by a
- * component the user has since navigated away from still reached
- * ``error_service``'s ``unhandledrejection`` listener and opened a crash dialog
- * for a view that is no longer on screen. A destroyed component can act on a
- * failure no more than it can act on a result, so the error is logged for
- * developers and withheld from the UI.
- *
- * ``resolve`` is called per invocation rather than closed over once: the
- * wrapper is installed as an own property that shadows the service, so
- * capturing the function at mount time would pin the component to that
- * snapshot and silently ignore any later replacement of the method
- * (``patch``, ``mockService``, a module patching the service in place).
- *
- * ``this`` is forwarded from the call site on purpose — a caller may rebind a
- * protected method, and the protected view must otherwise be indistinguishable
- * from the service. Keeping that transparency is why the view is a Proxy rather
- * than ``Object.create(service)``; see ``useService``.
- *
  * @param {import("@odoo/owl").Component} component
  * @param {() => Function} resolve
  * @returns {Function}
@@ -157,54 +133,43 @@ function _protectMethod(component, resolve) {
 }
 
 /**
- * Build the destroy-guarding view a component sees for a class-shaped service:
- * a Proxy whose `async:` methods are swapped for guarded ones and whose every
- * other member reads straight through.
- *
- * A Proxy, not `Object.create(observed)`. The view exists only to swap the
- * `async:` methods for guarded ones; it must be transparent in every other
- * respect, and a prototype-chain view is not. `this` inside a guarded method is
- * the view (deliberately -- see `_protectMethod`), so with `Object.create` a
- * `this.x = …` created an OWN property on the view and the service never saw the
- * write. Reads still resolved down the chain, so nothing failed loudly: each
- * component simply kept its own private copy from the moment it first wrote.
- * `file_upload` minted duplicate upload ids that way -- every component started
- * again from the service's stale `nextId`, and `uploads[id]` is shared, so one
- * upload's record overwrote another's. A closure-shaped service was immune
- * because its state lived in the closure rather than on `this`; returning an
- * instance from `start()` is exactly what moves it, so this had to be fixed here
- * rather than in each converted service.
- *
- * A getter modifier (the `orm.silent` / `orm.dedup` shape) returns an object
- * created off the service via `Object.create(this)`. Read through this Proxy the
- * getter runs with the raw service as `this` (the receiver below), so the
- * derived object's async methods would resolve on the unguarded prototype and
- * escape the destroy protection -- `orm.silent.read(...)` resolving into a view
- * the user had already left. Such a derived view -- recognised by its prototype
- * being this very target -- is therefore re-wrapped so its methods are guarded
- * too. (Method modifiers like `orm.cache()` need no help: they are invoked with
- * the Proxy as `this`, so their result already chains through it.)
- *
+ * @type {WeakMap<string[], Set<PropertyKey>>}
+ */
+const guardedMethodSets = new WeakMap();
+
+/**
+ * @param {string[]} methods
+ * @returns {Set<PropertyKey>}
+ */
+function guardedMethodSet(methods) {
+    let set = guardedMethodSets.get(methods);
+    if (!set) {
+        set = new Set(methods);
+        guardedMethodSets.set(methods, set);
+    }
+    return set;
+}
+
+/**
  * @param {import("@odoo/owl").Component} component
  * @param {any} observed
  * @param {string[]} methods
  * @returns {any}
  */
 function makeGuardedView(component, observed, methods) {
+    const methodSet = guardedMethodSet(methods);
+    /** @type {Map<PropertyKey, Function>} */
     const guarded = new Map();
-    for (const method of methods) {
-        guarded.set(
-            method,
-            _protectMethod(component, () => observed[method]),
-        );
-    }
     return new Proxy(observed, {
         get(target, property) {
-            if (guarded.has(property)) {
-                return guarded.get(property);
+            if (methodSet.has(property)) {
+                let fn = guarded.get(property);
+                if (!fn) {
+                    fn = _protectMethod(component, () => observed[property]);
+                    guarded.set(property, fn);
+                }
+                return fn;
             }
-            // Receiver is the target, so a getter on the service reads the
-            // service rather than re-entering this trap.
             const value = Reflect.get(target, property, target);
             if (
                 value !== null &&
@@ -227,9 +192,31 @@ export const SERVICES_METADATA = {};
  * @returns {import("services").ServiceFactories[K]}
  */
 export function useService(serviceName) {
+    const service = _useService(serviceName, false);
+    return /** @type {import("services").ServiceFactories[K]} */ (service);
+}
+
+/**
+ * @template {keyof import("services").ServiceFactories} K
+ * @param {K} serviceName
+ * @returns {import("services").ServiceFactories[K] | null}
+ */
+export function useOptionalService(serviceName) {
+    return /** @type {any} */ (_useService(serviceName, true));
+}
+
+/**
+ * @param {string} serviceName
+ * @param {boolean} optional
+ * @returns {any}
+ */
+function _useService(serviceName, optional) {
     const component = useComponent();
     const { services } = component.env;
     if (!(serviceName in services)) {
+        if (optional) {
+            return null;
+        }
         throw new Error(`Service ${serviceName} is not available`);
     }
     const service = services[serviceName];
@@ -239,9 +226,7 @@ export function useService(serviceName) {
             : service;
     if (SERVICES_METADATA[serviceName]) {
         if (service instanceof Function) {
-            return /** @type {import("services").ServiceFactories[K]} */ (
-                _protectMethod(component, () => services[serviceName])
-            );
+            return _protectMethod(component, () => services[serviceName]);
         }
         const methods = SERVICES_METADATA[serviceName] ?? [];
         return makeGuardedView(component, observed, methods);
@@ -295,7 +280,30 @@ export function useSpellCheck({ refName } = {}) {
  */
 
 /**
- * @see useForwardRefToParent
+ * @param {() => HTMLInputElement | null | undefined} getElement
+ * @param {() => any} getValue
+ * @param {{ property?: "value" | "checked" }} [options]
+ * @returns {() => boolean}
+ */
+export function useSyncedInputProperty(
+    getElement,
+    getValue,
+    { property = "value" } = {},
+) {
+    const sync = () => {
+        const element = getElement();
+        const value = getValue();
+        if (!element || value === undefined || element[property] === value) {
+            return false;
+        }
+        element[property] = value;
+        return true;
+    };
+    onPatched(sync);
+    return sync;
+}
+
+/**
  * @returns {ForwardRef}
  */
 export function useChildRef() {
@@ -316,7 +324,6 @@ export function useChildRef() {
     };
 }
 /**
- * @see useChildRef
  * @param {string} refName
  * @returns {Ref}
  */

@@ -76,33 +76,12 @@ class IrHttp(models.AbstractModel):
         }
 
     def color_scheme_preference(self) -> str:
-        """Return what the user asked for: 'system', 'light' or 'dark'.
-
-        Distinct from :meth:`color_scheme`, which answers a different question.
-        This one decides which bundles ``webclient_bootstrap`` emits, and
-        ``system`` is answerable there — the template ships both behind
-        ``prefers-color-scheme`` media queries and lets the browser choose, so
-        the first paint is correct without the server knowing the answer.
-        """
         user = request.env.user
         if not user or user._is_public():
             return "light"
         return user.res_users_settings_id.color_scheme or "system"
 
     def color_scheme(self) -> str:
-        """Resolve the scheme actually in effect, as 'light' or 'dark'.
-
-        Never returns 'system': this feeds the ``color_scheme`` cookie, which
-        a good deal of JS reads as a settled answer — chart palettes, the ace
-        theme, the colour picker, the PDF viewer — one of them at module scope.
-        Handing them 'system' would read as 'not dark'.
-
-        Priority: explicit user setting > cookie > 'light'. The order is the
-        reverse of :meth:`content_density` on purpose. Density has no value the
-        client must resolve, so its cookie is only a faster copy of the
-        setting. Here the cookie is where the browser's answer to ``system`` is
-        cached, so it must not outrank a user who asked for light or dark.
-        """
         user = request.env.user
         if not user or user._is_public():
             return "light"
@@ -113,10 +92,6 @@ class IrHttp(models.AbstractModel):
         return cookie_scheme if cookie_scheme in ("light", "dark") else "light"
 
     def content_density(self) -> str:
-        """Determine content density for the current request.
-
-        Priority: cookie > user setting > 'default'.
-        """
         cookie_density = request.httprequest.cookies.get("content_density")
         if cookie_density in ("compact", "condensed"):
             return cookie_density
@@ -128,32 +103,13 @@ class IrHttp(models.AbstractModel):
 
     @api.model
     def lazy_session_info(self) -> dict[str, Any]:
-        """Return session fields that can be loaded lazily after page render.
-
-        Fields returned here are fetched via a single
-        ``orm.call("ir.http", "lazy_session_info")`` RPC issued by the
-        ``lazy_session`` JS service after ``WEB_CLIENT_READY`` fires.  Use
-        this for data whose absence during boot does not degrade first
-        paint (debug tooling, effect flags, action-specific limits) —
-        anything read by a service at ``start()`` belongs in
-        :meth:`_base_session_info` instead.
-        """
         return {
             "profile_session": request.session.get("profile_session"),
             "profile_collectors": request.session.get("profile_collectors"),
             "profile_params": request.session.get("profile_params"),
         }
 
-    def _base_session_info(self) -> dict[str, Any]:
-        """Build the session fields shared by both backend and frontend.
-
-        Returns identity/permission flags, registry hash, currencies,
-        feature flags, CWV sample rate, and bundle params (lang, debug).
-        Both ``session_info`` and ``get_frontend_session_info`` extend
-        this base; profiling data is fetched separately via
-        ``lazy_session_info``, and config-parameter-driven limits are
-        added only by ``session_info`` (backend-only).
-        """
+    def _get_session_info_base(self) -> dict[str, Any]:
         user = self.env.user
         session_uid = request.session.uid
         ir_config_sudo = self.env["ir.config_parameter"].sudo()
@@ -166,17 +122,20 @@ class IrHttp(models.AbstractModel):
             cwv_sample_rate = 1.0
         cwv_sample_rate = max(0.0, min(1.0, cwv_sample_rate))
 
+        registry_hash = hmac(
+            self.env(su=True),
+            "webclient-cache",
+            self.env.registry.registry_sequence,
+        )
+
         info = {
             "uid": session_uid,
             "is_system": user._is_system() if session_uid else False,
             "is_admin": user._is_admin() if session_uid else False,
             "is_public": user._is_public(),
             "is_internal_user": user._is_internal(),
-            "registry_hash": hmac(
-                self.env(su=True),
-                "webclient-cache",
-                self.env.registry.registry_sequence,
-            ),
+            "registry_hash": registry_hash,
+            "menus_cache_version": f"{registry_hash}:{session_uid}",
             "show_effect": bool(ir_config_sudo.get_param("base.show_effect")),
             "currencies": self.env["res.currency"].get_all_currencies(),
             "quick_login": str2bool(
@@ -187,12 +146,7 @@ class IrHttp(models.AbstractModel):
             },
             "test_mode": config["test_enable"],
             "cwv_sample_rate": cwv_sample_rate,
-            "feature_flags": self._resolve_feature_flags(ir_config_sudo),
-            # Whether ``ilike`` folds accents on this database. The web client
-            # evaluates the same domains in memory (``@web/core/domain``) and
-            # has to make the same choice: ``--unaccent`` defaults to off, so a
-            # database without the extension compares ``café`` and ``cafe`` as
-            # different text and the client must not fold either.
+            "feature_flags": self._get_feature_flags(ir_config_sudo),
             "has_unaccent": bool(self.env.registry.has_unaccent),
         }
         if request.session.debug:
@@ -205,35 +159,11 @@ class IrHttp(models.AbstractModel):
 
     _FEATURE_FLAG_PREFIX = "web.feature."
 
-    def _resolve_feature_flags(self, ir_config_sudo: Any = None) -> dict[str, Any]:
-        """Collect deployment-wide feature flags into a name -> typed-value dict.
-
-        Reads every ``ir.config_parameter`` row whose key starts with
-        ``web.feature.``, strips the prefix, and parses the raw value
-        with the same literal-set the JS resolver uses
-        (``core/feature_flags.js:_parseValue``): ``true`` / ``false``
-        / ``null`` literals, signed integers, floats, otherwise the
-        original string.  An empty dict is a valid return value — the
-        JS side falls through to call-site defaults when no key matches.
-
-        The underlying lookup is cached per registry (see
-        :meth:`_resolve_feature_flags_cached`); a fresh dict is built on
-        every call so callers can never mutate the cached value.
-
-        :param ir_config_sudo: unused; kept so existing call sites passing the
-            sudoed ``ir.config_parameter`` recordset keep working. The cached
-            helper builds its own recordset — the cache key must not depend on
-            any caller-supplied recordset/env state.
-        :return: dict suitable for inclusion in session_info
-        :rtype: dict[str, Any]
-        """
-        return dict(self._resolve_feature_flags_cached())
+    def _get_feature_flags(self, ir_config_sudo: Any = None) -> dict[str, Any]:
+        return dict(self._get_feature_flags_cached())
 
     @ormcache(cache="stable")
-    def _resolve_feature_flags_cached(self) -> tuple[tuple[str, Any], ...]:
-        """Return ``((name, parsed_value), ...)`` for every ``web.feature.*``
-        parameter. Returns an immutable tuple so a cache hit can be shared
-        safely; :meth:`_resolve_feature_flags` wraps it in a fresh dict."""
+    def _get_feature_flags_cached(self) -> tuple[tuple[str, Any], ...]:
         rows = (
             self.env["ir.config_parameter"]
             .sudo()
@@ -252,13 +182,6 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _parse_feature_flag_value(cls, raw: str) -> Any:
-        """Parse an ``ir.config_parameter`` value into a JS-compatible type.
-
-        Mirrors ``core/feature_flags.js:_parseValue`` so a flag read
-        from URL / localStorage / server resolves to the same JS type
-        regardless of source.  Unparseable input is returned as the
-        original string, matching the JS fall-through.
-        """
         if raw == "true":
             return True
         if raw == "false":
@@ -275,10 +198,6 @@ class IrHttp(models.AbstractModel):
         return int(trimmed)
 
     def _get_config_limits(self, ir_config_sudo: Any) -> dict[str, int]:
-        """Read numeric config parameters with safe fallbacks.
-
-        :param ir_config_sudo: sudoed ``ir.config_parameter`` model
-        """
         try:
             max_file_upload_size = int(
                 ir_config_sudo.get_param(
@@ -300,12 +219,6 @@ class IrHttp(models.AbstractModel):
         }
 
     def _get_user_companies_info(self) -> dict[str, Any]:
-        """Build the multi-company hierarchy dict for internal users.
-
-        Browses with ``prefetch_fields=False`` so each field accessed
-        below (``name``, ``sequence``, ...) is fetched on its own instead
-        of pulling every stored field of ``res.company`` into cache.
-        """
         user = self.env.user
         user_companies = (
             self.env(context=dict(self.env.context, prefetch_fields=False))[
@@ -348,11 +261,6 @@ class IrHttp(models.AbstractModel):
         }
 
     def session_info(self) -> dict[str, Any]:
-        """Build the full backend session info injected as ``odoo.__session_info__``.
-
-        Extends ``_base_session_info`` with user context, partner data,
-        config limits, and multi-company hierarchy for internal users.
-        """
         user = self.env.user
         session_uid = request.session.uid
 
@@ -363,7 +271,7 @@ class IrHttp(models.AbstractModel):
         else:
             user_context = {}
 
-        info = self._base_session_info()
+        info = self._get_session_info_base()
         ir_config_sudo = self.env["ir.config_parameter"].sudo()
 
         if "server_version" not in info:
@@ -377,7 +285,7 @@ class IrHttp(models.AbstractModel):
             db=self.env.cr.dbname,
             user_settings=(
                 self.env["res.users.settings"]
-                ._find_or_create_for_user(user)
+                ._get_or_create_for_user(user)
                 ._res_users_settings_format()
             ),
             support_url="https://www.odoo.com/buy",
@@ -404,11 +312,7 @@ class IrHttp(models.AbstractModel):
 
     @api.model
     def get_frontend_session_info(self) -> dict[str, Any]:
-        """Build the minimal session info for frontend/portal pages.
-
-        Extends ``_base_session_info`` with frontend-specific flags.
-        """
-        info = self._base_session_info()
+        info = self._get_session_info_base()
         info.update(
             is_website_user=self.env.user._is_public(),
             is_frontend=True,

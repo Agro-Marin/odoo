@@ -1,25 +1,7 @@
-///
-/// This file is a copy of the bootstrap _functions.scss file where all the
-/// left-untouched function definition have been removed.
-///
-/// Dark mode inverts tint/shade: tint darkens (mix with black) and shade
-/// lightens (mix with white). Both are needed by any dark palette, not just
-/// one theme's, which is why they live in web.
-///
-/// `luminance()` is not overridden here. The inversion can push a channel
-/// slightly outside 0-255, which would index past the end of Bootstrap's
-/// 256-element `$_luminance-list` -- but the copy of `_functions.scss` this
-/// bundle carries already clamps for that, in the fork's own patch. A second
-/// clamp here would be a vendored function to keep in step with the vendored
-/// one for no change in output.
-///
-
-// Tint a color: mix a color with black (inverted for dark mode)
 @function tint-color($color, $weight) {
     @return mix(#000, $color, $weight);
 }
 
-// Shade a color: mix a color with white (inverted for dark mode)
 @function shade-color($color, $weight) {
     @return mix(#FFF, $color, $weight);
 }

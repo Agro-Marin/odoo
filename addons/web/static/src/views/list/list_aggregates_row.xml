@@ -39,10 +39,6 @@
                 </span>
             </td>
             <td t-if="props.hasOpenFormViewColumn" class="w-print-0 p-print-0"/>
-            <!-- props.hasActionsColumn, not a second derivation of it: the
-                 renderer's getter also covers hasOptionalOpenFormViewColumn and
-                 grouped lists, so re-deriving it from displayOptionalFields /
-                 onDelete alone left the footer one cell short of the body. -->
             <td t-if="props.hasActionsColumn" class="w-print-0 p-print-0"/>
         </tr>
     </t>

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/settings_form_compiler */
-
 import { append, createElement } from "@web/core/utils/dom/xml";
 import { FormCompiler } from "@web/views/form/form_compiler";
 import { isTextNode } from "@web/views/view_compiler";

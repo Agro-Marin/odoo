@@ -1,22 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/x2many/list_x2many_field */
-
-import { Component } from "@odoo/owl";
 import { formatX2many } from "@web/core/formatters";
 import { registerField } from "@web/fields/_registry";
-import { fieldHandle } from "@web/fields/field_handle";
+import { FieldComponent } from "@web/fields/field_component";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-export class ListX2ManyField extends Component {
+export class ListX2ManyField extends FieldComponent {
     static template = "web.ListX2ManyField";
     static props = { ...standardFieldProps };
-
-    /** @returns {import("@web/fields/field_handle").FieldHandle} */
-    get field() {
-        return fieldHandle(this);
-    }
 
     /** @returns {string} */
     get formattedValue() {
@@ -24,7 +16,7 @@ export class ListX2ManyField extends Component {
     }
 }
 
-export const listX2ManyField = {
+const listX2ManyField = {
     component: ListX2ManyField,
     supportedTypes: ["one2many", "many2many"],
     useSubView: false,

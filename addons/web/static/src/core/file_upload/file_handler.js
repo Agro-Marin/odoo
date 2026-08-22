@@ -1,11 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/file_upload/file_handler */
-
 import { Component, useRef, useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
-import { checkFileSize } from "@web/core/utils/files";
+import { checkFileSize, checkFileType } from "@web/core/utils/files";
 import { useService } from "@web/core/utils/hooks";
 import { getDataURLFromFile } from "@web/core/utils/urls";
 export class FileUploader extends Component {
@@ -15,9 +13,6 @@ export class FileUploader extends Component {
         onUploaded: Function,
         onUploadComplete: { type: Function, optional: true },
         multiUpload: { type: Boolean, optional: true },
-        // Boolean, or a per-file predicate `(file) => boolean`. A caller that
-        // routes SOME files past the server (cloud storage) must be able to
-        // exempt those without disabling the size warning for the rest.
         checkSize: { type: [Boolean, Function], optional: true },
         inputName: { type: String, optional: true },
         fileUploadClass: { type: String, optional: true },
@@ -109,27 +104,7 @@ export class FileUploader extends Component {
      * @param {File} file
      */
     validFileType(file) {
-        if (this.props.allowedMIMETypes) {
-            const allowed = this.props.allowedMIMETypes
-                .split(",")
-                .map((/** @type {string} */ type) => type.trim())
-                .filter(Boolean);
-            if (!file.type || !allowed.includes(file.type)) {
-                this.notification.add(
-                    _t(
-                        `Oops! '%(fileName)s' didn’t upload since its format isn’t allowed.`,
-                        {
-                            fileName: file.name,
-                        },
-                    ),
-                    {
-                        type: "danger",
-                    },
-                );
-                return false;
-            }
-        }
-        return true;
+        return checkFileType(file, this.props.allowedMIMETypes, this.notification);
     }
 
     /** @param {MouseEvent} ev */

@@ -1,55 +1,8 @@
-///
-/// Odoo's own palette concepts, published as runtime tokens.
-///
-/// Bootstrap already publishes the primitives and the plain semantic colours,
-/// and this workspace strips its prefix — `$variable-prefix: ""`, set
-/// identically in web, website, html_editor and web_studio — so they read as
-/// `--gray-100`, `--white`, `--body-bg`, `--primary`, `--link-color`. But
-/// `bootstrap_overridden.scss` wires those to this palette only in the backend
-/// bundles: on the frontend Bootstrap keeps its own greys, and `--gray-400` is
-/// #ced4da there against this ramp's #94a3b8. Anything meaning *this* palette
-/// has to say so, which is what these are for.
-///
-/// Both schemes are published from one file. `palette_dark.scss` carries the
-/// dark values into every bundle, so a stylesheet can answer a scheme change
-/// through the cascade instead of being recompiled and re-served. The dark
-/// block is inert until something sets `data-color-scheme` on the document.
-///
-/// Screen bundles only. `webclient_bootstrap` sets the attribute on the
-/// document and links the print bundle unconditionally, so a dark block there
-/// would answer it too and print the dark palette — over a print `:root` that
-/// restates the ramp for paper, and alongside Bootstrap's own tokens, which
-/// stay light. `primary_variables_print.scss` forces `light` for the same
-/// reason.
-///
-
-/// What `tint-color()` and `shade-color()` mix towards in the scheme being
-/// emitted, published so a consumer can reproduce either of them in CSS.
-///
-/// Without these a caller has to name a colour, and the only ones to hand are
-/// the palette's own: `color-mix(in srgb, var(--o-white) 55%, C)` reproduces
-/// `tint-color(C, 55%)` only while `$o-white` happens to be exactly the `white`
-/// keyword Bootstrap mixes with, and `$o-dark-white` exactly the `#000` the
-/// dark override swaps in. That is true of this palette and is not a rule --
-/// nothing stops a theme's white being #fdfdfd -- and it is not even true on
-/// the other side: `shade-color()` inverts to mix with `#FFF`, which is not
-/// `--o-black` (#E2E8F0 in dark), so consumers wanting a shade had to publish
-/// one token per colour per scheme instead.
-///
-/// Naming the targets makes both derivable, from the same map `o-scheme()`
-/// already hands the compile-time callers, so the CSS and the Sass answer the
-/// same question with the same input.
 @mixin o-print-scheme-targets($-scheme) {
     @include print-variable("o-tint-target", map-get($-scheme, "tint-mix"));
     @include print-variable("o-shade-target", map-get($-scheme, "shade-mix"));
 }
 
-/// What Bootstrap's `_root.scss` reads, for a scheme that is not compiling.
-///
-/// The dark bundle has no `bootstrap_overridden.dark.scss`: Bootstrap's own
-/// variables are assigned from the `$o-*` palette by the same expressions in
-/// both bundles, and it is the palette underneath that inverts. So the whole
-/// root layer is reproducible from these eight values.
 @function o-bootstrap-inputs(
     $-grays, $-white, $-black, $-theme-colors, $-body-bg, $-body-color,
     $-link-color, $-link-hover-color, $-code-color, $-text-emphasis,
@@ -64,29 +17,18 @@
         "body-bg": $-body-bg,
         "body-color": $-body-color,
         "link-color": $-link-color,
-        // Handed in rather than derived. `shade-color(C, 60%)` is only the
-        // default: `web_enterprise` moves the whole `info` family and the link
-        // hover, and a block that recomputed would publish web's answer under
-        // the theme's name.
         "link-hover-color": $-link-hover-color,
         "code-color": $-code-color,
         "text-emphasis": $-text-emphasis,
         "bg-subtle": $-bg-subtle,
         "border-subtle": $-border-subtle,
-        // `null` means "derive it": the dark palette states these only when a
-        // theme moves them, and `web_enterprise` moves all three.
         "mark-bg": $-mark-bg,
         "mark-color": $-mark-color,
         "border-color": $-border-color,
-        // Keyed by the Bootstrap name, and only the entries a scheme moves: an
-        // absent key means `_root.scss`'s own declaration stands, which for the
-        // light half is always the case since that half *is* the compiling
-        // palette.
         "shadows": $-shadows
     );
 }
 
-/// Every token as one map, so the two blocks below cannot drift apart.
 @function o-token-set(
     $-grays, $-white, $-black, $-brand, $-brand-odoo, $-brand-fill, $-text,
     $-action, $-action-text, $-theme-text, $-bg-view, $-bg-chrome,
@@ -107,9 +49,6 @@
         "o-bg-raised": $-bg-raised,
         "o-bg-active": $-bg-active,
         "o-text-muted": $-text-muted,
-        // `o-focus-ring()` already reads `--o-ring-color` so a surface can
-        // retune the ring it hosts; published here, that hook and the
-        // default are the same property and a component override still wins.
         "o-ring-color": $-ring,
         "o-favorite": $-favorite,
     );
@@ -122,85 +61,27 @@
     @return $-set;
 }
 
-/// The tokens something composes with a *variable* alpha, which needs channels
-/// rather than a colour: `o-print-color()` writes
-/// `RGBA(r, g, b, var(--x-opacity))`, and no CSS colour function takes an
-/// opacity variable and returns a colour. Without the `-rgb` sibling those
-/// consumers have to name a compiled colour, which is what this file exists to
-/// stop.
-///
-/// Listed rather than emitted for every colour in the set. Doing it wholesale
-/// costs 56 declarations a bundle to serve two readers, and a token nothing
-/// composes is a token nobody asked for -- `TestBundleTokenDefs` will say so
-/// the moment a reader appears and the sibling does not exist.
 $-o-rgb-tokens: ("o-white", "o-black", "o-action", "o-bg-view");
 
-/// The values themselves are not rounded here. A palette value arrives as
-/// whatever its palette wrote — a hex, a keyword — and rebuilding it to snap
-/// the channels would spell every one of them `rgb(4, 120, 87)`, longer than
-/// the `#047857` it came in as. A computed palette value rounds at its
-/// definition instead, where it is the only one paying for it.
 @mixin o-print-token-set($-set) {
     @each $-name, $-value in $-set {
         @include print-variable($-name, $-value);
         @if index($-o-rgb-tokens, $-name) and type-of($-value) == "color" {
-            // `to-rgb()` drops alpha, as Bootstrap's own `-rgb` tokens do: the
-            // channels are what a consumer composes *with* an alpha, so
-            // carrying a second one would be the wrong number in the wrong
-            // place.
             @include print-variable("#{$-name}-rgb", to-rgb($-value));
         }
     }
 }
 
-/// The record-colour ramp, one group of tokens per colour.
-///
-/// The calendar renderer and its two popovers each generated a rule per
-/// colour, and every value in them moves with the scheme, so the ramp alone
-/// accounted for about three quarters of what the dark bundle restated.
-/// Published here, a consumer names the colour and the bundle carries the
-/// value once.
-///
-/// `to-rgb()`, `lighten()` and the contrast pick decide at compile time, so
-/// their results are emitted. The 55% and 50% tints are not: a consumer
-/// derives those in CSS against `--o-white`, which inverts per scheme exactly
-/// as `tint-color()` does.
-///
-/// Every scheme-dependent input is a parameter rather than an ambient
-/// variable, because this has to state the *dark* ramp while a *light* bundle
-/// is compiling. `tint-color()`, `shade-color()` and `color-contrast()` are
-/// overridden per scheme — `bs_functions_overridden.dark.scss` inverts the
-/// first two and only the dark bundles carry it — so calling them here would
-/// quietly produce the compiling scheme's answer under the other scheme's
-/// name. `o-scheme()` names what they read; nothing below reads anything else.
 @function o-scheme($-foregrounds, $-min-contrast-ratio, $-inverted) {
     @return (
-        // What tint and shade mix towards. Bootstrap mixes tint with white and
-        // shade with black; `bs_functions_overridden.dark.scss` swaps them, and
-        // to literal #000/#fff rather than to the palette's own black and
-        // white — so these are constants of the scheme, not of the palette.
         "tint-mix": if($-inverted, #000, white),
         "shade-mix": if($-inverted, #fff, black),
         "foregrounds": $-foregrounds,
         "min-contrast-ratio": $-min-contrast-ratio,
-        // Which of the two this scheme renders as, for the CSS `color-scheme`
-        // property. The same answer the mix targets are chosen by: a light
-        // *bundle* compiles its `:root` under the light scheme, a dark bundle
-        // under the dark one, and the attribute block is always dark.
         "dark": $-inverted
     );
 }
 
-/// Bootstrap's `color-contrast()` with its foregrounds handed in, in its own
-/// order: `$color-contrast-light, $color-contrast-dark, $white, $black`. Not
-/// reducible to white-or-black — `website/bootstrap_overridden.scss` sets
-/// `$color-contrast-dark: o-color("900")`, so a label on the frontend lands on
-/// #212529 rather than #000000.
-/// Bootstrap's `tint-color()` / `shade-color()` for a named scheme.
-///
-/// The two mix towards literal `#fff` / `#000`, and
-/// `bs_functions_overridden.dark.scss` swaps which is which -- so calling them
-/// directly from a light bundle tints where the dark scheme shades.
 @function o-scheme-tint($-color, $-weight, $-scheme) {
     @return mix(map-get($-scheme, "tint-mix"), $-color, $-weight);
 }
@@ -217,9 +98,6 @@ $-o-rgb-tokens: ("o-white", "o-black", "o-action", "o-bg-view");
     );
 }
 
-/// The first foreground a scheme tries, which is Bootstrap's
-/// `$color-contrast-light` -- the value `button-variant()` compares its picked
-/// label against to decide between tinting and shading.
 @function o-scheme-contrast-light($-scheme) {
     @return nth(map-get($-scheme, "foregrounds"), 1);
 }
@@ -246,10 +124,6 @@ $-o-rgb-tokens: ("o-white", "o-black", "o-action", "o-bg-view");
 @mixin o-print-color-ramp($-colors, $-scheme) {
     @for $-i from 1 through length($-colors) {
         $-color: nth($-colors, $-i);
-        // Rounded at each step, not at the end: Sass keeps computed channels at
-        // full precision, so an unrounded colour serialises as
-        // `rgb(251.1693832599, …)` and `to-rgb()` of it is no shorter. Every
-        // value below is derived, so every one of them needs it.
         $-subtle: o-round-color(mix(map-get($-scheme, "tint-mix"), $-color, 55%));
         $-shade: o-round-color(mix(map-get($-scheme, "shade-mix"), $-color, 20%));
 
@@ -265,9 +139,6 @@ $-o-rgb-tokens: ("o-white", "o-black", "o-action", "o-bg-view");
             o-round-color(lighten($-subtle, 10%))
         );
         @include print-variable("o-record-color-#{$-i}-shade", $-shade);
-        // A legible mark *on* the colour itself, as channels: the colour list
-        // shows a swatch and the gantt a connector bullet, both over the full
-        // colour rather than over a tint of it.
         @include print-variable(
             "o-record-color-#{$-i}-on-rgb",
             to-rgb(o-scheme-contrast($-color, $-scheme))
@@ -275,21 +146,6 @@ $-o-rgb-tokens: ("o-white", "o-black", "o-action", "o-bg-view");
     }
 }
 
-/// The chip presentation of a record colour — a tag, a badge, a colour swatch.
-///
-/// One formula, three consumers: badge.scss and tags_list.scss both lift the
-/// colour 25% and saturate it 15% for the fill, and drop it 40% while
-/// desaturating 15% for the label; colorlist.scss shows the colour itself and
-/// needs a legible mark on top of it. Published rather than recomputed because
-/// `adjust-color()` and the contrast pick both decide at compile time, so a
-/// consumer cannot follow a scheme change without them.
-///
-/// Emitted as `r, g, b` triples: every consumer goes through `o-print-color()`,
-/// which composes the colour with a `--*-opacity` custom property, so it needs
-/// the channels rather than a colour. Only `$o-colors` — the twelve a record
-/// can actually be assigned — not the 56 of the full ramp; the mark that goes
-/// *on* a colour rides the full ramp instead, since the gantt needs all of
-/// them.
 @mixin o-print-record-chip-ramp($-colors, $-scheme) {
     @for $-i from 1 through length($-colors) {
         $-color: nth($-colors, $-i);
@@ -305,8 +161,6 @@ $-o-rgb-tokens: ("o-white", "o-black", "o-action", "o-bg-view");
     }
 }
 
-// Named once: both ramps below take the same scheme, and stating it twice is
-// how the two blocks drift.
 $-o-light-scheme: map-merge(
     o-scheme(
         ($color-contrast-light, $color-contrast-dark, $white, $black),
@@ -367,9 +221,6 @@ $-o-dark-scheme: map-merge(
     )
 );
 
-/// The dark scheme's inputs, for a rule that has to state the dark answer while
-/// a light bundle compiles. `o-scheme-contrast()` needs one, and a consumer
-/// outside this file has no other way to get it.
 @function o-light-scheme() {
     @return $-o-light-scheme;
 }
@@ -378,32 +229,11 @@ $-o-dark-scheme: map-merge(
     @return $-o-dark-scheme;
 }
 
-/// Publish a group of tokens for both schemes.
-///
-/// The content block is emitted twice — into `:root` and into the dark block —
-/// and handed the scheme it is being emitted for, along with that scheme's
-/// record ramp. Any module deriving a value at compile time can follow a scheme
-/// change through it: state the derivation once, and it lands under both.
-///
-/// The scaffolding lives here rather than in each caller because a second copy
-/// of it is how the two blocks drift — and because only one file should know
-/// that the dark half is screen-only.
 @mixin o-publish-per-scheme {
     :root {
         @content ($-o-light-scheme, $o-colors-complete, $o-colors);
     }
 
-    // The dark half ships in every screen bundle and applies only under the
-    // attribute, so a light page carries it without being changed by it. Not
-    // in print: the print bundle is linked unconditionally, so a dark block
-    // there would answer the attribute too.
-    //
-    // `:root[…]` rather than `[…]`: the bare attribute selector scores the
-    // same (0,1,0) as the `:root` above it, so which one wins comes down to
-    // source order — which holds inside this file and nowhere else. Any
-    // stylesheet later in the bundle that opened a `:root` and named one of
-    // these tokens would beat the dark block silently, in the one scheme
-    // nobody looks at. Qualifying it takes the decision away from ordering.
     @include media-only(screen) {
         :root[data-color-scheme="dark"] {
             @content ($-o-dark-scheme, $o-dark-colors-complete, $o-dark-colors);
@@ -411,17 +241,6 @@ $-o-dark-scheme: map-merge(
     }
 }
 
-/// Bootstrap's root layer, for the scheme that is not compiling.
-///
-/// `_root.scss` writes each of these as a resolved colour, from whichever
-/// palette compiled -- which is most of what a second bundle exists to carry.
-/// Everything below restates Bootstrap's own expression with the scheme's
-/// palette handed in, so the light half emits what `_root.scss` already did and
-/// the dark half emits what the dark bundle did.
-///
-/// Only the values a `var()` alias cannot carry. A pair the fork calls
-/// definitional -- `--gray-200` is `--o-gray-200` -- stays an alias in the block
-/// below this one, where one declaration serves both schemes.
 @mixin o-print-bootstrap-root($-scheme) {
     $-bs: map-get($-scheme, "bootstrap");
     $-grays: map-get($-bs, "grays");
@@ -447,7 +266,6 @@ $-o-dark-scheme: map-merge(
         --#{$prefix}#{$-name}-border-subtle: #{map-get($-border-subtle, $-name)};
     }
 
-    // `$colors`, of which only these two track the ramp.
     --#{$prefix}gray: #{$-gray-600};
     --#{$prefix}gray-dark: #{$-gray-800};
 
@@ -458,10 +276,8 @@ $-o-dark-scheme: map-merge(
     --#{$prefix}body-bg: #{$-body-bg};
     --#{$prefix}body-bg-rgb: #{to-rgb($-body-bg)};
 
-    // `$body-emphasis-color: $black`.
     --#{$prefix}emphasis-color-rgb: #{to-rgb($-black)};
 
-    // `rgba($body-color, .75)` and `.5`; the backgrounds are ramp steps.
     --#{$prefix}secondary-color: #{rgba($-body-color, 0.75)};
     --#{$prefix}secondary-color-rgb: #{to-rgb($-body-color)};
     --#{$prefix}secondary-bg-rgb: #{to-rgb($-gray-200)};
@@ -478,8 +294,6 @@ $-o-dark-scheme: map-merge(
 
     --#{$prefix}code-color: #{map-get($-bs, "code-color")};
 
-    // `$mark-color: $body-color`, `$mark-bg: $yellow-100`, and `$yellow` is a
-    // constant of Bootstrap's own palette -- only the tint inverts.
     --#{$prefix}highlight-color: #{o-safe-get($-bs, "mark-color", $-body-color)};
     --#{$prefix}highlight-bg: #{o-safe-get(
             $-bs,
@@ -523,13 +337,6 @@ $-o-dark-scheme: map-merge(
 }
 
 @include o-publish-per-scheme using ($-scheme, $-ramp, $-record-colors) {
-    // On the root, and from the scheme block rather than from the compiling
-    // bundle, so `light-dark()` answers the attribute. That function reads the
-    // used value of `color-scheme`, which is the only way a plain declaration
-    // can carry both schemes without inventing a token for a colour used once.
-    // `webclient.scss` used to set this on `.o_web_client` from
-    // `$o-webclient-color-scheme` — a compile-time read, so a light bundle
-    // could only ever say `light`.
     color-scheme: if(map-get($-scheme, "dark"), dark, light);
 
     @include o-print-scheme-targets($-scheme);
@@ -542,21 +349,6 @@ $-o-dark-scheme: map-merge(
     }
 }
 
-/// Bootstrap's own tokens, wired to this palette at runtime.
-///
-/// `bootstrap_overridden.scss` already says `$gray-200: $o-gray-200`. It says
-/// it in Sass, so Bootstrap's `_root.scss` emits a resolved colour and the
-/// answer is fixed when the bundle compiles — which is one of the reasons a
-/// second bundle has to exist. Restating the same wiring as a `var()` moves it
-/// to the cascade: `--gray-200` then follows `--o-gray-200`, which already
-/// answers the scheme, so this needs no dark half of its own.
-///
-/// Only the assignments that are *definitional* — where the fork, or Bootstrap
-/// deterministically from the fork, says one is the other. A pair that merely
-/// happens to hold the same colour today is not on this list: `--body-bg` is
-/// `$o-webclient-background-color`, currently `$o-gray-100` and not the same
-/// idea, and aliasing it would invent a coupling rather than move one.
-
 @if $o-bootstrap-follows-palette {
     :root {
         @each $-step in (100, 200, 300, 400, 500, 600, 700, 800, 900) {
@@ -564,21 +356,13 @@ $-o-dark-scheme: map-merge(
         }
 
         --white: var(--o-white);
-        // `$primary: $o-brand-primary`, and `$secondary: $gray-300` — the fork
-        // overrides Bootstrap's own `$gray-600` for the second one.
         --primary: var(--o-brand);
         --secondary: var(--o-gray-300);
 
-        // `$body-color: $o-main-text-color`; `$body-emphasis-color: $black`
-        // and `$o-main-headings-color: $o-black`.
         --body-color: var(--o-text);
         --emphasis-color: var(--o-black);
         --heading-color: var(--o-black);
 
-        // Bootstrap's own steps off the ramp: `$body-secondary-bg: $gray-200`,
-        // `$body-tertiary-bg: $gray-100`, `$light-border-subtle: $gray-200`,
-        // `$dark-border-subtle: $gray-500`, `$dark-bg-subtle: $gray-400`,
-        // `$light-text-emphasis` and `$dark-text-emphasis`: `$gray-700`.
         --secondary-bg: var(--o-gray-200);
         --tertiary-bg: var(--o-gray-100);
         --light-border-subtle: var(--o-gray-200);

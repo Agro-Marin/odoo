@@ -1,16 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/errors/stack_frames */
-
 import { browser } from "@web/core/browser/browser";
 
 /**
  * @typedef {{
- *     functionName: string,
- *     fileName: string,
- *     lineNumber: number,
- *     columnNumber: number,
+ * functionName: string,
+ * fileName: string,
+ * lineNumber: number,
+ * columnNumber: number,
  * }} StackFrame
  */
 

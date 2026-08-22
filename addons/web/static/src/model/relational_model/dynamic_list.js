@@ -1,28 +1,28 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/dynamic_list */
-
-import { markRaw } from "@odoo/owl";
+import { isX2Many } from "@web/core/field_types";
 import { x2ManyCommands } from "@web/core/network/commands";
 import { _t } from "@web/core/translation";
 import { unique } from "@web/core/utils/collections/arrays";
 import { Operation } from "@web/core/utils/operation";
 
 import { buildKnownValuesKwargs } from "./concurrency_baseline.js";
-import { DataPoint } from "./datapoint.js";
-import { getSpecEvalContext, isX2Many } from "./field_context.js";
+import { EditableListDataPoint } from "./editable_list_datapoint.js";
+import { getSpecEvalContext } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
 import { RelationalRecord } from "./record.js";
 import { resequence } from "./resequence.js";
 import { computeNextOrderBy } from "./static_list_utils.js";
+
+/** @import { DataPoint } from "./datapoint.js" */
 
 const DEFAULT_HANDLE_FIELD = "sequence";
 
 /**
  * @abstract
  */
-export class DynamicList extends DataPoint {
+export class DynamicList extends EditableListDataPoint {
     /**
      * @type {DataPoint["setup"]}
      */
@@ -30,31 +30,14 @@ export class DynamicList extends DataPoint {
         super.setup(...args);
         /** @type {number} */
         this.count = 0;
-        this.handleField = Object.keys(this.activeFields).find(
-            (fieldName) => this.activeFields[fieldName].isHandle,
-        );
+        this.handleField = this._findHandleField();
         if (!this.handleField && DEFAULT_HANDLE_FIELD in this.fields) {
             this.handleField = DEFAULT_HANDLE_FIELD;
         }
         this.isDomainSelected = false;
-        /**
-         * Holder for the record `enterEditMode` is on its way to. `markRaw` is
-         * load-bearing: this is bookkeeping for a handover, not state anyone
-         * should re-render on. Stored plainly on the reactive it would notify
-         * `isEditing`'s subscribers twice per handover -- once on claim, once
-         * on release -- which is one render MORE than the round-trip this
-         * exists to remove.
-         *
-         * @type {{ record: import("./record").RelationalRecord | null }}
-         */
-        this._editHandover = markRaw({ record: null });
     }
 
     /**
-     * Same shape as `StaticList#evalContext` and `RelationalRecord#evalContext`:
-     * a modifier written against `uid` or `allowed_company_ids` must evaluate
-     * the same way in a top-level list as it does inside an x2many.
-     *
      * @returns {Record<string, any>}
      */
     get evalContext() {
@@ -62,10 +45,6 @@ export class DynamicList extends DataPoint {
     }
 
     /**
-     * Empties the list in place when a sample-data view is replaced by the real,
-     * empty result. Each subclass clears the storage it owns, so a caller never
-     * has to ask which kind of list it is holding.
-     *
      * @abstract
      * @returns {void}
      */
@@ -91,8 +70,8 @@ export class DynamicList extends DataPoint {
      * @param {import("@web/core/domain").DomainListRepr} _domain
      * @returns {Promise<any>}
      */
-    async _load(_offset, _limit, _orderBy, _domain) {
-        this._abstract("_load");
+    _load(_offset, _limit, _orderBy, _domain) {
+        return this._abstract("_load");
     }
 
     /**
@@ -127,7 +106,7 @@ export class DynamicList extends DataPoint {
      * @returns {RelationalRecord[]}
      */
     get records() {
-        return [];
+        return this._abstract("records");
     }
 
     get groupBy() {
@@ -140,53 +119,6 @@ export class DynamicList extends DataPoint {
 
     get domain() {
         return this.config.domain;
-    }
-
-    get editedRecord() {
-        return this.records.find((record) => record.isInEdition);
-    }
-
-    /**
-     * Whether the list is in inline edition, INCLUDING the gap in
-     * `enterEditMode` where the outgoing record has already left edition and
-     * the incoming one has not entered it yet.
-     *
-     * `editedRecord` is momentarily null across that gap, so anything derived
-     * from it flips off and back on within a single interaction. For a
-     * per-record consumer that is harmless; for a LIST-WIDE one it is not,
-     * because every row subscribes to the derived value and a round-trip
-     * re-renders all of them twice for a state that is never painted. Moving
-     * the edited row of a 40-row list cost 81 row renders instead of 3.
-     *
-     * Use this for "is the user editing this list" questions. Use
-     * `editedRecord` when you need the record itself.
-     *
-     * @returns {boolean}
-     */
-    get isEditing() {
-        return Boolean(this._editHandover.record || this.editedRecord);
-    }
-
-    /**
-     * Declare that edition is moving to `record`, for a caller that leaves and
-     * enters as two separate steps instead of letting `enterEditMode` do both.
-     *
-     * `enterEditMode` claims the handover itself, so anything routed through it
-     * needs nothing here. `ListRenderer#editNextRecord` (the Enter key) cannot
-     * use it — it needs `leaveEditMode({ validate: true })`, a stricter leave
-     * than `enterEditMode` performs — so it drives the two halves itself, and
-     * without a claim `isEditing` drops to false between them. That cost 61 row
-     * renders on a 30-row list where Tab, which does route through
-     * `enterEditMode`, cost 4.
-     *
-     * @param {import("./record").RelationalRecord} record
-     * @returns {() => void} release, safe to call more than once
-     */
-    beginEditHandover(record) {
-        this._editHandover.record = record;
-        return () => {
-            this._editHandover.record = null;
-        };
     }
 
     get isRecordCountTrustable() {
@@ -232,12 +164,7 @@ export class DynamicList extends DataPoint {
         if (this.editedRecord === record) {
             return true;
         }
-        // Claimed BEFORE awaiting the outgoing record out of edition, so
-        // `isEditing` stays continuously true across the handover instead of
-        // reporting a transient "nothing is being edited" that no frame ever
-        // shows. Cleared in `finally` so an aborted handover (leaveEditMode
-        // refusing, or the tail throwing) cannot strand the list as editing.
-        this._editHandover.record = record;
+        const release = this.beginEditHandover(record);
         try {
             const canProceed = await this.leaveEditMode();
             if (canProceed) {
@@ -253,7 +180,7 @@ export class DynamicList extends DataPoint {
             }
             return canProceed;
         } finally {
-            this._editHandover.record = null;
+            release();
         }
     }
 
@@ -279,14 +206,6 @@ export class DynamicList extends DataPoint {
     }
 
     /**
-     * Mass edit stages x2many changes on the edited record only. Replay its
-     * commands onto every OTHER selected record so they all carry the same
-     * relation before validity is judged and the values are read back.
-     *
-     * `display_name` is re-attached to LINK commands when the list tracks it:
-     * the other records' lists have never fetched those rows, so without it the
-     * tag renders blank until the next read.
-     *
      * @param {RelationalRecord} editedRecord
      * @param {Record<string, any>} changes
      * @param {RelationalRecord[]} selectedRecords
@@ -322,14 +241,6 @@ export class DynamicList extends DataPoint {
     }
 
     /**
-     * Split the selection into the records this save may write and those it may
-     * not. A record is excluded when any changed field is readonly ON THAT
-     * RECORD, or when it fails validation.
-     *
-     * Only the edited record reports its invalid fields; the rest validate
-     * `silent` because the user is looking at one row and would otherwise get a
-     * notification per selected record.
-     *
      * @param {RelationalRecord[]} selectedRecords
      * @param {RelationalRecord} editedRecord
      * @param {Record<string, any>} changes
@@ -355,14 +266,6 @@ export class DynamicList extends DataPoint {
     }
 
     /**
-     * The write to send, as a thunk so the caller can run it inside its own
-     * try/catch after the confirmation hook.
-     *
-     * Two shapes, and the choice is not cosmetic: an `Operation` value (an
-     * increment, say) resolves to a DIFFERENT number per record, so those go
-     * through `web_save_multi` with one vals dict each. Everything else writes
-     * one identical vals dict to every id via `web_save`.
-     *
      * @param {RelationalRecord} editedRecord
      * @param {RelationalRecord[]} validRecords
      * @param {Record<string, any>} changes
@@ -412,13 +315,7 @@ export class DynamicList extends DataPoint {
     }
 
     /**
-     * Write the server's read-back onto the records that were saved.
-     *
-     * Keyed by id and skipped when absent rather than zipped positionally: the
-     * server returns a row per WRITTEN record, and `resIds` was uniqued, so the
-     * two lists need not line up when the same record is selected twice.
-     *
-     * @param {any[]} records rows returned by web_save / web_save_multi
+     * @param {any[]} records
      * @param {RelationalRecord[]} validRecords
      * @returns {void}
      */
@@ -476,6 +373,9 @@ export class DynamicList extends DataPoint {
         return this.model.mutex.exec(() => this._selectDomain(value));
     }
 
+    /**
+     * @param {string} fieldName
+     */
     sortBy(fieldName) {
         return this.model.mutex.exec(() => {
             const orderBy = computeNextOrderBy(fieldName, this.orderBy, false, {
@@ -498,7 +398,7 @@ export class DynamicList extends DataPoint {
         const isSelected = this.isDomainSelected || this.selection.length;
         if (archive) {
             return Promise.resolve(
-                this.model.hooks.ui.onConfirmArchive(
+                this.model.uiHooks.onConfirmArchive(
                     () => this.archive(isSelected),
                     dialogProps,
                 ),
@@ -507,13 +407,34 @@ export class DynamicList extends DataPoint {
         return this.unarchive(isSelected);
     }
 
-    async _duplicateRecords(records) {
-        let resIds;
+    /**
+     * @param {RelationalRecord[]} records
+     * @returns {Promise<number[]>}
+     */
+    async _resolveBulkTargets(records) {
         if (records.length) {
-            resIds = unique(records.map((r) => r.resId));
-        } else {
-            resIds = await this.getResIds(true);
+            return unique(/** @type {number[]} */ (records.map((r) => r.resId)));
         }
+        return this.getResIds(true);
+    }
+
+    /**
+     * @param {number[]} resIds
+     * @param {() => string} message
+     * @returns {void}
+     */
+    _warnIfTruncated(resIds, message) {
+        if (
+            this.isDomainSelected &&
+            resIds.length === this.model.activeIdsLimit &&
+            resIds.length < this.recordCount
+        ) {
+            this.model.uiHooks.onDisplayLimitNotification(message());
+        }
+    }
+
+    async _duplicateRecords(records) {
+        const resIds = await this._resolveBulkTargets(records);
 
         const copy = async (resIds) => {
             const copiedRecords = await this.model.orm.call(
@@ -526,40 +447,30 @@ export class DynamicList extends DataPoint {
             );
 
             if (resIds.length > copiedRecords.length) {
-                this.model.hooks.ui.onDisplayLimitNotification(
+                this.model.uiHooks.onDisplayLimitNotification(
                     _t("Some records could not be duplicated"),
                 );
             }
             return this.model.load();
         };
 
-        await this.model.hooks.ui.onConfirmDuplicate(resIds, copy);
+        await this.model.uiHooks.onConfirmDuplicate(resIds, copy);
     }
 
     async _deleteRecords(records) {
-        let resIds;
-        if (records.length) {
-            resIds = unique(records.map((r) => r.resId));
-        } else {
-            resIds = await this.getResIds(true);
-        }
+        const resIds = await this._resolveBulkTargets(records);
         const unlinked = await this.model.orm.unlink(this.resModel, resIds, {
             context: this.context,
         });
         if (!unlinked) {
             return false;
         }
-        if (
-            this.isDomainSelected &&
-            resIds.length === this.model.activeIdsLimit &&
-            resIds.length < this.recordCount
-        ) {
-            const msg = _t(
+        this._warnIfTruncated(resIds, () =>
+            _t(
                 "Only the first %(count)s records have been deleted (out of %(total)s selected)",
                 { count: resIds.length, total: this.recordCount },
-            );
-            this.model.hooks.ui.onDisplayLimitNotification(msg);
-        }
+            ),
+        );
         await this.model.load();
         return unlinked;
     }
@@ -618,7 +529,8 @@ export class DynamicList extends DataPoint {
         if (!Object.keys(changes).length || editedRecord === this._recordToDiscard) {
             return;
         }
-        let canProceed = await this.model.hooks.lifecycle.onWillSaveMulti(
+        let canProceed = await this.model.notifyLifecycle(
+            "onWillSaveMulti",
             editedRecord,
             changes,
         );
@@ -635,13 +547,13 @@ export class DynamicList extends DataPoint {
         );
 
         selectedRecords.forEach((record) => {
-            const _changes = { ...changes };
-            for (const fieldName of Object.keys(_changes)) {
+            const perRecordChanges = { ...changes };
+            for (const fieldName of Object.keys(perRecordChanges)) {
                 if (isX2Many(this.fields[fieldName])) {
-                    _changes[fieldName] = record.data[fieldName];
+                    perRecordChanges[fieldName] = record.data[fieldName];
                 }
             }
-            record._applyChanges(_changes);
+            record._applyChanges(perRecordChanges);
         });
 
         const { validRecords, invalidRecords } = this._partitionByValidity(
@@ -660,16 +572,17 @@ export class DynamicList extends DataPoint {
 
         const save = this._buildMultiSaveCall(editedRecord, validRecords, changes);
 
-        const _changes = { ...changes };
+        const changesToConfirm = { ...changes };
         for (const fieldName of Object.keys(changes)) {
             if (this.fields[fieldName].type === "many2many") {
-                _changes[fieldName] = changes[fieldName].stagedMembershipDelta;
+                changesToConfirm[fieldName] = changes[fieldName].stagedMembershipDelta;
             }
         }
         discardInvalidRecords();
 
-        canProceed = await this.model.hooks.lifecycle.onAskMultiSaveConfirmation(
-            _changes,
+        canProceed = await this.model.notifyLifecycle(
+            "onAskMultiSaveConfirmation",
+            changesToConfirm,
             validRecords,
         );
         if (canProceed === false) {
@@ -688,7 +601,7 @@ export class DynamicList extends DataPoint {
         }
         this._applyMultiSaveResult(records, validRecords);
         this.model._patchConfig(editedRecord.config, { mode: "readonly" });
-        this.model.hooks.lifecycle.onSavedMulti(validRecords);
+        this.model.notifyLifecycle("onSavedMulti", validRecords);
         return true;
     }
 
@@ -748,22 +661,17 @@ export class DynamicList extends DataPoint {
         const action = await this.model.orm.call(this.resModel, method, [resIds], {
             context,
         });
-        if (
-            this.isDomainSelected &&
-            resIds.length === this.model.activeIdsLimit &&
-            resIds.length < this.recordCount
-        ) {
-            const msg = _t(
+        this._warnIfTruncated(resIds, () =>
+            _t(
                 "Of the %(selectedRecords)s selected records, only the first %(firstRecords)s have been archived/unarchived.",
                 {
                     selectedRecords: this.recordCount,
                     firstRecords: resIds.length,
                 },
-            );
-            this.model.hooks.ui.onDisplayLimitNotification(msg);
-        }
+            ),
+        );
         const reload = () => this.model.load();
-        return this.model.hooks.ui.onDisplayArchiveAction(action, reload);
+        return this.model.uiHooks.onDisplayArchiveAction(action, reload);
     }
 
     async _toggleSelection() {

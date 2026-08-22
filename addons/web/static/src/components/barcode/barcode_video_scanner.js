@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/barcode/barcode_video_scanner */
-
 import {
     Component,
     onMounted,
@@ -24,6 +22,7 @@ import {
 } from "./ZXingBarcodeDetector.js";
 
 const MAX_CONSECUTIVE_DETECT_ERRORS = 5;
+const DETECT_INTERVAL = 100;
 
 export class BarcodeVideoScanner extends Component {
     static template = "web.BarcodeVideoScanner";
@@ -45,19 +44,29 @@ export class BarcodeVideoScanner extends Component {
     static defaultProps = {
         cssClass: "w-100 h-100",
     };
+    /** @type {import("@odoo/owl").Ref<HTMLVideoElement>} */
+    videoPreviewRef;
+    /** @type {any} */
+    detectorTimeout = null;
+    /** @type {MediaStream | null} */
+    stream = null;
+    /** @type {any} */
+    detector = null;
+    /** @type {{ x?: number, y?: number, width?: number, height?: number }} */
+    overlayInfo = {};
+    zoomRatio = 1;
+    scanPaused = false;
+    consecutiveDetectErrors = 0;
+    /** @type {MediaStreamTrack | null} */
+    zoomTrack = null;
+    /** @type {{ isReady: boolean, zoom: {min: number, max: number, step: number, value: number} | null }} */
+    state;
+
     /**
      * @override
      */
     setup() {
-        this.videoPreviewRef = useRef("videoPreview");
-        this.detectorTimeout = null;
-        this.stream = null;
-        this.detector = null;
-        this.overlayInfo = {};
-        this.zoomRatio = 1;
-        this.scanPaused = false;
-        this.consecutiveDetectErrors = 0;
-        this.zoomTrack = null;
+        this.videoPreviewRef = /** @type {any} */ (useRef("videoPreview"));
         this.state = useState({
             isReady: false,
             /** @type {{min: number, max: number, step: number, value: number} | null} */
@@ -65,10 +74,8 @@ export class BarcodeVideoScanner extends Component {
         });
 
         onWillStart(async () => {
-            let DetectorClass;
-            if ("BarcodeDetector" in window) {
-                DetectorClass = BarcodeDetector;
-            } else {
+            let DetectorClass = browser.BarcodeDetector;
+            if (!DetectorClass) {
                 const ZXing = await import("zxing-library");
                 DetectorClass = buildZXingBarcodeDetector(ZXing);
             }
@@ -82,10 +89,13 @@ export class BarcodeVideoScanner extends Component {
                 audio: false,
             };
 
+            let stream;
             try {
-                this.stream =
-                    await browser.navigator.mediaDevices.getUserMedia(constraints);
+                stream = await browser.navigator.mediaDevices.getUserMedia(constraints);
             } catch (err) {
+                if (status(this) === "destroyed") {
+                    return;
+                }
                 const errors = {
                     NotFoundError: _t("No device can be found."),
                     NotAllowedError: _t("Odoo needs your authorization first."),
@@ -94,6 +104,11 @@ export class BarcodeVideoScanner extends Component {
                     message: errors[err.name] || err.message,
                 });
                 this.props.onError(new Error(errorMessage));
+                return;
+            }
+            this.stream = stream;
+            if (status(this) === "destroyed") {
+                this.cleanStreamAndTimeout();
                 return;
             }
             if (!this.videoPreviewRef.el) {
@@ -110,20 +125,25 @@ export class BarcodeVideoScanner extends Component {
             if (!ready) {
                 return;
             }
+            if (this.videoPreviewRef.el.paused) {
+                await this.videoPreviewRef.el.play();
+            }
             const { height, width } = getComputedStyle(this.videoPreviewRef.el);
             const divWidth = parseFloat(width);
             const divHeight = parseFloat(height);
-            const tracks = this.stream.getVideoTracks();
-            if (tracks.length) {
-                const [track] = tracks;
-                const settings = track.getSettings();
+            const [track] = stream.getVideoTracks();
+            const settings = track?.getSettings();
+            if (settings?.width && settings.height) {
                 this.zoomRatio = Math.min(
                     divWidth / settings.width,
                     divHeight / settings.height,
                 );
                 this.addZoomSlider(track, settings);
             }
-            this.detectorTimeout = browser.setTimeout(this.detectCode.bind(this), 100);
+            this.detectorTimeout = browser.setTimeout(
+                this.detectCode.bind(this),
+                DETECT_INTERVAL,
+            );
         });
 
         onWillUnmount(() => this.cleanStreamAndTimeout());
@@ -139,7 +159,7 @@ export class BarcodeVideoScanner extends Component {
     }
 
     isZXingBarcodeDetector() {
-        return this.detector?.constructor.name === "ZXingBarcodeDetector";
+        return Boolean(this.detector?.constructor.cropsAtSource);
     }
 
     /**
@@ -185,19 +205,22 @@ export class BarcodeVideoScanner extends Component {
             }
         }
         for (const code of codes) {
+            const overlay = this.overlayInfo;
             if (
                 !this.isZXingBarcodeDetector() &&
-                this.overlayInfo.x !== undefined &&
-                this.overlayInfo.y !== undefined
+                overlay.x !== undefined &&
+                overlay.y !== undefined &&
+                overlay.width !== undefined &&
+                overlay.height !== undefined
             ) {
                 const { x, y, width, height } = this.adaptValuesWithRatio(
                     code.boundingBox,
                 );
                 if (
-                    x < this.overlayInfo.x ||
-                    x + width > this.overlayInfo.x + this.overlayInfo.width ||
-                    y < this.overlayInfo.y ||
-                    y + height > this.overlayInfo.y + this.overlayInfo.height
+                    x < overlay.x ||
+                    x + width > overlay.x + overlay.width ||
+                    y < overlay.y ||
+                    y + height > overlay.y + overlay.height
                 ) {
                     continue;
                 }
@@ -207,7 +230,10 @@ export class BarcodeVideoScanner extends Component {
             break;
         }
         if (this.stream && (!barcodeDetected || !this.props.delayBetweenScan)) {
-            this.detectorTimeout = browser.setTimeout(this.detectCode.bind(this), 100);
+            this.detectorTimeout = browser.setTimeout(
+                this.detectCode.bind(this),
+                DETECT_INTERVAL,
+            );
         }
     }
 
@@ -218,7 +244,7 @@ export class BarcodeVideoScanner extends Component {
                 this.scanPaused = false;
                 this.detectorTimeout = browser.setTimeout(
                     this.detectCode.bind(this),
-                    100,
+                    DETECT_INTERVAL,
                 );
             }, this.props.delayBetweenScan);
         }
@@ -259,9 +285,14 @@ export class BarcodeVideoScanner extends Component {
      * @param {Event} ev
      */
     onZoomInput(ev) {
+        if (!this.state.zoom) {
+            return;
+        }
         const value = Number(/** @type {HTMLInputElement} */ (ev.target).value);
         this.state.zoom.value = value;
-        this.zoomTrack?.applyConstraints({ advanced: [{ zoom: value }] });
+        this.zoomTrack?.applyConstraints(
+            /** @type {any} */ ({ advanced: [{ zoom: value }] }),
+        );
     }
 }
 

@@ -21,13 +21,20 @@ OWL bundle, bottoming out in the native `Element.remove()`:
 
 ```
 remove [native]
-  └─ remove [owl.es.js:1100]     ← blockdom, recursive over the block tree
-    └─ remove [owl.es.js:1056]
-      └─ remove [owl.es.js:2698]
-        └─ remove [owl.es.js:68]
+  └─ remove [owl.es.js:1101]     ← blockdom, recursive over the block tree
+    └─ remove [owl.es.js:1057]
+      └─ remove [owl.es.js:2699]
+        └─ remove [owl.es.js:69]
           … recursion …
-            └─ patch  [owl.es.js:46]
+            └─ patch  [owl.es.js:47]
 ```
+
+Line numbers are 1-based, as an editor shows them. They were first recorded
+one lower across the board — CDP reports `CallFrame.lineNumber` **0-based**,
+and the profile was transcribed without converting. Every frame still resolved
+to a real `remove`/`patch`, one line further down, which is exactly why the
+error survived a reading: the chain was right and only the coordinates were
+off. Add 1 when copying a frame out of a profile.
 
 It is blockdom tearing the outgoing view's block tree down node by node when the
 action manager patches the new controller in. `_destroy` / `beforeRemove`

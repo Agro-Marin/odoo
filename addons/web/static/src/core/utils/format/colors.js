@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/format/colors */
-
 /**
  * @static
  * @param {string} gradient
@@ -390,9 +388,7 @@ export function rgbaToHex(rgba = "") {
 
 /**
  * @param {string} color
- * @param {HTMLElement|null} [node] the element the colour sits on, when the
- *   alpha channel has to be blended against what shows through it; omitted, the
- *   backdrop is taken as white
+ * @param {HTMLElement|null} [node]
  * @returns {string}
  */
 export function blendColors(color, node) {

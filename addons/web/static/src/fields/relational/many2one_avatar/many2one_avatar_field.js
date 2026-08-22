@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/many2one_avatar/many2one_avatar_field */
-
 import { registerField } from "@web/fields/_registry";
 import {
     buildM2OFieldDescription,

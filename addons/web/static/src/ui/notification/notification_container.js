@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/notification/notification_container */
-
 import { Component, useState } from "@odoo/owl";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { Transition } from "@web/core/transition";
@@ -11,13 +9,6 @@ import { ErrorHandler } from "@web/core/utils/components";
 import { Notification } from "./notification.js";
 export class NotificationContainer extends Component {
     static serviceName = "notification";
-    /**
-     * The component this container renders each notification with. Its `props`
-     * are the options `notificationService.add` accepts, so a subclass that
-     * renders something else must say so here: deriving it from `components`
-     * instead would validate against whatever is keyed `Notification`, which a
-     * subclass inherits, and forward options the rendered component rejects.
-     */
     static notificationComponent = Notification;
     static props = {
         notifications: { type: Object, optional: true },

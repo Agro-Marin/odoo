@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/settings/settings_page */
-
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { ActionSwiper } from "@web/components/action_swiper/action_swiper";
 import { browser } from "@web/core/browser/browser";

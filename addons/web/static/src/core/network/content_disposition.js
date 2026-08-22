@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/network/content_disposition */
-
 /* eslint-disable */
 
 

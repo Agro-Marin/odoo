@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/dialog/confirmation_dialog */
-
 import { Component, useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { useChildRef } from "@web/core/utils/hooks";
@@ -48,11 +46,6 @@ export class ConfirmationDialog extends Component {
         this.state = useState({ isProcess: false });
     }
 
-    /** @returns {boolean} */
-    get isProcess() {
-        return this.state.isProcess;
-    }
-
     async _cancel() {
         return this.execButton(this.props.cancel);
     }
@@ -71,10 +64,6 @@ export class ConfirmationDialog extends Component {
     }
 
     /**
-     * Runs a button's callback and reports whether the dialog may close. Does
-     * not close it: on the dismiss path `Dialog` owns the single close, so
-     * closing here too would fire it twice and override a refusal.
-     *
      * @param {Function} [callback]
      * @returns {Promise<boolean>}
      */

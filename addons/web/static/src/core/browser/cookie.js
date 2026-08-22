@@ -1,17 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/browser/cookie */
-
 /** @type {number} */
 const COOKIE_TTL = 24 * 60 * 60 * 365;
 
 // eslint-disable-next-line no-control-regex
 const UNSAFE_VALUE_CHARS = /[%;\x00-\x1f\x7f]/g;
-// A cookie *name* is an RFC 6265 token: no separators, no whitespace. `=` and
-// `;` are the two that matter -- unescaped, `set("a=b", "c")` writes the cookie
-// `a` with value `b=c`, and `set("a; Max-Age=0", …)` clobbers whatever `a`
-// already held. The value was escaped from the start; the name never was.
 // eslint-disable-next-line no-control-regex
 const UNSAFE_KEY_CHARS = /[%;=,\s()<>@:\\"/[\]?{}\x00-\x1f\x7f]/g;
 

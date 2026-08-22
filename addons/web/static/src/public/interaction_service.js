@@ -1,17 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/public/interaction_service */
-
 import { App, Component } from "@odoo/owl";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { registry } from "@web/core/registry";
 import { getTemplate } from "@web/core/templates";
 import { appTranslateFn } from "@web/core/translation";
-
-import { Colibri } from "./colibri.js";
-import { Interaction } from "./interaction.js";
-import { PairSet } from "./utils.js";
+import { Colibri } from "@web/public/colibri";
+import { Interaction } from "@web/public/interaction";
+import { PairSet } from "@web/public/utils";
 
 /**
  * @typedef {Object} PreparedRoot
@@ -32,6 +29,8 @@ registry
     );
 
 export class InteractionService {
+    static MAX_PENDING_ERRORS = 10;
+
     /**
      * @param {HTMLElement} el
      * @param {import("@web/env").OdooEnv} env
@@ -48,8 +47,15 @@ export class InteractionService {
         /** @type {PreparedRoot[]} */
         this.roots = [];
         this.owlApp = null;
-        /** @type {Promise<any>[]} */
+        /**
+         * @type {Promise<any>[]}
+         */
         this.proms = [];
+        /**
+         * @type {Set<unknown>}
+         */
+        this.pendingErrors = new Set();
+        this.droppedErrorCount = 0;
         /** @type {WeakSet<Object>} */
         this.reportedErrors = new WeakSet();
         this.editMode = false;
@@ -68,16 +74,6 @@ export class InteractionService {
     }
 
     /**
-     * Adopt a promise into the service's in-flight set, so readiness accounts
-     * for it and a rejection is reported once rather than becoming an unhandled
-     * rejection.
-     *
-     * Published, not underscored: `colibri.js` is a peer module, not a helper of
-     * this one, and it has to call this when it mounts a root. Spelling it
-     * `_trackProm` made the only cross-module call in `public/` read as a reach
-     * into private state, which is what a leading underscore is supposed to
-     * mean here. The name was the error, not the call.
-     *
      * @param {Promise<any>} prom
      * @returns {void}
      */
@@ -86,6 +82,15 @@ export class InteractionService {
         prom.then(
             () => this._forgetProm(prom),
             (error) => {
+                this._forgetProm(prom);
+                if (
+                    this.pendingErrors.size < InteractionService.MAX_PENDING_ERRORS ||
+                    this.pendingErrors.has(error)
+                ) {
+                    this.pendingErrors.add(error);
+                } else {
+                    this.droppedErrorCount++;
+                }
                 if (error instanceof Object) {
                     if (this.reportedErrors.has(error)) {
                         return;
@@ -154,7 +159,7 @@ export class InteractionService {
             props,
             env: this.env,
         });
-        const rootEl = document.createElement("owl-root");
+        const rootEl = el.ownerDocument.createElement("owl-root");
         rootEl.setAttribute("contenteditable", "false");
         rootEl.dataset.oeProtected = "true";
         rootEl.style.display = "contents";
@@ -343,12 +348,6 @@ export class InteractionService {
         const { selectorNotHas, selectorHas } = /** @type {any} */ (
             interaction.interaction.constructor
         );
-        // A blanket stop stops everything this service owns, including whatever
-        // `el` cannot reach: an element already detached, and an element living
-        // in another document altogether. The latter is `isConnected` -- it is
-        // connected to ITS document -- so an `isConnected` test alone left it
-        // running forever, and with it any listener it bound to the real window
-        // through `_window`'s `defaultView || window` fallback.
         if (this.coversWholeRoot(el) && !el.contains(interaction.el)) {
             return true;
         }
@@ -422,12 +421,6 @@ export class InteractionService {
             (root) =>
                 coversWholeRoot ||
                 el.contains(root.el) ||
-                // A detached <owl-root> cannot be placed by containment, so
-                // the host answers for it: anything that rewrites the host's
-                // content detaches it, and matching on it alone left the root
-                // -- and the live component under it -- behind for good. Only
-                // when it is detached, though: a root still in the page sits
-                // where it was mounted, and that may be outside `el`.
                 (!root.el.isConnected && el.contains(root.hostEl)),
         );
     }
@@ -459,24 +452,22 @@ export class InteractionService {
      * @returns {Promise<void>}
      */
     get isReady() {
-        const proms = this.proms.slice();
-        return Promise.allSettled(proms).then((results) => {
-            const errors = new Set();
-            for (const [index, result] of results.entries()) {
-                if (result.status === "rejected") {
-                    errors.add(result.reason);
-                    this._forgetProm(proms[index]);
-                }
+        return Promise.allSettled(this.proms.slice()).then(() => {
+            const errors = this.pendingErrors;
+            const dropped = this.droppedErrorCount;
+            if (!errors.size) {
+                return;
             }
-            if (errors.size === 1) {
+            this.pendingErrors = new Set();
+            this.droppedErrorCount = 0;
+            if (errors.size === 1 && !dropped) {
                 throw [...errors][0];
             }
-            if (errors.size) {
-                throw new AggregateError(
-                    [...errors],
-                    "Could not start some interactions",
-                );
-            }
+            throw new AggregateError(
+                [...errors],
+                "Could not start some interactions" +
+                    (dropped ? ` (and ${dropped} more, not kept)` : ""),
+            );
         });
     }
 }

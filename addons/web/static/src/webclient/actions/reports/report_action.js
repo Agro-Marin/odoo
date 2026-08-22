@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/reports/report_action */
-
 import { Component, useRef, useSubEnv } from "@odoo/owl";
 import { useSetupAction } from "@web/core/action_hook";
 import { useService } from "@web/core/utils/hooks";

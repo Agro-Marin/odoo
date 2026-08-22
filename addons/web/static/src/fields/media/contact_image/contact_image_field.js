@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/media/contact_image/contact_image_field */
-
 import { isBinarySize } from "@web/core/utils/format/binary";
 import { imageUrl } from "@web/core/utils/urls";
 import { registerField } from "@web/fields/_registry";
@@ -20,10 +18,7 @@ export class ContactImageField extends ImageField {
      * @returns {string}
      */
     getUrl(imageFieldName) {
-        if (
-            this.props.previewImage &&
-            (!this.props.record.data[this.props.name] || !this.state.isValid)
-        ) {
+        if (this.props.previewImage && (!this.field.value || !this.state.isValid)) {
             const previewData = this.props.record.data[imageFieldName];
             if (isBinarySize(previewData)) {
                 const url = imageUrl(
@@ -47,7 +42,7 @@ export class ContactImageField extends ImageField {
     /** @returns {string} */
     get imgClass() {
         let classes = super.imgClass;
-        if (!this.props.record.data[this.props.name] || !this.state.isValid) {
+        if (!this.field.value || !this.state.isValid) {
             classes += " opacity-100 opacity-25-hover";
         }
         return classes;
@@ -55,12 +50,12 @@ export class ContactImageField extends ImageField {
 
     /** @returns {boolean} */
     get containsValidImage() {
-        return this.props.record.data[this.props.name] && this.state.isValid;
+        return this.field.value && this.state.isValid;
     }
 }
 
 /** @type {import("registries").FieldsRegistryItemShape} */
-export const contactImageField = {
+const contactImageField = {
     ...imageField,
     component: ContactImageField,
     fieldDependencies: ({ options }) => [

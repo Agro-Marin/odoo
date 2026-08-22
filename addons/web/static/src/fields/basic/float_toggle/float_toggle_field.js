@@ -1,17 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/float_toggle/float_toggle_field */
-
-import { Component } from "@odoo/owl";
 import { formatFloatFactor } from "@web/core/formatters";
 import { _t } from "@web/core/translation";
 import { extractDigits } from "@web/core/utils/format/digits";
 import { registerField } from "@web/fields/_registry";
-import { fieldHandle } from "@web/fields/field_handle";
+import { FieldComponent } from "@web/fields/field_component";
+import { digitsAttribute } from "@web/fields/field_options";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-export class FloatToggleField extends Component {
+export class FloatToggleField extends FieldComponent {
     static template = "web.FloatToggleField";
     static props = {
         ...standardFieldProps,
@@ -25,11 +23,6 @@ export class FloatToggleField extends Component {
         factor: 1,
         disableReadOnly: false,
     };
-
-    /** @returns {import("@web/fields/field_handle").FieldHandle} */
-    get field() {
-        return fieldHandle(this);
-    }
 
     onChange() {
         const range = this.range;
@@ -46,9 +39,6 @@ export class FloatToggleField extends Component {
     }
 
     /**
-     * The `range` option is arbitrary arch input. An empty or non-numeric one
-     * used to make `range[currentIndex]` undefined and write NaN to the record.
-     *
      * @returns {number[]}
      */
     get range() {
@@ -90,7 +80,7 @@ export class FloatToggleField extends Component {
 }
 
 /** @type {import("registries").FieldsRegistryItemShape} */
-export const floatToggleField = {
+const floatToggleField = {
     component: FloatToggleField,
     supportedOptions: [
         {
@@ -114,6 +104,7 @@ export const floatToggleField = {
             type: "boolean",
         },
     ],
+    supportedAttributes: [digitsAttribute()],
     supportedTypes: ["float"],
     isEmpty: () => false,
     extractProps: ({ attrs, options }) => ({

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/barcode/ZXingBarcodeDetector */
+const MIN_CROP_SIZE = 16;
 
 /**
  * @param {any} ZXing
@@ -25,6 +25,8 @@ export function buildZXingBarcodeDetector(ZXing) {
     const allSupportedFormats = Array.from(ZXingFormats.keys());
 
     class ZXingBarcodeDetector {
+        static cropsAtSource = true;
+
         /**
          * @param {object} opts
          * @param {Array} opts.formats
@@ -65,17 +67,16 @@ export function buildZXingBarcodeDetector(ZXing) {
             }
             const canvas = this.canvas;
 
-            let barcodeArea;
-            if (this.cropArea && (this.cropArea.x || this.cropArea.y)) {
-                barcodeArea = this.cropArea;
-            } else {
-                barcodeArea = {
-                    x: 0,
-                    y: 0,
-                    width: video.videoWidth,
-                    height: video.videoHeight,
-                };
-            }
+            const crop = this.cropArea;
+            const barcodeArea =
+                crop && crop.width >= MIN_CROP_SIZE && crop.height >= MIN_CROP_SIZE
+                    ? crop
+                    : {
+                          x: 0,
+                          y: 0,
+                          width: video.videoWidth,
+                          height: video.videoHeight,
+                      };
             if (canvas.width !== barcodeArea.width) {
                 canvas.width = barcodeArea.width;
             }
@@ -104,14 +105,15 @@ export function buildZXingBarcodeDetector(ZXing) {
             try {
                 const result = this.reader.decodeWithState(binaryBitmap);
                 const { resultPoints } = result;
+                const xs = resultPoints.map((/** @type {any} */ p) => p.x);
+                const ys = resultPoints.map((/** @type {any} */ p) => p.y);
+                const left = Math.min(...xs);
+                const top = Math.min(...ys);
                 const boundingBox = DOMRectReadOnly.fromRect({
-                    x: resultPoints[0].x,
-                    y: resultPoints[0].y,
-                    height: Math.max(
-                        1,
-                        Math.abs(resultPoints[1].y - resultPoints[0].y),
-                    ),
-                    width: Math.max(1, Math.abs(resultPoints[1].x - resultPoints[0].x)),
+                    x: left,
+                    y: top,
+                    width: Math.max(1, Math.max(...xs) - left),
+                    height: Math.max(1, Math.max(...ys) - top),
                 });
                 const cornerPoints = resultPoints;
                 const format =

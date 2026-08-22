@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/public/colibri */
-
 /** @import { Interaction } from "@web/public/interaction" */
 
 import { Component, markup } from "@odoo/owl";
@@ -113,14 +111,6 @@ function assertAttrObject(attr, value) {
 }
 
 /**
- * A selector keeps a reference to every node it has ever touched, so the initial
- * values can be put back on teardown. Nodes churn -- a `t-out` rebuilds its
- * subtree, a list re-renders -- and the entries for the gone ones would
- * otherwise pile up for the life of the page rather than the life of the nodes.
- * Sweeping the set instead would find nothing to drop: at the point a node is
- * replaced it has not been collected yet, so the collector is the only thing
- * that can say when the entry is dead, and this is it saying so.
- *
  * @type {FinalizationRegistry<{ refs: Set<WeakRef<HTMLElement>>, ref: WeakRef<HTMLElement> }>}
  */
 const touchedRegistry = new FinalizationRegistry(({ refs, ref }) => refs.delete(ref));
@@ -133,7 +123,18 @@ const touchedRegistry = new FinalizationRegistry(({ refs, ref }) => refs.delete(
 function rememberTouched(entry, node) {
     const ref = new WeakRef(node);
     entry.touched.add(ref);
-    touchedRegistry.register(node, { refs: entry.touched, ref });
+    touchedRegistry.register(node, { refs: entry.touched, ref }, ref);
+}
+
+/**
+ * @param {Set<WeakRef<HTMLElement>>} refs
+ * @returns {void}
+ */
+function forgetTouched(refs) {
+    for (const ref of refs) {
+        touchedRegistry.unregister(ref);
+    }
+    refs.clear();
 }
 
 /**
@@ -307,10 +308,9 @@ export class Colibri {
             this.updateContent();
         }
         const started = /** @type {unknown} */ (this.interaction.start());
-        // `start` is deliberately not awaited, so an async one that rejects
-        // would settle with nobody looking and never reach the error channel
         if (started instanceof Promise) {
-            started.then(null, (error) => this.core.reportError(error));
+            const reported = started.catch((error) => this.core.reportError(error));
+            this.core.trackProm(Promise.race([reported, this.tornDown]));
         }
         this.hasStarted = true;
     }
@@ -320,14 +320,9 @@ export class Colibri {
      */
     async start() {
         try {
-            // `Interaction.waitFor` drops its resolution once the interaction is
-            // destroyed, so a `willStart` awaiting one stays pending forever;
-            // racing the teardown keeps that out of `InteractionService.proms`.
             const willStart = Promise.resolve(this.interaction.willStart());
             await Promise.race([willStart, this.tornDown]);
             if (this.isDestroyed || this.isDestroying) {
-                // the race is settled, so nothing would ever look at a failure
-                // `willStart` reports after this point
                 willStart.catch((error) => this.core.reportError(error));
                 return;
             }
@@ -340,10 +335,10 @@ export class Colibri {
     }
 
     /**
-     * @param {boolean} [withInteractionDestroy]
+     * @param {{ withInteractionDestroy: boolean, rethrow: boolean }} options
      * @returns {void}
      */
-    abortStart(withInteractionDestroy = false) {
+    _teardown({ withInteractionDestroy, rethrow }) {
         if (this.isDestroyed || this.isDestroying) {
             return;
         }
@@ -354,6 +349,11 @@ export class Colibri {
         try {
             errors = this.restoreContent();
         } finally {
+            this.listeners.clear();
+            this.dynamicNodes.clear();
+            for (const { touched } of [...this.dynamicAttrs, ...this.tOuts]) {
+                forgetTouched(touched);
+            }
             if (withInteractionDestroy) {
                 try {
                     this.destroyInteraction();
@@ -363,14 +363,31 @@ export class Colibri {
             } else {
                 errors.push(...this.runCleanups());
             }
-            this.listeners.clear();
-            this.dynamicNodes.clear();
-            for (const error of errors) {
-                this.core.reportError(error);
-            }
             this.isDestroyed = true;
             this.isReady = false;
+            if (!rethrow) {
+                for (const error of errors) {
+                    this.core.reportError(error);
+                }
+            }
         }
+        if (rethrow && errors.length) {
+            if (errors.length === 1) {
+                throw errors[0];
+            }
+            throw new AggregateError(
+                errors,
+                `Some errors occured while restoring content (in interaction '${this.interaction.constructor.name}')`,
+            );
+        }
+    }
+
+    /**
+     * @param {boolean} [withInteractionDestroy]
+     * @returns {void}
+     */
+    abortStart(withInteractionDestroy = false) {
+        this._teardown({ withInteractionDestroy, rethrow: false });
     }
 
     /**
@@ -422,8 +439,6 @@ export class Colibri {
         const eventListener = /** @type {EventListener} */ (handler);
         /** @type {Set<ListenerRecord>} */
         const records = new Set();
-        // validate up front: attaching to the first few and then throwing would
-        // leave half the selector listening
         const targets = [...nodes];
         for (const node of targets) {
             if (typeof node?.addEventListener !== "function") {
@@ -613,14 +628,6 @@ export class Colibri {
                 return;
             }
         } else {
-            // What has to be told apart here is a subtree another hand
-            // *replaced* from one merely decorated in place -- interactions
-            // started under this very node set attributes on it, and treating
-            // that as a change would restart them on every update, forever.
-            // Replacing content swaps the child nodes; decorating it does not,
-            // so their identity is the signal. Serializing is only the
-            // fallback, for the pass where nothing has been recorded yet and
-            // the server markup may already agree.
             const applied = this.appliedMarkup.get(el);
             if (applied?.source === html && isSameNodes(el.childNodes, applied.nodes)) {
                 return;
@@ -886,9 +893,6 @@ export class Colibri {
             }
         }
         const interaction = this.interaction;
-        // content first: a 't-out' rebuilds the nodes under it, and applying
-        // attributes beforehand would only ever reach the generation it is
-        // about to discard.
         for (const tOut of this.tOuts) {
             const { sel, definition, initialValue } = tOut;
             for (const node of this.dynamicNodes.get(sel) || []) {
@@ -974,45 +978,15 @@ export class Colibri {
      * @returns {void}
      */
     destroy() {
-        if (this.isDestroyed || this.isDestroying) {
-            return;
-        }
-        this.isDestroying = true;
-        this.signalTornDown();
-        /** @type {Error[]} */
-        let errors = [];
-        try {
-            errors = this.restoreContent();
-        } finally {
-            this.listeners.clear();
-            this.dynamicNodes.clear();
-            try {
-                this.destroyInteraction();
-            } catch (error) {
-                errors.push(error);
-            } finally {
-                this.isDestroyed = true;
-                this.isReady = false;
-            }
-        }
-        if (errors.length) {
-            if (errors.length === 1) {
-                throw errors[0];
-            }
-            throw new AggregateError(
-                errors,
-                `Some errors occured while restoring content (in interaction '${this.interaction.constructor.name}')`,
-            );
-        }
+        this._teardown({ withInteractionDestroy: true, rethrow: true });
     }
 
     /**
      * @param {Interaction} interaction
-     * @param {string} name
      * @param {Function} fn
      * @returns {Function}
      */
-    protectSyncAfterAsync(interaction, name, fn) {
+    bindDeferred(interaction, fn) {
         return fn.bind(interaction);
     }
 }

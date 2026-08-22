@@ -72,12 +72,6 @@
     }
 }
 
-// Here rather than in `html_editor`, where these used to live: `web`'s own
-// `bootstrap_review_frontend.scss` builds every `.btn-outline-*` with
-// `increase-contrast()`, and `web` does not depend on `html_editor`. Sass treats
-// an unknown function name as a plain CSS function and passes it through, so
-// removing html_editor surfaced the failure far from its cause, as
-// `$color: increase-contrast(…) is not a color` inside Bootstrap's `opaque()`.
 @function has-enough-contrast($color1, $color2, $threshold: 500) {
     $-r: abs(red($color1) - red($color2));
     $-g: abs(green($color1) - green($color2));
@@ -94,7 +88,6 @@
     $-step: if(luma($color1) < luma($color2), -1%, 1%);
     $-iterations: 0;
 
-    // Give up after 25 steps even if still not contrasted enough.
     @while $-lightness >
         0.1% and
         $-lightness <
@@ -199,25 +192,10 @@
     }
 }
 
-// Every generic family CSS lets a stack terminate in, not just `serif` /
-// `sans-serif`: a family listed after a generic is unreachable, so the fallback
-// has to go in front of whichever one ends the stack. Anchoring on two of them
-// silently skipped `$o-font-family-monospace`.
 $o-generic-font-families:
     serif, sans-serif, monospace, cursive, fantasy, system-ui, ui-serif, ui-sans-serif,
     ui-monospace, ui-rounded, math, emoji, fangsong;
 
-// Inserts the Noto fallback once, ahead of `$index` if given and otherwise
-// ahead of the generic family terminating `$font`.
-//
-// `$font` is flattened first: the function walks one level deep, so a caller
-// nesting a list inside the argument (`("SF Pro Display", $o-system-fonts)`)
-// used to present that nested list as a single opaque item, match nothing, and
-// return the stack unchanged.
-//
-// Insertion stops after the first hit. Passing `$index` for a stack that also
-// ends in a generic previously inserted the fallback twice - the report bundle
-// shipped `"…Noto", "Lucida Grande", …, Arial, "…Noto", sans-serif`.
 @function o-add-unicode-support-font($font, $index: false) {
     $-flat: ();
     @each $-entry in $font {
@@ -263,8 +241,6 @@ $o-generic-font-families:
     @return if($value != null, $value, $default);
 }
 
-/// `$value` unless it is null. Sass's `or` treats `0` and `()` as truthy, but
-/// not `false` -- and a scheme decision may legitimately be `false`.
 @function o-or($value, $default) {
     @return if($value != null, $value, $default);
 }
@@ -388,12 +364,6 @@ $o-webclient-medias: screen, print;
     }
 }
 
-// Reads `--o-ring-color` so a surface can retune the ring it hosts. WCAG 2.2
-// SC 1.4.11 measures a focus indicator against its *adjacent* colours, and
-// `outline-offset` places the ring on the host's background rather than on the
-// control: the fixed `$o-ring-color` scored 1.11:1 on the community navbar
-// (`$o-brand-odoo`), which is invisible. Surfaces that are not close to the page
-// background set the variable; everything else keeps the default.
 @mixin o-focus-ring(
     $color: var(--o-ring-color, #{$o-ring-color}),
     $width: $o-ring-width,
@@ -403,15 +373,6 @@ $o-webclient-medias: screen, print;
     outline-offset: $offset;
 }
 
-// The ring colour a given background needs: white once the surface is dark
-// enough that the default purple stops separating from it.
-/// The focus ring to use on *this* surface: the palette's own ring where it
-/// clears the contrast floor, and a plain contrast pick where it does not.
-///
-/// Both the ring and the pick are scheme-dependent, so a caller stating the dark
-/// answer from a light bundle has to hand in both -- `$o-ring-color` and
-/// `color-contrast()` would otherwise be read from whichever palette compiles,
-/// and the two bundles would disagree about a colour they both call dark.
 @function o-ring-color-for($-background, $-ring: $o-ring-color, $-scheme: null) {
     @return if(
         contrast-ratio($-background, $-ring) >= $o-ring-min-contrast,

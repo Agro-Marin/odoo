@@ -1,26 +1,19 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/bottom_sheet/bottom_sheet_service */
-
 import { registry } from "@web/core/registry";
 import { BottomSheet } from "@web/ui/bottom_sheet/bottom_sheet";
-import {
-    declarePresenterOptions,
-    makeOverlayPresenter,
-} from "@web/ui/overlay/presenter";
-
-declarePresenterOptions(["onBack", "preventDismissOnContentScroll"]);
+import { makeOverlayPresenter } from "@web/ui/overlay/presenter";
 
 /**
  * @typedef {import("@web/ui/popover/popover_service").PopoverServiceAddOptions & {
- *   onBack?: () => void;
- *   preventDismissOnContentScroll?: boolean;
+ * onBack?: () => void;
+ * preventDismissOnContentScroll?: boolean;
  * }} BottomSheetServiceAddOptions
  * @typedef {ReturnType<bottomSheetService["start"]>["add"]} BottomSheetServiceAddFunction
  */
 
-export const bottomSheetService = {
+const bottomSheetService = {
     dependencies: ["overlay"],
     /**
      * @param {import("@web/env").OdooEnv} _
@@ -40,6 +33,7 @@ export const bottomSheetService = {
         const add = makeOverlayPresenter({
             overlay,
             component: BottomSheet,
+            scope: "bottom_sheet",
             toProps: (options) => ({
                 onBack: options.onBack,
                 preventDismissOnContentScroll: options.preventDismissOnContentScroll,

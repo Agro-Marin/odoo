@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/kanban_cog_menu */
-
 import { CogMenu } from "@web/search/cog_menu/cog_menu";
 export class KanbanCogMenu extends CogMenu {
     static template = "web.KanbanCogMenu";

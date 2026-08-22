@@ -1,11 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/select_menu/select_menu */
-
-import { Component, onWillRender, useRef, useState } from "@odoo/owl";
+import { Component, onWillRender, toRaw, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
-import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
+import { useDropdownState } from "@web/components/dropdown/dropdown_hook";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { hasTouch } from "@web/core/browser/feature_detection";
@@ -15,12 +13,10 @@ import { scrollTo } from "@web/core/utils/dom/scrolling";
 import { uniqueId } from "@web/core/utils/functions";
 import { useChildRef } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
-import { useDebounced } from "@web/core/utils/timing";
+import { INPUT_DEBOUNCE_DELAY, useDebounced } from "@web/core/utils/timing";
 import { utils } from "@web/ui/viewport";
 
 const collator = new Intl.Collator();
-
-const DEBOUNCED_DELAY = 250;
 
 export class SelectMenu extends Component {
     static template = "web.SelectMenu";
@@ -130,18 +126,10 @@ export class SelectMenu extends Component {
     setup() {
         this.selectMenuId = uniqueId("o_select_menu_");
         this.menuId = `${this.selectMenuId}_menu`;
-        // The menu is the scroller, and it holds the search box, the empty
-        // notice and the load-more marker as well as the choices. A listbox
-        // owns options and nothing else, so the role goes on an inner element
-        // wrapping only them -- and that, not the menu, is what the combobox
-        // points `aria-controls` at.
         this.listboxId = `${this.selectMenuId}_listbox`;
         this.state = useState({
             choices: [],
             displayedOptions: [],
-            // What is in the box, updated on every keystroke, versus the search
-            // the menu is actually derived from, which only moves once the
-            // debounce fires. Conflating the two would filter on each keystroke.
             searchValue: null,
             appliedSearch: "",
             isFocused: false,
@@ -158,28 +146,47 @@ export class SelectMenu extends Component {
                 this.dropdownState.open();
             }
             this.onInput(searchString);
-        }, DEBOUNCED_DELAY);
+        }, INPUT_DEBOUNCE_DELAY);
         this.dropdownState = useDropdownState();
 
         /** @type {Map<any, any>} */
         this._choiceMemory = new Map();
-        /** @type {any[] | null} */
-        this._choiceSignature = null;
+        /**
+         * @type {any[]}
+         */
+        this._choiceSignature = [];
         this.choicesRevision = 0;
-        /** @type {any} */
+        /**
+         * @type {any | any[] | undefined}
+         */
         this.selectedChoice = undefined;
         /** @type {WeakMap<any[], { revision: number, sorted: any[] }>} */
         this._sortedChoicesCache = new WeakMap();
+        /** @type {{ revision: number, byValue: Map<any, any> } | null} */
+        this._choiceIndex = null;
 
+        // Deriving from inside a render costs a second render -- measured at
+        // exactly 2 per `choices` change with the menu open, against 1 for a
+        // prop change that leaves `derivationKey` alone -- and both halves of
+        // that are load-bearing, so it stays.
+        //
+        // `syncChoicesRevision` cannot move to `onWillUpdateProps`: the contract
+        // here allows a caller to mutate `props.choices` **in place**, which
+        // raises no props update at all, so the only way to notice is to scan
+        // the signature every render. Tried, and it is what `choices mutated in
+        // place are re-sorted on the next open` and three siblings catch.
+        //
+        // `filterOptions` cannot stop writing reactive state either: the option
+        // list is rendered inside the popover's fiber, not this component's, and
+        // owl reactivity is the only channel that crosses that boundary. Tried
+        // with plain fields, and the list never appeared -- at 3, 4 or 5 frames.
+        //
+        // So the second pass is the transport, not waste. What it must stay is
+        // *conditional*: `_derivedKey` keeps it to renders where an input moved.
         onWillRender(() => {
             this._selectedValueSet = null;
             this.syncChoicesRevision();
             this.selectedChoice = this.getSelectedChoice(this.props);
-            // The menu is derived from props that callers mutate in place, so it
-            // has to be re-derived in the same pass that reads them. A
-            // post-patch effect would leave the previous list on screen for a
-            // frame, and would miss the mutation altogether whenever it did not
-            // also change the identity of the array it happened in.
             if (this.dropdownState.isOpen && this._derivedKey !== this.derivationKey) {
                 this.filterOptions(this.state.appliedSearch);
             }
@@ -188,10 +195,6 @@ export class SelectMenu extends Component {
         const self = this;
         this.navigationOptions = {
             shouldFocusFirstItem: !hasTouch(),
-            // A getter, not a value: `searchable` moves -- selection_field binds
-            // it to `!isBottomSheet` -- and a menu that lost its search box has
-            // nowhere to park a virtual cursor, so the navigator has to move
-            // real focus again. Frozen, it left the arrow keys moving nothing.
             get virtualFocus() {
                 return self.props.searchable;
             },
@@ -229,6 +232,16 @@ export class SelectMenu extends Component {
         return this.props.value ?? [];
     }
 
+    /**
+     * @returns {boolean}
+     */
+    get hasSelection() {
+        if (this.props.multiSelect) {
+            return this.selectedValues.length > 0;
+        }
+        return Boolean(this.props.value);
+    }
+
     get displayValue() {
         return this.state.searchValue === null
             ? this.selectedChoice?.label || ""
@@ -254,7 +267,7 @@ export class SelectMenu extends Component {
             return false;
         }
         if (this.props.multiSelect) {
-            return this.selectedChoice.length > 0;
+            return this.hasSelection;
         }
         return this.selectedChoice !== undefined;
     }
@@ -360,8 +373,6 @@ export class SelectMenu extends Component {
             this.loadMoreObserver = null;
             this.state.searchValue = null;
             this.state.appliedSearch = "";
-            // Up to SCROLL_SETTINGS.defaultCount options were sliced out for a
-            // menu that is gone; opening rebuilds them from the props.
             this.state.choices = [];
             this.state.displayedOptions = [];
             this._derivedKey = null;
@@ -370,12 +381,6 @@ export class SelectMenu extends Component {
     }
 
     /**
-     * Membership is asked once per choice by filterOptions and again per choice
-     * by every render, so a linear scan of the selection makes both quadratic.
-     * The set is rebuilt once per pass rather than kept against the value's
-     * identity: parents mutate reactive arrays in place, which leaves the
-     * identity untouched and would serve a stale selection.
-     *
      * @returns {Set<any>}
      */
     get selectedValueSet() {
@@ -394,16 +399,6 @@ export class SelectMenu extends Component {
     }
 
     /**
-     * `aria-selected` normally belongs to the navigation service, which uses it
-     * for the cursor: that is the combobox convention, and it costs nothing
-     * when one value is held, because the value itself is the text in the box.
-     *
-     * Several values cannot be, so in multi-select this attribute is the only
-     * thing inside the listbox that can say which choices are held, and the
-     * cursor has to give it up -- `aria-activedescendant` names the cursor
-     * either way. Emitting it here is also what claims it: an item that
-     * arrives with the attribute keeps it.
-     *
      * @param {any} choice
      * @param {number} index
      * @returns {Record<string, any>}
@@ -425,8 +420,6 @@ export class SelectMenu extends Component {
     }
 
     async onInput(searchString) {
-        // Moving the applied search is what makes the render below re-derive the
-        // menu; filtering here too would just do the same work a second time.
         this.state.appliedSearch = searchString;
         if (this.props.onInput) {
             try {
@@ -441,75 +434,99 @@ export class SelectMenu extends Component {
         }
     }
 
-    /**
-     * Callers mutate the arrays they hand over in place, so neither `choices`
-     * nor `groups` can be trusted to change identity when their contents do --
-     * and neither can a choice, which callers edit field by field. Identity
-     * alone therefore cannot answer "is the menu still derived from this?": an
-     * edited label keeps its object, so a list sorted on the old spelling, or
-     * filtered by a query the new one no longer matches, would stay on screen.
-     *
-     * Every field the derivation below actually reads goes into the signature.
-     * That does two jobs: it subscribes this component to those fields -- the
-     * template only reads the ones currently on screen, never the ones the
-     * filter dropped -- and it turns a mutation into something a comparison
-     * can see.
-     */
     syncChoicesRevision() {
-        const signature = [];
-        const pushChoice = (choice) => {
-            signature.push(choice, choice.label, choice.value);
+        const signature = this._choiceSignature;
+        let cursor = 0;
+        let changed = false;
+        /** @param {any} entry */
+        const visit = (entry) => {
+            if (cursor >= signature.length || signature[cursor] !== entry) {
+                signature[cursor] = entry;
+                changed = true;
+            }
+            cursor++;
+        };
+        const visitChoice = (choice) => {
+            visit(choice);
+            visit(choice.label);
+            visit(choice.value);
         };
         for (const choice of this.props.choices) {
-            pushChoice(choice);
+            visitChoice(choice);
         }
         for (const group of this.props.groups) {
-            signature.push(group, group.label, group.section);
+            visit(group);
+            visit(group.label);
+            visit(group.section);
             for (const choice of group.choices || []) {
-                pushChoice(choice);
+                visitChoice(choice);
             }
         }
-        const previous = this._choiceSignature;
-        if (
-            !previous ||
-            previous.length !== signature.length ||
-            previous.some((entry, index) => entry !== signature[index])
-        ) {
-            this._choiceSignature = signature;
+        if (signature.length !== cursor) {
+            signature.length = cursor;
+            changed = true;
+        }
+        if (changed) {
             this.choicesRevision++;
         }
     }
 
-    getSelectedChoice(props) {
-        // Grouped choices carry labels too, so a value whose choice only exists
-        // under `groups` resolves to nothing until they are read.
-        const choices = [
-            ...props.choices,
-            ...props.groups.flatMap((g) => g.choices || []),
-        ];
-        if (!props.multiSelect) {
-            return choices.find((c) => c.value === props.value);
+    /**
+     * @returns {Map<any, any>}
+     */
+    get choiceByValue() {
+        if (this._choiceIndex?.revision === this.choicesRevision) {
+            return this._choiceIndex.byValue;
         }
-
-        const values = /** @type {any[]} */ (props.value ?? []);
-        const valueSet = new Set(values);
-        // Searching narrows `choices` to what the server matched, so a value the
-        // user already picked can drop out of it; remembering its choice is what
-        // keeps the tag readable. Refreshing from the current choices first is
-        // what lets a choice edited or replaced in place win over the memory.
-        const refreshed = new Set();
-        for (const choice of choices) {
-            if (valueSet.has(choice.value) && !refreshed.has(choice.value)) {
-                refreshed.add(choice.value);
-                this._choiceMemory.set(choice.value, choice);
+        const byValue = new Map();
+        for (let i = this.props.groups.length - 1; i >= 0; i--) {
+            const choices = this.props.groups[i].choices || [];
+            for (let j = choices.length - 1; j >= 0; j--) {
+                byValue.set(toRaw(choices[j]).value, choices[j]);
             }
         }
+        for (let i = this.props.choices.length - 1; i >= 0; i--) {
+            const choice = this.props.choices[i];
+            byValue.set(toRaw(choice).value, choice);
+        }
+        this._choiceIndex = { revision: this.choicesRevision, byValue };
+        return byValue;
+    }
+
+    getSelectedChoice(props) {
+        const byValue = this.choiceByValue;
+        const values = props.multiSelect
+            ? /** @type {any[]} */ (props.value ?? [])
+            : [props.value];
+
+        for (const value of values) {
+            const choice = byValue.get(value);
+            if (choice) {
+                this._choiceMemory.set(value, choice);
+            }
+        }
+        const valueSet = new Set(values);
         for (const value of this._choiceMemory.keys()) {
             if (!valueSet.has(value)) {
                 this._choiceMemory.delete(value);
             }
         }
-        return values.map((value) => this._choiceMemory.get(value)).filter(Boolean);
+
+        if (props.multiSelect) {
+            return values.map((value) => this._choiceMemory.get(value)).filter(Boolean);
+        }
+        return byValue.get(props.value) ?? this._rememberedChoice(props.value);
+    }
+
+    /**
+     * @param {any} value
+     * @returns {any | undefined}
+     */
+    _rememberedChoice(value) {
+        if (value === false || value === undefined || value === null) {
+            return undefined;
+        }
+        return this._choiceMemory.get(value);
     }
 
     onItemSelected(value) {
@@ -530,9 +547,6 @@ export class SelectMenu extends Component {
     }
 
     /**
-     * Everything the displayed menu is derived from: the contents of the choices
-     * (see syncChoicesRevision) and the search that has actually been applied.
-     *
      * @returns {string}
      */
     get derivationKey() {
@@ -552,9 +566,9 @@ export class SelectMenu extends Component {
 
         const _choices = [];
         const _sections = new Set();
-        // Ranking is asked once per group by the sort's comparator, i.e. more
-        // than once per group; scanning `sections` each time makes ordering
-        // quadratic in the number of sections.
+        const sectionByName = new Map(
+            this.props.sections.map((section) => [section.name, section]),
+        );
         const sectionOrder = new Map(
             this.props.sections.map((section, index) => [section.name, index]),
         );
@@ -592,9 +606,7 @@ export class SelectMenu extends Component {
                 continue;
             }
             if (group.section) {
-                const section = this.props.sections.find(
-                    (e) => e.name === group.section,
-                );
+                const section = sectionByName.get(group.section);
                 if (section && !_sections.has(section.name)) {
                     _sections.add(section.name);
                     _choices.push({ ...section, isGroup: true });
@@ -615,10 +627,6 @@ export class SelectMenu extends Component {
      * @returns {any[]}
      */
     getSortedChoices(choices) {
-        // The revision already covers every label the order depends on, so it
-        // is the whole answer: comparing the entries again here would only
-        // repeat a weaker version of that check -- one that a renamed choice
-        // passes, because its object never moved.
         const cached = this._sortedChoicesCache.get(choices);
         if (cached && cached.revision === this.choicesRevision) {
             return cached.sorted;
@@ -636,14 +644,6 @@ export class SelectMenu extends Component {
         return /** @type {typeof SelectMenu} */ (this.constructor).SCROLL_SETTINGS;
     }
 
-    /**
-     * Load more choices as the end of the list comes within reach.
-     *
-     * A marker after the last option is watched instead of the scroll
-     * position: the browser reports it approaching on its own, so a long list
-     * no longer measures itself on every scroll frame. `distanceBeforeReload`
-     * becomes the margin that decides how early "within reach" is.
-     */
     observeLoadMore() {
         this.loadMoreObserver?.disconnect();
         const root = /** @type {any} */ (this.menuRef).el;

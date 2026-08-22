@@ -1,51 +1,29 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/popover/popover_service */
-
 import { registry } from "@web/core/registry";
-import {
-    declarePresenterOptions,
-    makeOverlayPresenter,
-} from "@web/ui/overlay/presenter";
+import { makeOverlayPresenter } from "@web/ui/overlay/presenter";
 import { Popover } from "@web/ui/popover/popover";
 
-declarePresenterOptions([
-    "animation",
-    "arrow",
-    "extendedFlipping",
-    "fixedPosition",
-    "holdOnHover",
-    "onPositioned",
-    "position",
-]);
-
 /**
- * `closeOnClickAway` is handed the clicked node by a popover, but a bottom
- * sheet always reports its own backdrop: the backdrop covers everything outside
- * the sheet, so no other node is ever the target. A predicate that inspects
- * what was clicked therefore only discriminates on the popover side. Decide
- * with the argument by all means -- just do not rely on it to keep a sheet
- * open, because on that side it cannot.
- *
  * @typedef {{
- *   animation?: Boolean;
- *   arrow?: Boolean;
- *   closeOnClickAway?: boolean | ((target: HTMLElement) => boolean);
- *   closeOnEscape?: boolean;
- *   env?: object;
- *   fixedPosition?: boolean;
- *   onClose?: (removeParams?: any) => void;
- *   onPositioned?: import("@web/core/position/position_hook").UsePositionOptions["onPositioned"];
- *   popoverClass?: string;
- *   role?: string;
- *   id?: string;
- *   position?: import("@web/core/position/position_hook").UsePositionOptions["position"];
- *   ref?: Function;
- *   extendedFlipping?: boolean;
- *   holdOnHover?: boolean;
- *   setActiveElement?: boolean;
- *   sequence?: number;
+ * animation?: Boolean;
+ * arrow?: Boolean;
+ * closeOnClickAway?: boolean | ((target: HTMLElement) => boolean);
+ * closeOnEscape?: boolean;
+ * env?: object;
+ * fixedPosition?: boolean;
+ * onClose?: (removeParams?: any) => void;
+ * onPositioned?: import("@web/core/position/position_hook").UsePositionOptions["onPositioned"];
+ * class?: string;
+ * role?: string;
+ * id?: string;
+ * position?: import("@web/core/position/position_hook").UsePositionOptions["position"];
+ * ref?: Function;
+ * extendedFlipping?: boolean;
+ * holdOnHover?: boolean;
+ * setActiveElement?: boolean;
+ * sequence?: number;
  * }} PopoverServiceAddOptions
  * @typedef {ReturnType<popoverService["start"]>["add"]} PopoverServiceAddFunction
  */
@@ -63,7 +41,9 @@ export const popoverService = {
         const add = makeOverlayPresenter({
             overlay,
             component: Popover,
-            toProps: (options) => ({
+            scope: "popover",
+            toProps: (options, target) => ({
+                target,
                 animation: options.animation,
                 arrow: options.arrow,
                 extendedFlipping: options.extendedFlipping,

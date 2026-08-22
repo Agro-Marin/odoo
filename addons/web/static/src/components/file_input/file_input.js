@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/file_input/file_input */
-
 import { Component, onMounted, useRef, useState } from "@odoo/owl";
 import { useFileUploader } from "@web/core/utils/files";
 /**
@@ -37,9 +35,16 @@ export class FileInput extends Component {
         "*": true,
     };
 
+    /** @type {ReturnType<typeof useFileUploader>} */
+    uploadFiles;
+    /** @type {import("@odoo/owl").Ref<HTMLInputElement>} */
+    fileInputRef;
+    /** @type {{ isDisable: boolean }} */
+    state;
+
     setup() {
         this.uploadFiles = useFileUploader();
-        this.fileInputRef = useRef("file-input");
+        this.fileInputRef = /** @type {any} */ (useRef("file-input"));
         this.state = useState({
             isDisable: false,
         });
@@ -56,7 +61,7 @@ export class FileInput extends Component {
         /** @type {Record<string, any>} */
         const params = {
             csrf_token: odoo.csrf_token,
-            ufile: [.../** @type {HTMLInputElement} */ (this.fileInputRef.el).files],
+            ufile: [...(this.fileInputRef.el?.files ?? [])],
         };
         if (resModel) {
             params.model = resModel;
@@ -76,16 +81,11 @@ export class FileInput extends Component {
             }
             const parsedFileData = await this.uploadFiles(this.props.route, httpParams);
             if (parsedFileData) {
-                this.props.onUpload(
-                    parsedFileData,
-                    this.fileInputRef.el
-                        ? /** @type {HTMLInputElement} */ (this.fileInputRef.el).files
-                        : [],
-                );
+                this.props.onUpload(parsedFileData, this.fileInputRef.el?.files ?? []);
             }
         } finally {
             if (this.fileInputRef.el) {
-                /** @type {HTMLInputElement} */ (this.fileInputRef.el).value = "";
+                this.fileInputRef.el.value = "";
             }
             this.state.isDisable = false;
         }
@@ -93,7 +93,7 @@ export class FileInput extends Component {
 
     async onTriggerClicked() {
         if (await this.props.beforeOpen()) {
-            this.fileInputRef.el.click();
+            this.fileInputRef.el?.click();
         }
     }
 }

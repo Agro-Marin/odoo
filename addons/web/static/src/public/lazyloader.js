@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/public/lazyloader */
-
 import {
     BUTTON_HANDLER_SELECTOR,
     makeAsyncHandler,
@@ -111,9 +109,6 @@ function loadingEffectHandlerFor(el, type) {
     return handler;
 }
 
-/**
- * @see stopWaitingLazy
- */
 function waitLazy() {
     if (waitingLazy) {
         return;
@@ -241,7 +236,6 @@ function _loadScripts(scripts, index, onAllScriptsDone) {
             },
             { once: true },
         );
-        script.setAttribute("defer", "defer");
         script.src = script.dataset.src;
         script.removeAttribute("data-src");
     };

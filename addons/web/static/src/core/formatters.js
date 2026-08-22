@@ -1,15 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/**
- * @module @web/core/formatters
- */
-
 import { markup } from "@odoo/owl";
 import { formatCurrency } from "@web/core/currency";
 import {
-    formatDate as _formatDate,
-    formatDateTime as _formatDateTime,
+    formatDate,
+    formatDateTime,
     toLocaleDateString,
     toLocaleDateTimeString,
 } from "@web/core/l10n/dates";
@@ -19,16 +15,13 @@ import { _pl, _t } from "@web/core/translation";
 import { humanSize, isBinarySize } from "@web/core/utils/format/binary";
 import { extractDigits } from "@web/core/utils/format/digits";
 import {
-    formatFloat as formatFloatNumber,
+    formatFloat,
     humanNumber,
     insertThousandsSep,
 } from "@web/core/utils/format/numbers";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 
 /**
- * The view node a formatter's `extractOptions` reads: the field's XML
- * attributes and its parsed `options` dict.
- *
  * @typedef {{ attrs: Record<string, any>, options: Record<string, any> }} FieldInfoNode
  */
 
@@ -49,10 +42,6 @@ export function formatBinary(value) {
         return "";
     }
     if (!isBinarySize(value)) {
-        // The shared `humanSize`, not a second private one. There used to be
-        // two: this formatter rendered 2048 bytes as "2.05kb" (`humanNumber`,
-        // powers of ten) while every upload widget rendered the same count as
-        // "2.00 KB" (powers of two) -- one byte size, two spellings, in one UI.
         return humanSize(value.length / 1.37);
     }
     return value;
@@ -66,7 +55,7 @@ const _booleanMarkup = {
  * @param {boolean} value
  * @returns {any}
  */
-export function formatBoolean(value) {
+function formatBoolean(value) {
     return value ? _booleanMarkup.checked : _booleanMarkup.unchecked;
 }
 
@@ -92,43 +81,43 @@ formatChar.extractOptions = ({ attrs }) => ({
  * @param {{ numeric?: boolean, format?: string, tz?: string }} [options]
  * @returns {string}
  */
-export function formatDate(value, options = {}) {
+export function formatFieldDate(value, options = {}) {
     if (options.numeric) {
-        return _formatDate(value, options);
+        return formatDate(value, options);
     } else {
         return toLocaleDateString(value);
     }
 }
 /** @param {FieldInfoNode} node */
-formatDate.extractOptions = ({ options }) => ({
+formatFieldDate.extractOptions = ({ options }) => ({
     numeric: exprToBoolean(options.numeric ?? false),
 });
 
 /**
  * @param {any} value
  * @param {{
- *  numeric?: boolean,
- *  showTime?: boolean,
- *  showDate?: boolean,
- *  showSeconds?: boolean,
- *  format?: string,
- *  tz?: string,
+ * numeric?: boolean,
+ * showTime?: boolean,
+ * showDate?: boolean,
+ * showSeconds?: boolean,
+ * format?: string,
+ * tz?: string,
  * }} [options]
  * @returns {string}
  */
-export function formatDateTime(value, options = {}) {
+export function formatFieldDateTime(value, options = {}) {
     if (options.numeric) {
         if (options.showTime === false) {
-            return _formatDate(value, options);
+            return formatDate(value, options);
         }
-        return _formatDateTime(value, options);
+        return formatDateTime(value, options);
     } else {
         return toLocaleDateTimeString(value, options);
     }
 }
 /** @param {FieldInfoNode} node */
-formatDateTime.extractOptions = ({ attrs, options }) => ({
-    ...formatDate.extractOptions({ attrs, options }),
+formatFieldDateTime.extractOptions = ({ attrs, options }) => ({
+    ...formatFieldDate.extractOptions({ attrs, options }),
     showSeconds: exprToBoolean(options.show_seconds ?? false),
     showTime: exprToBoolean(options.show_time ?? true),
     showDate: exprToBoolean(options.show_date ?? true),
@@ -139,16 +128,16 @@ formatDateTime.extractOptions = ({ attrs, options }) => ({
  * @param {any} [options]
  * @returns {string}
  */
-export function formatFloat(value, options = {}) {
+export function formatFieldFloat(value, options = {}) {
     if (!isFiniteNumber(value)) {
         return "";
     }
     const digits = options.digits || options.field?.digits;
     const minDigits = options.minDigits || options.field?.min_display_digits;
-    return formatFloatNumber(value, { ...options, digits, minDigits });
+    return formatFloat(value, { ...options, digits, minDigits });
 }
 /** @param {FieldInfoNode} node */
-formatFloat.extractOptions = ({ attrs, options }) => ({
+formatFieldFloat.extractOptions = ({ attrs, options }) => ({
     decimals: options.decimals || 0,
     digits: extractDigits({ attrs, options }),
     minDigits: options.min_display_digits,
@@ -167,11 +156,11 @@ export function formatFloatFactor(value, options = {}) {
     }
     const factor = options.factor || 1;
     const digits = options.digits || options.field?.digits;
-    return formatFloatNumber(value * factor, { ...options, digits });
+    return formatFloat(value * factor, { ...options, digits });
 }
 /** @param {FieldInfoNode} node */
 formatFloatFactor.extractOptions = ({ attrs, options }) => ({
-    ...formatFloat.extractOptions({ attrs, options }),
+    ...formatFieldFloat.extractOptions({ attrs, options }),
     factor: options.factor,
 });
 
@@ -243,9 +232,6 @@ export function formatInteger(value, options = {}) {
             ? BigInt(Math.trunc(value)).toString()
             : value.toFixed(0);
     if (digits === "-0") {
-        // `toFixed(0)` keeps the sign of anything in (-1, 0), so -0.4 rendered
-        // as "-0". There is no negative zero integer on the server -- Python
-        // prints "0" -- and a field showing "-0" reads as a bug to the user.
         digits = "0";
     }
     return insertThousandsSep(digits, thousandsSep, grouping);
@@ -337,10 +323,10 @@ export function formatPercentage(value, options = {}) {
         ...options,
         digits: options.digits || options.field?.digits,
     };
-    const formatted = formatFloatNumber(/** @type {any} */ (value) * 100, options);
+    const formatted = formatFloat(/** @type {any} */ (value) * 100, options);
     return `${formatted}${options.noSymbol ? "" : "%"}`;
 }
-formatPercentage.extractOptions = formatFloat.extractOptions;
+formatPercentage.extractOptions = formatFieldFloat.extractOptions;
 
 /**
  * @param {any[]|false} value
@@ -399,7 +385,7 @@ export function formatText(value) {
  * @param {any} value
  * @returns {any}
  */
-export function formatHtml(value) {
+function formatHtml(value) {
     return value || "";
 }
 
@@ -416,9 +402,9 @@ registry
     .add("binary", formatBinary)
     .add("boolean", formatBoolean)
     .add("char", formatChar)
-    .add("date", formatDate)
-    .add("datetime", formatDateTime)
-    .add("float", formatFloat)
+    .add("date", formatFieldDate)
+    .add("datetime", formatFieldDateTime)
+    .add("float", formatFieldFloat)
     .add("float_factor", formatFloatFactor)
     .add("float_time", formatFloatTime)
     .add("html", formatHtml)

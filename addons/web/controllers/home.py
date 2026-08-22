@@ -80,11 +80,6 @@ class Home(http.Controller):
         readonly=_web_client_readonly,
     )
     def web_client(self, s_action: str | None = None, **kw: Any) -> Response:
-        """Serve the main web client HTML page.
-
-        Validates authentication, builds session info, and renders the
-        ``web.webclient_bootstrap`` template with asset bundles.
-        """
         ensure_db()
         if not request.session.uid:
             return request.redirect_query(
@@ -135,27 +130,6 @@ class Home(http.Controller):
     def web_load_menus(
         self, lang: str | None = None, hash: str | None = None
     ) -> Response:
-        """
-        Loads the menus for the webclient.
-
-        Conditional-fetch contract (mirrors ``/web/webclient/translations``):
-        every 200 response carries an ``X-Menus-Hash`` header (SHA-256 of the
-        JSON body). The client persists it next to its localStorage copy of
-        the menus and sends it back as the ``hash`` query parameter on the
-        next boot; when it still matches, an empty ``304 Not Modified``
-        response is returned instead of the full payload (which includes the
-        base64 app icons), so warm boots only transfer headers.
-
-        ``Cache-Control: no-store`` is kept on purpose: the payload depends
-        on session state (user access rights, debug mode), so it must never
-        be stored by the browser HTTP cache or intermediaries — the explicit
-        hash round-trip replaces HTTP caching.
-
-        :param lang: language in which the menus should be loaded (only works if language is installed)
-        :param hash: hash of the menus payload currently cached by the client
-        :return: the menus (including the images in Base64), or an empty 304
-            response when ``hash`` matches the current payload
-        """
         if lang:
             request.update_context(lang=lang)
 
@@ -212,7 +186,7 @@ class Home(http.Controller):
                 }
                 credential.setdefault("type", "password")
                 if request.env["res.users"]._should_captcha_login(credential):
-                    request.env["ir.http"]._verify_request_recaptcha_token("login")
+                    request.env["ir.http"]._check_request_recaptcha_token("login")
                 auth_info = request.session.authenticate(request.env, credential)
                 request.params["login_success"] = True
                 return request.redirect(
@@ -248,7 +222,6 @@ class Home(http.Controller):
         sitemap=False,
     )
     def login_successful_external_user(self, **kwargs: Any) -> Response:
-        """Landing page shown after a successful login to non-internal (external) users."""
         valid_values = {k: v for k, v in kwargs.items() if k in LOGIN_SUCCESSFUL_PARAMS}
         return request.render("web.login_successful", valid_values)
 
@@ -266,12 +239,6 @@ class Home(http.Controller):
 
     @http.route("/web/health", type="http", auth="none", save_session=False)
     def health(self, db_server_status: bool | str = False) -> Response:
-        """Combined health endpoint, kept for backward compatibility.
-
-        New deployments should target ``/web/healthz`` for liveness and
-        ``/web/readyz`` for readiness — those follow Kubernetes/Nomad
-        probe conventions and return 503 (not 500) when not ready.
-        """
         health_info = {"status": "pass"}
         status = 200
         if str2bool(db_server_status, False):
@@ -287,23 +254,10 @@ class Home(http.Controller):
 
     @http.route("/web/healthz", type="http", auth="none", save_session=False)
     def healthz(self) -> Response:
-        """Liveness probe — 200 iff the worker process can answer requests.
-
-        Performs no I/O (no DB connection, no filestore read).  A failing
-        ``healthz`` indicates the process should be restarted; orchestrators
-        such as Kubernetes and Nomad consume this on the liveness probe.
-        """
         return self._health_response({"status": "pass"}, 200)
 
     @http.route("/web/readyz", type="http", auth="none", save_session=False)
     def readyz(self) -> Response:
-        """Readiness probe — 200 iff every subsystem can serve traffic.
-
-        Checks PostgreSQL reachability (``postgres`` system DB cursor) and
-        ``data_dir`` writability.  Returns 503 with a per-subsystem
-        ``checks`` map otherwise — a failing ``readyz`` removes the
-        worker from the load balancer without restarting it.
-        """
         checks: dict[str, str] = {}
         status = 200
         try:
@@ -325,22 +279,6 @@ class Home(http.Controller):
 
     @http.route("/web/metrics", type="http", auth="none", save_session=False)
     def metrics(self) -> Response:
-        """Prometheus exposition of this process's operational counters.
-
-        Off unless ``ODOO_METRICS_TOKEN`` is set, and answers 404 rather than
-        401 when it is not: an endpoint that denies is an endpoint that exists,
-        and the default posture for a surface nobody enabled should be
-        indistinguishable from one that was never built.
-
-        The token travels as ``Authorization: Bearer`` and is compared in
-        constant time.  Gated rather than open because the payload names every
-        database this process serves, which on a shared cluster is exactly the
-        enumeration ``db._rpc_db_exist`` and ``common.exp_authenticate`` refuse.
-
-        Deliberately an env var, not a config key: ``ODOO_METRICS_TOKEN`` cannot
-        be written into a saved ``.conf`` by the database manager, so the secret
-        stays with the unit file that supplies it.
-        """
         token = env_str("ODOO_METRICS_TOKEN")
         if not token:
             raise request.not_found()
@@ -361,7 +299,6 @@ class Home(http.Controller):
         )
 
     def _health_response(self, payload: dict[str, Any], status: int) -> Response:
-        """Build a JSON health-check response with no-store headers."""
         return request.make_response(
             json_dumps(payload),
             [
@@ -382,9 +319,4 @@ class Home(http.Controller):
         )
 
     def _get_allowed_robots_routes(self) -> list[str]:
-        """Override this method to return a list of allowed routes.
-
-        :return: A list of URL paths that should be allowed by robots.txt
-              Examples: ['/social_instagram/', '/sitemap.xml', '/web/']
-        """
         return []

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/kanban_controller */
-
 import { reactive, useEffect, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useSetupAction } from "@web/core/action_hook";
@@ -67,9 +65,10 @@ export class KanbanController extends MultiRecordController {
         showButtons: true,
     };
 
-    setup() {
-        super.setup();
-
+    /**
+     * @override
+     */
+    setupModel() {
         const { Model } = this.props;
 
         class KanbanSampleModel extends Model {
@@ -126,9 +125,12 @@ export class KanbanController extends MultiRecordController {
                 view: this.archInfo.quickCreateView,
             }),
         );
+    }
 
-        this.initMultiRecordBehavior();
-
+    /**
+     * @override
+     */
+    setupInteractions() {
         const { setScrollFromState } = useSetupAction({
             rootRef: this.rootRef,
             beforeUnload: this.beforeUnload.bind(this),
@@ -377,8 +379,6 @@ export class KanbanController extends MultiRecordController {
                     if (!noReload) {
                         await root.load();
                         this.model.useSampleModel = false;
-                        // Not forced: `load()` replaces the datapoints the columns
-                        // read, so the cards re-render off their own subscriptions.
                         this.render();
                     }
                 },

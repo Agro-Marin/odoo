@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/files */
-
 import { _t } from "@web/core/translation";
 import { humanNumber } from "@web/core/utils/format/numbers";
 import { useService } from "@web/core/utils/hooks";
@@ -28,6 +26,43 @@ export function checkFileSize(fileSize, notificationService) {
                     maxSize: humanNumber(maxUploadSize),
                 },
             ),
+            {
+                type: "danger",
+            },
+        );
+        return false;
+    }
+    return true;
+}
+
+/**
+ * @param {File} file
+ * @param {string | undefined} allowedMIMETypes
+ * @param {{ add: (message: string, options?: any) => () => void }} notificationService
+ * @returns {boolean}
+ */
+export function checkFileType(file, allowedMIMETypes, notificationService) {
+    if (!allowedMIMETypes) {
+        return true;
+    }
+    const allowed = allowedMIMETypes
+        .split(",")
+        .map((type) => type.trim())
+        .filter(Boolean);
+    const type = file.type;
+    const isAllowed =
+        Boolean(type) &&
+        allowed.some(
+            (allowedType) =>
+                allowedType === type ||
+                (allowedType.endsWith("/*") &&
+                    type.startsWith(allowedType.slice(0, -1))),
+        );
+    if (!isAllowed) {
+        notificationService.add(
+            _t(`Oops! '%(fileName)s' didn’t upload since its format isn’t allowed.`, {
+                fileName: file.name,
+            }),
             {
                 type: "danger",
             },

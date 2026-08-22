@@ -1,17 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/field_selector/field_selector_field */
-
-import { Component } from "@odoo/owl";
 import { ModelFieldSelector } from "@web/components/model_field_selector/model_field_selector";
 import { formatChar } from "@web/core/formatters";
 import { _t } from "@web/core/translation";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { registerField } from "@web/fields/_registry";
+import { FieldComponent } from "@web/fields/field_component";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-export class FieldSelectorField extends Component {
+export class FieldSelectorField extends FieldComponent {
     static template = "web.FieldSelectorField";
     static components = { ModelFieldSelector };
     static props = {
@@ -46,11 +44,11 @@ export class FieldSelectorField extends Component {
 
     /** @param {any} value */
     async update(value) {
-        await this.props.record.update({ [this.props.name]: value });
+        await this.field.update(value);
     }
 
     get formattedValue() {
-        return formatChar(this.props.record.data[this.props.name]);
+        return formatChar(this.field.value);
     }
 
     get resModel() {
@@ -65,7 +63,7 @@ export class FieldSelectorField extends Component {
     get selectorProps() {
         return {
             allowEmpty: !this.props.required,
-            path: this.props.record.data[this.props.name],
+            path: this.field.value,
             resModel: this.resModel,
             readonly: this.props.readonly,
             update: this.update.bind(this),
@@ -77,7 +75,7 @@ export class FieldSelectorField extends Component {
 }
 
 /** @type {import("registries").FieldsRegistryItemShape} */
-export const fieldSelectorField = {
+const fieldSelectorField = {
     component: FieldSelectorField,
     displayName: _t("Field Selector"),
     supportedTypes: ["char"],

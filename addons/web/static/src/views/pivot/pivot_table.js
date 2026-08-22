@@ -1,10 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/**
- * @module pivot_table
- */
-
 import { _t } from "@web/core/translation";
 
 import { getLeafCounts } from "./pivot_group_tree.js";

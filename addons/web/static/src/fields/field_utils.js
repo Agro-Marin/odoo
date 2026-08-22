@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/field_utils */
-
 import { exprToBoolean } from "@web/core/utils/format/strings";
 
 /**

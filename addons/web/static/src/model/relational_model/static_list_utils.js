@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/static_list_utils */
-
 /**
  * @param {any} v1
  * @param {any} v2
@@ -16,14 +14,6 @@ import { x2ManyCommands } from "@web/core/network/commands";
 /** @import { RelationalRecord } from "./record.js" */
 
 /**
- * The id a record answers to inside its list: its resId once the server knows
- * it, its virtual id until then. Exactly one of the two is set.
- *
- * The single place that reads `_virtualId` across a module boundary, which is
- * why it is a function here rather than a getter on the record: the static-list
- * suites drive these paths with plain-object records, and a getter would make
- * every one of them carry an accessor to say what two fields already say.
- *
  * @param {RelationalRecord} record
  * @returns {DatapointId}
  */
@@ -129,9 +119,8 @@ export function copyRecordData(record, copyFields = []) {
             case "many2many": {
                 const list = record.data[name];
                 data[name] = list.currentIds.map((id) => {
-                    const cached = list._cache[id]
-                        ? copyRecordData(list._cache[id])
-                        : false;
+                    const cachedRecord = list._cache.get(id);
+                    const cached = cachedRecord ? copyRecordData(cachedRecord) : false;
                     return [x2ManyCommands.LINK, id, cached];
                 });
                 break;
@@ -151,25 +140,9 @@ export function copyRecordData(record, copyFields = []) {
 }
 
 /**
- * The server returns created rows without saying which virtual id each came
- * from; the only available correspondence is creation order, which the id
- * sequence makes ascending. Rank the new ids and zip them against the CREATE
- * commands. A count mismatch means the mapping is not derivable — callers must
- * not guess.
- *
- * Equal counts alone are NOT identity: a `create()` override may drop our row
- * and insert one of its own, and the zip would then graft our edited datapoint
- * onto a record we never created (every later update writing to the wrong
- * server row). When the caller can say where its rows sit, pass `positions`:
- * each virtual id's index in `clientIds` must equal its paired new id's index
- * in `serverIds`, or the mapping is refused — same fail-closed null as the
- * count mismatch, so callers drop the virtual row and heal from the server.
- *
  * @param {(number|string)[]} createVirtualIds
  * @param {number[]} newResIds
  * @param {{ clientIds: (number|string)[], serverIds: number[] }} [positions]
- *   the full ordered memberships: `clientIds` as the client last knew them
- *   (virtual ids included), `serverIds` as the server reported them post-save
  * @returns {Map<number|string, number> | null}
  */
 export function pairCreatedRows(createVirtualIds, newResIds, positions) {

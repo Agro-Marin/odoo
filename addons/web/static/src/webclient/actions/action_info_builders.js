@@ -1,12 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/action_info_builders */
-
 import { shallowEqual } from "@web/core/utils/collections/objects";
 import { session } from "@web/session";
 
-/** @import { Action, ActWindowAction, ActionManager, ActionProps, BaseView, Config, Controller } from "./action_service.js" */
+/**
+ * @import { Action, ActWindowAction, ActionManager, ActionProps, BaseView, Config, Controller } from "./action_service.js"
+ */
 
 /**
  * @param {Record<string, any>} currentState
@@ -55,6 +55,120 @@ export function buildActionInfo(action, props, am) {
 }
 
 /**
+ * @param {BaseView} view the view being opened, marked `active`
+ * @param {BaseView[]} views
+ * @returns {Record<string, any>[]}
+ */
+function buildViewSwitcherEntries(view, views) {
+    return views
+        .filter((v) => v.multiRecord === view.multiRecord)
+        .map((v) => {
+            /** @type {Record<string, any>} */
+            const entry = {
+                icon: v.icon,
+                name: v.display_name,
+                type: v.type,
+                multiRecord: v.multiRecord,
+            };
+            if (view.type === v.type) {
+                entry.active = true;
+            }
+            return entry;
+        });
+}
+
+/**
+ * Switch to the action's own form view when it declares one, and fall back to a
+ * bare act_window otherwise -- but only to create, unless `force` says the
+ * caller wants an existing record opened that way too.
+ *
+ * @param {ActWindowAction} action
+ * @param {string|undefined} target
+ * @param {ActionManager} am
+ * @returns {(resId: any, options?: Record<string, any>) => any}
+ */
+function makeFormViewOpener(action, target, am) {
+    return (resId, { activeIds, readonly, force, newWindow } = {}) => {
+        if (target === "new") {
+            return undefined;
+        }
+        if (am._getView("form")) {
+            return am.switchView(
+                "form",
+                { readonly, resId, resIds: activeIds },
+                { newWindow },
+            );
+        }
+        if (force || !resId) {
+            return am.doAction(
+                {
+                    type: "ir.actions.act_window",
+                    res_model: action.res_model,
+                    views: [[false, "form"]],
+                },
+                { newWindow, props: { readonly, resId, resIds: activeIds } },
+            );
+        }
+        return undefined;
+    };
+}
+
+/**
+ * Keys an act_window may override on the view's props, plus the two defaults
+ * that depend on the action rather than on the view.
+ *
+ * @param {ActionProps} viewProps mutated in place
+ * @param {ActWindowAction} action
+ * @param {Record<string, any>} context
+ */
+function applyActionOverrides(viewProps, action, context) {
+    for (const key of ["help", "useSampleModel", "limit", "count"]) {
+        if (!(key in action)) {
+            continue;
+        }
+        if (key === "help") {
+            viewProps.noContentHelp = action.help;
+        } else {
+            viewProps[key] = /** @type {Record<string, any>} */ (action)[key];
+        }
+    }
+    if (context.search_disable_custom_filters) {
+        viewProps.activateFavorite = false;
+    }
+    if (!viewProps.resId) {
+        viewProps.resId = action.res_id ?? false;
+    }
+}
+
+/**
+ * Embedded actions belong to the multi-record view that owns the switcher; a
+ * form opened from one carries none of its own.
+ *
+ * @param {BaseView} view
+ * @param {ActWindowAction} action
+ * @param {Record<string, any>} context
+ * @param {Record<string, any>[]} viewSwitcherEntries
+ * @returns {Config}
+ */
+function buildViewConfig(view, action, context, viewSwitcherEntries) {
+    const isForm = view.type === "form";
+    return {
+        actionId: action.id,
+        actionName: action.name,
+        cache: action.cache,
+        actionType: "ir.actions.act_window",
+        actionXmlId: action.xml_id,
+        embeddedActions: isForm
+            ? []
+            : context.parent_action_embedded_actions || action.embedded_action_ids,
+        parentActionId: (!isForm && context.parent_action_id) || false,
+        currentEmbeddedActionId: context.current_embedded_action_id || false,
+        views: action.views,
+        viewSwitcherEntries,
+    };
+}
+
+/**
  * @param {BaseView} view
  * @param {ActWindowAction} action
  * @param {BaseView[]} views
@@ -62,54 +176,16 @@ export function buildActionInfo(action, props, am) {
  * @param {ActionManager} am
  * @returns {{ props: ActionProps, currentState: Record<string, any>, config: Config, displayName: string }}
  */
-export function buildViewInfo(view, action, views, props = {}, am) {
+export function buildViewInfo(view, action, views, props, am) {
+    props = props || {};
     const target = action.target;
-    const viewSwitcherEntries = views
-        .filter((v) => v.multiRecord === view.multiRecord)
-        .map((v) => {
-            /** @type {Record<string, any>} */
-            const viewSwitcherEntry = {
-                icon: v.icon,
-                name: v.display_name,
-                type: v.type,
-                multiRecord: v.multiRecord,
-            };
-            if (view.type === v.type) {
-                viewSwitcherEntry.active = true;
-            }
-            return viewSwitcherEntry;
-        });
+    const viewSwitcherEntries = buildViewSwitcherEntries(view, views);
     const context = action.context || {};
     let groupBy = context.group_by || [];
     if (typeof groupBy === "string") {
         groupBy = groupBy ? [groupBy] : [];
     }
-    const openFormView = (
-        /** @type {any} */ resId,
-        { activeIds, readonly, force, newWindow } = /** @type {any} */ ({}),
-    ) => {
-        if (target !== "new") {
-            if (am._getView("form")) {
-                return am.switchView(
-                    "form",
-                    { readonly, resId, resIds: activeIds },
-                    { newWindow },
-                );
-            } else if (force || !resId) {
-                return am.doAction(
-                    {
-                        type: "ir.actions.act_window",
-                        res_model: action.res_model,
-                        views: [[false, "form"]],
-                    },
-                    {
-                        newWindow,
-                        props: { readonly, resId, resIds: activeIds },
-                    },
-                );
-            }
-        }
-    };
+    const openFormView = makeFormViewOpener(action, target, am);
     /** @type {ActionProps} */
     const viewProps = {
         ...props,
@@ -140,24 +216,7 @@ export function buildViewInfo(view, action, views, props = {}, am) {
         }
     }
 
-    const specialKeys = ["help", "useSampleModel", "limit", "count"];
-    for (const key of specialKeys) {
-        if (key in action) {
-            if (key === "help") {
-                viewProps.noContentHelp = action.help;
-            } else {
-                viewProps[key] = /** @type {Record<string, any>} */ (action)[key];
-            }
-        }
-    }
-
-    if (context.search_disable_custom_filters) {
-        viewProps.activateFavorite = false;
-    }
-
-    if (!viewProps.resId) {
-        viewProps.resId = action.res_id ?? false;
-    }
+    applyActionOverrides(viewProps, action, context);
 
     const currentState = {
         resId: viewProps.resId,
@@ -168,27 +227,10 @@ export function buildViewInfo(view, action, views, props = {}, am) {
     viewProps.noBreadcrumbs =
         "_noBreadcrumbs" in action ? action._noBreadcrumbs : target === "new";
 
-    const embeddedActions =
-        view.type === "form"
-            ? []
-            : context.parent_action_embedded_actions || action.embedded_action_ids;
-    const parentActionId = (view.type !== "form" && context.parent_action_id) || false;
-    const currentEmbeddedActionId = context.current_embedded_action_id || false;
     return {
         props: viewProps,
         currentState,
-        config: {
-            actionId: action.id,
-            actionName: action.name,
-            cache: action.cache,
-            actionType: "ir.actions.act_window",
-            actionXmlId: action.xml_id,
-            embeddedActions,
-            parentActionId,
-            currentEmbeddedActionId,
-            views: action.views,
-            viewSwitcherEntries,
-        },
+        config: buildViewConfig(view, action, context, viewSwitcherEntries),
         displayName: action.display_name || action.name || "",
     };
 }

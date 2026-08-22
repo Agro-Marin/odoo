@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/debug/profiling/profiling_service */
-
 import { EventBus, reactive } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 
@@ -11,27 +9,7 @@ import { profilingSystrayItem } from "./profiling_systray_item.js";
 
 const systrayRegistry = registry.category("systray");
 
-/**
- * The `profiling` service.
- *
- * A class rather than a closure returning an object literal; see
- * `core/hotkeys/hotkey_service.js` for the reasoning and
- * `tooling/architecture/js_service_shape.py` for the budget.
- *
- * **The debug guard stays in `start()`**, as in `web_vitals`: `start()` returns
- * `undefined` when `env.debug` is off, and a constructor cannot decline to
- * construct.
- *
- * Two things the conversion had to preserve exactly:
- *  - `state`'s `isEnabled` getter reads the **reactive proxy**, not the raw
- *    object, so it is still built against a local `const state` and only then
- *    assigned to `this.state`. Writing `this.state.session` inside the getter
- *    would resolve `this` to the literal rather than the service.
- *  - `profilingItem` is stored in the `debug` registry and called later, so it
- *    is registered as a wrapper that re-enters through `this`, not as a bare
- *    method reference which would arrive with no receiver.
- */
-export class ProfilingService {
+class ProfilingService {
     /**
      * @param {import("@web/env").OdooEnv} env
      * @param {{ action: any, orm: any, lazy_session: any }} services
@@ -62,11 +40,6 @@ export class ProfilingService {
         this.loadLazyState("profile_params", "params");
 
         this.notify();
-
-        registry
-            .category("debug")
-            .category("default")
-            .add("profilingItem", /** @type {any} */ (() => this.profilingItem()));
     }
 
     notify() {
@@ -175,7 +148,17 @@ export class ProfilingService {
     }
 }
 
-export const profilingService = {
+registry
+    .category("debug")
+    .category("default")
+    .add(
+        "profilingItem",
+        /** @type {any} */ (
+            ({ env }) => env.services.profiling?.profilingItem() ?? null
+        ),
+    );
+
+const profilingService = {
     dependencies: ["action", "orm", "lazy_session"],
     /**
      * @param {import("@web/env").OdooEnv} env

@@ -231,7 +231,7 @@ nested property, causing massive overhead.
 - `model/sample_data_coordinator.js` — `SampleDataCoordinator`
 - `model/relational_model/urgent_save_coordinator.js` — `UrgentSaveCoordinator`
 - `views/form/form_save_coordinator.js` — `FormSaveCoordinator`
-- `components/dropdown/dropdown_hooks.js` — `DropdownState`
+- `components/dropdown/dropdown_hook.js` — `DropdownState`
 - `model/relational_model/record.js` — `RelationalRecord extends DataPoint` (exported as `RelationalRecord`, NOT `Record`)
 
 ## Pattern 4 (discouraged): `reactive()` with side-effecting setters
@@ -536,6 +536,8 @@ Global events are defined in `core/events.js` and exported from `@web/core`.
 | `UserEvent.ACTIVE_COMPANIES_CHANGED` | `ACTIVE_COMPANIES_CHANGED` | `userBus` | Allowed-company selection changed (`core/user.js`). Load-bearing for `name_service` cache clearing — see ARCHITECTURE.md |
 | `FileUploadEvent.ADDED` / `LOADED` / `ERROR` | `FILE_UPLOAD_ADDED` / `FILE_UPLOAD_LOADED` / `FILE_UPLOAD_ERROR` | `file_upload` service bus | Upload lifecycle (`core/file_upload/file_upload_service.js`) |
 | `CommandPaletteEvent.SET_CONFIG` | `SET-CONFIG` | command palette bus | Reconfigure the open palette (`ui/commands/command_service.js`) |
+| `PagerEvent.UPDATED` | `PAGER:UPDATED` | `env.bus` | Pager value/total changed — fired by `components/pager/pager.js` **only when `env.isSmall`**, and never on first mount, so the small-screen `components/pager/pager_indicator.js` is the sole consumer |
+| `DropdownEvent.OPENED` | `DROPDOWN:OPENED` | `env.bus` | A dropdown opened (`components/dropdown/_behaviours/dropdown_nesting.js`). Every other nesting instance listens and closes itself through `handleChange(other)`, which is how sibling dropdowns stay mutually exclusive |
 
 ## Server-side `__version` stamp for cached endpoints
 

@@ -1,25 +1,22 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/debug/debug_items */
-
-import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
 
+import { openUnitTests, UNIT_TESTS_URL, unitTestsLabel } from "./debug_affordances.js";
 import { FieldWidgetsDialog } from "./field_widgets_dialog.js";
 
 /**
  * @returns {Object}
  */
 function runUnitTestsItem() {
-    const href = "/web/tests?debug=assets";
     return {
         type: "item",
-        description: _t("Run Unit Tests"),
-        href,
-        callback: () => browser.open(href),
+        description: unitTestsLabel(),
+        href: UNIT_TESTS_URL,
+        callback: openUnitTests,
         sequence: 450,
         section: "testing",
     };

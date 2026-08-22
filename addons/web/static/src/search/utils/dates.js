@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/utils/dates */
+/** @import { PeriodWindow } from "../search_types" */
 
 import { Domain } from "@web/core/domain";
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
@@ -9,6 +9,7 @@ import { localization } from "@web/core/l10n/localization";
 import { _t } from "@web/core/translation";
 import { pick } from "@web/core/utils/collections/objects";
 import { clamp } from "@web/core/utils/format/numbers";
+/** @type {Record<number, {description: any, coveredMonths: number[]}>} */
 const QUARTERS = {
     1: { description: _t("Q1"), coveredMonths: [1, 2, 3] },
     2: { description: _t("Q2"), coveredMonths: [4, 5, 6] },
@@ -57,11 +58,18 @@ export const INTERVAL_OPTIONS = {
     day: { description: _t("Day"), id: "day", groupNumber: 1 },
 };
 
+/** @type {Record<string, {description: any, id: string, groupNumber?: number}>} */
 export const BACKEND_INTERVAL_OPTIONS = {
     ...INTERVAL_OPTIONS,
     hour: { description: _t("Hour"), id: "hour" },
 };
 
+/**
+ * @param {any} referenceMoment
+ * @param {Record<string, any>} searchItem
+ * @param {string[]} selectedOptionIds
+ * @returns {{domain: any, description: string}}
+ */
 export function constructDateDomain(referenceMoment, searchItem, selectedOptionIds) {
     const selectedOptions = getSelectedOptions(
         referenceMoment,
@@ -130,6 +138,10 @@ export function constructDateDomain(referenceMoment, searchItem, selectedOptionI
     return { domain, description };
 }
 
+/**
+ * @param {Record<string, any>} params
+ * @returns {{domain: any, description: string}}
+ */
 function constructDateRange(params) {
     const { referenceMoment, fieldName, fieldType, granularity, plusParam } = params;
     const setParam = { ...params.setParam };
@@ -166,9 +178,6 @@ function constructDateRange(params) {
     return { domain, description };
 }
 
-/**
- * @see getOptionsWithDescriptions
- */
 export function getIntervalOptions() {
     return getOptionsWithDescriptions(INTERVAL_OPTIONS);
 }
@@ -188,13 +197,32 @@ function getOptionsWithDescriptions(OPTIONS) {
     return options;
 }
 
+/**
+ * @type {WeakMap<object, {referenceMoment: any, options: readonly Record<string, any>[]}>}
+ */
+const PERIOD_OPTIONS_CACHE = new WeakMap();
+
+/**
+ * @param {any} referenceMoment
+ * @param {{startYear: number, endYear: number, startMonth: number, endMonth: number, customOptions: {id: string, description: string, domain: string}[]}} optionsParams
+ * @returns {readonly Record<string, any>[]}
+ */
 export function getPeriodOptions(referenceMoment, optionsParams) {
-    return [
+    const cached = PERIOD_OPTIONS_CACHE.get(optionsParams);
+    if (cached && cached.referenceMoment === referenceMoment) {
+        return cached.options;
+    }
+    const options = Object.freeze([
         ...getMonthPeriodOptions(referenceMoment, optionsParams),
         ...getQuarterPeriodOptions(optionsParams),
         ...getYearPeriodOptions(referenceMoment, optionsParams),
         ...getCustomPeriodOptions(optionsParams),
-    ];
+    ]);
+    for (const option of options) {
+        Object.freeze(option);
+    }
+    PERIOD_OPTIONS_CACHE.set(optionsParams, { referenceMoment, options });
+    return options;
 }
 
 /**
@@ -291,7 +319,14 @@ function getCustomPeriodOptions(optionsParams) {
     }));
 }
 
+/**
+ * @param {any} referenceMoment
+ * @param {Record<string, any>} searchItem
+ * @param {string[]} selectedOptionIds
+ * @returns {Record<string, any[]>}
+ */
 function getSelectedOptions(referenceMoment, searchItem, selectedOptionIds) {
+    /** @type {Record<string, any[]>} */
     const selectedOptions = { year: [] };
     const periodOptions = getPeriodOptions(referenceMoment, searchItem.optionsParams);
     for (const optionId of selectedOptionIds) {
@@ -313,6 +348,11 @@ function getSelectedOptions(referenceMoment, searchItem, selectedOptionIds) {
     return selectedOptions;
 }
 
+/**
+ * @param {Record<string, any>} periodOption
+ * @param {any} referenceMoment
+ * @returns {Record<string, any>}
+ */
 function getSetParam(periodOption, referenceMoment) {
     if (periodOption.granularity === "quarter") {
         return periodOption.setParam;
@@ -324,15 +364,25 @@ function getSetParam(periodOption, referenceMoment) {
 }
 
 /**
+ * @type {Record<string, number>}
+ */
+const INTERVAL_RANKS = Object.fromEntries(
+    Object.keys(BACKEND_INTERVAL_OPTIONS).map((id, index) => [id, index]),
+);
+
+/**
  * @param {string} intervalOptionId
  * @returns {number}
  */
 export function rankInterval(intervalOptionId) {
-    return Object.keys(BACKEND_INTERVAL_OPTIONS).indexOf(intervalOptionId);
+    return intervalOptionId in INTERVAL_RANKS ? INTERVAL_RANKS[intervalOptionId] : -1;
 }
 
+/**
+ * @param {Record<string, any>[]} options
+ */
 function sortPeriodOptions(options) {
-    options.sort((o1, o2) => {
+    options.sort((/** @type {any} */ o1, /** @type {any} */ o2) => {
         const granularity1 = o1.granularity;
         const granularity2 = o2.granularity;
         if (granularity1 === granularity2) {
@@ -342,6 +392,10 @@ function sortPeriodOptions(options) {
     });
 }
 
+/**
+ * @param {string[]} selectedOptionIds
+ * @returns {boolean}
+ */
 export function yearSelected(selectedOptionIds) {
     return selectedOptionIds.some((optionId) => optionId.startsWith("year"));
 }

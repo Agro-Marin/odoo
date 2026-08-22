@@ -52,18 +52,41 @@ class OdooModuleLoader {
     _reloadPage(): void;
 
     /**
-     * Beacon seam — the shim's error-reporting internals, exposed for tests.
+     * The JS error beacon. Not a seam and not a copy: this IS the one
+     * implementation, because the pre-ESM shim must be able to report an error
+     * thrown before any module can be imported, so it cannot import one.
+     * ``@web/core/errors/error_beacon`` is a typed facade that calls straight
+     * into ``reportJsError`` here — one dedup set, one set of limits, one
+     * payload shape, and therefore no parity to keep.
      *
-     * These live in the shim's IIFE closure and the pre-ESM shim cannot
-     * ``export``, so a test has no other way to reach them. ``serializeCause``
-     * and ``hashCode`` are byte-identical copies of the helpers in
-     * ``@web/core/errors/error_beacon``; keep all three in step.
+     * ``seenErrors``, ``serializeCause``, ``hashCode`` and ``limits`` are
+     * exposed because the shim cannot ``export`` and tests have no other way in.
      */
     _beacon: {
-        reportError(payload: Record<string, any>): void;
+        reportJsError(info: {
+            message: unknown;
+            kind?: string;
+            phase?: string;
+            filename?: string;
+            line?: number;
+            col?: number;
+            stack?: string;
+            cause?: unknown;
+            reloaded?: boolean;
+            dedup?: boolean;
+        }): boolean;
         seenErrors: Set<string>;
         serializeCause(cause: unknown): string;
         hashCode(str: string): string;
+        limits: {
+            ENDPOINT: string;
+            MAX_MESSAGE: number;
+            MAX_STACK: number;
+            MAX_CAUSE: number;
+            MAX_CAUSE_DEPTH: number;
+            MAX_SEEN_KEYS: number;
+            KINDS: Set<string>;
+        };
     };
 }
 
@@ -94,6 +117,16 @@ declare const odoo: {
      */
     isReady?: boolean;
     /**
+     * The public Discuss page's initial store payload, injected as a literal by
+     * `mail/views/discuss_public_templates.xml` beside `__session_info__` and
+     * read once by `mail/…/discuss/core/public/boot.js` to seed `mail.store`.
+     *
+     * Undeclared until 2026-08-18, so the single line that reads it was a
+     * standing TS2339 on a file both default-deny lanes lock at zero — the
+     * property has always existed, only the contract was missing.
+     */
+    discuss_data?: Record<string, any>;
+    /**
      * Server info, available after session initialization.
      *
      * Field names mirror the runtime keys written by
@@ -107,7 +140,14 @@ declare const odoo: {
     info?: {
         db: string;
         server_version: string;
-        server_version_info: [number, number, number, string, number];
+        /**
+         * Six elements, not five: `odoo/release.py` declares
+         * `tuple[int, int, int, str, int, str]` and the last is the EDITION
+         * tag — `"e"` for enterprise, `""` otherwise. Declared as a 5-tuple
+         * until 2026-08-17, which typed away the very element
+         * `publishOdooInfo()` reads to compute `isEnterprise`.
+         */
+        server_version_info: [number, number, number, string, number, string];
         isEnterprise: boolean;
         [key: string]: any;
     };

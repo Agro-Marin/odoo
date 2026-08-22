@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/hooks/full_calendar_hook */
-
 import {
     onMounted,
     onPatched,
@@ -12,12 +10,8 @@ import {
     useRef,
 } from "@odoo/owl";
 import { DateTime, IANAZone, Settings } from "@web/core/l10n/luxon";
-/**
- * @param {string} refName
- * @param {Object} params
- * @returns {{ api: FullCalendar.Calendar, el: HTMLElement }}
- */
 import { FullCalendar, loadFullCalendar } from "@web/core/lib/fullcalendar";
+import { makeWeekColumn } from "@web/views/calendar/calendar_common/calendar_common_week_column";
 
 export function getFullCalendarTimeZone() {
     const zone = Settings.defaultZone;
@@ -61,7 +55,7 @@ export function fromFcDate(date) {
     });
 }
 
-export function dayCellClassNames(info) {
+function dayCellClassNames(info) {
     const classes = ["fc-day"];
     if (info?.isOther) {
         classes.push("fc-day-other");
@@ -86,7 +80,71 @@ export function dayCellClassNames(info) {
     return classes.join(" ");
 }
 
-export function dayHeaderClassNames(info) {
+/**
+ * @param {any} info
+ * @param {string[]} extras
+ * @returns {string}
+ */
+export function withDayCellClassNames(info, extras) {
+    const base = dayCellClassNames(info);
+    return extras.length ? `${base} ${extras.join(" ")}` : base;
+}
+
+/**
+ * @param {{
+ *  el: HTMLElement,
+ *  fcOptions: Record<string, any> | undefined,
+ *  weekNumbers: boolean,
+ *  weekNumbersWithinDays: boolean,
+ * }} params
+ * @returns {void}
+ */
+export function decorateFcViewMount({
+    el,
+    fcOptions,
+    weekNumbers,
+    weekNumbersWithinDays,
+}) {
+    if (!fcOptions) {
+        return;
+    }
+    if (weekNumbers && !weekNumbersWithinDays) {
+        makeWeekColumn(
+            /** @type {any} */ ({
+                el,
+                weekText: fcOptions.weekTextShort ?? "",
+            }),
+        );
+    }
+    const scrollerClass = fcInternalClassName("internalScroller");
+    const liquidClass = fcInternalClassName("liquid");
+    for (const scrollerEl of el.querySelectorAll(`.${scrollerClass}`)) {
+        scrollerEl.classList.add("fc-scroller");
+        if (scrollerEl.classList.contains(liquidClass)) {
+            scrollerEl.classList.add("fc-scroller-liquid-y");
+        }
+    }
+}
+
+/**
+ * @param {any} dayCellClass
+ * @returns {Record<string, any>}
+ */
+export function fcViewClassOptions(dayCellClass) {
+    return {
+        class: "fc",
+        viewClass: ({ view }) =>
+            view && view.type ? `fc-view fc-${view.type}-view` : "fc-view",
+        dayCellClass,
+        dayCellInnerClass: "fc-daygrid-day-frame",
+        dayCellTopClass: "fc-daygrid-day-top",
+        dayCellTopInnerClass: "fc-daygrid-day-number",
+        dayHeaderClass: dayHeaderClassNames,
+        backgroundEventClass: "fc-bg-event",
+    };
+}
+
+function dayHeaderClassNames(info) {
     const classes = ["fc-col-header-cell", "fc-day"];
     if (info?.isToday) {
         classes.push("fc-day-today");
@@ -124,6 +182,11 @@ function eventSetFingerprint(instance) {
     }
 }
 
+/**
+ * @param {string} refName
+ * @param {Object} paramsOrGetter
+ * @returns {{ api: any, el: HTMLElement | null }}
+ */
 export function useFullCalendar(refName, paramsOrGetter) {
     const component = useComponent();
     const ref = useRef(refName);

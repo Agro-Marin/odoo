@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/kanban_keyboard_nav */
-
 import { SearchModelEvent } from "@web/core/events";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
+<!-- Rendered empty and left in the DOM: the interaction fills it in. A live
+     region has to exist before the change for the change to be announced. -->
 <t t-name="web.caps_lock_warning">
-    <span class="o_caps_lock_warning_text text-danger">
-        Caps Lock is on!
-    </span>
+    <span class="o_caps_lock_warning_text text-danger" role="status" aria-live="polite"/>
 </t>
 
 </templates>

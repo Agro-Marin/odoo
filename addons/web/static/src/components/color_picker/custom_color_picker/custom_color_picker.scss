@@ -1,18 +1,7 @@
 .o_colorpicker_widget {
     .o_color_pick_area {
         height: 125px;
-        // The saturation axis runs left-to-right in both directions, because
-        // the code that reads and writes it does: onPointerMovePicker derives
-        // saturation from the distance to the area's left edge, and _updateUI
-        // puts the pointer back with an inline `left`. Inline styles are not
-        // something rtlcss can flip, so letting it mirror the gradient alone
-        // would leave the plane reading backwards from the pointer on it --
-        // grey where the colour is, and every pick mirrored. A colour plane
-        // carries no reading order, so pinning it is the honest half to fix.
-        //
-        // The directive MUST be a loud comment: production compiles Sass with
         // `output_style = compressed`, which drops a plain `/*rtl:ignore*/`
-        // before rtlcss ever runs. Verified through the real pipeline.
         /*!rtl:ignore*/
         background-image:
             linear-gradient(

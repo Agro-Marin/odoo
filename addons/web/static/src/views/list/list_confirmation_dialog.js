@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_confirmation_dialog */
-
 import { Component } from "@odoo/owl";
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { _t } from "@web/core/translation";

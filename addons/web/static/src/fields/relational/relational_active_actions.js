@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/relational_active_actions */
-
 import { onWillUpdateProps, useComponent } from "@odoo/owl";
 import { Domain } from "@web/core/domain";
 
@@ -12,6 +10,7 @@ import { Domain } from "@web/core/domain";
  * @property {boolean} create
  * @property {boolean | undefined} createEdit
  * @property {boolean} delete
+ * @property {boolean | undefined} edit
  * @property {boolean} [link]
  * @property {boolean} [unlink]
  * @property {boolean} [write]
@@ -26,11 +25,6 @@ import { Domain } from "@web/core/domain";
  */
 
 /**
- * Parsed `Domain`s, keyed by the expression they came from. A crud option is an
- * arch literal, so the same handful of expressions is re-parsed for every row of
- * every list -- but the cache cannot live on the closure, because `crudOptions`
- * is re-read on every recomputation (see below).
- *
  * @type {Map<string, Domain | null>}
  */
 const domainCache = new Map();
@@ -51,13 +45,6 @@ function domainFor(action) {
 }
 
 /**
- * Every input is read from the props handed to `getEvalParams`, never from
- * `useComponent().props`: OWL assigns `component.props` *after* every
- * `onWillUpdateProps` callback has resolved, so a hook that reads `this.props`
- * here answers for the record the component is leaving, not the one it is
- * entering -- and since nothing recomputes the result until the *next* props
- * update, that wrong answer is what the widget keeps.
- *
  * @param {Object} params
  * @param {string} params.fieldType
  * @param {Record<string, boolean>} [params.subViewActiveActions={}]
@@ -107,7 +94,7 @@ export function useActiveActions({
 
         result.create = !readonly && evaluate("create");
         result.createEdit = !readonly && result.create && options.createEdit;
-        /** @type {any} */ (result).edit = edit ?? options.edit;
+        result.edit = edit ?? options.edit;
         result.delete = !readonly && evaluate("delete");
         result.write = (isMany2Many || !readonly) && evaluate("write");
 

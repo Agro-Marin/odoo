@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/operators */
-
 /** @type {Record<string, string>} */
 export const TERM_OPERATORS_NEGATION = {
     "<": ">=",

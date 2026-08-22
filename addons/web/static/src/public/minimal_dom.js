@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/public/minimal_dom */
-
 import { addLoadingEffect } from "@web/core/utils/dom/ui";
 
 const LOADING_EFFECT_DELAY = 400;
@@ -99,8 +97,6 @@ export function makeButtonHandler(
         const wasUnclickable = buttonEl.classList.contains("pe-none");
         buttonEl.classList.add("pe-none");
         let showDebouncedLoading = false;
-        // a handler that settles before the delay must take its timer with it,
-        // otherwise every click arms one that outlives the work it described
         /** @type {ReturnType<typeof setTimeout> | undefined} */
         let debounceTimer;
         const addLoadingIfPending = () => {

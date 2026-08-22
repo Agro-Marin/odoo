@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/l10n/localization_service */
-
 import { browser } from "@web/core/browser/browser";
 import { cookie } from "@web/core/browser/cookie";
 import { strftimeToLuxonFormat } from "@web/core/l10n/dates";
@@ -67,7 +65,7 @@ const FALLBACK_LANG_PARAMETERS = {
     week_start: 7,
 };
 
-export const localizationService = {
+const localizationService = {
     /** @returns {Promise<typeof import("@web/core/l10n/localization").localization>} */
     start: async () => {
         const localizationDB = new IndexedDB("localization", session.registry_hash);
@@ -141,18 +139,18 @@ export const localizationService = {
 
         /**
          * @param {{
-         *     hash: string,
-         *     modules: Record<string, { messages: { id: string, string: string }[] }>,
-         *     lang_parameters: {
-         *         date_format: string,
-         *         time_format: string,
-         *         decimal_point: string,
-         *         direction: string,
-         *         grouping: string,
-         *         thousands_sep: string,
-         *         week_start: number,
-         *     },
-         *     multi_lang: boolean,
+         * hash: string,
+         * modules: Record<string, { messages: { id: string, string: string }[] }>,
+         * lang_parameters: {
+         * date_format: string,
+         * time_format: string,
+         * decimal_point: string,
+         * direction: string,
+         * grouping: string,
+         * thousands_sep: string,
+         * week_start: number,
+         * },
+         * multi_lang: boolean,
          * }} result
          */
         const updateTranslations = (result) => {

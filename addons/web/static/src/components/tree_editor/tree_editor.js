@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/tree_editor/tree_editor */
-
 /** @typedef {any} Condition */
 /** @typedef {any} Connector */
 /** @typedef {any} Tree */
@@ -26,6 +24,7 @@ import { cloneTree, connector, isTree, TRUE_TREE } from "@web/core/tree/conditio
 import { getResModel } from "@web/core/tree/utils";
 import { areEquivalentTrees } from "@web/core/tree/virtual_operators";
 import { shallowEqual } from "@web/core/utils/collections/objects";
+import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 
 /**
@@ -64,10 +63,16 @@ export class TreeEditor extends Component {
         isSubTree: false,
     };
 
+    /** @type {import("services").ServiceFactories["field"]} */
+    fieldService;
+    /** @type {import("services").ServiceFactories["tree_processor"]} */
+    treeProcessor;
+
     setup() {
         this.isTree = isTree;
         this.fieldService = useService("field");
         this.treeProcessor = useService("tree_processor");
+        this.keepLastInfo = new KeepLast({ rejectSuperseded: true });
         onWillStart(() => this.onPropsUpdated(this.props));
         onWillUpdateProps((nextProps) => this.onPropsUpdated(nextProps));
     }
@@ -95,25 +100,47 @@ export class TreeEditor extends Component {
     }
 
     /**
+     * Three writes to `this` behind three awaits, and until this carried a
+     * `KeepLast` nothing ordered them. Two updates in flight -- a path change
+     * whose `loadFieldInfo` is slow, then a second edit -- could land in the
+     * order they resolved rather than the order they were asked for, leaving
+     * `getFieldDef` describing a field the tree no longer holds. Every other
+     * component in this directory that awaits into `this` already guards it the
+     * same way; this one was the exception.
+     *
      * @param {Object} props
+     * @returns {Promise<boolean>} false if a newer call superseded this one, in
+     * which case the caller must not render: the newer call will.
      */
     async prepareInfo(props) {
-        const [fieldDefs, getFieldDef, getConditionDescription] = await Promise.all([
-            this.fieldService.loadFields(props.resModel),
-            this.treeProcessor.makeGetFieldDef(props.resModel, this.tree),
-            props.readonly
-                ? this.treeProcessor.makeGetConditionDescription(
-                      props.resModel,
-                      this.tree,
-                  )
-                : undefined,
-        ]);
+        let loaded;
+        try {
+            loaded = await this.keepLastInfo.add(
+                Promise.all([
+                    this.fieldService.loadFields(props.resModel),
+                    this.treeProcessor.makeGetFieldDef(props.resModel, this.tree),
+                    props.readonly
+                        ? this.treeProcessor.makeGetConditionDescription(
+                              props.resModel,
+                              this.tree,
+                          )
+                        : undefined,
+                ]),
+            );
+        } catch (error) {
+            if (error instanceof SupersededError) {
+                return false;
+            }
+            throw error;
+        }
+        const [fieldDefs, getFieldDef, getConditionDescription] = loaded;
         this.getFieldDef = getFieldDef;
         this.defaultCondition = props.getDefaultCondition(fieldDefs);
 
         if (props.readonly) {
             this.getConditionDescription = getConditionDescription;
         }
+        return true;
     }
 
     /**
@@ -176,9 +203,13 @@ export class TreeEditor extends Component {
     /**
      * @param {import("@web/core/tree/condition_tree").ComplexCondition} node
      * @param {string} value
+     * @param {HTMLInputElement} [inputEl]
      */
-    updateComplexCondition(node, value) {
+    updateComplexCondition(node, value, inputEl) {
         this.updateNode(node, () => this._updateComplexCondition(node, value));
+        if (inputEl && inputEl.value !== node.value) {
+            inputEl.value = node.value;
+        }
     }
 
     /**
@@ -367,12 +398,8 @@ export class TreeEditor extends Component {
     async updateNode(node, operation) {
         const previousNode = cloneTree(node);
         await operation();
-        // An edit that leaves the tree semantically equivalent (toggling a
-        // redundant negation, retyping the same value) serialises to the domain
-        // the parent already holds, so notifyChanges yields no new props and no
-        // re-render. The display still changed, so force one here.
-        if (areEquivalentTrees(node, previousNode)) {
-            await this.prepareInfo(this.props);
+        const parentWillNotRerenderUs = areEquivalentTrees(node, previousNode);
+        if (parentWillNotRerenderUs && (await this.prepareInfo(this.props))) {
             this.render();
         }
         this.notifyChanges();

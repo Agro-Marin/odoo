@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/block/block_ui */
-
 import { Component, onWillDestroy, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { AppEvent } from "@web/core/events";
@@ -11,35 +9,31 @@ import { useBus, useService } from "@web/core/utils/hooks";
 
 const BLOCK_STATES = { UNBLOCKED: 0, BLOCKED: 1, VISIBLY_BLOCKED: 2 };
 
-/**
- * `time` is the wait before the NEXT message, not the elapsed total; `null`
- * ends the chain. `_t` is lazy, so translation still resolves per user.
- */
-const MESSAGES_BY_DURATION = [
-    { time: 20, l1: _t("Loading...") },
-    { time: 40, l1: _t("Still loading...") },
+const MESSAGES_BY_ELAPSED = [
+    { after: 0, l1: _t("Loading...") },
+    { after: 20, l1: _t("Still loading...") },
     {
-        time: 60,
+        after: 60,
         l1: _t("Still loading..."),
         l2: _t("Please be patient."),
     },
     {
-        time: 120,
+        after: 120,
         l1: _t("Don't leave yet,"),
         l2: _t("it's still loading..."),
     },
     {
-        time: 180,
+        after: 240,
         l1: _t("You may not believe it,"),
         l2: _t("but the application is actually loading..."),
     },
     {
-        time: 3180,
+        after: 420,
         l1: _t("Take a minute to get a coffee,"),
         l2: _t("because it's loading..."),
     },
     {
-        time: null,
+        after: 3600,
         l1: _t("Maybe you should consider reloading the application by pressing F5..."),
     },
 ];
@@ -55,7 +49,6 @@ export class BlockUI extends Component {
     msgTimer;
 
     setup() {
-        this.messagesByDuration = MESSAGES_BY_DURATION;
         this.BLOCK_STATES = BLOCK_STATES;
         this.state = useState({
             blockState: BLOCK_STATES.UNBLOCKED,
@@ -75,13 +68,15 @@ export class BlockUI extends Component {
 
     /** @param {number} index */
     replaceMessage(index) {
-        const message = MESSAGES_BY_DURATION[index];
+        const message = MESSAGES_BY_ELAPSED[index];
         this.state.line1 = message.l1;
         this.state.line2 = message.l2 || "";
-        if (message.time !== null) {
-            this.msgTimer = browser.setTimeout(() => {
-                this.replaceMessage(index + 1);
-            }, message.time * 1000);
+        const next = MESSAGES_BY_ELAPSED[index + 1];
+        if (next) {
+            this.msgTimer = browser.setTimeout(
+                () => this.replaceMessage(index + 1),
+                (next.after - message.after) * 1000,
+            );
         }
     }
 

@@ -1,15 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/percentage/percentage_field */
-
 import { formatPercentage } from "@web/core/formatters";
 import { parsePercentage } from "@web/core/parsers";
 import { _t } from "@web/core/translation";
 import { extractDigits } from "@web/core/utils/format/digits";
 import { Operation } from "@web/core/utils/operation";
 import { registerField } from "@web/fields/_registry";
-import { fieldHandle } from "@web/fields/field_handle";
+import { digitsAttribute } from "@web/fields/field_options";
 import { isFalseEmpty } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -21,11 +19,6 @@ export class PercentageField extends NumericInputFieldBase {
         ...standardFieldProps,
         digits: { type: Array, optional: true },
     };
-
-    /** @returns {import("@web/fields/field_handle").FieldHandle} */
-    get field() {
-        return fieldHandle(this);
-    }
 
     /**
      * @param {string} v
@@ -63,7 +56,7 @@ export class PercentageField extends NumericInputFieldBase {
 }
 
 /** @type {import("registries").FieldsRegistryItemShape} */
-export const percentageField = {
+const percentageField = {
     component: PercentageField,
     displayName: _t("Percentage"),
     supportedOptions: [
@@ -73,6 +66,7 @@ export const percentageField = {
             type: "digits",
         },
     ],
+    supportedAttributes: [digitsAttribute()],
     supportedTypes: ["float"],
     isEmpty: isFalseEmpty,
     extractProps: ({ attrs, options }) => ({

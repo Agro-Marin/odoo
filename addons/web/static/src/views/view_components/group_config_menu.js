@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_components/group_config_menu */
-
 import { Component } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";

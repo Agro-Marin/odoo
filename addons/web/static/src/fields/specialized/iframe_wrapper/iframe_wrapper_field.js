@@ -1,24 +1,17 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/iframe_wrapper/iframe_wrapper_field */
-
-import { Component, useEffect, useRef } from "@odoo/owl";
+import { useEffect, useRef } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
-import { fieldHandle } from "@web/fields/field_handle";
+import { FieldComponent } from "@web/fields/field_component";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-export class IframeWrapperField extends Component {
+export class IframeWrapperField extends FieldComponent {
     static template = "web.IframeWrapperField";
     static props = {
         ...standardFieldProps,
     };
-
-    /** @returns {import("@web/fields/field_handle").FieldHandle} */
-    get field() {
-        return fieldHandle(this);
-    }
 
     setup() {
         this.iframeRef = useRef("iframe");
@@ -37,7 +30,7 @@ export class IframeWrapperField extends Component {
 }
 
 /** @type {import("registries").FieldsRegistryItemShape} */
-export const iframeWrapperField = {
+const iframeWrapperField = {
     component: IframeWrapperField,
     displayName: _t("Wrap raw html within an iframe"),
     supportedTypes: ["text", "html"],

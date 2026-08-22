@@ -1,12 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/construct_expression_from_tree */
-
 /** @typedef {import("../py_js/ast_type.js").AST} AST */
 /** @import { Tree } from "@web/core/tree/condition_tree" */
 /** @import { Condition, Connector, Options } from "@web/core/tree/condition_tree" */
 
+import { isX2ManyType } from "@web/core/field_types";
 import { formatAST, parseExpr } from "@web/core/py_js/py";
 import { isValidPath, not } from "@web/core/tree/ast_utils";
 import { astFromValue, Expression, isTree } from "@web/core/tree/condition_tree";
@@ -32,14 +31,12 @@ function getNormalizedCondition(condition) {
  * @param {Options} options
  * @returns {boolean}
  */
-function isX2Many(ast, options) {
+function isX2ManyPath(ast, options) {
     if (isValidPath(ast, options)) {
         const fieldDef = options.getFieldDef?.(ast.value);
         return (
             !!fieldDef &&
-            ["many2many", "one2many"].includes(
-                /** @type {Record<string, any>} */ (fieldDef).type,
-            )
+            isX2ManyType(/** @type {Record<string, any>} */ (fieldDef).type)
         );
     }
     return false;
@@ -112,8 +109,6 @@ function _constructExpressionFromTree(tree, options, isRoot = false) {
 
     if (tree.type === "complex_condition") {
         if (tree.negate) {
-            // Always parenthesised: `not` binds tighter than `and`/`or`, so
-            // `not a and b` is not the negation of `a and b`.
             return `not ( ${tree.value} )`;
         }
         if (!isRoot) {
@@ -178,7 +173,7 @@ function _constructExpressionFromTree(tree, options, isRoot = false) {
 
     if (
         pathAST.type === ASTType.Name &&
-        isX2Many(pathAST, options) &&
+        isX2ManyPath(pathAST, options) &&
         ["in", "not in"].includes(operator)
     ) {
         const ast = /** @type {AST} */ ({

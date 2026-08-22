@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/py_js/ast_type */
-
 export const ASTType = {
     /** @type {0} */ Number: 0,
     /** @type {1} */ String: 1,
@@ -40,6 +38,6 @@ export const ASTType = {
  * @typedef {{type: 13, condition: AST, ifTrue: AST, ifFalse: AST}} ASTIf
  * @typedef {{type: 14, op: string, left: AST, right: AST}} ASTBooleanOperator
  * @typedef {{type: 15, obj: AST, key: string}} ASTObjLookup
- * @typedef {{type: 16, operands: AST[], operators: string[]}} ASTChain a<b<c: one more operand than operators
+ * @typedef {{type: 16, operands: AST[], operators: string[]}} ASTChain
  * @typedef { ASTNumber | ASTString | ASTBoolean | ASTNone | ASTList | ASTName | ASTUnaryOperator | ASTBinaryOperator | ASTFunctionCall | ASTAssignment | ASTTuple | ASTDictionary | ASTLookup | ASTIf | ASTBooleanOperator | ASTObjLookup | ASTChain } AST
  */

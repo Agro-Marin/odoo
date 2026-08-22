@@ -37,8 +37,6 @@
     transform-origin: left;
 }
 
-// Scaled rather than resized: the bar animates for the whole autoclose delay,
-// and a width animation relayouts the notification on every frame.
 @keyframes o-notification-progress {
     from {
         transform: scaleX(1);

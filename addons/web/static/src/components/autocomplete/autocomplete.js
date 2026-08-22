@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/autocomplete/autocomplete */
-
 import {
     Component,
     onMounted,
@@ -21,7 +19,7 @@ import { mergeClasses } from "@web/core/utils/dom/classname";
 import { useClickAway } from "@web/core/utils/dom/click_away";
 import { uniqueId } from "@web/core/utils/functions";
 import { useAutofocus, useForwardRefToParent } from "@web/core/utils/hooks";
-import { useDebounced } from "@web/core/utils/timing";
+import { INPUT_DEBOUNCE_DELAY, useDebounced } from "@web/core/utils/timing";
 
 export class AutoComplete extends Component {
     static template = "web.AutoComplete";
@@ -73,10 +71,42 @@ export class AutoComplete extends Component {
         onBlur: () => {},
         onFocus: () => {},
         searchOnInputClick: true,
-        inputDebounceDelay: 250,
+        inputDebounceDelay: INPUT_DEBOUNCE_DELAY,
         menuPositionOptions: {},
         menuCssClass: {},
     };
+
+    /**
+     * Coordination state, grouped by the question each flag answers. Every one
+     * of these was previously assigned into `this` from wherever it was first
+     * needed — six of them were never declared at all, in a file that opens
+     * `// @ts-check` — so the only way to learn the set was to grep for
+     * `this.`. They are still eleven separate signals because they answer
+     * eleven separate questions; what was missing was saying so.
+     */
+
+    inEdition = false;
+    isOptionSelected = false;
+    forceValFromProp = false;
+
+    dismissed = false;
+    ignoreBlur = false;
+
+    /**
+     * @type {Deferred<void> | null}
+     */
+    pendingPromise = null;
+    /**
+     * @type {Deferred<void> | null}
+     */
+    loadingPromise = null;
+    _loadedRequest = null;
+    _loadedInputValue = "";
+    /**
+     * @type {{ direction: number, applied: Deferred<void> } | null}
+     */
+    _entry = null;
+    navigationRev = 0;
 
     get timeout() {
         return this.props.inputDebounceDelay;
@@ -86,29 +116,8 @@ export class AutoComplete extends Component {
         this.autoCompleteId = uniqueId("autocomplete_");
         this.nextSourceId = 0;
         this.nextOptionId = 0;
-        this.inEdition = false;
-        this.isOptionSelected = false;
-        this.dismissed = false;
 
-        // Tab only commits a suggestion the user actually browsed to. That is
-        // a fact about the open dropdown, so close() resets it. Not state: no
-        // render depends on it.
-        this.navigationRev = 0;
-
-        // One load owns the dropdown at a time; superseding it (a newer load,
-        // or close()) rejects the superseded tail with a SupersededError so
-        // every caller awaiting a load still settles.
         this.keepLast = new KeepLast({ rejectSuperseded: true });
-
-        /**
-         * A finished load's pending "present the options" step: the entry
-         * activation must land on the freshly rendered list, so it runs on
-         * the navigator update that follows the render (onNavigationUpdated)
-         * and resolves `applied` once it has.
-         *
-         * @type {{ direction: number, applied: Deferred<void> } | null}
-         */
-        this._entry = null;
 
         this.state = useState({
             open: false,
@@ -169,8 +178,17 @@ export class AutoComplete extends Component {
             getAnchor: () => this.root.el,
             getContentEl: () => this.listRef.el,
         });
-        this._onScrollAway = (/** @type {Event} */ ev) =>
-            this.externalClose(/** @type {Node} */ (ev.target));
+        this._onScrollAway = (/** @type {Event} */ ev) => {
+            const target = ev.target;
+            if (
+                target === document ||
+                target === document.documentElement ||
+                target === document.body
+            ) {
+                return;
+            }
+            this.externalClose(/** @type {Node} */ (target));
+        };
         this._globalCleanups = [];
         onWillDestroy(() => this._removeGlobalListeners());
 
@@ -218,16 +236,6 @@ export class AutoComplete extends Component {
         return this.props.id || this.autoCompleteId;
     }
 
-    /** @returns {[number, number] | null} the [source, option] indices of the
-     *  navigator's active item, read off the option element's own id -- the
-     *  navigator owns the cursor, the component only translates it back into
-     *  its data space. */
-    get activeSourceOption() {
-        const el = this.navigator.activeItem?.el;
-        const match = el && /_(\d+)_(\d+)$/.exec(el.id);
-        return match ? [Number(match[1]), Number(match[2])] : null;
-    }
-
     /** @returns {boolean} */
     get isLoadingSources() {
         return this.sources.some((source) => source.isLoading);
@@ -241,13 +249,6 @@ export class AutoComplete extends Component {
         };
     }
 
-    /**
-     * usePosition keeps the object it is handed and re-reads it on every
-     * reposition, so what it holds has to be one object for the component's
-     * whole life -- `dropdownOptions` yields a fresh merge each call, and
-     * subclasses override it to yield another. Refreshing that one object's
-     * contents from the getter is what lets both stay live.
-     */
     syncDropdownOptions() {
         const live = /** @type {Record<string, any>} */ (this._dropdownOptions);
         for (const key of Object.keys(live)) {
@@ -275,25 +276,26 @@ export class AutoComplete extends Component {
     }
 
     /**
-     * Translates an option element back into the option it renders, through
-     * the `{idPrefix}_{sourceIndex}_{optionIndex}` id the template stamps on
-     * every option.
-     *
      * @param {HTMLElement} el
      * @returns {any | null}
      */
     _optionForElement(el) {
-        const match = /_(\d+)_(\d+)$/.exec(el.id);
-        if (!match) {
+        const id = Number(el.dataset.optionId);
+        if (!id) {
             return null;
         }
-        return this.sources[Number(match[1])]?.options[Number(match[2])] ?? null;
+        for (const source of this.sources) {
+            const option = source.options.find((candidate) => candidate.id === id);
+            if (option) {
+                return option;
+            }
+        }
+        return null;
     }
 
     /**
      * @param {boolean} [useInput]
-     * @param {number} [entryDirection] which end of the loaded list to land on:
-     *  -1 for the last option, anything else for the first.
+     * @param {number} [entryDirection]
      */
     open(useInput = false, entryDirection = 0) {
         this.state.open = true;
@@ -305,11 +307,7 @@ export class AutoComplete extends Component {
     close() {
         this.state.open = false;
         this.navigator.clearActiveItem();
-        // Tab only commits a suggestion the user actually browsed to. That is a
-        // fact about the open dropdown, so it dies with it.
         this.navigationRev = 0;
-        // Abandon any in-flight load: its tail is rejected with a
-        // SupersededError and returns quietly, so its awaiters still settle.
         this.keepLast.cancel();
         if (this._entry) {
             this._entry.applied.resolve();
@@ -355,15 +353,9 @@ export class AutoComplete extends Component {
 
     /**
      * @param {boolean} useInput
-     * @param {number} [entryDirection] @see open
+     * @param {number} [entryDirection]
      */
     async loadSources(useInput, entryDirection = 0) {
-        // The text the box held when these options were asked for. Unlike
-        // `request` it is recorded even for a load that ignores the input, so
-        // it can answer "are these still the suggestions for what is on
-        // screen?" in every case. Read here rather than after the await: the
-        // inline variant loads before it is mounted, and any load can outlive
-        // the input it started from.
         const inputValue = this.inputRef.el?.value.trim() ?? "";
         const request = useInput ? inputValue : null;
         this.state.sources = this.props.sources.map((pSource) =>
@@ -393,11 +385,6 @@ export class AutoComplete extends Component {
                                 return;
                             }
                             source.isLoading = false;
-                            // A source that supersedes its own in-flight
-                            // request (`many2x_autocomplete` does) reports the
-                            // abandonment as a rejection. That is not a failure
-                            // to show the user -- a newer request for the same
-                            // source is already running.
                             if (error instanceof SupersededError) {
                                 return;
                             }
@@ -414,7 +401,6 @@ export class AutoComplete extends Component {
             await this.keepLast.add(Promise.all(proms));
         } catch (error) {
             if (error instanceof SupersededError) {
-                // A newer load (or close()) owns the dropdown now.
                 return;
             }
             throw error;
@@ -425,11 +411,6 @@ export class AutoComplete extends Component {
     }
 
     /**
-     * Whether a source object still belongs to the load currently on screen:
-     * a newer load replaces `state.sources` wholesale, detaching the previous
-     * batch. Source ids are unique across loads, so identity is answered in
-     * data space -- no reactivity proxy comparison.
-     *
      * @param {{ id: number }} source
      * @returns {boolean}
      */
@@ -438,12 +419,6 @@ export class AutoComplete extends Component {
     }
 
     /**
-     * The first option the user could land on, in display order, straight
-     * from the loaded data. Deliberately not the navigator's first item: the
-     * commit-on-blur decision is about what was *loaded*, and must hold even
-     * when the parent closed the dropdown before the list ever rendered.
-     * Sources still loading contribute nothing: they have no options yet.
-     *
      * @returns {any | null}
      */
     _firstSelectableOption() {
@@ -460,14 +435,7 @@ export class AutoComplete extends Component {
     }
 
     /**
-     * Presents a finished load: schedules the entry activation to run on the
-     * navigator update that follows the render of the new list, so it lands
-     * on the new DOM. Resolves once it has -- callers awaiting a load (enter,
-     * tab) must observe the cursor it produces. When no update is coming --
-     * the list will not render any navigable item and none is currently in
-     * the DOM -- there is nothing to enter and it resolves immediately.
-     *
-     * @param {number} direction @see open
+     * @param {number} direction
      * @returns {Promise<void>}
      */
     _enterLoadedOptions(direction) {
@@ -552,17 +520,6 @@ export class AutoComplete extends Component {
             this.ignoreBlur = false;
             return;
         }
-        // Escape and Tab are the user saying "not this one". Leaving the field
-        // afterwards must not resurrect the suggestion they just refused --
-        // unlike a plain blur, which is what selectOnBlur is for.
-        //
-        // Neither must it commit suggestions that no longer answer what the box
-        // holds: a parent replacing the value from outside writes over the box
-        // and leaves the previous query's options behind, and committing the
-        // first of those would overrule the parent's own write. Comparing the
-        // two texts keeps that decision out of the render schedule -- both
-        // sides are read off the input, not off when a re-render happened to
-        // land.
         if (
             this.props.selectOnBlur &&
             !this.dismissed &&
@@ -685,12 +642,6 @@ export class AutoComplete extends Component {
                         this.navigator.previous();
                     }
                 } else {
-                    // A closed list holds no option to step onto: the arrow has
-                    // to enter it from the end it points away from, and that end
-                    // is only known once the options exist. Stepping first would
-                    // walk whatever the previous query left behind and then be
-                    // overwritten by the load's own reset -- which is why both
-                    // arrows used to land on the first option.
                     this.open(true, direction);
                 }
                 break;
@@ -704,12 +655,6 @@ export class AutoComplete extends Component {
     }
 
     /**
-     * The navigator drives hover for selectable options through its own armed
-     * mouseenter/mouseleave listeners. Unselectable options are not navigable
-     * items, but the pointer resting on one must still withdraw the highlight
-     * -- a group header is "none of the choices" -- under the same arming
-     * gate: a list rendered under a still cursor keeps its keyboard cursor.
-     *
      * @param {[number, number]} indices
      */
     onOptionMouseEnter([sourceIndex, optionIndex]) {

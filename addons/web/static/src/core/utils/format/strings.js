@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/format/strings */
-
 import { isObject } from "@web/core/utils/collections/objects";
 
 /**
@@ -90,9 +88,6 @@ export function hashCode(...strings) {
 const _HEX_8 = 16 ** 8;
 
 /**
- * 53-bit hash: collision-safe enough to key caches whose entries must not be
- * confused with one another.
- *
  * @param {string} str
  * @returns {number}
  */
@@ -221,11 +216,6 @@ export function sprintf(str, ...substitutions) {
 }
 
 /**
- * 16 lowercase hex characters — 64 random bits, no dashes. Despite the name
- * this is not an RFC 4122 UUID and never has been; `crypto.randomUUID()` is
- * what you want if a caller needs that shape. Documented because callers have
- * assumed otherwise (one stripped a dash that is never produced).
- *
  * @returns {string}
  */
 export function uuid() {

@@ -1,9 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/graph/graph_model */
-
 import { Domain } from "@web/core/domain";
+import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { sortBy } from "@web/core/utils/collections/arrays";
@@ -54,6 +53,18 @@ export class GraphModel extends Model {
     }
 
     /**
+     * @param {Object} context
+     * @returns {string[]}
+     */
+    _visibleArchGroupBy(context) {
+        const { fieldAttrs } = this.metaData;
+        return this.metaData.groupBy.filter((spec) => {
+            const invisible = fieldAttrs?.[spec.split(":")[0]]?.invisible;
+            return !invisible || !evaluateBooleanExpr(invisible, context);
+        });
+    }
+
+    /**
      * @param {SearchParams} searchParams
      */
     async load(searchParams) {
@@ -71,7 +82,8 @@ export class GraphModel extends Model {
         }
         if (!this.initialGroupBy) {
             this.initialGroupBy =
-                searchParams.context.graph_groupbys || this.metaData.groupBy;
+                searchParams.context.graph_groupbys ||
+                this._visibleArchGroupBy(searchParams.context);
         }
         this._consumeContextParams(searchParams.context);
         const metaData = this._buildMetaData();
@@ -441,7 +453,6 @@ export class GraphModel extends Model {
         const getDefaultFilterLabel = (gb) => this._getDefaultFilterLabel(gb);
         const dataPoints = [];
         for (const group of groups) {
-            // Read before makeDataPoint, which may swap in a converted value.
             if (!Number.isInteger(getRawValue(group, fieldAggregate))) {
                 metaData.allIntegers = false;
             }
@@ -473,10 +484,6 @@ export class GraphModel extends Model {
     }
 
     /**
-     * The pre-window groups a cumulated graph starts from, or `false` when there
-     * is nothing to accumulate from: no cumulated start, no sequential x field,
-     * no dated group, or a domain that does not bound the sequential field.
-     *
      * @protected
      * @param {Object} metaData
      * @param {string | null} sequentialField

@@ -1,22 +1,16 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/field_arch */
-
+import { isX2ManyType } from "@web/core/field_types";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { getFieldFromRegistry, getSupportedOptionNames } from "@web/fields/field";
-import { X2M_TYPES } from "@web/fields/field_types";
 import { utils } from "@web/ui/viewport";
 
 const isSmall = utils.isSmall;
 const viewRegistry = registry.category("views");
 
-/**
- * Arch options read by the framework rather than by the widget, so no
- * `supportedOptions` list can be expected to declare them.
- */
 const FRAMEWORK_FIELD_OPTIONS = new Set(["group_by_tooltip"]);
 
 /** @type {Set<string>} */
@@ -27,14 +21,6 @@ export function resetUnknownOptionWarnings() {
 }
 
 /**
- * An option a widget does not declare is silently dropped: `extractProps` reads
- * a key that is not there, the prop is omitted, and the default applies. A
- * `no_open` copied onto `many2many_tags` (which, unlike `many2one`, does not
- * support it) therefore reads as "open is disabled" while the widget opens.
- *
- * Only widgets that declare `supportedOptions` are checked; see
- * `getSupportedOptionNames`.
- *
  * @param {string} widget
  * @param {ReturnType<typeof getFieldFromRegistry>} field
  * @param {Record<string, unknown>} options
@@ -141,7 +127,7 @@ export function parseFieldNode(node, models, modelName, viewType, jsClass) {
         fieldInfo.isHandle = true;
     }
 
-    if (X2M_TYPES.includes(fields[name].type)) {
+    if (isX2ManyType(fields[name].type)) {
         const views = {};
         let relatedFields = fieldInfo.field.relatedFields;
         if (relatedFields) {
@@ -168,9 +154,9 @@ export function parseFieldNode(node, models, modelName, viewType, jsClass) {
         for (const child of node.children) {
             const viewType = child.tagName;
             const { ArchParser } =
-                /** @type {{ ArchParser: new () => { parse: (n: Element, m: any, r?: string) => any } }} */ (
-                    viewRegistry.get(viewType)
-                );
+                /**
+                 * @type {{ ArchParser: new () => { parse: (n: Element, m: any, r?: string) => any } }}
+                 */ (viewRegistry.get(viewType));
             const childCopy = /** @type {Element} */ (child.cloneNode(true));
             const archInfo = new ArchParser().parse(
                 childCopy,

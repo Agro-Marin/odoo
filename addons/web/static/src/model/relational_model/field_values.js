@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/field_values */
-
 import { markup } from "@odoo/owl";
 /** @import { Field } from "@web/model/types" */
 import { Domain } from "@web/core/domain";
@@ -127,8 +125,6 @@ export function getAggregateSpecifications(fields, fieldNames) {
         aggregateSpecCache.set(fields, byScope);
     }
     const scope = fieldNames && [...new Set(fieldNames)];
-    // Sorted: the scope is a SET of field names, so two orderings of the same
-    // names must hit the same entry rather than compute and cache twice.
     const scopeKey = scope ? `s:${[...scope].sort().join(",")}` : "*";
     let specs = byScope.get(scopeKey);
     if (specs) {
@@ -161,7 +157,7 @@ export function getAggregateSpecifications(fields, fieldNames) {
  * @param {Object} groupData
  * @param {string[]} groupBy
  * @param {Object} fields
- * @param {string[]} [fieldsToAggregate] the scope the request was built with
+ * @param {string[]} [fieldsToAggregate]
  * @returns {{ aggregates: Object, serverValue: any }}
  */
 export function extractAggregatesFromGroupData(
@@ -183,7 +179,7 @@ export function extractAggregatesFromGroupData(
  * @param {string[]} groupBy
  * @param {Object} fields
  * @param {any} domain
- * @param {string[]} [fieldsToAggregate] the scope the request was built with
+ * @param {string[]} [fieldsToAggregate]
  * @returns {Object}
  */
 export function extractInfoFromGroupData(
@@ -342,17 +338,8 @@ export function fromUnityToServerValues(
             if (field.readonly) {
                 continue;
             }
-            // Decide readonly with the SAME rule the UI uses to gate the input
-            // (record._isReadonly -> isFieldReadonly -> evaluateBooleanExpr):
-            // Python-boolean semantics, so a modifier evaluating to an empty
-            // list/dict is falsy = writable, exactly as the server sees it. The
-            // former `evaluateExpr(...)` + JS `if (...)` disagreed on containers
-            // (`[]`/`{}` are JS-truthy) and would strip a writable field. An
-            // absent activeField (a field the arch never mentioned, e.g. from an
-            // onchange payload) or an unevaluable modifier (a nested x2many
-            // serialized without a context) stays writable, as before.
             if (activeField?.readonly) {
-                let readonly = false;
+                let readonly;
                 try {
                     readonly = evaluateBooleanExpr(activeField.readonly, context);
                 } catch {

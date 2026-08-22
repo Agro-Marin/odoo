@@ -1,25 +1,24 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/public/caps_lock_warning */
-
 import { registry } from "@web/core/registry";
+import { _t } from "@web/core/translation";
 import { Interaction } from "@web/public/interaction";
 
 export class CapsLockWarning extends Interaction {
     static selector = ".o_caps_lock_warning";
     dynamicContent = {
         ".o_caps_lock_warning_text": {
-            "t-att-class": () => ({ "d-none": this.isWarningHidden }),
+            "t-out": () => (this.isCapsLockOn ? _t("Caps Lock is on!") : ""),
         },
-        "input[type='password']": {
+        _root: {
             "t-on-keydown": this._onInputKey,
             "t-on-keyup": this._onInputKey,
         },
     };
 
     setup() {
-        this.isWarningHidden = true;
+        this.isCapsLockOn = false;
         this.renderAt("web.caps_lock_warning");
     }
 
@@ -35,7 +34,7 @@ export class CapsLockWarning extends Interaction {
         if (ev.type === "keydown" && ev.key === "CapsLock") {
             return;
         }
-        this.isWarningHidden = !state;
+        this.isCapsLockOn = state;
     }
 }
 

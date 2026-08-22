@@ -21,9 +21,6 @@ div#total {
 .o_table_standard {
     table:not(.o_ignore_layout_styling) {
         thead {
-            // Sass, not `--o-gray-900`: this file ships only in the report
-            // bundles, which carry no `tokens.scss` and have one palette to
-            // follow anyway.
             border-bottom: var(--rp-rule, #{$border-width}) solid o-token(--o-gray-900, $o-gray-900);
         }
 

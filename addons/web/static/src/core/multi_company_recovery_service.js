@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/multi_company_recovery_service */
-
 import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
 import { unique } from "@web/core/utils/collections/arrays";
@@ -32,11 +30,6 @@ function _suggestedCompany(error) {
 }
 
 /**
- * Whether the user is actually allowed to activate the given company. The
- * backend suggestion is advisory: activating a company outside the allowed
- * set would be silently filtered out by the user service, causing an endless
- * error -> reload loop.
- *
  * @param {{ id: number }} suggestedCompany
  * @returns {boolean}
  */
@@ -44,7 +37,7 @@ function _isAllowedCompany(suggestedCompany) {
     return user.allowedCompanies.some((c) => c.id === suggestedCompany.id);
 }
 
-export const multiCompanyRecoveryService = {
+const multiCompanyRecoveryService = {
     /**
      * @param {import("@web/env").OdooEnv} env
      */

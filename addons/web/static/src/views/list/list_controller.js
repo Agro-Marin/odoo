@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_controller */
-
 import { status, useEffect, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useSetupAction } from "@web/core/action_hook";
@@ -20,7 +18,11 @@ import { MultiRecordViewButton } from "@web/views/view_button/multi_record_view_
 import { ViewButton } from "@web/views/view_button/view_button";
 import { executeButtonCallback } from "@web/views/view_button/view_button_hook";
 import { SelectionBox } from "@web/views/view_components/selection_box";
-import { buildMultiRecordModelParams, handleBeforeUnload } from "@web/views/view_utils";
+import {
+    buildMultiRecordModelParams,
+    buildOpenActionParams,
+    handleBeforeUnload,
+} from "@web/views/view_utils";
 
 import { ListCogMenu } from "./list_cog_menu.js";
 import { ListConfirmationDialog } from "./list_confirmation_dialog.js";
@@ -68,9 +70,7 @@ export class ListController extends MultiRecordController {
     /**
      * @override
      */
-    setup() {
-        super.setup();
-
+    setupModel() {
         this.activeActions = this.archInfo.activeActions;
         this.onOpenFormView = this.openRecord.bind(this);
         this.editable = (!this.props.readonly && this.archInfo.editable) || false;
@@ -88,9 +88,12 @@ export class ListController extends MultiRecordController {
         this.nextActionsAfterMouseup = [];
 
         this.optionalActiveFields = useState({});
+    }
 
-        this.initMultiRecordBehavior();
-
+    /**
+     * @override
+     */
+    setupInteractions() {
         const { setScrollFromState } = useSetupAction({
             rootRef: this.rootRef,
             beforeLeave: this.beforeLeave.bind(this),
@@ -292,10 +295,11 @@ export class ListController extends MultiRecordController {
             }
             await list.leaveEditMode();
             if (!list.editedRecord) {
+                const position = this.editable;
                 if (group) {
-                    await group.addNewRecord({}, this.editable === "top");
+                    await group.addNewRecord({ position });
                 } else {
-                    await list.addNewRecord(this.editable === "top");
+                    await list.addNewRecord({ position });
                 }
             }
             this.render();
@@ -308,30 +312,16 @@ export class ListController extends MultiRecordController {
      * @param {any} record
      * @param {{ force?: boolean, newWindow?: boolean }} [options]
      */
-    async openRecord(
-        record,
-        { force, newWindow } = /** @type {any} */ ({ force: false }),
-    ) {
+    async openRecord(record, options = {}) {
+        const { force = false, newWindow } = options;
         const dirty = await record.isDirty();
         if (dirty && !(await record.save())) {
             return;
         }
         if (this.props.allowOpenAction && this.archInfo.openAction) {
             this.actionService.doActionButton(
-                {
-                    name: this.archInfo.openAction.action,
-                    type: this.archInfo.openAction.type,
-                    resModel: record.resModel,
-                    resId: record.resId,
-                    resIds: record.resIds,
-                    context: record.context,
-                    onClose: async () => {
-                        await record.model.root.load();
-                    },
-                },
-                {
-                    newWindow,
-                },
+                buildOpenActionParams(this.archInfo.openAction, record),
+                { newWindow },
             );
         } else {
             const activeIds = this.model.root.records.map(

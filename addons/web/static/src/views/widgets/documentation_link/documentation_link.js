@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/widgets/documentation_link/documentation_link */
-
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { session } from "@web/session";

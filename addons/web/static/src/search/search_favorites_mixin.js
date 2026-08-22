@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_favorites_mixin */
-
 import { actionContextCallbacks } from "@web/core/action_context_port";
 
 import {
@@ -12,6 +10,8 @@ import {
 } from "./search_favorites.js";
 import { FAVORITE_PRIVATE_GROUP, FAVORITE_SHARED_GROUP } from "./search_state.js";
 
+/** @import { FavoriteItem } from "./search_types" */
+
 /**
  * @template {new (...args: any[]) => any} T
  * @param {T} Base
@@ -19,11 +19,13 @@ import { FAVORITE_PRIVATE_GROUP, FAVORITE_SHARED_GROUP } from "./search_state.js
 export const SearchFavoritesMixin = (Base) =>
     class extends Base {
         /**
-         * @param {Object} params
+         * @param {Record<string, any>} params
          * @returns {Promise<number>}
          */
         async createNewFavorite(params) {
             const { preFavorite, irFilter } = this._getIrFilterDescription(params);
+            /** @type {Record<string, any>} */
+            const pre = preFavorite;
             const serverSideId = await this._createIrFilters(irFilter);
 
             this._withNotificationsBlocked(() => {
@@ -34,7 +36,7 @@ export const SearchFavoritesMixin = (Base) =>
                     id: this.nextId,
                     groupId: this.nextGroupId,
                     groupNumber:
-                        preFavorite.userIds.length === 1
+                        pre.userIds.length === 1
                             ? FAVORITE_PRIVATE_GROUP
                             : FAVORITE_SHARED_GROUP,
                     removable: true,
@@ -49,34 +51,31 @@ export const SearchFavoritesMixin = (Base) =>
             return serverSideId;
         }
 
+        /** @param {Record<string, any>} irFilter */
         async _createIrFilters(irFilter) {
-            // The get_views cache invalidation for this `create_filter` is owned
-            // declaratively by ViewService (which watches ir.filters + this
-            // method), so no manual CLEAR_CACHES is fired here.
             const serverSideIds = await this.orm.call("ir.filters", "create_filter", [
                 irFilter,
             ]);
             return serverSideIds[0];
         }
 
+        /** @param {Record<string, any>} [params] */
         getIrFilterValues(params) {
             const { irFilter } = this._getIrFilterDescription(params);
             return irFilter;
         }
 
+        /** @param {Record<string, any>} [params] */
         getPreFavoriteValues(params) {
             const { preFavorite } = this._getIrFilterDescription(params);
             return preFavorite;
         }
 
         /**
-         * @param {Object} [params]
+         * @param {Record<string, any>} [params]
          */
         _getIrFilterDescription(params = {}) {
             const { description, isDefault, isShared, embeddedActionId } = params;
-            // Read through the port: these slots are absent outside an action
-            // context and `null` where a producer opted out (web_studio nulls
-            // all five), and this dereferenced both unguarded.
             const fns = actionContextCallbacks(this.env, "__getContext__");
             const localContext = Object.assign({}, ...fns.map((fn) => fn()));
             const gs = actionContextCallbacks(this.env, "__getOrderBy__");
@@ -107,7 +106,7 @@ export const SearchFavoritesMixin = (Base) =>
         }
 
         /**
-         * @param {Object[]} irFilters
+         * @param {Record<string, any>[]} irFilters
          * @returns {number|null}
          */
         _createGroupOfFavorites(irFilters) {
@@ -122,13 +121,11 @@ export const SearchFavoritesMixin = (Base) =>
             return defaultFavoriteId;
         }
 
+        /** @param {Record<string, any>} irFilter */
         _irFilterToFavorite(irFilter) {
             return irFilterToFavorite(irFilter, this.searchViewFields);
         }
 
-        /**
-         * @private
-         */
         _reconciliateFavorites() {
             if (this.irFilters === undefined) {
                 return;
@@ -137,8 +134,10 @@ export const SearchFavoritesMixin = (Base) =>
                 this.searchItems,
                 this.query,
                 this.irFilters,
-                (irFilter) => this._irFilterToFavorite(irFilter),
-                (irFilters) => this._createGroupOfFavorites(irFilters),
+                (/** @type {Record<string, any>} */ irFilter) =>
+                    this._irFilterToFavorite(irFilter),
+                (/** @type {Record<string, any>[]} */ irFilters) =>
+                    this._createGroupOfFavorites(irFilters),
             );
             this._enrichedSearchItems = null;
         }

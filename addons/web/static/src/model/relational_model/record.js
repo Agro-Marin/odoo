@@ -1,14 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/record */
-
 import { markRaw, toRaw } from "@odoo/owl";
+import { isX2Many } from "@web/core/field_types";
 import { omit } from "@web/core/utils/collections/objects";
 import { Operation } from "@web/core/utils/operation";
 
 import { DataPoint } from "./datapoint.js";
-import { getBasicEvalContext, getFieldContext, isX2Many } from "./field_context.js";
+import { getBasicEvalContext, getFieldContext } from "./field_context.js";
 import { RecordEditState } from "./record_edit_state.js";
 import {
     archive,
@@ -58,11 +57,11 @@ import {
 
 /**
  * @typedef {{
- *  currentValues?: RecordType<string, unknown>;
- *  orderBys?: RecordType<string, unknown>;
- *  withInvisible?: boolean;
- *  withReadonly?: boolean;
- *  keepChanges?: boolean;
+ * currentValues?: RecordType<string, unknown>;
+ * orderBys?: RecordType<string, unknown>;
+ * withInvisible?: boolean;
+ * withReadonly?: boolean;
+ * keepChanges?: boolean;
  * }} FieldSpecifications
  * @typedef {"edit" | "readonly"} Mode
  */
@@ -74,23 +73,12 @@ const MULTI_EDIT_RESULT = Symbol("multiEditResult");
 export class RelationalRecord extends DataPoint {
     static type = "Record";
 
-    // NO class-field declarations here, however much the type checker would
-    // like them. `DataPoint`'s constructor calls `this.setup(...)`, and a
-    // subclass field initialiser runs immediately AFTER `super()` returns —
-    // so `/** @type {X} */ _editState;` would define the property as
-    // `undefined` on top of what `setup()` had just assigned, wiping it on
-    // every record. Verified: `class B { constructor(){this.setup()} setup(){
-    // this.x=42} }; class S extends B { x }` yields `undefined`.
-    //
-    // The same trap applies to `StaticList` and to `RelationalModel`, whose
-    // base says so at model.js:259.
-
     /**
      * @type {typeof DataPoint.prototype.setup<{
-     *  manuallyAdded?: boolean;
-     *  onUpdate?: (params?: { withoutParentUpdate?: boolean }) => any;
-     *  parentRecord?: RelationalRecord;
-     *  virtualId?: string;
+     * manuallyAdded?: boolean;
+     * onUpdate?: (params?: { withoutParentUpdate?: boolean }) => any;
+     * parentRecord?: RelationalRecord;
+     * virtualId?: string;
      * }>}
      */
     setup(_config, data, options = {}) {
@@ -220,10 +208,6 @@ export class RelationalRecord extends DataPoint {
     }
 
     /**
-     * True while this record must not propagate its updates to the parent
-     * record, which is the case for as long as a list holds it with temporarily
-     * extended active fields.
-     *
      * @returns {boolean}
      */
     get skipsParentUpdate() {
@@ -246,11 +230,6 @@ export class RelationalRecord extends DataPoint {
     }
 
     /**
-     * Keeps the disposer for the invalid-fields notification currently on
-     * screen. The record owns it because the notification is tied to the
-     * record's edit state, not to the validation pass that raised it: a
-     * savepoint restore takes it down without ever running a validation.
-     *
      * @param {() => void} close
      * @returns {void}
      */
@@ -267,11 +246,6 @@ export class RelationalRecord extends DataPoint {
     }
 
     /**
-     * Records the active fields to put back when the temporary extension this
-     * list asked for is rolled back, and suspends parent updates for as long as
-     * it lasts. The two always move together — a record left extended but still
-     * notifying its parent propagates fields the parent never asked for.
-     *
      * @param {Record<string, any>} activeFieldsToRestore
      * @returns {void}
      */
@@ -281,8 +255,6 @@ export class RelationalRecord extends DataPoint {
     }
 
     /**
-     * Adopts the id the server assigned to what was until now a virtual record.
-     *
      * @param {number} resId
      * @returns {void}
      */
@@ -376,14 +348,17 @@ export class RelationalRecord extends DataPoint {
 
     /**
      * @param {Object} changes
-     * @param {{ save?: boolean }} [options]
+     * @param {{ save?: boolean, withoutParentUpdate?: boolean }} [options]
      */
-    update(changes, { save } = {}) {
+    update(changes, { save, withoutParentUpdate } = {}) {
         if (this.model.urgentSave.isActive) {
-            return this._update(changes);
+            return this._update(changes, { withoutParentUpdate });
         }
         return this.model.mutex.exec(async () => {
-            const dispatched = await this._update(changes, { withoutOnchange: save });
+            const dispatched = await this._update(changes, {
+                withoutOnchange: save,
+                withoutParentUpdate,
+            });
             if (dispatched && MULTI_EDIT_RESULT in dispatched) {
                 return dispatched[MULTI_EDIT_RESULT];
             }
@@ -476,8 +451,7 @@ export class RelationalRecord extends DataPoint {
     }
 
     /**
-     * @param {Record<string, any>} [extraValues] server values known only here,
-     *  e.g. the id of a record that was just created
+     * @param {Record<string, any>} [extraValues]
      */
     _commitChanges(extraValues) {
         this._values = markRaw({
@@ -808,7 +782,11 @@ export class RelationalRecord extends DataPoint {
         return removeInvalidFields(this, ...fieldNames);
     }
 
+    /**
+     * @returns {void}
+     */
     _restoreActiveFields() {
+        this._noUpdateParent = false;
         if (!this._activeFieldsToRestore) {
             return;
         }
@@ -941,6 +919,61 @@ export class RelationalRecord extends DataPoint {
         });
     }
 
+    /**
+     * @param {Record<string, any>} changes
+     * @returns {{ list: any, snapshot: any }[]}
+     */
+    _snapshotTouchedLists(changes) {
+        const listSnapshots = [];
+        for (const fieldName of Object.keys(changes)) {
+            if (!isX2Many(this.fields[fieldName])) {
+                continue;
+            }
+            const list = toRaw(this.data)[fieldName];
+            if (list?._commands) {
+                listSnapshots.push({ list, snapshot: list._snapshot() });
+            }
+        }
+        return listSnapshots;
+    }
+
+    /**
+     * @param {Record<string, any>} changes
+     * @returns {Promise<unknown[]>}
+     */
+    _preprocessChanges(changes) {
+        return Promise.all([
+            preprocessMany2oneChanges(this, changes),
+            preprocessMany2OneReferenceChanges(this, changes),
+            preprocessReferenceChanges(this, changes),
+            preprocessX2manyChanges(this, changes),
+            preprocessPropertiesChanges(this, changes),
+            preprocessHtmlChanges(this, changes),
+        ]);
+    }
+
+    /**
+     * @param {Record<string, any>} changes
+     * @returns {void}
+     */
+    _pruneUnchangedMany2ones(changes) {
+        for (const fieldName of Object.keys(changes)) {
+            if (this.fields[fieldName].type !== "many2one") {
+                continue;
+            }
+            const current = toRaw(this.data[fieldName]);
+            const next = changes[fieldName];
+            if (
+                current &&
+                next &&
+                current.id === next.id &&
+                current.display_name === next.display_name
+            ) {
+                delete changes[fieldName];
+            }
+        }
+    }
+
     async _update(
         /** @type {any} */ changes,
         /** @type {{ withoutOnchange?: boolean, withoutParentUpdate?: boolean }} */ {
@@ -957,40 +990,29 @@ export class RelationalRecord extends DataPoint {
                 this.dirty = wasDirty;
             }
         };
-        const listSnapshots = [];
-        for (const fieldName of Object.keys(changes)) {
-            if (isX2Many(this.fields[fieldName])) {
-                const list = toRaw(this.data)[fieldName];
-                if (list?._commands) {
-                    listSnapshots.push({ list, snapshot: list._snapshot() });
-                }
-            }
-        }
+        const listSnapshots = this._snapshotTouchedLists(changes);
         const rollbackLists = () => {
             for (const { list, snapshot } of listSnapshots) {
                 list._restore(snapshot);
             }
         };
-        const prom = Promise.all([
-            preprocessMany2oneChanges(this, changes),
-            preprocessMany2OneReferenceChanges(this, changes),
-            preprocessReferenceChanges(this, changes),
-            preprocessX2manyChanges(this, changes),
-            preprocessPropertiesChanges(this, changes),
-            preprocessHtmlChanges(this, changes),
-        ]);
+
         try {
-            await this.model.urgentSave.awaitUnlessUrgent(prom);
+            await this.model.urgentSave.awaitUnlessUrgent(
+                this._preprocessChanges(changes),
+            );
         } catch (e) {
             rollbackLists();
             restoreDirty();
             throw e;
         }
+
         if (this.selected && this.model.multiEdit) {
             const result = await this.model.multiEditDispatch(this, changes);
             restoreDirty();
             return { [MULTI_EDIT_RESULT]: result };
         }
+
         let onchangeServerValues = {};
         if (!withoutOnchange) {
             try {
@@ -1004,52 +1026,32 @@ export class RelationalRecord extends DataPoint {
                 throw e;
             }
         }
-        // Deliberately AFTER the onchange, not before. Setting a many2one to
-        // the pair it already holds is not always a no-op: the m2o widget does
-        // exactly that when its "internal link" dialog closes, to re-run the
-        // onchange because the REFERENT changed even though the pointer did
-        // not. The model cannot tell that apart from the user re-picking the
-        // current value in the autocomplete, so it runs the onchange either
-        // way and only suppresses the spurious *change entry* here. Skipping
-        // the round trip is a judgement only the widget can make -- see
-        // many2one_field.test.js, "onchanges on many2ones trigger when editing
-        // record in form view".
-        for (const fieldName of Object.keys(changes)) {
-            if (this.fields[fieldName].type === "many2one") {
-                const curVal = toRaw(this.data[fieldName]);
-                const nextVal = changes[fieldName];
-                if (
-                    curVal &&
-                    nextVal &&
-                    curVal.id === nextVal.id &&
-                    curVal.display_name === nextVal.display_name
-                ) {
-                    delete changes[fieldName];
-                }
-            }
-        }
+
+        this._pruneUnchangedMany2ones(changes);
+
         const undoChanges = this._applyChanges(changes, onchangeServerValues, {
             undoable: true,
         });
-        if (
+        const changedSomething =
             Object.keys(changes).length > 0 ||
-            Object.keys(onchangeServerValues).length > 0
-        ) {
-            try {
-                await this._onUpdate({ withoutParentUpdate });
-            } catch (e) {
-                undoChanges();
-                restoreDirty();
-                throw e;
-            }
-            if (this.model.hasOnRecordChangedHook) {
-                await this.model.hooks.lifecycle.onRecordChanged(
-                    this,
-                    this._getChanges(),
-                );
-            }
-        } else {
+            Object.keys(onchangeServerValues).length > 0;
+        if (!changedSomething) {
             restoreDirty();
+            return;
+        }
+        try {
+            await this._onUpdate({ withoutParentUpdate });
+        } catch (e) {
+            undoChanges();
+            restoreDirty();
+            throw e;
+        }
+        if (this.model.hasOnRecordChangedHook) {
+            await this.model.notifyLifecycle(
+                "onRecordChanged",
+                this,
+                this._getChanges(),
+            );
         }
     }
 }

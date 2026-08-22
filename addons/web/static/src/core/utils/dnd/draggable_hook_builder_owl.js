@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dnd/draggable_hook_builder_owl */
-
 import { onWillUnmount, reactive, useEffect, useExternalListener } from "@odoo/owl";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 

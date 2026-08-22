@@ -1,10 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/widgets/signature/signature */
-
 import { Component } from "@odoo/owl";
 import { SignatureDialog } from "@web/components/signature/signature_dialog";
+import { getSignatureDefaultName } from "@web/components/signature/signature_name";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
@@ -36,18 +35,10 @@ export class SignatureWidget extends Component {
             signatureType: "signature",
             noInputName: true,
         };
-        const { fullName, record } = this.props;
-        let defaultName = "";
-        if (fullName) {
-            let signName;
-            const fullNameData = record.data[fullName];
-            if (record.fields[fullName].type === "many2one") {
-                signName = fullNameData?.display_name;
-            } else {
-                signName = fullNameData;
-            }
-            defaultName = signName || undefined;
-        }
+        const defaultName = getSignatureDefaultName(
+            this.props.record,
+            this.props.fullName,
+        );
 
         const dialogProps = {
             defaultName,
@@ -81,7 +72,7 @@ export class SignatureWidget extends Component {
 }
 
 /** @type {import("registries").ViewWidgetsRegistryItemShape} */
-export const signatureWidget = {
+const signatureWidget = {
     component: SignatureWidget,
     extractProps: ({ attrs }) => {
         const { full_name: fullName, highlight, signature_field, string } = attrs;

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dom/ui */
-
 /**
  * @typedef Position
  * @property {number} x
@@ -175,19 +173,30 @@ export function getPreviousTabableElement(container = document.body) {
     return index === -1 ? tabableElements.at(-1) : tabableElements[index - 1] || null;
 }
 
+const LOADING_EFFECT_CLASSES = ["o_btn_loading", "disabled", "pe-none"];
+
 /**
  * @param {HTMLButtonElement} btnEl
  * @return {function}
  */
 export function addLoadingEffect(btnEl) {
-    btnEl.classList.add("o_btn_loading", "disabled", "pe-none");
-    btnEl.disabled = true;
+    const hadClass = LOADING_EFFECT_CLASSES.map((cl) => btnEl.classList.contains(cl));
+    const isDisableable = "disabled" in btnEl;
+    const wasDisabled = btnEl.disabled;
+    btnEl.classList.add(...LOADING_EFFECT_CLASSES);
+    if (isDisableable) {
+        btnEl.disabled = true;
+    }
     const loaderEl = document.createElement("span");
     loaderEl.classList.add("fa", "fa-circle-o-notch", "fa-spin", "me-2");
     btnEl.prepend(loaderEl);
     return () => {
-        btnEl.classList.remove("o_btn_loading", "disabled", "pe-none");
-        btnEl.disabled = false;
+        for (const [index, cl] of LOADING_EFFECT_CLASSES.entries()) {
+            btnEl.classList.toggle(cl, hadClass[index]);
+        }
+        if (isDisableable) {
+            btnEl.disabled = wasDisabled;
+        }
         loaderEl.remove();
     };
 }

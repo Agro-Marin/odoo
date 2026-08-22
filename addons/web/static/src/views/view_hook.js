@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_hook */
-
 import { useComponent, useEffect } from "@odoo/owl";
 import { useAction } from "@web/core/action_port";
 import { browser } from "@web/core/browser/browser";

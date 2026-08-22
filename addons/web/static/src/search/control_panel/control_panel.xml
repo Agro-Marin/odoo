@@ -3,7 +3,7 @@
 
     <t t-name="web.ControlPanel">
         <div class="o_control_panel d-flex flex-column gap-3 px-3 pt-2 pb-3" t-ref="root" data-command-category="actions">
-            <EmbeddedActionsBar t-if="!env.isSmall and embeddedActions" embeddedActions="embeddedActions" isActionVisible.bind="_isEmbeddedActionVisible"/>
+            <EmbeddedActionsBar t-if="!env.isSmall and embeddedActions" embeddedActions="embeddedActions"/>
             <div class="o_control_panel_main d-flex flex-wrap flex-lg-nowrap justify-content-between align-items-lg-start gap-2 gap-lg-3 flex-grow-1">
                 <div class="o_control_panel_breadcrumbs d-flex align-items-center gap-1 order-0 h-lg-100">
                     <div class="o_control_panel_main_buttons d-flex gap-1 d-empty-none d-print-none" t-on-keydown="onMainButtonsKeydown">
@@ -54,8 +54,14 @@
                 </div>
 
                 <div class="o_control_panel_navigation d-flex flex-wrap flex-md-nowrap justify-content-end gap-1 gap-xl-3 order-1 order-lg-2 flex-grow-1">
-                    <t t-if="state.embeddedInfos.embeddedActions?.length and env.isSmall">
-                        <t t-call="web.embeddedActionsDropdown" />
+                    <!-- `embeddedActions` first: `state.embeddedInfos` falls back to
+                         makeNoEmbeddedInfos() when useEmbeddedActions() answered null,
+                         so its list can be non-empty while there is no model behind
+                         it. OWL prop validation caught exactly that once the dropdown
+                         became a component; the t-call it replaced rendered on into a
+                         null model and produced garbage silently. -->
+                    <t t-if="embeddedActions and state.embeddedInfos.embeddedActions?.length and env.isSmall">
+                        <EmbeddedActionsDropdown embeddedActions="embeddedActions"/>
                     </t>
                     <div t-if="pagerProps and pagerProps.total > 0" class="o_cp_pager text-nowrap " role="search">
                         <Pager t-props="pagerProps"/>

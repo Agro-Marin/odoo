@@ -18,9 +18,6 @@ _http_log = get_asset_logger("http")
 class WebClient(http.Controller):
     @http.route("/web/webclient/bootstrap_translations", type="jsonrpc", auth="none")
     def bootstrap_translations(self, mods: list[str] | None = None) -> dict[str, Any]:
-        """Load translations directly from *.po files, before a session exists.
-        Used only for the login page and db management chrome, in the browser's
-        language."""
         lang = request.env.context["lang"].partition("_")[0]
 
         if mods is None:
@@ -54,17 +51,6 @@ class WebClient(http.Controller):
         mods: str | None = None,
         lang: str | None = None,
     ) -> Response:
-        """
-        Load the translations for the specified language and modules.
-
-        :param hash: hash of the previously loaded translations; if it still
-            matches the current hash, translations/modules are omitted from
-            the response
-        :param mods: the modules, a comma separated list
-        :param lang: the language of the user
-        :return: dict with ``lang`` and ``hash``, plus ``lang_parameters``,
-            ``modules`` and ``multi_lang`` when the hash changed
-        """
         if mods:
             mods = mods.split(",")
         else:
@@ -118,15 +104,6 @@ class WebClient(http.Controller):
 
     @http.route("/web/tests", type="http", auth="user", readonly=False)
     def unit_tests_suite(self, mod: str | None = None, **kwargs: Any) -> Response:
-        """Render the HOOT runner page.
-
-        The page builds its own minimal ``session_info`` rather than calling
-        ``ir_http.session_info()``, so anything the runner's JS needs has to be
-        put here. ``bundle_params`` is one of those: ``assets.js`` copies every
-        entry into the ``/web/bundle`` query string, which is the only way a
-        scoped run's ``loadBundle`` calls stay inside the scope -- they are
-        separate requests, and the scope is not otherwise on them.
-        """
         session_info = {"view_info": request.env["ir.ui.view"].get_view_info()}
         scope = request.env["ir.asset"]._get_unit_test_scope()
         if scope:
@@ -140,9 +117,6 @@ class WebClient(http.Controller):
         readonly=True,
     )
     def bundle(self, bundle_name: str, **bundle_params: Any) -> Response:
-        """
-        Request the definition of a bundle, including its javascript and css bundled assets
-        """
         if "lang" in bundle_params:
             request.update_context(
                 lang=request.env["res.lang"]._get_code(bundle_params["lang"])
@@ -150,13 +124,6 @@ class WebClient(http.Controller):
 
         debug = bundle_params.get("debug", request.session.debug)
 
-        # `runtime_bundles`, not `dynamic_bundle_names`: what this route has to
-        # know is whether the bundle is *fetched at runtime* -- a property of the
-        # bundle -- and not which page happens to fetch it. Gating on
-        # `dynamic_children` conflated the two and made every author enumerate
-        # every page that might ever `loadBundle` the thing; a missed parent fell
-        # through to the legacy branch, where each module-syntax file becomes a
-        # console.error stub and `loadBundle` still resolves.
         use_esm = bundle_name in esm_registry().runtime_bundle_names
         log_event(
             _http_log,

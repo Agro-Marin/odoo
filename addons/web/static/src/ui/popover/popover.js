@@ -1,10 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/popover/popover */
-
 import { Component, onMounted, onWillDestroy, useRef } from "@odoo/owl";
-import { browser } from "@web/core/browser/browser";
+import { prefersReducedMotion } from "@web/core/browser/feature_detection";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { usePosition } from "@web/core/position/position_hook";
 import { reverseForRTL } from "@web/core/position/utils";
@@ -12,6 +10,7 @@ import { mergeClasses } from "@web/core/utils/dom/classname";
 import { useClickAway } from "@web/core/utils/dom/click_away";
 import { useForwardRefToParent } from "@web/core/utils/hooks";
 import { OVERLAY_SYMBOL } from "@web/ui/overlay/overlay_container";
+import { PRESENTED_PROPS } from "@web/ui/overlay/presenter";
 import { watchForDetachedTarget } from "@web/ui/popover/detached_target_watcher";
 import { useActiveElement } from "@web/ui/ui_service";
 
@@ -35,26 +34,18 @@ export class Popover extends Component {
         componentProps: {},
         fixedPosition: false,
         position: "bottom",
-        // Here rather than in `popover_service`, as `web.BottomSheet` already
-        // does: a default that lives in the service only applies to popovers
-        // reached through it, so a `<Popover>` written in a template trapped no
-        // focus while the sheet it is interchangeable with did.
         setActiveElement: true,
     };
     static props = {
+        ...PRESENTED_PROPS,
         component: { type: Function },
-        componentProps: { optional: true, type: Object },
         target: {
             validate: (/** @type {any} */ target) =>
                 target?.nodeType === Node.ELEMENT_NODE,
         },
-        close: { type: Function },
 
         animation: { optional: true, type: Boolean },
         arrow: { optional: true, type: Boolean },
-        class: { optional: true },
-        role: { optional: true, type: String },
-        id: { optional: true, type: String },
 
         fixedPosition: { optional: true, type: Boolean },
         extendedFlipping: { optional: true, type: Boolean },
@@ -71,18 +62,20 @@ export class Popover extends Component {
                 );
             },
         },
-
-        closeOnClickAway: { optional: true, type: Function },
-        closeOnEscape: { optional: true, type: Boolean },
-        setActiveElement: { optional: true, type: Boolean },
-
-        ref: { optional: true, type: Function },
     };
     static animationTime = 200;
 
     isHovered = false;
     positionLocked = false;
     animationDone = false;
+    /**
+     * A popover asked to point at an element that is not in the document has
+     * nothing to point at, and closes itself below. It must not build its
+     * hosted component on the way out: that component's `setup` runs whatever
+     * it runs -- services, requests, subscriptions -- for a popover no one will
+     * ever see. The template reads this.
+     */
+    hasTarget = true;
 
     setup() {
         if (this.props.setActiveElement) {
@@ -129,6 +122,7 @@ export class Popover extends Component {
             );
             onWillDestroy(unwatch);
         } else {
+            this.hasTarget = false;
             this.props.close();
         }
     }
@@ -169,10 +163,11 @@ export class Popover extends Component {
             bottom: ["translateY(5%)", "translateY(0)"],
             left: ["translateX(-5%)", "translateX(0)"],
         }[direction];
-        const reduced = browser.matchMedia("(prefers-reduced-motion: reduce)").matches;
         return this.popoverRef.el.animate(
             { opacity: [0, 1], transform },
-            reduced ? 0 : /** @type {any} */ (this.constructor).animationTime,
+            prefersReducedMotion()
+                ? 0
+                : /** @type {any} */ (this.constructor).animationTime,
         );
     }
 
@@ -199,21 +194,20 @@ export class Popover extends Component {
         );
     }
 
+    reposition() {
+        this.positionLocked = false;
+        this.position.unlock();
+    }
+
     /**
-     * The only writer of `positionLocked`, so the cached flag cannot drift from
-     * the real lock. `isPositionFrozen` reads props as well as internal state,
-     * and a prop changing between two syncs used to leave the two disagreeing
-     * forever: `syncPositionLock` then short-circuits on the stale flag and
-     * never locks again, silently retiring `holdOnHover`.
-     *
      * @param {boolean} locked
      */
     setPositionLocked(locked) {
-        this.positionLocked = locked;
         if (locked) {
+            this.positionLocked = true;
             this.position.lock();
         } else {
-            this.position.unlock();
+            this.reposition();
         }
     }
 
@@ -224,10 +218,8 @@ export class Popover extends Component {
     }
 
     onResized() {
-        // Unconditionally, not only when the flag says so: `unlock` is what
-        // requests the reposition the new size needs.
         if (!this.isPositionFrozen) {
-            this.setPositionLocked(false);
+            this.reposition();
         }
     }
 

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/hooks/square_selection_hook */
-
 import { useComponent, useEffect, useExternalListener, useRef } from "@odoo/owl";
 import { useCallbackRecorder } from "@web/core/action_hook";
 import { shallowEqual } from "@web/core/utils/collections/objects";

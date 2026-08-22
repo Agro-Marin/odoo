@@ -1,10 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/urgent_save_coordinator */
-
 import { ModelEvent } from "@web/core/events";
-import { SignalStore } from "@web/core/utils/reactive";
+import { InvalidTransitionError, StateMachine } from "@web/core/utils/state_machine";
 
 /**
  * @typedef {"idle" | "active"} UrgentSaveStatus
@@ -21,22 +19,20 @@ const TRANSITIONS = {
 
 const REENTRANT_DRAIN_MAX_ROUNDS = 100;
 
-export class InvalidUrgentSaveTransitionError extends Error {
+class InvalidUrgentSaveTransitionError extends InvalidTransitionError {
     /**
      * @param {string} from
      * @param {string} event
      */
     constructor(from, event) {
-        super(
-            `UrgentSaveCoordinator: invalid transition '${event}' from state '${from}'`,
-        );
-        this.name = "InvalidUrgentSaveTransitionError";
-        this.from = from;
-        this.event = event;
+        super("InvalidUrgentSaveTransitionError", "UrgentSaveCoordinator", from, event);
     }
 }
 
-export class UrgentSaveCoordinator extends SignalStore {
+export class UrgentSaveCoordinator extends StateMachine {
+    static transitions = TRANSITIONS;
+    static invalidTransitionError = InvalidUrgentSaveTransitionError;
+
     /**
      * @param {{ trigger: (event: string, payload?: any) => void } | null} [bus]
      */
@@ -54,17 +50,6 @@ export class UrgentSaveCoordinator extends SignalStore {
     /** @returns {boolean} */
     get isActive() {
         return this.status === "active";
-    }
-
-    /**
-     * @param {UrgentSaveEvent} event
-     */
-    _transition(event) {
-        const next = TRANSITIONS[this.status]?.[event];
-        if (next === undefined) {
-            throw new InvalidUrgentSaveTransitionError(this.status, event);
-        }
-        this.status = next;
     }
 
     /**

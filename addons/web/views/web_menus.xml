@@ -9,21 +9,6 @@
         sequence="0"
         groups="base.group_system" />
 
-    <!--
-        Beacon views belong under Technical, not as siblings of it: it groups
-        its entries into sections (bar the odd action leaf, e.g.
-        credential's Rate Limit Buckets), and its base.group_no_one
-        restriction is what keeps raw browser telemetry behind dev mode.
-
-        "Observability" is this module's own term for the endpoint layer these
-        views read (controllers/observability.py) and is the umbrella that
-        covers performance metrics and client errors alike, so a third beacon
-        needs no naming argument. One word also matches the shape of this
-        level, where most sections are single words. The narrower "Real User
-        Monitoring" stays in the controller, where it accurately describes what
-        the beacons are; "Monitoring" alone is taken by api_gateway for
-        server-side monitoring, and "Performance" would mis-name JS Errors.
-    -->
     <menuitem
         id="menu_technical_observability"
         name="Observability"

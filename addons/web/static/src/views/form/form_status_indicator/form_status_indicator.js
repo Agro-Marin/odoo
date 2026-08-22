@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/form/form_status_indicator/form_status_indicator */
-
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { useFieldIsDirty } from "@web/views/form/field_is_dirty_hook";

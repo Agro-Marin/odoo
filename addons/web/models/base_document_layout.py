@@ -80,7 +80,7 @@ class BaseDocumentLayout(models.TransientModel):
         default=_default_company_details,
     )
     is_company_details_empty = fields.Boolean(
-        compute="_compute_empty_company_details",
+        compute="_compute_is_company_details_empty",
     )
     paperformat_id = fields.Many2one(
         related="company_id.paperformat_id",
@@ -162,7 +162,6 @@ class BaseDocumentLayout(models.TransientModel):
         "company_details",
     )
     def _compute_preview(self) -> None:
-        """Render the QWeb-based preview shown on the wizard."""
         styles = self._get_asset_style()
 
         for wizard in self:
@@ -262,19 +261,6 @@ class BaseDocumentLayout(models.TransientModel):
     def extract_image_primary_secondary_colors(
         self, logo: Any, white_threshold: int = 225, mitigate: int = 175
     ) -> tuple[str | bool, str | bool]:
-        """
-        Identifies dominant colors
-
-        First resizes the original image to improve performance, then discards
-        transparent colors and white-ish colors, then calls the averaging
-        method twice to evaluate both primary and secondary colors.
-
-        :param logo: logo to process
-        :param white_threshold: arbitrary value defining the maximum value a color can reach
-        :param mitigate: arbitrary value defining the maximum value a band can reach
-
-        :return: a 2-value tuple with hex values of primary and secondary colors
-        """
         if not logo:
             return False, False
         if not isinstance(logo, (str, bytes)):
@@ -336,12 +322,6 @@ class BaseDocumentLayout(models.TransientModel):
         }
 
     def _get_asset_style(self) -> str:
-        """Render the company report style template for the document layout preview.
-
-        Passes ``self`` (the current wizard record) as ``company_ids`` to the
-        ``web.styles_company_report`` QWeb template so the preview reflects the
-        wizard's in-progress color/font values rather than the saved company state.
-        """
         return self.env["ir.qweb"]._render(
             "web.styles_company_report",
             {
@@ -352,7 +332,6 @@ class BaseDocumentLayout(models.TransientModel):
 
     @api.model
     def _get_css_for_preview(self, scss: str) -> str:
-        """Compile *scss* into a CSS string for the live-preview iframe."""
         if not scss.strip():
             return ""
         asset = ScssStylesheetAsset.for_inline_compile("// css_for_preview")
@@ -360,7 +339,7 @@ class BaseDocumentLayout(models.TransientModel):
         return Markup(css_code) if isinstance(scss, Markup) else css_code
 
     @api.depends("company_details")
-    def _compute_empty_company_details(self) -> None:
+    def _compute_is_company_details_empty(self) -> None:
         for record in self:
             record.is_company_details_empty = not html2plaintext(
                 record.company_details or ""

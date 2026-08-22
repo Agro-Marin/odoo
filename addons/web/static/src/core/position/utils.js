@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/position/utils */
-
 import { localization } from "@web/core/l10n/localization";
 
 /**
@@ -11,13 +9,13 @@ import { localization } from "@web/core/l10n/localization";
  * @typedef {{[direction: string]: string}} DirectionFlipOrder
  * @typedef {{[variant in Variant]: string}} VariantFlipOrder
  * @typedef {{
- *  top: number,
- *  left: number,
- *  maxHeight?: number;
- *  direction: Direction,
- *  variant: Variant,
- *  variantOffset?: number,
- *  [key: string]: any,
+ * top: number,
+ * left: number,
+ * maxHeight?: number;
+ * direction: Direction,
+ * variant: Variant,
+ * variantOffset?: number,
+ * [key: string]: any,
  * }} PositioningSolution
  * @typedef ComputePositionOptions
  * @property {HTMLElement | (() => HTMLElement)} [container]
@@ -45,7 +43,6 @@ const DIRECTIONS = {
 };
 /** @type {{[v: string]: Variant}} */
 const VARIANTS = { s: "start", m: "middle", e: "end", f: "fit" };
-/** @type DirectionFlipOrder */
 const DIRECTION_FLIP_ORDER = {
     top: "tb",
     right: "rl",
@@ -53,7 +50,6 @@ const DIRECTION_FLIP_ORDER = {
     left: "lr",
     center: "c",
 };
-/** @type DirectionFlipOrder */
 const EXTENDED_DIRECTION_FLIP_ORDER = {
     top: "tbrlc",
     right: "rlbtc",
@@ -61,7 +57,6 @@ const EXTENDED_DIRECTION_FLIP_ORDER = {
     left: "lrbtc",
     center: "c",
 };
-/** @type VariantFlipOrder */
 const VARIANT_FLIP_ORDER = { start: "se", middle: "m", end: "es", fit: "f" };
 
 /**
@@ -204,15 +199,6 @@ function computePosition(
             : [contBox.top + topCompensation, contBox.bottom + topCompensation];
 
         if (containerIsHTMLNode) {
-            // `<html>`'s box is viewport-relative, so it starts at -scrollLeft /
-            // -scrollTop; adding the scroll back puts the bounds where a
-            // position:fixed popper actually lives. Both axes need it, each
-            // with its own offset: adding `scrollTop` to the horizontal bounds
-            // (and nothing to them when the direction axis was the horizontal
-            // one) displaced every popper on a horizontally scrolled page by
-            // `scrollLeft`, far enough to leave the viewport entirely. The
-            // backend never scrolls `<html>` sideways; the frontend does, and
-            // `libs/popper_compat.js` routes all of Bootstrap through here.
             const [directionScroll, variantScroll] = vertical
                 ? [cont.scrollTop, cont.scrollLeft]
                 : [cont.scrollLeft, cont.scrollTop];
@@ -325,6 +311,7 @@ export function reposition(popper, target, options) {
                 ? `min(${existingMaxHeight}, ${maxHeight}px)`
                 : `${maxHeight}px`;
         popper.style.maxHeight = applied;
+        popper.style.overflowY = "auto";
         popperMaxHeightState.set(popper, { authored: authoredMaxHeight, applied });
     } else {
         popperMaxHeightState.delete(popper);

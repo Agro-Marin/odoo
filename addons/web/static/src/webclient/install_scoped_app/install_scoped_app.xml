@@ -9,25 +9,18 @@
             <i t-if="!state.showInstallUI" class="fa-solid fa-circle-notch fa-spin fa-2x text-primary position-absolute"/>
             <div t-attf-class="h-100 w-100 d-flex align-items-center justify-content-center flex-column fade {{state.showInstallUI ? 'show': ''}}">
                 <div class="d-flex align-items-center justify-content-center flex-wrap gap-3 m-4 mw-75 mw-md-50">
-                    <!-- alt="": the app name sits beside it as the <h1>, so the
-                         icon is decorative. Omitting the attribute entirely made
-                         screen readers fall back to announcing the icon URL. -->
                     <img style="height:100px;width:100px;" class="rounded-4 p-4 bg-white shadow" alt="" t-att-src="state.manifest.icons?.[0]?.src"/>
                     <div class="d-inline-block">
                         <div class="d-flex align-items-center">
                             <h1 class="mb-0" t-esc="state.manifest.name"></h1>
                             <Dropdown t-if="pwa.isAvailable" menuClass="'p-2'">
-                                <button class="btn btn-link fa-solid fa-pencil" />
+                                <button class="btn btn-link fa-solid fa-pencil" aria-label="Rename application"/>
                                 <t t-set-slot="content">
                                     <label class="mb-1">Application name</label>
                                     <input class="form-control" t-att-value="state.manifest.name" t-on-change="onChangeName"/>
                                 </t>
                             </Dropdown>
                         </div>
-                        <!-- `alt` is not an attribute of <a> and was inert; the
-                             link text already names it. `rel` closes the
-                             reverse-tabnabbing hole a bare target="_blank"
-                             leaves open. -->
                         <a class="text-primary text-decoration-none" href="https://odoo.com" target="_blank" rel="noopener noreferrer">Odoo S.A.</a>
                     </div>
                 </div>

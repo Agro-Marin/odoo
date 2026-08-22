@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/x2many_crud */
-
 /**
  * @overload
  * @param {Function} getList
@@ -18,7 +16,7 @@
 /**
  * @param {Function} getList
  * @param {boolean} isMany2Many
- * @returns {any} Overload-implementation signature; callers see the two above.
+ * @returns {any}
  */
 export function useX2ManyCrud(getList, isMany2Many) {
     /** @type {Function|undefined} */

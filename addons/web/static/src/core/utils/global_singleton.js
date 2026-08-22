@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/global_singleton */
-
 const NAMESPACE = "__odoo_singletons__";
 
 /**
@@ -16,5 +14,8 @@ export function globalSingleton(key, factory) {
         /** @type {any} */ (globalThis)
     );
     const store = (root[NAMESPACE] ??= Object.create(null));
-    return (store[key] ??= factory());
+    if (!(key in store)) {
+        store[key] = factory();
+    }
+    return store[key];
 }

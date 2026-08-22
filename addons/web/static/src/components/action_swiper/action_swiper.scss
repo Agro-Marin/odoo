@@ -8,14 +8,7 @@
 .o_actionswiper_swiping {
     transition: none;
 }
-// Which action a physical direction carries is decided in JS --
-// `ActionSwiper.localizedProps` swaps the two handlers under RTL -- so the
-// areas themselves must stay put. Letting rtlcss mirror the transform on top
-// of that swap moves both of them from offscreen onto the row they cover.
-//
-// The directives are loud comments on purpose: production compiles Sass with
 // `output_style = compressed`, which drops a plain `/*rtl:ignore*/` before
-// rtlcss ever runs. `inset` needs no directive; rtlcss leaves it alone.
 .o_actionswiper_right_swipe_area {
     /*!rtl:ignore*/
     transform: translateX(-100%);

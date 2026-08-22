@@ -1,16 +1,16 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/journal_dashboard_graph/journal_dashboard_graph_field */
-
-import { Component, onWillStart, useEffect, useRef } from "@odoo/owl";
 import { getColor, getCustomColor, hexToRGBA } from "@web/core/colors/colors";
-import { Chart, loadChartJS } from "@web/core/lib/chartjs";
+import { Chart } from "@web/core/lib/chartjs";
+import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
-import { fieldHandle } from "@web/fields/field_handle";
+import { useChartCanvas } from "@web/fields/chart_canvas_hook";
+import { FieldComponent } from "@web/fields/field_component";
+import { archAttribute } from "@web/fields/field_options";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-export class JournalDashboardGraphField extends Component {
+export class JournalDashboardGraphField extends FieldComponent {
     static template = "web.JournalDashboardGraphField";
     static GRAPH_TYPES = ["line", "bar"];
     static props = {
@@ -25,30 +25,8 @@ export class JournalDashboardGraphField extends Component {
         graphType: "bar",
     };
 
-    /** @returns {import("@web/fields/field_handle").FieldHandle} */
-    get field() {
-        return fieldHandle(this);
-    }
-
     setup() {
-        this.chart = null;
-        this.canvasRef = useRef("canvas");
-
-        onWillStart(async () => {
-            await loadChartJS();
-        });
-
-        useEffect(
-            () => {
-                this.renderChart();
-                return () => {
-                    if (this.chart) {
-                        this.chart.destroy();
-                    }
-                };
-            },
-            () => [this.field.value],
-        );
+        this.canvasRef = useChartCanvas(() => [this.field.value]);
     }
 
     renderChart() {
@@ -198,8 +176,14 @@ export class JournalDashboardGraphField extends Component {
 }
 
 /** @type {import("registries").FieldsRegistryItemShape} */
-export const journalDashboardGraphField = {
+const journalDashboardGraphField = {
     component: JournalDashboardGraphField,
+    supportedAttributes: [
+        archAttribute("graph_type", _t("Graph type"), {
+            type: "selection",
+            help: _t("`bar` or `line`."),
+        }),
+    ],
     supportedTypes: ["text"],
     extractProps: ({ attrs }) => ({
         graphType: attrs.graph_type,

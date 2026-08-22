@@ -1,8 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/sample_server */
-
+import { isX2Many } from "@web/core/field_types";
 import {
     deserializeDate,
     deserializeDateTime,
@@ -39,28 +38,28 @@ import {
 
 /**
  * @typedef {{
- *   fieldName: string;
- *   func: string;
- *   name: string;
+ * fieldName: string;
+ * func: string;
+ * name: string;
  * }} MeasureSpec
  * @typedef {{
- *   fields: Record<string, any>;
- *   records: Record<string, any>[];
+ * fields: Record<string, any>;
+ * records: Record<string, any>[];
  * }} ModelData
  * @typedef {{
- *   model: string;
- *   method?: string;
- *   route?: string;
- *   args?: any[];
- *   domain?: any[];
- *   groupBy?: string[];
- *   aggregates?: string[];
- *   specification?: Record<string, any>;
- *   recordIds?: number[];
- *   group_by?: string;
- *   progress_bar?: { field: string; colors: Record<string, string> };
- *   grouping_sets?: string[][];
- *   [key: string]: any;
+ * model: string;
+ * method?: string;
+ * route?: string;
+ * args?: any[];
+ * domain?: any[];
+ * groupBy?: string[];
+ * aggregates?: string[];
+ * specification?: Record<string, any>;
+ * recordIds?: number[];
+ * group_by?: string;
+ * progress_bar?: { field: string; colors: Record<string, string> };
+ * grouping_sets?: string[][];
+ * [key: string]: any;
  * }} MockRpcParams
  */
 
@@ -177,11 +176,6 @@ export class SampleServer {
     }
 
     /**
-     * Overridable hook: `timesheet_grid` patches it, `web_cohort` calls it with
-     * `(modelName, fieldName)` only. The field descriptor is therefore resolved
-     * here rather than passed in — an extra parameter ahead of `id` shifts every
-     * external caller's arguments and makes the 2-argument call throw.
-     *
      * @param {string} modelName
      * @param {string} fieldName
      * @param {number} [id]
@@ -197,8 +191,6 @@ export class SampleServer {
     }
 
     /**
-     * Overridable hook: `web_cohort`'s sample server calls this.
-     *
      * @param {number} max
      * @returns {number}
      */
@@ -256,7 +248,7 @@ export class SampleServer {
      * @param {string} modelName
      * @param {string} groupBySpec
      * @returns {{ fieldName: string, type: string, interval: string | undefined,
-     *   relation: string | undefined, alias: string, field: Record<string, any> } | undefined}
+     * relation: string | undefined, alias: string, field: Record<string, any> } | undefined}
      */
     _resolveGroupBy(modelName, groupBySpec) {
         const [fieldName, interval] = groupBySpec.split(":");
@@ -335,58 +327,53 @@ export class SampleServer {
     }
 
     /**
-     * @param {MockRpcParams} params
+     * @param {string} model
+     * @param {string[]} groupBy
      * @returns {any[]}
      */
-    _mockFormattedReadGroup(params) {
-        const model = params.model;
-        const groupBy = params.groupBy;
-        const records = this.data[model].records;
-        const normalizedGroupBys = [];
-
+    _normalizeGroupBys(model, groupBy) {
+        const normalized = [];
         for (const groupBySpec of groupBy) {
-            const normalized = this._resolveGroupBy(model, groupBySpec);
-            if (normalized) {
-                normalizedGroupBys.push(normalized);
+            const gb = this._resolveGroupBy(model, groupBySpec);
+            if (gb) {
+                normalized.push(gb);
             }
         }
+        return normalized;
+    }
 
-        const groupsFromRecord = (record) => {
-            const values = [];
-            for (const gb of normalizedGroupBys) {
-                const { fieldName, type, alias } = gb;
-                let fieldVals;
-                if (["date", "datetime"].includes(type)) {
-                    fieldVals = [this._formatValue(record[fieldName], gb)];
-                } else if (type === "many2many") {
-                    fieldVals = record[fieldName].length ? record[fieldName] : [false];
-                } else {
-                    fieldVals = [record[fieldName]];
-                }
-                values.push(fieldVals.map((val) => ({ [alias]: val })));
+    /**
+     * @param {Record<string, any>} record
+     * @param {any[]} normalizedGroupBys
+     * @returns {Record<string, any>[]}
+     */
+    _groupKeysOf(record, normalizedGroupBys) {
+        const values = [];
+        for (const gb of normalizedGroupBys) {
+            const { fieldName, type, alias } = gb;
+            let fieldVals;
+            if (["date", "datetime"].includes(type)) {
+                fieldVals = [this._formatValue(record[fieldName], gb)];
+            } else if (type === "many2many") {
+                fieldVals = record[fieldName].length ? record[fieldName] : [false];
+            } else {
+                fieldVals = [record[fieldName]];
             }
-            const cart = cartesian(...values);
-            return cart.map((tuple) => {
-                if (!Array.isArray(tuple)) {
-                    tuple = [tuple];
-                }
-                return Object.assign({}, ...tuple);
-            });
-        };
-
-        const groups = {};
-        for (const record of records) {
-            const recordGroups = groupsFromRecord(record);
-            for (const group of recordGroups) {
-                const groupId = JSON.stringify(group);
-                if (!(groupId in groups)) {
-                    groups[groupId] = [];
-                }
-                groups[groupId].push(record);
-            }
+            values.push(fieldVals.map((val) => ({ [alias]: val })));
         }
+        return cartesian(...values).map((tuple) => {
+            if (!Array.isArray(tuple)) {
+                tuple = [tuple];
+            }
+            return Object.assign({}, ...tuple);
+        });
+    }
 
-        const aggregates = params.aggregates || [];
+    /**
+     * @param {string[]} aggregates
+     * @returns {MeasureSpec[]}
+     */
+    _parseMeasures(aggregates) {
         const measures = [];
         for (const measureSpec of aggregates) {
             if (measureSpec === "__count") {
@@ -404,35 +391,65 @@ export class SampleServer {
             const { fieldName, func } = matches.groups;
             measures.push({ fieldName, func, name: measureSpec });
         }
+        return measures;
+    }
 
+    /**
+     * @param {Record<string, any>[]} groups
+     * @param {any} firstGroupBy
+     * @returns {Record<string, any>[]}
+     */
+    _sortGroups(groups, firstGroupBy) {
+        const { alias, type } = firstGroupBy;
+        return arraySortBy(groups, (group) => {
+            const val = group[alias];
+            if (type === "datetime") {
+                return deserializeDateTime(Array.isArray(val) ? val[0] : val);
+            } else if (type === "date") {
+                return deserializeDate(Array.isArray(val) ? val[0] : val);
+            }
+            return val;
+        });
+    }
+
+    /**
+     * @param {MockRpcParams} params
+     * @returns {any[]}
+     */
+    _mockFormattedReadGroup(params) {
+        const model = params.model;
+        const records = this.data[model].records;
+        const normalizedGroupBys = this._normalizeGroupBys(model, params.groupBy);
+
+        /** @type {Record<string, Record<string, any>[]>} */
+        const buckets = {};
+        for (const record of records) {
+            for (const key of this._groupKeysOf(record, normalizedGroupBys)) {
+                const groupId = JSON.stringify(key);
+                buckets[groupId] = buckets[groupId] || [];
+                buckets[groupId].push(record);
+            }
+        }
+
+        const measures = this._parseMeasures(params.aggregates || []);
         let result = [];
-        for (const id of Object.keys(groups)) {
-            const records = groups[id];
+        for (const id of Object.keys(buckets)) {
+            const bucket = buckets[id];
+            /** @type {Record<string, any>} */
             const group = { __extra_domain: [] };
-            const firstElem = records[0];
             const parsedId = JSON.parse(id);
             for (const gb of normalizedGroupBys) {
                 const { alias, fieldName, type } = gb;
-                if (type === "many2many") {
-                    group[alias] = this._formatValue(parsedId[fieldName], gb);
-                } else {
-                    group[alias] = this._formatValue(firstElem[fieldName], gb);
-                }
+                group[alias] =
+                    type === "many2many"
+                        ? this._formatValue(parsedId[fieldName], gb)
+                        : this._formatValue(bucket[0][fieldName], gb);
             }
-            Object.assign(group, this._aggregateFields(measures, records));
+            Object.assign(group, this._aggregateFields(measures, bucket));
             result.push(group);
         }
         if (normalizedGroupBys.length) {
-            const { alias, type } = normalizedGroupBys[0];
-            result = arraySortBy(result, (group) => {
-                const val = group[alias];
-                if (type === "datetime") {
-                    return deserializeDateTime(Array.isArray(val) ? val[0] : val);
-                } else if (type === "date") {
-                    return deserializeDate(Array.isArray(val) ? val[0] : val);
-                }
-                return val;
-            });
+            result = this._sortGroups(result, normalizedGroupBys[0]);
         }
         return result;
     }
@@ -522,7 +539,7 @@ export class SampleServer {
                         : false;
                 }
             }
-            if (field.type === "one2many" || field.type === "many2many") {
+            if (isX2Many(field)) {
                 const relFields = Object.keys(
                     params.specification[fieldName].fields || {},
                 );
@@ -579,6 +596,23 @@ export class SampleServer {
                     }
                 }
                 delete group["id:array_agg"];
+            }
+        }
+        if (params.groupby_read_specification && params.groupby?.length) {
+            const groupBy = params.groupby[0];
+            const readSpec = params.groupby_read_specification[groupBy];
+            const field = this.data[params.model].fields[groupBy.split(":")[0]];
+            if (readSpec && field?.relation) {
+                for (const group of groups) {
+                    const value = group[groupBy.split(":")[0]];
+                    group.__values = Array.isArray(value)
+                        ? this._mockWebSearchReadUnity({
+                              model: field.relation,
+                              specification: readSpec.fields || {},
+                              recordIds: [value[0]],
+                          }).records[0] || { id: false }
+                        : { id: false };
+                }
             }
         }
         return {

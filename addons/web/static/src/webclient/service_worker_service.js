@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/service_worker_service */
-
 import { browser } from "@web/core/browser/browser";
 import { RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network/rpc";
@@ -15,7 +13,7 @@ const SERVICE_WORKER_READY_TIMEOUT = 20 * 1000;
 
 /**
  * @param {ServiceWorkerRegistration} registration
- * @returns {void}
+ * @returns {() => void}
  */
 export function watchServiceWorkerUpdates(registration) {
     /** @param {ServiceWorker | null} worker */
@@ -32,24 +30,33 @@ export function watchServiceWorkerUpdates(registration) {
         promote();
     };
     promoteWhenInstalled(registration.waiting);
-    registration.addEventListener("updatefound", () =>
-        promoteWhenInstalled(registration.installing),
-    );
+    const onUpdateFound = () => promoteWhenInstalled(registration.installing);
+    registration.addEventListener("updatefound", onUpdateFound);
     const checkForUpdate = () => registration.update().catch(() => {});
-    browser.setInterval(checkForUpdate, SERVICE_WORKER_UPDATE_INTERVAL);
-    browser.addEventListener("visibilitychange", () => {
+    const intervalId = browser.setInterval(
+        checkForUpdate,
+        SERVICE_WORKER_UPDATE_INTERVAL,
+    );
+    const onVisibilityChange = () => {
         if (document.visibilityState === "visible") {
             checkForUpdate();
         }
-    });
+    };
+    browser.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+        browser.clearInterval(intervalId);
+        registration.removeEventListener("updatefound", onUpdateFound);
+        browser.removeEventListener("visibilitychange", onVisibilityChange);
+    };
 }
 
 /**
- * @param {Deferred} activatedDeferred
+ * @param {Deferred} settledDeferred
  * @returns {Promise<ServiceWorkerRegistration | undefined>}
  */
-export async function registerServiceWorker(activatedDeferred) {
+export async function registerServiceWorker(settledDeferred) {
     const { serviceWorker } = browser.navigator;
+    let readyTimeoutId;
     try {
         if (!serviceWorker) {
             return;
@@ -59,21 +66,24 @@ export async function registerServiceWorker(activatedDeferred) {
         });
         watchServiceWorkerUpdates(registration);
         if (registration.active && registration.active.state === "activated") {
-            activatedDeferred.resolve();
+            settledDeferred.resolve();
         } else {
             const sw =
                 registration.installing || registration.waiting || registration.active;
             sw?.addEventListener("statechange", (e) => {
                 if (/** @type {any} */ (e.target).state === "activated") {
-                    activatedDeferred.resolve();
+                    settledDeferred.resolve();
                 }
             });
         }
         await Promise.race([
             serviceWorker.ready,
-            new Promise((resolve) =>
-                browser.setTimeout(resolve, SERVICE_WORKER_READY_TIMEOUT),
-            ),
+            new Promise((resolve) => {
+                readyTimeoutId = browser.setTimeout(
+                    resolve,
+                    SERVICE_WORKER_READY_TIMEOUT,
+                );
+            }),
         ]);
         if (!serviceWorker.controller) {
             rpcBus.trigger(RpcEvent.CLEAR_CACHES);
@@ -82,23 +92,27 @@ export async function registerServiceWorker(activatedDeferred) {
     } catch (error) {
         console.error("Service worker registration failed, error:", error);
     } finally {
-        activatedDeferred.resolve();
+        browser.clearTimeout(readyTimeoutId);
+        settledDeferred.resolve();
+    }
+}
+
+class ServiceWorkerService {
+    constructor() {
+        /**
+         * @type {Promise<void> & { resolve: (value?: any) => void, reject: (reason?: any) => void }}
+         */
+        const settledDeferred = new Deferred();
+        /** @type {Promise<void>} */
+        this.registrationSettled = settledDeferred;
+        registerServiceWorker(settledDeferred);
     }
 }
 
 export const serviceWorkerService = {
+    /** @returns {ServiceWorkerService} */
     start() {
-        /**
-         * @type {Promise<void> & { resolve: (value?: any) => void, reject: (reason?: any) => void }}
-         */
-        const activatedDeferred = new Deferred();
-        registerServiceWorker(activatedDeferred);
-        return {
-            /**
-             * @type {Promise<void>}
-             */
-            activated: activatedDeferred,
-        };
+        return new ServiceWorkerService();
     },
 };
 

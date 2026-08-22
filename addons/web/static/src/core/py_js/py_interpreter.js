@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/py_js/py_interpreter */
-
 import { ASTType } from "./ast_type.js";
 import { bindArgs } from "./py_args.js";
 import {
@@ -65,24 +63,36 @@ const DICT = {
 };
 
 const STRING = {
-    /** @this {string} */
-    lower() {
+    /**
+     * @this {string}
+     * @param {...any} args
+     */
+    lower(...args) {
+        bindArgs(args, [], "lower");
         return this.toLowerCase();
     },
-    /** @this {string} */
-    upper() {
+    /**
+     * @this {string}
+     * @param {...any} args
+     */
+    upper(...args) {
+        bindArgs(args, [], "upper");
         return this.toUpperCase();
     },
-    /** @this {string} */
-    capitalize() {
+    /**
+     * @this {string}
+     * @param {...any} args
+     */
+    capitalize(...args) {
+        bindArgs(args, [], "capitalize");
         return this.charAt(0).toUpperCase() + this.slice(1).toLowerCase();
     },
     /**
      * @this {string}
+     * @param {...any} args
      */
-    title() {
-        // CPython's word boundary is "cased character or not", not "ASCII
-        // letter or not": `'éa'.title()` is `'Éa'` there and was `'éA'` here.
+    title(...args) {
+        bindArgs(args, [], "title");
         return this.replace(
             /\p{Alphabetic}[\p{Alphabetic}\p{Mn}]*/gu,
             (word) => word[0].toUpperCase() + word.slice(1).toLowerCase(),
@@ -497,15 +507,6 @@ function pyMod(a, b) {
 }
 
 /**
- * Split ``num`` into a mantissa rounded to ``precision`` fractional digits and
- * its decimal exponent.
- *
- * ``Number.prototype.toExponential`` rounds halves away from zero; CPython
- * (through the C library) rounds them to even, so ``"%.0e" % 2.5`` is
- * ``2e+00`` there and was ``3e+00`` here. Rounding the mantissa through
- * ``_pythonRound`` instead restores the tie-break, renormalising when the
- * rounding carries (``9.99`` at precision 1 becomes ``1.0e+01``).
- *
  * @param {number} num
  * @param {number} precision
  * @returns {[string, number]}
@@ -514,10 +515,6 @@ function roundedMantissa(num, precision) {
     const [rawMantissa, rawExponent] = num.toExponential(20).split("e");
     let exponent = Number(rawExponent);
     const negative = rawMantissa.startsWith("-");
-    // Round the significant digits themselves. Re-parsing the mantissa as a
-    // float would round-trip through a *different* double than `num`: 255 is
-    // exact but 2.55 is not, so "%.1e" % 255 has an exact tie that CPython
-    // breaks upwards (to the even 6) and a re-parsed 2.5499... breaks down.
     const digits = rawMantissa.replace("-", "").replace(".", "");
     let kept = digits.slice(0, precision + 1);
     const rest = digits.slice(precision + 1);
@@ -556,7 +553,7 @@ function formatExponentSuffix(exponent) {
 /**
  * @param {number} num
  * @param {number} precision
- * @param {boolean} [alt] keep the decimal point even with nothing after it
+ * @param {boolean} [alt]
  * @returns {string}
  */
 function formatExponential(num, precision, alt = false) {
@@ -585,7 +582,7 @@ function formatFixed(num, precision) {
 /**
  * @param {number} num
  * @param {number} precision
- * @param {boolean} [alt] keep trailing zeros and the decimal point
+ * @param {boolean} [alt]
  * @returns {string}
  */
 function formatGeneral(num, precision, alt = false) {
@@ -649,7 +646,7 @@ function pyStringFormat(fmt, value) {
                 !"diufFeEgGxXo".includes(conv)
             ) {
                 throw new EvaluationError(
-                    `unsupported format character '${conv}' (0x${conv
+                    `ValueError: unsupported format character '${conv}' (0x${conv
                         .charCodeAt(0)
                         .toString(16)})`,
                 );
@@ -659,25 +656,24 @@ function pyStringFormat(fmt, value) {
             const leftAlign = flags.includes("-");
 
             if (conv === "c") {
-                // An int (bool included, as a Python int subclass) or a
-                // one-character string. Not a float, even an integral one --
-                // CPython names the type, so `%c % 1.5` is a TypeError.
                 let str;
                 if (typeof arg === "boolean" || Number.isInteger(arg)) {
                     const code = Number(arg);
                     if (code < 0 || code > 0x10ffff) {
-                        throw new EvaluationError("%c arg not in range(0x110000)");
+                        throw new EvaluationError(
+                            "OverflowError: %c arg not in range(0x110000)",
+                        );
                     }
                     str = String.fromCodePoint(code);
                 } else if (typeof arg === "string" && [...arg].length === 1) {
                     str = arg;
                 } else if (typeof arg === "string") {
                     throw new EvaluationError(
-                        `%c requires an int or a unicode character, not a string of length ${[...arg].length}`,
+                        `TypeError: %c requires an int or a unicode character, not a string of length ${[...arg].length}`,
                     );
                 } else {
                     throw new EvaluationError(
-                        `%c requires an int or a unicode character, not ${pyTypeName(arg)}`,
+                        `TypeError: %c requires an int or a unicode character, not ${pyTypeName(arg)}`,
                     );
                 }
                 if (w > str.length) {
@@ -699,7 +695,7 @@ function pyStringFormat(fmt, value) {
 
             if (typeof arg !== "number" && typeof arg !== "boolean") {
                 throw new EvaluationError(
-                    `%${conv} format: a number is required, not '${pyTypeName(arg)}'`,
+                    `TypeError: %${conv} format: a number is required, not '${pyTypeName(arg)}'`,
                 );
             }
             const num = Number(arg);
@@ -717,12 +713,10 @@ function pyStringFormat(fmt, value) {
             const alt = flags.includes("#");
             const isIntConv = "diuxXo".includes(conv);
             if (!Number.isFinite(num) && "diu".includes(conv)) {
-                // The float conversions render inf/nan; the integer ones refuse
-                // them, and CPython separates the two cases by exception type.
                 throw new EvaluationError(
                     Number.isNaN(num)
-                        ? "cannot convert float NaN to integer"
-                        : "cannot convert float infinity to integer",
+                        ? "ValueError: cannot convert float NaN to integer"
+                        : "OverflowError: cannot convert float infinity to integer",
                 );
             }
             if (isIntConv) {
@@ -732,7 +726,7 @@ function pyStringFormat(fmt, value) {
                     !Number.isInteger(num)
                 ) {
                     throw new EvaluationError(
-                        `%${conv} format: an integer is required, not ${pyTypeName(arg)}`,
+                        `TypeError: %${conv} format: an integer is required, not ${pyTypeName(arg)}`,
                     );
                 }
                 const base = conv === "o" ? 8 : conv === "x" || conv === "X" ? 16 : 10;
@@ -741,9 +735,6 @@ function pyStringFormat(fmt, value) {
                     body = body.toUpperCase();
                 }
                 if (precision != null) {
-                    // C ignores the '0' flag once a precision is given for an
-                    // integer conversion; CPython does not, and it is CPython
-                    // this interpreter mirrors ("%05.3d" % 7 is "00007").
                     body = body.padStart(precision, "0");
                 }
                 if (alt) {
@@ -757,9 +748,6 @@ function pyStringFormat(fmt, value) {
                                 : "";
                 }
             } else if (!Number.isFinite(num)) {
-                // "inf"/"nan", never JS's "Infinity"/"NaN", and uppercased by
-                // the uppercase conversions -- which is the ONLY thing %F does
-                // differently from %f, since digits have no case.
                 body = Number.isNaN(num) ? "nan" : "inf";
                 if (conv === "F" || conv === "E" || conv === "G") {
                     body = body.toUpperCase();
@@ -808,9 +796,6 @@ function pyStringFormat(fmt, value) {
 }
 
 /**
- * The comparison operators, shared by ``ASTType.BinaryOperator`` and
- * ``ASTType.Chain`` so the two spellings of ``a < b`` cannot drift apart.
- *
  * @type {Record<string, (left: any, right: any) => boolean>}
  */
 const COMPARISONS = {
@@ -899,11 +884,6 @@ function _applyBinaryOp(ast, recurse) {
                 );
             }
 
-            // One branch per class rather than one for the union: a `date` and
-            // a `datetime` may only be subtracted from their own kind, and the
-            // check belongs here, where `pyTypeName` is in scope. Delegating it
-            // to `subtract` produced a bare `NotSupportedError` whose empty
-            // message reached the user as "Error:" with nothing after it.
             if (left instanceof PyDateTime) {
                 if (!(right instanceof PyDateTime)) {
                     throw new EvaluationError(
@@ -1103,23 +1083,25 @@ function _applyBinaryOp(ast, recurse) {
 }
 
 /**
- * @param {Function} _class
- * @returns {Function[]}
+ * @param {any} _class
+ * @returns {any[]}
  */
 function methods(_class) {
-    return Object.getOwnPropertyNames(_class.prototype).map(
-        (prop) => _class.prototype[prop],
-    );
+    return Object.getOwnPropertyNames(_class.prototype)
+        .filter((prop) => prop !== "constructor")
+        .map((prop) => _class.prototype[prop]);
 }
 
 /**
- * The only functions an expression may call. `methods()` includes each
- * prototype's `constructor`, which is what puts `PyDate` & co. in the set --
- * `datetime.date(...)` calls the class itself.
- *
  * @type {Set<any>}
  */
 const allowedFns = new Set([
+    PyDate,
+    PyDateTime,
+    PyTime,
+    PyTimeDelta,
+    PyRelativeDelta,
+
     BUILTINS.time.strftime,
     BUILTINS.set,
     BUILTINS.bool,
@@ -1145,12 +1127,6 @@ const allowedFns = new Set([
 ]);
 
 /**
- * Whether ``value`` is a value this module owns the shape of, as opposed to a
- * host object handed in through the evaluation context.
- *
- * Only the former may be held to Python's attribute contract: a host object is
- * arbitrary caller data, and reading an absent key off one has to stay lenient.
- *
  * @param {any} value
  * @returns {boolean}
  */
@@ -1168,16 +1144,6 @@ function isPyValue(value) {
 }
 
 /**
- * A py-level dict, str or set exposes exactly the members of its table, so an
- * absent one is an ``AttributeError`` on the server rather than ``undefined``.
- * Reading it back as ``undefined`` did not stop the evaluation: ``{'a': 1}.b ==
- * None`` answered ``false`` where safe_eval raises, and ``{'x': 'abc'.nope}``
- * lost the key altogether on its way through JSON. Same contract as
- * ``ASTType.Lookup``, which already raises for an absent subscript.
- *
- * ``Object.hasOwn``, not a truthiness test: the tables are object literals, so
- * a plain lookup would resolve ``toString`` & co. through ``Object.prototype``.
- *
  * @param {object} table
  * @param {string} typeName
  * @param {string} key
@@ -1310,10 +1276,6 @@ export function evaluate(ast, context = {}) {
                     if (BLOCKED_PROPERTIES.has(key)) {
                         throw new EvaluationError(`Access to '${key}' is forbidden`);
                     }
-                    // An absent key used to read back as `undefined`, which does
-                    // not stop the evaluation: `{'a': 1}['b'] == None` answered
-                    // `false` where safe_eval raises, so the expression came
-                    // back with a *different result* rather than an error.
                     if (typeof dict === "string" || Array.isArray(dict)) {
                         if (typeof key !== "number" || !Number.isInteger(key)) {
                             throw new EvaluationError(
@@ -1343,14 +1305,6 @@ export function evaluate(ast, context = {}) {
                 case ASTType.ObjLookup: {
                     let left = _evaluate(ast.obj);
                     let result;
-                    // `undefined` as well as `null`: an absent host key reads
-                    // back as `undefined` (deliberately -- see the generic
-                    // branch below), so a CHAIN through one, which is exactly
-                    // the sparse-record case, reached `undefined[key]` and
-                    // failed with V8's "Cannot read properties of undefined
-                    // (reading 'foo')". It threw either way; it now says which
-                    // attribute of what, and agrees with the server, where the
-                    // unloaded field is None and `None.foo` is an AttributeError.
                     if (left === null || left === undefined) {
                         throw new EvaluationError(
                             `AttributeError: 'NoneType' object has no attribute '${ast.key}'`,
@@ -1376,21 +1330,6 @@ export function evaluate(ast, context = {}) {
                                 `Access to '${ast.key}' is forbidden`,
                             );
                         }
-                        // Same contract as the dict/str/set tables above, which
-                        // `attributeOf` already enforces: an absent attribute is
-                        // an AttributeError, not `undefined`. Applied here only
-                        // to values that ARE py values -- the temporals, numbers
-                        // and lists -- because this branch also carries host
-                        // objects, whose lenient read is deliberate (a domain
-                        // over a sparse record reaches `parent.some_field` for
-                        // rows where the field was never loaded).
-                        //
-                        // Without it, `datetime.date(2024,1,1).weekday()` failed
-                        // inside V8 with "Function.prototype.apply was called on
-                        // undefined", naming neither the object nor the
-                        // attribute. `in`, not `hasOwn`: these are class
-                        // instances whose methods live on the prototype, and
-                        // `Object()` so a primitive receiver does not throw.
                         if (isPyValue(left) && !(ast.key in Object(left))) {
                             throw new EvaluationError(
                                 `AttributeError: '${pyTypeName(left)}' object has no attribute '${ast.key}'`,

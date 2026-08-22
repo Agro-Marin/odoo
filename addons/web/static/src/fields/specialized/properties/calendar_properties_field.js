@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/properties/calendar_properties_field */
-
 import { registerField } from "@web/fields/_registry";
 
 import { PropertiesField, propertiesField } from "./properties_field.js";
@@ -14,7 +12,7 @@ export class CalendarPropertiesField extends PropertiesField {
     }
 }
 
-export const calendarPropertiesField = {
+const calendarPropertiesField = {
     ...propertiesField,
     component: CalendarPropertiesField,
 };

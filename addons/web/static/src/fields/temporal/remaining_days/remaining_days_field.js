@@ -1,10 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/temporal/remaining_days/remaining_days_field */
-
 import { Component, onWillRender } from "@odoo/owl";
-import { formatDate } from "@web/core/formatters";
+import { formatFieldDate } from "@web/core/formatters";
 import { DateTime } from "@web/core/l10n/luxon";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
@@ -76,13 +74,13 @@ export class RemainingDaysField extends Component {
     /** @returns {string} */
     get formattedValue() {
         const { record, name } = this.props;
-        return formatDate(record.data[name]);
+        return formatFieldDate(record.data[name]);
     }
 
     /** @returns {string} */
     get numericValue() {
         const { record, name } = this.props;
-        return formatDate(record.data[name], { numeric: true });
+        return formatFieldDate(record.data[name], { numeric: true });
     }
 
     /** @returns {Object|null} */
@@ -118,7 +116,7 @@ export class RemainingDaysField extends Component {
 }
 
 /** @type {import("registries").FieldsRegistryItemShape} */
-export const remainingDaysField = {
+const remainingDaysField = {
     component: RemainingDaysField,
     displayName: _t("Remaining Days"),
     supportedOptions: [

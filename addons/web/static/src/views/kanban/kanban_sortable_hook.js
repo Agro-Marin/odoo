@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/kanban_sortable_hook */
-
 import { useSortable } from "@web/core/utils/dnd/sortable_owl";
 
 /**

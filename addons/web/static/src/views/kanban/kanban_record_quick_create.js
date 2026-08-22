@@ -1,12 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/kanban_record_quick_create */
-
 import {
     Component,
     onMounted,
     onWillStart,
+    status,
     useExternalListener,
     useRef,
     useState,
@@ -45,7 +44,7 @@ export class KanbanQuickCreateController extends Component {
     notificationService;
     /** @type {import("@odoo/owl").Ref} */
     rootRef;
-    /** @type {{ disabled: boolean } | { isLoaded: boolean }} */
+    /** @type {{ disabled: boolean }} */
     state;
     /** @type {import("services").ServiceFactories["ui"]} */
     uiService;
@@ -245,7 +244,7 @@ export class KanbanRecordQuickCreate extends Component {
     static components = { KanbanQuickCreateController };
     static template = "web.KanbanRecordQuickCreate";
     static props = {
-        quickCreateView: { type: [String, { value: null }], optional: 1 },
+        quickCreateView: { type: [String, { value: null }], optional: true },
         onValidate: Function,
         onCancel: Function,
         group: Object,
@@ -259,9 +258,14 @@ export class KanbanRecordQuickCreate extends Component {
         onMounted(() => {
             this.getQuickCreateProps(this.props)
                 .then(() => {
-                    this.state.isLoaded = true;
+                    if (status(this) !== "destroyed") {
+                        this.state.isLoaded = true;
+                    }
                 })
                 .catch((error) => {
+                    if (status(this) === "destroyed") {
+                        return;
+                    }
                     this.props.onCancel();
                     throw error;
                 });

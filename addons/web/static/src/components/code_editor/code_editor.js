@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/code_editor/code_editor */
-
 import {
     Component,
     onMounted,
@@ -19,7 +17,6 @@ import { browser } from "@web/core/browser/browser";
  */
 export class CodeEditor extends Component {
     static template = "web.CodeEditor";
-    static components = {};
     static props = {
         mode: {
             type: String,
@@ -75,6 +72,14 @@ export class CodeEditor extends Component {
 
         const sessions = {};
         let ignoredAceChange = false;
+        const onSessionChange = () => {
+            if (this.props.onChange && !ignoredAceChange) {
+                this.props.onChange(
+                    this.aceEditor.getValue(),
+                    this.aceEditor.getCursorPosition(),
+                );
+            }
+        };
         useEffect(
             (el) => {
                 if (!el) {
@@ -102,14 +107,7 @@ export class CodeEditor extends Component {
                     sessions[this.props.sessionId] = session;
                 }
                 session.setValue(this.props.value);
-                session.on("change", () => {
-                    if (this.props.onChange && !ignoredAceChange) {
-                        this.props.onChange(
-                            this.aceEditor.getValue(),
-                            this.aceEditor.getCursorPosition(),
-                        );
-                    }
-                });
+                session.on("change", onSessionChange);
                 this.aceEditor.on("blur", () => {
                     if (this.props.onBlur) {
                         this.props.onBlur();
@@ -169,14 +167,7 @@ export class CodeEditor extends Component {
                         tabSize: 2,
                         useSoftTabs: true,
                     });
-                    session.on("change", () => {
-                        if (this.props.onChange && !ignoredAceChange) {
-                            this.props.onChange(
-                                this.aceEditor.getValue(),
-                                this.aceEditor.getCursorPosition(),
-                            );
-                        }
-                    });
+                    session.on("change", onSessionChange);
                     sessions[sessionId] = session;
                 }
                 session.setMode(mode ? `ace/mode/${mode}` : "");

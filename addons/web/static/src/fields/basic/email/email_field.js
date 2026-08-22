@@ -1,48 +1,20 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/email/email_field */
-
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
-import { TrimmingInputFieldBase } from "@web/fields/basic/trimming_input_field_base";
-import { fieldHandle } from "@web/fields/field_handle";
-import { useInputField } from "@web/fields/input_field_hook";
-import { standardFieldProps } from "@web/fields/standard_field_props";
+import { SimpleInputFieldBase } from "@web/fields/basic/simple_input_field_base";
+import { placeholderFieldOption } from "@web/fields/field_options";
 
-export class EmailField extends TrimmingInputFieldBase {
+export class EmailField extends SimpleInputFieldBase {
     static template = "web.EmailField";
-    static props = {
-        ...standardFieldProps,
-        placeholder: { type: String, optional: true },
-        required: { type: Boolean, optional: true },
-    };
-
-    /** @returns {import("@web/fields/field_handle").FieldHandle} */
-    get field() {
-        return fieldHandle(this);
-    }
-
-    setup() {
-        useInputField({
-            getValue: () => this.field.value || "",
-            parse: (v) => this.parse(v),
-        });
-    }
 }
 
 /** @type {import("registries").FieldsRegistryItemShape} */
-export const emailField = {
+const emailField = {
     component: EmailField,
     displayName: _t("Email"),
-    supportedOptions: [
-        {
-            label: _t("Dynamic Placeholder"),
-            name: "placeholder_field",
-            type: "field",
-            availableTypes: ["char"],
-        },
-    ],
+    supportedOptions: [placeholderFieldOption()],
     supportedTypes: ["char"],
     extractProps: ({ placeholder }, dynamicInfo) => ({
         placeholder,
@@ -56,7 +28,7 @@ class FormEmailField extends EmailField {
     static template = "web.FormEmailField";
 }
 
-export const formEmailField = {
+const formEmailField = {
     ...emailField,
     component: FormEmailField,
 };

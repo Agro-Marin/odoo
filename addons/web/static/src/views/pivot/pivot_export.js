@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/pivot/pivot_export */
-
 /**
  * @param {Object} header
  * @returns {{ title: string, width: number, height: number, is_bold: boolean }}

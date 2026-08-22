@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/widgets/res_config_dev_tool */
-
 import { Component, onWillStart } from "@odoo/owl";
 import { useAction } from "@web/core/action_port";
 import { router } from "@web/core/browser/router";
@@ -54,7 +52,7 @@ export class ResConfigDevTool extends Component {
 }
 
 /** @type {import("registries").ViewWidgetsRegistryItemShape} */
-export const resConfigDevTool = {
+const resConfigDevTool = {
     component: ResConfigDevTool,
 };
 

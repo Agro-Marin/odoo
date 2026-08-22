@@ -6,7 +6,7 @@ import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { Field } from "@web/fields/field";
 import { Record } from "@web/model/record";
 import { ViewButton } from "@web/views/view_button";
-import { useViewCompiler } from "@web/views/view_compiler";
+import { compileViewTemplates } from "@web/views/view_compiler";
 
 import { HierarchyCompiler } from "./hierarchy_compiler.js";
 import { getFormattedRecord } from "@web/views/kanban";
@@ -31,7 +31,7 @@ export class HierarchyCard extends Component {
 
     setup() {
         const { archInfo } = this.props;
-        this.templates = useViewCompiler(this.constructor.Compiler, archInfo.templateDocs);
+        this.templates = compileViewTemplates(this.constructor.Compiler, archInfo.templateDocs);
         this.evaluateBooleanExpr = evaluateBooleanExpr;
     }
 

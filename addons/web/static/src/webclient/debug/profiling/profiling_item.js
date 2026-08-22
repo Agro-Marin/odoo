@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/debug/profiling/profiling_item */
-
 import { Component, EventBus } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useBus, useService } from "@web/core/utils/hooks";

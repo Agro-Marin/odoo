@@ -1,21 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/list_membership */
-
 /** @import { RelationalRecord } from "./record.js" */
 
-/**
- * The membership ledger of a {@link StaticList}: the ordered id list, the page
- * of materialised records, and the pager total.
- *
- * `count` is DERIVED, not stored. It used to be a field that every mutator had
- * to keep in step with `ids` by hand -- ~12 sites across three files, each one
- * an opportunity to drift, and the reason `_load` once needed a multiset
- * difference just to work out how far `count` had fallen behind. Making it a
- * getter is what makes `count !== ids.length` unrepresentable rather than
- * merely untested.
- */
 export class ListMembership {
     /** @param {(number | string)[]} [ids] */
     constructor(ids = []) {
@@ -26,8 +13,6 @@ export class ListMembership {
     }
 
     /**
-     * The number of members, i.e. the x2many pager total.
-     *
      * @returns {number}
      */
     get count() {
@@ -40,7 +25,7 @@ export class ListMembership {
     }
 
     /**
-     * @param {Record<string | number, any>} cache
+     * @param {Map<number | string, any>} cache
      * @param {number} offset
      * @param {number} limit
      * @returns {any[]}
@@ -48,7 +33,7 @@ export class ListMembership {
     materialize(cache, offset, limit) {
         this.records = this.ids
             .slice(offset, offset + limit)
-            .map((id) => cache[id])
+            .map((id) => cache.get(id))
             .filter(Boolean);
         return this.records;
     }
@@ -65,6 +50,23 @@ export class ListMembership {
         return this.ids.length && limit > 0
             ? Math.floor((this.ids.length - 1) / limit) * limit
             : 0;
+    }
+
+    /**
+     * @param {number} index
+     * @param {number | string} id
+     * @returns {void}
+     */
+    insertAt(index, id) {
+        this.ids.splice(index, 0, id);
+    }
+
+    /**
+     * @param {number | string} id
+     * @returns {void}
+     */
+    append(id) {
+        this.ids.push(id);
     }
 
     /**

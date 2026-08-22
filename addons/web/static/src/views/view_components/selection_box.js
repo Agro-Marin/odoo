@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_components/selection_box */
-
 import { Component } from "@odoo/owl";
 
 export class SelectionBox extends Component {
@@ -13,7 +11,7 @@ export class SelectionBox extends Component {
     };
     /**
      * @returns {import("@web/model/relational_model/dynamic_record_list").DynamicRecordList
-     *           & import("@web/model/relational_model/dynamic_group_list").DynamicGroupList}
+     * & import("@web/model/relational_model/dynamic_group_list").DynamicGroupList}
      */
     get root() {
         return this.props.root;

@@ -27,7 +27,6 @@
     padding: ($o-navbar-height * 1.125) 0;
 }
 
-// Checkerboard, so transparent regions of the image read as transparent.
 .o-FileViewer-viewImage {
     background: repeating-conic-gradient(#ccc 0deg 90deg, #fff 90deg 180deg) 50% / 20px
         20px;

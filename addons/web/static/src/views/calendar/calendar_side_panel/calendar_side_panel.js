@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_side_panel/calendar_side_panel */
-
 import { Component } from "@odoo/owl";
 import { DateTimePicker } from "@web/components/datetime/datetime_picker";
 import { getStartOfLocalWeek } from "@web/core/l10n/date_utils";

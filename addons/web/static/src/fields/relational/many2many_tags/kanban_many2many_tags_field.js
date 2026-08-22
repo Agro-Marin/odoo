@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/many2many_tags/kanban_many2many_tags_field */
-
 import { registerField } from "@web/fields/_registry";
 
 import { Many2ManyTagsField, many2ManyTagsField } from "./many2many_tags_field.js";
@@ -20,7 +18,7 @@ export class KanbanMany2ManyTagsField extends Many2ManyTagsField {
     }
 }
 
-export const kanbanMany2ManyTagsField = {
+const kanbanMany2ManyTagsField = {
     ...many2ManyTagsField,
     component: KanbanMany2ManyTagsField,
 };

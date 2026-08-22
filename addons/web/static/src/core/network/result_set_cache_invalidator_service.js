@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/network/result_set_cache_invalidator_service */
-
 import { RpcEvent } from "@web/core/events";
 import { onModelMutation } from "@web/core/network/model_mutation";
 import { rpcBus } from "@web/core/network/rpc";
@@ -16,7 +14,7 @@ export const RESULT_SET_REMOVING_METHODS = new Set([
 
 const RESULT_SET_TABLES = ["web_read", "web_search_read", "web_read_group"];
 
-export const resultSetCacheInvalidatorService = {
+const resultSetCacheInvalidatorService = {
     /**
      * @param {import("@web/env").OdooEnv} _env
      */

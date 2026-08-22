@@ -25,12 +25,6 @@
                 </div>
                 <t t-if="props.showSearchInput">
                     <div class="o_model_field_selector_popover_search mt-1">
-                        <!-- The list below is the popup this box drives, so it
-                             carries the combobox contract: arrow keys move a
-                             cursor that never leaves the input, and
-                             `aria-activedescendant` is the only thing that can
-                             say where it landed. Without it the `.active`
-                             class is a purely visual cursor. -->
                         <input type="text"
                                placeholder='Search...'
                                class="o_input p-1 border rounded-1 bg-view"
@@ -49,12 +43,6 @@
                     t-att-id="listboxId" role="listbox" aria-label="Fields">
                     <t t-foreach="fieldNames" t-as="fieldName" t-key="fieldName">
                         <t t-set="fieldDef" t-value="state.page.fieldDefs[fieldName]" />
-                        <!-- The row is not the option: it also holds the button
-                             that drills into a relation, and an option may not
-                             contain a control. The option is the thing that
-                             actually picks a field, so it is the name button
-                             that carries the role, the id the combobox points
-                             at, and the selected state. -->
                         <li class="o_model_field_selector_popover_item d-flex border-bottom" t-att-class="{ 'active': fieldName === state.page.focusedFieldName }" t-att-data-name="fieldName"
                             role="presentation">
                             <button t-attf-class="o_model_field_selector_popover_item_name btn btn-light flex-fill border-0 rounded-0 text-break text-start fw-normal" t-on-click="() => this.selectField(fieldDef)"
@@ -69,9 +57,6 @@
                                     <t t-if="fieldDef.relation">Relation to follow</t>
                                     <t t-else="">Show options</t>
                                 </t>
-                                <!-- Reachable, but not a tab stop: the search
-                                     box keeps the focus, and the arrow keys
-                                     are what reach this. -->
                                 <button class="o_model_field_selector_popover_item_relation btn btn-light border-0 border-start rounded-0"
                                     tabindex="-1"
                                     t-att-data-tooltip="label"

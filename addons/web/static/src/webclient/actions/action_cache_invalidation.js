@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/action_cache_invalidation */
-
 import { RpcEvent } from "@web/core/events";
 import { onModelMutation } from "@web/core/network/model_mutation";
 import { rpcBus } from "@web/core/network/rpc";
@@ -11,14 +9,6 @@ import { BreadcrumbCache } from "./breadcrumb_cache.js";
 import { refreshBreadcrumbDisplayNames } from "./breadcrumb_manager.js";
 
 /**
- * Models whose mutation must bust the disk-cached `/web/action/load`. The route
- * caches the action dict, which `ir.actions.actions._get_action_dict` expands to
- * inline the action's `embedded_action_ids` (`ir.embedded.actions`). So creating,
- * writing or deleting an embedded action changes what a cached action payload
- * *should* contain -- yet the model name is `ir.embedded.actions`, not
- * `ir.actions.*`, so a prefix-only match silently leaves the cache (and the
- * embedded-action tabs built from it) stale after navigating back through it.
- *
  * @param {string} model
  * @returns {boolean}
  */

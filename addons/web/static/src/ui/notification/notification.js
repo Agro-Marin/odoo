@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/notification/notification */
-
 import { Component, onMounted, onWillUnmount, useRef } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 
@@ -57,23 +55,6 @@ export class Notification extends Component {
     timerStart = 0;
     remainingDelay = 0;
     /**
-     * Why the countdown is currently held. The pointer being over the
-     * notification and the focus being inside it are independent, so releasing
-     * one must not resume while the other still holds.
-     *
-     * Named reasons rather than a count, so that a release is idempotent: a
-     * reason that was never added deletes to a no-op, and one added twice does
-     * not need two releases. Counting instead made every release cancel
-     * whichever hold happened to be outstanding, which needed a "was anything
-     * held at all" guard that still could not tell WHICH source was being
-     * released.
-     *
-     * Chrome does pair these events, including the awkward case -- a
-     * notification appearing under a stationary pointer gets no mouseenter, but
-     * then gets no mouseleave either, and if focus arrives first Chrome
-     * re-hit-tests and delivers the missing mouseenter before it. So this is
-     * robustness against synthetic and non-Chrome event streams, not a fix for
-     * an observed Chrome defect.
      * @type {Set<"hover" | "focus">}
      */
     holds = new Set();

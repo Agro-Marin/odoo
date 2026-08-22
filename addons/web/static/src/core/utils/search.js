@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/search */
-
 import { normalize } from "@web/core/l10n/utils";
 
 /**
@@ -113,9 +111,6 @@ export function fuzzyLevenshteinLookup(pattern, list, errorRatio = 3) {
             scored.push({ candidate, score: 0 });
             continue;
         }
-        // A length gap is a lower bound on the edit distance, so this rejects
-        // without running the O(n*m) matrix. It must stay below the substring
-        // check, which legitimately matches across a large length gap.
         if (Math.abs(norm.length - pattern.length) > maxNbrCorrection) {
             continue;
         }

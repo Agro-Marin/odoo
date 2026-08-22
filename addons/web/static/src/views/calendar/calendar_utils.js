@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_utils */
-
 /**
  * @param {Object} record
  * @param {boolean} [forceAllDay=false]
@@ -98,5 +96,50 @@ export function getFormattedDateSpan(start, end) {
         return isSameDay
             ? start.toFormat("DDD")
             : `${start.toFormat("DDD")} - ${end.toFormat("DDD")}`;
+    }
+}
+
+/**
+ * @param {any} record
+ * @returns {string[]}
+ */
+export function baseEventClassNames(record) {
+    const classes = ["o_event"];
+    if (!record) {
+        return classes;
+    }
+    const color = getColor(record.colorIndex);
+    if (typeof color === "number") {
+        classes.push(`o_calendar_color_${color}`);
+    } else if (typeof color !== "string") {
+        classes.push("o_calendar_color_0");
+    }
+    if (record.isHatched) {
+        classes.push("o_event_hatched");
+    }
+    if (record.isStriked) {
+        classes.push("o_event_striked");
+    }
+    return classes;
+}
+
+/**
+ * @param {HTMLElement} el
+ * @param {{ id: string }} event
+ * @param {any} record
+ * @param {string[]} classes
+ * @returns {void}
+ */
+export function paintMountedEvent(el, event, record, classes) {
+    if (classes.length) {
+        el.classList.add(...classes);
+    }
+    el.dataset.eventId = event.id;
+    if (!record) {
+        return;
+    }
+    const color = getColor(record.colorIndex);
+    if (typeof color === "string") {
+        el.style.backgroundColor = color;
     }
 }

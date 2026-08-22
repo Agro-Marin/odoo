@@ -1,10 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/**
- * @module @web/core/utils/dnd/sortable_service
- */
-
 import { reactive } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useSortable } from "@web/core/utils/dnd/sortable";
@@ -12,26 +8,14 @@ import { throttleForAnimation } from "@web/core/utils/timing";
 
 /**
  * @typedef {Record<string, any> & {
- *  ref?: {el: HTMLElement} | ReturnType<typeof import("@odoo/owl").useRef>;
- *  sortableId?: string | symbol;
+ * ref?: {el: HTMLElement} | ReturnType<typeof import("@odoo/owl").useRef>;
+ * sortableId?: string | symbol;
  * }} SortableServiceHookParams
  */
 
 const DEFAULT_SORTABLE_ID = Symbol.for("defaultSortable");
 
-/**
- * The `sortable` service.
- *
- * A class rather than a closure returning an object literal; see
- * `core/hotkeys/hotkey_service.js` for the reasoning and
- * `tooling/architecture/js_service_shape.py` for the budget.
- *
- * Everything inside `create()` below the `boundElements` lookup is per-call:
- * one element's setup and cleanup registries, and the `enabled` latch that
- * makes `enable()` idempotent. Only the `WeakMap` keyed by element is service
- * state, so only it moves onto the instance.
- */
-export class SortableService {
+class SortableService {
     constructor() {
         /** @type {WeakMap<Element, Record<string | symbol, () => void>>} */
         this.boundElements = new WeakMap();
@@ -130,7 +114,7 @@ export class SortableService {
     }
 }
 
-export const sortableService = {
+const sortableService = {
     /**
      * @returns {SortableService}
      */

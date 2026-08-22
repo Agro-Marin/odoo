@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/sample_field_generators */
-
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 import { DateTime } from "@web/core/l10n/luxon";
 
@@ -72,9 +70,9 @@ export function sanitizeNumber(value) {
 
 /**
  * @typedef {{
- *   getRandomBool?: () => boolean;
- *   getRandomSubRecordId?: () => number;
- *   getRandomArrayEl?: <T>(array: T[]) => T;
+ * getRandomBool?: () => boolean;
+ * getRandomSubRecordId?: () => number;
+ * getRandomArrayEl?: <T>(array: T[]) => T;
  * }} FieldGeneratorHooks
  */
 

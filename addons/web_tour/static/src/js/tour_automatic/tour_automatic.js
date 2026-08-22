@@ -11,6 +11,7 @@ import { tourState } from "@web_tour/js/tour_state";
 export class TourAutomatic {
     mode = "auto";
     allowUnload = true;
+    unloadWatchdog = null;
     constructor(data) {
         Object.assign(this, data);
         this.steps = this.steps.map(
@@ -71,7 +72,8 @@ export class TourAutomatic {
                         this.allowUnload = false;
                         if (!step.skipped && step.expectUnloadPage) {
                             this.allowUnload = true;
-                            setTimeout(() => {
+                            browser.clearTimeout(this.unloadWatchdog);
+                            this.unloadWatchdog = browser.setTimeout(() => {
                                 const message = `
                                     The key { expectUnloadPage } is defined but page has not been unloaded within 20000 ms.
                                     You probably don't need it.
@@ -132,6 +134,8 @@ export class TourAutomatic {
             ]);
 
         const end = () => {
+            browser.clearTimeout(this.unloadWatchdog);
+            this.unloadWatchdog = null;
             delete window[hootNameSpace];
             transitionConfig.disabled = false;
             tourState.clear();
@@ -230,10 +234,12 @@ export class TourAutomatic {
     throwError(...args) {
         console.groupEnd();
         tourState.setCurrentTourOnError();
+        const step = this.currentStep;
+        const failed = step
+            ? `FAILED: ${step.describeMe}.`
+            : `FAILED: after the last step ran (index ${this.currentIndex} of ${this.steps.length}).`;
         // console.error notifies the test runner that the tour failed.
-        browser.console.error(
-            [`FAILED: ${this.currentStep.describeMe}.`, ...args].join("\n"),
-        );
+        browser.console.error([failed, ...args].join("\n"));
         // The logged text shows the relative position of the failed step.
         // Useful for finding the failed step.
         browser.console.dir(this.describeWhereIFailed);

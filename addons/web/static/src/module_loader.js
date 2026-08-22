@@ -6,6 +6,19 @@
         return;
     }
 
+    /**
+     * @param {EventTarget | null} target
+     * @returns {string}
+     */
+    function bundleAssetSrc(target) {
+        const el = /** @type {any} */ (target);
+        const src =
+            (el?.tagName === "SCRIPT" && (el.src || el.dataset?.src)) ||
+            (el?.tagName === "LINK" && el.href) ||
+            "";
+        return src && src.includes("/web/assets/") ? String(src) : "";
+    }
+
     function _loaderDebug(...parts) {
         try {
             const o = globalThis.odoo;
@@ -43,19 +56,11 @@
             if (rebound) {
                 _loaderDebug("registerNativeModules rebind", rebound);
                 const dbg = typeof o.debug === "string" ? o.debug : "";
-                if (!dbg && typeof reportError === "function") {
-                    reportError({
-                        phase: o.isReady ? "post_boot" : "pre_boot",
+                if (!dbg) {
+                    reportJsError({
                         kind: "module_rebind",
                         message:
                             "singleton split (module rebound): " + rebound.join(","),
-                        cause: "",
-                        filename: "",
-                        line: 0,
-                        col: 0,
-                        stack: "",
-                        url: globalThis.location?.href || "",
-                        user_agent: globalThis.navigator?.userAgent || "",
                     });
                 }
                 try {
@@ -64,11 +69,6 @@
                     );
                 } catch {}
             }
-            // Unconditional, unlike `rebind`: a bridge shim generated for a
-            // specifier this page had not registered yet binds `undefined` and,
-            // being a plain `const`, would keep it forever. The shims listen for
-            // this and re-read once, so a producer that registers later still
-            // reaches the consumers that read at use time.
             try {
                 this.bus.dispatchEvent(
                     new CustomEvent("registered", {
@@ -83,11 +83,8 @@
          * @returns {boolean}
          */
         handleAssetLoadError(target) {
-            const el = /** @type {any} */ (target);
-            const src =
-                (el?.tagName === "SCRIPT" && (el.src || el.dataset?.src)) ||
-                (el?.tagName === "LINK" && el.href);
-            if (!src || !src.includes("/web/assets/")) {
+            const src = bundleAssetSrc(target);
+            if (!src) {
                 return false;
             }
             const GUARD_KEY = "odoo-asset-reload-ts";
@@ -114,16 +111,35 @@
 
     o.loader = new OdooModuleLoader();
 
+    const ENDPOINT = "/web/observability/js_error";
+    const MAX_MESSAGE = 4096;
+    const MAX_STACK = 4096;
     const MAX_CAUSE = 4096;
     const MAX_CAUSE_DEPTH = 8;
+    const MAX_SEEN_KEYS = 512;
+
+    const KINDS = new Set([
+        "error",
+        "unhandledrejection",
+        "module_rebind",
+        "service_start",
+        "asset_load_error",
+    ]);
+
+    const IGNORED_MESSAGE_PREFIXES = [
+        "ResizeObserver loop completed with undelivered notifications",
+        "ResizeObserver loop limit exceeded",
+    ];
 
     /**
-     * Java ``String.hashCode`` over one string, as 8 hex chars.
-     *
-     * Byte-identical copy of the helper in
-     * ``@web/core/errors/error_beacon`` — this shim is the pre-ESM bootstrap
-     * and cannot ``import``.  Keep both in step; that module is canonical.
-     *
+     * @param {string} message
+     * @returns {boolean}
+     */
+    function isIgnoredMessage(message) {
+        return IGNORED_MESSAGE_PREFIXES.some((prefix) => message.startsWith(prefix));
+    }
+
+    /**
      * @param {string} str
      * @returns {string}
      */
@@ -137,13 +153,6 @@
     }
 
     /**
-     * ``JSON.stringify`` replacer that keeps the root's own scalars and elides
-     * any nested object, bounding serialization of an unknown cause by its own
-     * key count instead of the graph it points into.
-     *
-     * Byte-identical copy of the helper in
-     * ``@web/core/errors/error_beacon``; keep both in step.
-     *
      * @param {string} key
      * @param {unknown} value
      * @returns {unknown}
@@ -156,14 +165,8 @@
     }
 
     /**
-     * Flatten an error's ``cause`` chain into one string.
-     *
-     * Byte-identical copy of the helper in
-     * ``@web/core/errors/error_beacon``; see that module for the rationale.
-     * Keep both in step.
-     *
-     * @param {unknown} cause first ``.cause`` of the reported error
-     * @returns {string} ``"Caused by: ..."`` segments, or ``""`` when there is none
+     * @param {unknown} cause
+     * @returns {string}
      */
     function serializeCause(cause) {
         const parts = [];
@@ -172,7 +175,6 @@
         let depth = 0;
         while (current !== undefined && current !== null && depth < MAX_CAUSE_DEPTH) {
             if (typeof current === "object") {
-                // A cycle would otherwise repeat two frames up to the depth cap.
                 if (visited.has(current)) {
                     parts.push("Caused by: [circular]");
                     break;
@@ -184,13 +186,11 @@
                 if (current instanceof Error) {
                     text = `${current.name}: ${current.message}`;
                 } else if (typeof current === "object") {
-                    // Elided, not walked: an OWL node would stringify whole.
                     text = JSON.stringify(current, elideNested);
                 } else {
                     text = String(current);
                 }
             } catch {
-                // Best-effort: record that a level existed and move on.
                 text = "[unserializable]";
             }
             parts.push(`Caused by: ${text}`);
@@ -200,84 +200,96 @@
         return parts.join("\n").slice(0, MAX_CAUSE);
     }
 
-    // The one deliberate duplicate of `@web/core/errors/error_beacon`: this
-    // shim is emitted inline before the ESM bundle, so it cannot import it.
-    // Kept in step with it -- same endpoint, same
-    // `(message,line,col,hash(stack+cause))` dedup key, and the same 512-key
-    // cap. The key embeds the message, and this shim runs on every page load
-    // before anything else, so an unbounded set is a leak; insertion order
-    // makes dropping the oldest the right eviction (the recent keys, the only
-    // ones a burst repeats, are what dedup must keep).
-    const MAX_SEEN_KEYS = 512;
-
-    // Browser-generated `window.onerror` messages that report no application
-    // fault: a ResizeObserver whose callback resizes the observed element
-    // defers the next round to the following frame and tells the page so --
-    // spec-defined behaviour, not a bug. Chrome raises it with no Error object,
-    // so the beacon carries no stack and no filename to act on. Copy in
-    // core/errors/error_beacon.js -- keep both in step.
-    const IGNORED_MESSAGE_PREFIXES = [
-        "ResizeObserver loop completed with undelivered notifications",
-        "ResizeObserver loop limit exceeded",
-    ];
-    function isIgnoredMessage(message) {
-        return IGNORED_MESSAGE_PREFIXES.some((prefix) => message.startsWith(prefix));
-    }
-
     const seenErrors = new Set();
-    function reportError(payload) {
-        if (isIgnoredMessage(String(payload.message || ""))) {
-            return;
+
+    /**
+     * @param {{
+     * message: unknown,
+     * kind?: string,
+     * phase?: string,
+     * filename?: string,
+     * line?: number,
+     * col?: number,
+     * stack?: string,
+     * cause?: unknown,
+     * reloaded?: boolean,
+     * dedup?: boolean,
+     * }} info
+     * @returns {boolean}
+     */
+    function reportJsError(info) {
+        const message = String(info?.message ?? "");
+        if (!message || isIgnoredMessage(message)) {
+            return false;
         }
-        // Stack AND cause discriminate. OWL builds its generic lifecycle
-        // wrapper inside handleError (owl.es.js:1661), so the wrapper's stack is
-        // the scheduler frames — identical for two component crashes flushed in
-        // the same tick. The component frames are on the cause.
-        const key = `${payload.message}|${payload.line}|${payload.col}|${hashCode(
-            (payload.stack || "") + (payload.cause || ""),
-        )}`;
-        if (seenErrors.has(key)) {
-            return;
+        const line = (info.line ?? 0) | 0;
+        const col = (info.col ?? 0) | 0;
+        const stack = info.stack ? String(info.stack).slice(0, MAX_STACK) : "";
+        const cause = serializeCause(info.cause);
+        if (info.dedup ?? true) {
+            const key = `${message}|${line}|${col}|${hashCode(stack + cause)}`;
+            if (seenErrors.has(key)) {
+                return false;
+            }
+            if (seenErrors.size >= MAX_SEEN_KEYS) {
+                seenErrors.delete(seenErrors.values().next().value);
+            }
+            seenErrors.add(key);
         }
-        if (seenErrors.size >= MAX_SEEN_KEYS) {
-            seenErrors.delete(seenErrors.values().next().value);
-        }
-        seenErrors.add(key);
         try {
+            const payload = {
+                phase: info.phase ?? (o.isReady ? "post_boot" : "pre_boot"),
+                kind: KINDS.has(info.kind) ? info.kind : "error",
+                message: message.slice(0, MAX_MESSAGE),
+                cause,
+                filename: String(info.filename ?? ""),
+                line,
+                col,
+                stack,
+                url: globalThis.location?.href || "",
+                user_agent: globalThis.navigator?.userAgent || "",
+            };
+            if (info.reloaded !== undefined) {
+                payload.reloaded = info.reloaded;
+            }
             const blob = new Blob([JSON.stringify(payload)], {
                 type: "application/json",
             });
-            globalThis.navigator?.sendBeacon?.("/web/observability/js_error", blob);
-        } catch {}
+            return Boolean(globalThis.navigator?.sendBeacon?.(ENDPOINT, blob));
+        } catch {
+            return false;
+        }
     }
 
-    /**
-     * Beacon seam — overridden/inspected in tests.  Same reason as
-     * ``_reloadPage`` above: these live in the IIFE closure, so a test has no
-     * other way to reach them, and the pre-ESM shim cannot export.
-     */
-    o.loader._beacon = { reportError, seenErrors, serializeCause, hashCode };
+    o.loader._beacon = {
+        reportJsError,
+        seenErrors,
+        serializeCause,
+        hashCode,
+        limits: {
+            ENDPOINT,
+            MAX_MESSAGE,
+            MAX_STACK,
+            MAX_CAUSE,
+            MAX_CAUSE_DEPTH,
+            MAX_SEEN_KEYS,
+            KINDS,
+        },
+    };
 
     globalThis.addEventListener?.("error", (ev) => {
-        // Pre-boot safety net only. Once `odoo.isReady`, the error service owns
-        // generic-error beaconing -- and beacons only genuine defects, not the
-        // handled business errors this listener would otherwise duplicate into
-        // the js_error stream. (The asset-load listener below and module_rebind
-        // are loader-specific and beacon in both phases.)
         if (globalThis.odoo?.isReady) {
             return;
         }
-        reportError({
+        reportJsError({
             phase: "pre_boot",
             kind: "error",
-            message: String(ev.message || ev.error?.message || "(no message)"),
-            cause: serializeCause(ev.error?.cause),
-            filename: String(ev.filename || ""),
-            line: ev.lineno | 0,
-            col: ev.colno | 0,
-            stack: ev.error?.stack ? String(ev.error.stack).slice(0, 4096) : "",
-            url: globalThis.location?.href || "",
-            user_agent: globalThis.navigator?.userAgent || "",
+            message: ev.message || ev.error?.message || "(no message)",
+            cause: ev.error?.cause,
+            filename: ev.filename,
+            line: ev.lineno,
+            col: ev.colno,
+            stack: ev.error?.stack,
         });
     });
     globalThis.addEventListener?.(
@@ -287,37 +299,23 @@
             if (!target || target === globalThis) {
                 return;
             }
-            const el = /** @type {any} */ (target);
-            const src =
-                (el.tagName === "SCRIPT" && (el.src || el.dataset?.src)) ||
-                (el.tagName === "LINK" && el.href) ||
-                "";
-            if (!src || !src.includes("/web/assets/")) {
+            const src = bundleAssetSrc(target);
+            if (!src) {
                 return;
             }
             const reloaded = o.loader.handleAssetLoadError(target);
-            reportError({
-                phase: globalThis.odoo?.isReady ? "post_boot" : "pre_boot",
+            reportJsError({
                 kind: "asset_load_error",
                 message: reloaded
                     ? "bundle asset failed to load; reloading once"
                     : "bundle asset failed to load; reload suppressed",
                 reloaded,
-                cause: "",
-                filename: String(src),
-                line: 0,
-                col: 0,
-                stack: "",
-                url: globalThis.location?.href || "",
-                user_agent: globalThis.navigator?.userAgent || "",
+                filename: src,
             });
         },
         true,
     );
     globalThis.addEventListener?.("unhandledrejection", (ev) => {
-        // Pre-boot safety net only, as with the generic "error" listener above:
-        // post-boot the error service classifies and beacons, so an expected
-        // rejection (SupersededError, a handled RPCError) is not reported here.
         if (globalThis.odoo?.isReady) {
             return;
         }
@@ -328,26 +326,12 @@
                 : typeof reason === "string"
                   ? reason
                   : "(non-error rejection)";
-        reportError({
+        reportJsError({
             phase: "pre_boot",
             kind: "unhandledrejection",
-            message: String(message),
-            // The case this exists for: OWL surfaces a lifecycle failure as a
-            // rejection whose message only says to read `cause`.
-            cause: serializeCause(
-                reason instanceof Error
-                    ? reason.cause
-                    : /** @type {{ cause?: unknown }} */ (reason)?.cause,
-            ),
-            filename: "",
-            line: 0,
-            col: 0,
-            stack:
-                reason instanceof Error && reason.stack
-                    ? String(reason.stack).slice(0, 4096)
-                    : "",
-            url: globalThis.location?.href || "",
-            user_agent: globalThis.navigator?.userAgent || "",
+            message,
+            cause: /** @type {{ cause?: unknown }} */ (reason)?.cause,
+            stack: reason instanceof Error ? reason.stack : "",
         });
     });
 })();

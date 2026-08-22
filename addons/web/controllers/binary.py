@@ -39,19 +39,10 @@ in your configuration file and that it is similar to:
 
 
 def clean(name: str) -> str:
-    """Strip angle brackets to prevent script-tag injection in HTML responses."""
     return name.replace("<", "").replace(">", "")
 
 
 def _int_or_zero(value) -> int:
-    """Coerce a query-string dimension to ``int``, falling back to 0 on garbage.
-
-    ``/web/image`` is ``auth="public"``, so a bare ``int(width)`` on ``?width=abc``
-    raises ``ValueError`` that the route's ``except UserError`` does not catch —
-    an unauthenticated 500 plus a full traceback per request (cheap log-flooding,
-    wrong status class). 0 routes through the normal "guess size from field name"
-    fallback instead.
-    """
     try:
         return int(value)
     except TypeError, ValueError:
@@ -59,20 +50,6 @@ def _int_or_zero(value) -> int:
 
 
 def _res_id_or_none(value) -> int | None:
-    """Coerce a query-string record id to ``int``, falling back to ``None``.
-
-    Same hazard ``_int_or_zero`` guards for the dimensions, on the id: both
-    ``/web/image`` and ``/web/content`` are ``auth="public"`` and reach
-    ``_find_record`` through a bare ``id and int(id)``. The routes only trap
-    ``UserError`` (``content_image``) / ``replace_exceptions(UserError, ...)``
-    (``content_common``), so ``?id=abc`` raised an *uncaught* ``ValueError`` —
-    an unauthenticated HTTP 500 plus a full traceback per request (cheap
-    log-flooding, wrong status class, on a route that any visitor can hit).
-
-    ``None`` routes into the exact path an absent id already takes: a
-    placeholder image for ``/web/image``, a 404 for ``/web/content`` — the same
-    outcome as a well-formed but non-existent id (``?id=999999``).
-    """
     if value is None or value is False or value == "":
         return None
     try:
@@ -82,16 +59,6 @@ def _res_id_or_none(value) -> int | None:
 
 
 def _token_authorized_public(record, field, access_token) -> bool:
-    """Whether an access-token-bearing binary response may be shared-cached.
-
-    ``_find_record`` releases a record via one of three paths: a valid limited
-    token, genuinely public content, or the *caller's session* read access. Only
-    the first two are safe to advertise ``Cache-Control: public`` — the third
-    serves private bytes authorized by the caller's cookie, which a shared/CDN
-    cache must not store under a URL keyed only on the (attacker-chosen) token.
-    The previous code set ``public`` on the mere *presence* of an access_token,
-    poisoning caches with session-authorized private images. Re-verify validity.
-    """
     if not access_token:
         return False
     return bool(
@@ -103,7 +70,6 @@ class Binary(http.Controller):
     @http.route("/web/filestore/<path:_path>", type="http", auth="none")
     def content_filestore(self, _path: str) -> Response:
         if odoo.tools.config["x_sendfile"]:
-            # pylint: disable=logging-format-interpolation
             _logger.error(
                 BAD_X_SENDFILE_ERROR.format(data_dir=odoo.tools.config["data_dir"])
             )
@@ -123,7 +89,6 @@ class Binary(http.Controller):
         auth="public",
         readonly=True,
     )
-    # pylint: disable=redefined-builtin,invalid-name
     def content_common(
         self,
         xmlid: str | None = None,
@@ -139,10 +104,10 @@ class Binary(http.Controller):
         nocache: str | bool = False,
     ) -> Response:
         with replace_exceptions(UserError, by=request.not_found()):
-            record = request.env["ir.binary"]._find_record(
-                xmlid, model, _res_id_or_none(id), access_token, field=field
+            record = request.env["ir.binary"]._get_record(
+                xmlid, model, _res_id_or_none(id), access_token, field_name=field
             )
-            stream = request.env["ir.binary"]._get_stream_from(
+            stream = request.env["ir.binary"]._get_stream_from_record(
                 record, field, filename, filename_field, mimetype
             )
             if _token_authorized_public(record, field, access_token):
@@ -164,24 +129,7 @@ class Binary(http.Controller):
         readonly=True,
     )
     def content_assets_scoped(self, scope: str, **kwargs: Any) -> Response:
-        """Serve a bundle resolved for one HOOT suite's dependency closure.
-
-        The path is spelt out rather than interpolated from
-        ``UNIT_TEST_URL_SEGMENT``: a route is a contract read statically, by
-        ``machine_doc_v1/factcheck.sh``'s AST walk among others, and an
-        f-string is a ``JoinedStr`` that such a reader cannot see. The two
-        spellings are held together by ``TestUnitTestAssetScopeRoutes``.
-
-        The scope reaches ``_get_asset_paths`` only through ``assets_params``,
-        and ``content_assets`` reads those from its arguments -- never from
-        ``_get_asset_params()``, which would answer for *this* request rather
-        than the runner page that minted the URL.
-
-        Rejecting an unknown scope keeps the route from minting an asset cache
-        entry per arbitrary string, the same reason ``_get_unit_test_scope``
-        validates the parameter it reads off the page request.
-        """
-        if scope not in request.env["ir.asset"]._get_installed_addons_list():
+        if scope not in request.env["ir.asset"]._get_addons_installed():
             raise request.not_found()
         return self.content_assets(**kwargs, assets_params={"unit_test_scope": scope})
 
@@ -198,12 +146,6 @@ class Binary(http.Controller):
         nocache: str | bool = False,
         assets_params: dict[str, Any] | None = None,
     ) -> Response:
-        """Serve a compiled asset bundle (JS or CSS).
-
-        Looks up the pre-compiled attachment by version hash.  If missing,
-        generates the bundle on the fly and stores it for future requests.
-        Versioned assets are served with immutable, long-lived cache headers.
-        """
         env = request.env
         assets_params = assets_params or {}
         if not isinstance(assets_params, dict):
@@ -213,7 +155,9 @@ class Binary(http.Controller):
         if unique in ("any", "%"):
             unique = ANY_UNIQUE
         if unique != "debug":
-            url = env["ir.asset"]._get_asset_bundle_url(filename, unique, assets_params)
+            url = env["ir.asset"]._get_asset_bundle_url_pattern(
+                filename, unique, assets_params
+            )
             if "%" in url:
                 raise request.not_found()
             domain = [
@@ -226,7 +170,9 @@ class Binary(http.Controller):
             ]
             attachment = env["ir.attachment"].sudo().search(domain, limit=1)
             if attachment:
-                stream = env["ir.binary"]._get_stream_from(attachment, "raw", filename)
+                stream = env["ir.binary"]._get_stream_from_record(
+                    attachment, "raw", filename
+                )
         if stream is None:
             if env.cr.readonly:
                 env.cr.rollback()
@@ -268,7 +214,7 @@ class Binary(http.Controller):
                     elif js and (bundle.javascripts or bundle.templates):
                         attachment = bundle.js()
                     if attachment:
-                        stream = rw_env["ir.binary"]._get_stream_from(
+                        stream = rw_env["ir.binary"]._get_stream_from_record(
                             attachment, "raw", filename
                         )
                 except ValueError as e:
@@ -302,25 +248,6 @@ class Binary(http.Controller):
         readonly=True,
     )
     def content_esm_assets(self, unique: str, filename: str) -> Response:
-        """Serve a content-addressed ESM artifact with immutable caching.
-
-        Covers the URLs minted by ``ir.qweb._save_esm_attachment`` (bundles
-        ``/web/assets/esm/<hash>/<bundle>.esm.js`` plus their ``.meta.json``
-        / ``.esm.js.map`` sidecars) and by
-        ``BridgeShimManager._persist_bridge_shims``
-        (``/web/assets/esm/bridges/<hash>.js``).  These previously fell
-        through to ``ir.http._serve_fallback``, which streams with an ETag
-        but NO ``Cache-Control`` — so every module/bridge fetch (hundreds
-        per page in satellite/test scenarios) paid a conditional request.
-        The path segment after ``/esm/`` is a content hash (or ``bridges``
-        followed by one), so the bytes behind a URL can never change:
-        long-lived immutable caching is safe.
-
-        Deliberately NO on-the-fly rebuild (parity with the fallback path
-        this replaces): a missing row is a hard 404; regeneration happens
-        through the render path after ``ir.attachment.unlink``'s cache
-        clear.
-        """
         attachment = (
             request.env["ir.attachment"]
             .sudo()
@@ -338,7 +265,7 @@ class Binary(http.Controller):
         )
         if not attachment:
             raise request.not_found()
-        stream = request.env["ir.binary"]._get_stream_from(
+        stream = request.env["ir.binary"]._get_stream_from_record(
             attachment,
             "raw",
             filename,
@@ -375,7 +302,6 @@ class Binary(http.Controller):
         readonly=True,
         save_session=False,
     )
-    # pylint: disable=redefined-builtin,invalid-name
     def content_image(
         self,
         xmlid: str | None = None,
@@ -397,10 +323,10 @@ class Binary(http.Controller):
         width = _int_or_zero(width)
         height = _int_or_zero(height)
         try:
-            record = request.env["ir.binary"]._find_record(
-                xmlid, model, _res_id_or_none(id), access_token, field=field
+            record = request.env["ir.binary"]._get_record(
+                xmlid, model, _res_id_or_none(id), access_token, field_name=field
             )
-            stream = request.env["ir.binary"]._get_image_stream_from(
+            stream = request.env["ir.binary"]._get_stream_image_from_record(
                 record,
                 field,
                 filename=filename,
@@ -418,7 +344,7 @@ class Binary(http.Controller):
             if (width, height) == (0, 0):
                 width, height = image_guess_size_from_field_name(field)
             record = request.env.ref("web.image_placeholder").sudo()
-            stream = request.env["ir.binary"]._get_image_stream_from(
+            stream = request.env["ir.binary"]._get_stream_image_from_record(
                 record,
                 "raw",
                 width=width,
@@ -443,11 +369,6 @@ class Binary(http.Controller):
         id: int | str,
         ufile: Any,
     ) -> Response:
-        """Upload one or more files and create ir.attachment records.
-
-        Returns a JSON list of dicts, each containing ``filename``,
-        ``mimetype``, ``id``, ``size`` on success, or ``error`` on failure.
-        """
         files = request.httprequest.files.getlist("ufile")
         Attachment = request.env["ir.attachment"]
         results = []
@@ -457,11 +378,8 @@ class Binary(http.Controller):
                 filename = unicodedata.normalize("NFD", uploaded_file.filename)
 
             try:
-                # streams the payload into storage rather than holding the
-                # whole upload in the worker; DERIVE types the row exactly as
-                # create() did from the same filename.
                 uploaded_file.filename = filename
-                attachment = Attachment._from_request_file(
+                attachment = Attachment._create_from_request_file(
                     uploaded_file,
                     res_model=model,
                     res_id=int(id),
@@ -485,9 +403,6 @@ class Binary(http.Controller):
                         "size": attachment.file_size,
                     }
                 )
-        # make_json_response, not a bare str: a str body from an http route
-        # defaults to text/html, which the uploader (rejectHtml) reads as the
-        # login page and turns into a spurious session-expired dialog.
         return request.make_json_response(results)
 
     @http.route(
@@ -578,7 +493,6 @@ class Binary(http.Controller):
         readonly=True,
     )
     def get_fonts(self, fontname: str | None = None) -> list[bytes]:
-        """Return base64-encoded signature fonts for the 'auto' signing mode."""
         supported_exts = (".ttf", ".otf", ".woff", ".woff2")
         fonts = []
         fonts_dir = Path(file_path("web/static/fonts/sign"))

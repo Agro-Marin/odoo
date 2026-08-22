@@ -1,9 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_arch_parser */
-
 import { makeContext } from "@web/core/context";
+import { isX2ManyType } from "@web/core/field_types";
 import { evaluateBooleanExpr, evaluateExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
 import { visitXML } from "@web/core/utils/dom/xml";
@@ -14,6 +13,16 @@ import { DEFAULT_INTERVAL, toGeneratorId } from "@web/search/utils/dates";
 const ALL = _t("All");
 const DEFAULT_LIMIT = 200;
 export const DEFAULT_VIEWS_WITH_SEARCH_PANEL = ["kanban", "list"];
+
+/** @type {Record<string, number>} */
+const DEFAULT_PERIOD_WINDOW = {
+    start_month: -2,
+    end_month: 0,
+    start_year: -2,
+    end_year: 0,
+};
+
+const IMPLAUSIBLE_PERIOD_SPAN = 100;
 
 /**
  * @param {string | null | undefined} iconClass
@@ -62,8 +71,8 @@ function reduceType(type) {
 
 export class SearchArchParser {
     /**
-     * @param {{ irFilters?: Object[], arch?: string }} searchViewDescription
-     * @param {Record<string, Object>} fields
+     * @param {{ irFilters?: Record<string, any>[], arch?: string }} searchViewDescription
+     * @param {Record<string, Record<string, any>>} fields
      * @param {Record<string, any>} [searchDefaults={}]
      * @param {Record<string, any>} [searchPanelDefaults={}]
      * @param {Record<string, any>} [evalContext={}]
@@ -82,27 +91,34 @@ export class SearchArchParser {
         this.arch = arch || "<search/>";
         this.evalContext = evalContext;
 
+        /** @type {((orm: any) => Promise<void>)[]} */
         this.labels = [];
+        /** @type {Record<string, any>[][]} */
         this.preSearchItems = [];
         this.searchPanelInfo = {
             className: "",
-            viewTypes: DEFAULT_VIEWS_WITH_SEARCH_PANEL,
+            viewTypes: [...DEFAULT_VIEWS_WITH_SEARCH_PANEL],
         };
+        /** @type {[number, Record<string, any>][]} */
         this.sections = [];
 
         this.searchDefaults = searchDefaults;
         this.searchPanelDefaults = searchPanelDefaults;
 
+        /** @type {Record<string, any>[]} */
         this.currentGroup = [];
+        /** @type {string|null} */
         this.currentTag = null;
         this.groupNumber = 0;
+        /** @type {Record<string, any>[]} */
         this.pregroupOfGroupBys = [];
 
+        /** @type {Record<string, any>|null} */
         this.optionsParams = null;
     }
 
     /**
-     * @returns {{ labels: Function[], preSearchItems: Array[], searchPanelInfo: Object, sections: Array[] }}
+     * @returns {{ labels: Function[], preSearchItems: Record<string, any>[][], searchPanelInfo: Object, sections: [number, Record<string, any>][] }}
      */
     parse() {
         visitXML(this.arch, (node, visitChildren) => {
@@ -157,9 +173,98 @@ export class SearchArchParser {
 
     /**
      * @param {Element} node
+     * @param {string} fieldType
+     * @returns {string}
+     */
+    defaultOperatorFor(node, fieldType) {
+        const type = node.hasAttribute("widget")
+            ? node.getAttribute("widget")
+            : fieldType;
+        return ["char", "html", "many2many", "one2many", "text"].includes(type)
+            ? "ilike"
+            : "=";
+    }
+
+    /**
+     * @param {Record<string, any>} defaultAutocompleteValue
+     * @param {number|number[]} ids
+     * @param {Record<string, any>} field
+     * @param {(results: Record<string, any>[]) => string} format
+     */
+    queueDisplayNameLabel(defaultAutocompleteValue, ids, field, format) {
+        const { relation, context } = field;
+        this.labels.push(async (/** @type {any} */ orm) => {
+            let results;
+            try {
+                results = await orm.silent.call(
+                    relation,
+                    "read",
+                    [ids, ["display_name"]],
+                    { context },
+                );
+            } catch {
+                results = [];
+            }
+            defaultAutocompleteValue.label = format(results);
+        });
+    }
+
+    /**
+     * @param {Record<string, any>} preField
+     * @param {Element} node
+     * @param {string} name
+     */
+    applyFieldDefault(preField, node, name) {
+        const field = this.fields[name];
+        const fieldType = field.type;
+        const val = this.searchDefaults[name];
+        const value = Array.isArray(val) ? val[0] : val;
+
+        preField.isDefault = true;
+        preField.defaultRank = -10;
+        preField.defaultAutocompleteValue = {
+            label: `${value}`,
+            operator: preField.operator || this.defaultOperatorFor(node, fieldType),
+            value,
+        };
+
+        if (fieldType === "selection") {
+            const option = field.selection.find(
+                (/** @type {any[]} */ sel) => sel[0] === value,
+            );
+            if (option) {
+                preField.defaultAutocompleteValue.label = option[1];
+            }
+        } else if (fieldType === "many2one") {
+            this.queueDisplayNameLabel(
+                preField.defaultAutocompleteValue,
+                value,
+                field,
+                (results) => results[0]?.["display_name"] ?? String(value),
+            );
+        } else if (
+            isX2ManyType(fieldType) &&
+            Array.isArray(val) &&
+            val.every((v) => Number.isInteger(v) && v > 0)
+        ) {
+            preField.defaultAutocompleteValue.operator = "in";
+            preField.defaultAutocompleteValue.value = val;
+            this.queueDisplayNameLabel(
+                preField.defaultAutocompleteValue,
+                val,
+                field,
+                (results) =>
+                    results.map((r) => r["display_name"]).join(" or ") || String(val),
+            );
+        }
+    }
+
+    /**
+     * @param {Element} node
      */
     visitField(node) {
         this.pushGroup("field");
+        /** @type {Record<string, any>} */
         const preField = { type: "field", groupNumber: this.groupNumber };
         if (node.hasAttribute("invisible")) {
             preField.invisible = node.getAttribute("invisible");
@@ -188,75 +293,7 @@ export class SearchArchParser {
             preField.fieldName = name;
             preField.fieldType = fieldType;
             if (fieldType !== "properties" && name in this.searchDefaults) {
-                preField.isDefault = true;
-                const val = this.searchDefaults[name];
-                const value = Array.isArray(val) ? val[0] : val;
-                let operator = preField.operator;
-                if (!operator) {
-                    let type = fieldType;
-                    if (node.hasAttribute("widget")) {
-                        type = node.getAttribute("widget");
-                    }
-                    if (
-                        ["char", "html", "many2many", "one2many", "text"].includes(type)
-                    ) {
-                        operator = "ilike";
-                    } else {
-                        operator = "=";
-                    }
-                }
-                preField.defaultRank = -10;
-                const { selection, context, relation } = this.fields[name];
-                preField.defaultAutocompleteValue = {
-                    label: `${value}`,
-                    operator,
-                    value,
-                };
-                if (fieldType === "selection") {
-                    const option = selection.find((sel) => sel[0] === value);
-                    if (option) {
-                        preField.defaultAutocompleteValue.label = option[1];
-                    }
-                } else if (fieldType === "many2one") {
-                    this.labels.push(async (orm) => {
-                        let results;
-                        try {
-                            results = await orm.silent.call(
-                                relation,
-                                "read",
-                                [value, ["display_name"]],
-                                { context },
-                            );
-                        } catch {
-                            results = [];
-                        }
-                        preField.defaultAutocompleteValue.label =
-                            results[0]?.display_name ?? String(value);
-                    });
-                } else if (
-                    ["many2many", "one2many"].includes(fieldType) &&
-                    Array.isArray(val) &&
-                    val.every((v) => Number.isInteger(v) && v > 0)
-                ) {
-                    preField.defaultAutocompleteValue.operator = "in";
-                    preField.defaultAutocompleteValue.value = val;
-                    this.labels.push(async (orm) => {
-                        let results;
-                        try {
-                            results = await orm.silent.call(
-                                relation,
-                                "read",
-                                [val, ["display_name"]],
-                                { context },
-                            );
-                        } catch {
-                            results = [];
-                        }
-                        preField.defaultAutocompleteValue.label =
-                            results.map((r) => r["display_name"]).join(" or ") ||
-                            String(val);
-                    });
-                }
+                this.applyFieldDefault(preField, node, name);
             }
         } else {
             throw new Error(
@@ -266,8 +303,6 @@ export class SearchArchParser {
         if (node.hasAttribute("string")) {
             preField.description = node.getAttribute("string");
         } else {
-            // `fieldName` is always a known field here: a nameless <field>
-            // throws above, and an unknown name early-returns with a warning.
             preField.description = this.fields[preField.fieldName].string;
         }
         this.currentGroup.push(preField);
@@ -275,108 +310,128 @@ export class SearchArchParser {
 
     /**
      * @param {Element} node
-     * @param {() => void} visitChildren
+     * @param {Record<string, any>} preSearchItem
      */
-    visitFilter(node, visitChildren) {
-        const preSearchItem = { type: "filter" };
-        if (node.hasAttribute("context")) {
-            const context = node.getAttribute("context");
-            const [fieldName, defaultInterval] = getContextGroupBy(context);
-            const groupByField = this.fields[fieldName];
-            if (groupByField) {
-                preSearchItem.type = "groupBy";
-                preSearchItem.fieldName = fieldName;
-                preSearchItem.fieldType = groupByField.type;
-                if (["date", "datetime"].includes(groupByField.type)) {
-                    preSearchItem.type = "dateGroupBy";
-                    preSearchItem.defaultIntervalId =
-                        defaultInterval || DEFAULT_INTERVAL;
-                }
-            } else {
-                preSearchItem.context = context;
+    classifyByContext(node, preSearchItem) {
+        if (!node.hasAttribute("context")) {
+            return;
+        }
+        const context = node.getAttribute("context");
+        const [fieldName, defaultInterval] = getContextGroupBy(context);
+        const groupByField = this.fields[fieldName];
+        if (!groupByField) {
+            preSearchItem.context = context;
+            return;
+        }
+        preSearchItem.type = "groupBy";
+        preSearchItem.fieldName = fieldName;
+        preSearchItem.fieldType = groupByField.type;
+        if (["date", "datetime"].includes(groupByField.type)) {
+            preSearchItem.type = "dateGroupBy";
+            preSearchItem.defaultIntervalId = defaultInterval || DEFAULT_INTERVAL;
+        }
+    }
+
+    /**
+     * @param {Element} node
+     * @param {string} fieldName
+     * @param {"month"|"year"} unit
+     * @returns {[number, number]}
+     */
+    readPeriodWindow(node, fieldName, unit) {
+        const read = (/** @type {string} */ attribute) => {
+            const raw = node.getAttribute(attribute);
+            if (!raw) {
+                return DEFAULT_PERIOD_WINDOW[attribute];
             }
-        }
-        if (reduceType(preSearchItem.type) !== this.currentTag) {
-            this.pushGroup(reduceType(preSearchItem.type));
-        }
-        if (preSearchItem.type === "filter") {
-            if (node.hasAttribute("date")) {
-                const fieldName = node.getAttribute("date");
-                const dateField = this.fields[fieldName];
-                if (!dateField) {
-                    console.warn(
-                        `[search] <filter date="${fieldName}">: no such field on the ` +
-                            `model; the date filter is ignored (check for a typo).`,
-                    );
-                    return;
-                }
-                preSearchItem.type = "dateFilter";
-                preSearchItem.fieldName = fieldName;
-                preSearchItem.fieldType = dateField.type;
-                const optionsParams = {
-                    startYear: Number(node.getAttribute("start_year") || -2),
-                    endYear: Number(node.getAttribute("end_year") || 0),
-                    startMonth: Number(node.getAttribute("start_month") || -2),
-                    endMonth: Number(node.getAttribute("end_month") || 0),
-                    customOptions: [],
-                };
-                if (optionsParams.endMonth < optionsParams.startMonth) {
-                    console.warn(
-                        `[search] <filter date="${fieldName}">: end_month (${optionsParams.endMonth}) ` +
-                            `is lower than start_month (${optionsParams.startMonth}); swapping them.`,
-                    );
-                    [optionsParams.startMonth, optionsParams.endMonth] = [
-                        optionsParams.endMonth,
-                        optionsParams.startMonth,
-                    ];
-                }
-                const defaultOffset = clamp(
-                    0,
-                    optionsParams.startMonth,
-                    optionsParams.endMonth,
+            const value = Number(raw);
+            if (!Number.isInteger(value)) {
+                console.warn(
+                    `[search] <filter date="${fieldName}">: ${attribute}="${raw}" is not ` +
+                        `a whole number; using the default ` +
+                        `(${DEFAULT_PERIOD_WINDOW[attribute]}).`,
                 );
-                preSearchItem.defaultGeneratorIds = [
-                    toGeneratorId("month", defaultOffset),
-                ];
-                if (node.hasAttribute("default_period")) {
-                    preSearchItem.defaultGeneratorIds = node
-                        .getAttribute("default_period")
-                        .split(",");
-                }
-                this.optionsParams = optionsParams;
-                try {
-                    visitChildren();
-                } finally {
-                    this.optionsParams = null;
-                }
-                preSearchItem.optionsParams = optionsParams;
+                return DEFAULT_PERIOD_WINDOW[attribute];
             }
-            preSearchItem.domain = node.getAttribute("domain") || "[]";
+            return value;
+        };
+        let start = read(`start_${unit}`);
+        let end = read(`end_${unit}`);
+        if (end < start) {
+            console.warn(
+                `[search] <filter date="${fieldName}">: end_${unit} (${end}) is lower ` +
+                    `than start_${unit} (${start}); swapping them.`,
+            );
+            [start, end] = [end, start];
         }
-        if (node.hasAttribute("invisible")) {
-            preSearchItem.invisible = node.getAttribute("invisible");
+        if (end - start + 1 > IMPLAUSIBLE_PERIOD_SPAN) {
+            console.warn(
+                `[search] <filter date="${fieldName}">: start_${unit}/end_${unit} span ` +
+                    `${end - start + 1} ${unit}s, which renders that many menu rows. ` +
+                    `Kept as declared -- check the arch.`,
+            );
         }
-        preSearchItem.groupNumber = this.groupNumber;
-        if (node.hasAttribute("name")) {
-            const name = node.getAttribute("name");
-            preSearchItem.name = name;
-            if (name in this.searchDefaults) {
-                preSearchItem.isDefault = true;
-                const value = this.searchDefaults[name];
-                if (["groupBy", "dateGroupBy"].includes(preSearchItem.type)) {
-                    preSearchItem.defaultRank = typeof value === "number" ? value : 100;
-                } else {
-                    preSearchItem.defaultRank = -5;
-                }
-                if (
-                    preSearchItem.type === "dateFilter" &&
-                    typeof value === "string" &&
-                    !/^(true|1)$/i.test(value)
-                ) {
-                    preSearchItem.defaultGeneratorIds = value.split(",");
-                }
-            }
+        return [start, end];
+    }
+
+    /**
+     * @param {Element} node
+     * @param {Record<string, any>} preSearchItem
+     * @param {() => void} visitChildren
+     * @returns {boolean}
+     */
+    applyDateFilter(node, preSearchItem, visitChildren) {
+        const fieldName = node.getAttribute("date");
+        const dateField = this.fields[fieldName];
+        if (!dateField) {
+            console.warn(
+                `[search] <filter date="${fieldName}">: no such field on the ` +
+                    `model; the date filter is ignored (check for a typo).`,
+            );
+            return false;
         }
+        preSearchItem.type = "dateFilter";
+        preSearchItem.fieldName = fieldName;
+        preSearchItem.fieldType = dateField.type;
+
+        const [startMonth, endMonth] = this.readPeriodWindow(node, fieldName, "month");
+        const [startYear, endYear] = this.readPeriodWindow(node, fieldName, "year");
+        /** @type {Record<string, any>} */
+        const optionsParams = {
+            startYear,
+            endYear,
+            startMonth,
+            endMonth,
+            customOptions: [],
+        };
+
+        const defaultOffset = clamp(
+            0,
+            optionsParams.startMonth,
+            optionsParams.endMonth,
+        );
+        preSearchItem.defaultGeneratorIds = [toGeneratorId("month", defaultOffset)];
+        if (node.hasAttribute("default_period")) {
+            preSearchItem.defaultGeneratorIds = node
+                .getAttribute("default_period")
+                .split(",");
+        }
+
+        this.optionsParams = optionsParams;
+        try {
+            visitChildren();
+        } finally {
+            this.optionsParams = null;
+        }
+        preSearchItem.optionsParams = optionsParams;
+        return true;
+    }
+
+    /**
+     * @param {Element} node
+     * @param {Record<string, any>} preSearchItem
+     */
+    describeFilter(node, preSearchItem) {
         if (node.hasAttribute("string")) {
             preSearchItem.description = node.getAttribute("string");
         } else if (preSearchItem.fieldName && this.fields[preSearchItem.fieldName]) {
@@ -388,6 +443,63 @@ export class SearchArchParser {
         } else {
             preSearchItem.description = "Ω";
         }
+    }
+
+    /**
+     * @param {Record<string, any>} preSearchItem
+     * @param {string} name
+     */
+    applyFilterDefault(preSearchItem, name) {
+        preSearchItem.isDefault = true;
+        const value = this.searchDefaults[name];
+        if (["groupBy", "dateGroupBy"].includes(preSearchItem.type)) {
+            preSearchItem.defaultRank = typeof value === "number" ? value : 100;
+        } else {
+            preSearchItem.defaultRank = -5;
+        }
+        if (
+            preSearchItem.type === "dateFilter" &&
+            typeof value === "string" &&
+            !/^(true|1)$/i.test(value)
+        ) {
+            preSearchItem.defaultGeneratorIds = value.split(",");
+        }
+    }
+
+    /**
+     * @param {Element} node
+     * @param {() => void} visitChildren
+     */
+    visitFilter(node, visitChildren) {
+        /** @type {Record<string, any>} */
+        const preSearchItem = { type: "filter" };
+        this.classifyByContext(node, preSearchItem);
+
+        if (reduceType(preSearchItem.type) !== this.currentTag) {
+            this.pushGroup(reduceType(preSearchItem.type));
+        }
+
+        if (preSearchItem.type === "filter") {
+            if (
+                node.hasAttribute("date") &&
+                !this.applyDateFilter(node, preSearchItem, visitChildren)
+            ) {
+                return;
+            }
+            preSearchItem.domain = node.getAttribute("domain") || "[]";
+        }
+        if (node.hasAttribute("invisible")) {
+            preSearchItem.invisible = node.getAttribute("invisible");
+        }
+        preSearchItem.groupNumber = this.groupNumber;
+        if (node.hasAttribute("name")) {
+            const name = node.getAttribute("name");
+            preSearchItem.name = name;
+            if (name in this.searchDefaults) {
+                this.applyFilterDefault(preSearchItem, name);
+            }
+        }
+        this.describeFilter(node, preSearchItem);
         this.currentGroup.push(preSearchItem);
     }
 
@@ -395,6 +507,7 @@ export class SearchArchParser {
      * @param {Element} node
      */
     visitDateOption(node) {
+        /** @type {Record<string, any>} */
         const preDateOption = { type: "dateOption" };
         for (const attribute of ["name", "string", "domain"]) {
             if (!node.getAttribute(attribute)) {
@@ -430,6 +543,55 @@ export class SearchArchParser {
     }
 
     /**
+     * @param {Element} node
+     * @param {number} sectionId
+     * @returns {Record<string, any>}
+     */
+    buildPanelSection(node, sectionId) {
+        /** @type {Record<string, any>} */
+        const attrs = {};
+        for (const attrName of node.getAttributeNames()) {
+            attrs[attrName] = node.getAttribute(attrName);
+        }
+
+        const type = attrs.select === "multi" ? "filter" : "category";
+        /** @type {Record<string, any>} */
+        const section = {
+            color: attrs.color || null,
+            description: attrs.string || this.fields[attrs.name]?.string || attrs.name,
+            enableCounters: evaluateBooleanExpr(attrs.enable_counters),
+            expand: evaluateBooleanExpr(attrs.expand),
+            fieldName: attrs.name,
+            icon: _normalizeIconClass(attrs.icon),
+            id: sectionId,
+            limit: evaluateExpr(attrs.limit || String(DEFAULT_LIMIT)),
+            type,
+            values: new Map(),
+        };
+        if (type === "category") {
+            const categoryDefault = this.searchPanelDefaults[attrs.name];
+            section.activeValueId = Array.isArray(categoryDefault)
+                ? categoryDefault[0]
+                : categoryDefault;
+            section.icon = section.icon || "fa-solid fa-folder";
+            section.hierarchize = evaluateBooleanExpr(attrs.hierarchize || "1");
+            section.depth = attrs.depth ? Number.parseInt(attrs.depth, 10) : 0;
+            section.values.set(false, {
+                childrenIds: [],
+                display_name: ALL.toString(),
+                id: false,
+                bold: true,
+                parentId: false,
+            });
+        } else {
+            section.domain = attrs.domain || "[]";
+            section.groupBy = attrs.groupby || null;
+            section.icon = section.icon || "fa-solid fa-filter";
+        }
+        return section;
+    }
+
+    /**
      * @param {Element} searchPanelNode
      * @returns {false}
      */
@@ -455,46 +617,11 @@ export class SearchArchParser {
             if (this.isHidden(node)) {
                 continue;
             }
-            const attrs = {};
-            for (const attrName of node.getAttributeNames()) {
-                attrs[attrName] = node.getAttribute(attrName);
-            }
-
-            const type = attrs.select === "multi" ? "filter" : "category";
-            const section = {
-                color: attrs.color || null,
-                description:
-                    attrs.string || this.fields[attrs.name]?.string || attrs.name,
-                enableCounters: evaluateBooleanExpr(attrs.enable_counters),
-                expand: evaluateBooleanExpr(attrs.expand),
-                fieldName: attrs.name,
-                icon: _normalizeIconClass(attrs.icon),
-                id: sectionId,
-                limit: evaluateExpr(attrs.limit || String(DEFAULT_LIMIT)),
-                type,
-                values: new Map(),
-            };
-            if (type === "category") {
-                const categoryDefault = this.searchPanelDefaults[attrs.name];
-                section.activeValueId = Array.isArray(categoryDefault)
-                    ? categoryDefault[0]
-                    : categoryDefault;
-                section.icon = section.icon || "fa-solid fa-folder";
-                section.hierarchize = evaluateBooleanExpr(attrs.hierarchize || "1");
-                section.depth = attrs.depth ? Number.parseInt(attrs.depth, 10) : 0;
-                section.values.set(false, {
-                    childrenIds: [],
-                    display_name: ALL.toString(),
-                    id: false,
-                    bold: true,
-                    parentId: false,
-                });
+            const section = this.buildPanelSection(node, sectionId);
+            if (section.type === "category") {
                 hasCategoryWithCounters =
                     hasCategoryWithCounters || section.enableCounters;
             } else {
-                section.domain = attrs.domain || "[]";
-                section.groupBy = attrs.groupby || null;
-                section.icon = section.icon || "fa-solid fa-filter";
                 hasFilterWithDomain = hasFilterWithDomain || section.domain !== "[]";
             }
             this.sections.push([section.id, section]);

@@ -1,19 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_compiler */
-
 /**
  * @typedef Compiler
  * @property {string} selector
  * @property {(el: Element, params: Record<string, any>) => Element} fn
  * @property {string} [class]
  * @property {boolean} [doNotCopyAttributes]
- * @property {number} [sequence] dispatch order, lowest first; defaults to
- *   `DEFAULT_COMPILER_SEQUENCE`. Below it to intercept a node the built-ins also
- *   match, above it to run only where they do not.
- * @property {boolean} [builtIn] set by the constructor on the base compilers;
- *   shadow reporting is about extensions being suppressed, so it skips these.
+ * @property {number} [sequence]
+ * @property {boolean} [builtIn]
  */
 import { App } from "@odoo/owl";
 import {
@@ -31,39 +26,16 @@ import {
     SELF_HANDLED_ATTR,
     selfHandledSelector,
 } from "./self_handled.js";
-import { BUTTON_CLICK_PARAMS } from "./view_buttons.js";
+import { BUTTON_CLICK_PARAMS, BUTTON_MODIFIERS } from "./view_buttons.js";
 import { toStringExpression } from "./view_utils.js";
 const BUTTON_STRING_PROPS = ["string", "size", "title", "icon", "id"];
-const INTERP_REGEXP = /(\{\{|#\{)(.*?)(\}{1,2})/g;
+const INTERP_OPENERS = { "{{": "}}", "#{": "}" };
 
-/** Modifiers consumed by the compiler itself; never copied onto the output. */
 const MODIFIER_ATTRS = ["column_invisible", "invisible", "readonly", "required"];
 
-/**
- * Arch tags that own their compilation: each has its own entry in
- * `ViewCompiler.compilers` and turns into a component, not into markup. A Bootstrap
- * positioning class on one of them is styling for the wrapper that component renders
- * — never a dropdown container, whose recognised shape is a *parent* directly holding
- * a toggle and a menu, something these tags never have as children.
- *
- * They are excluded from the dropdown selector because dispatch is first-match-wins
- * and the dropdown entry precedes theirs. Without this, `<field class="btn-group"/>`,
- * `<widget class="btn-group"/>` and `<button type="object" class="btn-group"/>` were
- * claimed by `compileDropdown`, found no toggle/menu pair, and fell through to
- * `compileGenericNode` — emitting the raw arch tag into the DOM as an inert element.
- * The field never rendered, the widget never instantiated and the button did nothing
- * when clicked, all silently, decided by a *class name*.
- * Guarded by `stock/static/tests/operations_form_arch.test.js`.
- */
 const NOT_SELF_COMPILING_TAG =
     ":not(field):not(widget):not(button):not(a[type]):not(a[data-type])";
 
-/**
- * Elements Bootstrap accepts as a dropdown's positioning parent. A construct is
- * only recognised when one of these directly contains both the toggle and the
- * menu, which is also the shape Bootstrap itself documents. A bare
- * toggle/menu pair with no such parent is left alone.
- */
 const DROPDOWN_CONTAINER_SELECTOR = [
     ".dropdown",
     ".dropup",
@@ -76,13 +48,6 @@ const DROPDOWN_CONTAINER_SELECTOR = [
     .join(",");
 const DROPDOWN_TOGGLE_SELECTOR = selfHandledSelector("dropdown");
 
-/**
- * Marks the two halves of a modal construct — the control that opens it and the
- * `.modal` itself — with a shared key, so each can compile to the same entry of
- * the renderer's `archDialogs` state. Bootstrap pairs them with a CSS selector
- * in `data-bs-target`, which only resolves at runtime; the pairing has to be
- * resolved once, up front, while the whole arch tree is still in hand.
- */
 const ARCH_DIALOG_KEY_ATTR = "data-arch-dialog";
 const MODAL_TRIGGER_SELECTOR = selfHandledSelector("modal")
     .split(",")
@@ -91,31 +56,86 @@ const MODAL_TRIGGER_SELECTOR = selfHandledSelector("modal")
 const MODAL_DISMISS_SELECTOR = '[data-modal-dismiss],[data-bs-dismiss="modal"]';
 const ARCH_DIALOGS_EXPR = "__comp__.archDialogs";
 
-/**
- * The dispatch priority every built-in carries, and the default for anything
- * that declares none. Mid-scale on purpose, so an extension has room on both
- * sides without renumbering the built-ins.
- */
 export const DEFAULT_COMPILER_SEQUENCE = 50;
+
+/**
+ * @param {string} str
+ * @param {number} start
+ * @param {string} opener
+ * @returns {{ expr: string, end: number }}
+ */
+function findInterpolationEnd(str, start, opener) {
+    const closer = INTERP_OPENERS[opener];
+    /**
+     * @type {string[]}
+     */
+    const stack = [];
+    let depth = 0;
+    let i = start + opener.length;
+    while (i < str.length) {
+        const char = str[i];
+        const context = stack.at(-1);
+        if (context && context !== "${") {
+            if (char === "\\") {
+                i += 2;
+            } else if (char === context) {
+                stack.pop();
+                i++;
+            } else if (context === "`" && char === "$" && str[i + 1] === "{") {
+                stack.push("${");
+                i += 2;
+            } else {
+                i++;
+            }
+            continue;
+        }
+        if (char === "'" || char === '"' || char === "`") {
+            stack.push(char);
+        } else if (char === "{") {
+            depth++;
+        } else if (char === "}") {
+            if (context === "${") {
+                stack.pop();
+            } else if (depth > 0) {
+                depth--;
+            } else if (str.startsWith(closer, i)) {
+                return {
+                    expr: str.slice(start + opener.length, i),
+                    end: i + closer.length,
+                };
+            }
+        }
+        i++;
+    }
+    throw new Error(
+        `Unterminated "${opener}" interpolation in ${JSON.stringify(str)}: ` +
+            `expected a matching "${closer}"`,
+    );
+}
 
 /**
  * @param {string} str
  * @returns {string}
  */
 export function toInterpolatedStringExpression(str) {
-    const matches = str.matchAll(INTERP_REGEXP);
     const parts = [];
-    let searchString = str;
-    for (const [match, head, expr] of matches) {
-        const index = searchString.indexOf(head);
-        const left = searchString.slice(0, index);
-        if (left) {
-            parts.push(toStringExpression(left));
+    let cursor = 0;
+    let i = 0;
+    while (i < str.length) {
+        const opener = Object.keys(INTERP_OPENERS).find((o) => str.startsWith(o, i));
+        if (!opener) {
+            i++;
+            continue;
+        }
+        const { expr, end } = findInterpolationEnd(str, i, opener);
+        if (i > cursor) {
+            parts.push(toStringExpression(str.slice(cursor, i)));
         }
         parts.push(`(${expr})`);
-        searchString = searchString.slice(index + match.length);
+        cursor = end;
+        i = end;
     }
-    parts.push(toStringExpression(searchString));
+    parts.push(toStringExpression(str.slice(cursor)));
     return parts.join("+");
 }
 
@@ -283,42 +303,31 @@ export function makeIsVisibleExpr(invisible, recordExpr = "__comp__.props.record
 }
 
 /**
- * Selectors already reported by `_warnShadowedCompilers`, module-scoped so the
- * warning fires once per shadowed selector across every compile rather than on
- * every node.
  * @type {Set<string>}
  */
 const warnedShadowedSelectors = new Set();
 
 /**
- * Every shadowing seen since the last reset, as
- * `{shadowed, winner, compiler}` — the extension's selector, the selector that
- * claimed the node first, and the compiler class it happened in.
- *
- * Recorded unconditionally; only the `console.warn` is debug-gated. Detection
- * used to be gated too, which put the one signal that an extension never runs
- * behind the flag least likely to be set where it matters. A silently
- * non-rendering compiler in production is exactly the case worth catching, and a
- * record nothing prints costs a Set insertion on a path that runs once per arch
- * (compiled templates are cached by arch hash).
- *
  * @type {Set<string>}
  */
 const shadowedCompilerReports = new Set();
 
-/** Every shadowing recorded so far. Read by tests; see `resetViewCompilerCache`. */
 export function getShadowedCompilerReports() {
     return [...shadowedCompilerReports].map((entry) => JSON.parse(entry));
 }
 
 export class ViewCompiler {
+    /**
+     * @type {string[]}
+     */
+    static OWL_DIRECTIVE_WHITELIST = [];
+
     constructor(templates) {
         /** @type {number} */
         this.id = 1;
         /** @type {Compiler[]} */
         this.compilers = [
             {
-                // The modal itself carries the key too, hence the exclusion.
                 selector: `[${ARCH_DIALOG_KEY_ATTR}]:not(.modal)`,
                 fn: this.compileModalControl,
                 doNotCopyAttributes: true,
@@ -351,36 +360,15 @@ export class ViewCompiler {
         }
         this.templates = templates;
 
-        this.owlDirectiveRegexesWhitelist = /** @type {any} */ (
+        this.owlDirectiveRegexesWhitelist = /** @type {typeof ViewCompiler} */ (
             this.constructor
-        ).OWL_DIRECTIVE_WHITELIST.map((/** @type {string} */ d) => new RegExp(d));
-        // Everything a subclass appends in `setup()` (notably the registry-
-        // contributed `form_compilers`) lands after this point; dispatch is
-        // first-match-wins over `this.compilers` in order, so those late entries
-        // can be silently shadowed by a built-in. Record the boundary to warn.
+        ).OWL_DIRECTIVE_WHITELIST.map((d) => new RegExp(d));
         this.baseCompilerCount = this.compilers.length;
         this.setup();
         this._sortCompilers();
     }
 
-    /**
-     * Order dispatch by declared `sequence`, lowest first.
-     *
-     * Dispatch is first-match-wins, and before this the order was whatever
-     * `setup()` happened to do to the array. A subclass needing to intercept a
-     * node the built-ins also match had one move — `unshift` — and one needing
-     * to run after them had another — `push` — with the array position standing
-     * in for a priority nobody wrote down. `project_task_kanban_compiler` uses
-     * `unshift` for exactly that reason.
-     *
-     * The sort is **stable** and every built-in carries
-     * `DEFAULT_COMPILER_SEQUENCE`, so an entry that declares no sequence keeps
-     * the position `push`/`unshift` gave it: both existing idioms mean what they
-     * have always meant, and `sequence` is how a new one says so out loud.
-     */
     _sortCompilers() {
-        // Array.prototype.sort is required to be stable (ES2019), which is what
-        // makes the no-sequence case a no-op rather than a reshuffle.
         this.compilers.sort(
             (a, b) =>
                 (a.sequence ?? DEFAULT_COMPILER_SEQUENCE) -
@@ -458,9 +446,6 @@ export class ViewCompiler {
 
         const winnerIndex = this.compilers.findIndex((cp) => node.matches(cp.selector));
         const compiler = winnerIndex === -1 ? undefined : this.compilers[winnerIndex];
-        // Only worth walking when a subclass actually contributed something; a
-        // stock compiler can shadow nothing but its own built-ins, which is the
-        // documented dispatch order rather than a defect.
         if (winnerIndex !== -1 && this.compilers.length > this.baseCompilerCount) {
             this._warnShadowedCompilers(node, winnerIndex);
         }
@@ -481,31 +466,12 @@ export class ViewCompiler {
     }
 
     /**
-     * A registered (subclass-appended) compiler that also matches a node an
-     * earlier compiler already claimed never runs -- first-match-wins reaches
-     * the earlier one first, and registry entries are appended after the
-     * built-ins, so a selector that also matches a built-in target (field,
-     * widget, button, a[type], .modal, dropdown) cannot intercept it. The
-     * registration validates and is then silently never dispatched.
-     *
-     * Every occurrence is recorded in `shadowedCompilerReports`, whatever the
-     * debug flag; debug additionally warns once per shadowed selector so an
-     * addon author sees the dead compiler. Built-in-vs-built-in overlap is
-     * deliberate ordering, not a bug, so entries carrying `builtIn` are skipped.
-     *
-     * A shadowed compiler is now avoidable rather than merely detectable: give
-     * it a `sequence` below `DEFAULT_COMPILER_SEQUENCE` and it dispatches first.
-     *
      * @param {Element} node
      * @param {number} winnerIndex
      */
     _warnShadowedCompilers(node, winnerIndex) {
         for (let i = winnerIndex + 1; i < this.compilers.length; i++) {
             const shadowed = this.compilers[i];
-            // Index is no longer the test: `_sortCompilers` reorders by
-            // sequence, so `baseCompilerCount` stopped identifying which entries
-            // are built-in the moment an extension declared a sequence below
-            // them. The flag survives the sort.
             if (shadowed.builtIn) {
                 continue;
             }
@@ -536,14 +502,6 @@ export class ViewCompiler {
     }
 
     /**
-     * Resolve every `data-bs-target` selector to the `.modal` it names and stamp
-     * both ends with a shared key. Run once per template, before compilation,
-     * because a trigger and its modal sit in different branches of the arch and
-     * are compiled independently.
-     *
-     * A modal nobody opens, or a trigger pointing at nothing, is left unpaired
-     * and so compiles as ordinary markup.
-     *
      * @param {Element} root
      */
     pairArchDialogs(root) {
@@ -558,7 +516,6 @@ export class ViewCompiler {
             try {
                 modal = root.querySelector(selector);
             } catch {
-                // `data-bs-target` is author-written and need not be valid CSS.
                 continue;
             }
             if (!modal?.classList.contains("modal")) {
@@ -575,14 +532,6 @@ export class ViewCompiler {
     }
 
     /**
-     * Compile a `.modal` written in arch into the web client's own `Dialog`.
-     *
-     * Bootstrap's modal is a block of markup that is present but hidden until
-     * its data-api shows it; `Dialog` is mounted into the overlay only while
-     * open. The open flag therefore has to live somewhere, and the renderer
-     * owns it: `archDialogs` is keyed by the pairing above, so the trigger and
-     * every dismiss control inside the modal address the same entry.
-     *
      * @param {Element} el
      * @param {Record<string, any>} params
      * @returns {Element}
@@ -590,7 +539,6 @@ export class ViewCompiler {
     compileModal(el, params) {
         const key = el.getAttribute(ARCH_DIALOG_KEY_ATTR);
         if (!key) {
-            // No control in this arch opens it, so there is nothing to drive.
             return this.compileGenericNode(el, params);
         }
         const openExpr = `${ARCH_DIALOGS_EXPR}['${key}']`;
@@ -625,8 +573,6 @@ export class ViewCompiler {
     }
 
     /**
-     * Compile a control that opens or closes a paired modal.
-     *
      * @param {Element} el
      * @param {Record<string, any>} params
      * @returns {Element}
@@ -646,19 +592,11 @@ export class ViewCompiler {
             el.removeAttribute(attr);
         }
         el.removeAttribute(ARCH_DIALOG_KEY_ATTR);
-        // The control keeps whatever else it declares, so a dismissing
-        // `<a type="action">` still compiles to its action button.
         const compiled = this.compileNode(el, params, false);
-        // `compileNode` also answers with text nodes and with nothing at all;
-        // only an element can carry the handler.
         const element =
             compiled && !isTextNode(compiled)
                 ? /** @type {Element} */ (compiled)
                 : null;
-        // A control that compiled to a component takes no DOM handler: OWL
-        // does not bind `t-on-*` on a component node, and emitting one would
-        // produce a template that fails to compile. Such a control runs its
-        // own action and leaves the dialog to whatever that action triggers.
         if (element && !isComponentNode(element)) {
             element.setAttribute(
                 "t-on-click",
@@ -669,19 +607,6 @@ export class ViewCompiler {
     }
 
     /**
-     * Compile a Bootstrap dropdown written in arch into an OWL `Dropdown`.
-     *
-     * Arch — including arch stored in the database, which no source grep can
-     * reach — has always spelled a dropdown as a positioning container holding
-     * a `data-bs-toggle="dropdown"` control and a sibling `.dropdown-menu`.
-     * Recognising that shape here is what lets those views keep working once
-     * Bootstrap's JS is gone, rather than each one having to be rewritten.
-     *
-     * The container itself is kept and compiled as an ordinary element: its
-     * classes and modifiers belong to the surrounding layout, and `Dropdown`
-     * takes no class of its own. Only the toggle/menu pair inside it is
-     * replaced.
-     *
      * @param {Element} el
      * @param {Record<string, any>} params
      * @returns {Element}
@@ -691,7 +616,6 @@ export class ViewCompiler {
         const toggleEl = children.find((c) => c.matches(DROPDOWN_TOGGLE_SELECTOR));
         const menuEl = children.find((c) => c.classList.contains("dropdown-menu"));
         if (!toggleEl || !menuEl) {
-            // A positioning class used for layout only, with no dropdown in it.
             return this.compileGenericNode(el, params);
         }
 
@@ -713,14 +637,9 @@ export class ViewCompiler {
             );
         }
         if (menuEl.classList.contains("dropdown-menu-end")) {
-            // Bootstrap aligns the menu with a class; `Dropdown` positions it.
             dropdown.setAttribute("position", toStringExpression("bottom-end"));
         }
 
-        // Swapped rather than dropped: the toggle must stop being a Bootstrap
-        // control (or the data-api would open a second menu once both are on
-        // the page) while still being excluded from `compileButton`, which
-        // would otherwise read its `type="button"` as an Odoo action type.
         toggleEl.removeAttribute("data-bs-toggle");
         toggleEl.removeAttribute("aria-expanded");
         toggleEl.setAttribute("data-self-handled", "1");
@@ -773,6 +692,7 @@ export class ViewCompiler {
 
         const clickParams = {};
         const attrs = {};
+        const modifiers = {};
         for (const { name, value } of el.attributes) {
             if (BUTTON_CLICK_PARAMS.includes(name)) {
                 clickParams[name] = value;
@@ -781,6 +701,8 @@ export class ViewCompiler {
                     "disabled",
                     exprToBoolean(value) ? "true" : "false",
                 );
+            } else if (BUTTON_MODIFIERS.includes(name)) {
+                modifiers[name] = value;
             } else if (BUTTON_STRING_PROPS.includes(name)) {
                 button.setAttribute(name, toStringExpression(value));
             } else if (!name.startsWith("t-")) {
@@ -790,6 +712,7 @@ export class ViewCompiler {
 
         button.setAttribute("clickParams", JSON.stringify(clickParams));
         button.setAttribute("attrs", JSON.stringify(attrs));
+        button.setAttribute("modifiers", JSON.stringify(modifiers));
 
         const buttonContent = [];
         for (const child of el.childNodes) {
@@ -878,16 +801,14 @@ export class ViewCompiler {
     }
 
     validateNode(node) {
-        const attributes = Object.values(node.attributes).map((attr) => attr.name);
         const regexes = this.owlDirectiveRegexesWhitelist;
-        for (const attr of attributes) {
-            if (attr.startsWith("t-") && !regexes.some((regex) => regex.test(attr))) {
-                console.warn(`Forbidden directive ${attr} used in arch`);
+        for (const { name } of node.attributes) {
+            if (name.startsWith("t-") && !regexes.some((regex) => regex.test(name))) {
+                console.warn(`Forbidden directive ${name} used in arch`);
             }
         }
     }
 }
-ViewCompiler.OWL_DIRECTIVE_WHITELIST = [];
 
 let templateCache = new Set();
 /**
@@ -899,19 +820,6 @@ const archKeyCache = new WeakMap();
  */
 const compilerClassKeys = new WeakMap();
 let nextCompilerClassId = 1;
-/**
- * The key is the class **object**, so it survives `patch()`: patching a
- * compiler's prototype mutates it in place and leaves the class identity — and
- * therefore this key — unchanged. Anything already compiled under it stays
- * cached and the patch does not reach it.
- *
- * That is latent rather than live today, because patches apply at module
- * evaluation, before any view renders. It becomes reachable the moment a
- * **lazily loaded bundle** patches a compiler after a view of that class has
- * already rendered — worth knowing before the next lazy-bundle split, since the
- * symptom would be a patch that silently does nothing for one arch and works
- * for the next.
- */
 function getCompilerClassKey(ViewCompiler) {
     let classKey = compilerClassKeys.get(ViewCompiler);
     if (!classKey) {
@@ -940,7 +848,7 @@ function getArchKey(template) {
  * @param {Record<string, any>} [params]
  * @returns {Record<string, string>}
  */
-export function useViewCompiler(ViewCompiler, templates, params) {
+export function compileViewTemplates(ViewCompiler, templates, params) {
     /** @type {Record<string, string>} */
     const compiledTemplates = {};
     let compiler;
@@ -948,12 +856,6 @@ export function useViewCompiler(ViewCompiler, templates, params) {
         ? JSON.stringify(Object.entries(params).sort(([a], [b]) => a.localeCompare(b)))
         : "";
     const names = Object.keys(templates);
-    // A compiler is handed the whole template map and may read siblings while
-    // compiling one of them — `KanbanCompiler.compileTCall` emits a different
-    // `t-call` depending on whether the called name is a sibling. The same arch
-    // therefore compiles two ways, so the set is part of the cache identity;
-    // keying on one member's arch alone lets the two share a slot and makes
-    // whichever view compiled first decide how the other renders.
     const setKey = cyrb53(
         names
             .map((name) => `${name}:${getArchKey(templates[name])}`)
@@ -976,10 +878,6 @@ export function useViewCompiler(ViewCompiler, templates, params) {
 
 export function resetViewCompilerCache() {
     templateCache = new Set();
-    // Both shadow-tracking sets are module state with the same lifetime as the
-    // cache: a suite that compiled a deliberately-shadowed compiler would
-    // otherwise leak the record into the next one, and the once-per-selector
-    // warning would stay suppressed for the rest of the run.
     shadowedCompilerReports.clear();
     warnedShadowedSelectors.clear();
 }

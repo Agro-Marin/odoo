@@ -43,9 +43,6 @@
 
     .fa-regular.fa-hand-point-right,
     .fa-regular.fa-hand-point-left {
-        // Horizontal mirror, not rotation: rotate(180deg) also flips the vertical
-        // axis, which mangles every glyph that is not symmetric about it
-        // (fa-align-*, fa-turn-*, fa-quote-*, fa-arrow-rotate-*, fa-hand-point-*).
         transform: scaleX(-1);
     }
 }

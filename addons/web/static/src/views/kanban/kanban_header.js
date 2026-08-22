@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/kanban_header */
-
 import { Component, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
@@ -54,10 +52,6 @@ export class KanbanHeader extends Component {
     popover;
 
     setup() {
-        // Same re-targeting as `KanbanRenderer`: the bare `reactive()` handed
-        // down as a prop only tracks reads made through a proxy owned by the
-        // reading component. Without this the bar counts and the active-bar
-        // highlight stop refreshing once the blanket render is gone.
         this.progressBarState = this.props.progressBarState
             ? useState(this.props.progressBarState)
             : undefined;
@@ -71,8 +65,6 @@ export class KanbanHeader extends Component {
             getMenuActiveActions: () => this.props.activeActions,
             getDialogClose: () => this.props.dialogClose,
             getExtraConfigItems: () => this.extraConfigItems,
-            // Through the renderer's prop so its (overridable) delete flow
-            // stays in charge.
             deleteGroup: (group) => this.props.deleteGroup(group),
         });
     }
@@ -101,8 +93,6 @@ export class KanbanHeader extends Component {
     }
 
     /**
-     * Config items the kanban prepends to the registry-provided ones.
-     *
      * @returns {Array<[string, Object]>}
      */
     get extraConfigItems() {

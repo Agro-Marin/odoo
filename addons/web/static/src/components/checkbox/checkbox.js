@@ -1,11 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/checkbox/checkbox */
-
-import { Component, onPatched, status, useRef } from "@odoo/owl";
+import { Component, status, useRef } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
+import { useSyncedInputProperty } from "@web/core/utils/hooks";
 /**
  * @extends Component
  */
@@ -13,7 +12,6 @@ import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 export class CheckBox extends Component {
     static template = "web.CheckBox";
     static nextId = 1;
-    static warnedRevert = new Set();
     static defaultProps = {
         onChange: () => {},
     };
@@ -59,17 +57,22 @@ export class CheckBox extends Component {
         this.id = `checkbox-comp-${CheckBox.nextId++}`;
         this.rootRef = useRef("root");
 
-        onPatched(() => this.syncWithValue());
+        this.syncWithValue = useSyncedInputProperty(
+            () => this.input,
+            () => this.props.value,
+            { property: "checked" },
+        );
 
         useHotkey(
             "Enter",
-            ({ area }) => {
+            () => {
                 if (this.props.disabled) {
                     return;
                 }
-                const input = /** @type {HTMLInputElement} */ (
-                    area.querySelector("input")
-                );
+                const input = this.input;
+                if (!input) {
+                    return;
+                }
                 this.toggle(input, !(this.props.value ?? input.checked));
             },
             {
@@ -83,23 +86,6 @@ export class CheckBox extends Component {
     get input() {
         return this.rootRef.el?.querySelector("input") ?? null;
     }
-
-    /**
-     * @returns {boolean}
-     */
-    syncWithValue() {
-        const input = this.input;
-        if (
-            input &&
-            this.props.value !== undefined &&
-            input.checked !== this.props.value
-        ) {
-            input.checked = this.props.value;
-            return true;
-        }
-        return false;
-    }
-
     /**
      * @param {HTMLInputElement} input
      * @param {boolean} checked
@@ -121,16 +107,13 @@ export class CheckBox extends Component {
                 if (!this.env.debug) {
                     return;
                 }
-                if (!CheckBox.warnedRevert.has(this.constructor)) {
-                    CheckBox.warnedRevert.add(this.constructor);
-                    console.warn(
-                        "[CheckBox] reverted a click because `value` never moved. " +
-                            "Either the parent rejected the change, or it stored it " +
-                            "somewhere owl cannot see (a plain Set/Map/field instead " +
-                            "of `useState`) — in which case the model took the change " +
-                            "and only the box snapped back.",
-                    );
-                }
+                console.warn(
+                    "[CheckBox] reverted a click because `value` never moved. " +
+                        "Either the parent rejected the change, or it stored it " +
+                        "somewhere owl cannot see (a plain Set/Map/field instead " +
+                        "of `useState`) — in which case the model took the change " +
+                        "and only the box snapped back.",
+                );
             });
     }
 
@@ -139,7 +122,7 @@ export class CheckBox extends Component {
         if (
             ev
                 .composedPath()
-                .find((el) =>
+                .some((el) =>
                     ["INPUT", "LABEL"].includes(/** @type {Element} */ (el).tagName),
                 )
         ) {
@@ -147,9 +130,10 @@ export class CheckBox extends Component {
             return;
         }
 
-        const input = /** @type {HTMLInputElement} */ (
-            /** @type {HTMLElement} */ (this.rootRef.el).querySelector("input")
-        );
+        const input = this.input;
+        if (!input) {
+            return;
+        }
         input.focus();
         if (!this.props.disabled) {
             ev.stopPropagation();

@@ -13,6 +13,25 @@ Scope: `addons/web/static/src`, measured against its consumers in `odoo/addons`,
 > **Read *Verification* (below) before quoting anything here.** The first draft's
 > figures were undercounts produced by a scanner that did not walk inheritance
 > chains, and one finding (F5) was withdrawn as unsound.
+>
+> **Measurement base: `891d617a711` (2026-08-09).** Figures here fall into two
+> kinds, and the difference decides whether a mismatch is drift or a defect:
+>
+> - **Frozen.** Everything from the v2 inheritance resolver — 1,101 subclasses,
+>   440 override points, 144 base classes, the per-class subclass counts, and
+>   `ListRenderer`'s 1,333 lines. That scanner was ad-hoc and **is not in the
+>   tree**, so these cannot be re-derived; they are readings of that commit and
+>   nothing else. `list_renderer.js` is 1,472 lines at HEAD — that is growth
+>   since the base, not an error here. Do not "correct" a frozen figure to a
+>   current one: it would silently restate the base the surrounding argument
+>   rests on.
+> - **Gated.** The cheap, re-derivable ones — `@ts-check` coverage, the pinned
+>   import surface, the `actions/checkout` count — are pinned live by
+>   `factcheck.sh` and track HEAD. Where one also appears in `ARCHITECTURE.md`,
+>   both now derive from a single measurement.
+>
+> A figure that is neither is a liability, which is how *756 of 763* survived
+> eight revisions inside *Survived unchanged*.
 
 ---
 
@@ -24,7 +43,7 @@ inheritance is how the fork extends it.
 
 | Surface | Size | Declared? | Gated? |
 |---|---|---|---|
-| Import specifiers (`@web/...` from outside) | 235 pinned | yes — `public_surface_web.txt` | yes, shrink-only |
+| Import specifiers (`@web/...` from outside) | 218 pinned | yes — `public_surface_web.txt` | yes, shrink-only |
 | Private reaches inside `model/relational_model/` | 4 contract files | yes — array + typedef | yes, ratchet + conformance |
 | **Method overrides by downstream subclasses** | **440 points, 1,101 subclasses, 144 base classes** | **no** | **no** |
 
@@ -40,9 +59,15 @@ tsc      : 2100 errors == the committed ratchet floor        ← lane passes
 
 Zero new failures. 19 classes across `odoo/addons` and `enterprise` override
 that method; **18 of the 19 have no test that references them at all**, and
-`enterprise` is never checked out by odoo's CI (all 18 `actions/checkout` steps
-take no `repository:`), so half the breakage is invisible to that CI by
-construction.
+`enterprise` is never checked out by odoo's CI — **no `actions/checkout` step in
+any workflow passes `repository:`, and the key appears nowhere at all** — so
+half the breakage is invisible to that CI by construction.
+
+The claim carries no step count on purpose. It had one (18 at the base above,
+19 by 2026-08-16), it was gated, and it broke the same hour the machine-doc lane
+added a twentieth. The count shapes no decision here; the zero is the whole
+argument. §1.4's "prefer omitting an incidental figure to gating it" was written
+from this.
 
 The fix does not need inventing. `public/interaction.js` shows what a narrow,
 declarative extension contract looks like at 237 subclasses, and
@@ -128,7 +153,18 @@ so any chain through them breaks.** The true figures are therefore floors.
 
 ### Survived unchanged
 
-- `@ts-check` on **756 of 763** files — exact.
+- `@ts-check` on **805 of 807** files — the two exclusions are
+  `module_loader.js` and `service_worker.js`.
+
+  This read *756 of 763, exact* from the first revision until 2026-08-16, and
+  the way it was wrong is worth keeping. At the base above the tree held 758
+  files, 756 typed: the **numerator was right and the denominator was not** —
+  `ARCHITECTURE.md` said 758 that same day. The pair implies seven untyped
+  files, and there have only ever been two, so it described no tree that has
+  ever existed. Then the tree grew to 763, the denominator came true by
+  accident, and the numerator went stale — a half-correct figure that now reads
+  as merely outdated rather than as the transcription error it was. Both halves
+  are gated against one measurement, so they can no longer be right separately.
 - `any` in JSDoc type positions — published 2,447; a stricter JSDoc-only count
   gives **2,480**, i.e. the published figure was slightly conservative. Only 13
   matches came from outside JSDoc.
@@ -207,14 +243,17 @@ hooks during setup, then carry on*.
 This replaces the draft's weaker "2,447 `any`s" framing, which was true but not
 the point.
 
-`addons/web` is well typed internally: 756 of 763 files carry `@ts-check`.
+`addons/web` is well typed internally: 805 of 807 files carry `@ts-check`.
 Outside it, essentially nothing does:
 
 | tree | files with `@ts-check` |
 |---|---|
-| `addons/web` | 756 |
-| all other `odoo/addons` JS (4,956 files) | **40** |
+| `addons/web` | 805 |
+| all other `odoo/addons` JS (4,997 files) | **40** |
 | `enterprise` | **10** |
+
+The two outside figures re-measure exactly; only web's own was wrong, and the
+4,997 moves with the bundled tree — read it as scale, not as a pin.
 
 So the 440 override points are unchecked **from the side that consumes them**,
 by construction. Verified concretely: none of the 7 `odoo/addons` files broken by

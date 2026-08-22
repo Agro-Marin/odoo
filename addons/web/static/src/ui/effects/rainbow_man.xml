@@ -58,26 +58,11 @@
                     </svg>
                     <div class="o_reward_msg mx-4">
                         <div class="o_reward_msg_card">
-                            <!--
-                                The same message is announced when effects are
-                                switched off, because `effect_service` falls back
-                                to `notification.add` (role="status"). Without a
-                                live region here the reward is silent for exactly
-                                the users who cannot see the animation.
-                            -->
                             <div class="o_reward_msg_content text-muted px-3 py-4 bg-view d-inline-block border border-light border-top-0"
                                 role="status">
                                 <t t-if="!props.Component">
                                     <t t-out="props.message"/>
                                 </t>
-                                <!--
-                                    `close`, like the popover and the bottom
-                                    sheet hand their hosted component: clicking
-                                    inside this card deliberately does NOT
-                                    dismiss the reward, so that its own buttons
-                                    work, which left a hosted card with no way
-                                    out at all.
-                                -->
                                 <t t-else="" t-component="props.Component" t-props="props.props" close="props.close"/>
                             </div>
                         </div>

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/overlay/overlay_container */
-
 import {
     Component,
     onWillDestroy,
@@ -18,25 +16,11 @@ import { ErrorHandler } from "@web/core/utils/components";
 
 export const OVERLAY_SYMBOL = Symbol("Overlay");
 
-/**
- * Where an overlay lands in the stack when its caller names no sequence. Owned
- * here and imported by `overlay_service`, which is the only writer: two copies
- * of the number meant the stacking order the container compares by could
- * silently stop matching the one the service assigns.
- */
 export const DEFAULT_OVERLAY_SEQUENCE = 50;
 
 const OVERLAY_ITEMS = Symbol("OverlayItems");
 
 /**
- * Gives descendants `baseEnv` extended with `extension`, where `baseEnv`
- * replaces the inherited environment rather than extending it.
- *
- * Owl has no API for replacing it, so this writes `childEnv` and then extends
- * it, in that order. Doing so in one call keeps the order from being an
- * unstated precondition of the caller: reversed, the extension is silently
- * dropped.
- *
  * @param {object | undefined} baseEnv
  * @param {object} extension
  */
@@ -116,6 +100,7 @@ class OverlayItem extends Component {
 export class OverlayContainer extends Component {
     static template = "web.OverlayContainer";
     static components = { ErrorHandler, OverlayItem };
+    static serviceName = "overlay";
     static props = {
         overlays: { type: Object, optional: true },
         rootId: { type: String, optional: true },
@@ -124,9 +109,7 @@ export class OverlayContainer extends Component {
     setup() {
         this.root = useRef("root");
         this.state = useState({ rootId: this.props.rootId });
-        // eslint-disable-next-line no-restricted-syntax
-        const overlays = this.props.overlays ?? this.env.services.overlay.overlays;
-        this.overlays = useState(overlays);
+        this.overlays = useState(this.props.overlays ?? this.serviceOverlays);
         useChildSubEnv({ [OVERLAY_ITEMS]: [] });
         if (!this.props.rootId) {
             useEffect(
@@ -138,6 +121,22 @@ export class OverlayContainer extends Component {
                 () => [this.root.el],
             );
         }
+    }
+
+    /**
+     * @returns {Record<number, any>}
+     */
+    get serviceOverlays() {
+        const { name, serviceName } = /** @type {any} */ (this.constructor);
+        // eslint-disable-next-line no-restricted-syntax
+        const service = this.env.services[serviceName];
+        if (!service) {
+            throw new Error(
+                `${name}.serviceName is "${serviceName}", but no such service is started in this env. ` +
+                    `Pass an \`overlays\` prop, or start the service.`,
+            );
+        }
+        return service.overlays;
     }
 
     /**

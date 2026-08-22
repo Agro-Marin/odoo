@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/special_data */
-
 import {
     onWillDestroy,
     onWillUpdateProps,
@@ -10,6 +8,7 @@ import {
     useComponent,
     useState,
 } from "@odoo/owl";
+import { useService } from "@web/core/utils/hooks";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 /** @import { Component } from "@odoo/owl" */
 /** @import { Services } from "services" */
@@ -47,7 +46,7 @@ export function useSpecialData(loadFn) {
     const component = useComponent();
     const record = component.props.record;
     const { specialDataCaches } = record.model;
-    const orm = component.env.services.orm;
+    const orm = useService("orm");
     let loadTicket = 0;
     let appliedTicket = 0;
     const apply = (ticket, data) => {

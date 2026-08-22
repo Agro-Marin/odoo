@@ -1,15 +1,18 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/text/text_field */
-
 import { useRef } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { useAutoresize } from "@web/core/utils/dom/autoresize";
 import { useSpellCheck } from "@web/core/utils/hooks";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { registerField } from "@web/fields/_registry";
-import { fieldHandle } from "@web/fields/field_handle";
+import {
+    archAttribute,
+    dynamicPlaceholderDependency,
+    dynamicPlaceholderOptions,
+    placeholderFieldOption,
+} from "@web/fields/field_options";
 import { parseDimensionAttr } from "@web/fields/field_utils";
 import { useInputField } from "@web/fields/input_field_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -35,11 +38,6 @@ export class TextField extends TextInputFieldBase {
         dynamicPlaceholder: false,
         rowCount: 2,
     };
-
-    /** @returns {import("@web/fields/field_handle").FieldHandle} */
-    get field() {
-        return fieldHandle(this);
-    }
 
     /** @type {import("@odoo/owl").Ref<HTMLTextAreaElement>} */
     textareaRef;
@@ -83,6 +81,14 @@ export class TextField extends TextInputFieldBase {
 export const textField = {
     component: TextField,
     displayName: _t("Multiline Text"),
+    supportedAttributes: [
+        archAttribute("rows", _t("Rows"), {
+            type: "number",
+            help: _t(
+                "Height of the textarea, in rows. The list variant caps it at one.",
+            ),
+        }),
+    ],
     supportedTypes: ["html", "text", "char"],
     supportedOptions: [
         {
@@ -91,61 +97,18 @@ export const textField = {
             type: "boolean",
             default: true,
         },
-        {
-            label: _t("Dynamic Placeholder"),
-            name: "dynamic_placeholder",
-            type: "boolean",
-            help: _t(
-                "Offer a picker that inserts a {{object.field}} expression into the text.",
-            ),
-        },
-        {
-            label: _t("Dynamic Placeholder model reference"),
-            name: "dynamic_placeholder_model_reference_field",
-            type: "field",
-            availableTypes: ["char"],
-            help: _t("Field holding the model name whose fields the picker offers."),
-        },
-        {
-            label: _t("Dynamic Placeholder"),
-            name: "placeholder_field",
-            type: "field",
-            availableTypes: ["char", "text"],
-            help: _t(
-                "Displays the value of the selected field as a textual hint. If the selected field is empty, the static placeholder attribute is displayed instead.",
-            ),
-        },
+        ...dynamicPlaceholderOptions(),
+        placeholderFieldOption(["char", "text"]),
     ],
-    // `useDynamicPlaceholder.updateModel` reads these out of `record.data` to
-    // decide which model's fields the picker offers. `render_model` is the
-    // server's own answer (`mixin.mail.render._compute_render_model`) and needs
-    // no declaration in the view; a view may still name a field, which wins.
-    // Each is `optional`, so a model that has neither simply drops it.
-    fieldDependencies: ({ options }) => [
-        ...(options?.dynamic_placeholder
-            ? [
-                  { name: "render_model", optional: true, readonly: true },
-                  { name: "model", optional: true, readonly: true },
-              ]
-            : []),
-        ...(options?.dynamic_placeholder_model_reference_field
-            ? [
-                  {
-                      name: options.dynamic_placeholder_model_reference_field,
-                      optional: true,
-                      readonly: true,
-                  },
-              ]
-            : []),
-    ],
+    fieldDependencies: dynamicPlaceholderDependency(),
     extractProps: ({ attrs, options, placeholder }) => ({
         placeholder,
-        dynamicPlaceholder: options?.dynamic_placeholder || false,
+        dynamicPlaceholder: options.dynamic_placeholder || false,
         dynamicPlaceholderModelReferenceField:
-            options?.dynamic_placeholder_model_reference_field || "",
+            options.dynamic_placeholder_model_reference_field || "",
         rowCount: parseDimensionAttr(attrs.rows),
         lineBreaks:
-            options?.line_breaks !== undefined ? Boolean(options.line_breaks) : true,
+            options.line_breaks !== undefined ? Boolean(options.line_breaks) : true,
     }),
 };
 
@@ -168,7 +131,7 @@ export class ListTextField extends TextField {
     }
 }
 
-export const listTextField = {
+const listTextField = {
     ...textField,
     component: ListTextField,
 };

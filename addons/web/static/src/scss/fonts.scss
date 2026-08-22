@@ -1,8 +1,4 @@
 
-// One variable face rather than four static cuts: fewer bytes (71 KB against
-// 97 KB) and one request instead of four, while widening 400/500/600/700 to a
-// continuous 100-900 and carrying the `opsz` axis a static cut cannot. Subset
-// from the upstream release to the same 231 codepoints the static faces had.
 @font-face {
     font-family: "Inter";
     font-style: normal;

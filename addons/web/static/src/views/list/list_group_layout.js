@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module views/list/list_group_layout */
-
 /** @import { Group } from "@web/model/relational_model/group" */
 /** @typedef {import("@web/views/list/list_column_utils").Column} Column */
 

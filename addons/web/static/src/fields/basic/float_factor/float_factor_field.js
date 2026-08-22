@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/float_factor/float_factor_field */
-
 import { _t } from "@web/core/translation";
 import { Operation } from "@web/core/utils/operation";
 import { registerField } from "@web/fields/_registry";
@@ -45,7 +43,7 @@ export class FloatFactorField extends FloatField {
 
     /** @returns {number|false} */
     get value() {
-        const value = this.props.record.data[this.props.name];
+        const value = this.field.value;
         return value === false ? false : value * this.factor;
     }
 }

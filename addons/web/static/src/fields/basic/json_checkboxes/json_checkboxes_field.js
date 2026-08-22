@@ -1,9 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/json_checkboxes/json_checkboxes_field */
-
-import { Component, useState } from "@odoo/owl";
+import { useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { ModelEvent } from "@web/core/events";
 import { _t } from "@web/core/translation";
@@ -11,10 +9,12 @@ import { deepCopy } from "@web/core/utils/collections/objects";
 import { useBus } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
 import { registerField } from "@web/fields/_registry";
+import { FieldComponent } from "@web/fields/field_component";
+import { fieldHandleFor } from "@web/fields/field_handle";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-export class JsonCheckboxes extends Component {
+export class JsonCheckboxes extends FieldComponent {
     static template = "web.JsonCheckboxes";
     static components = { CheckBox };
     static props = {
@@ -28,9 +28,7 @@ export class JsonCheckboxes extends Component {
     pendingToggles;
 
     setup() {
-        this.checkboxes = useState(
-            deepCopy(this.props.record.data[this.props.name] || {}),
-        );
+        this.checkboxes = useState(deepCopy(this.field.value || {}));
         this.debouncedCommitChanges = useDebounced(this.commitChanges, 100, {
             execBeforeUnmount: true,
         });
@@ -46,7 +44,7 @@ export class JsonCheckboxes extends Component {
         });
 
         useRecordObserver((record) => {
-            const value = deepCopy(record.data[this.props.name] || {});
+            const value = deepCopy(fieldHandleFor(record, this.props.name).value || {});
             for (const key of Object.keys(this.checkboxes)) {
                 if (!(key in value)) {
                     delete this.checkboxes[key];
@@ -71,9 +69,7 @@ export class JsonCheckboxes extends Component {
             return;
         }
         this.pendingToggles.clear();
-        return this.props.record.update({
-            [this.props.name]: deepCopy(this.checkboxes),
-        });
+        return this.field.update(deepCopy(this.checkboxes));
     }
 
     /**
@@ -102,7 +98,7 @@ export class JsonCheckboxes extends Component {
 }
 
 /** @type {import("registries").FieldsRegistryItemShape} */
-export const jsonCheckboxes = {
+const jsonCheckboxes = {
     component: JsonCheckboxes,
     supportedOptions: [
         {

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/density/density_service */
-
 import { reactive } from "@odoo/owl";
 import { cookie } from "@web/core/browser/cookie";
 import { registry } from "@web/core/registry";
@@ -30,19 +28,7 @@ export function nextDensity(density) {
     return DENSITIES[(index + 1) % DENSITIES.length];
 }
 
-/**
- * The `density` service.
- *
- * A class rather than a closure returning an object literal; see
- * `core/hotkeys/hotkey_service.js` for the reasoning and
- * `tooling/architecture/js_service_shape.py` for the budget.
- *
- * Only `state` is reactive here, not the service — consumers read
- * `service.state.density` or `service.current` — so this needs no
- * `reactive(new …)` wrapper, unlike `pwa` and `ui` whose whole surface is read
- * from templates.
- */
-export class DensityService {
+class DensityService {
     constructor() {
         const userDensity = user.settings?.density;
         this.state = reactive({

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/form/form_group/form_group */
-
 import { Component } from "@odoo/owl";
 import { sortBy } from "@web/core/utils/collections/arrays";
 class Group extends Component {

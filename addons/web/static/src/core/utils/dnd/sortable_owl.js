@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dnd/sortable_owl */
-
 import { onWillUnmount, reactive, useEffect, useExternalListener } from "@odoo/owl";
 import { useSortable as nativeUseSortable } from "@web/core/utils/dnd/sortable";
 import { useThrottleForAnimation } from "@web/core/utils/timing";

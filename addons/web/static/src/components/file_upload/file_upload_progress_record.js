@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/file_upload/file_upload_progress_record */
-
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 

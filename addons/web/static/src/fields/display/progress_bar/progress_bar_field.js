@@ -1,27 +1,26 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/display/progress_bar/progress_bar_field */
-
 import { Component, useRef, useState } from "@odoo/owl";
 import { getFieldCodec } from "@web/core/field_codec";
 import { parseFloat, parseInteger } from "@web/core/parsers";
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
+import { archAttribute } from "@web/fields/field_options";
 import { useInputField } from "@web/fields/input_field_hook";
 import { useNumpadDecimal } from "@web/fields/numpad_decimal_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 /**
  * @typedef {import("@web/fields/standard_field_props").StandardFieldProps & {
- *  maxValueField?: string | number;
- *  currentValueField?: string;
- *  isEditable?: boolean;
- *  isCurrentValueEditable?: boolean;
- *  isMaxValueEditable?: boolean;
- *  required?: boolean;
- *  title?: string;
- *  overflowClass?: string;
+ * maxValueField?: string | number;
+ * currentValueField?: string;
+ * isEditable?: boolean;
+ * isCurrentValueEditable?: boolean;
+ * isMaxValueEditable?: boolean;
+ * required?: boolean;
+ * title?: string;
+ * overflowClass?: string;
  * }} ProgressBarFieldProps
  */
 
@@ -38,9 +37,6 @@ function toFiniteNumber(value) {
 }
 
 /**
- * The field names this widget writes to -- which are not necessarily the field
- * it is placed on.
- *
  * @param {string} fieldName
  * @param {Record<string, any>} options
  * @returns {string[]}
@@ -106,11 +102,6 @@ export class ProgressBarField extends Component {
     }
 
     /**
-     * There is no surrounding edit session to fold the change into -- a kanban
-     * card, a readonly form -- so the widget has to persist it itself. This used
-     * to be spelled `this.props.readonly`, which was the same thing only for as
-     * long as `readonly` doubled as "the record is not being edited".
-     *
      * @returns {boolean}
      */
     get shouldSaveImmediately() {
@@ -263,18 +254,20 @@ export const progressBarField = {
             default: "bg-secondary",
         },
         {
-            label: _t("Read-only"),
-            name: "readonly",
+            label: _t("Force read-only"),
+            name: "force_readonly",
             type: "boolean",
             help: _t(
                 "Force the bar non-editable even when 'Can edit value' is set -- used to keep a card's bar inert in kanban.",
             ),
         },
     ],
+    supportedAttributes: [
+        archAttribute("title", _t("Title"), {
+            help: _t("Label drawn beside the bar."),
+        }),
+    ],
     supportedTypes: ["integer", "float"],
-    // The bar edits `current_value` / `max_value`, not the field it is placed
-    // on, so the default `record.isFieldInvalid(props.name)` never sees a parse
-    // error from its own inputs and the widget stays unhighlighted.
     isValid: (
         /** @type {any} */ record,
         /** @type {string} */ fieldName,
@@ -284,10 +277,7 @@ export const progressBarField = {
             record.isFieldInvalid(name),
         ),
     fieldDependencies: ({ options }) => {
-        // The widget renders a writable input for whichever field it edits, so
-        // that field cannot be declared readonly: a readonly dependency is
-        // dropped from web_save and the edit is silently discarded.
-        const editable = Boolean(options.editable) && !options.readonly;
+        const editable = Boolean(options.editable) && !options.force_readonly;
         const deps = [];
         if (options.current_value) {
             deps.push({
@@ -308,7 +298,7 @@ export const progressBarField = {
     extractProps: ({ attrs, options }, dynamicInfo) => ({
         maxValueField: options.max_value,
         currentValueField: options.current_value,
-        isEditable: !options.readonly && options.editable,
+        isEditable: !options.force_readonly && options.editable,
         isCurrentValueEditable: options.editable && !options.edit_max_value,
         isMaxValueEditable: options.editable && options.edit_max_value,
         required: dynamicInfo.required,

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/field_codec */
-
 import "@web/core/formatters";
 import "@web/core/parsers";
 

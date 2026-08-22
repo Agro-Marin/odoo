@@ -1,14 +1,3 @@
-// Sourced from the design-system palette, not literals: when `html_editor` is
-// absent nothing else maps the frontend greys, and the Bootstrap-default
-// `#ced4da` left `$gray-400` lighter than `$gray-300` (`#cbd5e1`) - a ramp that
-// inverts between two of its steps.
-//
-// Every step this file reads, not just the two it rebinds for the ramp: `$black`,
-// `$gray-200`, `$gray-500` and `$gray-900` are used below and their only other
-// definition is `html_editor`'s `bootstrap_overridden.scss`. `web` does not
-// depend on `html_editor`, so uninstalling it aborted the whole frontend bundle
-// on "Undefined variable" and served an error stub in place of the stylesheet.
-// `pre_variables.scss` defines them too, but loads after this file.
 $white: $o-white !default;
 $black: $o-black !default;
 $gray-200: $o-gray-200 !default;
@@ -37,8 +26,6 @@ $component-active-bg: $primary !default;
 $component-active-color: color-contrast($component-active-bg) !default;
 
 $font-family-sans-serif: o-add-unicode-support-font($o-system-fonts) !default;
-// Unmapped, `<code>`/`<pre>`/`--font-monospace` fell back to Bootstrap's own
-// stack while the components reading `$o-font-family-monospace` used another.
 $font-family-monospace: $o-font-family-monospace !default;
 
 $font-size-base: calc(14rem / 16) !default;
@@ -62,10 +49,6 @@ $input-bg: $body-bg !default;
 $input-disabled-bg: $gray-200 !default;
 $input-disabled-border-color: rgba($input-color, 0.15) !default;
 
-// A checkbox boundary is "visual information required to identify a user
-// interface component" under WCAG 2.2 SC 1.4.11, so it needs 3:1 - unlike the
-// dividers `$border-color` exists for, which Bootstrap points this at by
-// default. Inheriting the divider tone left unchecked boxes at 2.56:1.
 $form-check-input-border: $border-width solid $gray-500 !default;
 $form-check-input-checked-color: color-contrast(
     $component-active-bg,

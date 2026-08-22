@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/public/show_password */
-
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { Interaction } from "@web/public/interaction";

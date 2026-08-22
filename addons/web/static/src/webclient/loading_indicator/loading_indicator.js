@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/loading_indicator/loading_indicator */
-
 import { Component, onWillUnmount, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { RpcEvent } from "@web/core/events";
@@ -10,6 +8,9 @@ import { rpcBus } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { Transition } from "@web/core/transition";
 import { useBus } from "@web/core/utils/hooks";
+
+const SHOW_AFTER_DELAY = 250;
+
 export class LoadingIndicator extends Component {
     static template = "web.LoadingIndicator";
     static components = { Transition };
@@ -45,7 +46,7 @@ export class LoadingIndicator extends Component {
                 if (this.state.count) {
                     this.state.show = true;
                 }
-            }, 250);
+            }, SHOW_AFTER_DELAY);
         }
         this.rpcIds.add(detail.data.id);
         this.state.count = this.rpcIds.size;

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/kanban_renderer */
-
 import { Component, onPatched, onWillDestroy, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
@@ -105,22 +103,9 @@ export class KanbanRenderer extends Component {
 
     setup() {
         useRenderCounter("kanban.KanbanRenderer");
-        // `progressBarState` arrives as a bare `reactive()` built by the
-        // controller's `useProgressBar`. Reads through the raw prop are not
-        // tracked for THIS component, so re-target it with `useState`: the
-        // renderer then re-renders when a bar is selected or deselected, which
-        // is what the removed blanket `render(true)` used to cover.
         this.progressBarState = this.props.progressBarState
             ? useState(this.props.progressBarState)
             : undefined;
-        // `useState` unconditionally, on whichever object we end up with. The
-        // controller hands this down as a bare `reactive()`, and a bare reactive
-        // read through the raw prop registers against OWL's NO_CALLBACK — so the
-        // template's `t-if="group.id === quickCreateState.groupId"` subscribed
-        // nothing, and the quick-create form appeared only because something
-        // else on the same click re-rendered the renderer. Re-targeting makes
-        // that read subscribe THIS component. (Calling the hook on only one
-        // branch also made hook order depend on a prop.)
         this.quickCreateState = useState(
             this.props.quickCreateState || { groupId: false },
         );
@@ -143,8 +128,6 @@ export class KanbanRenderer extends Component {
 
         this.sel = useRecordSelection({
             getRecords: () => this.props.list.records,
-            // Through the prototype so subclass overrides keep catching the
-            // range call (e.g. documents' rendered-order range).
             rangeToggle: (record) => this.toggleRangeSelection(record),
             onSelectionModifier: (available) => {
                 this.state.selectionAvailable = available;
@@ -432,7 +415,7 @@ export class KanbanRenderer extends Component {
     }
 
     async validateQuickCreate(recordId, mode, group) {
-        const record = await group.addExistingRecord(recordId, true);
+        const record = await group.addExistingRecord(recordId, { position: "top" });
         if (mode === "edit") {
             await this.props.openRecord(record);
         } else {
@@ -473,11 +456,6 @@ export class KanbanRenderer extends Component {
         }
     }
 
-    /**
-     * The range anchor, owned by the shared selection hook. Kept as a
-     * renderer property because subclasses (e.g. documents) read it in their
-     * own `toggleRangeSelection` overrides.
-     */
     get lastCheckedRecord() {
         return this.sel.lastCheckedRecord;
     }

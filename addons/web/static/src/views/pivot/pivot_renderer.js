@@ -1,12 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/pivot/pivot_renderer */
-
 import { Component, onWillRender, useRef } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { Dropdown } from "@web/components/dropdown/dropdown";
-import { DropdownState } from "@web/components/dropdown/dropdown_hooks";
+import { DropdownState } from "@web/components/dropdown/dropdown_hook";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useAction } from "@web/core/action_port";
 import { getFieldCodec } from "@web/core/field_codec";

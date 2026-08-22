@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/construct_tree_from_domain */
-
 import { Domain } from "@web/core/domain";
 import { formatAST } from "@web/core/py_js/py";
 

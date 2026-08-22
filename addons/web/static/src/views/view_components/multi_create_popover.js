@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_components/multi_create_popover */
-
 import { Component } from "@odoo/owl";
 import { TimePicker } from "@web/components/time_picker/time_picker";
 import { useCallbackRecorder } from "@web/core/action_hook";
@@ -28,7 +26,7 @@ export class MultiCreatePopover extends Component {
         timeRange: { type: [Object, { value: null }] },
     };
 
-    /** @type {{ timeRange: any }} */
+    /** @type {{ timeRange: any, record?: any }} */
     multiCreateData;
     /** @type {import("services").ServiceFactories["notification"]} */
     notification;

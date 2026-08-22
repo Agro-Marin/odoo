@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/module_views */
-
 import { Component } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { browser } from "@web/core/browser/browser";

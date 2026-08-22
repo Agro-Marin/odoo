@@ -1,11 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_components/multi_selection_buttons */
-
 import { Component, onWillRender, toRaw, useEffect, useRef, useState } from "@odoo/owl";
 import { CallbackRecorder, useSetupAction } from "@web/core/action_hook";
 import { browser } from "@web/core/browser/browser";
+import { isX2ManyType } from "@web/core/field_types";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { Time } from "@web/core/l10n/time";
 import { _t } from "@web/core/translation";
@@ -225,11 +224,7 @@ export class MultiSelectionButtons extends Component {
         const multiCreateFormRecord = toRaw(record);
         const values = { ...multiCreateFormRecord.data };
         for (const [fieldName, data] of Object.entries(multiCreateFormRecord.data)) {
-            if (
-                ["one2many", "many2many"].includes(
-                    multiCreateFormRecord.fields[fieldName].type,
-                )
-            ) {
+            if (isX2ManyType(multiCreateFormRecord.fields[fieldName].type)) {
                 values[fieldName] = data.records.map((record) =>
                     Object.assign({ id: record.resId }, record.data),
                 );

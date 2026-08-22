@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/google_slide_viewer/google_slide_viewer */
-
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
@@ -42,7 +40,7 @@ export class GoogleSlideViewer extends CharField {
     }
 
     get url() {
-        const value = this.props.record.data[this.props.name];
+        const value = this.field.value;
         return value ? getGoogleSlideUrl(value, this._get_slide_page()) : false;
     }
 
@@ -54,13 +52,10 @@ export class GoogleSlideViewer extends CharField {
 }
 
 /** @type {import("registries").FieldsRegistryItemShape} */
-export const googleSlideViewer = {
+const googleSlideViewer = {
     ...charField,
     component: GoogleSlideViewer,
     displayName: _t("Google Slide Viewer"),
-    // See the same declaration on `pdf_viewer`: `<name>_page` was read out of
-    // `record.data` without being declared, so it was never loaded and the
-    // viewer always opened on the first slide.
     fieldDependencies: ({ name }) => [
         { name: `${name}_page`, optional: true, readonly: true },
     ],

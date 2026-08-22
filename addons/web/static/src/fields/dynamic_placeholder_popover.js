@@ -1,12 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/dynamic_placeholder_popover */
-
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { ModelFieldSelectorPopover } from "@web/components/model_field_selector/model_field_selector_popover";
 import { user } from "@web/core/user";
-import { useAutofocus, useService } from "@web/core/utils/hooks";
+import { useAutofocus, useOptionalService } from "@web/core/utils/hooks";
 
 import {
     isRenderableFieldType,
@@ -48,20 +46,28 @@ export class DynamicPlaceholderPopover extends Component {
             fieldName: "",
             fieldType: "",
         });
-        this.getAllowedQwebExpressions = useService("allowed_qweb_expressions");
+        this.getAllowedQwebExpressions = useOptionalService("allowed_qweb_expressions");
         onWillStart(() => this._loadAllowedExpressions());
     }
 
     async _loadAllowedExpressions() {
-        this.isTemplateEditor = await user.hasGroup("mail.group_mail_template_editor");
-        if (this.isTemplateEditor) {
+        if (!this.getAllowedQwebExpressions) {
+            /** @type {any} */ (this).isTemplateEditor = true;
+            /** @type {any} */ (this).allowedQwebExpressions = [];
+            return;
+        }
+        /** @type {any} */ (this).isTemplateEditor = await user.hasGroup(
+            "mail.group_mail_template_editor",
+        );
+        if (/** @type {any} */ (this).isTemplateEditor) {
             // An editor may write any expression, so the allow-list has no say
             // and fetching it is one RPC per model spent on nothing.
             return;
         }
-        this.allowedQwebExpressions = await this.getAllowedQwebExpressions(
-            this.props.resModel,
-        );
+        /** @type {any} */ (this).allowedQwebExpressions =
+            await this.getAllowedQwebExpressions(
+                /** @type {any} */ (this.props).resModel,
+            );
     }
 
     /**

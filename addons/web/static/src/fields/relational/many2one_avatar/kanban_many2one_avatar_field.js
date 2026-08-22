@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/many2one_avatar/kanban_many2one_avatar_field */
-
 import { Component } from "@odoo/owl";
 import { registerField } from "@web/fields/_registry";
 import {

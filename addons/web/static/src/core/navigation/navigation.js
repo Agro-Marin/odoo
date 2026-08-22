@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/navigation/navigation */
-
 import { onWillDestroy, reactive, useEffect, useRef } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { deepMerge } from "@web/core/utils/collections/objects";
@@ -89,13 +87,6 @@ class NavigationItem {
             this.target = el;
         }
 
-        // Whoever writes this attribute first owns it. Left to itself the
-        // navigator uses `aria-selected` for the cursor, which is the combobox
-        // convention and stays the default. But it is also the only channel a
-        // multi-select listbox has for "this one is held", and there the cursor
-        // would report every held option as unheld -- so a component with
-        // something of its own to say renders the attribute itself and keeps
-        // it. `aria-activedescendant` carries the cursor either way.
         /** @private */
         this._ownsAriaSelected =
             supportsAriaSelected(this.el) && !this.el.hasAttribute("aria-selected");
@@ -107,11 +98,6 @@ class NavigationItem {
         this.target.addEventListener("focus", onFocus);
 
         if (this._options.mouseActivation === "armed") {
-            // Armed hover: the pointer only speaks once it has moved since the
-            // last keyboard action (see Navigator._rearmMouse). Activation
-            // rides mouseenter/mouseleave on the hover surface, which may be a
-            // larger element than the item itself -- a list row around the
-            // anchor that carries the item's identity.
             const hoverTarget = this._options.getHoverTarget?.(el) ?? this.target;
             const onMouseEnter = () => this._onArmedMouseEnter();
             const onMouseLeave = () => this._onArmedMouseLeave();
@@ -195,11 +181,6 @@ class NavigationItem {
     }
 
     /**
-     * The pointer walking off an item withdraws the highlight; a mouseleave
-     * the pointer did not cause -- the list re-rendering or moving under a
-     * still cursor -- must not, which is exactly what the arming gate keeps
-     * out.
-     *
      * @private
      */
     _onArmedMouseLeave() {
@@ -228,9 +209,6 @@ export class Navigator {
      */
     constructor(options, hotkeyService) {
         this._hotkeyService = hotkeyService;
-        // Module-internal, NOT `@private`: `NavigationItem.setActive` cancels
-        // and calls it, so it is the Navigator/NavigationItem collaboration
-        // surface. The tag said otherwise and made those two calls errors.
         this._throttledFocus = throttleForAnimation((/** @type {HTMLElement} */ el) =>
             el?.focus(),
         );
@@ -242,9 +220,6 @@ export class Navigator {
             itemsRevision: 0,
         });
 
-        // An option declared as an accessor keeps answering for this
-        // navigator's life; `mergeNavigationOptions` is the only combinator
-        // that does not flatten it into the value it happened to hold.
         /** @private */
         this._options = mergeNavigationOptions(this._makeDefaultOptions(), options);
 
@@ -271,18 +246,6 @@ export class Navigator {
      */
     _makeDefaultOptions() {
         return {
-            // Two callers share this predicate and hand it different targets.
-            // On the hotkey path `target` is the *focused* element; with a
-            // virtual focus the real focus never sits on an item -- that is
-            // the whole point of the mode -- so `contains(target)` can only
-            // ever say no there, and the old `contains && (isFocused ||
-            // virtualFocus)` shape made the `virtualFocus` disjunct
-            // unreachable for the keyboard. On the mouse-move path `target`
-            // is the hovered item itself, where `contains` is the right
-            // question. Hence the split: an item target follows the focused
-            // rule, and a virtual-focus navigator additionally answers yes
-            // while the real focus is anywhere in its container -- the
-            // element its virtual cursor works on behalf of.
             isNavigationAvailable: (
                 /** @type {{ navigator: Navigator, target: HTMLElement }} */ { target },
             ) => {
@@ -365,8 +328,7 @@ export class Navigator {
     }
 
     /**
-     * @type {boolean} whether hover activation is currently armed; always
-     *  false outside `mouseActivation: "armed"`. See `_rearmMouse`.
+     * @type {boolean}
      */
     get isMouseArmed() {
         return this._mouseArmed;
@@ -380,9 +342,6 @@ export class Navigator {
             this.activeItemIndex + 1 >= this.items.length &&
             !this._options.wrap
         ) {
-            // Stepping past the end clears the cursor; the next step in the
-            // same direction re-enters from the opposite end (the no-active
-            // branch above).
             this.clearActiveItem();
         } else {
             this.items[(this.activeItemIndex + 1) % this.items.length]?.setActive();
@@ -399,8 +358,6 @@ export class Navigator {
             if (this._options.wrap) {
                 this.items.at(-1)?.setActive();
             } else {
-                // Symmetric to next(): past the start the cursor clears, and
-                // another step back re-enters from the last item.
                 this.clearActiveItem();
             }
         } else {
@@ -408,12 +365,6 @@ export class Navigator {
         }
     }
 
-    /**
-     * Activates the first item -- the entry point a consumer uses when a
-     * freshly (re)built list should present its first choice. With no items
-     * the active cursor is cleared instead. Re-arms hover activation like a
-     * keyboard step does: entering a list is a navigation act.
-     */
     activateFirst() {
         this._rearmMouse();
         if (this.items.length) {
@@ -423,10 +374,6 @@ export class Navigator {
         }
     }
 
-    /**
-     * Symmetric to `activateFirst`: enter the list from its far end, e.g. when
-     * an ArrowUp is what opened it.
-     */
     activateLast() {
         this._rearmMouse();
         if (this.items.length) {
@@ -436,11 +383,6 @@ export class Navigator {
         }
     }
 
-    /**
-     * Leaves no item active. The real focus is left where it is: with
-     * `virtualFocus` there is nothing to blur, and without it the caller is
-     * saying "no current choice", not "drop the keyboard".
-     */
     clearActiveItem() {
         this._setActiveItem(-1);
     }
@@ -558,17 +500,6 @@ export class Navigator {
     }
 
     /**
-     * Arms hover activation only once the pointer has actually moved again.
-     *
-     * In `mouseActivation: "armed"` a mouseenter or mouseleave may activate or
-     * clear an item only if a real mousemove happened since the last keyboard
-     * action -- otherwise a list rendered or repositioned under a still cursor
-     * would steal the highlight from the keyboard. Every navigation act
-     * (next/previous/activateFirst/activateLast) disarms and waits for the
-     * next window-level mousemove. A no-op in the default "movement" mode,
-     * where activation is keyed on the item's own mousemove and needs no
-     * memory.
-     *
      * @private
      */
     _rearmMouse() {
@@ -695,12 +626,6 @@ export class Navigator {
 }
 
 /**
- * A plain value in this object is read once, when the navigator is built. An
- * option that has to follow something that moves is declared as a getter
- * instead, and stays live for the navigator's whole life -- see
- * `mergeNavigationOptions`, which is what carries the accessors across the
- * merge that would otherwise flatten them into values.
- *
  * @typedef {Object} NavigationOptions
  * @property {() => HTMLElement[]} [getItems]
  * @property {() => HTMLElement | null} [getContainer]
@@ -709,28 +634,14 @@ export class Navigator {
  * @property {Function} [onUpdated]
  * @property {Function} [onItemActivated]
  * @property {Function} [onMouseEnter]
- * @property {string} [activeClass] class carried by the active item's target
- *  (default: `"focus"`). A component whose stylesheet already speaks another
- *  dialect -- e.g. jQuery-UI's `ui-state-active` -- names it here instead of
- *  mirroring the cursor into its own state.
- * @property {"movement" | "armed"} [mouseActivation] how the pointer takes the
- *  cursor (default: `"movement"`). `"movement"`: any mousemove over an item
- *  activates it. `"armed"`: mouseenter activates and mouseleave clears, but
- *  only once the pointer has really moved since the last keyboard action --
- *  the combobox convention, where a list opening under a still cursor must
- *  not steal the highlight the keyboard just placed.
- * @property {(el: HTMLElement) => HTMLElement} [getHoverTarget] the element
- *  whose enter/leave events speak for an item in `"armed"` mode, when that
- *  surface is larger than the item element itself (e.g. the list row around
- *  the anchor). Defaults to the item's own target.
+ * @property {string} [activeClass]
+ * @property {"movement" | "armed"} [mouseActivation]
+ * @property {(el: HTMLElement) => HTMLElement} [getHoverTarget]
  * @property {boolean} [virtualFocus]
  * @property {boolean} [shouldFocusChildInput]
  * @property {boolean} [shouldFocusFirstItem]
  * @property {boolean} [shouldRegisterHotkeys]
- * @property {boolean} [wrap] whether next() on the last item and previous() on
- *  the first wrap around (default: true). With `wrap: false` stepping past
- *  either end clears the active item, and the following step in the same
- *  direction re-enters the list from the opposite end.
+ * @property {boolean} [wrap]
  */
 
 /**
@@ -747,29 +658,8 @@ export class Navigator {
  */
 
 /**
- * Combine option sources, later winning over earlier, **without flattening
- * accessors**.
- *
- * Copying an object -- by spread, by `deepMerge`, by anything that reads a key
- * and writes its value -- turns a getter into whatever it returned at that
- * moment. Restoring the accessors afterwards is what lets an option follow
- * something that moves rather than freezing at setup, and it has to happen at
- * *every* place options are copied. When that rule lived in a comment rather
- * than in the API, `Dropdown`, the component that actually
- * assembles options out of its props, merged them with a bare
- * `{...deepMerge(nesting, props)}` and froze every accessor its caller had
- * declared. `SelectMenu`'s `get virtualFocus()` was read once at setup, while
- * the menu still had a search box, and answered `true` forever after; the
- * navigator therefore kept a virtual cursor with nothing to park it on and the
- * arrow keys moved no real focus. Merging is the operation that loses
- * accessors, so merging is where preserving them belongs.
- *
- * Last-wins applies to the *declaration*, not just the value: if a later source
- * defines a key as a plain value it must beat an earlier source's getter, so
- * only the final declaration of each key is reinstated.
- *
  * @param {...(NavigationOptions | undefined)} sources
- * @returns {NavigationOptions} a fresh object; no source is mutated
+ * @returns {NavigationOptions}
  */
 export function mergeNavigationOptions(...sources) {
     const present = sources.filter(Boolean);
@@ -796,10 +686,6 @@ export function mergeNavigationOptions(...sources) {
 }
 
 /**
- * A default for an option the caller left out. Defined rather than assigned:
- * the caller may have declared the key as a getter with no setter, and an
- * assignment onto one of those throws.
- *
  * @param {Object} options
  * @param {string} key
  * @param {any} value
@@ -843,7 +729,18 @@ export function useNavigation(containerRef, options = {}) {
 
     const hotkeyService = useService("hotkey");
     const navigator = new Navigator(newOptions, hotkeyService);
-    const observer = new MutationObserver(() => navigator.update());
+    let updating = false;
+    const observer = new MutationObserver(() => {
+        if (updating) {
+            return;
+        }
+        updating = true;
+        try {
+            navigator.update();
+        } finally {
+            updating = false;
+        }
+    });
 
     const onFocus = (/** @type {FocusEvent} */ { target }) =>
         navigator._checkFocus(/** @type {any} */ (target));

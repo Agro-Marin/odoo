@@ -1,16 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/properties/properties_field */
-
-import {
-    Component,
-    onWillStart,
-    onWillUpdateProps,
-    useEffect,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { onWillStart, onWillUpdateProps, useEffect, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { ModelEvent } from "@web/core/events";
@@ -20,6 +11,8 @@ import { user } from "@web/core/user";
 import { exprToBoolean, uuid } from "@web/core/utils/format/strings";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
+import { FieldComponent } from "@web/fields/field_component";
+import { archAttribute } from "@web/fields/field_options";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
@@ -36,7 +29,7 @@ import { usePropertiesSortable } from "./properties_sortable_hook.js";
 import { PropertyDefinition } from "./property_definition.js";
 import { PropertyValue } from "./property_value.js";
 
-export class PropertiesField extends Component {
+export class PropertiesField extends FieldComponent {
     static template = "web.PropertiesField";
     static components = {
         Dropdown,
@@ -61,7 +54,7 @@ export class PropertiesField extends Component {
         this.dialogService = useService("dialog");
         this.popover = usePopover(PropertyDefinition, {
             closeOnClickAway: this.checkPopoverClose,
-            popoverClass: "o_property_field_popover",
+            class: "o_property_field_popover",
             position: "right",
             onClose: () => this.onCloseCurrentPopover?.(),
             fixedPosition: true,
@@ -70,6 +63,13 @@ export class PropertiesField extends Component {
         });
         this.propertiesRef = useRef("properties");
         this.domIdPrefix = `property_${uuid()}`;
+        this.definitionRecordField = this.field.definition.definition_record;
+
+        this.state = useState({
+            canChangeDefinition: false,
+            isInEditMode: false,
+            movedPropertyName: null,
+        });
 
         let currentResId;
         useRecordObserver((record) => {
@@ -79,15 +79,22 @@ export class PropertiesField extends Component {
             }
         });
 
-        const field = this.props.record.fields[this.props.name];
-        this.definitionRecordField = field.definition_record;
+        this.setupEditMode();
+        this.setupPopoverPlacement();
 
-        this.state = useState({
-            canChangeDefinition: false,
-            isInEditMode: false,
-            movedPropertyName: null,
+        usePropertiesSortable({
+            propertiesRef: this.propertiesRef,
+            getEnabled: () => !this.props.readonly && this.state.canChangeDefinition,
+            getRenderedColumnsCount: () => this.renderedColumnsCount,
+            getGroupedPropertiesList: () => this.groupedPropertiesList,
+            onPropertyMoveTo: (from, to, moveBefore) =>
+                this.onPropertyMoveTo(from, to, moveBefore),
+            onGroupMoveTo: (from, to) => this.onGroupMoveTo(from, to),
+            onToggleSeparators: (names, force) => this._toggleSeparators(names, force),
         });
+    }
 
+    setupEditMode() {
         if (this.env.config?.viewType === "form") {
             useBus(this.env.model.bus, ModelEvent.PROPERTY_FIELD_EDIT, async () => {
                 if (this.props.readonly || this.state.isInEditMode) {
@@ -138,7 +145,9 @@ export class PropertiesField extends Component {
                 await this._recomputeEditMode(nextProps);
             }
         });
+    }
 
+    setupPopoverPlacement() {
         useEffect(
             () => {
                 if (this.openPropertyDefinition) {
@@ -155,17 +164,6 @@ export class PropertiesField extends Component {
         );
 
         useEffect(() => this._movePopoverIfNeeded());
-
-        usePropertiesSortable({
-            propertiesRef: this.propertiesRef,
-            getEnabled: () => !this.props.readonly && this.state.canChangeDefinition,
-            getRenderedColumnsCount: () => this.renderedColumnsCount,
-            getGroupedPropertiesList: () => this.groupedPropertiesList,
-            onPropertyMoveTo: (from, to, moveBefore) =>
-                this.onPropertyMoveTo(from, to, moveBefore),
-            onGroupMoveTo: (from, to) => this.onGroupMoveTo(from, to),
-            onToggleSeparators: (names, force) => this._toggleSeparators(names, force),
-        });
     }
 
     /**
@@ -179,7 +177,7 @@ export class PropertiesField extends Component {
      * @returns {array}
      */
     get propertiesList() {
-        return (this.props.record.data[this.props.name] || [])
+        return (this.field.value || [])
             .filter((definition) => !definition.definition_deleted)
             .map((definition) => ({ ...definition }));
     }
@@ -572,18 +570,14 @@ export class PropertiesField extends Component {
                 const knownNames = new Set(
                     propertiesValues.map((property) => property.name),
                 );
-                const deletedProperties = (
-                    this.props.record.data[this.props.name] || []
-                )
+                const deletedProperties = (this.field.value || [])
                     .filter(
                         (definition) =>
                             definition.definition_deleted &&
                             !knownNames.has(definition.name),
                     )
                     .map((definition) => ({ ...definition }));
-                return this.props.record.update({
-                    [this.props.name]: [...propertiesValues, ...deletedProperties],
-                });
+                return this.field.update([...propertiesValues, ...deletedProperties]);
             });
         return this._propertiesMutation;
     }
@@ -696,7 +690,6 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * @params {string} propertyName
      * @returns {integer}
      */
     _getPropertyIndex(propertyName) {
@@ -708,7 +701,7 @@ export class PropertiesField extends Component {
 
     _saveInitialPropertiesValues() {
         this.initialValues = {};
-        for (const propertiesValues of this.props.record.data[this.props.name] || []) {
+        for (const propertiesValues of this.field.value || []) {
             this.initialValues[propertiesValues.name] = {
                 name: propertiesValues.name,
                 type: propertiesValues.type,
@@ -821,12 +814,22 @@ export class PropertiesField extends Component {
 export const propertiesField = {
     component: PropertiesField,
     displayName: _t("Properties"),
+    supportedAttributes: [
+        archAttribute("columns", _t("Columns"), {
+            type: "number",
+            help: _t("How many columns the property list is laid out in: 1 or 2."),
+        }),
+        archAttribute("edit_mode", _t("Start in edit mode"), {
+            type: "boolean",
+            help: _t("Open with the definition editor already available."),
+        }),
+    ],
     supportedTypes: ["properties"],
     extractProps({ attrs }, dynamicInfo) {
         return {
             context: dynamicInfo.context,
             columns: Number.parseInt(attrs.columns || "1", 10),
-            editMode: exprToBoolean(attrs.editMode),
+            editMode: exprToBoolean(attrs.edit_mode),
         };
     },
 };

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dom/events */
-
 const eventHandledWeakMap = new WeakMap();
 /**
  * @param {Event} ev

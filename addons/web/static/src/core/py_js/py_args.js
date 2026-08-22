@@ -1,22 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/py_js/py_args */
-
 import { EvaluationError } from "./py_errors.js";
 
 /**
- * Bind a call's arguments onto ``spec``'s parameter names.
- *
- * Surplus positional arguments and unknown keywords are rejected rather than
- * dropped: an overflow used to land on the string key ``"undefined"``, so
- * ``'abc'.strip('a','b')`` quietly answered ``"bc"`` where CPython raises.
- *
  * @param {any[]} args
  * @param {string[]} spec
- * @param {string} [name] the callee, for the error message
+ * @param {string} [name]
  * @returns {{[name: string]: any}}
- * @throws {EvaluationError} on surplus positionals, unknown or repeated keywords
+ * @throws {EvaluationError}
  */
 export function bindArgs(args, spec, name = "function") {
     const last = args.at(-1);

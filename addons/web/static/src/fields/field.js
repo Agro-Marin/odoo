@@ -1,15 +1,17 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/field */
-
 import { Component, onWillRender, xml } from "@odoo/owl";
 import { Domain } from "@web/core/domain";
 import { evaluateBooleanExpr, evaluateExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
+import { fieldLog } from "@web/core/utils/asset_log";
 import { omit } from "@web/core/utils/collections/objects";
 import { getClassNameFromDecoration } from "@web/core/utils/decorations";
-import { FIELD_DEPENDENCIES_VALIDATION } from "@web/model/relational_model/field_metadata";
+import {
+    FIELD_DEPENDENCIES_VALIDATION,
+    RELATED_FIELDS_VALIDATION,
+} from "@web/model/relational_model/field_metadata";
 import { getFieldContext } from "@web/model/relational_model/utils";
 
 import { getTooltipInfo } from "./field_tooltip.js";
@@ -92,28 +94,9 @@ fieldRegistry.addValidation({
     isValid: { type: Function, optional: true },
     additionalClasses: { type: Array, element: String, optional: true },
     fieldDependencies: FIELD_DEPENDENCIES_VALIDATION,
-    relatedFields: {
-        type: [
-            Function,
-            {
-                type: Array,
-                element: {
-                    type: Object,
-                    shape: {
-                        name: String,
-                        type: { type: String, optional: true },
-                        relation: { type: String, optional: true },
-                        readonly: { type: Boolean, optional: true },
-                        selection: { type: Array, optional: true },
-                        "*": true,
-                    },
-                },
-            },
-        ],
-        optional: true,
-    },
+    relatedFields: RELATED_FIELDS_VALIDATION,
     useSubView: { type: Boolean, optional: true },
-    interactiveOutsideEdition: { type: Boolean, optional: true },
+    interactiveOutsideEdition: { type: [Boolean, Function], optional: true },
     label: { type: [String, { value: false }], optional: true },
     listViewWidth: {
         type: [
@@ -158,16 +141,7 @@ export function resetWidgetMissWarnings() {
 }
 
 /**
- * Option names a widget declares in `supportedOptions`, flattened: an entry may
- * be a descriptor or an array of them (a group rendered together in the widget
- * dialog), and a widget composes its parent's list by spreading it.
- *
- * Returns `null` when the widget declares nothing, which is NOT the same as
- * declaring no options — most of the registry is undeclared, and treating that
- * as "accepts nothing" would report every option it does read.
- *
- * @param {{ supportedOptions?: any[], [key: string]: any }} field a `fields`
- *  registry entry
+ * @param {{ supportedOptions?: any[], [key: string]: any }} field
  * @returns {Set<string> | null}
  */
 export function getSupportedOptionNames(field) {
@@ -193,6 +167,7 @@ export function getSupportedOptionNames(field) {
  * @returns {{ component: import("@odoo/owl").ComponentConstructor, extractProps?: Function, supportedTypes?: string[], isEmpty?: Function, isValid?: Function, additionalClasses?: string[], relatedFields?: Array | Function, useSubView?: boolean, [key: string]: any }}
  */
 export function getFieldFromRegistry(fieldType, widget, viewType, jsClass) {
+    fieldLog("resolve", widget || fieldType, viewType || "", jsClass || "");
     const prefixes = jsClass ? [jsClass, viewType, ""] : [viewType, ""];
     /** @param {string} key */
     const findInRegistry = (key) => {
@@ -244,14 +219,9 @@ export function fieldVisualFeedback(field, record, fieldName, fieldInfo) {
     const inEdit = record.isInEdition;
 
     let empty = !record.isNew;
-    if ("isEmpty" in field) {
-        const isEmpty = /** @type {(record: any, fieldName: string) => boolean} */ (
-            field.isEmpty
-        );
-        empty = empty && isEmpty(record, fieldName);
-    } else {
-        empty = empty && !record.data[fieldName];
-    }
+    empty =
+        empty &&
+        (field.isEmpty ? field.isEmpty(record, fieldName) : !record.data[fieldName]);
     empty = inEdit ? empty && readonly : empty;
     let required;
     return {
@@ -272,9 +242,10 @@ export function fieldVisualFeedback(field, record, fieldName, fieldInfo) {
 
 /**
  * @param {{ name: string, type: string, widget?: string, string?: string, relation?: string, domain?: string, selection?: Array, tags?: Array, relatedPropertyField?: any }} propertyField
- * @returns {{ name: string, type: string, widget: string, string?: string, field: ReturnType<typeof getFieldFromRegistry>, options: Object, readonly: string, required: string, invisible: string, column_invisible: string, context: string, attrs: Object, decorations: Object, [key: string]: any }}
+ * @param {string} [viewType]
+ * @returns {{ name: string, type: string, viewType?: string, widget: string, string?: string, field: ReturnType<typeof getFieldFromRegistry>, options: Object, readonly: string, required: string, invisible: string, column_invisible: string, context: string, attrs: Object, decorations: Object, [key: string]: any }}
  */
-export function getPropertyFieldInfo(propertyField) {
+export function getPropertyFieldInfo(propertyField, viewType) {
     const { name, relatedPropertyField, string, type, widget } = propertyField;
 
     /** @type {any} */
@@ -282,6 +253,7 @@ export function getPropertyFieldInfo(propertyField) {
         name,
         string,
         type,
+        viewType,
         widget: widget || type,
         options: {},
         column_invisible: "False",
@@ -296,6 +268,7 @@ export function getPropertyFieldInfo(propertyField) {
         onChange: false,
         forceSave: false,
         decorations: {},
+        domain: undefined,
     };
 
     if (type === "many2one" || type === "many2many") {
@@ -319,7 +292,11 @@ export function getPropertyFieldInfo(propertyField) {
         fieldInfo.selection = propertyField.selection;
     }
 
-    fieldInfo.field = getFieldFromRegistry(propertyField.type, fieldInfo.widget);
+    fieldInfo.field = getFieldFromRegistry(
+        propertyField.type,
+        fieldInfo.widget,
+        viewType,
+    );
     let { relatedFields } = fieldInfo.field;
     if (relatedFields) {
         if (relatedFields instanceof Function) {
@@ -332,29 +309,6 @@ export function getPropertyFieldInfo(propertyField) {
 
     return fieldInfo;
 }
-/**
- * The props `Field` reads itself, on top of {@link standardFieldProps}.
- *
- * Open for the same reason `View`'s schema is: `fieldComponentProps` forwards
- * everything except {@link FIELD_OWN_PROPS} to the concrete widget, so a caller
- * passing a widget-specific prop through `Field` is doing the intended thing.
- * The declared keys are the ones `Field` itself consumes, and getting one of
- * those wrong used to be silent.
- */
-/**
- * `null` is a value the arch parser really produces, and it is not the same as
- * absence: `field_arch.js` types `widget` as `string | null`, and templates pass
- * it through positionally (`type="column.widget"`), so a column with no
- * `widget=` attribute reaches `Field` as an explicit `type: null` rather than as
- * a missing key. Declaring these `optional` alone rejected it -- OWL's
- * `optional` covers `undefined`, not `null` -- and that is what turned every
- * widget-less cell in an editable list into a render error the first time this
- * schema was switched on.
- *
- * Spelling it out rather than widening to `"*"`: the union says exactly which
- * two shapes arrive and keeps a genuinely wrong value (a number, an object)
- * failing.
- */
 const archString = { type: [String, { value: null }], optional: true };
 
 export const fieldProps = {
@@ -373,9 +327,6 @@ export class Field extends Component {
     static props = fieldProps;
 
     /**
-     * Recomputed on every render, before the first one, so every getter below
-     * reads a value.
-     *
      * @type {{ readonly: boolean, required: boolean, invalid: boolean, empty: boolean }}
      */
     _visualFeedback;
@@ -490,18 +441,10 @@ export class Field extends Component {
 
         const props = omit(this.props, ...FIELD_OWN_PROPS);
 
-        // A widget is readonly when its own modifier says so, and additionally
-        // when the record is not being edited -- unless it declares itself
-        // interactive outside edition (a star, a toggle, a kanban colour dot:
-        // things meant to be clicked straight from a list row or a card).
-        //
-        // That second exemption used to be spelled by having `extractProps`
-        // return `readonly: dynamicInfo.readonly`, whose only effect was to
-        // overwrite this key through the spread below. `dynamicInfo.readonly` is
-        // exactly `readonly`, so the two are equivalent -- but one of them says
-        // what it means. The echo still works, for widgets outside this module
-        // that have not been converted.
-        const inEditionOnly = !this.field.interactiveOutsideEdition;
+        const { interactiveOutsideEdition } = this.field;
+        const inEditionOnly = !(typeof interactiveOutsideEdition === "function"
+            ? interactiveOutsideEdition(this.props.fieldInfo || {})
+            : interactiveOutsideEdition);
 
         return {
             readonly: (inEditionOnly && !record.isInEdition) || readonly,

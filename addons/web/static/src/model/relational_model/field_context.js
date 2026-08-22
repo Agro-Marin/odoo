@@ -1,11 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/field_context */
-
 import { makeContext } from "@web/core/context";
 import { Domain } from "@web/core/domain";
 import { evaluateExpr } from "@web/core/py_js/py";
+import { deepEqual, shallowEqual } from "@web/core/utils/collections/objects";
 
 /**
  * @param {Object} record
@@ -13,11 +12,9 @@ import { evaluateExpr } from "@web/core/py_js/py";
  * @param {string} [rawContext]
  * @returns {Object}
  */
-export function getFieldContext(
-    record,
-    fieldName,
-    rawContext = record.activeFields[fieldName].context,
-) {
+const CONTEXT_MEMO = new WeakMap();
+
+function computeFieldContext(record, fieldName, rawContext) {
     const context = {};
     for (const key of Object.keys(record.context)) {
         if (
@@ -34,6 +31,26 @@ export function getFieldContext(
         ...record.fields[fieldName].context,
         ...makeContext([rawContext], record.evalContext),
     };
+}
+
+export function getFieldContext(
+    record,
+    fieldName,
+    rawContext = record.activeFields[fieldName].context,
+) {
+    const fresh = computeFieldContext(record, fieldName, rawContext);
+    let byKey = CONTEXT_MEMO.get(record);
+    if (!byKey) {
+        byKey = new Map();
+        CONTEXT_MEMO.set(record, byKey);
+    }
+    const key = `${fieldName} ${rawContext ?? ""}`;
+    const previous = byKey.get(key);
+    if (previous && shallowEqual(previous, fresh, deepEqual)) {
+        return previous;
+    }
+    byKey.set(key, fresh);
+    return fresh;
 }
 
 /**
@@ -92,12 +109,4 @@ export function getId(prefix = "") {
  */
 export function isRelational(field) {
     return field && ["one2many", "many2many", "many2one"].includes(field.type);
-}
-
-/**
- * @param {any} field
- * @returns {boolean}
- */
-export function isX2Many(field) {
-    return field && (field.type === "one2many" || field.type === "many2many");
 }

@@ -1,30 +1,30 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_grid_state */
+import { toRaw } from "@odoo/owl";
 
 /**
  * @typedef {"group" | "record" | "add-line"} FlatRowType
  * @typedef {{
- *   type: FlatRowType,
- *   globalIndex: number,
- *   record?: object,
- *   group?: object,
- *   parentGroup?: object,
- *   depth: number,
+ * type: FlatRowType,
+ * globalIndex: number,
+ * record?: object,
+ * rawRecord?: object,
+ * recordId?: string,
+ * group?: object,
+ * parentGroup?: object,
+ * depth: number,
  * }} FlatRow
  */
 
-const OPTION_FIELDS = {
-    list: "_list",
-    hasSelectors: "_hasSelectors",
-    hasOpenFormViewColumn: "_hasOpenFormViewColumn",
-    hasActionsColumn: "_hasActionsColumn",
-    isRTL: "_isRTL",
-    showGroupAddLine: "_showGroupAddLine",
-};
-
 export class ListGridState {
+    /**
+     * @type {object[]}
+     */
+    _columns = [];
+    /** @type {Map<any, number>} */
+    _colIndexById = new Map();
+
     /**
      * @param {object} options
      * @param {object} options.list
@@ -63,63 +63,88 @@ export class ListGridState {
 
         this._lastColIndex = 0;
 
-        /** write position within `_flatRows` during a rebuild @type {number} */
+        /** @type {number} */
         this._cursor = 0;
-        /** whether the current rebuild changed anything @type {boolean} */
-        this._dirty = false;
-
-        /**
-         * @type {number}
-         */
-        this._generation = 0;
-    }
-
-    /** @returns {number} */
-    get generation() {
-        return this._generation;
     }
 
     /**
+     * Every member is optional and an absent one is left alone, which is why
+     * each is tested rather than assigned unconditionally.
+     *
+     * Written out rather than driven from a name map. The map version wrote
+     * `this[field] = options[name]` six times, which is six dynamic property
+     * writes in a `@ts-check` file -- unreadable to the checker, and one typo in
+     * the map away from silently setting nothing.
+     *
      * @param {object} options
      */
     update(options) {
-        for (const [name, field] of Object.entries(OPTION_FIELDS)) {
-            if (options[name] !== undefined) {
-                this[field] = options[name];
-            }
+        if (options.list !== undefined) {
+            this._list = options.list;
+        }
+        if (options.hasSelectors !== undefined) {
+            this._hasSelectors = options.hasSelectors;
+        }
+        if (options.hasOpenFormViewColumn !== undefined) {
+            this._hasOpenFormViewColumn = options.hasOpenFormViewColumn;
+        }
+        if (options.hasActionsColumn !== undefined) {
+            this._hasActionsColumn = options.hasActionsColumn;
+        }
+        if (options.isRTL !== undefined) {
+            this._isRTL = options.isRTL;
+        }
+        if (options.showGroupAddLine !== undefined) {
+            this._showGroupAddLine = options.showGroupAddLine;
         }
         if (options.columns !== undefined) {
             this._setColumns(options.columns);
         }
     }
 
-    /**
-     * Re-materializes the flat rows. This runs on every render of the renderer,
-     * over every LOADED record — a 400-row page re-materializes 400 rows to put
-     * ~27 in the DOM — so rows are updated in place and the maps are cleared
-     * rather than reallocated. `_generation` only advances when the structure
-     * actually changed, which is what lets row components skip their lookup.
-     */
     rebuild() {
         this._rowByRecordId.clear();
         this._rowByGroupId.clear();
         this._addLineByGroupId.clear();
         this._cursor = 0;
-        this._dirty = false;
         this._materialize(this._list, 0, null);
         if (this._flatRows.length !== this._cursor) {
             this._flatRows.length = this._cursor;
-            this._dirty = true;
-        }
-        if (this._dirty) {
-            this._generation++;
         }
     }
 
     /**
-     * Writes the row for the current cursor position, reusing the object
-     * already there when it describes the same thing.
-     *
+     * @param {any} records the reactive list, read only for a row that changed
+     * @param {any} rawRecord
+     * @param {number} index
+     * @param {object | null} parentGroup
+     * @param {number} depth
+     * @returns {FlatRow}
+     */
+    _emitRecordRow(records, rawRecord, index, parentGroup, depth) {
+        const cursor = this._cursor;
+        const existing = this._flatRows[cursor];
+        if (
+            existing &&
+            existing.type === "record" &&
+            existing.rawRecord === rawRecord &&
+            existing.parentGroup === parentGroup &&
+            existing.depth === depth
+        ) {
+            this._cursor++;
+            return existing;
+        }
+        return this._emitRow("record", {
+            record: records[index],
+            rawRecord,
+            recordId: String(rawRecord.id),
+            group: undefined,
+            parentGroup,
+            depth,
+        });
+    }
+
+    /**
      * @param {FlatRowType} type
      * @param {object} fields
      */
@@ -138,7 +163,6 @@ export class ListGridState {
         }
         const row = { type, globalIndex: index, ...fields };
         this._flatRows[index] = row;
-        this._dirty = true;
         return row;
     }
 
@@ -275,14 +299,18 @@ export class ListGridState {
                 }
             }
         } else {
-            for (const record of list.records) {
-                const recordRow = this._emitRow("record", {
-                    record,
-                    group: undefined,
+            const records = list.records;
+            const count = records.length;
+            const rawRecords = toRaw(records);
+            for (let index = 0; index < count; index++) {
+                const recordRow = this._emitRecordRow(
+                    records,
+                    rawRecords[index],
+                    index,
                     parentGroup,
                     depth,
-                });
-                this._rowByRecordId.set(String(record.id), recordRow);
+                );
+                this._rowByRecordId.set(recordRow.recordId, recordRow);
             }
             if (parentGroup && this._showGroupAddLine) {
                 const addLineRow = this._emitRow("add-line", {

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_common/calendar_common_week_column */
-
 /**
  * @param {Object} params
  * @param {HTMLElement} params.el

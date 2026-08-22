@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/field_service */
-
 /**
  * @typedef {Object} LoadFieldsOptions
  * @property {string[]|false} [fieldNames]
@@ -42,21 +40,7 @@ function getRelation(fieldDef, followRelationalProperties = false) {
     return null;
 }
 
-/**
- * The `field` service.
- *
- * A class rather than a closure returning an object literal; see
- * `core/hotkeys/hotkey_service.js` for the reasoning and
- * `tooling/architecture/js_service_shape.py` for the budget.
- *
- * Like `tree_processor`, this one holds no mutable state of its own — the cache
- * lives in the ORM call — so the conversion is mechanical: the functions that
- * already called each other become methods that do. Five of those calls were
- * routed through the returned object by the `js_patch_blind_facade` fix so a
- * downstream patch of `loadFields` or `loadPath` reached the service's own
- * callers; `this.` gives that structurally.
- */
-export class FieldService {
+class FieldService {
     /**
      * @param {{ orm: any }} services
      */
@@ -306,9 +290,6 @@ export class FieldService {
         }
         return result;
     }
-
-    // Named so the internal callers below go through the facade: a
-    // downstream patch of `loadFields`/`loadPath` must apply to them too.
 }
 
 export const fieldService = {

@@ -1,10 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/animated_number */
-
 import { Component, onWillUnmount, onWillUpdateProps, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { prefersReducedMotion } from "@web/core/browser/feature_detection";
 import { formatInteger, formatMonetary } from "@web/core/formatters";
 import { user } from "@web/core/user";
 import { usePopover } from "@web/ui/popover/popover_hook";
@@ -39,7 +38,7 @@ export class AnimatedNumber extends Component {
             const { value: to, duration } = nextProps;
             if (
                 !(/** @type {any} */ (this.constructor).enableAnimations) ||
-                browser.matchMedia("(prefers-reduced-motion: reduce)").matches ||
+                prefersReducedMotion() ||
                 !duration ||
                 to <= from
             ) {

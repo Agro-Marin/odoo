@@ -1,10 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/**
- * @module @web/webclient/burger_menu/mobile_switch_company_menu/mobile_switch_company_menu
- */
-
 import { onWillUnmount } from "@odoo/owl";
 import { SwitchCompanyMenu } from "@web/webclient/switch_company_menu/switch_company_menu";
 

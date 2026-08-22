@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/pivot/pivot_value_utils */
-
 /**
  * @param {string} gb
  * @param {Object} fields

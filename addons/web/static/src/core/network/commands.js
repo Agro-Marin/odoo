@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/network/commands */
-
 export const x2ManyCommands = {
     CREATE: 0,
     create(virtualID, values) {

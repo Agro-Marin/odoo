@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/form/form_label */
-
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";

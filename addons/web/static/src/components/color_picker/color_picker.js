@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/color_picker/color_picker */
-
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { CustomColorPicker } from "@web/components/color_picker/custom_color_picker/custom_color_picker";
 import { colorScheme } from "@web/core/color_scheme";
@@ -157,6 +155,37 @@ export class ColorPicker extends Component {
         useDefaultThemeColors: true,
     };
 
+    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
+    root;
+    /** @type {any[]} */
+    tabs = [];
+    /**
+     * @type {string[][]}
+     */
+    defaultColors = DEFAULT_COLORS;
+    /** @type {Record<string, string[]>} */
+    grayscales = DEFAULT_GRAYSCALES;
+    /**
+     * @type {string[]}
+     */
+    themeColorVars = [];
+    /** @type {string | false | undefined} */
+    defaultColorSet;
+    /** @type {string[]} */
+    usedCustomColors = [];
+    /** @type {EventTarget | null} */
+    focusedBtn = null;
+    /** @type {boolean} */
+    previewingFocusin = false;
+    /** @type {{ activeTab: string, currentCustomColor: string, currentColorPreview: any, showGradientPicker: boolean }} */
+    state;
+    /** @type {() => void} */
+    onApplyCallback = () => {};
+    /** @type {() => void} */
+    onPreviewRevertCallback = () => {};
+    /** @type {() => any} */
+    getPreviewColor = () => {};
+
     setup() {
         this.tabs = registry
             .category("color_picker_tabs")
@@ -164,31 +193,43 @@ export class ColorPicker extends Component {
             .filter((tab) => this.props.enabledTabs.includes(tab.id));
         this.root = useRef("root");
 
-        this.DEFAULT_COLORS = DEFAULT_COLORS;
         this.grayscales = { ...DEFAULT_GRAYSCALES, ...this.props.grayscales };
-        this.DEFAULT_THEME_COLOR_VARS = this.props.useDefaultThemeColors
+        this.themeColorVars = this.props.useDefaultThemeColors
             ? DEFAULT_THEME_COLOR_VARS
             : [];
-        this.defaultColorSet = this.getDefaultColorSet();
-        this.defaultColor = this.props.state.selectedColor;
-        this.focusedBtn = null;
-        this.onApplyCallback = () => {};
-        this.onPreviewRevertCallback = () => {};
-        this.getPreviewColor = () => {};
-
         this.state = useState({
             activeTab: this.props.state.selectedTab || this.getDefaultTab(),
             currentCustomColor: this.props.state.selectedColor,
             currentColorPreview: undefined,
             showGradientPicker: false,
         });
-        this.usedCustomColors = this.props.getUsedCustomColors();
+        this.deriveFromApplied();
         useEffect(
             () => {
                 /** @type {any} */ (this.env)[POSITION_BUS]?.trigger("update");
             },
             () => [this.state.activeTab],
         );
+    }
+
+    /**
+     * `defaultColorSet` and `usedCustomColors` are read by the template
+     * (`color_picker.xml:39`, `color_picker_custom_tab.xml:7`) and were computed
+     * by two statements repeated in `setup` and again in `selectColor`. One
+     * method, both callers, so they cannot drift apart.
+     *
+     * Deliberately NOT called from a render. Both track the colour that has been
+     * **applied**, not the one being previewed, and a preview does move
+     * `props.state.selectedColor` underneath: recomputing per render was tried,
+     * and it makes `getDefaultColorSet` match the previewed colour, which hides
+     * the current-custom-colour swatch mid-hover. That is what html_editor's
+     * `always show the current custom color` and `should show the custom color
+     * preview in a color button` catch. Apply is the commit point; nothing else
+     * is.
+     */
+    deriveFromApplied() {
+        this.defaultColorSet = this.getDefaultColorSet();
+        this.usedCustomColors = this.props.getUsedCustomColors();
     }
 
     getDefaultTab() {
@@ -225,9 +266,9 @@ export class ColorPicker extends Component {
     }
     /**
      * @param {Object} cbs
-     * @param {Function} [cbs.onApplyCallback]
-     * @param {Function} [cbs.onPreviewRevertCallback]
-     * @param {Function} [cbs.getPreviewColor]
+     * @param {() => void} [cbs.onApplyCallback]
+     * @param {() => void} [cbs.onPreviewRevertCallback]
+     * @param {() => any} [cbs.getPreviewColor]
      */
     setOperationCallbacks(cbs) {
         if (this.props.setOperationCallbacks) {
@@ -247,9 +288,7 @@ export class ColorPicker extends Component {
     selectColor(color) {
         this.state.currentCustomColor = color;
         this.props.applyColor(color);
-        this.defaultColorSet = this.getDefaultColorSet();
-        // Applying a colour is exactly what makes it "used".
-        this.usedCustomColors = this.props.getUsedCustomColors();
+        this.deriveFromApplied();
         this.onApplyCallback();
     }
 
@@ -289,22 +328,29 @@ export class ColorPicker extends Component {
     }
     getTarget(ev) {
         const target = ev.target.closest(`[data-color]`);
-        return this.root.el.contains(target) ? target : ev.target;
+        return this.root.el?.contains(target) ? target : ev.target;
     }
 
     onColorFocusin(ev) {
-        if (this.focusedBtn === ev.target) {
-            this.focusedBtn = null;
+        if (this.previewingFocusin || this.focusedBtn === ev.target) {
             return;
         }
-        this.focusedBtn = ev.target;
-        this.onColorHover(ev);
-        if (document.activeElement !== ev.target) {
-            ev.target.focus();
+        this.previewingFocusin = true;
+        try {
+            this.onColorHover(ev);
+            if (document.activeElement !== ev.target) {
+                ev.target.focus();
+            }
+        } finally {
+            this.focusedBtn = ev.target;
+            this.previewingFocusin = false;
         }
     }
 
     onColorFocusout(ev) {
+        if (this.focusedBtn === ev.target) {
+            this.focusedBtn = null;
+        }
         if (!ev.relatedTarget || !this.isColorButton(ev.relatedTarget)) {
             return;
         }
@@ -320,7 +366,7 @@ export class ColorPicker extends Component {
             return;
         }
         let defaultColors = this.props.enabledTabs.includes("solid")
-            ? this.DEFAULT_THEME_COLOR_VARS
+            ? this.themeColorVars
             : [];
         for (const grayscale of Object.values(this.grayscales)) {
             defaultColors = [...defaultColors, ...grayscale];
@@ -329,8 +375,11 @@ export class ColorPicker extends Component {
         const targetedElement =
             this.props.state.getTargetedElements?.()?.[0] || document.documentElement;
         const selectedColor = this.props.state.selectedColor.toUpperCase();
-        const htmlStyle =
-            targetedElement.ownerDocument.defaultView.getComputedStyle(targetedElement);
+        const view = targetedElement.ownerDocument.defaultView;
+        if (!view) {
+            return false;
+        }
+        const htmlStyle = view.getComputedStyle(targetedElement);
 
         for (const color of defaultColors) {
             const cssVar = normalizeCSSColor(htmlStyle.getPropertyValue(`--${color}`));
@@ -389,7 +438,18 @@ export class ColorPicker extends Component {
     }
 }
 
+/**
+ * @param {string} refName
+ * @param {Record<string, any> | (() => Record<string, any>)} props the picker's
+ *   props, or a function returning them. The object form is captured once and
+ *   replayed on every open, so anything in it that can move must be reachable
+ *   through a reactive value it holds; the function form is re-read per open and
+ *   is what a caller should reach for by default.
+ * @param {Record<string, any>} [options]
+ */
 export function useColorPicker(refName, props, options = {}) {
+    const getProps = typeof props === "function" ? props : () => props;
+    /** @type {() => void} */
     let onCloseCallback = () => {};
     const setOnCloseCallback = (cb) => {
         onCloseCallback = cb;
@@ -411,9 +471,9 @@ export function useColorPicker(refName, props, options = {}) {
     function onClick() {
         if (colorPicker.isOpen) {
             colorPicker.close();
-        } else {
-            colorPicker.open(root.el, { ...props, setOnCloseCallback });
-            popoverOptions.onOpen?.();
+        } else if (root.el) {
+            colorPicker.open(root.el, { ...getProps(), setOnCloseCallback });
+            options.onOpen?.();
         }
     }
 

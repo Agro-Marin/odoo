@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/sample_data */
-
 export const MAIN_RECORDSET_SIZE = 16;
 export const SUB_RECORDSET_SIZE = 5;
 export const SEARCH_READ_LIMIT = 10;

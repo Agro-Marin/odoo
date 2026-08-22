@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/kanban_cover_image_dialog */
-
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { FileInput } from "@web/components/file_input/file_input";
 import { useService } from "@web/core/utils/hooks";

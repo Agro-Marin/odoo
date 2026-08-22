@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/command_builder */
-
 import { x2ManyCommands } from "@web/core/network/commands";
 
 const { CREATE, UPDATE, UNLINK, LINK, SET } = x2ManyCommands;
@@ -10,7 +8,7 @@ const { CREATE, UPDATE, UNLINK, LINK, SET } = x2ManyCommands;
 /**
  * @param {Array<[number, string|number, any?]>} commands
  * @param {Object} params
- * @param {Object} params.unknownRecordCommands
+ * @param {Map<string|number, Array<[number, any, any?]>>} params.unknownRecordCommands
  * @param {Object} params.fields
  * @param {Object} params.activeFields
  * @param {Object} params.context
@@ -35,8 +33,9 @@ export function serializeCommands(commands, params) {
     const result = [];
 
     for (const command of commands) {
-        if (command[0] === UPDATE && command[1] in unknownRecordCommands) {
-            const uCommands = unknownRecordCommands[command[1]];
+        const uCommands =
+            command[0] === UPDATE ? unknownRecordCommands.get(command[1]) : undefined;
+        if (uCommands) {
             const deferredValues = {};
             for (const uCommand of uCommands) {
                 Object.assign(deferredValues, uCommand[2]);
@@ -94,9 +93,6 @@ export function shouldEmitUnlink(ownCommands) {
     if (linkIndex >= 0) {
         ownCommands.splice(linkIndex, 1);
         if (!ownCommands.some((x) => x.command[0] === LINK)) {
-            // The LINK is gone, so the staged UPDATEs are moot -- but an UNLINK
-            // BEFORE it means the row was a server member the user had already
-            // removed, and dropping that too silently re-links it on save.
             const unlinks = ownCommands.filter((x) => x.command[0] === UNLINK);
             ownCommands.splice(0, ownCommands.length, ...unlinks);
         }
@@ -106,15 +102,6 @@ export function shouldEmitUnlink(ownCommands) {
 }
 
 /**
- * Drop *recordId* from a leading SET command, so unlinking a row the same batch
- * just SET is expressed by shortening the SET rather than by appending an
- * UNLINK the server would apply to a row that was never linked.
- *
- * Only the SET payload is touched. The caller owns the rest: on a true return
- * it clears that id's own commands, and it rebuilds `list._commands` from its
- * own index afterwards -- so splicing *allCommands* here would be writing to an
- * array that is about to be replaced.
- *
  * @param {Array<[number, any, any?]>} allCommands
  * @param {string|number} recordId
  * @returns {boolean}

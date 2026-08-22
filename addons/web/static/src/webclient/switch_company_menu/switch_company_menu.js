@@ -1,12 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/switch_company_menu/switch_company_menu */
-
 import { Component, useChildSubEnv, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownGroup } from "@web/components/dropdown/dropdown_group";
-import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
+import { useDropdownState } from "@web/components/dropdown/dropdown_hook";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { UserEvent } from "@web/core/events";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
@@ -18,6 +16,7 @@ import { useCommand } from "@web/ui/commands/command_hook";
 import {
     CompanySelector,
     getCompany,
+    isCompanyAllowed,
 } from "@web/webclient/switch_company_menu/company_selector";
 import { SwitchCompanyItem } from "@web/webclient/switch_company_menu/switch_company_item";
 
@@ -110,10 +109,29 @@ export class SwitchCompanyMenu extends Component {
         return this.state.visibleCompanies;
     }
 
+    /**
+     * @returns {"all"|"some"|"none"}
+     */
+    get selectionState() {
+        let selectable = 0;
+        let selected = 0;
+        for (const { company } of this.visibleCompanies) {
+            if (!isCompanyAllowed(company.id)) {
+                continue;
+            }
+            selectable++;
+            if (this.companySelector.isCompanySelected(company.id)) {
+                selected++;
+            }
+        }
+        if (!selected) {
+            return "none";
+        }
+        return selected === selectable ? "all" : "some";
+    }
+
     get hasSelectedCompanies() {
-        return this.visibleCompanies.some((c) =>
-            this.companySelector.isCompanySelected(c.company.id),
-        );
+        return this.selectionState !== "none";
     }
 
     /** @returns {string} */
@@ -122,57 +140,31 @@ export class SwitchCompanyMenu extends Component {
     }
 
     get selectAllClass() {
-        if (
-            this.visibleCompanies.every((c) =>
-                this.companySelector.isCompanySelected(c.company.id),
-            )
-        ) {
-            return "btn-link text-primary";
-        } else {
-            return "btn-link text-secondary";
-        }
+        return this.selectionState === "all"
+            ? "btn-link text-primary"
+            : "btn-link text-secondary";
     }
 
     get selectAllIcon() {
-        if (
-            this.visibleCompanies.every((c) =>
-                this.companySelector.isCompanySelected(c.company.id),
-            )
-        ) {
-            return "fa-solid fa-square-check text-primary";
-        } else if (
-            this.visibleCompanies.some((c) =>
-                this.companySelector.isCompanySelected(c.company.id),
-            )
-        ) {
-            return "fa-regular fa-square-minus";
-        } else {
-            return "fa-regular fa-square";
+        switch (this.selectionState) {
+            case "all":
+                return "fa-solid fa-square-check text-primary";
+            case "some":
+                return "fa-regular fa-square-minus";
+            default:
+                return "fa-regular fa-square";
         }
     }
 
-    /**
-     * The filter selects subtrees, not rows.
-     *
-     * Selection cascades: `_selectCompany` recurses into `child_ids`, so
-     * acting on a company acts on its branches whether or not they are on
-     * screen. Matching row by row therefore lied in both directions -- a
-     * matched branch rendered indented under nothing, and "select all" over a
-     * filtered list quietly took in companies the user could not see.
-     *
-     * So visibility is closed under descendants: a company is shown when its
-     * subtree holds a match, and showing it shows everything under it. What is
-     * on screen is then exactly what the controls act on, and every rendered
-     * row still sits below its parent.
-     */
     computeVisibleCompanies() {
-        /** @type {Map<number, boolean>} subtree holds a match */
+        this._normalisedFilter = (this.state.searchFilter || "")
+            .toLocaleLowerCase()
+            .replace(/\s/g, "");
+        /** @type {Map<number, boolean>} */
         const inSubtree = new Map();
         const scanSubtree = (company) => {
             let found = this.matchSearch(company.name);
             for (const companyId of company.child_ids || []) {
-                // Every child is scanned: `found` short-circuiting here would
-                // leave the map incomplete for the pass below.
                 if (scanSubtree(getCompany(companyId))) {
                     found = true;
                 }
@@ -214,13 +206,13 @@ export class SwitchCompanyMenu extends Component {
     }
 
     matchSearch(companyName) {
-        if (!this.state.searchFilter) {
+        if (!this._normalisedFilter) {
             return true;
         }
-
-        const name = companyName.toLocaleLowerCase().replace(/\s/g, "");
-        const filter = this.state.searchFilter.toLocaleLowerCase().replace(/\s/g, "");
-        return name.includes(filter);
+        return companyName
+            .toLocaleLowerCase()
+            .replace(/\s/g, "")
+            .includes(this._normalisedFilter);
     }
 
     handleDropdownChange(isOpen) {

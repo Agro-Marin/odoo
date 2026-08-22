@@ -1,8 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/record_utils */
-
+import { isX2Many } from "@web/core/field_types";
 import { evaluateBooleanExpr, getExprFreeVariables } from "@web/core/py_js/py";
 
 import { formatServerValue } from "./record_value_transforms.js";
@@ -199,7 +198,7 @@ export function computeChangeset({
             continue;
         }
 
-        if (field.type === "one2many" || field.type === "many2many") {
+        if (isX2Many(field)) {
             if (typeof value?._getCommands !== "function") {
                 if (isNew) {
                     result[fieldName] = [];

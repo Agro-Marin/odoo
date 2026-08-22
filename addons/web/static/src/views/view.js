@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view */
-
 import {
     Component,
     markRaw,
@@ -15,7 +13,8 @@ import {
 import { useDebugCategory } from "@web/core/debug/debug_context";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
-import { deepCopy } from "@web/core/utils/collections/objects";
+import { viewLog } from "@web/core/utils/asset_log";
+import { deepCopy, shallowEqual } from "@web/core/utils/collections/objects";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { parseXML } from "@web/core/utils/dom/xml";
 import { nbsp } from "@web/core/utils/format/strings";
@@ -28,15 +27,7 @@ import { useActionLinks } from "@web/views/view_hook";
 import { computeViewClassName } from "./view_utils.js";
 
 /**
- * @typedef Config
- * @property {number | false} actionId
- * @property {string | false} actionType
- * @property {() => []} breadcrumbs
- * @property {() => string} getDisplayName
- * @property {(name: string) => any} setDisplayName
- * @property {() => Record<string, any>} [getPagerProps]
- * @property {Record<string, any>[]} [viewSwitcherEntry]
- * @property {typeof Component} [Banner]
+ * @typedef {import("./view_config").ViewConfig} ViewConfig
  * @typedef {import("@web/core/context").Context} Context
  * @typedef {import("@web/env").OdooEnv} OdooEnv
  * @typedef {import("@web/core/utils/order_by").OrderTerm} OrderTerm
@@ -55,7 +46,6 @@ import { computeViewClassName } from "./view_utils.js";
  * @property {number|false} [searchViewId]
  * @property {Record<string, any>[]} [irFilters]
  * @property {boolean} [loadIrFilters=false]
- * @property {Record<string, any>} [comparison]
  * @property {Context} [context={}]
  * @property {any} [domain]
  * @property {string[]} [groupBy]
@@ -72,38 +62,23 @@ import { computeViewClassName } from "./view_utils.js";
  * @property {string[]} [searchMenuTypes]
  * @property {Record<string, any>} [globalState]
  * @typedef {"activity"
- *  | "calendar"
- *  | "cohort"
- *  | "form"
- *  | "gantt"
- *  | "graph"
- *  | "grid"
- *  | "hierarchy"
- *  | "kanban"
- *  | "list"
- *  | "map"
- *  | "pivot"
- *  | "search"
+ * | "calendar"
+ * | "cohort"
+ * | "form"
+ * | "gantt"
+ * | "graph"
+ * | "grid"
+ * | "hierarchy"
+ * | "kanban"
+ * | "list"
+ * | "map"
+ * | "pivot"
+ * | "search"
  * } ViewType
  */
 
 const viewRegistry = registry.category("views");
 
-/**
- * What a view type is, declared.
- *
- * Two keys were checked here and the other eleven passed unexamined behind
- * `"*": true` -- including every one `loadView` dereferences without a guard.
- * A descriptor that spells `Renderer` as `renderer`, or hands a plain object
- * where a Component subclass is required, registered silently and failed later
- * inside a render, with a stack pointing at OWL rather than at the typo.
- *
- * `"*": true` stays: `props()` forwards keys this module has never heard of to
- * the controller, and a downstream view type may legitimately carry its own.
- * What changes is that the keys `web` itself consumes are no longer among the
- * unchecked ones. Validation runs in dev mode only, so this costs nothing in
- * production and fires in every Hoot suite.
- */
 viewRegistry.addValidation({
     type: { validate: (/** @type {any} */ t) => t in session.view_info },
 
@@ -118,8 +93,6 @@ viewRegistry.addValidation({
         validate: (/** @type {any} */ c) => c.prototype instanceof Component,
         optional: true,
     },
-    // Not Components: `Model` and `SearchModel` are plain classes, `ArchParser`
-    // and `Compiler` are instantiated with `new` by `props()` and the renderer.
     Model: { type: Function, optional: true },
     SearchModel: { type: Function, optional: true },
     ArchParser: { type: Function, optional: true },
@@ -169,34 +142,7 @@ const CALLBACK_RECORDER_NAMES = [
     "__getOrderBy__",
 ];
 
-/**
- * Declared types for every prop `View` is known to receive, as an OWL schema.
- *
- * `View` cannot use a closed schema: `loadView` deliberately forwards every prop
- * it does not consume itself to the controller (the `STANDARD_PROPS` filter
- * below), so third-party callers legitimately pass keys this module has never
- * heard of. `"*": true` keeps that door open while the declared keys above it
- * are still checked -- OWL's `validateSchema` honours both in the same schema.
- *
- * Validation runs in dev mode only, so this buys nothing at runtime in
- * production. What it buys is that `web`'s two widest extension seams stop
- * accepting a misspelled or wrongly-typed prop in silence during development and
- * in every Hoot suite.
- *
- * Contains a superset of `STANDARD_PROPS`: `comparison` and `noBreadcrumbs` are
- * documented `ViewProps` that are deliberately *not* in that list, because they
- * are meant to reach the controller. Declaring a type for them here does not
- * change where they go -- forwarding is decided by `STANDARD_PROPS` alone, which
- * is left exactly as it was. `view_props.test.js` pins that every
- * `STANDARD_PROPS` entry carries a declared type, so the two cannot drift apart
- * silently the way two hand-maintained lists otherwise do.
- */
 export const viewProps = {
-    // Declared `optional` although both are in fact mandatory: `setup()` already
-    // rejects a missing `resModel` / `type` with a message naming the key, which
-    // is more use than OWL's generic "'type' is missing". Marking them required
-    // here would make the schema throw first and swallow that. Present values
-    // are still type-checked.
     resModel: { type: String, optional: true },
     type: { type: String, optional: true },
     jsClass: { type: String, optional: true },
@@ -219,17 +165,8 @@ export const viewProps = {
     domain: { type: Array, optional: true },
     groupBy: { type: Array, element: String, optional: true },
     orderBy: { type: Array, optional: true },
-    comparison: { type: Object, optional: true },
 
     useSampleModel: { type: Boolean, optional: true },
-    // `false`, not just a string: this is `action.help` forwarded verbatim by
-    // `action_info_builders` (`viewProps.noContentHelp = action.help`), and an
-    // `ir.actions.act_window` with an empty Html `help` serialises it as
-    // `false`. That value is load-bearing rather than incidental --
-    // `PivotController.displayNoContent` branches on
-    // `noContentHelp === false` -- so declaring it `String` rejected an action
-    // the webclient opens routinely, and did so only in dev mode, which is
-    // where the tours run.
     noContentHelp: { type: [String, Boolean], optional: true },
     className: { type: String, optional: true },
     noBreadcrumbs: { type: Boolean, optional: true },
@@ -248,53 +185,20 @@ export const viewProps = {
     __getContext__: { type: Object, optional: true },
     __getOrderBy__: { type: Object, optional: true },
 
-    searchPanel: { type: Object, optional: true },
-    searchModel: { type: Object, optional: true },
-
     "*": true,
 };
 
-export const STANDARD_PROPS = [
-    "resModel",
-    "type",
-    "jsClass",
+/**
+ * @type {string[]}
+ */
+const FORWARDED_TO_CONTROLLER = ["noBreadcrumbs"];
 
-    "arch",
-    "fields",
-    "relatedModels",
-    "viewId",
-    "views",
-    "actionMenus",
-    "loadActionMenus",
-
-    "searchViewArch",
-    "searchViewFields",
-    "searchViewId",
-    "irFilters",
-    "loadIrFilters",
-
-    "context",
-    "domain",
-    "groupBy",
-    "orderBy",
-
-    "useSampleModel",
-    "noContentHelp",
-    "className",
-
-    "display",
-    "globalState",
-
-    "activateFavorite",
-    "dynamicFilters",
-    "hideCustomGroupBy",
-    "searchMenuTypes",
-
-    ...CALLBACK_RECORDER_NAMES,
-
-    "searchPanel",
-    "searchModel",
-];
+/**
+ * @type {string[]}
+ */
+export const STANDARD_PROPS = Object.keys(viewProps).filter(
+    (key) => key !== "*" && !FORWARDED_TO_CONTROLLER.includes(key),
+);
 
 const ACTIONS = [
     "create",
@@ -380,7 +284,10 @@ export class View extends Component {
     async loadView(props) {
         const loadId = ++this.loadViewId;
         const type = props.type;
-        const config = /** @type {Record<string, any>} */ (this.env.config);
+        viewLog("load", type, props.resModel || "");
+        const config = /** @type {ViewConfig & Record<string, any>} */ (
+            this.env.config
+        );
 
         if (!session.view_info[type]) {
             throw new Error(`Invalid view type: ${type}`);
@@ -438,6 +345,7 @@ export class View extends Component {
                 options.embeddedActionId = config.currentEmbeddedActionId;
                 options.embeddedParentResId = context.active_id;
             }
+            viewLog("loadViews", resModel, type);
             const result = await this.viewService.loadViews(
                 { context, resModel, views },
                 options,
@@ -492,6 +400,7 @@ export class View extends Component {
             rawArch: arch,
             viewArch: archXmlDoc,
             viewId: viewDescription.id,
+            searchViewId,
             viewType: type,
             viewSubType: jsClass,
             noBreadcrumbs: props.noBreadcrumbs,
@@ -506,7 +415,7 @@ export class View extends Component {
             searchViewId,
         };
 
-        const viewProps = {
+        const controllerProps = {
             info,
             arch: archXmlDoc,
             fields,
@@ -516,27 +425,29 @@ export class View extends Component {
             className,
         };
         if (viewDescription.custom_view_id) {
-            viewProps.info.customViewId = viewDescription.custom_view_id;
+            controllerProps.info.customViewId = viewDescription.custom_view_id;
         }
         if (props.globalState) {
-            viewProps.globalState = props.globalState;
+            controllerProps.globalState = props.globalState;
         }
 
         if ("useSampleModel" in props) {
-            viewProps.useSampleModel = /** @type {boolean} */ (props.useSampleModel);
+            controllerProps.useSampleModel = /** @type {boolean} */ (
+                props.useSampleModel
+            );
         } else if (sample) {
-            viewProps.useSampleModel = evaluateBooleanExpr(sample);
+            controllerProps.useSampleModel = evaluateBooleanExpr(sample);
         }
 
         for (const key of Object.keys(props)) {
             if (!STANDARD_PROPS.includes(key)) {
-                viewProps[key] = props[key];
+                controllerProps[key] = props[key];
             }
         }
 
         const { noContentHelp } = props;
         if (noContentHelp) {
-            viewProps.info.noContentHelp = noContentHelp;
+            controllerProps.info.noContentHelp = noContentHelp;
         }
 
         const searchMenuTypes =
@@ -546,14 +457,14 @@ export class View extends Component {
         const defaultGroupBy = archXmlDoc.hasAttribute("default_group_by")
             ? (archXmlDoc.getAttribute("default_group_by") ?? "").split(",")
             : null;
-        viewProps.searchMenuTypes = searchMenuTypes;
+        controllerProps.searchMenuTypes = searchMenuTypes;
         const canOrderByCount =
             descr.canOrderByCount ||
             /** @type {any} */ (this.constructor).canOrderByCount;
 
         const finalProps = descr.props
-            ? descr.props(viewProps, descr, config)
-            : viewProps;
+            ? descr.props(controllerProps, descr, config)
+            : controllerProps;
         this.Controller = descr.Controller;
         this.componentProps = finalProps;
         /** @type {Record<string, any>} */
@@ -602,14 +513,23 @@ export class View extends Component {
     }
 
     /**
+     * @type {string[]}
+     */
+    static VIEW_SELECTING_PROPS = ["arch", "type", "resModel", "viewId", "jsClass"];
+
+    /**
      * @param {ViewProps} nextProps
      */
     onWillUpdateProps(nextProps) {
-        if (
-            this.props.arch !== nextProps.arch ||
-            this.props.type !== nextProps.type ||
-            this.props.resModel !== nextProps.resModel
-        ) {
+        const selectors = /** @type {typeof View} */ (this.constructor)
+            .VIEW_SELECTING_PROPS;
+        const reselected = selectors.some((key) => this.props[key] !== nextProps[key]);
+        const viewsChanged = !shallowEqual(
+            this.props.views ?? [],
+            nextProps.views ?? [],
+            shallowEqual,
+        );
+        if (reselected || viewsChanged) {
             return this.loadView(nextProps);
         }
         const { context, domain, groupBy, orderBy } = nextProps;

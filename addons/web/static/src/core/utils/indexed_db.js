@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/indexed_db */
-
 import { browser } from "../browser/browser.js";
 import { Mutex } from "./concurrency.js";
 
@@ -45,7 +43,6 @@ export class IndexedDB {
     /**
      * @param {string} table
      * @param {string} key
-     * @returns Promise
      */
     async read(table, key) {
         this._tables.add(table);
@@ -60,7 +57,6 @@ export class IndexedDB {
      * @param {string} table
      * @param {string} key
      * @param {any} value
-     * @returns Promise
      */
     async write(table, key, value) {
         this._tables.add(table);
@@ -73,7 +69,6 @@ export class IndexedDB {
 
     /**
      * @param {string|string[]|null} [tables=null]
-     * @returns Promise
      */
     async invalidate(tables = null) {
         return this.execute((db) => {
@@ -90,7 +85,6 @@ export class IndexedDB {
      * @deprecated
      * @param {string[]} tables
      * @param {(key: string) => boolean} predicate
-     * @returns Promise
      */
     async invalidateWhere(tables, predicate) {
         return this.execute((db) => {
@@ -103,7 +97,6 @@ export class IndexedDB {
     /**
      * @param {string[]} tables
      * @param {string} model
-     * @returns Promise
      */
     async invalidateByModel(tables, model) {
         return this.execute((db) => {
@@ -113,16 +106,12 @@ export class IndexedDB {
         });
     }
 
-    /**
-     * @returns Promise
-     */
     async deleteDatabase() {
         return this.mutex.exec(() => this._deleteDatabase(() => {}));
     }
 
     /**
      * @param {(db?: IDBDatabase) => any} callback
-     * @returns Promise
      */
     async execute(callback) {
         return this.mutex.exec(() => this._execute(callback));
@@ -210,9 +199,7 @@ export class IndexedDB {
                 let estimate = {};
                 try {
                     estimate = (await browser.navigator.storage?.estimate()) ?? {};
-                } catch {
-                    // Diagnostics only — fall through with unknown figures.
-                }
+                } catch {}
                 console.error(
                     `IndexedDB error: Quota Exceeded (${formatStorageSize(
                         estimate.usage,
@@ -249,12 +236,6 @@ export class IndexedDB {
                     throw e;
                 }
             }
-            // The cached handle already carries the schema version, so go
-            // straight to the upgrade. Reopening at the current version first
-            // only rediscovers the same missing stores and closes again, which
-            // doubled the round trips: every table `RPCCache` meets for the
-            // first time is a python method name, so a cold session paid this
-            // once per distinct cached method.
             const upgradeVersion = db.version + 1;
             this._closeCachedDB();
             return this._execute(callback, upgradeVersion);
@@ -318,13 +299,6 @@ export class IndexedDB {
             };
             request.onerror = (event) => {
                 settle(() => {
-                    // Remembered, like the synchronous-throw path above: an
-                    // `open` that resolves to an error is a persistent
-                    // condition for this (name, version) -- denied storage, an
-                    // unreadable file, a version another context holds. Without
-                    // the flag the database was reopened once per call, so a
-                    // cold session with an unusable IndexedDB paid an open and
-                    // logged a console error for every cached RPC it made.
                     this._degraded = true;
                     console.error(
                         `IndexedDB error: ${/** @type {IDBRequest} */ (event.target).error?.message}`,
@@ -385,12 +359,6 @@ export class IndexedDB {
             const transaction = db.transaction(targetTables, "readwrite", {
                 durability: "relaxed",
             });
-            // Settle on the transaction, not on the individual `clear()`
-            // requests: a request's `onsuccess` fires before the transaction
-            // commits, so resolving there reported success for a transaction
-            // that went on to abort -- the later `reject` lands on an already
-            // settled promise and is lost. `_invalidateByModel` and
-            // `_invalidateWhere` already wait for `oncomplete`.
             for (const table of targetTables) {
                 transaction.objectStore(table).clear();
             }
@@ -417,11 +385,16 @@ export class IndexedDB {
         });
     }
 
-    async _invalidateByModel(
-        /** @type {IDBDatabase} */ db,
-        /** @type {string[]} */ tables,
-        /** @type {string} */ model,
-    ) {
+    /**
+     * @param {IDBDatabase} db
+     * @param {string[]} tables
+     * @param {{
+     * needsValue: boolean,
+     * shouldDelete: (cursor: IDBCursor | IDBCursorWithValue) => boolean,
+     * }} params
+     * @returns {Promise<void>}
+     */
+    async _sweep(db, tables, { needsValue, shouldDelete }) {
         return new Promise((resolve, reject) => {
             const objectStoreNames = [...db.objectStoreNames].filter(
                 (table) => table !== VERSION_TABLE,
@@ -438,15 +411,21 @@ export class IndexedDB {
             transaction.onabort = () => reject(transaction.error);
             for (const table of targetTables) {
                 const objectStore = transaction.objectStore(table);
-                const request = objectStore.openCursor();
+                const request = needsValue
+                    ? objectStore.openCursor()
+                    : objectStore.openKeyCursor();
                 request.onsuccess = (event) => {
-                    const cursor = /** @type {IDBCursorWithValue | null} */ (
+                    const cursor = /** @type {IDBCursor | null} */ (
                         /** @type {IDBRequest} */ (event.target).result
                     );
                     if (!cursor) {
                         return;
                     }
-                    if (cursor.value?.model === model) {
+                    let doomed = false;
+                    try {
+                        doomed = shouldDelete(cursor);
+                    } catch {}
+                    if (doomed) {
                         objectStore.delete(cursor.key);
                     }
                     cursor.continue();
@@ -455,45 +434,26 @@ export class IndexedDB {
         });
     }
 
+    async _invalidateByModel(
+        /** @type {IDBDatabase} */ db,
+        /** @type {string[]} */ tables,
+        /** @type {string} */ model,
+    ) {
+        return this._sweep(db, tables, {
+            needsValue: true,
+            shouldDelete: (cursor) =>
+                /** @type {IDBCursorWithValue} */ (cursor).value?.model === model,
+        });
+    }
+
     async _invalidateWhere(
         /** @type {IDBDatabase} */ db,
         /** @type {string[]} */ tables,
         /** @type {(key: string) => boolean} */ predicate,
     ) {
-        return new Promise((resolve, reject) => {
-            const objectStoreNames = [...db.objectStoreNames].filter(
-                (table) => table !== VERSION_TABLE,
-            );
-            const targetTables = objectStoreNames.filter((t) => tables.includes(t));
-            if (!targetTables.length) {
-                return resolve(undefined);
-            }
-            const transaction = db.transaction(targetTables, "readwrite", {
-                durability: "relaxed",
-            });
-            transaction.oncomplete = () => resolve(undefined);
-            transaction.onerror = () => reject(transaction.error);
-            transaction.onabort = () => reject(transaction.error);
-            for (const table of targetTables) {
-                const objectStore = transaction.objectStore(table);
-                const request = objectStore.openKeyCursor();
-                request.onsuccess = (event) => {
-                    const cursor = /** @type {IDBCursor | null} */ (
-                        /** @type {IDBRequest} */ (event.target).result
-                    );
-                    if (!cursor) {
-                        return;
-                    }
-                    let shouldDelete = false;
-                    try {
-                        shouldDelete = predicate(/** @type {string} */ (cursor.key));
-                    } catch {}
-                    if (shouldDelete) {
-                        objectStore.delete(cursor.key);
-                    }
-                    cursor.continue();
-                };
-            }
+        return this._sweep(db, tables, {
+            needsValue: false,
+            shouldDelete: (cursor) => predicate(/** @type {string} */ (cursor.key)),
         });
     }
 }

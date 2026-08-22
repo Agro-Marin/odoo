@@ -1,14 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/dropdown/accordion_item */
-
 import { Component, onPatched, useState } from "@odoo/owl";
 
 export const ACCORDION = Symbol("Accordion");
 export class AccordionItem extends Component {
     static template = "web.AccordionItem";
-    static components = {};
     static props = {
         slots: {
             type: Object,

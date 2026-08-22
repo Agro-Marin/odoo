@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/menus/menu_helpers */
-
 /**
  * @param {Object} tree
  * @param {Function} cb
@@ -63,12 +61,11 @@ export function computeAppsAndMenuItems(menuTree) {
  * @param {string[]} order
  */
 export function reorderApps(apps, order) {
-    const pos = new Map(apps.map((a, i) => [a, i]));
     apps.sort((a, b) => {
         const aIndex = order.indexOf(a.xmlid);
         const bIndex = order.indexOf(b.xmlid);
         if (aIndex === -1 && bIndex === -1) {
-            return (pos.get(a) ?? 0) - (pos.get(b) ?? 0);
+            return 0;
         }
         if (aIndex === -1) {
             return -1;

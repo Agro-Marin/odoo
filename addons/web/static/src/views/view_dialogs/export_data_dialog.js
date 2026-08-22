@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_dialogs/export_data_dialog */
-
 import {
     Component,
     onMounted,

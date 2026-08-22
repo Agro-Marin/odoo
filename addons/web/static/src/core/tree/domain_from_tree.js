@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/domain_from_tree */
-
 /** @import { Tree } from "./condition_tree.js" */
 
 import { constructDomainFromTree } from "./construct_domain_from_tree.js";

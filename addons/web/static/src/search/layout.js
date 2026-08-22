@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/layout */
-
 import { Component, useRef } from "@odoo/owl";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { SearchPanel } from "@web/search/search_panel/search_panel";

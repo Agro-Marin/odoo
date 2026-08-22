@@ -1,12 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dom/dvu */
-
-/**
- * @see https://developer.mozilla.org/en-US/docs/Web/API/VirtualKeyboard_API
- */
-
 import { onWillUnmount } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { isVirtualKeyboardSupported } from "@web/core/browser/feature_detection";

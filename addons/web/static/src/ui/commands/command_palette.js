@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/commands/command_palette */
-
 import {
     Component,
     EventBus,
@@ -13,14 +11,17 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
 import { isMacOS, isMobileOS } from "@web/core/browser/feature_detection";
+import { reportUncaught } from "@web/core/errors/error_utils";
 import { CommandPaletteEvent } from "@web/core/events";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { _t } from "@web/core/translation";
+import { ErrorHandler } from "@web/core/utils/components";
 import { KeepLast, Race } from "@web/core/utils/concurrency";
 import { highlightText } from "@web/core/utils/dom/html";
 import { scrollTo } from "@web/core/utils/dom/scrolling";
-import { useAutofocus, useService } from "@web/core/utils/hooks";
+import { useAutofocus, useChildRef, useService } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
 import { debounce } from "@web/core/utils/timing";
 import { Dialog } from "@web/ui/dialog/dialog";
@@ -34,48 +35,106 @@ const FUZZY_NAMESPACES = ["default"];
 export const MAX_DISPLAYED_COMMANDS = 100;
 
 /**
+ * @type {WeakMap<object, Set<string>>}
+ */
+const BROKEN_COMMANDS = new WeakMap();
+
+/**
+ * @type {WeakMap<Function, number>}
+ */
+const COMPONENT_IDS = new WeakMap();
+let nextComponentId = 1;
+
+/**
+ * @param {Function} [component]
+ * @returns {string}
+ */
+function componentId(component) {
+    if (!component) {
+        return "";
+    }
+    let id = COMPONENT_IDS.get(component);
+    if (id === undefined) {
+        id = nextComponentId++;
+        COMPONENT_IDS.set(component, id);
+    }
+    return String(id);
+}
+
+/**
+ * @param {CommandItem} command
+ * @returns {string}
+ */
+function commandKey(command) {
+    const props = /** @type {Record<string, any>} */ (command.props ?? {});
+    const propSignature = Object.keys(props)
+        .sort()
+        .map((name) => {
+            const value = props[name];
+            const isCarrier =
+                typeof value === "function" ||
+                (value !== null && typeof value === "object");
+            return isCarrier ? name : `${name}=${String(value)}`;
+        })
+        .join("\u0000");
+    return [
+        command.category ?? "",
+        command.name,
+        componentId(command.Component),
+        propSignature,
+    ].join("\u0000");
+}
+
+/**
  * @typedef {Command & {
- *  Component?: import("@odoo/owl").ComponentConstructor;
- *  props?: object;
+ * Component?: import("@odoo/owl").ComponentConstructor;
+ * props?: object;
  * }} CommandItem
  */
 
 /**
+ * @typedef {CommandItem & {
+ * index: number;
+ * keyId: number;
+ * text: string | ReturnType<typeof highlightText>;
+ * }} DisplayedCommand
+ */
+
+/**
  * @typedef {{
- *  namespace?: string;
- *  provide: (env: any, options?: any) => CommandItem[] | Promise<CommandItem[]>;
+ * namespace?: string;
+ * provide: (env: any, options?: any) => CommandItem[] | Promise<CommandItem[]>;
  * }} Provider
  */
 
 /**
  * @typedef {{
- *  categories: string[];
- *  debounceDelay: number;
- *  emptyMessage: string;
- *  placeholder: string;
+ * categories: string[];
+ * debounceDelay: number;
+ * emptyMessage: string;
+ * placeholder: string;
  * }} NamespaceConfig
  */
 
 /**
  * @typedef {{
- *  configByNamespace?: {[namespace: string]: NamespaceConfig};
- *  FooterComponent?: Component;
- *  providers: Provider[];
- *  searchValue?: string;
+ * configByNamespace?: {[namespace: string]: NamespaceConfig};
+ * FooterComponent?: Component;
+ * providers: Provider[];
+ * searchValue?: string;
  * }} CommandPaletteConfig
  */
 
 /**
- * @param {CommandItem[]} commands
+ * @template {CommandItem} T
+ * @param {T[]} commands
  * @param {string[]} categories
- * @returns {Map<string, CommandItem[]>}
+ * @returns {Map<string, T[]>}
  */
 function groupCommandsByCategory(commands, categories) {
-    /** @type {Map<string, CommandItem[]>} */
+    /** @type {Map<string, T[]>} */
     const byCategory = new Map(
-        categories.map(
-            (category) => /** @type {[string, CommandItem[]]} */ ([category, []]),
-        ),
+        categories.map((category) => /** @type {[string, T[]]} */ ([category, []])),
     );
     for (const command of commands) {
         const bucket =
@@ -86,21 +145,24 @@ function groupCommandsByCategory(commands, categories) {
     return byCategory;
 }
 
+/**
+ * @type {Record<string, any>}
+ */
+export const COMMAND_ITEM_PROPS = {
+    slots: { type: Object, optional: true },
+    name: { type: String, optional: true },
+    searchValue: { type: String, optional: true },
+    executeCommand: { type: Function, optional: true },
+};
+
 export class DefaultCommandItem extends Component {
     static template = "web.DefaultCommandItem";
-    static props = {
-        slots: { type: Object, optional: true },
-        hotkey: { type: String, optional: true },
-        hotkeyOptions: { type: String, optional: true },
-        name: { type: String, optional: true },
-        searchValue: { type: String, optional: true },
-        executeCommand: { type: Function, optional: true },
-    };
+    static props = { ...COMMAND_ITEM_PROPS };
 }
 
 export class CommandPalette extends Component {
     static template = "web.CommandPalette";
-    static components = { Dialog };
+    static components = { Dialog, ErrorHandler };
     static lastSessionId = 0;
     static props = {
         bus: { type: EventBus, optional: true },
@@ -108,11 +170,6 @@ export class CommandPalette extends Component {
         config: Object,
     };
 
-    // Declared here, assigned in setup() or in the methods below. Definite
-    // assignment analysis credits only the constructor, so without these every
-    // read would be `T | undefined`. Safe on an OWL Component, whose setup()
-    // runs after construction — NOT on a Model, which calls setup() from its
-    // own constructor and would be clobbered by a field initialiser.
     /** @type {number} */
     keyId;
     /** @type {Race<any>} */
@@ -128,21 +185,24 @@ export class CommandPalette extends Component {
     /** @type {ReturnType<typeof useAutofocus>} */
     inputRef;
     /**
-     * @type {{ commands: CommandItem[],
-     *          emptyMessage: string,
-     *          FooterComponent?: Component,
-     *          hiddenCount: number,
-     *          isLoading: boolean,
-     *          namespace: string,
-     *          placeholder: string,
-     *          searchValue: string,
-     *          selectedIndex: number }}
+     * @type {{ commands: DisplayedCommand[],
+     * emptyMessage: string,
+     * FooterComponent?: Component,
+     * hiddenCount: number,
+     * isLoading: boolean,
+     * namespace: string,
+     * placeholder: string,
+     * revision: number,
+     * searchValue: string,
+     * selectedIndex: number }}
      */
     state;
     /** @type {ReturnType<typeof useRef>} */
     root;
     /** @type {ReturnType<typeof useRef>} */
     listboxRef;
+    /** @type {ReturnType<typeof useChildRef>} */
+    modalRef;
     /** @type {Record<string, any>} */
     configByNamespace;
     /** @type {Record<string, Provider[]>} */
@@ -157,6 +217,8 @@ export class CommandPalette extends Component {
     mouseSelectionActive;
     /** @type {ReturnType<typeof debounce>} */
     lastDebounceSearch;
+    /** @type {Set<string>} */
+    brokenCommands;
 
     setup() {
         if (this.props.bus) {
@@ -173,57 +235,49 @@ export class CommandPalette extends Component {
         }
 
         this.keyId = 1;
+        this.adoptBrokenCommandsOf(this.props.config);
         this.race = new Race();
-        // Deliberately NOT `rejectSuperseded`. This is the one caller in the
-        // module where the never-settling promise is a control-flow mechanism
-        // rather than an oversight: `setCommandPaletteConfig` is awaited by
-        // `onWillStart`, so a superseded config's palette is prevented from
-        // mounting *by* the hang. Making it settle mounts an empty palette for
-        // a config the user has already replaced -- pinned by
-        // `command_service.test.js`, "calling openPalette multiple times".
-        // Converting it means destroying the superseded palette instance
-        // instead of leaving it pending, which is a change to the component,
-        // not a wrapper around this line.
         this.keepLast = new KeepLast();
         this._sessionId = CommandPalette.lastSessionId++;
         this.DefaultCommandItem = DefaultCommandItem;
         this.activeElement = useService("ui").activeElement;
         this.inputRef = useAutofocus();
 
-        useHotkey("Enter", () => this.executeSelectedCommand(), {
+        // The palette renders its own Dialog, so it sits *around* the element
+        // that dialog activates rather than inside it. Its hotkeys belong to
+        // the dialog all the same, and saying so explicitly is what keeps them
+        // from being read as the surrounding scope's.
+        this.modalRef = useChildRef();
+        /** @type {import("@web/core/hotkeys/hotkey_service").HotkeyOptions} */
+        const inPalette = {
             bypassEditableProtection: true,
-        });
-        useHotkey("Control+Enter", () => this.executeSelectedCommand(true), {
-            bypassEditableProtection: true,
-        });
+            scope: () => this.modalRef.el,
+        };
+
+        useHotkey("Enter", () => this.executeSelectedCommand(), inPalette);
+        useHotkey("Control+Enter", () => this.executeSelectedCommand(true), inPalette);
         useHotkey("ArrowUp", () => this.selectCommandAndScrollTo("PREV"), {
-            bypassEditableProtection: true,
+            ...inPalette,
             allowRepeat: true,
         });
         useHotkey("ArrowDown", () => this.selectCommandAndScrollTo("NEXT"), {
-            bypassEditableProtection: true,
+            ...inPalette,
             allowRepeat: true,
         });
         useExternalListener(window, "mousedown", this.onWindowMouseDown);
 
         /**
-         * Declared in full because the template renders against it before any
-         * config resolves: `t-if="!state.commands.length"` on an undeclared
-         * `commands` is a TypeError, and the only thing standing between the
-         * component and that crash used to be `setCommandPaletteConfig`
-         * never returning early. A component's initial state should not
-         * depend on a promise's failure mode.
-         *
          * @type {{
-         *   commands: any[];
-         *   namespace: string;
-         *   searchValue: string;
-         *   placeholder: string;
-         *   emptyMessage: string;
-         *   hiddenCount: number;
-         *   selectedIndex: number;
-         *   isLoading: boolean;
-         *   FooterComponent: any;
+         * commands: any[];
+         * namespace: string;
+         * searchValue: string;
+         * placeholder: string;
+         * emptyMessage: string;
+         * hiddenCount: number;
+         * selectedIndex: number;
+         * isLoading: boolean;
+         * revision: number;
+         * FooterComponent: any;
          * }}
          */
         this.state = useState({
@@ -235,13 +289,10 @@ export class CommandPalette extends Component {
             hiddenCount: 0,
             selectedIndex: -1,
             isLoading: false,
+            revision: 0,
             FooterComponent: undefined,
         });
 
-        // Same reasoning as `state` above, one level down: `commandsByCategory`
-        // reads both during the first render, and only `setCommands` used to
-        // assign them. They are plain fields rather than state because
-        // `state.commands` is what changes; these follow it in the same tick.
         /** @type {string[]} */
         this.categoryKeys = ["default"];
         /** @type {Record<string, string>} */
@@ -258,8 +309,9 @@ export class CommandPalette extends Component {
         return _t("%s more results — refine your search", this.state.hiddenCount);
     }
 
-    /** @returns {Array<{commands: CommandItem[], name: string, keyId: string}>} */
+    /** @returns {Array<{commands: DisplayedCommand[], name: string, keyId: string}>} */
     get commandsByCategory() {
+        void this.state.revision;
         const categories = [];
         const byCategory = groupCommandsByCategory(
             this.state.commands,
@@ -278,9 +330,26 @@ export class CommandPalette extends Component {
     }
 
     /**
+     * A command whose render throws is dropped and remembered, so that it is not
+     * offered again. Remembered *per config*: the palette stays mounted across
+     * `setCommandPaletteConfig`, and the next config brings different providers
+     * and different commands, so the previous config's casualties say nothing
+     * about it. Binding this once in `setup` left the set pointing at the first
+     * config for the palette's whole life -- filtering commands that never
+     * broke, and recording breakages against a config that was no longer shown.
+     *
+     * @param {CommandPaletteConfig} config
+     */
+    adoptBrokenCommandsOf(config) {
+        this.brokenCommands = BROKEN_COMMANDS.get(config) ?? new Set();
+        BROKEN_COMMANDS.set(config, this.brokenCommands);
+    }
+
+    /**
      * @param {CommandPaletteConfig} config
      */
     async setCommandPaletteConfig(config) {
+        this.adoptBrokenCommandsOf(config);
         this.configByNamespace = config.configByNamespace || {};
         this.state.FooterComponent = config.FooterComponent;
 
@@ -354,6 +423,12 @@ export class CommandPalette extends Component {
             }
         }
 
+        if (this.brokenCommands.size) {
+            commands = commands.filter(
+                (command) => !this.brokenCommands.has(commandKey(command)),
+            );
+        }
+
         this.categoryKeys = categoryKeys;
         this.categoryNames = categoryNames;
         this.state.hiddenCount = Math.max(0, commands.length - MAX_DISPLAYED_COMMANDS);
@@ -377,7 +452,29 @@ export class CommandPalette extends Component {
     }
 
     /**
-     * @returns {CommandItem | null}
+     * @param {DisplayedCommand} command
+     * @param {Error} error
+     */
+    handleCommandError(command, error) {
+        const key = commandKey(command);
+        if (this.brokenCommands.has(key)) {
+            return;
+        }
+        this.brokenCommands.add(key);
+        const position = this.state.commands.indexOf(command);
+        if (position !== -1) {
+            this.state.commands.splice(position, 1);
+            this.state.commands.forEach((c, index) => {
+                c.index = index;
+            });
+            this.selectCommand(this.state.commands.length ? 0 : -1);
+            this.state.revision++;
+        }
+        reportUncaught(error);
+    }
+
+    /**
+     * @returns {DisplayedCommand | null}
      */
     get selectedCommand() {
         return this.state.commands?.[this.state.selectedIndex] ?? null;
@@ -457,7 +554,7 @@ export class CommandPalette extends Component {
             if (!ctrlKey) {
                 await this.executeCommand(selectedCommand);
             } else if (selectedCommand.href) {
-                window.open(selectedCommand.href, "_blank");
+                browser.open(selectedCommand.href, "_blank");
             }
         }
     }
@@ -501,9 +598,26 @@ export class CommandPalette extends Component {
             this.switchNamespace(namespace);
         }
         this.state.searchValue = searchValue;
-        this.searchValuePromise = this.lastDebounceSearch(searchValue).catch(() => {
-            this.searchValuePromise = null;
+        this.searchValuePromise = this.trackSearch(
+            this.lastDebounceSearch(searchValue),
+        );
+    }
+
+    /**
+     * Keeps `searchValuePromise` pointing at the search actually in flight. A
+     * failing search must not clear a handle that a newer one has since
+     * installed, or `executeSelectedCommand` stops waiting for the newer one.
+     *
+     * @param {Promise<any>} promise
+     * @returns {Promise<any>}
+     */
+    trackSearch(promise) {
+        const tracked = promise.catch(() => {
+            if (this.searchValuePromise === tracked) {
+                this.searchValuePromise = null;
+            }
         });
+        return tracked;
     }
 
     /**
@@ -524,9 +638,7 @@ export class CommandPalette extends Component {
         ) {
             this.switchNamespace("default");
             this.state.searchValue = "";
-            this.searchValuePromise = this.lastDebounceSearch("").catch(() => {
-                this.searchValuePromise = null;
-            });
+            this.searchValuePromise = this.trackSearch(this.lastDebounceSearch(""));
         }
     }
 
@@ -554,8 +666,9 @@ export class CommandPalette extends Component {
             namespaceConfig.debounceDelay || 0,
         );
         this.state.namespace = namespace;
-        this.state.placeholder =
-            namespaceConfig.placeholder || DEFAULT_PLACEHOLDER.toString();
+        this.state.placeholder = (
+            namespaceConfig.placeholder || DEFAULT_PLACEHOLDER
+        ).toString();
     }
 
     /**

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/action_views */
-
 /** @import { Action, BaseView } from "./action_service.js" */
 
 /**

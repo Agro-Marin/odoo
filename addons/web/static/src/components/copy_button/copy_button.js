@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/copy_button/copy_button */
-
 import { Component, onWillUnmount, useRef } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { usePopover } from "@web/ui/popover/popover_hook";

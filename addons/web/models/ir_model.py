@@ -8,14 +8,6 @@ class IrModel(models.Model):
 
     @api.model
     def display_name_for(self, model_names: list[str]) -> list[dict[str, str]]:
-        """Return the display names for the given models accessible by the current user.
-
-        The result is the same whether someone tries to access an inexistent
-        model or a model they cannot access.
-
-        :param list[str] model_names: technical model names (e.g. ``["res.partner"]``)
-        :return: list of dicts ``{"model": ..., "display_name": ...}``
-        """
         accessible = []
         not_accessible = []
         for name in model_names:
@@ -40,19 +32,6 @@ class IrModel(models.Model):
 
     @api.model
     def _is_valid_for_schema_introspection(self, model_name: str) -> bool:
-        """Access gate for ``_get_definitions``.
-
-        The genuine security requirement is: only an internal user who may
-        read a model may introspect its schema (this withholds it from
-        portal/public users). Unlike ``_is_valid_for_model_selector`` this
-        does NOT additionally exclude transient/abstract models — those are
-        merely unpickable in a model-selector dropdown, which is irrelevant to
-        schema introspection. Their fields are already visible to an
-        authorized internal user through the wizard/report views they open, so
-        withholding the schema here protects nothing while breaking legitimate
-        introspection (e.g. the JS mock-server fetching the fields of the
-        transient ``mail.compose.message`` composer wizard).
-        """
         model = self.env.get(model_name)
         return (
             self.env.user._is_internal()
@@ -73,10 +52,6 @@ class IrModel(models.Model):
 
     @api.model
     def get_available_models(self) -> list[dict[str, str]]:
-        """
-        Return the list of models the current user has access to, with their
-        corresponding display name.
-        """
         if not self.env.user._is_internal():
             return []
         accessible_models = [
@@ -90,13 +65,6 @@ class IrModel(models.Model):
             for name in model_names
             if self._is_valid_for_schema_introspection(name)
         ]
-        # Relational fields are pruned below when their target is not part of
-        # the batch. Prune against the requested models *plus* what they point
-        # at, so a model's field set depends only on that model: keying it off
-        # the batch made the mock server's view of, say, ``res.users`` change
-        # with whichever unrelated models a caller happened to ask for at the
-        # same time, dropping ``company_id`` (or a ``_rec_name`` target) and
-        # failing tests that never mentioned the missing model.
         relation_scope = set(model_names)
         for model_name in model_names:
             model = self.env.get(model_name)

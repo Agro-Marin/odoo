@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/public/datetime_picker */
-
 import {
     deserializeDate,
     deserializeDateTime,
@@ -25,8 +23,6 @@ export class DatetimePicker extends Interaction {
         const parseFunction = this.type === "date" ? parseDate : parseDateTime;
         const deserializeFunction =
             this.type === "date" ? deserializeDate : deserializeDateTime;
-        // the input is public and its value server-rendered or user-typed: a
-        // value these cannot read is an empty picker, not a dead interaction
         const orNothing = (/** @type {() => any} */ parse) => {
             try {
                 return parse();
@@ -39,8 +35,6 @@ export class DatetimePicker extends Interaction {
             target: this.el,
             pickerProps: {
                 type: /** @type {"date" | "datetime"} */ (this.type),
-                // Captured first: the `&&` guard cannot narrow `this.minDate`
-                // inside the arrow function, which is evaluated later.
                 minDate: minDate && orNothing(() => deserializeFunction(minDate)),
                 maxDate: maxDate && orNothing(() => deserializeFunction(maxDate)),
                 value: orNothing(() =>

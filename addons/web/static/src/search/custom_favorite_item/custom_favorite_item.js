@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/custom_favorite_item/custom_favorite_item */
-
 import { Component, useRef, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { AccordionItem } from "@web/components/dropdown/accordion_item";
@@ -32,7 +30,8 @@ export class CustomFavoriteItem extends Component {
      * @param {Event} ev
      */
     async saveFavorite(ev, isShared = false) {
-        if (!this.state.description) {
+        const description = this.state.description?.trim() ?? "";
+        if (!description) {
             this.notificationService.add(
                 _t("A name for your favorite filter is required."),
                 {
@@ -43,7 +42,7 @@ export class CustomFavoriteItem extends Component {
             this.descriptionRef.el.focus();
             return false;
         }
-        const { description, isDefault } = this.state;
+        const { isDefault } = this.state;
         const embeddedActionId = this.env.config.currentEmbeddedActionId || false;
         const serverSideId = await this.env.searchModel.createNewFavorite({
             description,

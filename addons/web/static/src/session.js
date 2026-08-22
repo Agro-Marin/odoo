@@ -1,6 +1,5 @@
 // @ts-check
 /** @odoo-module native */
-/** @module @web/session */
 
 import { assetLog } from "@web/core/utils/asset_log";
 

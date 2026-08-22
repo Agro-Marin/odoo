@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/column_width_hook */
-
 import {
     onMounted,
     onWillUnmount,
@@ -11,6 +9,7 @@ import {
     useEffect,
     useExternalListener,
 } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
 import { localization } from "@web/core/l10n/localization";
 import { useDebounced } from "@web/core/utils/timing";
 import { FIELD_WIDTHS } from "@web/fields/field_widths";
@@ -21,10 +20,6 @@ const OPEN_FORM_VIEW_BUTTON_WIDTH = 54;
 const DELETE_BUTTON_WIDTH = 12;
 
 /**
- * @params {Element} table
- * @params {Object} state
- * @params {Number} allowedWidth
- * @params {Number[]} startingWidths
  * @returns {Number[]}
  */
 function computeWidths(table, state, allowedWidth, startingWidths) {
@@ -218,43 +213,72 @@ function getHorizontalPadding(el) {
     return Number.parseFloat(paddingLeft) + Number.parseFloat(paddingRight);
 }
 
-export function useMagicColumnWidths(tableRef, getState) {
-    const renderer = useComponent();
-    let columnWidths = null;
-    let allowedWidth = 0;
-    let hasAlwaysBeenEmpty = true;
-    let parentWidthFixed = false;
-    let hash;
-    let _resizing = false;
-    let _justResized = false;
-    let parentWidth;
-    let lastAppliedParentWidth = null;
-    let cellPaddings = null;
-    let cleanupResize = null;
+export class MagicColumnWidths {
+    /** @type {number[] | null} */
+    columnWidths = null;
+    /** @type {number} */
+    allowedWidth = 0;
+    /** @type {boolean} */
+    hasAlwaysBeenEmpty = true;
+    /** @type {boolean} */
+    parentWidthFixed = false;
+    /** @type {string | undefined} */
+    hash;
+    /** @type {boolean} */
+    _resizing = false;
+    /** @type {boolean} */
+    _justResized = false;
+    /** @type {number | undefined} */
+    parentWidth;
+    /** @type {number | null} */
+    lastAppliedParentWidth = null;
+    /** @type {number[] | null} */
+    cellPaddings = null;
+    /** @type {(() => void) | null} */
+    cleanupResize = null;
 
-    function forceColumnWidths() {
-        const table = tableRef.el;
+    /**
+     * @param {any} tableRef
+     * @param {() => any} getState
+     */
+    constructor(tableRef, getState) {
+        this.tableRef = tableRef;
+        this.getState = getState;
+    }
+
+    /** @returns {boolean} */
+    get resizing() {
+        return this._resizing;
+    }
+
+    /** @returns {boolean} */
+    get justResized() {
+        return this._justResized;
+    }
+
+    forceColumnWidths() {
+        const table = this.tableRef.el;
         const headers = [...table.querySelectorAll("thead th")];
-        const state = getState();
+        const state = this.getState();
 
         const columns = state.columns;
         const nextHash = `${columns.map((column) => column.id).join("/")}/${headers.length}`;
-        if (nextHash !== hash) {
-            hash = nextHash;
-            unsetWidths();
+        if (nextHash !== this.hash) {
+            this.hash = nextHash;
+            this.unsetWidths();
         }
-        if (hasAlwaysBeenEmpty && !state.isEmpty) {
-            hasAlwaysBeenEmpty = false;
+        if (this.hasAlwaysBeenEmpty && !state.isEmpty) {
+            this.hasAlwaysBeenEmpty = false;
             const rows = table.querySelectorAll(".o_data_row");
             if (rows.length !== 1 || !rows[0].classList.contains("o_selected_row")) {
-                unsetWidths();
+                this.unsetWidths();
             }
         }
 
         if (
-            columnWidths &&
-            lastAppliedParentWidth !== null &&
-            parentWidth === lastAppliedParentWidth &&
+            this.columnWidths &&
+            this.lastAppliedParentWidth !== null &&
+            this.parentWidth === this.lastAppliedParentWidth &&
             table.style.tableLayout === "fixed" &&
             headers.every((th) => th.style.width)
         ) {
@@ -262,48 +286,59 @@ export function useMagicColumnWidths(tableRef, getState) {
         }
 
         const parentPadding = getHorizontalPadding(table.parentNode);
-        if (!cellPaddings || cellPaddings.length !== headers.length) {
-            cellPaddings = headers.map((th) => getHorizontalPadding(th));
+        if (!this.cellPaddings || this.cellPaddings.length !== headers.length) {
+            this.cellPaddings = headers.map((th) => getHorizontalPadding(th));
         }
-        const totalCellPadding = cellPaddings.reduce(
+        const totalCellPadding = this.cellPaddings.reduce(
             (total, padding) => padding + total,
             0,
         );
         const parentClientWidth = table.parentNode.clientWidth;
         const nextAllowedWidth = parentClientWidth - parentPadding - totalCellPadding;
-        const allowedWidthDiff = Math.abs(allowedWidth - nextAllowedWidth);
-        allowedWidth = nextAllowedWidth;
+        const allowedWidthDiff = Math.abs(this.allowedWidth - nextAllowedWidth);
+        this.allowedWidth = nextAllowedWidth;
 
-        if (!columnWidths || allowedWidthDiff > 0) {
-            columnWidths = computeWidths(table, state, allowedWidth, columnWidths);
+        if (!this.columnWidths || allowedWidthDiff > 0) {
+            this.columnWidths = computeWidths(
+                table,
+                state,
+                this.allowedWidth,
+                this.columnWidths,
+            );
         }
 
         table.style.tableLayout = "fixed";
         headers.forEach((th, index) => {
-            th.style.width = `${Math.floor(columnWidths[index] + cellPaddings[index])}px`;
+            th.style.width = `${Math.floor(
+                this.columnWidths[index] + this.cellPaddings[index],
+            )}px`;
         });
-        lastAppliedParentWidth = parentClientWidth;
-        parentWidth = parentClientWidth;
+        this.lastAppliedParentWidth = parentClientWidth;
+        this.parentWidth = parentClientWidth;
     }
 
-    function unsetWidths() {
-        columnWidths = null;
-        lastAppliedParentWidth = null;
-        cellPaddings = null;
-        tableRef.el.style.width = null;
-        if (parentWidthFixed) {
-            tableRef.el.parentElement.style.width = null;
-            parentWidthFixed = false;
+    unsetWidths() {
+        this.columnWidths = null;
+        this.lastAppliedParentWidth = null;
+        this.cellPaddings = null;
+        this.tableRef.el.style.width = null;
+        if (this.parentWidthFixed) {
+            this.tableRef.el.parentElement.style.width = null;
+            this.parentWidthFixed = false;
         }
     }
 
+    resetWidths() {
+        this.unsetWidths();
+        this.forceColumnWidths();
+    }
+
     /**
-     * @private
      * @param {MouseEvent} ev
      */
-    function onStartResize(ev) {
-        _resizing = true;
-        const table = tableRef.el;
+    onStartResize(ev) {
+        this._resizing = true;
+        const table = this.tableRef.el;
         const th = /** @type {HTMLElement} */ (ev.target).closest("th");
         table.style.width = `${Math.floor(table.getBoundingClientRect().width)}px`;
         const thPosition = [...th.parentNode.children].indexOf(th);
@@ -316,7 +351,7 @@ export function useMagicColumnWidths(tableRef, getState) {
         const resizeStoppingEvents = ["keydown", "pointerdown", "pointerup"];
 
         if (!table.parentElement.style.width) {
-            parentWidthFixed = true;
+            this.parentWidthFixed = true;
             table.parentElement.style.width = `${Math.floor(
                 table.parentElement.getBoundingClientRect().width,
             )}px`;
@@ -335,30 +370,30 @@ export function useMagicColumnWidths(tableRef, getState) {
             th.style.width = `${Math.floor(newWidth)}px`;
             table.style.width = `${Math.floor(initialTableWidth + tableDelta)}px`;
         };
-        window.addEventListener("pointermove", resizeHeader);
+        browser.addEventListener("pointermove", resizeHeader);
 
         const cleanup = () => {
-            _resizing = false;
+            this._resizing = false;
             for (const el of resizingColumnElements) {
                 el.classList.remove("o_column_resizing");
             }
-            window.removeEventListener("pointermove", resizeHeader);
+            browser.removeEventListener("pointermove", resizeHeader);
             for (const eventType of resizeStoppingEvents) {
-                window.removeEventListener(eventType, stopResize);
+                browser.removeEventListener(eventType, stopResize);
             }
-            cleanupResize = null;
+            this.cleanupResize = null;
         };
-        cleanupResize = cleanup;
+        this.cleanupResize = cleanup;
 
         const stopResize = (ev) => {
             if (ev.type === "pointerdown" && ev.button === 0) {
                 return;
             }
-            _resizing = false;
-            _justResized = true;
+            this._resizing = false;
+            this._justResized = true;
 
             const headers = [...table.querySelectorAll("thead th")];
-            columnWidths = headers.map(
+            this.columnWidths = headers.map(
                 (th) => th.getBoundingClientRect().width - getHorizontalPadding(th),
             );
 
@@ -373,23 +408,31 @@ export function useMagicColumnWidths(tableRef, getState) {
             }
         };
         for (const eventType of resizeStoppingEvents) {
-            window.addEventListener(eventType, stopResize);
+            browser.addEventListener(eventType, stopResize);
         }
     }
 
-    function resetWidths() {
-        unsetWidths();
-        forceColumnWidths();
+    clearJustResized() {
+        this._justResized = false;
     }
+}
+
+/**
+ * @param {any} tableRef
+ * @param {() => any} getState
+ * @returns {MagicColumnWidths}
+ */
+export function useMagicColumnWidths(tableRef, getState) {
+    const renderer = useComponent();
+    const widths = new MagicColumnWidths(tableRef, getState);
 
     if (/** @type {any} */ (renderer.constructor).useMagicColumnWidths) {
-        useEffect(forceColumnWidths);
-        useExternalListener(window, "resize", unsetWidths);
-        const component = useComponent();
+        useEffect(() => widths.forceColumnWidths());
+        useExternalListener(window, "resize", () => widths.unsetWidths());
         const debouncedForceColumnWidths = useDebounced(
             () => {
-                if (status(component) !== "destroyed") {
-                    forceColumnWidths();
+                if (status(renderer) !== "destroyed") {
+                    widths.forceColumnWidths();
                 }
             },
             200,
@@ -397,37 +440,23 @@ export function useMagicColumnWidths(tableRef, getState) {
         );
         const resizeObserver = new ResizeObserver(() => {
             const newParentWidth = tableRef.el.parentNode.clientWidth;
-            if (newParentWidth !== parentWidth) {
-                parentWidth = newParentWidth;
+            if (newParentWidth !== widths.parentWidth) {
+                widths.parentWidth = newParentWidth;
                 debouncedForceColumnWidths();
             }
         });
         onMounted(() => {
-            parentWidth = tableRef.el.parentNode.clientWidth;
+            widths.parentWidth = tableRef.el.parentNode.clientWidth;
             resizeObserver.observe(tableRef.el.parentNode);
         });
         onWillUnmount(() => resizeObserver.disconnect());
     }
 
-    onWillUnmount(() => cleanupResize?.());
+    onWillUnmount(() => widths.cleanupResize?.());
 
-    useExternalListener(
-        window,
-        "pointerdown",
-        () => {
-            _justResized = false;
-        },
-        { capture: true },
-    );
+    useExternalListener(window, "pointerdown", () => widths.clearJustResized(), {
+        capture: true,
+    });
 
-    return {
-        get resizing() {
-            return _resizing;
-        },
-        get justResized() {
-            return _justResized;
-        },
-        onStartResize,
-        resetWidths,
-    };
+    return widths;
 }

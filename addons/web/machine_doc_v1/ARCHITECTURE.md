@@ -78,10 +78,10 @@ Top-level layout of `addons/web/` (detailed maps are separate docs):
 |------|----------|-----|
 | `controllers/` | 24 `.py` — HTTP endpoints (22 Controller classes, 76 route handlers) | `ROUTE_MAP.md` |
 | `models/` | 25 `.py` — ORM extensions (24 model classes: web_read, web_read_group, ir_http, …) | `MODEL_MAP.md` |
-| `static/src/` | 763 JavaScript/OWL source files across 238 directories (FSD layers) | `DIRECTORY_MAP.md` |
+| `static/src/` | 807 JavaScript/OWL source files across 238 directories (FSD layers) | `DIRECTORY_MAP.md` |
 | `static/lib/` | 17 directories (16 vendored libraries + generated `popper_compat/`) — DO NOT MODIFY | `static/lib/versions.json` |
-| `static/tests/` | 671 `.js` (incl. 614 `*.test.js` Hoot suites), mirroring the `static/src/` tree | `TEST_TAGS.md` |
-| `tests/` | 58 Python test files (`test_*.py`) | `TEST_TAGS.md` |
+| `static/tests/` | 735 `.js` (incl. 674 `*.test.js` Hoot suites), mirroring the `static/src/` tree | `TEST_TAGS.md` |
+| `tests/` | 59 Python test files (`test_*.py`) | `TEST_TAGS.md` |
 | `machine_doc_v1/` | This directory: `COMPONENT_DIAGRAM.md` (18 audit areas) · `FLOW_DIAGRAM.md` (14 sequence diagrams) · `LAZY_VIEW_LOADING.md` · `VIEW_TEARDOWN_COST.md` (both decision records: investigated, not pursued) · `LIST_EDIT_RENDER_COST.md` (decision record: row-level waste fixed, renderer-level amplification measured and not pursued) · the maps below · `factcheck.sh` | — |
 | `views/` · `data/` · `security/` · `i18n/` | XML templates, data fixtures, `ir.model.access.csv`, translations | — |
 
@@ -94,15 +94,15 @@ Layered organization under `static/src/`:
 | Layer | Directory | Purpose | Files |
 |-------|-----------|---------|-------|
 | **Boot** | `boot/` | Backend entry points: `main.js`, `start.js` (`env.js`, `session.js`, `module_loader.js`, `service_worker.js` sit at `src/` root) | 2 JS |
-| **Primitives** | `core/` | Registry, utils, reactivity, browser abstraction, l10n, network + ORM, errors, py_js, tree, debug, hotkeys, navigation, `lib/` lazy ESM loaders | 164 JS |
-| **Components** | `components/` | Reusable OWL UI components (dropdown, pickers, editors, file handling) | 85 JS |
+| **Primitives** | `core/` | Registry, utils, reactivity, browser abstraction, l10n, network + ORM, errors, py_js, tree, debug, hotkeys, navigation, `lib/` lazy ESM loaders | 172 JS |
+| **Components** | `components/` | Reusable OWL UI components (dropdown, pickers, editors, file handling) | 105 JS |
 | **UI** | `ui/` | Overlay layer and its services: dialog, popover, tooltip, notification, overlay, effects, block, alert, carousel, collapse, offcanvas, bottom sheet, command palette, PWA prompt | 42 JS |
-| **Fields** | `fields/` | 68 widget directories in 7 subcategories (basic, display, media, relational, selection, specialized, temporal); 110 fork-wide `registerField` / `registerFallbackField` sites | 123 JS |
-| **Views** | `views/` | View types: form, list, kanban, calendar, graph, pivot + view utilities + settings | 168 JS |
-| **Webclient** | `webclient/` | App shell: navbar, menus, actions, user menu, colour scheme, density, debug/profiling | 74 JS |
-| **Search** | `search/` | Search model and mixins, search bar, facets, filters, group-by, favorites, embedded actions bar | 34 JS |
-| **Model** | `model/` | Client-side relational data model (`RelationalRecord`, `StaticList`, groups, save orchestration) | 50 JS |
-| **Public** | `public/` | Public (anonymous) page features; all run on `public.interactions`. Frontend app boot is `public/public_boot.js` (+ `public_boot_instance.js`, kept out of the test bundles via a `remove` directive); early-boot `lazyloader.js` / `minimal_dom.js` also live here. | 15 JS |
+| **Fields** | `fields/` | 68 widget directories in 7 subcategories (basic, display, media, relational, selection, specialized, temporal); 112 fork-wide `registerField` / `registerFallbackField` sites | 127 JS |
+| **Views** | `views/` | View types: form, list, kanban, calendar, graph, pivot + view utilities + settings | 172 JS |
+| **Webclient** | `webclient/` | App shell: navbar, menus, actions, user menu, colour scheme, density, debug/profiling | 76 JS |
+| **Search** | `search/` | Search model and mixins, search bar, facets, filters, group-by, favorites, embedded actions bar | 37 JS |
+| **Model** | `model/` | Client-side relational data model (`RelationalRecord`, `StaticList`, groups, save orchestration) | 51 JS |
+| **Public** | `public/` | Public (anonymous) page features; all run on `public.interactions`. Frontend app boot is `public/public_boot.js` (+ `public_boot_instance.js`, kept out of the test bundles via a `remove` directive); early-boot `lazyloader.js` / `minimal_dom.js` also live here. | 17 JS |
 | **Vendored-in-src** | `libs/` | FontAwesome 7 icon CSS/webfonts + its JS glue, and `popper_compat.js` — vendored inside `src/` (unlike `static/lib/`) | 2 JS |
 
 There is no `services/` layer. Every service is filed with the concern it serves,
@@ -111,14 +111,18 @@ so `orm` lives under `core/network/`, `dialog` under `ui/dialog/`, `action` unde
 
 ## Module faces
 
-42 directories are fronted by a sibling `<name>.js` one level up — the module's
+58 directories are fronted by a sibling `<name>.js` one level up — the module's
 **published interface**. The face re-exports exactly what other addons import;
 the files behind it are private and may be renamed, split, or moved without
 touching a consumer. `@web/ui/dialog` is the face, `ui/dialog/dialog_service.js`
 is an internal.
 
 Enforced by `tooling/architecture/`: `js_face_boundary.py` (no import reaches
-past a face into a fronted directory), `js_public_surface.py` (the pinned surface
+past a face into a fronted directory), `js_component_face.py` (which directories
+under `components/` must HAVE one — a face is discovered rather than declared, so
+the boundary gate says nothing about that; ADR-0047), `js_component_data_access.py`
+(no component acquires data at runtime — the pinned sites can only shrink;
+ADR-0046), `js_public_surface.py` (the pinned surface
 in `public_surface_web.txt` can only shrink), `js_layer_cohesion.py`,
 `js_import_resolution.py`, `js_private_access.py`, `js_cycle_check.py`,
 `js_self_bridge.py` (no module resolves itself through the loader — a generated
@@ -150,6 +154,8 @@ the failure `doc_symbol_gate.py` exists to prevent, one level up.
 | `env.config` | `views/view_config.js` | `js_env_config_surface.py` | The ambient per-action bag `View` installs with `useSubEnv`, inherited by every component beneath it. Five writers in this addon alone; three keys are written only by `enterprise` and are recorded, not owned. |
 | `archInfo` | `views/arch_info.js` | `js_arch_info_surface.py` | The `ArchParser` output. Two of its keys (`fieldNodes`, `widgetNodes`) are compiled into generated OWL template *source*, where no type, linter or member gate can follow them; the gate also holds each view type's parser against what its own directory reads. |
 | `props.record` | `fields/field_record_contract.js` | `js_field_record_surface.py` | What a field widget may reach on the record it is handed — 21 members, measured by resolving the binding rather than by grep. It also classifies each widget by what it *needs*, which is the worklist below. |
+| `env.services.action` | `webclient/actions/action_service_contract.js` | `js_action_surface.py` | What a consumer may reach on the `ActionManager` instance. Same blindness as the rows above — the instance is handed out by name off `env.services`, so it is neither an import nor a class member. The contract under-declared until the gate existed: four members were classified internal while consumers reached them at 45 call sites. |
+| OWL templates | the component's own `static template` | `js_template_binding.py` | Every name a template calls, against the class that owns it. Neither `tsc` nor `eslint` reads `.xml`, so a template is the one place a member reference has no static check at all — and Owl answers a missing one by destroying the root component. |
 | `SearchModel` / `ListRenderer` mixins | — | `js_mixin_coupling.py` | Two `this`-collaborating compositions. Both are a single strongly-connected component with no acyclic edge; the gate ratchets the shape rather than asking for the decomposition. |
 
 ### `fieldHandle` — a field widget's own field
@@ -278,8 +284,8 @@ Promise.
 | `form_dialog_stack` | `ui/form_dialog_stack_service.js` | Single global counter of open form-in-dialog instances, mutated by direct `push()`/`pop()` calls from `useFormViewInDialog`; exposes `count`/`isEmpty` getters (`pop()` floors at 0 and warns in debug on an unbalanced call). Read by `beforeVisibilityChange` to suppress tab-switch auto-save while a child form dialog is active. |
 | `result_set_cache_invalidator` | `core/network/result_set_cache_invalidator_service.js` | Emits `CLEAR-CACHES` on `unlink`/`action_archive`/`action_unarchive` and on `lang_install` (see `STATE_MANAGEMENT.md`) |
 | `web_vitals` | `core/network/web_vitals/web_vitals_service.js` | Core Web Vitals RUM collection; beacons to `/web/observability/cwv` on pagehide |
-| `connection_recovery` | `components/errors/error_handlers.js` | Owns the reconnect notification/poll driven by `lostConnectionHandler` |
-| `allowed_qweb_expressions` | `core/allowed_qweb_expressions_service.js` | Async service (deps: `orm`) resolving the allowed QWeb expression list per model |
+| `connection_recovery` | `core/network/connection_recovery_service.js` | Owns the reconnect notification/poll driven by `lostConnectionHandler`, which lives in `components/errors/error_handlers.js` and only consumes it |
+| `allowed_qweb_expressions` | `mail/static/src/core/common/allowed_qweb_expressions_service.js` | Async service (deps: `orm`) resolving the allowed QWeb expression list per model. **Owned by `mail`, not `web`** — `web` only consumes it, through `useOptionalService` in `fields/dynamic_placeholder_popover.js`, which is why that call site is the optional variant. The path cited here was core/allowed_qweb_expressions_service.js (deliberately unbackticked: it is a file this module has never had, and factcheck resolves every backticked path). |
 | `public.interactions` | `public/interaction_service.js` | Public-page interaction registry/lifecycle (frontend equivalent of the backend component tree) |
 | `demo_data` | `views/settings/widgets/demo_data_service.js` | Caches whether demo data is active (Settings widgets) |
 | `user_invite` | `views/settings/widgets/user_invite_service.js` | Caches the user-invite panel payload (Settings widgets) |
@@ -301,7 +307,7 @@ Each view type lives in `static/src/views/<type>/`:
 | Graph | `views/graph/` | Yes | Charts (bar, line, pie). The view is in `assets_backend`; only the Chart.js *library* is lazy (`core/lib/chartjs.js` `loadChartJS()`) — see CONVENTIONS gotcha #6 |
 | Pivot | `views/pivot/` | Yes | Crosstab analysis. In `assets_backend`; not lazy-loaded |
 
-Field widgets (68 widget directories across 7 subcategories; 110 fork-wide `registerField` / `registerFallbackField` sites, 79 plain and 31 through the typed spec form) live in `fields/` (top-level). Import path: `@web/fields/*`. Registration goes through `registerField()` / `registerFallbackField()` in `fields/_registry.js`, never `registry.category("fields").add()` directly.
+Field widgets (68 widget directories across 7 subcategories; 112 fork-wide `registerField` / `registerFallbackField` sites, 81 plain and 31 through the typed spec form) live in `fields/` (top-level). Import path: `@web/fields/*`. Registration goes through `registerField()` / `registerFallbackField()` in `fields/_registry.js`, never `registry.category("fields").add()` directly.
 
 ## Controller Utilities (`views/view_utils.js`)
 
@@ -425,9 +431,9 @@ an in-tree fork; only `hoot` and `hoot-dom` are internal, versioned with the for
 |----------|-------|
 | Python (controllers) | 24 (22 Controller classes across 20 route-bearing files + `__init__.py`, `export_writers.py`, `json_helpers.py`, `utils.py`) |
 | Python (models) | 25 (24 model files + `__init__.py`) |
-| Python (tests) | 58 (`test_*.py`; 59 files incl. `__init__.py`) |
-| JavaScript (src) | 763 (761 carry `@ts-check`; `module_loader.js` + `service_worker.js` are the two exclusions) |
-| JavaScript (tests) | 677 (incl. 620 `*.test.js` Hoot suites) |
+| Python (tests) | 59 (`test_*.py`; 60 files incl. `__init__.py`) |
+| JavaScript (src) | 807 (805 carry `@ts-check`; `module_loader.js` + `service_worker.js` are the two exclusions) |
+| JavaScript (tests) | 735 (incl. 674 `*.test.js` Hoot suites) |
 | JavaScript (vendored libs) | 92 |
 | SCSS/CSS | 199 (32 in `static/src/scss/` shared base; remaining 167 co-located with JS components) |
 | XML (views/ + data/ + static/src OWL templates) | 282 (13 views + 4 data + 265 OWL templates) |

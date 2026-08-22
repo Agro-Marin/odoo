@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/settings/searchable_setting */
-
 import { onMounted, onWillUnmount, useRef, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { normalizedMatch } from "@web/core/l10n/utils";

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/mobile_filter_panel/calendar_mobile_filter_panel */
-
 import { Component } from "@odoo/owl";
 import { getColor, sortCalendarFilters } from "@web/views/calendar/calendar_utils";
 

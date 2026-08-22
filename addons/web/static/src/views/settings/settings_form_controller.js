@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/settings_form_controller */
-
 import { useEffect, useRef, useState, useSubEnv } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { pick } from "@web/core/utils/collections/objects";

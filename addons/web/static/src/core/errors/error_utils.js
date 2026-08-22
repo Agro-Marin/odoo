@@ -1,16 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/errors/error_utils */
-
 import { mapFramesToSource, parseStackFrames } from "./stack_frames.js";
 
 /** @typedef {import("./uncaught_errors").UncaughtError} UncaughtError */
 
 /**
  * @typedef {Error & {
- *     annotatedTraceback?: string,
- *     errorEvent?: ErrorEvent | PromiseRejectionEvent,
+ * annotatedTraceback?: string,
+ * errorEvent?: ErrorEvent | PromiseRejectionEvent,
  * }} AnnotatedError
  */
 
@@ -119,12 +117,6 @@ export function getErrorTechnicalName(error) {
 }
 
 /**
- * Hands an error to the global handlers from a context that cannot let it
- * propagate — a timeout callback, a rejection the caller already recovered
- * from, an error boundary that has finished repairing itself. Swallowing it
- * there would lose the error entirely; rethrowing it in place would abort work
- * that is deliberately continuing.
- *
  * @param {any} error
  */
 export function reportUncaught(error) {

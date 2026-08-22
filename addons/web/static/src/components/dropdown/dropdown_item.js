@@ -1,12 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/dropdown/dropdown_item */
-
 import { Component } from "@odoo/owl";
-import { useDropdownCloser } from "@web/components/dropdown/dropdown_hooks";
+import { useDropdownCloser } from "@web/components/dropdown/dropdown_hook";
 
-const ClosingMode = {
+export const ClosingMode = {
     None: "none",
     ClosestParent: "closest",
     AllParents: "all",
@@ -56,7 +54,7 @@ export class DropdownItem extends Component {
 
     /** @param {MouseEvent} ev */
     onClick(ev) {
-        if (this.props.attrs && this.props.attrs.href) {
+        if (this.props.attrs.href) {
             ev.preventDefault();
         }
         this.props.onSelected?.(ev);

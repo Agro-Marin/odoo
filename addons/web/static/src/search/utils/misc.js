@@ -1,8 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/utils/misc */
-
+/** @type {Record<string, string>} */
 export const FACET_ICONS = {
     filter: "fa-solid fa-filter",
     groupBy: "oi oi-group",
@@ -11,6 +10,7 @@ export const FACET_ICONS = {
     favorite: "fa-solid fa-star",
 };
 
+/** @type {Record<string, string>} */
 export const FACET_COLORS = {
     filter: "primary",
     groupBy: "action",
@@ -29,6 +29,38 @@ export const GROUPABLE_TYPES = [
     "selection",
     "tags",
 ];
+
+export const MENU_REGISTRY_VALIDATION = {
+    Component: Function,
+    groupNumber: { type: Number, optional: true },
+    isDisplayed: { type: Function, optional: true },
+    "*": true,
+};
+
+/**
+ * @param {import("@web/core/registry").Registry<any>} registry
+ * @param {import("@web/env").OdooEnv} env
+ * @returns {Promise<{Component: import("@odoo/owl").ComponentConstructor, groupNumber: number, key: string}[]>}
+ */
+export async function getDisplayedRegistryItems(registry, env) {
+    const entries = registry.getEntries();
+    const displayed = await Promise.all(
+        entries.map(([, item]) =>
+            "isDisplayed" in item ? item.isDisplayed(env) : true,
+        ),
+    );
+    const items = [];
+    for (const [index, [key, item]] of entries.entries()) {
+        if (displayed[index]) {
+            items.push({
+                Component: item.Component,
+                groupNumber: item.groupNumber,
+                key,
+            });
+        }
+    }
+    return items;
+}
 
 /**
  * @param {Record<string, any>} actionService

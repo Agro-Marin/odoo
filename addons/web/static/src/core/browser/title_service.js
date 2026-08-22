@@ -1,27 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/browser/title_service */
-
-// `TitleServiceAPI` used to be declared here: a hand-written typedef for the
-// object literal `start()` returned, because a literal has no type of its own.
-// `TitleService` is that type now, derived from the implementation.
-
 import { registry } from "@web/core/registry";
 
-/**
- * The `title` service.
- *
- * A class rather than a closure returning an object literal; see
- * `core/hotkeys/hotkey_service.js` for the reasoning and
- * `tooling/architecture/js_service_shape.py` for the budget.
- *
- * `_computeTitle` and `_updateTitle` are underscored because the literal
- * published only `{ current, getParts, setCounters, setParts }` and kept them
- * inside. A class exposes every prototype method, so leaving the names bare
- * would widen the service's surface — hazard 6.
- */
-export class TitleService {
+class TitleService {
     constructor() {
         /** @type {Record<string, number>} */
         this.titleCounters = {};

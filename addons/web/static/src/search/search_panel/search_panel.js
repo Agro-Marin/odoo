@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_panel/search_panel */
-
 import {
     Component,
     onWillStart,
@@ -16,6 +14,7 @@ import {
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { useSetupAction } from "@web/core/action_hook";
 import { browser } from "@web/core/browser/browser";
+import { isActivationKey } from "@web/core/browser/hotkeys";
 import { SearchModelEvent } from "@web/core/events";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { uniqueId } from "@web/core/utils/functions";
@@ -38,9 +37,6 @@ const nameOfCheckedValues = (values) => {
     return names;
 };
 
-/**
- * @see SearchModel
- */
 export class SearchPanel extends Component {
     static template = "web.SearchPanel";
     static props = {};
@@ -266,14 +262,11 @@ export class SearchPanel extends Component {
         const filters = this.env.searchModel.getSections(isFilter);
         const selection = [];
         for (const { groups, values, icon, color } of filters) {
-            let filterValues;
-            if (groups) {
-                filterValues = [...groups.values()]
-                    .map((group) => nameOfCheckedValues(group.values))
-                    .flat();
-            } else if (values) {
-                filterValues = nameOfCheckedValues(values);
-            }
+            const filterValues = groups
+                ? [...groups.values()].flatMap((group) =>
+                      nameOfCheckedValues(group.values),
+                  )
+                : nameOfCheckedValues(values);
             if (filterValues.length) {
                 selection.push({ values: filterValues, icon, color });
             }
@@ -338,7 +331,7 @@ export class SearchPanel extends Component {
      * @param {Object} value
      */
     onCategoryKeydown(ev, category, value) {
-        if (ev.key !== "Enter" && ev.key !== " ") {
+        if (!isActivationKey(ev)) {
             return;
         }
         ev.preventDefault();

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_split_domain_mixin */
-
 import { makeContext } from "@web/core/context";
 import { domainFromTree } from "@web/core/tree/domain_from_tree";
 
@@ -13,25 +11,26 @@ import { domainFromTree } from "@web/core/tree/domain_from_tree";
 export const SearchSplitDomainMixin = (Base) =>
     class extends Base {
         /**
-         * @param {string} domain
-         * @param {number} [groupId]
+         * @param {Record<string, any>} group
+         * @returns {Record<string, any>}
          */
-        async splitAndAddDomain(domain, groupId) {
-            const group = groupId
-                ? this._getGroups().find((g) => g.id === groupId)
-                : null;
-            let context;
-            if (group) {
-                const contexts = [];
-                for (const activeItem of group.activeItems) {
-                    const ctx = this._getSearchItemContext(activeItem);
-                    if (ctx) {
-                        contexts.push(ctx);
-                    }
+        _mergedContextOfGroup(group) {
+            const contexts = [];
+            for (const activeItem of group.activeItems) {
+                const ctx = this._getSearchItemContext(activeItem);
+                if (ctx) {
+                    contexts.push(ctx);
                 }
-                context = makeContext(contexts);
             }
+            return makeContext(contexts);
+        }
 
+        /**
+         * @param {string} domain
+         * @param {Record<string, any>} [context]
+         * @returns {Promise<Object[]>}
+         */
+        async _domainToPreFilters(domain, context) {
             const tree = await this.treeProcessor.treeFromDomain(
                 this.resModel,
                 domain,
@@ -44,93 +43,150 @@ export const SearchSplitDomainMixin = (Base) =>
                 tree.children.length
                     ? tree.children
                     : [tree];
-            const promises = trees.map(async (tree) => {
-                const [description, tooltip] = await Promise.all([
-                    this.treeProcessor.getDomainTreeDescription(this.resModel, tree),
-                    this.treeProcessor.getDomainTreeTooltip(this.resModel, tree),
-                ]);
-                const preFilter = {
-                    description,
-                    tooltip,
-                    domain: domainFromTree(tree),
-                    invisible: "True",
-                    type: "filter",
-                };
-                if (context) {
-                    preFilter.context = context;
-                }
-                return preFilter;
-            });
-
-            const preFilters = await Promise.all(promises);
-
-            if (group) {
-                const firstActiveItem = group.activeItems[0];
-                const firstSearchItem = this.searchItems[firstActiveItem.searchItemId];
-                if (firstSearchItem.type === "favorite") {
-                    const groupBys = this._getSearchItemGroupBys(firstActiveItem) || [];
-                    const needsPropertyFields = groupBys.some((groupBy) =>
-                        groupBy.split(":")[0].includes("."),
-                    );
-                    if (needsPropertyFields) {
-                        await this.fillSearchViewItemsProperty();
+            return Promise.all(
+                trees.map(async (/** @type {any} */ tree) => {
+                    const [description, tooltip] = await Promise.all([
+                        this.treeProcessor.getDomainTreeDescription(
+                            this.resModel,
+                            tree,
+                        ),
+                        this.treeProcessor.getDomainTreeTooltip(this.resModel, tree),
+                    ]);
+                    /** @type {Record<string, any>} */
+                    const preFilter = {
+                        description,
+                        tooltip,
+                        domain: domainFromTree(tree),
+                        invisible: "True",
+                        type: "filter",
+                    };
+                    if (context) {
+                        preFilter.context = context;
                     }
+                    return preFilter;
+                }),
+            );
+        }
+
+        /**
+         * @param {Record<string, any>} group
+         * @returns {Record<string, any>|undefined}
+         */
+        _firstSearchItemOf(group) {
+            return this.searchItems[group.activeItems[0]?.searchItemId];
+        }
+
+        /**
+         * @param {Record<string, any>} group
+         * @returns {Promise<void>}
+         */
+        async _ensurePropertyFieldsForFavorite(group) {
+            if (this._firstSearchItemOf(group)?.type !== "favorite") {
+                return;
+            }
+            const groupBys = this._getSearchItemGroupBys(group.activeItems[0]) || [];
+            const needsPropertyFields = groupBys.some((/** @type {any} */ groupBy) =>
+                groupBy.split(":")[0].includes("."),
+            );
+            if (needsPropertyFields) {
+                await this.fillSearchViewItemsProperty();
+            }
+        }
+
+        /**
+         * @param {Record<string, any>} group
+         * @returns {number[]}
+         */
+        _carryOverFavoriteGroupBys(group) {
+            if (this._firstSearchItemOf(group)?.type !== "favorite") {
+                return [];
+            }
+            const activeItemGroupBys = this._getSearchItemGroupBys(
+                group.activeItems[0],
+            );
+            if (!activeItemGroupBys.length) {
+                return [];
+            }
+            if (this.defaultGroupBy && this.env.config.viewType === "kanban") {
+                const currentGroupBy = this._getGroupBy({ fallbackOnDefault: false });
+                if (
+                    JSON.stringify(currentGroupBy) ===
+                    JSON.stringify(this.defaultGroupBy)
+                ) {
+                    return [];
                 }
+            }
+            /** @type {number[]} */
+            const newGroupByIds = [];
+            for (const activeItemGroupBy of activeItemGroupBys) {
+                const [fieldName, interval] = activeItemGroupBy.split(":");
+                const newGroupById = this.createNewGroupBy(fieldName, {
+                    interval,
+                    invisible: true,
+                });
+                if (newGroupById !== undefined) {
+                    newGroupByIds.push(newGroupById);
+                }
+            }
+            const isNewGroupBy = (/** @type {any} */ queryElem) =>
+                newGroupByIds.includes(queryElem.searchItemId);
+            this.query = /** @type {any[]} */ ([
+                ...this.query.filter(isNewGroupBy),
+                ...this.query.filter(
+                    (/** @type {any} */ queryElem) => !isNewGroupBy(queryElem),
+                ),
+            ]);
+            return newGroupByIds;
+        }
+
+        /**
+         * @param {number[]} newFilterIds
+         * @param {Record<string, any>|null} anchor
+         */
+        _moveQueryElemsAfter(newFilterIds, anchor) {
+            const isNewFilter = (/** @type {any} */ queryElem) =>
+                newFilterIds.includes(queryElem.searchItemId);
+            /** @type {any[]} */
+            const newQueryElems = this.query.filter(isNewFilter);
+            /** @type {any[]} */
+            const otherQueryElems = this.query.filter(
+                (/** @type {any} */ queryElem) => !isNewFilter(queryElem),
+            );
+            const anchorIndex = anchor ? otherQueryElems.indexOf(anchor) : -1;
+            const at = anchorIndex + 1;
+            this.query = [
+                ...otherQueryElems.slice(0, at),
+                ...newQueryElems,
+                ...otherQueryElems.slice(at),
+            ];
+        }
+
+        /**
+         * @param {string} domain
+         * @param {number} [groupId]
+         */
+        async splitAndAddDomain(domain, groupId) {
+            const group = groupId
+                ? this._getGroups().find((/** @type {any} */ g) => g.id === groupId)
+                : null;
+            const context = group ? this._mergedContextOfGroup(group) : undefined;
+            const preFilters = await this._domainToPreFilters(domain, context);
+            if (group) {
+                await this._ensurePropertyFieldsForFavorite(group);
             }
 
             this._withNotificationsBlocked(() => {
-                let queryItemIndex;
+                let anchor = null;
                 if (group) {
-                    const firstActiveItem = group.activeItems[0];
-                    const firstSearchItem =
-                        this.searchItems[firstActiveItem.searchItemId];
-                    queryItemIndex = this.query.findIndex(
-                        (queryElem) =>
-                            queryElem.searchItemId === firstActiveItem.searchItemId,
+                    const replacedIndex = this.query.findIndex(
+                        (/** @type {any} */ queryElem) =>
+                            queryElem.searchItemId ===
+                            group.activeItems[0].searchItemId,
                     );
-                    const { type } = firstSearchItem;
-                    if (type === "favorite") {
-                        const activeItemGroupBys =
-                            this._getSearchItemGroupBys(firstActiveItem);
-                        let createNewGroupBys = Boolean(activeItemGroupBys.length);
-                        if (
-                            createNewGroupBys &&
-                            this.defaultGroupBy &&
-                            this.env.config.viewType === "kanban"
-                        ) {
-                            const currentGroupBy = this._getGroupBy({
-                                fallbackOnDefault: false,
-                            });
-                            if (
-                                JSON.stringify(currentGroupBy) ===
-                                JSON.stringify(this.defaultGroupBy)
-                            ) {
-                                createNewGroupBys = false;
-                            }
-                        }
-                        if (createNewGroupBys) {
-                            const newGroupByIds = [];
-                            for (const activeItemGroupBy of activeItemGroupBys) {
-                                const [fieldName, interval] =
-                                    activeItemGroupBy.split(":");
-                                const newGroupById = this.createNewGroupBy(fieldName, {
-                                    interval,
-                                    invisible: true,
-                                });
-                                if (newGroupById !== undefined) {
-                                    newGroupByIds.push(newGroupById);
-                                }
-                            }
-                            const isNewGroupBy = (queryElem) =>
-                                newGroupByIds.includes(queryElem.searchItemId);
-                            this.query = [
-                                ...this.query.filter(isNewGroupBy),
-                                ...this.query.filter(
-                                    (queryElem) => !isNewGroupBy(queryElem),
-                                ),
-                            ];
-                        }
+                    if (replacedIndex > 0) {
+                        anchor = this.query[replacedIndex - 1];
                     }
+                    this._carryOverFavoriteGroupBys(group);
                     this.deactivateGroup(groupId);
                 }
 
@@ -138,18 +194,8 @@ export const SearchSplitDomainMixin = (Base) =>
                     this.createNewFilters([preFilter]),
                 );
 
-                if (queryItemIndex !== undefined) {
-                    const isNewFilter = (queryElem) =>
-                        newFilterIds.includes(queryElem.searchItemId);
-                    const newQueryElems = this.query.filter(isNewFilter);
-                    const otherQueryElems = this.query.filter(
-                        (queryElem) => !isNewFilter(queryElem),
-                    );
-                    this.query = [
-                        ...otherQueryElems.slice(0, queryItemIndex),
-                        ...newQueryElems,
-                        ...otherQueryElems.slice(queryItemIndex),
-                    ];
+                if (group) {
+                    this._moveQueryElemsAfter(newFilterIds, anchor);
                 }
             });
 

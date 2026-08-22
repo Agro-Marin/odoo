@@ -47,10 +47,6 @@
         border-collapse: collapse;
         font-variant-numeric: tabular-nums;
 
-        // The UA `font` shorthand on form controls resets font-variant-numeric,
-        // which `font-family: inherit` from Reboot does not restore. Without
-        // this an input renders proportional figures inside a table of tabular
-        // ones, so every digit shifts the moment a cell is clicked into.
         input,
         textarea,
         select {
@@ -92,10 +88,6 @@
             th {
                 padding-top: var(--ListRenderer-thead-padding-y);
                 background-color: var(--ListRenderer-thead-bg-color);
-                // The muted *token*, not a raw ramp step: the two palettes do not
-                // agree on what `$o-gray-500` means. Light reads it as mid-grey
-                // (4.55:1 here); dark inverts the ramp, where the same step is a
-                // divider tone and every column header dropped to 2.48:1.
                 color: o-palette-token(--o-text-muted, $o-main-color-muted);
                 text-transform: uppercase;
                 font-size: $o-font-size-base-smaller;

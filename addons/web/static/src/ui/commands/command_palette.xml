@@ -2,7 +2,7 @@
 <templates xml:space="preserve">
 
   <t t-name="web.CommandPalette">
-    <Dialog header="false" footer="false" size="'md'" contentClass="'o_command_palette'">
+    <Dialog header="false" footer="false" size="'md'" contentClass="'o_command_palette'" modalRef="modalRef">
       <div t-ref="root">
         <div class="o_command_palette_search input-group mb-2 px-4 py-3 border-bottom">
           <span t-if="state.namespace !== 'default'" class="o_namespace d-flex align-items-center me-1 fs-4 text-muted opacity-75" t-out="state.namespace"/>
@@ -20,10 +20,6 @@
           </div>
         </div>
 
-        <!-- id: the combobox above names this element in `aria-controls`, which
-             is what ties the input to its popup; without it the input's
-             `aria-activedescendant` points into a listbox assistive technology
-             has no way to associate with it. -->
         <div id="o_command_palette_listbox" t-ref="listbox" role="listbox" class="o_command_palette_listbox position-relative overflow-auto">
           <div t-if="!state.commands.length" id="o_command_empty" role="option" aria-selected="true" class="o_command_palette_listbox_empty px-4 py-3 fst-italic" t-out="state.emptyMessage"/>
           <t t-foreach="commandsByCategory" t-as="category" t-key="category.keyId">
@@ -31,23 +27,25 @@
               <span t-if="category.name" class="text-uppercase fw-bold px-3 text-muted smaller opacity-50" t-out="category.name"/>
               <t t-foreach="category.commands" t-as="command" t-key="command.keyId">
                 <t t-set="commandIndex" t-value="command.index"/>
-                <div t-attf-id="o_command_{{commandIndex}}" class="o_command"
-                  role="option"
-                  t-att-aria-selected="selectedCommand === command ? 'true' : 'false'"
-                  t-att-class="{ focused: selectedCommand === command }"
-                  t-on-click="(event) => this.onCommandClicked(event, commandIndex)"
-                  t-on-mouseenter="() => this.onCommandMouseEnter(commandIndex)">
-                  <a t-att-href="command.href" t-att-class="command.className">
-                    <t t-component="command.Component || DefaultCommandItem" name="command.name" searchValue="state.searchValue" t-props="command.props" executeCommand="() => this.executeCommand(command)">
-                      <t t-set-slot="name">
-                        <span class="o_command_name text-ellipsis" t-att-title="command.name" t-out="command.text"/>
+                <ErrorHandler onError="(error) => this.handleCommandError(command, error)">
+                  <div t-attf-id="o_command_{{commandIndex}}" class="o_command"
+                    role="option"
+                    t-att-aria-selected="selectedCommand === command ? 'true' : 'false'"
+                    t-att-class="{ focused: selectedCommand === command }"
+                    t-on-click="(event) => this.onCommandClicked(event, commandIndex)"
+                    t-on-mouseenter="() => this.onCommandMouseEnter(commandIndex)">
+                    <a t-att-href="command.href" t-att-class="command.className">
+                      <t t-component="command.Component || DefaultCommandItem" name="command.name" searchValue="state.searchValue" t-props="command.props" executeCommand="() => this.executeCommand(command)">
+                        <t t-set-slot="name">
+                          <span class="o_command_name text-ellipsis" t-att-title="command.name" t-out="command.text"/>
+                        </t>
+                        <t t-set-slot="focusMessage">
+                            <small t-if="!isMobileOS and command.href and selectedCommand === command" class="o_command_focus text-muted"><kbd><t t-if="isMacOS">CMD</t><t t-else="">CTRL</t></kbd>+<kbd>⏎</kbd><span class="ms-1">new tab</span></small>
+                        </t>
                       </t>
-                      <t t-set-slot="focusMessage">
-                          <small t-if="!isMobileOS and command.href and selectedCommand === command" class="o_command_focus text-muted"><kbd><t t-if="isMacOS">CMD</t><t t-else="">CTRL</t></kbd>+<kbd>⏎</kbd><span class="ms-1">new tab</span></small>
-                      </t>
-                    </t>
-                  </a>
-                </div>
+                    </a>
+                  </div>
+                </ErrorHandler>
               </t>
             </div>
 

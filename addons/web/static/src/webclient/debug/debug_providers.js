@@ -1,14 +1,16 @@
 // @ts-check
 /** @odoo-module native */
 
-/**
- * @module @web/webclient/debug/debug_providers
- */
-
-import { browser } from "@web/core/browser/browser";
-import { router } from "@web/core/browser/router";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+
+import {
+    enterDebugMode,
+    enterDebugModeWithAssets,
+    leaveDebugMode,
+    openUnitTests,
+    unitTestsLabel,
+} from "./debug_affordances.js";
 const commandProviderRegistry = registry.category("command_provider");
 
 commandProviderRegistry.add("debug", {
@@ -22,41 +24,31 @@ commandProviderRegistry.add("debug", {
         if (env.debug) {
             if (!env.debug.includes("assets")) {
                 result.push({
-                    action() {
-                        router.pushState({ debug: "assets" }, { reload: true });
-                    },
+                    action: enterDebugModeWithAssets,
                     category: "debug",
                     name: _t("Activate debug mode (with assets)"),
                 });
             }
             result.push({
-                action() {
-                    router.pushState({ debug: 0 }, { reload: true });
-                },
+                action: leaveDebugMode,
                 category: "debug",
                 name: _t("Deactivate debug mode"),
             });
             result.push({
-                action() {
-                    browser.open("/web/tests?debug=assets");
-                },
+                action: openUnitTests,
                 category: "debug",
-                name: _t("Run Unit Tests"),
+                name: unitTestsLabel(),
             });
         } else {
             const debugKey = "debug";
             if (options.searchValue.toLowerCase() === debugKey) {
                 result.push({
-                    action() {
-                        router.pushState({ debug: "1" }, { reload: true });
-                    },
+                    action: enterDebugMode,
                     category: "debug",
                     name: `${_t("Activate debug mode")} (${debugKey})`,
                 });
                 result.push({
-                    action() {
-                        router.pushState({ debug: "assets" }, { reload: true });
-                    },
+                    action: enterDebugModeWithAssets,
                     category: "debug",
                     name: `${_t("Activate debug mode (with assets)")} (${debugKey})`,
                 });

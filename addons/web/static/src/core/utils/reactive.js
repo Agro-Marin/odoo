@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/reactive */
-
 import { reactive } from "@odoo/owl";
 
 export class SignalStore {
@@ -15,7 +13,7 @@ export class SignalStore {
  * @template {object[]} T
  * @param {(...args: [...T]) => any} cb
  * @param {[...T]} deps
- * @returns {() => void} disposer: stops the effect from firing again
+ * @returns {() => void}
  */
 export function effect(cb, deps) {
     let disposed = false;
@@ -32,9 +30,6 @@ export function effect(cb, deps) {
 }
 
 /**
- * Historical alias of {@link effect}, kept for its existing callers now that
- * `effect` returns a disposer itself.
- *
  * @template {object[]} T
  * @param {(...args: [...T]) => any} cb
  * @param {[...T]} deps

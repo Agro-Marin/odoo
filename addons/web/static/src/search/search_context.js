@@ -1,30 +1,40 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module search/search_context */
-
-/**
- * @param {Object} activeItem
- * @param {Object} searchItems
- * @returns {Object|null}
- */
-
 import { makeContext } from "@web/core/context";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
 import { deepCopy } from "@web/core/utils/collections/objects";
+
+/** @import { ActiveItem, AutocompleteValue, QueryGroup, SearchItems } from "./search_types" */
+
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+function isContextDict(value) {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * @param {ActiveItem} activeItem
+ * @param {SearchItems} searchItems
+ * @returns {Record<string, any>|null}
+ */
 export function computeSearchItemContext(activeItem, searchItems) {
     const { searchItemId } = activeItem;
     const searchItem = searchItems[searchItemId];
     switch (searchItem.type) {
         case "field": {
+            /** @type {Record<string, any>} */
             let context = {};
             if (searchItem.context) {
                 const self = activeItem.autocompleteValues.map(
-                    (autocompleteValue) => autocompleteValue.value,
+                    (/** @type {AutocompleteValue} */ autocompleteValue) =>
+                        autocompleteValue.value,
                 );
                 context = evaluateExpr(searchItem.context, { self });
-                if (typeof context !== "object") {
+                if (!isContextDict(context)) {
                     throw new Error(
                         _t("Failed to evaluate the context: %(context)s.", {
                             context: searchItem.context,
@@ -47,10 +57,10 @@ export function computeSearchItemContext(activeItem, searchItems) {
 }
 
 /**
- * @param {Object[]} groups
- * @param {Object} userContext
- * @param {Function} getSearchItemContext
- * @returns {Object}
+ * @param {QueryGroup[]} groups
+ * @param {Record<string, any>} userContext
+ * @param {(activeItem: ActiveItem) => Record<string, any>|null} getSearchItemContext
+ * @returns {Record<string, any>}
  */
 export function computeSearchContext(groups, userContext, getSearchItemContext) {
     const contexts = [userContext];

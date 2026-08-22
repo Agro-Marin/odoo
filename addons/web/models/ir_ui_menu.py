@@ -7,16 +7,6 @@ class IrUiMenu(models.Model):
     _inherit = "ir.ui.menu"
 
     def load_web_menus(self, debug: bool) -> dict[str | int, dict[str, Any]]:
-        """Load all menu items (all applications and their sub-menus) and
-        format them for the webclient.
-
-        For each app (top-level menu), resolve the action to run when
-        opening it: the action of the first child, grandchild, etc. along
-        the leftmost child chain that defines one.
-
-        :return: the menu tree, with icon fields formatted for the
-            webclient (custom icons embedded as base64 data URIs)
-        """
         menus = self.load_menus(debug)
 
         web_menus = {}

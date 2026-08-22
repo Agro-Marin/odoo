@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/utils */
-
 export {
     getBasicEvalContext,
     getFieldContext,

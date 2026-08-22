@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_sorting */
-
 export const listSortingMixin = {
     /**
      * @param {{ name: string }} column

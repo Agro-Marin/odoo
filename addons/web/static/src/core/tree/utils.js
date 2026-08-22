@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/utils */
-
 /** @import { Value } from "./condition_tree.js" */
 
 /**
@@ -48,7 +46,9 @@ export function getResModel(fieldDef) {
     return null;
 }
 
-/** @type {string[]} */
+/**
+ * @type {string[]}
+ */
 const SPECIAL_FIELDS = [
     "country_id",
     "user_id",
@@ -65,9 +65,8 @@ const SPECIAL_FIELDS = [
  */
 export function getDefaultPath(fieldDefs) {
     for (const name of SPECIAL_FIELDS) {
-        const fieldDef = fieldDefs[name];
-        if (fieldDef) {
-            return fieldDef.name;
+        if (fieldDefs[name]) {
+            return name;
         }
     }
     const name = Object.keys(fieldDefs)[0];

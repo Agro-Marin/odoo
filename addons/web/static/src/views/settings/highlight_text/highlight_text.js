@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/highlight_text/highlight_text */
-
 import { Component, onWillRender, useState } from "@odoo/owl";
 import { highlightText } from "@web/core/utils/dom/html";
 export class HighlightText extends Component {

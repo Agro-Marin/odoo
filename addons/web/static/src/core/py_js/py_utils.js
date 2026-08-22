@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/py_js/py_utils */
-
 import { ASTType } from "./ast_type.js";
 import { PyDate, PyDateTime, PyTime } from "./py_date.js";
 import { bp } from "./py_parser.js";
@@ -168,18 +166,6 @@ export function formatAST(ast, lbp = 0) {
 }
 
 /**
- * Objects the interpreter has been told to treat as a Python dict, tracked
- * beside them rather than on them.
- *
- * A ``Proxy`` whose ``getPrototypeOf`` trap answered a sentinel used to carry
- * this. The trap must return the target's real prototype once the target is
- * non-extensible, so every frozen, sealed or ``preventExtensions``-ed object --
- * a context frozen by ``search_model._freezeInDevMode``, an ``immutable`` RPC
- * cache payload -- made the engine throw a ``TypeError`` about proxy
- * invariants, naming neither the expression nor the context. A ``WeakSet``
- * answers the same question without touching the object, and keeps the
- * caller's identity intact.
- *
  * @type {WeakSet<object>}
  */
 const PY_DICTS = new WeakSet();

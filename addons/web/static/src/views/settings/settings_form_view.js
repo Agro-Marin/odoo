@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/settings_form_view */
-
 import { evaluateExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { intersection } from "@web/core/utils/collections/arrays";
@@ -70,7 +68,7 @@ class SettingModel extends formView.Model {
 }
 SettingModel.Record = SettingRecord;
 
-export const settingsFormView = {
+const settingsFormView = {
     ...formView,
     display: {},
     Model: SettingModel,

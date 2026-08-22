@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/widgets/res_config_edition */
-
 import { Component } from "@odoo/owl";
 import { DateTime } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
@@ -29,7 +27,7 @@ class ResConfigEdition extends Component {
 }
 
 /** @type {import("registries").ViewWidgetsRegistryItemShape} */
-export const resConfigEdition = {
+const resConfigEdition = {
     component: ResConfigEdition,
 };
 

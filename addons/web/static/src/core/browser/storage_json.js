@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/browser/storage_json */
-
 import { browser } from "@web/core/browser/browser";
 
 /**

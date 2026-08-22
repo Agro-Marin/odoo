@@ -1,28 +1,24 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_year/calendar_year_renderer */
-
-import { Component, useEffect, useExternalListener, useRef } from "@odoo/owl";
+import { useEffect, useExternalListener, useRef } from "@odoo/owl";
 import { getLocalYearAndWeek } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
 import { DateTime, Info, Interval, Settings } from "@web/core/l10n/luxon";
 import { useReactiveModel } from "@web/model/model";
 import { formatFcInitialDate } from "@web/views/calendar/calendar_common/calendar_common_renderer";
-import { makeWeekColumn } from "@web/views/calendar/calendar_common/calendar_common_week_column";
-import { convertRecordToEvent, getColor } from "@web/views/calendar/calendar_utils";
+import { CalendarRendererBase } from "@web/views/calendar/calendar_renderer_base";
+import { convertRecordToEvent } from "@web/views/calendar/calendar_utils";
 import { CalendarYearPopover } from "@web/views/calendar/calendar_year/calendar_year_popover";
 import { useCalendarPopover } from "@web/views/calendar/hooks/calendar_popover_hook";
 import {
-    dayCellClassNames,
-    dayHeaderClassNames,
-    fcInternalClassName,
+    fcViewClassOptions,
     fromFcDate,
     getFullCalendarTimeZone,
     useFullCalendar,
 } from "@web/views/calendar/hooks/full_calendar_hook";
 
-export class CalendarYearRenderer extends Component {
+export class CalendarYearRenderer extends CalendarRendererBase {
     static components = {
         Popover: CalendarYearPopover,
     };
@@ -43,9 +39,6 @@ export class CalendarYearRenderer extends Component {
     rootRef;
 
     setup() {
-        // Subscribe to the model rather than reading it off the raw prop, so a
-        // `notify()` re-renders this component on its own instead of relying on
-        // the controller's blanket deep render.
         this.model = useReactiveModel(this.props.model);
         this.months = Info.months();
         this.fcs = {};
@@ -69,15 +62,7 @@ export class CalendarYearRenderer extends Component {
 
     get options() {
         return {
-            class: "fc",
-            viewClass: ({ view }) =>
-                view && view.type ? `fc-view fc-${view.type}-view` : "fc-view",
-            dayCellClass: this.dayCellClass,
-            dayCellInnerClass: "fc-daygrid-day-frame",
-            dayCellTopClass: "fc-daygrid-day-top",
-            dayCellTopInnerClass: "fc-daygrid-day-number",
-            dayHeaderClass: dayHeaderClassNames,
-            backgroundEventClass: "fc-bg-event",
+            ...fcViewClassOptions(this.dayCellClass),
             toolbarClass: "fc-toolbar",
             toolbarSectionClass: "fc-toolbar-chunk",
             toolbarTitleClass: "fc-toolbar-title",
@@ -126,31 +111,6 @@ export class CalendarYearRenderer extends Component {
         };
     }
 
-    viewDidMount({ el, view, options }) {
-        if (!options) {
-            return;
-        }
-        const showWeek = this.options.weekNumbers;
-        const weekText = options.weekTextShort ?? this.options.weekText ?? "";
-        const weekColumn = !this.customOptions.weekNumbersWithinDays;
-        if (showWeek && weekColumn) {
-            makeWeekColumn(/** @type {any} */ ({ el, weekText }));
-        }
-        const scrollerClass = fcInternalClassName("internalScroller");
-        const liquidClass = fcInternalClassName("liquid");
-        for (const scrollerEl of el.querySelectorAll(`.${scrollerClass}`)) {
-            scrollerEl.classList.add("fc-scroller");
-            if (scrollerEl.classList.contains(liquidClass)) {
-                scrollerEl.classList.add("fc-scroller-liquid-y");
-            }
-        }
-    }
-
-    mapRecordsToEvents() {
-        return Object.values(this.model.records).map((r) =>
-            this.convertRecordToEvent(r),
-        );
-    }
     convertRecordToEvent(record) {
         return {
             ...convertRecordToEvent(record, true),
@@ -216,60 +176,6 @@ export class CalendarYearRenderer extends Component {
                 start: DateTime.fromISO(info.dateStr),
                 isAllDay: true,
             });
-        }
-    }
-    dayCellClass(info) {
-        const base = dayCellClassNames(info);
-        const extras = this.getDayCellClassNames(info);
-        return extras.length ? `${base} ${extras.join(" ")}` : base;
-    }
-    getDayCellClassNames(info) {
-        const date = fromFcDate(info.date).toISODate();
-        if (this.model.unusualDays.includes(date)) {
-            return ["o_calendar_disabled"];
-        }
-        return [];
-    }
-    eventClassNames({ event }) {
-        const classesToAdd = [];
-        classesToAdd.push("o_event");
-        const record = this.model.records[event.id];
-        if (record) {
-            const color = getColor(record.colorIndex);
-            if (typeof color === "number") {
-                classesToAdd.push(`o_calendar_color_${color}`);
-            } else if (typeof color !== "string") {
-                classesToAdd.push("o_calendar_color_0");
-            }
-
-            if (record.isHatched) {
-                classesToAdd.push("o_event_hatched");
-            }
-            if (record.isStriked) {
-                classesToAdd.push("o_event_striked");
-            }
-        }
-        return classesToAdd;
-    }
-    onDayCellDidMount(info) {
-        const classes = this.getDayCellClassNames(info);
-        if (classes.length && info.el) {
-            info.el.classList.add(...classes);
-        }
-    }
-    onEventDidMount(info) {
-        const { el, event } = info;
-        const classes = this.eventClassNames(info);
-        if (classes.length) {
-            el.classList.add(...classes);
-        }
-        el.dataset.eventId = event.id;
-        const record = this.model.records[event.id];
-        if (record) {
-            const color = getColor(record.colorIndex);
-            if (typeof color === "string") {
-                el.style.backgroundColor = color;
-            }
         }
     }
     async onSelect(info) {

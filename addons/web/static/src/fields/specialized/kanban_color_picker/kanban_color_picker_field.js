@@ -1,23 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/kanban_color_picker/kanban_color_picker_field */
-
-import { Component } from "@odoo/owl";
 import { ColorList } from "@web/components/colorlist/colorlist";
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
-import { fieldHandle } from "@web/fields/field_handle";
+import { FieldComponent } from "@web/fields/field_component";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-class KanbanColorPickerField extends Component {
+class KanbanColorPickerField extends FieldComponent {
     static template = "web.KanbanColorPickerField";
     static props = standardFieldProps;
-
-    /** @returns {import("@web/fields/field_handle").FieldHandle} */
-    get field() {
-        return fieldHandle(this);
-    }
 
     /** @returns {number[]} */
     get colors() {
@@ -34,7 +26,7 @@ class KanbanColorPickerField extends Component {
 }
 
 /** @type {import("registries").FieldsRegistryItemShape} */
-export const kanbanColorPickerField = {
+const kanbanColorPickerField = {
     component: KanbanColorPickerField,
     displayName: _t("Color Picker"),
     interactiveOutsideEdition: true,

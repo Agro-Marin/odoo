@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/action_executors/client */
-
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { pick } from "@web/core/utils/collections/objects";

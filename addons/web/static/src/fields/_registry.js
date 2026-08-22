@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/_registry */
-
 import { registry } from "@web/core/registry";
 
 /**
@@ -11,9 +9,9 @@ import { registry } from "@web/core/registry";
 
 /**
  * @typedef {{
- *   name: string;
- *   view?: FieldViewPrefix;
- *   aliases?: Array<string | { name: string; view?: FieldViewPrefix }>;
+ * name: string;
+ * view?: FieldViewPrefix;
+ * aliases?: Array<string | { name: string; view?: FieldViewPrefix }>;
  * }} FieldRegistrationSpec
  */
 
@@ -33,18 +31,7 @@ export function fieldKey(spec) {
  * @returns {T}
  */
 export function registerField(nameOrSpec, widget, ...rest) {
-    return _register(nameOrSpec, widget, rest, false);
-}
-
-/**
- * @template T
- * @param {string | FieldRegistrationSpec} nameOrSpec
- * @param {T} widget
- * @param {...any} rest
- * @returns {T}
- */
-export function registerFallbackField(nameOrSpec, widget, ...rest) {
-    return _register(nameOrSpec, widget, rest, true);
+    return _register(nameOrSpec, widget, rest);
 }
 
 /**
@@ -52,17 +39,12 @@ export function registerFallbackField(nameOrSpec, widget, ...rest) {
  * @param {string | FieldRegistrationSpec} nameOrSpec
  * @param {T} widget
  * @param {any[]} rest
- * @param {boolean} onlyIfAbsent
  * @returns {T}
  */
-function _register(nameOrSpec, widget, rest, onlyIfAbsent) {
+function _register(nameOrSpec, widget, rest) {
     const fieldsReg = registry.category("fields");
-    const addKey = (/** @type {string} */ key) => {
-        if (onlyIfAbsent && fieldsReg.contains(key)) {
-            return;
-        }
+    const addKey = (/** @type {string} */ key) =>
         fieldsReg.add(key, /** @type {any} */ (widget), ...rest);
-    };
     addKey(typeof nameOrSpec === "string" ? nameOrSpec : fieldKey(nameOrSpec));
     if (typeof nameOrSpec !== "string" && nameOrSpec.aliases?.length) {
         for (const alias of nameOrSpec.aliases) {

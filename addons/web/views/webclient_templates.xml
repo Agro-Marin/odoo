@@ -10,6 +10,17 @@
     <template id="web.layout" name="Web layout"> &lt;!DOCTYPE html&gt; <html t-att="html_data or {}">
             <head>
                 <meta charset="utf-8" />
+                <!-- Chrome on iOS wraps measures, emails and phone numbers in a
+                     <chrome_annotation> tag, which breaks OWL's patching. This
+                     undocumented meta disables it and must be present before
+                     DOMContentLoaded. It lived in boot/start.js until
+                     2026-08-17, where it was built at module-evaluation time
+                     and therefore reached only the bundles carrying that file —
+                     not the PoS, the public Discuss page, the livechat embed,
+                     the public spreadsheet or the website frontend. Emitted in
+                     the parsed markup here, it covers every Odoo page.
+                     https://issues.chromium.org/issues/353650041 -->
+                <meta name="chrome" content="nointentdetection" />
                 <title t-out="title or 'Odoo'" />
                 <link rel="icon" t-att-href="x_icon or '/web/static/img/favicon.ico'" />
                 <script id="web.layout.odooscript">
@@ -232,22 +243,6 @@ window.odoo = {csrf_token: "<t t-out="request.csrf_token(None)" />",debug: "<t t
 
     <template id="web.webclient_bootstrap" name="Web Client Bootstrap">
         <t t-call="web.layout">
-            <!-- The token layer answers this attribute, so a stylesheet can
-                 follow a scheme change through the cascade. Both bundles
-                 publish both schemes, so setting it changes nothing on its
-                 own — it is what a single bundle would key off.
-
-                 Only where the server knows the answer. For a `system` user it
-                 does not: `color_scheme` there is whatever the browser last
-                 cached in the cookie, while which stylesheet applies is decided
-                 live by `prefers-color-scheme`. The two can disagree — the OS
-                 changed theme since the last visit — and the attribute is read
-                 against whichever bundle the media query picked, so a stale one
-                 selects the dark values out of the light sheet. The inline
-                 resolver below sets it from the same input the media query
-                 uses, in the same `<head>` and ahead of every stylesheet, so
-                 emitting nothing here costs no paint and removes the one state
-                 that could be wrong. -->
             <t t-set="html_data"
                t-value="{} if color_scheme_preference == 'system'
                         else {'data-color-scheme': color_scheme}" />
@@ -260,7 +255,7 @@ window.odoo = {csrf_token: "<t t-out="request.csrf_token(None)" />",debug: "<t t
                 <script> // Block to avoid leaking variables in the script scope
                     {
                         odoo.__session_info__ = <t t-out="json.dumps(session_info)" />;
-                        const { user_context, registry_hash, translationURL } = odoo.__session_info__;
+                        const { user_context, registry_hash, menus_cache_version, translationURL } = odoo.__session_info__;
                         const lang = new URLSearchParams(document.location.search).get("lang");
                         let menuURL = "/web/webclient/load_menus";
                         if (lang) {
@@ -292,9 +287,11 @@ window.odoo = {csrf_token: "<t t-out="request.csrf_token(None)" />",debug: "<t t
                         };
                         let storedMenusHash;
                         try {
-                            // Same validity check as menu_service: only revalidate by
-                            // hash when a menus copy for this registry version exists.
-                            if (localStorage.getItem("webclient_menus_version") === registry_hash
+                            // Only revalidate by hash when a menus copy for this cache
+                            // version exists. `menus_cache_version` is composed server
+                            // side precisely so this check and menu_storage.js compare
+                            // the same string; do not recompose it here.
+                            if (localStorage.getItem("webclient_menus_version") === menus_cache_version
                                 &amp;&amp; localStorage.getItem("webclient_menus")) {
                                 storedMenusHash = localStorage.getItem("webclient_menus_hash") || undefined;
                             }
@@ -326,14 +323,6 @@ window.odoo = {csrf_token: "<t t-out="request.csrf_token(None)" />",debug: "<t t
                         }
                     }
                 </script>
-<!-- Before any bundle runs, so the cookie is already settled by the time
-                     the first module reads it. `prefers-color-scheme` is the one
-                     input the server has no access to, and a good deal of JS
-                     treats this cookie as a resolved light/dark answer — several
-                     modules at import time, where nothing later can correct them.
-                     Resolving here is what lets that be true by construction
-                     rather than by every reader remembering to read late.
-                     Mirrors cookie.set() in @web/core/browser/cookie. -->
                 <t t-if="color_scheme_preference == 'system'">
                     <script id="web.layout.colorscheme">
                         {
@@ -346,11 +335,6 @@ window.odoo = {csrf_token: "<t t-out="request.csrf_token(None)" />",debug: "<t t
                 <t t-call-assets="web.assets_web_print" media="print" t-js="false" />
                 <t t-call-assets="web.assets_web" t-css="false" />
 
-<!-- Keyed off the preference, not the resolved scheme: only the browser
-                     can answer `system`, so ship both and let the media queries
-                     decide. Keying this off `color_scheme` made the branch
-                     unreachable, and a dark-OS user got a full light paint
-                     followed by the reload that corrected it. -->
                 <t t-if="color_scheme_preference == 'system'">
                     <t t-call-assets="web.assets_web"
                         media="screen and (prefers-color-scheme: light)" t-js="false" />

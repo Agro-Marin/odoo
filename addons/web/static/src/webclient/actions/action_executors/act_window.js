@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/action_executors/act_window */
-
 import { omit, pick } from "@web/core/utils/collections/objects";
 import { View } from "@web/views/view";
 

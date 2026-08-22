@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_panel/search_panel_mixin */
-
 import { Domain } from "@web/core/domain";
 import { deepEqual } from "@web/core/utils/collections/objects";
 
@@ -36,7 +34,7 @@ export const SearchPanelMixin = (Base) =>
          * @param {number} sectionId
          * @param {number} valueId
          */
-        toggleCategoryValue(sectionId, valueId) {
+        async toggleCategoryValue(sectionId, valueId) {
             const category = this.sections.get(sectionId);
             category.activeValueId = valueId;
             return this._notify();
@@ -47,7 +45,7 @@ export const SearchPanelMixin = (Base) =>
          * @param {number[]} valueIds
          * @param {boolean|null} [forceTo=null]
          */
-        toggleFilterValues(sectionId, valueIds, forceTo = null) {
+        async toggleFilterValues(sectionId, valueIds, forceTo = null) {
             const filter = this.sections.get(sectionId);
             for (const valueId of valueIds) {
                 const value = filter.values.get(valueId);
@@ -62,7 +60,7 @@ export const SearchPanelMixin = (Base) =>
         /**
          * @param {number[]} sectionIds
          */
-        clearSections(sectionIds) {
+        async clearSections(sectionIds) {
             for (const sectionId of sectionIds) {
                 const section = this.sections.get(sectionId);
                 if (section.type === "category") {
@@ -73,6 +71,14 @@ export const SearchPanelMixin = (Base) =>
                     }
                 }
             }
+            return this._notify();
+        }
+
+        /**
+         * @returns {Promise<void>}
+         */
+        async invalidateSections() {
+            this.searchPanelInfo.shouldReload = true;
             return this._notify();
         }
 
@@ -96,19 +102,22 @@ export const SearchPanelMixin = (Base) =>
 
         /**
          * @param {number} sectionId
-         * @param {Object} result
+         * @param {Record<string, any>} result
          */
         _createCategoryTree(sectionId, result) {
             const category = this.sections.get(sectionId);
-            buildCategoryTree(category, result, (cat, ids) =>
-                this._ensureCategoryValue(cat, ids),
+            buildCategoryTree(
+                category,
+                result,
+                (/** @type {any} */ cat, /** @type {any} */ ids) =>
+                    this._ensureCategoryValue(cat, ids),
             );
             this._sections = null;
         }
 
         /**
          * @param {number} sectionId
-         * @param {Object} result
+         * @param {Record<string, any>} result
          */
         _createFilterTree(sectionId, result) {
             const filter = this.sections.get(sectionId);
@@ -128,7 +137,7 @@ export const SearchPanelMixin = (Base) =>
 
         /**
          * @param {Category[]} categories
-         * @returns {Promise}
+         * @returns {Promise<void>}
          */
         async _fetchCategories(categories) {
             const filterDomain = this._getFilterDomain();
@@ -153,7 +162,10 @@ export const SearchPanelMixin = (Base) =>
                             .cache({
                                 type: "disk",
                                 update: "always",
-                                callback: (result, hasChanged) => {
+                                callback: (
+                                    /** @type {any} */ result,
+                                    /** @type {any} */ hasChanged,
+                                ) => {
                                     if (
                                         !hasChanged ||
                                         loadId !== this._sectionLoadIds.get(category.id)
@@ -189,9 +201,10 @@ export const SearchPanelMixin = (Base) =>
 
         /**
          * @param {Filter[]} filters
-         * @returns {Promise}
+         * @returns {Promise<void>}
          */
         async _fetchFilters(filters) {
+            /** @type {Record<string, any>} */
             const evalContext = {};
             for (const category of this.categories) {
                 evalContext[category.fieldName] = category.activeValueId;
@@ -220,7 +233,10 @@ export const SearchPanelMixin = (Base) =>
                             .cache({
                                 type: "disk",
                                 update: "always",
-                                callback: (result, hasChanged) => {
+                                callback: (
+                                    /** @type {any} */ result,
+                                    /** @type {any} */ hasChanged,
+                                ) => {
                                     if (
                                         !hasChanged ||
                                         loadId !== this._sectionLoadIds.get(filter.id)
@@ -257,7 +273,7 @@ export const SearchPanelMixin = (Base) =>
         /**
          * @param {Category[]} categoriesToLoad
          * @param {Filter[]} filtersToLoad
-         * @returns {Promise}
+         * @returns {Promise<void>}
          */
         async _fetchSections(categoriesToLoad, filtersToLoad) {
             await this._fetchCategories(categoriesToLoad);
@@ -270,8 +286,8 @@ export const SearchPanelMixin = (Base) =>
          */
         async _reloadSections() {
             return this._reloadMutex.exec(async () => {
-                const wasBlocked = this.blockNotification;
-                this.blockNotification = true;
+                const wasBlocked = /** @type {boolean} */ (this.blockNotification);
+                this.blockNotification = /** @type {boolean} */ (true);
                 try {
                     const searchDomain = /** @type {DomainListRepr} */ (
                         this._getDomain({ withSearchPanel: false })
@@ -281,7 +297,7 @@ export const SearchPanelMixin = (Base) =>
                         !deepEqual(this.searchDomain, searchDomain);
                     this.searchDomain = searchDomain;
 
-                    const toFetch = (section) =>
+                    const toFetch = (/** @type {any} */ section) =>
                         section.enableCounters ||
                         (searchDomainChanged && !section.expand);
                     const categoriesToFetch = this.categories.filter(toFetch);
@@ -303,7 +319,7 @@ export const SearchPanelMixin = (Base) =>
                         this.searchPanelInfo.shouldReload = !this.display.searchPanel;
                     }
                 } finally {
-                    this.blockNotification = wasBlocked;
+                    this.blockNotification = /** @type {boolean} */ (wasBlocked);
                 }
             });
         }
@@ -315,7 +331,7 @@ export const SearchPanelMixin = (Base) =>
         _shouldWaitForData(searchDomainChanged) {
             if (
                 this.categories.length &&
-                this.filters.some((filter) => filter.domain !== "[]")
+                this.filters.some((/** @type {any} */ filter) => filter.domain !== "[]")
             ) {
                 return true;
             }

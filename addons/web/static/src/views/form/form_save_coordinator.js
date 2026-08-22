@@ -1,25 +1,23 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/form/form_save_coordinator */
-
-import { SignalStore } from "@web/core/utils/reactive";
+import { InvalidTransitionError, StateMachine } from "@web/core/utils/state_machine";
 
 /**
  * @typedef {"clean" | "dirty" | "saving" | "error"} FormSaveStatus
  * @typedef {"begin" | "ok" | "recoverable" | "failed" | "discard"} FormSaveEvent
  * @typedef {{
- *   onSaveError: (error: any, callbacks: { discard: () => any, retry: () => any }) => any,
- *   onUrgentSaveFailed?: () => void,
- *   recoverFromSaveError?: (error: any, model: any) => boolean,
+ * onSaveError: (error: any, callbacks: { discard: () => any, retry: () => any }) => any,
+ * onUrgentSaveFailed?: () => void,
+ * recoverFromSaveError?: (error: any, model: any) => boolean,
  * }} FormSaveHooks
  * @typedef {{
- *   checkDirty?: boolean,
- *   reload?: boolean,
- *   nextId?: number,
- *   errorMode?: "dialog" | "rethrow" | "silent",
- *   saveOverride?: (record: any, params: any) => Promise<any>,
- *   params?: Record<string, any>,
+ * checkDirty?: boolean,
+ * reload?: boolean,
+ * nextId?: number,
+ * errorMode?: "dialog" | "rethrow" | "silent",
+ * saveOverride?: (record: any, params: any) => Promise<any>,
+ * params?: Record<string, any>,
  * }} RequestSaveOptions
  */
 
@@ -39,22 +37,20 @@ const TRANSITIONS = {
     error: { begin: "saving", discard: "clean" },
 };
 
-export class InvalidFormSaveTransitionError extends Error {
+export class InvalidFormSaveTransitionError extends InvalidTransitionError {
     /**
      * @param {string} from
      * @param {string} event
      */
     constructor(from, event) {
-        super(
-            `FormSaveCoordinator: invalid transition '${event}' from state '${from}'`,
-        );
-        this.name = "InvalidFormSaveTransitionError";
-        this.from = from;
-        this.event = event;
+        super("InvalidFormSaveTransitionError", "FormSaveCoordinator", from, event);
     }
 }
 
-export class FormSaveCoordinator extends SignalStore {
+export class FormSaveCoordinator extends StateMachine {
+    static transitions = TRANSITIONS;
+    static invalidTransitionError = InvalidFormSaveTransitionError;
+
     /** @type {FormSaveStatus} */
     status = "clean";
 
@@ -85,17 +81,6 @@ export class FormSaveCoordinator extends SignalStore {
 
     /**
      * @param {FormSaveEvent} event
-     */
-    _transition(event) {
-        const next = TRANSITIONS[this.status]?.[event];
-        if (next === undefined) {
-            throw new InvalidFormSaveTransitionError(this.status, event);
-        }
-        this.status = next;
-    }
-
-    /**
-     * @param {FormSaveEvent} event
      * @param {number} ownerEpoch
      */
     _finishTransition(event, ownerEpoch) {
@@ -104,9 +89,6 @@ export class FormSaveCoordinator extends SignalStore {
         }
         this._transition(event);
         if (event === "ok") {
-            // A save that ends up ok (e.g. the error dialog's "Discard" choice)
-            // must not leave a stale error behind: consumers such as
-            // shouldExecuteAction read lastError to decide whether to proceed.
             this.lastError = null;
         }
     }

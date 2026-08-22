@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/report_search_model */
-
 import { SearchModel } from "@web/search/search_model";
 
 /** @type {any} */

@@ -1,5 +1,11 @@
 #!/bin/bash
-# Web module architecture fact-check. Run from any cwd. Read-only.
+# Web module architecture fact-check. Run from any cwd.
+#
+# Read-only by default. `--update` rewrites the figures that
+# `assert_doc_cites` derives, so nobody retypes a digit — the same
+# reasoning as ADR-0041's `doc_restated_counts.py --update` for
+# `doc/architecture/`. Reach for it in the commit that MOVES the tree;
+# a figure goes stale there, not in the run that notices.
 #
 # Assertions DERIVE their expected value from the filesystem and check that the
 # docs cite it (assert_doc_cites), rather than keeping a second copy of every
@@ -63,6 +69,35 @@ DOC="$WEB/machine_doc_v1"
 PASS=0
 FAIL=0
 SKIP=0
+UPDATED=0
+
+# `--update` is opt-in and touches nothing on the default path, so a CI run and
+# a developer run execute the same assertions.
+FACTCHECK_UPDATE=0
+for _arg in "$@"; do
+    case "$_arg" in
+        --update) FACTCHECK_UPDATE=1 ;;
+        *) echo "usage: factcheck.sh [--update]" >&2; exit 2 ;;
+    esac
+done
+
+# Which sibling checkouts are present. CI checks `odoo` out ALONE -- no workflow
+# passes `repository:` to actions/checkout -- so every fork-wide measurement here
+# has nothing to measure there. The header promises such checks SKIP with a
+# count rather than fail; five did not, and reported a smaller tree as drift --
+# registerField 109 against a documented 110, and the plain/spec split with it.
+# A gate that fails on everything is read as broken and ignored, which is the
+# lesson the doc sweep below already learned once, at 557.
+SIBLINGS_ABSENT=""
+for _sib in enterprise agromarin design-themes; do
+    [ -d "$WORKSPACE/$_sib" ] || SIBLINGS_ABSENT="$SIBLINGS_ABSENT $_sib"
+done
+# $1 = what is skipped, $2 = how many assertions it covers.
+skip_without_siblings() {
+    [ -n "$SIBLINGS_ABSENT" ] || return 1
+    echo "SKIP: $1 — $2 assertion(s) (fork-wide; absent:$SIBLINGS_ABSENT)"
+    SKIP=$((SKIP+$2)); return 0
+}
 
 assert_eq() {
     local name="$1" actual="$2" expected="$3"
@@ -75,18 +110,70 @@ assert_eq() {
 # Assert the docs cite the number the filesystem actually reports, instead of
 # a label could read "= 44" while the expected value said 48, and still PASS).
 assert_doc_cites() {
-    # $1 = human name, $2 = actual value, $3 = printf-style grep pattern with %s
+    # $1 = human name, $2 = actual value(s), $3 = printf-style grep pattern, one
+    # %s per value, $4 = doc file.
+    #
+    # $2 takes SEVERAL space-separated values because a restated figure often
+    # comes as a ratio -- "766 of 768 files" -- and pinning only the numerator
+    # leaves the denominator ungated, which is the exact hole §1.4 exists to
+    # close. It also let the rewriter below fix half a sentence and give up.
     local name="$1" actual="$2" pat="$3"
-    local rendered; rendered=$(printf "$pat" "$actual")
+    # Deliberately unquoted: word-splitting is how N values reach N %s slots.
+    # shellcheck disable=SC2086
+    local rendered; rendered=$(printf "$pat" $actual)
     # grep -c already prints "0" (and exits 1) on no match, so a `|| echo 0`
     # here appended a SECOND "0" -> "0\n0" -> `[: integer expected`. Let the
     # count stand and only default the missing-file case (empty output).
     local hits; hits=$(grep -cE "$rendered" "$DOC/$4" 2>/dev/null); hits=${hits:-0}
     if [ "$hits" -ge 1 ]; then
         echo "PASS: $name [doc cites $actual]"; PASS=$((PASS+1))
+    elif [ "$FACTCHECK_UPDATE" = 1 ] && _rewrite_figure "$DOC/$4" "$pat" "$actual"; then
+        echo "UPDATED: $name — $4 now cites $actual"; UPDATED=$((UPDATED+1))
     else
         echo "FAIL: $name — filesystem says $actual, $4 does not cite it"; FAIL=$((FAIL+1))
     fi
+}
+# Rewrite the one figure a failing assert_doc_cites was looking for.
+#
+# The pattern already locates the sentence; the only unknown is the digits in
+# its `%s` slot. Rendering the slot as a capture turns the SAME pattern into
+# both the locator and the edit, so an updater cannot drift from the assertion
+# the way a second hand-written regex would.
+#
+# Refuses on 0 or 2+ matching lines rather than guessing: an ambiguous pattern
+# is a pattern that needs tightening at its call site, and silently rewriting
+# the first of several would produce a doc that passes while saying something
+# false. $1 = file, $2 = printf pattern, $3 = actual value.
+_rewrite_figure() {
+    FIG_FILE="$1" FIG_PAT="$2" FIG_VAL="$3" "$VENV_PY" - <<'PY'
+import os, re, sys
+
+path, pat = os.environ["FIG_FILE"], os.environ["FIG_PAT"]
+vals = os.environ["FIG_VAL"].split()
+if "%s" not in pat or not vals or not all(v.isdigit() for v in vals):
+    sys.exit(1)
+# grep -E and python re agree on everything these patterns use (\|, \*, ., .*,
+# character classes); the slot becomes a capture spanning digits and the group
+# separators a figure may carry.
+locator = re.compile(pat.replace("%s", "([0-9][0-9,]*)"))
+if locator.groups != len(vals):
+    sys.exit(1)
+try:
+    lines = open(path, encoding="utf-8").read().splitlines(keepends=True)
+except OSError:
+    sys.exit(1)
+hits = [(i, m) for i, line in enumerate(lines) for m in [locator.search(line)] if m]
+if len(hits) != 1:
+    sys.exit(1)
+i, m = hits[0]
+line = lines[i]
+# Right to left: rewriting a slot shifts every span after it.
+for g in range(len(vals), 0, -1):
+    start, end = m.span(g)
+    line = line[:start] + vals[g - 1] + line[end:]
+lines[i] = line
+open(path, "w", encoding="utf-8").writelines(lines)
+PY
 }
 # Assertions that need a sibling repo or the framework tree SKIP (loudly) when
 # it is absent, so a single-repo CI checkout is not permanently red.
@@ -117,6 +204,30 @@ assert_eq "@ts-check coverage" \
     "$(find_src_js | xargs grep -l "@ts-check" | wc -l)" "$((SRC_JS - 2))"
 assert_eq "Untyped JS files (intentional: module_loader + service_worker)" \
     "$(find_src_js | xargs grep -L "@ts-check" | wc -l)" "2"
+# Two documents state this coverage; pin BOTH to the one measurement. They
+# disagreed for a week -- ARCHITECTURE.md's 761 (gated by the assert above) against
+# EXTENSION_ARCHITECTURE_REVIEW's "756 of 763 -- exact", which was never true at
+# any commit. A gated figure does not protect its own restatement elsewhere,
+# and the doc most likely to be believed is the one that calls itself exact.
+# Both halves derive: the denominator interpolates SRC_JS rather than sitting
+# here as a literal, so the pattern cannot itself become the stale copy.
+#
+# THREE sites, three pins, each anchored to its own sentence. One loose pin over
+# a value the document repeats is a coin flip: `assert_doc_cites` asks only
+# whether the value appears SOMEWHERE, so the site that is still correct
+# satisfies it while another rots. Anchoring is what makes "pin every
+# restatement" (§1.4) mean anything. The historical "756 of 763" on lines 33 and
+# 159 is deliberate -- it names the defect -- and no pattern here matches it.
+# Both halves of the ratio are values, not one value and one literal baked into
+# the regex. With the denominator inside the pattern, a tree that moved made the
+# pattern match NOTHING -- the assertion failed for the right reason but named
+# only the numerator, and no rewriter could repair a sentence it could not find.
+assert_doc_cites "EXT_ARCH_REVIEW: Survived-unchanged line cites @ts-check coverage" \
+    "$((SRC_JS - 2)) $SRC_JS" '\*\*%s of %s\*\* files' EXTENSION_ARCHITECTURE_REVIEW.md
+assert_doc_cites "EXT_ARCH_REVIEW: F6 prose cites @ts-check coverage" \
+    "$((SRC_JS - 2)) $SRC_JS" 'internally: %s of %s files' EXTENSION_ARCHITECTURE_REVIEW.md
+assert_doc_cites "EXT_ARCH_REVIEW: F6 table row cites @ts-check coverage" \
+    "$((SRC_JS - 2))" '\| `addons/web` \| %s \|' EXTENSION_ARCHITECTURE_REVIEW.md
 
 # ------- Test scope -------
 HOOT_JS=$(find "$WEB/static/tests" -name "*.test.js" 2>/dev/null | wc -l)
@@ -142,10 +253,20 @@ REACTIVE_PATTERN='^(\s*export\s+)?class\s+\w+\s+extends\s+Reactive\b'
 SIGNALSTORE_PATTERN='^(\s*export\s+)?class\s+\w+\s+extends\s+SignalStore\b'
 
 # Helper: count declarations in production code only (exclude tests + machine_doc + .md).
+#
+# `-R`, not `-r`. `-r` skips symlinked directories it meets during recursion, and
+# a verification rig built the way §9.3 prescribes -- a `git worktree` beside
+# SYMLINKS to the sibling checkouts -- puts every sibling behind exactly such a
+# link. This counted `odoo` alone there and reported 15 against a real 25, which
+# was filed as a standing defect before anyone noticed the rig, not the tree, was
+# what had changed. `skip_missing` uses `[ -e ]`, which DOES follow the link, so
+# the assertion ran and answered confidently with two thirds of its scope
+# missing. Same answer in a workspace and in a worktree rig, or the gate is only
+# trustworthy in one of them.
 count_prod_decls() {
     local pattern="$1"
     local files
-    files=$(grep -rEl "$pattern" "$ADDONS/" 2>/dev/null \
+    files=$(grep -REl "$pattern" "$ADDONS/" 2>/dev/null \
         | grep -v "machine_doc\|\.test\.js\|\.md$")
     if [ -z "$files" ]; then
         echo 0
@@ -162,7 +283,7 @@ assert_eq "Reactive class declarations in core/addons/web" "$reactive_web" "0"
 
 if skip_missing "$ADDONS/enterprise" "SignalStore cross-repo declaration count" 1; then :; else
     signalstore=$(count_prod_decls "$SIGNALSTORE_PATTERN")
-    assert_eq "SignalStore class declarations (production code)" "$signalstore" "26"
+    assert_eq "SignalStore class declarations (production code)" "$signalstore" "25"
 fi
 assert_eq "load_coordinator.js stays deleted" \
     "$([ -f "$WEB/static/src/model/relational_model/load_coordinator.js" ] && echo 1 || echo 0)" "0"
@@ -229,7 +350,11 @@ assert_eq "MODEL_MAP.md inp row documents the P100 running max" \
 # importing `error_beacon`. `module_loader.js` is the one permitted duplicate:
 # the pre-ESM shim cannot import.
 sendbeacon_files=$(grep -rlE "sendBeacon[?.]*\\(" "$WEB/static/src" --include="*.js" 2>/dev/null | wc -l)
-assert_eq "sendBeacon call sites (module_loader + web_vitals + record_save + error_beacon)" "$sendbeacon_files" "4"
+# 4 -> 3 on 2026-08-17: `core/errors/error_beacon.js` no longer hand-rolls one.
+# It is now purely the typed facade its own header describes -- `reportJsError`
+# forwards to `odoo.loader._beacon` and sends nothing itself. That is a copy
+# retired, which is the direction this number is allowed to move.
+assert_eq "sendBeacon call sites (module_loader + web_vitals + record_save)" "$sendbeacon_files" "3"
 
 # Verify the observability controller is wired in.
 observability_controller=$([ -f "$WEB/controllers/observability.py" ] && echo 1 || echo 0)
@@ -250,8 +375,10 @@ cwv_acl=$(grep -c "model_web_cwv_metric" "$WEB/security/ir.model.access.csv" 2>/
 assert_eq "cwv ACL row in ir.model.access.csv" "$cwv_acl" "1"
 
 # Phase 3: sampling + retention.
-cwv_gc_method=$(grep -c "_gc_old_metrics" "$WEB/models/web_cwv_metric.py" 2>/dev/null)
-assert_eq "_gc_old_metrics retention method" "$cwv_gc_method" "3"
+# Anchored on `def ` like every neighbour here: the bare identifier also matched
+# the two prose mentions of the cron, so the figure moved when the prose did.
+cwv_gc_method=$(grep -c "def _gc_old_metrics" "$WEB/models/web_cwv_metric.py" 2>/dev/null)
+assert_eq "_gc_old_metrics retention method" "$cwv_gc_method" "1"
 cwv_cron_data=$([ -f "$WEB/data/web_cwv_metric_data.xml" ] && echo 1 || echo 0)
 assert_eq "cwv cron data file exists" "$cwv_cron_data" "1"
 cwv_cron_in_manifest=$(grep -c "web_cwv_metric_data.xml" "$WEB/__manifest__.py" 2>/dev/null)
@@ -406,7 +533,7 @@ assert_eq "CONVENTIONS gotcha #12: mentions FormSaveCoordinator" \
 # Cite-fingerprint: the doc cites form_save_coordinator.js; verify the file
 # exists and exports a FormSaveCoordinator class extending SignalStore.
 assert_eq "form_save_coordinator.js exports FormSaveCoordinator class" \
-    "$(grep -c 'export class FormSaveCoordinator extends SignalStore' "$WEB/static/src/views/form/form_save_coordinator.js")" "1"
+    "$(grep -c 'export class FormSaveCoordinator extends StateMachine' "$WEB/static/src/views/form/form_save_coordinator.js")" "1"
 # Target the canonical typedef line: counting raw occurrences of the mode
 # strings overcounts (8) across JSDoc, defaults and dispatch arms.
 assert_eq "FormSaveCoordinator errorMode typedef declares three modes" \
@@ -415,8 +542,12 @@ assert_eq "FormSaveCoordinator errorMode typedef declares three modes" \
 assert_eq "ARCHITECTURE.md no stale JS file counts (615/621/649/657)" \
     "$(grep -cE '(615|621|649|657) (JavaScript|JS)' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "0"
 assert_doc_cites "ARCHITECTURE.md JS count cited in prose" "$SRC_JS" '%s JavaScript' ARCHITECTURE.md
-# The other site is a markdown table cell `| JavaScript (src) | N (...)`.
-assert_doc_cites "ARCHITECTURE.md JS table cell" "$SRC_JS" '\| JavaScript \(src\) \| %s ' ARCHITECTURE.md
+# The other site is a markdown table cell `| JavaScript (src) | N (M carry
+# @ts-check ...)`. BOTH numbers are pinned: N was gated and M was bare, so the
+# same cell carried one figure the harness maintained and one nobody did, and M
+# sat two years' worth of files out of date beside a correct N.
+assert_doc_cites "ARCHITECTURE.md JS table cell" "$SRC_JS $((SRC_JS - 2))" \
+    '\| JavaScript \(src\) \| %s \(%s carry' ARCHITECTURE.md
 
 # 4. Pattern 4 inventory — STATE_MANAGEMENT.md should enumerate verified sites
 #    rather than implying an open population.
@@ -576,7 +707,20 @@ assert_eq "core/events.js does not export FORM_DIALOG_ADD" \
 PY_TESTS=$(find "$WEB/tests" -name "test_*.py" | wc -l)
 assert_doc_cites "ARCHITECTURE.md File Counts: Python tests" "$PY_TESTS" '\| Python \(tests\) \| %s ' ARCHITECTURE.md
 assert_doc_cites "ARCHITECTURE.md File Counts: JS tests total" "$TESTS_JS" '\| JavaScript \(tests\) \| %s \(incl' ARCHITECTURE.md
-assert_doc_cites "ARCHITECTURE.md File Counts: Hoot suites" "$HOOT_JS" 'incl\. %s .\*\.test\.js' ARCHITECTURE.md
+# Anchored on the File Counts row. `incl\. %s ...` alone also matched the
+# `static/tests/` row 350 lines earlier, so the figure was ambiguous: two lines
+# claimed the count and satisfying either one passed the gate.
+assert_doc_cites "ARCHITECTURE.md File Counts: Hoot suites" "$HOOT_JS" \
+    '\| JavaScript \(tests\) \| [0-9]+ \(incl\. %s ' ARCHITECTURE.md
+# The `static/tests/` row 350 lines earlier states the SAME two figures. The
+# comment above disambiguated the gate away from it and stopped there, which
+# left that row checked by nothing -- it still said 680/622 against a real
+# 735/674 when this assertion was added. Anchor it on its own row so both
+# copies are pinned; ADR-0041's rule is one measurement, asserted wherever it
+# is cited, not one measurement and one copy nobody reads.
+assert_doc_cites "ARCHITECTURE.md static/tests row: JS files and Hoot suites" \
+    "$TESTS_JS $HOOT_JS" \
+    '\| `static/tests/` \| %s `\.js` \(incl\. %s `\*\.test\.js`' ARCHITECTURE.md
 assert_eq "ARCHITECTURE.md File Counts: vendored libs = 92" \
     "$(grep -cE '\| JavaScript \(vendored libs\) \| 92 \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
 assert_eq "static/lib JS file count = 92 (reality check)" \
@@ -613,30 +757,59 @@ disk_only=$(comm -13 \
     <(cd "$WEB/static/src" && find . -mindepth 1 -type d | sed 's:^\./::' | LC_ALL=C sort -u) | tr '\n' ' ')
 # Whole-table validation: every row's Files column must equal `ls <dir>/*.js`.
 # Set equality alone let 39 wrong counts survive undetected.
-dirmap_bad=$("$VENV_PY" - "$WEB" <<'PYEOF' 2>/dev/null
+# Under --update the Files column is rewritten the same way a doc_cites
+# figure is: the row already names its directory, so the count is derivable
+# and nobody should be retyping 239 of them by hand. A row whose directory
+# does NOT exist is left alone and still fails -- a phantom row is a
+# structural claim, not a stale digit, and the set-equality checks above are
+# what should speak to it.
+_dirmap_out=$("$VENV_PY" - "$WEB" "$FACTCHECK_UPDATE" <<'PYEOF' 2>/dev/null
 import re, pathlib, sys
 web = pathlib.Path(sys.argv[1]); src = web / "static/src"
-bad = 0
-for ln in open(web / "machine_doc_v1/DIRECTORY_MAP.md"):
-    m = re.match(r"\|\s*`([^`]+)`\s*\|\s*[^|]+\|\s*(\d+)\s*\|", ln)
+update = sys.argv[2] == "1"
+doc = web / "machine_doc_v1/DIRECTORY_MAP.md"
+row = re.compile(r"\|\s*`([^`]+)`\s*\|\s*[^|]+\|\s*(\d+)\s*\|")
+bad = fixed = 0
+lines = open(doc, encoding="utf-8").read().splitlines(keepends=True)
+for i, ln in enumerate(lines):
+    m = row.match(ln)
     if not m:
         continue
     d, files = m.group(1), int(m.group(2))
     p = src if d == "(root)" else src / d.rstrip("/")
-    if not p.is_dir() or sum(1 for f in p.glob("*.js") if not f.name.startswith(".")) != files:
+    if not p.is_dir():
         bad += 1
-print(bad)
+        continue
+    actual = sum(1 for f in p.glob("*.js") if not f.name.startswith("."))
+    if actual == files:
+        continue
+    if update:
+        start, end = m.span(2)
+        lines[i] = ln[:start] + str(actual) + ln[end:]
+        fixed += 1
+    else:
+        bad += 1
+if fixed:
+    open(doc, "w", encoding="utf-8").writelines(lines)
+print(bad, fixed)
 PYEOF
 )
+dirmap_bad=${_dirmap_out%% *}
+_dirmap_fixed=${_dirmap_out##* }
+if [ "${_dirmap_fixed:-0}" -gt 0 ] 2>/dev/null; then
+    echo "UPDATED: DIRECTORY_MAP.md Files column — $_dirmap_fixed row(s) rewritten"
+    UPDATED=$((UPDATED+_dirmap_fixed))
+fi
 # Every backticked source path in the docs must resolve to a real file.
 # Scope is the whole workspace (docs cite enterprise and workspace-relative
 # paths too). Excluded: route URLs, upstream package paths (dist/...), and
 # load_coordinator.js, which is deliberately cited as absent.
 if skip_missing "$REPO/odoo" "doc source-path resolution sweep" 1; then :; else
-dead_refs=$("$VENV_PY" - "$DOC" "$WORKSPACE" "$REPO" "$WEB" <<'PYEOF' 2>/dev/null
+dead_refs=$("$VENV_PY" - "$DOC" "$WORKSPACE" "$REPO" "$WEB" "$SIBLINGS_ABSENT" <<'PYEOF' 2>/dev/null
 import re, pathlib, sys, collections, os
 doc_dir, ws, repo, web = (pathlib.Path(a) for a in sys.argv[1:5])
 index = collections.defaultdict(list)
+bases_found = []
 # The sibling checkouts are direct children of the workspace root -- <ws>/odoo,
 # <ws>/enterprise, ... -- not nested under an `addons/` directory. Looking under
 # `addons/` built an EMPTY index, and an empty index makes every backticked path
@@ -647,9 +820,21 @@ for base in ("odoo", "enterprise", "agromarin", "design-themes"):
     b = ws / base
     if not b.is_dir():
         continue
+    bases_found.append(base)
     for p in b.rglob("*"):
         if p.is_file():
             index[p.name].append(str(p))
+# THE TREE UNDER TEST MUST BE IN THE INDEX. Without this, a misresolved root
+# degrades to "everything is unjudged" and the sweep PASSES having compared
+# nothing -- which is how the `unjudged` allowance below, added to stop absent
+# siblings reading as drift, silently swallowed 565 references in a checkout
+# whose directory was not named `odoo`. That is strictly worse than the failure
+# it replaced: the old behaviour at least reported 565 dead refs and was
+# obviously broken. An escape hatch for "cannot decide" needs a floor, or it
+# becomes an escape hatch for "did not look".
+if repo.name not in bases_found or (ws / repo.name).resolve() != repo.resolve():
+    print("ROOT_MISRESOLVED", 0)
+    raise SystemExit(0)
 # Deliberately-absent references: load_coordinator.js is cited AS deleted;
 # jsconfig.json is generated (untracked) by addons/web/tooling/enable.sh from
 # the committed _jsconfig.json template. The three search_* names are cited by
@@ -663,10 +848,49 @@ SKIP_BASE = {
     "search_query_mutations.js",
     "search_split_domain.js",
 }
+# Scan INSIDE every backtick span rather than only spans that are a bare path.
+# The pattern used to anchor the path to the opening backtick, so a span holding
+# a COMMAND -- `bash addons/web/doc/factcheck.sh` -- matched nothing at all:
+# `bash` is not a path, and the scan never looked past it. That blind spot hid a
+# stale directory (`addons/web/doc/`, which has never existed under that name)
+# through every previous green run. A path is no less a path for having a verb
+# in front of it.
+_EXT = r"(?:py|js|mjs|xml|json|yml|scss|csv|rst|md|sh)"
+_WHOLE = re.compile(rf"`([\w./\-]+\.{_EXT})`")
+# Inside a span, require a `/`. A bare dotted token is not decidable as a path:
+# `web.js.error` is a MODEL NAME, `import("chart.js")` a bare specifier,
+# `await response.json()` a method call, `*.test.js` a glob -- each of which
+# resolves to nothing and would report as drift. Requiring a separator keeps the
+# real quarry (`bash addons/web/.../factcheck.sh`, `odoo/http/helpers.py:290`)
+# and drops all four. `@` is excluded so `@web/...` import specifiers, which are
+# module ids and not filesystem paths, are not resolved as paths.
+_INSPAN = re.compile(rf"(?<![\w./\-@])([\w\-]+(?:/[\w.\-]+)+\.{_EXT})(?![\w])")
+
+def _refs(text):
+    seen = set()
+    for span in re.finditer(r"`([^`\n]+)`", text):
+        body = span.group(1)
+        for ref in _WHOLE.findall("`" + body + "`") + _INSPAN.findall(body):
+            if ref not in seen:
+                seen.add(ref)
+                yield ref
+
+# A ref this environment cannot decide is not a dead ref. With the siblings
+# absent -- CI's normal shape -- `fsm_task_template_dropdown.js` lives in
+# `enterprise` and resolves to nothing here; counting it as drift would fail the
+# sweep over a tree the runner was never given. In the CI layout that is ONE
+# reference, so almost nothing is given up: refs whose basename IS indexed stay
+# judgeable either way, which keeps the real quarry in scope -- the stale
+# addons/web/doc path was caught by exactly that branch. The much larger counts
+# that show up when this goes wrong (565 in a trial run here, 557 in the
+# incident above) are never absent siblings; they are a misresolved root, which
+# the ROOT_MISRESOLVED guard now fails outright rather than excusing.
+absent = bool(sys.argv[5]) if len(sys.argv) > 5 else False
 bad = 0
+unjudged = 0
+dead_paths = []
 for doc in sorted(doc_dir.glob("*.md")):
-    for m in re.finditer(r"`([\w./\-]+\.(?:py|js|mjs|xml|json|yml|scss|csv|rst|md|sh))`", doc.read_text()):
-        ref = m.group(1)
+    for ref in _refs(doc.read_text()):
         base = ref.split("/")[-1]
         if ref.startswith(("/", ".", "dist/")) or base in SKIP_BASE:
             continue
@@ -682,19 +906,36 @@ for doc in sorted(doc_dir.glob("*.md")):
         if top == "doc":
             if not ((repo / ref).exists() or (web / ref).exists()):
                 bad += 1
+                dead_paths.append(ref)
             continue
         if top in {"tooling", "odoo", ".github"}:
             if not (repo / ref).exists():
                 bad += 1
+                dead_paths.append(ref)
             continue
         if base not in index:
-            bad += 1
+            # Undecidable only when a checkout that could hold it is missing.
+            if absent:
+                unjudged += 1
+            else:
+                bad += 1
+                dead_paths.append(ref)
         elif "/" in ref and not any(q.endswith(ref) for q in index[base]):
             bad += 1
-print(bad)
+            dead_paths.append(ref)
+print(bad, unjudged, ",".join(sorted(set(dead_paths))[:12]))
 PYEOF
 )
-assert_eq "docs reference no source path that does not exist" "${dead_refs:-PARSE_FAILED}" "0"
+# The sweep names what it rejected. It used to print a bare count, and finding
+# the single offending path behind "expected [0] got [1]" meant instrumenting
+# the gate by hand -- which is how a blocking gate becomes one people route
+# around rather than answer.
+read -r dead_n unjudged_n dead_list <<<"${dead_refs:-PARSE_FAILED 0 }"
+assert_eq "docs reference no source path that does not exist" "${dead_n:-PARSE_FAILED}" "0"
+[ "${dead_n:-0}" != "0" ] && [ -n "${dead_list:-}" ] && \
+    echo "       dead: ${dead_list//,/, }"
+[ "${unjudged_n:-0}" -gt 0 ] 2>/dev/null && \
+    echo "NOTE: ${unjudged_n} reference(s) not judged — they resolve only in absent checkouts:$SIBLINGS_ABSENT"
 fi
 
 # Every service registered in web must appear in ARCHITECTURE.md (as a table row
@@ -749,8 +990,12 @@ assert_eq "no backend lazy bundle exists" \
 assert_eq "ARCHITECTURE.md does not call the graph/pivot views lazy-loaded" \
     "$(grep -cE '^\| (Graph|Pivot) \|.*— lazy loaded' "$DOC/ARCHITECTURE.md")" "0"
 
-assert_eq "CONVENTIONS #11 cites the real registry schema coverage" \
-    "$(grep -cE "\*\*${reg_val} of ${reg_tot} web-module categories\*\*" "$DOC/CONVENTIONS.md")" "1"
+# Was a hand-rolled `grep -c` wrapped in assert_eq — the same derive-and-cite
+# shape as assert_doc_cites, written out by hand, which meant it reported
+# "expected [1] got [0]" instead of naming the figure and could not be rewritten
+# by --update. Both halves of the ratio are pinned.
+assert_doc_cites "CONVENTIONS #11 cites the real registry schema coverage" \
+    "$reg_val $reg_tot" '\*\*%s of %s web-module categories\*\*' CONVENTIONS.md
 
 assert_eq "ARCHITECTURE.md covers every service registered in web" "${svc_undoc:-PARSE_FAILED}" "0"
 assert_eq "ARCHITECTURE.md service rows name the real file" "${svc_badpath:-PARSE_FAILED}" "0"
@@ -862,11 +1107,26 @@ count_tag_tests() {
     # ODOO_CONF path into eight identical LOADER_FAILED lines that named
     # neither the cause nor the file. The caller reports the last line.
     local tag="$1"
-    (cd "$REPO" && "$VENV_PY" - "$tag" "$ODOO_CONF" <<'PY' 2>"$LOADER_ERR"
+    (cd "$REPO" && "$VENV_PY" - "$tag" "$ODOO_CONF" "$REPO" <<'PY' 2>"$LOADER_ERR"
 import sys
-tag, conf = sys.argv[1], sys.argv[2]
+tag, conf, repo = sys.argv[1], sys.argv[2], sys.argv[3]
 from odoo.tools import config
-config.parse_config(["-c", conf])
+# The addons path is PINNED to this checkout, and the flag is what pins it:
+# passing it here beats the conf, and it has to be in this one parse_config
+# call because `initialize_sys_path` runs inside it and only ever APPENDS --
+# assigning config["addons_path"] afterwards and calling it again leaves the
+# path exactly as it was, silently, which is how this was first "verified".
+#
+# Without the pin the figure is a property of whoever ran the harness. `web`'s
+# three own counts do not move, but `addon_js` generates one method per addon
+# on the path that bundles unit tests no runner selects: 75 for this fork,
+# 163 in a workspace that also has enterprise, agromarin and design-themes
+# checked out beside it. The doc can hold one number, and the number it should
+# hold is the one this repository determines.
+config.parse_config([
+    "-c", conf,
+    f"--addons-path={repo}/odoo/addons,{repo}/addons",
+])
 config["test_tags"] = tag
 from odoo.tests.loader import make_suite
 print(len(list(make_suite(["web"], tag))))
@@ -907,12 +1167,20 @@ fi
 
 # 22. CI typecheck gate is a blocking ratchet, floor in
 #     tooling/ratchet/baselines/tsc.json.
-if skip_missing "$REPO/.github/workflows/typecheck.yml" "CI typecheck-gate assertions" 6; then :; else
+if skip_missing "$REPO/.github/workflows/typecheck.yml" "CI typecheck-gate assertions" 7; then :; else
 TYPECHECK_YML="$REPO/.github/workflows/typecheck.yml"
 assert_eq "typecheck.yml has no continue-on-error key (blocking gate)" \
     "$(grep -c 'continue-on-error:' "$TYPECHECK_YML")" "0"
+# `tsc\b` is load-bearing: unanchored, `ratchet.py tsc` is a SUBSTRING match that
+# also counts the `tsc_serviceworker` gate 96f67b1067e added, so onboarding a
+# sibling lane reported this gate as having grown an invocation it never grew.
+# `_` is a word character, so `\b` refuses the prefixed name. Assert the sibling
+# separately rather than widening this count — a single number over both gates
+# cannot say which one moved.
 assert_eq "typecheck.yml enforces via tooling/ratchet" \
-    "$(grep -c 'tooling/ratchet/ratchet.py tsc' "$TYPECHECK_YML")" "3"
+    "$(grep -cE 'tooling/ratchet/ratchet\.py tsc\b' "$TYPECHECK_YML")" "3"
+assert_eq "typecheck.yml enforces the serviceworker lane via tooling/ratchet" \
+    "$(grep -cE 'tooling/ratchet/ratchet\.py tsc_serviceworker\b' "$TYPECHECK_YML")" "1"
 assert_eq "JSDOC doc: warn-only claim replaced by blocking ratchet" \
     "$(grep -c 'continue-on-error: true' "$WEB/machine_doc_v1/JSDOC_TYPE_TIGHTENING.md")" "0"
 # Neither the doc nor the workflow may restate the floor: that duplication is
@@ -969,7 +1237,7 @@ assert_eq "STATE_MANAGEMENT documents that the escape hatch is gone" \
 # 24b. A bare `reactive()` passed as a prop subscribes nobody. Both instances are
 # fixed; these pin the fixes rather than the prose, so a regression fails here.
 assert_eq "progress bar syncs activeBar instead of closing over the seeding proxy" \
-    "$(grep -c '_syncActiveBar' "$WEB/static/src/views/kanban/progress_bar_hook.js")" "5"
+    "$(grep -c '_syncActiveBar' "$WEB/static/src/views/kanban/progress_bar_hook.js")" "4"
 assert_eq "progress bar no longer builds activeBar as a self-closure getter" \
     "$(grep -c 'get activeBar()' "$WEB/static/src/views/kanban/progress_bar_hook.js")" "0"
 assert_eq "no component skips useState when a reactive prop is supplied" \
@@ -1164,10 +1432,14 @@ keys -= {"lang", "debug"}
 doc = (web / "machine_doc_v1/MODEL_MAP.md").read_text()
 # Substring, not a backticked-token match: `groups` is documented as the
 # literal {"base.group_allow_export": bool}, which no token regex sees.
-print(sum(1 for k in keys if k not in doc))
+missing = sorted(k for k in keys if k not in doc)
+print(len(missing), ",".join(missing))
 PYEOF
 )"
-assert_eq "MODEL_MAP cites every session_info() key" "${sess_undoc:-PARSE_FAILED}" "0"
+read -r sess_n sess_list <<<"${sess_undoc:-PARSE_FAILED }"
+assert_eq "MODEL_MAP cites every session_info() key" "${sess_n:-PARSE_FAILED}" "0"
+[ "${sess_n:-0}" != "0" ] && [ -n "${sess_list:-}" ] && \
+    echo "       undocumented: ${sess_list//,/, }"
 
 # 34. Field coverage for the models MODEL_MAP gives a Fields list for.
 #     pageview_id was added to web.cwv.metric — changing the table from
@@ -1235,6 +1507,7 @@ assert_doc_cites "ARCHITECTURE cites the real module-face count" \
 # 36. registerField / registerFallbackField call sites, fork-wide. Repeated in
 #     four places across three docs, so it rots four times over: it read 107/76
 #     against a real 110/79 (the spec-form 31 stayed correct).
+if skip_without_siblings "registerField fork-wide counts" 5; then :; else
 read -r RF_TOTAL RF_PLAIN RF_SPEC <<<"$("$VENV_PY" - "$ADDONS" <<'PYEOF' 2>/dev/null
 import pathlib, re, sys
 call = re.compile(r"(?<!function )\b(registerField|registerFallbackField)\(\s*")
@@ -1255,16 +1528,26 @@ for p in pathlib.Path(sys.argv[1]).rglob("*.js"):
 print(tot, plain, spec)
 PYEOF
 )"
-assert_doc_cites "ARCHITECTURE cites the real registerField site count" \
-    "${RF_TOTAL:-PARSE_FAILED}" '%s fork-wide' ARCHITECTURE.md
-assert_doc_cites "CONVENTIONS cites the real registerField site count" \
-    "${RF_TOTAL:-PARSE_FAILED}" '%s fork-wide' CONVENTIONS.md
+# One assertion per RESTATEMENT, not per file. A bare `%s fork-wide` matched two
+# lines in each of these docs, so satisfying either one passed the gate while
+# the other rotted — and an ambiguous locator is one --update refuses outright,
+# which is how these two survived a sweep that fixed twenty-one of their
+# neighbours.
+assert_doc_cites "ARCHITECTURE Fields row cites the registerField site count" \
+    "${RF_TOTAL:-PARSE_FAILED}" '^\| \*\*Fields\*\* .*; %s fork-wide' ARCHITECTURE.md
+assert_doc_cites "ARCHITECTURE prose cites the registerField site count" \
+    "${RF_TOTAL:-PARSE_FAILED}" '^Field widgets .*; %s fork-wide' ARCHITECTURE.md
+assert_doc_cites "CONVENTIONS field-widget prose cites the registerField site count" \
+    "${RF_TOTAL:-PARSE_FAILED}" 'widget directories and %s fork-wide' CONVENTIONS.md
+assert_doc_cites "CONVENTIONS rename-guidance prose cites the registerField site count" \
+    "${RF_TOTAL:-PARSE_FAILED}" 'inside .fields/., %s fork-wide' CONVENTIONS.md
 assert_doc_cites "JSDOC cites the real registerField site count" \
     "${RF_TOTAL:-PARSE_FAILED}" 'of the %s fork-wide' JSDOC_TYPE_TIGHTENING.md
 assert_doc_cites "ARCHITECTURE cites the real plain/spec split" \
     "${RF_PLAIN:-PARSE_FAILED}" '%s plain and' ARCHITECTURE.md
 assert_doc_cites "ARCHITECTURE cites the real spec-form count" \
     "${RF_SPEC:-PARSE_FAILED}" 'and %s through the typed spec form' ARCHITECTURE.md
+fi
 
 # ------- ESM_BUNDLING: the doc had drifted to symbols that no longer exist -------
 # Every one of these was cited by ESM_BUNDLING.md while resolving nowhere in the
@@ -1315,8 +1598,322 @@ ROUTE_PRED=$(grep -oE 'use_esm = bundle_name in esm_registry\(\)\.[a-z_]+' \
 assert_doc_cites "ESM_BUNDLING names the predicate /web/bundle actually reads" \
     "${ROUTE_PRED:-PARSE_FAILED}" '%s' ESM_BUNDLING.md
 
+# EXTENSION_ARCHITECTURE_REVIEW argues that odoo's CI cannot see enterprise
+# breakage, because no checkout step names another repo. Gate the CLAIM only.
+#
+# The step COUNT was gated here too, for one revision, and broke inside the hour:
+# adding machine_doc.yml took it 19 -> 20. That is §1.4's "prefer omitting an
+# incidental figure to gating it" demonstrating itself -- the number shapes no
+# decision, the zero does, and gating scale just relocates the rot into a gate.
+# The doc now states the invariant without a count.
+#
+# `^[[:space:]]*repository:` is anchored to a YAML KEY. Unanchored, this counted
+# the word wherever it appeared -- including the comment in machine_doc.yml that
+# explains the invariant -- so a gate went red over prose describing it. Same
+# error as the unanchored `ratchet.py tsc` match this file fixed two blocks up:
+# a substring is not a declaration.
+if skip_missing "$REPO/.github/workflows" "CI checkout-scope assertion" 1; then :; else
+    assert_eq "no workflow checks out a second repository" \
+        "$(grep -hE '^[[:space:]]*repository:' "$REPO"/.github/workflows/*.yml 2>/dev/null | wc -l)" "0"
+fi
+
+# EXTENSION_ARCHITECTURE_REVIEW's summary table sizes web's pinned import
+# surface. Derive it from the gate that owns the pin rather than from the pin
+# file's line count -- `public_surface_web.txt` opens with a 16-line comment
+# header, so `wc -l` overstates it by exactly that, which is how the table came
+# to read 235 against a measured 218 on the very day it was written.
+if skip_missing "$REPO/tooling/architecture/js_public_surface.py" \
+        "EXTENSION_ARCHITECTURE_REVIEW surface-size assertion" 1; then :; else
+    SURFACE_N=$("$VENV_PY" "$REPO/tooling/architecture/js_public_surface.py" \
+        --addon web --json 2>/dev/null \
+        | sed -n 's/.*"measured": *\([0-9]\+\).*/\1/p' | head -1)
+    assert_doc_cites "EXTENSION_ARCHITECTURE_REVIEW cites the real pinned surface" \
+        "${SURFACE_N:-MEASURE_FAILED}" '| %s pinned |' EXTENSION_ARCHITECTURE_REVIEW.md
+fi
+
+# VIEW_TEARDOWN_COST cites a profiler stack as `owl.es.js:<line>`. Resolve each
+# one: a re-vendored OWL shifts them silently, and they were ALREADY wrong once
+# in a way no reading caught -- every frame off by exactly one, because CDP
+# reports `CallFrame.lineNumber` 0-based and the profile was transcribed raw.
+# Uniformly-off line numbers still land on plausible code, so only a resolver
+# catches this. Assert the cited line IS the frame the doc names.
+OWL_JS="$WEB/static/lib/owl/owl.es.js"
+if skip_missing "$OWL_JS" "VIEW_TEARDOWN_COST owl frame assertions" 1; then :; else
+    owl_bad=""
+    while read -r fn line; do
+        [ -n "$line" ] || continue
+        sed -n "${line}p" "$OWL_JS" | grep -qE "^\s*${fn}\s*\(" || owl_bad="$owl_bad ${fn}:${line}"
+    done <<< "$(grep -oE '^ *(└─ )?(remove|patch) +\[owl\.es\.js:[0-9]+\]' \
+        "$DOC/VIEW_TEARDOWN_COST.md" | sed -E 's/.*(remove|patch) +\[owl\.es\.js:([0-9]+)\]/\1 \2/')"
+    if [ -n "$owl_bad" ]; then
+        echo "FAIL: VIEW_TEARDOWN_COST owl.es.js frames do not resolve:$owl_bad"; FAIL=$((FAIL+1))
+    else
+        echo "PASS: VIEW_TEARDOWN_COST owl.es.js frames all resolve [$(grep -cE '\[owl\.es\.js:[0-9]+\]' "$DOC/VIEW_TEARDOWN_COST.md")]"; PASS=$((PASS+1))
+    fi
+fi
+
+# ------- OBSERVABILITY: the campaign's logger and probe surface -------
+#
+# Temporary by design -- every assertion here is deleted with the surface it
+# describes, at the end of the JS-improvement campaign. They are DERIVED rather
+# than literal so the page cannot drift while the campaign is still moving.
+
+OBS_NAMESPACES=$(grep -cE '^export const \w+Log = _makeNamespacedLog' \
+    "$WEB/static/src/core/utils/asset_log.js")
+assert_doc_cites "OBSERVABILITY cites the trace namespace count" \
+    "$OBS_NAMESPACES" '%s namespaces, each with its own flag' OBSERVABILITY.md
+
+# Every namespace must appear as a row of the doc's table, so a namespace added
+# without documenting it fails here rather than going unmentioned.
+# Anchored on the FULL header: the page carries a second "| Namespace |" table
+# (what HOOT cannot see), and a range matching the short prefix counts both.
+OBS_ROWS=$(awk '/^\| Namespace \| Flag substring \|/,/^$/' "$DOC/OBSERVABILITY.md" \
+    | grep -cE '^\| `')
+assert_eq "OBSERVABILITY documents every trace namespace" \
+    "$OBS_ROWS" "$OBS_NAMESPACES"
+
+# Each namespace also needs a make<Name>Log factory; the doc claims both.
+OBS_FACTORIES=$(grep -cE '^export function make\w+Log' \
+    "$WEB/static/src/core/utils/asset_log.js")
+assert_eq "Every trace namespace has a make*Log factory" \
+    "$OBS_FACTORIES" "$OBS_NAMESPACES"
+
+# The round-trip claim is about the whole scanned tree, so it is pinned to the
+# same src JS count ARCHITECTURE.md cites rather than to a second copy of it.
+assert_doc_cites "OBSERVABILITY cites the src JS count for the stamp round-trip" \
+    "$SRC_JS" 'all %s files' OBSERVABILITY.md
+
+# Files carrying a hand-placed useRenderCounter. The stamper must skip exactly
+# these; if one is added or removed, the doc's guard paragraph is stale.
+OBS_HAND=$(grep -rl 'useRenderCounter(' "$WEB/static/src" --include=*.js | wc -l)
+assert_doc_cites "OBSERVABILITY cites the hand-instrumented file count" \
+    "$OBS_HAND" '%s files place' OBSERVABILITY.md
+
+# The stamper's budget warning must track js_function_length.py, not a literal.
+OBS_BUDGET=$(grep -oE '^MAX_LINES = [0-9]+' "$REPO/tooling/architecture/js_function_length.py" \
+    | grep -oE '[0-9]+')
+assert_doc_cites "OBSERVABILITY cites jsfunclen's line budget" \
+    "$OBS_BUDGET" "%s-line budget" OBSERVABILITY.md
+assert_eq "stamp.py mirrors js_function_length.py's budget" \
+    "$(grep -oE '^FUNCTION_LINE_BUDGET = [0-9]+' "$REPO/tooling/trace/stamp.py" | grep -oE '[0-9]+')" \
+    "$OBS_BUDGET"
+
+# The sentinel is the whole basis of exact removal, so the doc must name the
+# string the tool actually inserts -- derived from stamp.py, not retyped here.
+OBS_SENTINEL=$(grep -oE '^SENTINEL = "[^"]+"' "$REPO/tooling/trace/stamp.py" \
+    | sed -E 's/.*"(.*)"/\1/')
+assert_eq "OBSERVABILITY names the sentinel stamp.py actually inserts" \
+    "$([ -n "$OBS_SENTINEL" ] && [ "$(grep -cF "$OBS_SENTINEL" "$DOC/OBSERVABILITY.md")" -ge 1 ] \
+        && echo yes || echo no)" \
+    "yes"
+
+# addons/web must stay on the no-console list, or the doc's gate posture is wrong.
+# Scoped to that array: "addons/web", also appears in the module list above it,
+# so an unscoped grep reads 2 and says nothing about the no-console rollout.
+assert_eq "web is still on COMMUNITY_NO_CONSOLE_MODULES" \
+    "$(awk '/^const COMMUNITY_NO_CONSOLE_MODULES = \[/,/^\];/' "$REPO/eslint.config.mjs" \
+        | grep -cE '^\s*"addons/web",')" "1"
+
+# asset_log.js is the one sanctioned console exception in web.
+assert_eq "asset_log.js carries the file-level no-console disable" \
+    "$(grep -c 'eslint-disable no-console' "$WEB/static/src/core/utils/asset_log.js")" "1"
+
+# The doc's "HOOT cannot see these" table is only trustworthy while the test that
+# asserts their absence exists and still asserts it. Bind the claim to its guard.
+OBS_TEST="$WEB/static/tests/core/utils/trace_choke_points.test.js"
+assert_eq "trace_choke_points suite exists" \
+    "$([ -f "$OBS_TEST" ] && echo yes || echo no)" "yes"
+assert_eq "trace_choke_points asserts component.mount does NOT fire in HOOT" \
+    "$(grep -c 'trace\["component.mount"\]).toBe(undefined)' "$OBS_TEST")" "1"
+# rpc.* DOES fire in HOOT, once its guards ask active() rather than enabled().
+# Pinned as a positive so the correction cannot silently revert.
+assert_eq "trace_choke_points asserts rpc.request DOES fire in HOOT" \
+    "$(grep -c 'trace\["rpc.request"\]).toBeGreaterThan(0)' "$OBS_TEST")" "1"
+# "at least once", not "exactly once": the Removal plan names every suite a
+# second time, and how OFTEN the page mentions a file was never the question.
+assert_eq "OBSERVABILITY names the suite that guards its HOOT-visibility table" \
+    "$(grep -c 'trace_choke_points.test.js' "$DOC/OBSERVABILITY.md" \
+        | awk '{print ($1>0)?1:0}')" "1"
+
+# The service invariant the suite pins: a service entering a wave must resolve.
+assert_eq "trace_choke_points pins the service start/started invariant" \
+    "$(grep -c 'trace\["service.started"\]).toBe(trace\["service.start"\])' "$OBS_TEST")" "1"
+
+# The doc explains that ?debug=<namespace> cannot work by quoting the server's
+# allowlist. Derive it, so the day a mode is added the explanation is re-checked.
+# Matched with grep -F: the value is a bracketed list, and rendering it through
+# assert_doc_cites' regex would need escaping that hides what is being compared.
+OBS_DEBUG_MODES=$(grep -oE '^ALLOWED_DEBUG_MODES = .*' "$WEB/models/ir_http.py")
+assert_eq "OBSERVABILITY quotes the real ALLOWED_DEBUG_MODES verbatim" \
+    "$(grep -cF "$OBS_DEBUG_MODES" "$DOC/OBSERVABILITY.md")" "1"
+
+# The sink arms off location.search, NOT odoo.debug, precisely because of that
+# allowlist. If the arming moves back, the explanation above is wrong.
+assert_eq "the sink arms from location.search" \
+    "$(grep -c 'globalThis.location?.search?.includes("odoo-trace")' \
+        "$WEB/static/src/core/utils/asset_log.js")" "1"
+
+# Every namespace must expose active(); a call site guarding on enabled() alone
+# is invisible to the sink, which is what silently killed rpc.* .
+assert_eq "asset_log exposes active() alongside enabled()" \
+    "$(grep -c 'log.active = () =>' "$WEB/static/src/core/utils/asset_log.js")" "1"
+assert_eq "rpc.js guards on active(), not enabled()" \
+    "$(grep -c 'rpcLog.enabled()' "$WEB/static/src/core/network/rpc.js")" "0"
+assert_eq "rpc.js has both listener guards on active()" \
+    "$(grep -c 'if (!rpcLog.active()) {' "$WEB/static/src/core/network/rpc.js")" "2"
+
+# The frozen boot reading must stay pinned to its base commit, never "corrected".
+assert_eq "OBSERVABILITY freezes the boot reading to a named base commit" \
+    "$(grep -c 'FROZEN at `6216a09c231`' "$DOC/OBSERVABILITY.md")" "1"
+assert_eq "OBSERVABILITY freezes the interaction reading to a named base commit" \
+    "$(grep -c 'FROZEN at `d9ff46405c9`' "$DOC/OBSERVABILITY.md")" "1"
+assert_eq "the interaction reading names the suite that reproduces it" \
+    "$(grep -c 'test_what_opening_a_list_view_costs' "$DOC/OBSERVABILITY.md")" "1"
+assert_eq "the interaction suite settles boot before resetting the sink" \
+    "$(grep -c 'Let boot.s in-flight RPCs settle BEFORE the reset' \
+        "$WEB/tests/test_trace_probes.py")" "1"
+
+# The call-site table is what makes a count interpretable: one category bound per
+# MODULE means N counts events, not domain objects. Derived per module, because a
+# new log() line silently changes what an existing figure means.
+OBS_SITES_JS=$(grep -c 'log(' "$WEB/static/src/core/assets.js")
+OBS_SITES_TPL=$(grep -c 'log(' "$WEB/static/src/core/templates.js")
+OBS_SITES_REG=$(grep -c 'log(' "$WEB/static/src/core/registry.js")
+OBS_SITES_ENV=$(grep -c 'log(' "$WEB/static/src/env.js")
+OBS_SITES_BOOT=$(grep -c 'log(' "$WEB/static/src/boot/start.js")
+assert_doc_cites "OBSERVABILITY cites assets.js's call-site count" \
+    "$OBS_SITES_JS" '\| .asset. js \| %s \|' OBSERVABILITY.md
+assert_doc_cites "OBSERVABILITY cites templates.js's call-site count" \
+    "$OBS_SITES_TPL" '\| .asset. templates \| %s \|' OBSERVABILITY.md
+assert_doc_cites "OBSERVABILITY cites registry.js's call-site count" \
+    "$OBS_SITES_REG" '\| .asset. registry \| %s \|' OBSERVABILITY.md
+assert_doc_cites "OBSERVABILITY cites env.js's call-site count" \
+    "$OBS_SITES_ENV" '\| .asset. env \| %s \|' OBSERVABILITY.md
+assert_doc_cites "OBSERVABILITY cites boot/start.js's call-site count" \
+    "$OBS_SITES_BOOT" '\| .asset. boot \| %s \|' OBSERVABILITY.md
+
+# The campaign namespaces must keep one category per EVENT KIND, which is what
+# makes their counts readable without the source open.
+assert_eq "service exposes distinct start/started categories" \
+    "$(grep -c 'serviceLog("start"\|serviceLog("started"' "$WEB/static/src/env.js")" "2"
+assert_eq "view exposes distinct load/loadViews categories" \
+    "$(grep -c 'viewLog("load"\|viewLog("loadViews"' "$WEB/static/src/views/view.js")" "2"
+
+# The session double-evaluation LEAD rests on two derivable facts; if either
+# moves, the lead has changed and the paragraph must be re-read.
+OBS_SESSION_SITES=$(grep -c 'assetLog(' "$WEB/static/src/session.js")
+assert_eq "session.js has exactly one assetLog call site (so the count is evaluations)" \
+    "$OBS_SESSION_SITES" "1"
+# MEMBERSHIPS only. The manifest mentions session.js three times and one is a
+# ("remove", ...) directive; counting mentions reads 3 and calls a removal a
+# membership, which is the opposite of what that line does.
+OBS_SESSION_BUNDLES=$(awk 'prev !~ /"remove"/ && /"web\/static\/src\/session\.js"/ {c++} \
+    {prev=$0} END {print c+0}' "$WEB/__manifest__.py")
+assert_doc_cites "OBSERVABILITY cites how many bundles session.js is a MEMBER of" \
+    "$OBS_SESSION_BUNDLES" 'member of \*\*%s\*\* of web' OBSERVABILITY.md
+assert_eq "the third session.js mention is still a remove directive" \
+    "$(grep -B2 'web/static/src/session.js' "$WEB/__manifest__.py" | grep -c '"remove"')" "1"
+assert_eq "esbuild registers only declared members (the blind spot's mechanism)" \
+    "$(grep -c 'for i, asset in enumerate(self.native_modules):' \
+        "$REPO/odoo/tools/assets/esbuild.py")" "1"
+
+# The stamper's lint-cleanliness rests on three behaviours the first --apply
+# lacked. Each is pinned so a refactor cannot quietly drop one and reintroduce
+# the 244 findings.
+assert_eq "stamp.py inserts its import in sorted position" \
+    "$(grep -c 'def insert_import' "$REPO/tooling/trace/stamp.py")" "1"
+assert_eq "stamp.py understands multi-line imports" \
+    "$(grep -c 'def import_spans' "$REPO/tooling/trace/stamp.py")" "1"
+assert_eq "stamp.py sizes labels to prettier's width" \
+    "$(grep -c '^PRINT_WIDTH = ' "$REPO/tooling/trace/stamp.py")" "1"
+OBS_WIDTH=$(grep -oE '^PRINT_WIDTH = [0-9]+' "$REPO/tooling/trace/stamp.py" | grep -oE '[0-9]+')
+assert_eq "stamp.py's width matches .prettierrc" \
+    "$OBS_WIDTH" "$(grep -oE '"printWidth": [0-9]+' "$REPO/.prettierrc.json" | grep -oE '[0-9]+')"
+assert_doc_cites "OBSERVABILITY cites the stamped jsfunclen delta" \
+    "77 78" '%s -> %s' OBSERVABILITY.md
+assert_eq "OBSERVABILITY freezes the full render profile to a base commit" \
+    "$(grep -c 'FROZEN at `92a83f0b495`' "$DOC/OBSERVABILITY.md")" "1"
+
+# The control-panel double render is characterised in prose and pinned by a
+# suite; bind the two so the prose cannot outlive its guard.
+OBS_CP_TEST="$WEB/static/tests/views/control_panel_render_budget.test.js"
+assert_eq "control_panel_render_budget suite exists" \
+    "$([ -f "$OBS_CP_TEST" ] && echo yes || echo no)" "yes"
+assert_eq "it pins the chain at two renders" \
+    "$(grep -c 'expect(renders).toBe(2)' "$OBS_CP_TEST")" "1"
+assert_eq "it pins that both passes precede every mount" \
+    "$(grep -c 'expect(lastRender).toBeLessThan(firstMount)' "$OBS_CP_TEST")" "1"
+assert_eq "it pins the empty-then-full model sequence" \
+    "$(grep -c '"rows=0",' "$OBS_CP_TEST")" "1"
+assert_eq "OBSERVABILITY names the suite that pins the double render" \
+    "$(grep -c 'control_panel_render_budget.test.js' "$DOC/OBSERVABILITY.md" \
+        | awk '{print ($1>0)?1:0}')" "1"
+# SearchBarMenu must stay unconditional, or fact 3 above means something else.
+assert_eq "SearchBarMenu is still unconditional in search_bar.xml" \
+    "$(grep -c '<SearchBarMenu dropdownState="searchBarDropdownState">' \
+        "$WEB/static/src/search/search_bar/search_bar.xml")" "1"
+
+# The double render is the designed cost of lazy model loading. Both halves of
+# that mechanism are pinned: if either moves, the explanation above is stale.
+assert_eq "useModelWithSampleData still skips the await when lazy" \
+    "$(grep -c 'if (options.lazy) {' "$WEB/static/src/model/model.js")" "1"
+assert_eq "lazy is still keyed on the view HAVING a control panel" \
+    "$(grep -c '!!display.controlPanel' "$WEB/static/src/views/view_utils.js")" "1"
+assert_eq "OBSERVABILITY names computeModelOptions as the switch" \
+    "$(grep -c 'computeModelOptions' "$DOC/OBSERVABILITY.md")" "1"
+# Both latency cases are measured, not argued; the suite must keep covering both.
+assert_eq "the budget suite covers the SLOW-load payoff too" \
+    "$(grep -c 'a SLOW load mounts the shell first' "$OBS_CP_TEST")" "1"
+assert_eq "the slow-load case asserts the shell MOUNTS before the data" \
+    "$(grep -c 'e === "MOUNTED:ControlPanel"' "$OBS_CP_TEST")" "1"
+
+# The teardown plan must keep naming every artefact that actually exists, or a
+# removal following it leaves orphans behind and a red lane.
+for _obs_artefact in \
+    "tooling/trace" \
+    "core/utils/asset_log.js" \
+    "core/network/rpc.js" \
+    "trace_choke_points.test.js" \
+    "test_trace_probes.py" \
+    "control_panel_render_budget.test.js"; do
+    assert_eq "Removal plan names $_obs_artefact" \
+        "$(grep -c "$_obs_artefact" "$DOC/OBSERVABILITY.md" | awk '{print ($1>0)?1:0}')" "1"
+done
+# Scoped to the esm "bundles" list: the name also appears elsewhere in the
+# manifest, so an unscoped grep reads 2 and says nothing about ESM membership.
+# The duplication is test-mode-only because the bundle is conditionally rendered.
+# If that guard moves, the "does not reach production" claim above is stale.
+assert_eq "web.assets_tests is still rendered only in test/debug mode" \
+    "$(grep -c "'tests' in debug or test_mode_enabled" \
+        "$WEB/views/webclient_templates.xml")" "1"
+assert_eq "OBSERVABILITY points at the Failure modes row that already owns this" \
+    "$(grep -c 'add fingerprint' "$DOC/OBSERVABILITY.md" | awk '{print ($1>0)?1:0}')" "1"
+# The lazy-render diagnosis leans on a rule STATE_MANAGEMENT.md owns; if that
+# sentence goes, the diagnosis is quoting a doc that no longer says it.
+assert_eq "STATE_MANAGEMENT still states that a controller subscribes via useState" \
+    "$(grep -c 'installs \*\*no\*\* listener of its own' "$DOC/STATE_MANAGEMENT.md")" "1"
+assert_eq "OBSERVABILITY cites that rule rather than restating the mechanism" \
+    "$(grep -c 'installs no listener of its own' "$DOC/OBSERVABILITY.md")" "1"
+# ESM_BUNDLING documents ?debug=assets, the one namespace that survives the
+# server-side allowlist. Pinned so nobody "corrects" it toward the broken form.
+assert_eq "ESM_BUNDLING still documents ?debug=assets specifically" \
+    "$(grep -c '?debug=assets' "$DOC/ESM_BUNDLING.md" | awk '{print ($1>0)?1:0}')" "1"
+assert_eq "ESM_BUNDLING still carries the duplicate-copy failure mode" \
+    "$(grep -c 'each load their own copy of the same' "$DOC/ESM_BUNDLING.md")" "1"
+assert_eq "web.assets_web is still declared an ESM bundle" \
+    "$(awk '/"esm"[[:space:]]*:/,/"dynamic_children"/' "$WEB/__manifest__.py" \
+        | grep -c '"web.assets_web",')" "1"
+assert_eq "the real-page suite exists and is registered" \
+    "$([ -f "$WEB/tests/test_trace_probes.py" ] \
+        && grep -c 'from . import test_trace_probes' "$WEB/tests/__init__.py" || echo 0)" "1"
+
 echo ""
 echo "================================================================"
-echo "TOTAL: $PASS passed, $FAIL failed, $SKIP skipped"
+if [ "$UPDATED" -gt 0 ]; then
+    echo "TOTAL: $PASS passed, $FAIL failed, $SKIP skipped, $UPDATED updated"
+    echo "Re-run without --update to confirm the rewrites hold."
+else
+    echo "TOTAL: $PASS passed, $FAIL failed, $SKIP skipped"
+fi
 echo "================================================================"
 exit $FAIL

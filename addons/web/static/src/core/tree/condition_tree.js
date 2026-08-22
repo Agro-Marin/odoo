@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/condition_tree */
-
 /** @import { AST } from "@web/core/py_js/py_parser" */
 /** @import { DomainRepr } from "@web/core/domain" */
 
@@ -94,11 +92,6 @@ export function connector(value, children = [], negate = false) {
 }
 
 /**
- * ``negate`` is carried here for the same reason ``Condition`` and ``Connector``
- * carry it: ``normalizeConnector`` folds a negated connector into its only
- * child, so every node type must be able to hold the negation. While this one
- * could not, ``not(complex)`` came back out of the pipeline as ``complex``.
- *
  * @param {string} value
  * @param {boolean} [negate=false]
  * @returns {ComplexCondition}
@@ -120,8 +113,6 @@ export function condition(path, operator, value, negate = false, isProperty = fa
     return { type: "condition", path, operator, value, negate, isProperty };
 }
 
-// Shared singletons, compared against by `removeFalseTrueLeaves`; frozen so a
-// consumer cannot flip `negate` on the one everyone else reads.
 export const TRUE_TREE = Object.freeze(condition(1, "=", 1));
 export const FALSE_TREE = Object.freeze(condition(0, "=", 1));
 
@@ -271,9 +262,6 @@ export function normalizeValue(value) {
  * @returns {value is Tree}
  */
 export function isTree(value) {
-    // Tested by tag, not by elimination: "any object that is not a Domain, an
-    // Expression or an Array" let `operate()` recurse into a Date or an
-    // options bag that happened to sit in a condition's value.
     return (
         typeof value === "object" &&
         value !== null &&

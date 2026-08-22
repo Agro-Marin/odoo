@@ -1,14 +1,3 @@
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
-"""Serve the curated HTTP API as an OpenAPI 3.1 document.
-
-The document is generated live from the database's routing map by
-:mod:`odoo.http.openapi` with ``typed_only=True``: only ``@route(typed=True)``
-endpoints — the schema-bearing, deliberately published API surface — are
-listed, never the full internal route map. Gated to system administrators:
-even the curated surface (paths, parameter schemas, auth modes) is deployment
-reconnaissance that anonymous or ordinary users have no use for.
-"""
-
 import werkzeug.exceptions
 
 import odoo.release

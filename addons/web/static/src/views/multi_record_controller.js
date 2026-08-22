@@ -1,46 +1,23 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/multi_record_controller */
-
-import {
-    Component,
-    onMounted,
-    onWillStart,
-    useEffect,
-    useRef,
-    useSubEnv,
-} from "@odoo/owl";
-import { _t } from "@web/core/translation";
+import { onMounted, onWillStart, useEffect, useSubEnv } from "@odoo/owl";
 import { user } from "@web/core/user";
+import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useSearchBarToggler } from "@web/search/search_bar/search_bar_toggler";
 import { useViewButtons } from "@web/views/view_button/view_button_hook";
+import { ViewController } from "@web/views/view_controller";
 import { useDeleteRecords, useExportRecords } from "@web/views/view_hook";
 import {
-    buildActionMenuItems,
+    buildStaticActionMenuItems,
     computeArchiveEnabled,
     computeModelOptions,
-    useControllerServices,
 } from "@web/views/view_utils";
 
-export class MultiRecordController extends Component {
+export class MultiRecordController extends ViewController {
     /** @type {any} */
     model;
 
-    /** @type {any} */
-    actionService;
-    /** @type {any} */
-    dialogService;
-    /** @type {any} */
-    notification;
-    /** @type {any} */
-    orm;
-    /** @type {any} */
-    _uiHooks;
-    /** @type {any} */
-    archInfo;
-    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
-    rootRef;
     /** @type {boolean} */
     archiveEnabled;
     /** @type {any} */
@@ -53,19 +30,21 @@ export class MultiRecordController extends Component {
     deleteRecordsWithConfirmation;
     /** @type {boolean} */
     isExportEnable = false;
-    /** @type {number} */
-    _selectionEpoch = 0;
+    /** @type {KeepLast<any[]>} */
+    _selectionLoads = new KeepLast({ rejectSuperseded: true });
+    /** @type {boolean} */
+    _multiRecordBehaviorReady = false;
 
     setup() {
-        const { action, dialog, notification, orm, uiHooks } = useControllerServices();
-        this.actionService = action;
-        this.dialogService = dialog;
-        this.notification = notification;
-        this.orm = orm;
-        this._uiHooks = uiHooks;
+        this.setupControllerServices();
+        this.setupModel();
+        this.setupArch();
+        this.initMultiRecordBehavior();
+        this.setupInteractions();
+    }
 
-        this.archInfo = this.props.archInfo;
-        this.rootRef = useRef("root");
+    setupControllerServices() {
+        super.setupControllerServices();
 
         this.archiveEnabled = computeArchiveEnabled(this.props.fields);
         this.searchBarToggler = useSearchBarToggler();
@@ -75,7 +54,21 @@ export class MultiRecordController extends Component {
         });
     }
 
+    setupModel() {
+        throw new Error(
+            `${this.constructor.name} must implement setupModel() to build this.model`,
+        );
+    }
+
     initMultiRecordBehavior() {
+        if (this._multiRecordBehaviorReady) {
+            throw new Error(
+                `${this.constructor.name} called initMultiRecordBehavior() twice; ` +
+                    "MultiRecordController.setup() already runs it between setupModel() " +
+                    "and setupInteractions(). Move the model build into setupModel().",
+            );
+        }
+        this._multiRecordBehaviorReady = true;
         useSubEnv({ model: this.model });
 
         onWillStart(async () => {
@@ -99,13 +92,6 @@ export class MultiRecordController extends Component {
             this.getExportableFields(),
         );
         this.deleteRecordsWithConfirmation = useDeleteRecords(this.model);
-    }
-
-    get actionMenuItems() {
-        return buildActionMenuItems(
-            this.getStaticActionMenuItems(),
-            this.props.info.actionMenus,
-        );
     }
 
     get actionMenuProps() {
@@ -162,35 +148,18 @@ export class MultiRecordController extends Component {
         return computeModelOptions(this.env, this.props.display);
     }
 
-    get archiveDialogProps() {
-        return {};
-    }
-
-    get deleteConfirmationDialogProps() {
-        return {};
-    }
-
     getStaticActionMenuItems() {
-        return {
+        return buildStaticActionMenuItems({
             export: {
                 isAvailable: () => this.isExportEnable,
-                sequence: 10,
-                icon: "fa-solid fa-upload",
-                description: _t("Export"),
                 callback: () => this.exportRecords(),
             },
             duplicate: {
                 isAvailable: () => this.archInfo.activeActions.duplicate,
-                sequence: 30,
-                icon: "fa-regular fa-clone",
-                description: _t("Duplicate"),
                 callback: () => this.model.root.duplicateRecords(),
             },
             archive: {
                 isAvailable: () => this.archiveEnabled,
-                sequence: 40,
-                icon: "oi oi-archive",
-                description: _t("Archive"),
                 callback: () =>
                     this.model.root.toggleArchiveWithConfirmation(
                         true,
@@ -199,20 +168,13 @@ export class MultiRecordController extends Component {
             },
             unarchive: {
                 isAvailable: () => this.archiveEnabled,
-                sequence: 45,
-                icon: "oi oi-unarchive",
-                description: _t("Unarchive"),
                 callback: () => this.model.root.toggleArchiveWithConfirmation(false),
             },
             delete: {
                 isAvailable: () => this.archInfo.activeActions.delete,
-                sequence: 50,
-                icon: "fa-regular fa-trash-can",
-                description: _t("Delete"),
-                class: "text-danger",
                 callback: () => this.onDeleteSelectedRecords(),
             },
-        };
+        });
     }
 
     /**
@@ -226,10 +188,14 @@ export class MultiRecordController extends Component {
         if (!this.props.onSelectionChanged) {
             return;
         }
-        const epoch = ++this._selectionEpoch;
-        const resIds = await this.model.root.getResIds(true);
-        if (epoch !== this._selectionEpoch) {
-            return;
+        let resIds;
+        try {
+            resIds = await this._selectionLoads.add(this.model.root.getResIds(true));
+        } catch (error) {
+            if (error instanceof SupersededError) {
+                return;
+            }
+            throw error;
         }
         this.props.onSelectionChanged(resIds);
     }
@@ -255,15 +221,4 @@ export class MultiRecordController extends Component {
     onDeleteSelectedRecords() {
         this.deleteRecordsWithConfirmation(this.deleteConfirmationDialogProps);
     }
-
-    /**
-     * @param {any} clickParams
-     * @returns {Promise<boolean | void>}
-     */
-    async beforeExecuteActionButton(clickParams) {}
-
-    /**
-     * @param {any} clickParams
-     */
-    async afterExecuteActionButton(clickParams) {}
 }

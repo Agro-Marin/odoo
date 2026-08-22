@@ -1,16 +1,16 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module search/search_domain */
-
 import { Domain } from "@web/core/domain";
 
 import { constructDateDomain } from "./utils/dates.js";
+
+/** @import { ActiveItem, AutocompleteValue, QueryGroup, SearchItem, SearchItems } from "./search_types" */
 /**
- * @param {Iterable} categories
- * @param {Object} searchViewFields
+ * @param {Iterable<any>} categories
+ * @param {Record<string, any>} searchViewFields
  * @param {number} [excludedCategoryId]
- * @returns {Array[]}
+ * @returns {any[][]}
  */
 export function computeCategoryDomain(
     categories,
@@ -31,14 +31,20 @@ export function computeCategoryDomain(
 }
 
 /**
- * @param {Iterable} filters
+ * @param {Iterable<any>} filters
  * @param {number} [excludedFilterId]
- * @returns {Array[]}
+ * @returns {any[][]}
  */
 export function computeFilterDomain(filters, excludedFilterId) {
+    /** @type {any[][]} */
     const domain = [];
 
+    /**
+     * @param {string} fieldName
+     * @param {Map<any, {checked?: boolean}>} valueMap
+     */
     function addCondition(fieldName, valueMap) {
+        /** @type {any[]} */
         const ids = [];
         for (const [valueId, value] of valueMap) {
             if (value.checked) {
@@ -67,9 +73,9 @@ export function computeFilterDomain(filters, excludedFilterId) {
 }
 
 /**
- * @param {Object} filter
- * @param {Object} searchViewFields
- * @returns {Object|Array[]|null}
+ * @param {Record<string, any>} filter
+ * @param {Record<string, any>} searchViewFields
+ * @returns {Record<string, any>|any[][]|null}
  */
 export function computeGroupDomain(filter, searchViewFields) {
     const { fieldName, groups, enableCounters } = filter;
@@ -80,7 +86,9 @@ export function computeGroupDomain(filter, searchViewFields) {
     }
 
     if (!enableCounters || !groups) {
-        return { many2one: [], many2many: {} }[fieldType];
+        return /** @type {Record<string, any>} */ ({ many2one: [], many2many: {} })[
+            fieldType
+        ];
     }
 
     let groupDomain = null;
@@ -105,16 +113,28 @@ export function computeGroupDomain(filter, searchViewFields) {
         }
     } else if (fieldType === "many2many") {
         const checkedValueIds = new Map();
-        groups.forEach(({ values }, groupId) => {
-            values.forEach(({ checked }, valueId) => {
-                if (checked) {
-                    if (!checkedValueIds.has(groupId)) {
-                        checkedValueIds.set(groupId, []);
-                    }
-                    /** @type {any[]} */ (checkedValueIds.get(groupId)).push(valueId);
-                }
-            });
-        });
+        groups.forEach(
+            (
+                /** @type {{values: Map<any, any>}} */ { values },
+                /** @type {any} */ groupId,
+            ) => {
+                values.forEach(
+                    (
+                        /** @type {{checked?: boolean}} */ { checked },
+                        /** @type {any} */ valueId,
+                    ) => {
+                        if (checked) {
+                            if (!checkedValueIds.has(groupId)) {
+                                checkedValueIds.set(groupId, []);
+                            }
+                            /** @type {any[]} */ (checkedValueIds.get(groupId)).push(
+                                valueId,
+                            );
+                        }
+                    },
+                );
+            },
+        );
         /** @type {Record<string, any[]>} */
         const byGroup = {};
         for (const [gId, ids] of checkedValueIds.entries()) {
@@ -131,8 +151,8 @@ export function computeGroupDomain(filter, searchViewFields) {
 }
 
 /**
- * @param {Object} field
- * @param {Object[]} autocompleteValues
+ * @param {Record<string, any>} field
+ * @param {Record<string, any>[]} autocompleteValues
  * @returns {Domain}
  */
 export function computeFieldDomain(field, autocompleteValues) {
@@ -162,9 +182,9 @@ export function computeFieldDomain(field, autocompleteValues) {
 }
 
 /**
- * @param {Object} referenceMoment
- * @param {Object} dateFilter
- * @param {Array} generatorIds
+ * @param {Record<string, any>} referenceMoment
+ * @param {Record<string, any>} dateFilter
+ * @param {any[]} generatorIds
  * @param {string} [key="domain"]
  * @returns {Domain|string}
  */
@@ -179,28 +199,36 @@ export function computeDateFilterDomain(
         dateFilter,
         generatorIds,
     );
-    return dateFilterRange[key];
+    return /** @type {Record<string, any>} */ (dateFilterRange)[key];
 }
 
 /**
- * @param {Object} activeItem
- * @param {Object} searchItems
- * @param {Object} referenceMoment
+ * @param {ActiveItem} activeItem
+ * @param {SearchItems} searchItems
+ * @param {any} referenceMoment
+ * @param {object} [hooks]
+ * @param {(field: SearchItem, autocompleteValues: AutocompleteValue[]) => Domain} [hooks.getFieldDomain]
+ * @param {(dateFilter: SearchItem, generatorIds: string[]) => Domain|string} [hooks.getDateFilterDomain]
  * @returns {Domain|string|null}
  */
-export function computeSearchItemDomain(activeItem, searchItems, referenceMoment) {
+export function computeSearchItemDomain(
+    activeItem,
+    searchItems,
+    referenceMoment,
+    {
+        getFieldDomain = computeFieldDomain,
+        getDateFilterDomain = (dateFilter, generatorIds) =>
+            computeDateFilterDomain(referenceMoment, dateFilter, generatorIds),
+    } = {},
+) {
     const { searchItemId } = activeItem;
     const searchItem = searchItems[searchItemId];
     switch (searchItem.type) {
         case "field_property":
         case "field":
-            return computeFieldDomain(searchItem, activeItem.autocompleteValues);
+            return getFieldDomain(searchItem, activeItem.autocompleteValues);
         case "dateFilter":
-            return computeDateFilterDomain(
-                referenceMoment,
-                searchItem,
-                activeItem.generatorIds,
-            );
+            return getDateFilterDomain(searchItem, activeItem.generatorIds);
         case "filter":
         case "favorite":
             return searchItem.domain;
@@ -210,8 +238,8 @@ export function computeSearchItemDomain(activeItem, searchItems, referenceMoment
 }
 
 /**
- * @param {Array[]} categoryDomain
- * @param {Array[]} filterDomain
+ * @param {any[][]} categoryDomain
+ * @param {any[][]} filterDomain
  * @returns {Domain}
  */
 export function computeSearchPanelDomain(categoryDomain, filterDomain) {
@@ -219,19 +247,7 @@ export function computeSearchPanelDomain(categoryDomain, filterDomain) {
 }
 
 /**
- * @param {Object} params
- * @param {Object[]} params.groups
- * @param {Domain|Array} params.globalDomain
- * @param {boolean} params.withGlobal
- * @param {boolean} params.withSearchPanel
- * @param {Function} params.getSearchItemDomain
- * @param {Function} params.getSearchPanelDomain
- * @param {Object} params.domainEvalContext
- * @param {boolean} params.raw
- * @returns {any[]|Domain}
- */
-/**
- * @param {Object} group
+ * @param {QueryGroup} group
  * @param {Function} getSearchItemDomain
  * @returns {Domain[]}
  */
@@ -246,6 +262,18 @@ export function computeActiveItemDomains(group, getSearchItemDomain) {
     return domains;
 }
 
+/**
+ * @param {object} params
+ * @param {QueryGroup[]} params.groups
+ * @param {Domain|any[]} params.globalDomain
+ * @param {boolean} params.withGlobal
+ * @param {boolean} params.withSearchPanel
+ * @param {Function} params.getSearchItemDomain
+ * @param {Function} params.getSearchPanelDomain
+ * @param {Record<string, any>} params.domainEvalContext
+ * @param {boolean} params.raw
+ * @returns {any[]|Domain}
+ */
 export function computeDomain({
     groups,
     globalDomain,

@@ -1,13 +1,3 @@
-"""Web read-group, grouping, and aggregation operations on the base model.
-
-Provides ``web_read_group``, ``formatted_read_group``,
-``formatted_read_grouping_sets``, and ``read_progress_bar`` — the grouped-data
-methods used by list, kanban, pivot, and graph views.
-
-Temporal expansion, group filling, and field-type formatters live in
-``web_read_group_helpers.py``.
-"""
-
 from collections import defaultdict
 from collections.abc import Iterator, Sequence
 from typing import Any
@@ -48,58 +38,6 @@ class Base(models.AbstractModel):
         unfold_read_default_limit: (int | None) = 80,
         groupby_read_specification: dict[str, dict] | None = None,
     ) -> dict[str, int | list]:
-        """
-        Serves as the primary method for loading grouped data in list and kanban views.
-
-        This method wraps :meth:`~.formatted_read_group` to return both the grouped
-        data and the total number of groups matching the search domain. It also
-        conditionally opens (unfolds) groups based on the `auto_unfold` parameter
-        and the `__fold` key returned by :meth:`~.formatted_read_group`.
-
-        A group is considered "open" if it contains a `__records` or `__groups` key.
-        - `__records`: The result of a :meth:`~.web_search_read` call for the group.
-        - `__groups`: The results of subgroupings.
-
-        :param domain: :ref:`A search domain <reference/orm/domains>`.
-        :param groupby: A list of groupby specification at each level, see :meth:`~.formatted_read_group`.
-        :param aggregates: A list of aggregate specifications. see :meth:`~.formatted_read_group`
-        :param limit: The maximum number of top-level groups to return. see :meth:`~.formatted_read_group`
-        :param offset: The offset for the top-level groups. see :meth:`~.formatted_read_group`
-        :param order: A sort string, as used in :meth:`~.search`
-        :param auto_unfold: If `True`, automatically unfolds the first 10 groups according to their
-            `__fold` key, if present; otherwise, it is unfolded by default.
-            This is typically `True` for kanban views and `False` for list views.
-        :param opening_info: The state of currently opened groups, used for reloading.
-          ::
-
-            opening_info = [{
-                "value": raw_value_groupby,
-                "folded": True or False,
-                ["offset": int,]  # present if unfolded
-                ["limit": int,]  # present if unfolded
-                ["progressbar_domain": progressbar_domain,]  # present if unfolded, e.g., when clicking on a progress bar section
-                ["groups": <opening_info>,]  # present if unfolded
-            }]
-
-        :param unfold_read_specification: The read specification for :meth:`~.web_read` when unfolding a group.
-        :param unfold_read_default_limit: The default record limit to apply when unfolding a group.
-        :param groupby_read_specification: The :meth:`~.web_read` specification for reading the records
-            that are being grouped on. This is mainly for list views with <groupby> leaves.
-            {<groupby_spec>: <read_specification>}
-
-        :return: A dictionary with the following structure:
-          ::
-
-            {
-                'groups': <groups>,
-                'length': <total_group_count>,
-            }
-
-            Where <groups> is the result of :meth:`~.formatted_read_group`, but with an
-            added `__groups` key for subgroups or a `__records` key for the result of :meth:`~.web_read`
-            for records within the group.
-
-        """
         if not isinstance(groupby, (list, tuple)) or not groupby:
             msg = "groupby must be a non-empty list or tuple"
             raise ValueError(msg)
@@ -110,9 +48,7 @@ class Base(models.AbstractModel):
             )
 
         aggregates = list(aggregates)
-        if (
-            "__count" not in aggregates
-        ):
+        if "__count" not in aggregates:
             aggregates.append("__count")
         domain = Domain(domain).optimize(self)
 
@@ -133,7 +69,7 @@ class Base(models.AbstractModel):
         read_group_order = self._get_read_group_order(
             dict_order, first_groupby, aggregates
         )
-        groups, length = self._formatted_read_group_with_length(
+        groups, length = self._get_formatted_read_group_with_length(
             domain,
             first_groupby,
             aggregates,
@@ -176,7 +112,7 @@ class Base(models.AbstractModel):
                 ]
 
             order_searches = ", ".join(order_specs)
-            recordset_groups = self._search_opened_groups(
+            recordset_groups = self._get_records_opened_groups(
                 records_opening_info, domain, order_searches
             )
 
@@ -202,42 +138,12 @@ class Base(models.AbstractModel):
             "length": length,
         }
 
-    def _search_opened_groups(
+    def _get_records_opened_groups(
         self,
         records_opening_info: list[dict[str, Any]],
         domain: Domain,
         order_searches: str,
     ) -> list[Any]:
-        """Return one recordset per entry of *records_opening_info*, in order.
-
-        Each opened group needs its own page of records — its own domain, its
-        own ``limit``/``offset`` (the client saves and replays per-group
-        pagination), and possibly its own progress-bar filter. That is one
-        ``search()`` per opened group: a fan-out linear in the number of opened
-        groups, all of it sequential round trips.
-
-        The bound on that fan-out is not as tight as the module constants
-        suggest. ``MAX_NUMBER_RESTORED_GROUPS`` caps it at 200 by default, but
-        ``_open_groups`` lets the ``max_number_opened_groups`` context key raise
-        BOTH caps, and ``account_reports`` sets it to 100000 — so for those
-        views the fan-out is bounded only by the number of groups in the data.
-
-        This batches the fan-out into a single round trip per chunk while
-        keeping each group's SELECT *byte-for-byte identical* to what
-        ``search()`` would emit: the per-group query (with its own ORDER BY,
-        LIMIT and OFFSET, and the record rules ``_search`` injects) becomes a
-        subquery, and only the transport is shared. Row selection and tie
-        resolution are therefore unchanged, which matters because the
-        within-group order is a CONTRACT with the client's page-2 fetch (see
-        the caller's comment) — a formulation that replaced LIMIT/OFFSET with a
-        ROW_NUMBER window would risk resolving ties differently (top-N heapsort
-        vs. full sort) and reintroduce the cross-page duplicate/loss bug.
-
-        ``ROW_NUMBER() OVER ()`` numbers each subquery's rows so the caller's
-        order survives the UNION ALL. It is computed inside the subquery scan,
-        before the append, so no reordering step sits between the sort and the
-        numbering.
-        """
         to_fetch = [
             (index, sub_search)
             for index, sub_search in enumerate(records_opening_info)
@@ -295,15 +201,13 @@ class Base(models.AbstractModel):
     _OPENED_GROUPS_SQL_CHUNK = 50
 
     def _chunk_opened_groups(self, to_fetch: list) -> Iterator[list]:
-        """Yield *to_fetch* in slices of ``_OPENED_GROUPS_SQL_CHUNK``."""
         size = self._OPENED_GROUPS_SQL_CHUNK
         for start in range(0, len(to_fetch), size):
             yield to_fetch[start : start + size]
 
-    def _formatted_read_group_with_length(
+    def _get_formatted_read_group_with_length(
         self, domain, groupby, aggregates, offset=0, limit=None, order=None
     ):
-        """Return ``(groups, total_length)`` for paginated group results."""
         groups = self.formatted_read_group(
             domain, groupby, aggregates, offset=offset, limit=limit, order=order
         )
@@ -318,14 +222,6 @@ class Base(models.AbstractModel):
         return groups, length
 
     def _read_group_count(self, domain, groupby):
-        """Return how many groups ``_read_group(domain, groupby)`` would yield.
-
-        Issues one ``COUNT(*)`` over the grouped sub-query, so — unlike
-        ``len(self._read_group(...))`` — it never selects, transfers or
-        post-processes the group rows themselves (in particular it never builds
-        the recordsets a relational ``groupby`` implies). The cost is a single
-        aggregate query returning one integer, independent of the group count.
-        """
         self.browse().check_access("read")
         query = self._search(domain)
         if query.is_empty():
@@ -346,7 +242,6 @@ class Base(models.AbstractModel):
         groupby: list[str],
         current_groups: list,
     ):
-        """Enrich groups with extra ``web_read`` data for the grouped field."""
         if (
             not groupby_read_specification
             or groupby_read_specification.keys().isdisjoint(groupby)
@@ -404,7 +299,6 @@ class Base(models.AbstractModel):
         groupby: list[str],
         aggregates: Sequence[str],
     ) -> str:
-        """Build an order string compatible with ``_read_group``."""
         if not dict_order:
             return ", ".join(groupby)
 
@@ -446,7 +340,6 @@ class Base(models.AbstractModel):
         parent_opening_info: list[dict] | None,
         parent_group_domain: Domain,
     ):
-        """Recursively open (unfold) groups into sub-groups or records."""
         ctx_max = self.env.context.get("max_number_opened_groups")
         max_number_opened_group = (
             MAX_NUMBER_OPENED_GROUPS if ctx_max is None else ctx_max
@@ -524,7 +417,7 @@ class Base(models.AbstractModel):
                 subgroup_domain = parent_group_domain
                 if group["__extra_domain"]:
                     subgroup_domain &= Domain(group["__extra_domain"])
-                subgroups, length = self._formatted_read_group_with_length(
+                subgroups, length = self._get_formatted_read_group_with_length(
                     domain=(subgroup_domain & domain),
                     groupby=[groupby[1]],
                     aggregates=aggregates,
@@ -557,13 +450,6 @@ class Base(models.AbstractModel):
         aggregates: Sequence[str],
         filtered_domain: Domain,
     ) -> None:
-        """Overwrite *group*'s aggregate values (except ``__count``) with the
-        same aggregates computed under *filtered_domain* (group domain AND
-        progressbar_domain), so they describe the record set actually shown.
-        One extra aggregate query per progress-bar-filtered group — acceptable,
-        as such a filter only exists on groups where the user clicked a bar.
-        ``__count`` is intentionally NOT recomputed (see the caller's comment).
-        """
         agg_specs = [spec for spec in aggregates if spec != "__count"]
         if not agg_specs:
             return
@@ -581,69 +467,6 @@ class Base(models.AbstractModel):
         *,
         order: str | None = None,
     ):
-        """
-        A method similar to :meth:`_read_grouping_set` but with all the
-        formatting needed by the webclient.
-        It is a multi groupby version of formatted_read_group allowing to have
-        aggregates for different groupby specifications in a single SQL requests.
-
-        :param domain: :ref:`A search domain <reference/orm/domains>`.
-            Use an empty list to match all records.
-        :param grouping_sets: list of list of groupby descriptions by which the
-            records will be grouped.
-
-            A groupby description is either a field (then it will be
-            grouped by that field) or a string
-            ``'<field>:<granularity>'``.
-
-            Right now, the only supported granularities are:
-
-            * ``day``
-            * ``week``
-            * ``month``
-            * ``quarter``
-            * ``year``
-
-            and they only make sense for date/datetime fields.
-
-            Additionally integer date parts are also supported:
-
-            * ``year_number``
-            * ``quarter_number``
-            * ``month_number``
-            * ``iso_week_number``
-            * ``day_of_year``
-            * ``day_of_month``
-            * ``day_of_week``
-            * ``hour_number``
-            * ``minute_number``
-            * ``second_number``
-
-        :param aggregates: list of aggregates specification. Each
-            element is ``'<field>:<agg>'`` (aggregate field with
-            aggregation function ``agg``). The possible aggregation
-            functions are the ones provided by
-            `PostgreSQL <https://www.postgresql.org/docs/current/static/functions-aggregate.html>`_,
-            except ``count_distinct`` and ``array_agg_distinct`` with
-            the expected meaning.
-
-        :param order: optional ``order by`` specification, for
-            overriding the natural sort ordering of the groups, see
-            :meth:`~.search`.
-
-        :return: list of list of dict such as
-            ``[[{'groupy_spec': value, ...}, ...], ...]`` containing:
-
-            * the groupby values: ``{groupby[i]: <value>}``
-            * the aggregate values: ``{aggregates[i]: <value>}``
-            * ``'__extra_domain'``: list of tuples specifying the group
-              search criteria
-            * ``'__fold'``: boolean if a fold_name is set on the comodel
-              and read_group_expand is activated
-
-        :raise AccessError: if user is not allowed to access requested
-            information
-        """
         grouping_sets = [tuple(groupby) for groupby in grouping_sets]
         aggregates = tuple(
             agg.replace(":recordset", ":array_agg") for agg in aggregates
@@ -662,7 +485,7 @@ class Base(models.AbstractModel):
         )
 
         for groups_index, groupby in enumerate(grouping_sets):
-            if self._web_read_group_field_expand(groupby):
+            if self._web_read_group_get_field_expand(groupby):
                 groups_list[groups_index] = self._web_read_group_expand(
                     domain,
                     groups_list[groups_index],
@@ -700,74 +523,6 @@ class Base(models.AbstractModel):
         limit: int | None = None,
         order: str | None = None,
     ) -> list[dict]:
-        """
-        A method similar to :meth:`_read_group` but with all the
-        formatting needed by the webclient.
-
-        :param domain: :ref:`A search domain <reference/orm/domains>`.
-            Use an empty list to match all records.
-        :param groupby: list of groupby descriptions by which the
-            records will be grouped.
-
-            A groupby description is either a field (then it will be
-            grouped by that field) or a string
-            ``'<field>:<granularity>'``.
-
-            Right now, the only supported granularities are:
-
-            * ``day``
-            * ``week``
-            * ``month``
-            * ``quarter``
-            * ``year``
-
-            and they only make sense for date/datetime fields.
-
-            Additionally integer date parts are also supported:
-
-            * ``year_number``
-            * ``quarter_number``
-            * ``month_number``
-            * ``iso_week_number``
-            * ``day_of_year``
-            * ``day_of_month``
-            * ``day_of_week``
-            * ``hour_number``
-            * ``minute_number``
-            * ``second_number``
-
-        :param aggregates: list of aggregates specification. Each
-            element is ``'<field>:<agg>'`` (aggregate field with
-            aggregation function ``agg``). The possible aggregation
-            functions are the ones provided by
-            `PostgreSQL <https://www.postgresql.org/docs/current/static/functions-aggregate.html>`_,
-            except ``count_distinct`` and ``array_agg_distinct`` with
-            the expected meaning.
-
-        :param having: A domain where the valid "fields" are the
-            aggregates.
-
-        :param offset: optional number of groups to skip
-
-        :param limit: optional max number of groups to return
-
-        :param order: optional ``order by`` specification, for
-            overriding the natural sort ordering of the groups, see
-            :meth:`~.search`.
-
-        :return: list of dict such as
-            ``[{'groupy_spec': value, ...}, ...]`` containing:
-
-            * the groupby values: ``{groupby[i]: <value>}``
-            * the aggregate values: ``{aggregates[i]: <value>}``
-            * ``'__extra_domain'``: list of tuples specifying the group
-              search criteria
-            * ``'__fold'``: boolean if a fold_name is set on the comodel
-              and read_group_expand is activated
-
-        :raise AccessError: if user is not allowed to access requested
-            information
-        """
         groupby = tuple(groupby)
         aggregates = tuple(
             agg.replace(":recordset", ":array_agg") for agg in aggregates
@@ -789,7 +544,7 @@ class Base(models.AbstractModel):
         if (
             not offset
             and (not limit or len(groups) < limit)
-            and self._web_read_group_field_expand(groupby)
+            and self._web_read_group_get_field_expand(groupby)
         ):
             expand_groups = self._web_read_group_expand(
                 domain, groups, groupby[0], aggregates, order
@@ -816,14 +571,12 @@ class Base(models.AbstractModel):
         aggregates: tuple[str, ...],
         groups: list[tuple],
     ) -> list[dict]:
-        """Format raw value of _read_group for the webclient.
-        See formatted_read_group return value."""
         result = [{"__extra_domains": []} for __ in groups]
         if not groups:
             return result
         column_iterator = zip(*groups, strict=True)
 
-        expand_field = self._web_read_group_field_expand(groupby)
+        expand_field = self._web_read_group_get_field_expand(groupby)
         for groupby_spec, values in zip(groupby, column_iterator, strict=False):
             field_path = groupby_spec.split(":")[0]
             field_name = field_path.split(".")[0]
@@ -847,7 +600,9 @@ class Base(models.AbstractModel):
                     dict_group[groupby_spec] = value
                     dict_group["__extra_domains"].append([(field_name, "=", value)])
             else:
-                formatter = self._web_read_group_groupby_formatter(groupby_spec, values)
+                formatter = self._web_read_group_get_groupby_formatter(
+                    groupby_spec, values
+                )
                 for value, dict_group in zip(values, result, strict=True):
                     dict_group[groupby_spec], additional_domain = formatter(value)
                     dict_group["__extra_domains"].append(additional_domain)
@@ -872,19 +627,6 @@ class Base(models.AbstractModel):
     @api.model
     @api.readonly
     def read_progress_bar(self, domain, group_by, progress_bar):
-        """
-        Return the data needed for the kanban column progress bars, fetched
-        alongside the read_group operation.
-
-        :param domain: the domain used in the kanban view to filter records
-        :param group_by: the name of the field used to group records into
-            kanban columns
-        :param progress_bar: the ``<progressbar/>`` declaration
-            attributes (field, colors, sum)
-        :return: a dictionary mapping group_by values to dictionaries mapping
-            progress bar field values to the related number of records
-        """
-
         def adapt(value):
             if isinstance(value, tuple):
                 return value[0]

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dom/html */
-
 import { htmlEscape as _htmlEscape, markup } from "@odoo/owl";
 
 /** @type {(value: any) => string} */

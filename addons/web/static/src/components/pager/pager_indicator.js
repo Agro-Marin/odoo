@@ -1,15 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/pager/pager_indicator */
-
 import { Component, onWillUnmount, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { PagerEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { Transition } from "@web/core/transition";
 import { useBus } from "@web/core/utils/hooks";
-
-import { PAGER_UPDATED_EVENT, pagerBus } from "./pager.js";
 
 export class PagerIndicator extends Component {
     static template = "web.PagerIndicator";
@@ -27,7 +24,7 @@ export class PagerIndicator extends Component {
             value: "-",
             total: 0,
         });
-        useBus(pagerBus, PAGER_UPDATED_EVENT, this.pagerUpdate);
+        useBus(this.env.bus, PagerEvent.UPDATED, this.pagerUpdate);
         onWillUnmount(() => browser.clearTimeout(this.startShowTimer));
     }
 

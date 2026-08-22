@@ -1,16 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/form/form_controller */
-
 import {
-    Component,
     onError,
     onMounted,
     onRendered,
     status,
     useEffect,
-    useRef,
     useState,
     useSubEnv,
 } from "@odoo/owl";
@@ -40,13 +36,14 @@ import {
     executeButtonCallback,
     useViewButtons,
 } from "@web/views/view_button/view_button_hook";
-import { useViewCompiler } from "@web/views/view_compiler";
+import { compileViewTemplates } from "@web/views/view_compiler";
+import { ViewController } from "@web/views/view_controller";
 import { useDeleteRecords } from "@web/views/view_hook";
 import {
-    buildActionMenuItems,
+    archiveConfirmationProps,
+    buildStaticActionMenuItems,
     computeArchiveEnabled,
     handleBeforeUnload,
-    useControllerServices,
 } from "@web/views/view_utils";
 import { Widget } from "@web/views/widgets/widget";
 
@@ -63,7 +60,7 @@ import { loadSubViews, useFormViewInDialog } from "./form_utils.js";
  */
 const footerArchInfoCache = new WeakMap();
 
-export class FormController extends Component {
+export class FormController extends ViewController {
     static template = `web.FormView`;
     static components = {
         FormStatusIndicator,
@@ -97,12 +94,6 @@ export class FormController extends Component {
         updateActionState: () => {},
     };
 
-    /** @type {import("@web/core/action_port").ActionPort} */
-    actionService;
-    /** @type {import("services").ServiceFactories["dialog"]} */
-    dialogService;
-    /** @type {import("services").ServiceFactories["orm"]} */
-    orm;
     /** @type {any} */
     ui;
     /** @type {any} */
@@ -117,26 +108,25 @@ export class FormController extends Component {
     model;
     /** @type {any} */
     saveCoordinator;
-    /** @type {import("@odoo/owl").Ref<HTMLElement>} */
-    rootRef;
     /** @type {any} */
     deleteRecordsWithConfirmation;
 
     setup() {
+        this.setupControllerServices();
+        this.setupModel();
+        this.setupArch();
+        this.setupInteractions();
+    }
+
+    setupControllerServices() {
         this.evaluateBooleanExpr = evaluateBooleanExpr;
-        const { action, dialog, notification, orm, uiHooks } = useControllerServices();
-        this.actionService = action;
-        this.dialogService = dialog;
-        this.notification = notification;
-        this.orm = orm;
-        this._uiHooks = uiHooks;
+        super.setupControllerServices();
         this.viewService = useService("view");
         this.ui = useService("ui");
         this.multiCompanyRecovery = useService("multi_company_recovery");
         this.formDialogStack = useService("form_dialog_stack");
         useBus(this.ui.bus, AppEvent.RESIZE, /** @type {any} */ (this.render));
 
-        this.archInfo = this.props.archInfo;
         const { create, edit } = this.archInfo.activeActions;
         this.canCreate = create && !this.props.preventCreate;
         this.canEdit = edit && !this.props.preventEdit;
@@ -146,7 +136,9 @@ export class FormController extends Component {
         if (this.env.inDialog) {
             this.display.controlPanel = false;
         }
+    }
 
+    setupModel() {
         const mountedProm = new Promise((r) => onMounted(/** @type {any} */ (r)));
         this.onWillDisplayOnchangeWarning = () => mountedProm;
 
@@ -208,7 +200,9 @@ export class FormController extends Component {
             }
             throw error;
         });
+    }
 
+    setupArch() {
         if (this.archInfo.xmlDoc.querySelector("footer:not(field footer)")) {
             let cached = footerArchInfoCache.get(this.props.archInfo);
             if (!cached) {
@@ -239,15 +233,16 @@ export class FormController extends Component {
             "div[name='button_box']:not(field div)",
         );
         if (xmlDocButtonBox) {
-            const buttonBoxTemplates = useViewCompiler(
+            const buttonBoxTemplates = compileViewTemplates(
                 this.props.Compiler || FormCompiler,
                 { ButtonBox: xmlDocButtonBox },
                 { isSubView: true },
             );
             this.buttonBoxTemplate = buttonBoxTemplates.ButtonBox;
         }
+    }
 
-        this.rootRef = useRef("root");
+    setupInteractions() {
         useViewButtons(this.rootRef, {
             beforeExecuteAction: this.beforeExecuteActionButton.bind(this),
             afterExecuteAction: this.afterExecuteActionButton.bind(this),
@@ -430,7 +425,7 @@ export class FormController extends Component {
     displayName() {
         const displayName = this.model.root.data.display_name;
         if (displayName) {
-            return displayName;
+            return displayName.split("\n")[0];
         }
         return (this.model.root.isNew && _t("New")) || "";
     }
@@ -467,10 +462,6 @@ export class FormController extends Component {
         ) {
             return;
         }
-        // requestSave() in "silent" mode reports failure by RESOLVING to false —
-        // it does not reject — so the outcome has to be read from the return
-        // value. Chaining .catch() here would never run and the record would be
-        // left dirty with no signal at all.
         let saved;
         try {
             saved = await this.saveCoordinator.requestSave({
@@ -487,10 +478,6 @@ export class FormController extends Component {
     }
 
     /**
-     * The tab is hidden, so a dialog would be pointless and a notification is
-     * queued behind the user's return. Keep the record dirty (the normal
-     * unsaved-changes guards still apply) and leave a diagnostic trail.
-     *
      * @param {any} [error]
      */
     onAutoSaveFailed(error) {
@@ -526,63 +513,47 @@ export class FormController extends Component {
 
     getStaticActionMenuItems() {
         const { activeActions } = this.archInfo;
-        return {
+        return buildStaticActionMenuItems({
             addPropertyFieldValue: {
                 isAvailable: () => activeActions.addPropertyFieldValue,
-                sequence: 10,
-                icon: "fa-solid fa-cogs",
-                description: _t("Edit Properties"),
                 callback: () => this.model.bus.trigger(ModelEvent.PROPERTY_FIELD_EDIT),
             },
             duplicate: {
                 isAvailable: () => activeActions.create && activeActions.duplicate,
-                sequence: 30,
-                icon: "fa-regular fa-clone",
-                description: _t("Duplicate"),
                 callback: () => this.duplicateRecord(),
             },
             archive: {
                 isAvailable: () => this.archiveEnabled && this.model.root.isActive,
-                sequence: 40,
-                description: _t("Archive"),
-                icon: "oi oi-archive",
-                callback: () => {
-                    this.dialogService.add(ConfirmationDialog, this.archiveDialogProps);
-                },
+                callback: () => this.archiveRecord(),
             },
             unarchive: {
                 isAvailable: () => this.archiveEnabled && !this.model.root.isActive,
-                sequence: 45,
-                icon: "oi oi-unarchive",
-                description: _t("Unarchive"),
                 callback: () => this.model.root.unarchive(),
             },
             delete: {
                 isAvailable: () => activeActions.delete && !this.model.root.isNew,
-                sequence: 50,
-                icon: "fa-regular fa-trash-can",
-                description: _t("Delete"),
-                class: "text-danger",
                 callback: () => this.deleteRecord(),
                 skipSave: true,
             },
-        };
+        });
     }
 
+    /**
+     * @param {Object} [overrides]
+     */
+    archiveRecord(overrides = {}) {
+        this.dialogService.add(ConfirmationDialog, {
+            ...archiveConfirmationProps(() => this.model.root.archive()),
+            ...this.archiveDialogProps,
+            ...overrides,
+        });
+    }
+
+    /**
+     * @returns {Object}
+     */
     get archiveDialogProps() {
-        return {
-            body: _t("Are you sure that you want to archive this record?"),
-            confirmLabel: _t("Archive"),
-            confirm: () => this.model.root.archive(),
-            cancel: () => {},
-        };
-    }
-
-    get actionMenuItems() {
-        return buildActionMenuItems(
-            this.getStaticActionMenuItems(),
-            this.props.info.actionMenus,
-        );
+        return {};
     }
 
     get archiveEnabled() {
@@ -595,9 +566,6 @@ export class FormController extends Component {
         const dirty = await this.model.root.isDirty();
         if ((dirty || this.model.root.isNew) && !item.skipSave) {
             const saved = await this.saveCoordinator.requestSave();
-            // A record still new after a truthy save means the save was
-            // resolved by the error dialog's "Discard changes": nothing was
-            // persisted, so there is no record to run the action on.
             return (
                 saved !== false &&
                 !this.saveCoordinator.lastError &&

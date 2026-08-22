@@ -1,11 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_query_mixin */
-
 import { _t } from "@web/core/translation";
 
 import { findGroupByGroupId } from "./search_group_by.js";
+import { fireAndForgetNotify } from "./search_notification.js";
 import { SPECIAL } from "./search_state.js";
 import { DEFAULT_INTERVAL, getPeriodOptions, yearSelected } from "./utils/dates.js";
 
@@ -15,22 +14,20 @@ import { DEFAULT_INTERVAL, getPeriodOptions, yearSelected } from "./utils/dates.
  */
 export const SearchQueryMixin = (Base) =>
     class extends Base {
+        /** @this {any} */
         _checkOrderByCountStatus() {
             if (!this.orderByCount) {
                 return;
             }
-            const hasQueryGroupBy = this.query.some((item) =>
+            const hasQueryGroupBy = this.query.some((/** @type {any} */ item) =>
                 ["dateGroupBy", "groupBy"].includes(
                     this.searchItems[item.searchItemId].type,
                 ),
             );
-            // `computeGroupBy` falls back on the config-level group-by
-            // (`globalGroupBy`) before `defaultGroupBy`, so grouping -- and
-            // with it a meaningful count order -- survives an empty query.
             const hasGlobalGroupBy = Boolean(this.globalGroupBy?.length);
             const hasDefaultGroupBy = Boolean(this.defaultGroupBy?.length);
             if (!hasQueryGroupBy && !hasGlobalGroupBy && !hasDefaultGroupBy) {
-                this.orderByCount = false;
+                this.orderByCount = /** @type {string|false} */ (false);
             }
         }
 
@@ -38,27 +35,27 @@ export const SearchQueryMixin = (Base) =>
          * @param {() => void} fn
          */
         _withNotificationsBlocked(fn) {
-            const wasBlocked = this.blockNotification;
-            this.blockNotification = true;
+            const wasBlocked = /** @type {boolean} */ (this.blockNotification);
+            this.blockNotification = /** @type {boolean} */ (true);
             try {
                 fn();
             } finally {
-                this.blockNotification = wasBlocked;
+                this.blockNotification = /** @type {boolean} */ (wasBlocked);
             }
         }
 
         /**
          * @param {number} searchItemId
-         * @param {Object} autocompleteValue
+         * @param {Record<string, any>} autocompleteValue
          */
-        addAutoCompletionValues(searchItemId, autocompleteValue) {
+        async addAutoCompletionValues(searchItemId, autocompleteValue) {
             const searchItem = this.searchItems[searchItemId];
             if (!["field", "field_property"].includes(searchItem.type)) {
                 return;
             }
             const { label, value, operator } = autocompleteValue;
             const queryElem = this.query.find(
-                (queryElem) =>
+                (/** @type {any} */ queryElem) =>
                     queryElem.searchItemId === searchItemId &&
                     "autocompleteValue" in queryElem &&
                     queryElem.autocompleteValue.value === value &&
@@ -72,20 +69,21 @@ export const SearchQueryMixin = (Base) =>
             return this._notify();
         }
 
-        clearQuery() {
-            this.query = [];
-            this.orderByCount = false;
+        async clearQuery() {
+            this.query = /** @type {any[]} */ ([]);
+            this.orderByCount = /** @type {string|false} */ (false);
             return this._notify();
         }
 
         /**
-         * @param {Object[]} prefilters
+         * @param {Record<string, any>[]} prefilters
          * @returns {number[]}
          */
         createNewFilters(prefilters) {
             if (!prefilters.length) {
                 return [];
             }
+            /** @type {number[]} */
             const searchItemIds = [];
             prefilters.forEach((preFilter) => {
                 const filter = {
@@ -102,16 +100,16 @@ export const SearchQueryMixin = (Base) =>
             });
             this.nextGroupId++;
             this.nextGroupNumber++;
-            this._notify();
+            fireAndForgetNotify(this._notify());
             return searchItemIds;
         }
 
         /**
          * @param {string} fieldName
-         * @param {Object} [options]
+         * @param {object} [options]
          * @param {string} [options.interval]
          * @param {boolean} [options.invisible]
-         * @returns {number | undefined} `undefined` when `fieldName` is not in the search view
+         * @returns {number | undefined}
          */
         createNewGroupBy(fieldName, { interval, invisible } = {}) {
             const field = this.searchViewFields[fieldName];
@@ -122,6 +120,7 @@ export const SearchQueryMixin = (Base) =>
                 return undefined;
             }
             const { string, type: fieldType } = field;
+            /** @type {Record<string, any>} */
             const preSearchItem = {
                 description: string || fieldName,
                 fieldName,
@@ -154,21 +153,21 @@ export const SearchQueryMixin = (Base) =>
                 this.nextGroupNumber++;
                 this.nextId++;
             });
-            this._notify();
+            fireAndForgetNotify(this._notify());
             return preSearchItem.id;
         }
 
         /**
          * @param {number|symbol} groupId
          */
-        deactivateGroup(groupId) {
+        async deactivateGroup(groupId) {
             if (groupId === SPECIAL) {
                 delete this.defaultGroupBy;
                 this.defaultGroupByRemoved = true;
                 this._checkOrderByCountStatus();
                 return this._notify();
             }
-            this.query = this.query.filter((queryElem) => {
+            this.query = this.query.filter((/** @type {any} */ queryElem) => {
                 const searchItem = this.searchItems[queryElem.searchItemId];
                 return searchItem.groupId !== groupId;
             });
@@ -179,7 +178,7 @@ export const SearchQueryMixin = (Base) =>
         /**
          * @param {number} searchItemId
          */
-        toggleSearchItem(searchItemId) {
+        async toggleSearchItem(searchItemId) {
             const searchItem = this.searchItems[searchItemId];
             if (searchItem.isInvalid) {
                 return;
@@ -193,15 +192,16 @@ export const SearchQueryMixin = (Base) =>
                 }
             }
             const index = this.query.findIndex(
-                (queryElem) => queryElem.searchItemId === searchItemId,
+                (/** @type {any} */ queryElem) =>
+                    queryElem.searchItemId === searchItemId,
             );
             if (index >= 0) {
                 this.query.splice(index, 1);
                 this._checkOrderByCountStatus();
             } else {
                 if (searchItem.type === "favorite") {
-                    this.query = [];
-                    this.orderByCount = false;
+                    this.query = /** @type {any[]} */ ([]);
+                    this.orderByCount = /** @type {string|false} */ (false);
                 }
                 this.query.push({ searchItemId });
             }
@@ -209,35 +209,35 @@ export const SearchQueryMixin = (Base) =>
         }
 
         /**
-         * @param {number} searchItemId
+         * @param {any} searchItem
          * @param {string} [generatorId]
+         * @param {any[] | null} [knownOptions]
+         * @returns {string[]}
          */
-        toggleDateFilter(searchItemId, generatorId) {
-            const searchItem = this.searchItems[searchItemId];
-            if (searchItem.type !== "dateFilter") {
-                return;
-            }
+        _resolveDateGeneratorIds(searchItem, generatorId, knownOptions) {
             let generatorIds = generatorId
                 ? [generatorId]
                 : searchItem.defaultGeneratorIds;
-            const knownOptions = searchItem.optionsParams
-                ? getPeriodOptions(this.referenceMoment, searchItem.optionsParams)
-                : null;
             if (knownOptions) {
                 const validGeneratorIds = generatorIds.filter(
-                    (gid) =>
+                    (/** @type {any} */ gid) =>
                         gid.startsWith("custom") ||
                         knownOptions.some((o) => o.id === gid),
                 );
                 if (validGeneratorIds.length !== generatorIds.length) {
                     console.warn(
                         `[search] unknown period generator id(s) on filter "${searchItem.name}":`,
-                        generatorIds.filter((gid) => !validGeneratorIds.includes(gid)),
+                        generatorIds.filter(
+                            (/** @type {any} */ gid) =>
+                                !validGeneratorIds.includes(gid),
+                        ),
                     );
                 }
                 generatorIds = validGeneratorIds;
             }
-            const customIds = generatorIds.filter((gid) => gid.startsWith("custom"));
+            const customIds = generatorIds.filter((/** @type {any} */ gid) =>
+                gid.startsWith("custom"),
+            );
             if (customIds.length > 1) {
                 console.warn(
                     `[search] date filter "${searchItem.name}": custom periods are mutually exclusive; ` +
@@ -245,9 +245,29 @@ export const SearchQueryMixin = (Base) =>
                     customIds.slice(0, -1),
                 );
             }
+            return generatorIds;
+        }
+
+        /**
+         * @param {number} searchItemId
+         * @param {string} [generatorId]
+         */
+        async toggleDateFilter(searchItemId, generatorId) {
+            const searchItem = this.searchItems[searchItemId];
+            if (searchItem.type !== "dateFilter") {
+                return;
+            }
+            const knownOptions = searchItem.optionsParams
+                ? getPeriodOptions(this.referenceMoment, searchItem.optionsParams)
+                : null;
+            const generatorIds = this._resolveDateGeneratorIds(
+                searchItem,
+                generatorId,
+                knownOptions,
+            );
             for (const generatorId of generatorIds) {
                 const index = this.query.findIndex(
-                    (queryElem) =>
+                    (/** @type {any} */ queryElem) =>
                         queryElem.searchItemId === searchItemId &&
                         "generatorId" in queryElem &&
                         queryElem.generatorId === generatorId,
@@ -256,19 +276,21 @@ export const SearchQueryMixin = (Base) =>
                     this.query.splice(index, 1);
                     if (!yearSelected(this._getSelectedGeneratorIds(searchItemId))) {
                         this.query = this.query.filter(
-                            (queryElem) => queryElem.searchItemId !== searchItemId,
+                            (/** @type {any} */ queryElem) =>
+                                queryElem.searchItemId !== searchItemId,
                         );
                     }
                 } else {
                     if (generatorId.startsWith("custom")) {
                         this.query = this.query.filter(
-                            (queryElem) => searchItemId !== queryElem.searchItemId,
+                            (/** @type {any} */ queryElem) =>
+                                searchItemId !== queryElem.searchItemId,
                         );
                         this.query.push({ searchItemId, generatorId });
                         continue;
                     }
                     this.query = this.query.filter(
-                        (queryElem) =>
+                        (/** @type {any} */ queryElem) =>
                             queryElem.searchItemId !== searchItemId ||
                             !queryElem.generatorId.startsWith("custom"),
                     );
@@ -294,14 +316,14 @@ export const SearchQueryMixin = (Base) =>
          * @param {number} searchItemId
          * @param {string} [intervalId]
          */
-        toggleDateGroupBy(searchItemId, intervalId) {
+        async toggleDateGroupBy(searchItemId, intervalId) {
             const searchItem = this.searchItems[searchItemId];
             if (searchItem.type !== "dateGroupBy") {
                 return;
             }
             intervalId = intervalId || searchItem.defaultIntervalId;
             const index = this.query.findIndex(
-                (queryElem) =>
+                (/** @type {any} */ queryElem) =>
                     queryElem.searchItemId === searchItemId &&
                     "intervalId" in queryElem &&
                     queryElem.intervalId === intervalId,
@@ -322,8 +344,9 @@ export const SearchQueryMixin = (Base) =>
                 defaultConnector: "|",
                 domain,
                 context: this.globalContext,
-                onConfirm: (domain) => this.splitAndAddDomain(domain),
-                disableConfirmButton: (domain) => domain === `[]`,
+                onConfirm: (/** @type {any} */ domain) =>
+                    this.splitAndAddDomain(domain),
+                disableConfirmButton: (/** @type {any} */ domain) => domain === `[]`,
                 title: _t("Custom Filter"),
                 confirmButtonText: _t("Search"),
                 discardButtonText: _t("Discard"),
@@ -331,7 +354,7 @@ export const SearchQueryMixin = (Base) =>
             });
         }
 
-        switchGroupBySort() {
+        async switchGroupBySort() {
             if (this.orderByCount === "Desc") {
                 this.orderByCount = "Asc";
             } else {

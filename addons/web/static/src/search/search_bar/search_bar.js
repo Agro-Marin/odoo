@@ -1,12 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_bar/search_bar */
-
 import { Component, status, useRef, useState } from "@odoo/owl";
 import { DomainSelectorDialog } from "@web/components/domain_selector_dialog/domain_selector_dialog";
 import { Dropdown } from "@web/components/dropdown/dropdown";
-import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
+import { useDropdownState } from "@web/components/dropdown/dropdown_hook";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { Domain } from "@web/core/domain";
@@ -78,11 +76,6 @@ export class SearchBar extends Component {
         autofocus: true,
     };
 
-    // Declared here, assigned in setup(). Definite assignment analysis credits
-    // only the constructor, so without these every read would be
-    // `T | undefined`. Safe on an OWL Component, whose setup() runs after
-    // construction — NOT on a Model, which calls setup() from its own
-    // constructor and would be clobbered by a field initialiser.
     /** @type {import("services").ServiceFactories["dialog"]} */
     dialogService;
     /** @type {{ el: HTMLElement | null }} */
@@ -93,9 +86,9 @@ export class SearchBar extends Component {
     visibilityState;
     /**
      * @type {{
-     *  expanded: any[];
-     *  query: string;
-     *  subItemsLimits: Record<string, number>;
+     * expanded: any[];
+     * query: string;
+     * subItemsLimits: Record<string, number>;
      * }}
      */
     state;
@@ -184,7 +177,7 @@ export class SearchBar extends Component {
     }
 
     /**
-     * @param {Object} [options={}]
+     * @param {object} [options={}]
      * @param {number[]} [options.expanded]
      * @param {string} [options.query]
      * @param {Record<number, Object[]>} [options.subItems]
@@ -272,54 +265,93 @@ export class SearchBar extends Component {
 
     /**
      * @param {Object} searchItem
-     * @param {string} trimmedQuery
-     * @returns {Object[]}
+     * @param {string} fieldType
+     * @param {boolean} isFieldProperty
+     * @returns {string|null}
      */
-    getItems(searchItem, trimmedQuery) {
-        const items = [];
-
-        const isFieldProperty = searchItem.type === "field_property";
-        const fieldType = this.getFieldType(searchItem);
-
-        let preposition = this.getPreposition(searchItem);
-
+    getRowPreposition(searchItem, fieldType, isFieldProperty) {
         if (
             (isFieldProperty && FOLDABLE_TYPES.includes(fieldType)) ||
             fieldType === "properties"
         ) {
-            preposition = null;
+            return null;
         }
+        return this.getPreposition(searchItem);
+    }
+
+    /**
+     * @param {Object} searchItem
+     * @param {string} trimmedQuery
+     * @param {Object} rowBase
+     * @returns {Object[]}
+     */
+    getEnumeratedItems(searchItem, trimmedQuery, rowBase) {
+        const booleanOptions = [
+            [true, _t("Yes")],
+            [false, _t("No")],
+        ];
+        let options = booleanOptions;
+        if (searchItem.type === "field_property") {
+            const { selection, tags } = searchItem.propertyFieldDefinition || {};
+            options = selection || tags || booleanOptions;
+        }
+        const items = [];
+        for (const [value, label] of options) {
+            if (fuzzyTest(trimmedQuery.toLowerCase(), label.toLowerCase())) {
+                items.push({
+                    ...rowBase,
+                    id: nextItemId++,
+                    label,
+                    operator: searchItem.operator || "=",
+                    value,
+                });
+            }
+        }
+        return items;
+    }
+
+    /**
+     * @param {Object} item
+     * @param {string} fieldType
+     * @param {Object} searchItem
+     */
+    markFoldable(item, fieldType, searchItem) {
+        if (searchItem.type === "field_property") {
+            item.isParent = FOLDABLE_TYPES.includes(fieldType);
+            item.unselectable = item.isParent;
+            item.propertyItemId = searchItem.propertyItemId;
+        } else if (fieldType === "properties") {
+            item.isParent = true;
+            item.unselectable = true;
+        } else if (fieldType === "many2one" || fieldType === "selection") {
+            item.isParent = true;
+        }
+        if (item.isParent) {
+            item.isExpanded = this.state.expanded.includes(item.searchItemId);
+        }
+    }
+
+    /**
+     * @param {Object} searchItem
+     * @param {string} trimmedQuery
+     * @returns {Object[]}
+     */
+    getItems(searchItem, trimmedQuery) {
+        const isFieldProperty = searchItem.type === "field_property";
+        const fieldType = this.getFieldType(searchItem);
+        const rowBase = {
+            fieldType,
+            searchItemDescription: searchItem.description,
+            preposition: this.getRowPreposition(searchItem, fieldType, isFieldProperty),
+            searchItemId: searchItem.id,
+            isFieldProperty,
+        };
+
         if (
             ["boolean", "tags"].includes(fieldType) ||
             (isFieldProperty && fieldType === "selection")
         ) {
-            const booleanOptions = [
-                [true, _t("Yes")],
-                [false, _t("No")],
-            ];
-            let options;
-            if (isFieldProperty) {
-                const { selection, tags } = searchItem.propertyFieldDefinition || {};
-                options = selection || tags || booleanOptions;
-            } else {
-                options = booleanOptions;
-            }
-            for (const [value, label] of options) {
-                if (fuzzyTest(trimmedQuery.toLowerCase(), label.toLowerCase())) {
-                    items.push({
-                        id: nextItemId++,
-                        fieldType,
-                        searchItemDescription: searchItem.description,
-                        preposition,
-                        searchItemId: searchItem.id,
-                        label,
-                        operator: searchItem.operator || "=",
-                        value,
-                        isFieldProperty,
-                    });
-                }
-            }
-            return items;
+            return this.getEnumeratedItems(searchItem, trimmedQuery, rowBase);
         }
 
         let value;
@@ -329,37 +361,19 @@ export class SearchBar extends Component {
             return [];
         }
 
+        /** @type {Record<string, any>} */
         const item = {
+            ...rowBase,
             id: nextItemId++,
-            fieldType,
-            searchItemDescription: searchItem.description,
-            preposition,
-            searchItemId: searchItem.id,
             label: this.state.query,
             operator:
                 searchItem.operator ||
                 (CHAR_FIELDS.includes(fieldType) ? "ilike" : "="),
             value,
-            isFieldProperty,
         };
+        this.markFoldable(item, fieldType, searchItem);
 
-        if (isFieldProperty) {
-            item.isParent = FOLDABLE_TYPES.includes(fieldType);
-            item.unselectable = FOLDABLE_TYPES.includes(fieldType);
-            item.propertyItemId = searchItem.propertyItemId;
-        } else if (fieldType === "properties") {
-            item.isParent = true;
-            item.unselectable = true;
-        } else if (fieldType === "many2one" || fieldType === "selection") {
-            item.isParent = true;
-        }
-
-        if (item.isParent) {
-            item.isExpanded = this.state.expanded.includes(item.searchItemId);
-        }
-
-        items.push(item);
-
+        const items = [item];
         if (item.isExpanded) {
             const subItems = this.subItems[searchItem.id] || [];
             if (searchItem.type === "field" && searchItem.fieldType === "properties") {
@@ -370,7 +384,6 @@ export class SearchBar extends Component {
                 items.push(...subItems);
             }
         }
-
         return items;
     }
 
@@ -417,6 +430,63 @@ export class SearchBar extends Component {
 
     /**
      * @param {Object} searchItem
+     * @param {string} label
+     * @returns {Object}
+     */
+    makeSubItemNotice(searchItem, label) {
+        return {
+            id: nextItemId++,
+            isChild: true,
+            searchItemId: searchItem.id,
+            label,
+            unselectable: true,
+        };
+    }
+
+    /**
+     * @param {Object} searchItem
+     * @param {Object} field
+     * @param {string} query
+     * @returns {Promise<{options: any[][], showLoadMore: boolean, failed?: boolean}>}
+     */
+    async fetchRelationalOptions(searchItem, field, query) {
+        let domain = [];
+        if (searchItem.domain) {
+            const domainEvalContext = {
+                ...this.env.searchModel.domainEvalContext,
+                ...field.context,
+            };
+            domain = new Domain(searchItem.domain).toList(domainEvalContext);
+        }
+        const relation =
+            searchItem.type === "field_property"
+                ? searchItem.propertyFieldDefinition.comodel
+                : field.relation;
+
+        const limitToFetch = this.state.subItemsLimits[searchItem.id] + 1;
+        let options;
+        try {
+            options = await this.orm.call(relation, "name_search", [], {
+                domain: domain,
+                context: {
+                    ...this.env.searchModel.globalContext,
+                    ...field.context,
+                },
+                limit: limitToFetch,
+                name: query.trim(),
+            });
+        } catch {
+            return { options: [], showLoadMore: false, failed: true };
+        }
+        if (options.length === limitToFetch) {
+            options.pop();
+            return { options, showLoadMore: true };
+        }
+        return { options, showLoadMore: false };
+    }
+
+    /**
+     * @param {Object} searchItem
      * @param {string} query
      * @returns {Promise<Object[]>}
      */
@@ -429,46 +499,11 @@ export class SearchBar extends Component {
                 fuzzyTest(query.toLowerCase(), label.toLowerCase()),
             );
         } else {
-            let domain = [];
-            if (searchItem.domain) {
-                const domainEvalContext = {
-                    ...this.env.searchModel.domainEvalContext,
-                    ...field.context,
-                };
-                domain = new Domain(searchItem.domain).toList(domainEvalContext);
+            const fetched = await this.fetchRelationalOptions(searchItem, field, query);
+            if (fetched.failed) {
+                return [this.makeSubItemNotice(searchItem, _t("(loading failed)"))];
             }
-            const relation =
-                searchItem.type === "field_property"
-                    ? searchItem.propertyFieldDefinition.comodel
-                    : field.relation;
-
-            const limitToFetch = this.state.subItemsLimits[searchItem.id] + 1;
-            try {
-                options = await this.orm.call(relation, "name_search", [], {
-                    domain: domain,
-                    context: {
-                        ...this.env.searchModel.globalContext,
-                        ...field.context,
-                    },
-                    limit: limitToFetch,
-                    name: query.trim(),
-                });
-            } catch {
-                return [
-                    {
-                        id: nextItemId++,
-                        isChild: true,
-                        searchItemId: searchItem.id,
-                        label: _t("(loading failed)"),
-                        unselectable: true,
-                    },
-                ];
-            }
-
-            if (options.length === limitToFetch) {
-                options.pop();
-                showLoadMore = true;
-            }
+            ({ options, showLoadMore } = fetched);
         }
 
         const subItems = [];
@@ -486,11 +521,7 @@ export class SearchBar extends Component {
             }
             if (showLoadMore) {
                 subItems.push({
-                    id: nextItemId++,
-                    isChild: true,
-                    searchItemId: searchItem.id,
-                    label: _t("Load more"),
-                    unselectable: true,
+                    ...this.makeSubItemNotice(searchItem, _t("Load more")),
                     loadMore: () => {
                         this.state.subItemsLimits[searchItem.id] +=
                             SUB_ITEMS_DEFAULT_LIMIT;
@@ -501,13 +532,7 @@ export class SearchBar extends Component {
                 });
             }
         } else {
-            subItems.push({
-                id: nextItemId++,
-                isChild: true,
-                searchItemId: searchItem.id,
-                label: _t("(no result)"),
-                unselectable: true,
-            });
+            subItems.push(this.makeSubItemNotice(searchItem, _t("(no result)")));
         }
         return subItems;
     }

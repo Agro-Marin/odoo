@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/user_groups/res_user_group_ids_popover */
-
 import { Component, useState } from "@odoo/owl";
 import { useAction } from "@web/core/action_port";
 import { groupBy } from "@web/core/utils/collections/arrays";

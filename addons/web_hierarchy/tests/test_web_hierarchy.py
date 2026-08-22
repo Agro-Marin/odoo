@@ -13,7 +13,7 @@ class TestWebHierarchyView(TransactionCase):
         cls.View = cls.env["ir.ui.view"]
 
     def _validate(self, xml):
-        self.View._validate_tag_hierarchy(
+        self.View._check_view_tag_hierarchy(
             etree.fromstring(xml), None, {"validate": True}
         )
 
@@ -33,7 +33,7 @@ class TestWebHierarchyView(TransactionCase):
         self.assertIn("hierarchy", info)
         self.assertTrue(info["hierarchy"]["icon"])
 
-    # ── _validate_tag_hierarchy ──────────────────────────────────────
+    # ── _check_view_tag_hierarchy ──────────────────────────────────────
 
     def test_validate_accepts_fields_and_single_template(self):
         """A hierarchy of fields and one templates tag validates."""
@@ -58,7 +58,7 @@ class TestWebHierarchyView(TransactionCase):
     def test_validate_skipped_when_not_validating(self):
         """Validation is a no-op when node_info disables it."""
         # an otherwise-invalid node passes because validation is off
-        self.View._validate_tag_hierarchy(
+        self.View._check_view_tag_hierarchy(
             etree.fromstring("<hierarchy><group/></hierarchy>"),
             None,
             {"validate": False},

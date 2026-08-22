@@ -1,40 +1,38 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_keyboard_edit */
-
 import { getElementToFocus } from "./list_focus.js";
 
 /**
- * Nine members of the renderer surface, declared rather than assumed. Unlike
- * the three-member hooks this is genuinely broad — inline editing has to know
- * about columns, controls, creatability and readonly-ness at once — so pinning
- * it does not decouple anything. What it does is make the breadth a reviewable
- * number that a later edit cannot widen silently.
- *
- * Exported because `useListKeyboardNavigation` forwards its own `ctx` here. Its
- * declared surface is the union of what it reads itself and this type, so the
- * forwarding is expressed in the types rather than in a comment that has to be
- * kept in step by hand.
- *
  * @typedef {Pick<
- *     import("./list_renderer").ListGridContext,
- *     | "getProps"
- *     | "getColumns"
- *     | "getEditedRecord"
- *     | "getControls"
- *     | "getCanCreate"
- *     | "getDisplayRowCreates"
- *     | "isCellReadonly"
- *     | "onAdd"
- *     | "onEditNextRecord"
+ * import("./list_renderer").ListGridContext,
+ * | "getProps"
+ * | "getColumns"
+ * | "getEditedRecord"
+ * | "getControls"
+ * | "getCanCreate"
+ * | "getDisplayRowCreates"
+ * | "isCellReadonly"
+ * | "onAdd"
+ * | "onEditNextRecord"
  * >} ListEditContext
+ */
+
+/**
+ * @typedef {{
+ * focusCell: (column: any, forward?: boolean) => void,
+ * applyCellKeydownEditModeStayOnRow: (hotkey: string, cell: HTMLTableCellElement, group: any, record: any) => boolean,
+ * applyCellKeydownMultiEditMode: (hotkey: string, cell: HTMLTableCellElement, group: any, record: any) => boolean,
+ * applyCellKeydownEditModeGroup: (hotkey: string, cell: HTMLTableCellElement, group: any, record: any) => boolean,
+ * onCellKeydownEditMode: (hotkey: string, cell: HTMLTableCellElement, group: any, record: any) => boolean,
+ * }} ListEditHandlers
  */
 
 /**
  * @param {object} nav
  * @param {any} tableRef
  * @param {ListEditContext} ctx
+ * @returns {ListEditHandlers}
  */
 export function makeEditHandlers(nav, tableRef, ctx) {
     const {
@@ -328,7 +326,7 @@ export function makeEditHandlers(nav, tableRef, ctx) {
                         nav.focus(firstAddButton);
                     } else if (group && record.isNew) {
                         const children = [...(row?.parentElement?.children ?? [])];
-                        const idx = children.indexOf(row);
+                        const idx = row ? children.indexOf(row) : -1;
                         for (let i = idx + 1; i < children.length; i++) {
                             const r = children[i];
                             if (r.classList.contains("o_group_header")) {

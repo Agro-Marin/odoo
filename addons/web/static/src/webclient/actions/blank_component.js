@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/blank_component */
-
 import { Component, onMounted, useChildSubEnv } from "@odoo/owl";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 

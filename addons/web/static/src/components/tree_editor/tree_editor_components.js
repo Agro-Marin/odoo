@@ -1,9 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/tree_editor/tree_editor_components */
-
-import { Component } from "@odoo/owl";
+import { Component, useRef } from "@odoo/owl";
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { IN_RANGE_OPTIONS } from "@web/core/tree/in_range_options";
 import {
@@ -13,6 +11,21 @@ import {
 export class Input extends Component {
     static props = ["value", "update", "placeholder?", "startEmpty?"];
     static template = "web.TreeEditor.Input";
+
+    setup() {
+        this.inputRef = useRef("input");
+    }
+
+    /**
+     * @param {Event} ev
+     */
+    async onChange(ev) {
+        const el = /** @type {HTMLInputElement} */ (ev.target);
+        await this.props.update(el.value);
+        if (!this.props.startEmpty && this.inputRef.el) {
+            this.inputRef.el.value = this.props.value;
+        }
+    }
 }
 
 export class Select extends Component {
@@ -27,14 +40,6 @@ export class Select extends Component {
     static template = "web.TreeEditor.Select";
 
     /**
-     * The options laid out as the template renders them: the ungrouped ones
-     * first, then one `<optgroup>` per group in first-seen order.
-     *
-     * `optionGroups` maps an option value to its group label. It is a side
-     * table rather than a third slot in each option so that every existing
-     * caller — all of which pass plain `[value, label]` pairs — keeps working
-     * untouched.
-     *
      * @returns {{ungrouped: any[], groups: Array<[string, any[]]>}}
      */
     get renderedOptions() {
@@ -92,15 +97,6 @@ export class InRange extends Component {
     static options = IN_RANGE_OPTIONS;
 
     /**
-     * The value type the select should show as picked.
-     *
-     * A named period from a provider is stored as a plain `custom range` — the
-     * two are the same domain, see `@web/core/tree/in_range_providers` — so a
-     * stored range is offered back to its period whenever its bounds still name
-     * one. When they name none, or the period has since been deleted or moved,
-     * this falls back to `custom range` and the two date inputs appear: the
-     * condition keeps filtering exactly as it did either way.
-     *
      * @returns {string}
      */
     get selectedValueType() {
@@ -121,8 +117,6 @@ export class InRange extends Component {
         }
         const bounds = resolveInRangeProviderOption(newValueType, fieldType);
         if (bounds) {
-            // A period is stored as the range it denotes, not as its own value
-            // type; picking one is picking its two dates.
             return this.props.update([fieldType, "custom range", ...bounds]);
         }
         const values =

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_utils */
-
 import { status, useComponent } from "@odoo/owl";
 import { WarningDialog } from "@web/components/errors/error_dialogs";
 import { useAction } from "@web/core/action_port";
@@ -13,12 +11,9 @@ import { _t } from "@web/core/translation";
 import { omit } from "@web/core/utils/collections/objects";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
-import { X2M_TYPES } from "@web/fields/field_types";
 import { STATIC_ACTIONS_GROUP_NUMBER } from "@web/search/action_menus/action_menus";
 import { session } from "@web/session";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
-
-const NUMERIC_TYPES = ["integer", "float", "monetary"];
 
 /**
  * @typedef ViewActiveActions
@@ -112,14 +107,6 @@ export function getActiveActions(rootNode) {
 }
 
 /**
- * @param {any} field
- * @returns {boolean}
- */
-export function isX2Many(field) {
-    return field && X2M_TYPES.includes(field.type);
-}
-
-/**
  * @param {BeforeUnloadEvent} ev
  * @param {object} opts
  * @param {import("@web/model/relational_model/record").RelationalRecord | null | undefined} opts.record
@@ -153,18 +140,9 @@ export function handleBeforeUnload(
             }
         })
         .catch(() => {
-            // The save couldn't be confirmed: conservatively prompt the user.
             ev.preventDefault();
             ev.returnValue = "Unsaved changes";
         });
-}
-
-/**
- * @param {Object} field
- * @returns {boolean}
- */
-export function isNumeric(field) {
-    return NUMERIC_TYPES.includes(field.type);
 }
 
 /**
@@ -230,25 +208,8 @@ export function buildMultiRecordModelParams({
 }
 
 /**
- * @returns {{ action: Object, dialog: Object, notification: Object, orm: Object, uiHooks: Object }}
- */
-/**
- * The projection from a view *descriptor* to its controller's props.
- *
- * Every view type performed this by hand: copy `Model`, `Renderer`,
- * `buttonTemplate` and `Compiler` across by name, then parse the arch. Four of
- * the six in this module were the same fourteen lines, and each copy was free
- * to drop a key silently -- a descriptor that forgets `buttonTemplate` does not
- * fail a check, it renders without buttons.
- *
- * Only the invariant part lives here. A view type that needs more (`readonly`
- * from its arch's active actions, a caller-supplied `buttonTemplate`) mutates
- * the returned object, which is its own; views whose model is configured rather
- * than arch-parsed (pivot, graph build a `modelParams` instead) do not use this
- * at all, and forcing them through it would cost more than it saves.
- *
- * @param {Record<string, any>} genericProps the props `View.loadView` assembled
- * @param {Record<string, any>} view the descriptor from `registry.category("views")`
+ * @param {Record<string, any>} genericProps
+ * @param {Record<string, any>} view
  * @returns {Record<string, any>}
  */
 export function defaultViewProps(genericProps, view) {
@@ -259,13 +220,51 @@ export function defaultViewProps(genericProps, view) {
         Model: view.Model,
         Renderer: view.Renderer,
         buttonTemplate: view.buttonTemplate,
-        // Absent on list and calendar; spreading a bare `undefined` would put
-        // the key on the props bag and defeat `Compiler`'s own default.
         ...(view.Compiler ? { Compiler: view.Compiler } : {}),
         archInfo,
     };
 }
 
+/**
+ * @param {Record<string, any>} genericProps
+ * @param {Record<string, any>} view
+ * @returns {Record<string, any>}
+ */
+export function multiRecordViewProps(genericProps, view) {
+    const props = defaultViewProps(genericProps, view);
+    props.readonly = genericProps.readonly || !props.archInfo.activeActions?.edit;
+    return props;
+}
+
+/**
+ * @param {Record<string, any>} genericProps
+ * @param {Record<string, any>} view
+ * @param {{
+ * fromState: (state: any) => any,
+ * fromArch: (archInfo: any, genericProps: Record<string, any>) => any,
+ * }} buildModelParams
+ * @returns {Record<string, any>}
+ */
+export function reportViewProps(genericProps, view, buildModelParams) {
+    const { arch, relatedModels, resModel, state } = genericProps;
+    const modelParams = state
+        ? buildModelParams.fromState(state)
+        : buildModelParams.fromArch(
+              new view.ArchParser().parse(arch, relatedModels, resModel),
+              genericProps,
+          );
+    return {
+        ...genericProps,
+        Model: view.Model,
+        Renderer: view.Renderer,
+        buttonTemplate: view.buttonTemplate,
+        modelParams,
+    };
+}
+
+/**
+ * @returns {{ action: any, dialog: any, notification: any, orm: any, uiHooks: any }}
+ */
 export function useControllerServices() {
     const component = useComponent();
     const action = useAction();
@@ -294,6 +293,98 @@ export function computeArchiveEnabled(fields, { presentIn = fields } = {}) {
         }
     }
     return false;
+}
+
+/**
+ * @type {Record<string, { sequence: number, icon: string, description: any, class?: string }>}
+ */
+export const STATIC_ACTION_MENU_DESCRIPTORS = {
+    addPropertyFieldValue: {
+        sequence: 10,
+        icon: "fa-solid fa-cogs",
+        description: _t("Edit Properties"),
+    },
+    export: {
+        sequence: 10,
+        icon: "fa-solid fa-upload",
+        description: _t("Export"),
+    },
+    duplicate: {
+        sequence: 30,
+        icon: "fa-regular fa-clone",
+        description: _t("Duplicate"),
+    },
+    archive: {
+        sequence: 40,
+        icon: "oi oi-archive",
+        description: _t("Archive"),
+    },
+    unarchive: {
+        sequence: 45,
+        icon: "oi oi-unarchive",
+        description: _t("Unarchive"),
+    },
+    delete: {
+        sequence: 50,
+        icon: "fa-regular fa-trash-can",
+        description: _t("Delete"),
+        class: "text-danger",
+    },
+};
+
+/**
+ * @param {Record<string, Object>} overlays
+ * @returns {Record<string, Object>}
+ */
+export function buildStaticActionMenuItems(overlays) {
+    const items = {};
+    for (const [key, overlay] of Object.entries(overlays)) {
+        const descriptor = STATIC_ACTION_MENU_DESCRIPTORS[key];
+        if (!descriptor) {
+            throw new Error(
+                `No static action menu descriptor for "${key}"; add one to STATIC_ACTION_MENU_DESCRIPTORS`,
+            );
+        }
+        items[key] = { ...descriptor, ...overlay };
+    }
+    return items;
+}
+
+/**
+ * @param {() => any} archiveFn
+ * @param {{ multi?: boolean }} [options]
+ * @returns {Object}
+ */
+export function archiveConfirmationProps(archiveFn, { multi = false } = {}) {
+    return {
+        body: multi
+            ? _t("Are you sure that you want to archive all the selected records?")
+            : _t("Are you sure that you want to archive this record?"),
+        cancel: () => {},
+        confirm: () => {
+            archiveFn();
+        },
+        confirmLabel: _t("Archive"),
+    };
+}
+
+/**
+ * @param {{ action: string, type: string }} openAction
+ * @param {any} record
+ * @returns {Object}
+ */
+export function buildOpenActionParams(openAction, record) {
+    return {
+        name: openAction.action,
+        type: openAction.type,
+        resModel: record.resModel,
+        resId: record.resId,
+        resIds: record.resIds,
+        context: record.context,
+        onClose: async () => {
+            await record.model.root.load();
+        },
+    };
 }
 
 /**
@@ -366,17 +457,10 @@ export function makeModelUIHooks({
             }
         },
         onConfirmArchive(archiveFn, dialogProps = {}) {
-            const defaultProps = {
-                body: _t(
-                    "Are you sure that you want to archive all the selected records?",
-                ),
-                cancel: () => {},
-                confirm: () => {
-                    archiveFn();
-                },
-                confirmLabel: _t("Archive"),
-            };
-            dialog.add(ConfirmationDialog, { ...defaultProps, ...dialogProps });
+            dialog.add(ConfirmationDialog, {
+                ...archiveConfirmationProps(archiveFn, { multi: true }),
+                ...dialogProps,
+            });
         },
         onConfirmDuplicate(resIds, copyFn) {
             if (resIds.length > 1) {

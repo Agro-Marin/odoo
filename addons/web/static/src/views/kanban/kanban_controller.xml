@@ -25,6 +25,7 @@
                             string="button.string"
                             title="button.title"
                             attrs="button.attrs"
+                                    modifiers="button.modifiers"
                         />
                     </t>
                 </t>
@@ -44,6 +45,7 @@
                                     string="button.string"
                                     title="button.title"
                                     attrs="button.attrs"
+                                    modifiers="button.modifiers"
                                 />
                             </t>
                             <t t-if="props.info.actionMenus">
@@ -68,6 +70,7 @@
                                     string="button.string"
                                     title="button.title"
                                     attrs="button.attrs"
+                                    modifiers="button.modifiers"
                                 />
                             </DropdownItem>
                         </t>

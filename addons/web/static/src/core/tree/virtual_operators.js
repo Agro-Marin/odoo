@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/virtual_operators */
-
 /** @import { Tree, Options, Condition, Connector, Value } from "./condition_tree.js" */
 
 import {
@@ -24,9 +22,6 @@ import {
  * @param {Value} path
  */
 function splitPath(path) {
-    // A non-string path has no dotted prefix to peel off, but it is still the
-    // path: returning "" for it replaced `("amount", ">=", 1)` with
-    // `("", ">=", 1)`, a domain the server rejects as an invalid field.
     if (typeof path !== "string") {
         return { initialPath: "", lastPart: path };
     }

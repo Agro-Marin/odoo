@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/pwa/install_prompt */
-
 import { Component } from "@odoo/owl";
 import { isIOS } from "@web/core/browser/feature_detection";
 import { Dialog } from "@web/ui/dialog/dialog";

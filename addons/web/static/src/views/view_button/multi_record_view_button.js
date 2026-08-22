@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_button/multi_record_view_button */
-
 import { ViewButton } from "./view_button.js";
 
 export class MultiRecordViewButton extends ViewButton {
@@ -13,14 +11,13 @@ export class MultiRecordViewButton extends ViewButton {
     };
 
     /**
-     * @param {MouseEvent} ev
      * @param {boolean} [newWindow]
      */
-    async onClick(ev, newWindow) {
+    async execute(newWindow) {
         const { list } = this.props;
         const resIds = await list.getResIds(true);
         const clickParams = {
-            ...this.props.clickParams,
+            ...this.clickParams,
             buttonContext: {
                 active_domain: this.props.domain,
                 active_ids: resIds,

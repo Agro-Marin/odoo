@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/file_viewer/file_viewer_hook */
-
 import { onWillDestroy } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { uniqueId } from "@web/core/utils/functions";

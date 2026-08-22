@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/browser/browser */
-
 /** @type {Storage} */
 let sessionStorage;
 /** @type {Storage} */
@@ -25,6 +23,7 @@ const browserImpl = {
     AudioBufferSourceNode: window.AudioBufferSourceNode,
     AudioContext: window.AudioContext,
     AudioWorkletNode: window.AudioWorkletNode,
+    BarcodeDetector: /** @type {any} */ (window).BarcodeDetector,
     BeforeInstallPromptEvent: /** @type {any} */ (window).BeforeInstallPromptEvent,
     GainNode: window.GainNode,
     MediaStream: window.MediaStream,
@@ -47,6 +46,7 @@ const browserImpl = {
     navigator,
     Notification: window.Notification,
     open: window.open.bind(window),
+    scrollTo: window.scrollTo.bind(window),
     SharedWorker: window.SharedWorker,
     Worker: window.Worker,
     XMLHttpRequest: window.XMLHttpRequest,
@@ -118,15 +118,20 @@ Object.defineProperty(browserImpl, "location", {
     configurable: true,
 });
 
-// An accessor, not the plain copy upstream takes: the property is what
-// `hasTouch()` tests, and a facade that simply omits it answers `undefined`
-// forever, which reads as "no touch" on every device.
 Object.defineProperty(browserImpl, "ontouchstart", {
     get: () => window.ontouchstart,
     configurable: true,
 });
 Object.defineProperty(browserImpl, "innerHeight", {
     get: () => window.innerHeight,
+    configurable: true,
+});
+Object.defineProperty(browserImpl, "scrollX", {
+    get: () => window.scrollX,
+    configurable: true,
+});
+Object.defineProperty(browserImpl, "scrollY", {
+    get: () => window.scrollY,
     configurable: true,
 });
 Object.defineProperty(browserImpl, "innerWidth", {
@@ -137,10 +142,12 @@ Object.defineProperty(browserImpl, "innerWidth", {
 export const browser =
     /**
      * @type {typeof browserImpl & {
-     *  location: typeof locationFacade,
-     *  innerHeight: number,
-     *  innerWidth: number,
-     *  ontouchstart: ((this: Window, ev: TouchEvent) => any) | null | undefined,
+     * location: typeof locationFacade,
+     * innerHeight: number,
+     * innerWidth: number,
+     * scrollX: number,
+     * scrollY: number,
+     * ontouchstart: ((this: Window, ev: TouchEvent) => any) | null | undefined,
      * }}
      */ (browserImpl);
 

@@ -20,11 +20,6 @@ _URL_IGNORED_CHARS = ("\t", "\r", "\n")
 
 
 def _is_local_url(url: str | None) -> bool:
-    """Return True if *url* is a safe local redirect target.
-
-    Rejects absolute URLs, protocol-relative URLs, and empty strings
-    to prevent open-redirect vulnerabilities.
-    """
     if not url or not isinstance(url, str):
         return False
     for char in _URL_IGNORED_CHARS:
@@ -42,11 +37,9 @@ def clean_action(action: dict, env: Any) -> dict:
     if action_type == "ir.actions.act_window" and not action.get("views"):
         generate_views(action)
 
-    # Keep only fields readable on this action's type, plus any custom
-    # (non-model) properties — drop unreadable model fields.
     action_model = env[action["type"]]
     readable_fields = (
-        action_model._get_readable_fields() | action_model._get_client_only_keys()
+        action_model._get_fields_readable() | action_model._get_keys_client_only()
     )
     action_type_fields = action_model._fields.keys()
 
@@ -70,20 +63,6 @@ def clean_action(action: dict, env: Any) -> dict:
 
 
 def ensure_db(redirect: str = "/web/database/selector", db: str | None = None) -> None:
-    """Ensure a valid database is selected for the current request.
-
-    Used in ``auth="none"`` routes that still need a database.  Applies
-    heuristics in order: explicit ``db`` param > session > monodb.
-    Redirects to *redirect* (default: database selector) when no database
-    can be resolved.  Validates against ``http.db_filter()`` to prevent
-    database forgery / XSS.
-
-    :param redirect: URL to redirect to when no database is found
-    :param db: explicit database name to use (skips heuristics)
-    :raises werkzeug.exceptions.HTTPException: via redirect, both when no db
-        can be resolved and whenever the session's db cookie needs to be
-        (re)set for a db that *was* resolved
-    """
     if db is None:
         db = (raw_db := request.params.get("db")) and raw_db.strip()
 
@@ -118,18 +97,6 @@ def ensure_db(redirect: str = "/web/database/selector", db: str | None = None) -
 
 
 def generate_views(action: dict) -> None:
-    """Fill in the ``views`` key of a custom action dictionary that lacks one.
-
-    ``ir.actions.act_window`` records get ``views`` from the database, but a
-    button or server action can build an action dict on the fly without it.
-    The web client relies on ``action['views']``, so derive it here from
-    ``view_mode`` and ``view_id``.
-
-    Handles two cases: no view_id with multiple view_mode, or a single
-    view_id with a single view_mode.
-
-    :param dict action: action descriptor dictionary to generate a views key for
-    """
     view_id = action.get("view_id") or False
     if isinstance(view_id, (list, tuple)):
         view_id = view_id[0]
@@ -150,20 +117,6 @@ def generate_views(action: dict) -> None:
 
 
 def get_action(env: Any, path_part: str) -> Any:
-    """Resolve an action from a URL path segment.
-
-    Accepted formats:
-    * ``action-<id>`` — record id
-    * ``action-<xmlid>`` — XML id
-    * ``m-<model>`` — model name (act_window's res_model)
-    * ``<dotted.model>`` — model name
-    * ``<path>`` — ir.actions path
-
-    The path branch reads ``ir.actions.path``, one indexed row per pathed
-    action, rather than scanning the six tables of the ``ir_actions``
-    inheritance tree; it is also the table whose unique index is what stops
-    two actions from answering to the same URL.
-    """
     Actions = env["ir.actions.actions"]
 
     if path_part.startswith("action-"):
@@ -199,7 +152,7 @@ def get_action(env: Any, path_part: str) -> Any:
         )
 
     if action and action._name == "ir.actions.actions":
-        action = action._as_concrete()
+        action = action._get_action_concrete()
 
     return action
 
@@ -207,18 +160,6 @@ def get_action(env: Any, path_part: str) -> Any:
 def get_action_triples(
     env: Any, path: str, *, start_pos: int = 0
 ) -> Iterator[tuple[int | None, Any, int | None]]:
-    """
-    Extract the triples (active_id, action, record_id) from a "/odoo"-like path.
-
-    >>> env = ...
-    >>> list(get_action_triples(env, "/all-tasks/5/project.project/1/tasks"))
-    [
-        # active_id, action,                     record_id
-        ( None,      ir.actions.act_window(...), 5         ), # all-tasks
-        ( 5,         ir.actions.act_window(...), 1         ), # project.project
-        ( 1,         ir.actions.act_window(...), None      ), # tasks
-    ]
-    """
     parts = collections.deque(path.strip("/").split("/"))
     active_id = None
     record_id = None
@@ -248,7 +189,6 @@ def get_action_triples(
 
 
 def _get_login_redirect_url(uid: int, redirect: str | None = None) -> str:
-    """Return the post-login redirect URL, accounting for a partial (MFA) session."""
     if request.session.uid:
         if redirect and _is_local_url(redirect):
             return redirect
@@ -269,12 +209,10 @@ def _get_login_redirect_url(uid: int, redirect: str | None = None) -> str:
 
 
 def is_user_internal(uid: int) -> bool:
-    """Check if a user is an internal (employee) user."""
     return request.env["res.users"].browse(uid)._is_internal()
 
 
 def _local_web_translations(trans_file: str) -> list[dict[str, str]] | None:
-    """Parse a .po file and extract JavaScript translation entries."""
     try:
         with file_open(trans_file, filter_ext=(".po")) as t_file:
             po = babel.messages.pofile.read_po(t_file)

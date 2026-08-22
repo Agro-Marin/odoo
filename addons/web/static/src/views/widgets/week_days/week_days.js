@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/widgets/week_days/week_days */
-
 import { Component } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { localization } from "@web/core/l10n/localization";
@@ -47,9 +45,6 @@ export class WeekDays extends Component {
 /** @type {import("registries").ViewWidgetsRegistryItemShape} */
 export const weekDays = {
     component: WeekDays,
-    // The widget toggles these seven fields, so it owns them when it is what
-    // brings them into the view -- but a `readonly: false` dependency would
-    // also strip an arch `readonly=` from them, which is not this widget's call.
     fieldDependencies: [
         { name: "sun", type: "boolean", string: _t("Sun"), written: true },
         { name: "mon", type: "boolean", string: _t("Mon"), written: true },

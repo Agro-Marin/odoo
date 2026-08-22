@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/action_loader */
-
 import { markup } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
 import { rpc } from "@web/core/network/rpc";
@@ -13,7 +11,9 @@ import { isHtmlEmpty } from "@web/core/utils/dom/html";
 
 const actionRegistry = registry.category("actions");
 
-/** @import { Action, ActionDescription, ActionManager, ActionRequest, Context, Controller } from "./action_service.js" */
+/**
+ * @import { Action, ActionDescription, ActionManager, ActionRequest, Context, Controller } from "./action_service.js"
+ */
 
 /**
  * @param {string | number} key
@@ -92,10 +92,8 @@ export function preprocessAction(action, context, am) {
         typeof domain === "string"
             ? evaluateExpr(domain, { ...user.context, ...action.context })
             : domain;
-    if (action.help) {
-        if (isHtmlEmpty(action.help)) {
-            delete action.help;
-        }
+    if (action.help && isHtmlEmpty(action.help)) {
+        delete action.help;
     }
     action.jsId = `action_${am._nextId()}`;
     if (
@@ -115,7 +113,17 @@ export function preprocessAction(action, context, am) {
             const searchViewId = action.search_view_id
                 ? action.search_view_id[0]
                 : false;
-            action.views.push([searchViewId, "search"]);
+            const [declaredSearch] = action.views.filter((v) => v[1] === "search");
+            if (!declaredSearch) {
+                action.views.push([searchViewId, "search"]);
+            } else {
+                if (action.search_view_id) {
+                    declaredSearch[0] = searchViewId;
+                }
+                action.views = action.views.filter(
+                    (v) => v[1] !== "search" || v === declaredSearch,
+                );
+            }
         }
         if (action.context && "no_breadcrumbs" in action.context) {
             action._noBreadcrumbs = action.context.no_breadcrumbs;

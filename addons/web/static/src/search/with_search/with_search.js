@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/with_search/with_search */
-
 import { Component, onWillStart, onWillUpdateProps, toRaw, useSubEnv } from "@odoo/owl";
 import { getDefaultDomain } from "@web/components/domain_selector/utils";
 import { DomainSelectorDialog } from "@web/components/domain_selector_dialog/domain_selector_dialog";

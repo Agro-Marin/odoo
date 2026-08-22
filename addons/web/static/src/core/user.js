@@ -13,10 +13,6 @@ import { Cache } from "@web/core/utils/collections/cache";
 import { session } from "@web/session";
 
 /**
- * @module user
- */
-
-/**
  * @typedef {Object} UserCompany
  * @property {number} id
  * @property {string} [name]
@@ -58,6 +54,11 @@ import { session } from "@web/session";
 
 export const userBus = new EventBus();
 
+/**
+ * @type {number}
+ */
+export const SUPERUSER_ID = 1;
+
 /** @returns {number[]} */
 function getCookieCompanyIds() {
     const cids = cookie.get("cids");
@@ -67,10 +68,6 @@ function getCookieCompanyIds() {
     return [];
 }
 
-/**
- * Session keys that `_makeUser` folds into `user` and that are then removed
- * from the session singleton, so there is exactly one place to read them.
- */
 const USER_KEYS_OWNED_BY_USER = [
     "home_action_id",
     "is_admin",
@@ -228,12 +225,6 @@ export function _makeUser(session) {
     const lang = pyToJsLocale(context?.lang);
 
     return {
-        /**
-         * Invalidation is driven by the single module-level subscription below,
-         * dispatching through the live `user` binding. Subscribing from here
-         * instead would add one permanent listener to the module-global
-         * `userBus` per `_makeUser` call, and tests build throwaway users.
-         */
         _onActiveCompaniesChanged() {
             groupCache.invalidate();
             seedGroupCache();
@@ -363,15 +354,6 @@ export function _makeUser(session) {
 
 export const user = _makeUser(session);
 
-// Stripped HERE, not inside `_makeUser`, which used to `delete` these off the
-// object handed to it. Two things were wrong with that. The function takes a
-// session as a parameter and then mutated it, so it was not idempotent -- a
-// second call saw a session the first had already gutted -- and every test
-// calling `_makeUser({user_context: {...}})` had its own literal emptied as a
-// side effect. Doing it at module scope keeps the intent, which is that these
-// keys are read once and thereafter belong to `user`: reaching for
-// `session.uid` after boot should find nothing, so that the one true answer is
-// `user.userId`.
 for (const key of USER_KEYS_OWNED_BY_USER) {
     delete session[key];
 }

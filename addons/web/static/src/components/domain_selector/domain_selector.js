@@ -1,14 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/domain_selector/domain_selector */
-
 import { Component, onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { getDomainDisplayedOperators } from "@web/components/domain_selector/domain_selector_operator_editor";
 import { ModelFieldSelector } from "@web/components/model_field_selector/model_field_selector";
-import { TreeEditor } from "@web/components/tree_editor/tree_editor";
-import { getOperatorEditorInfo } from "@web/components/tree_editor/tree_editor_operator_editor";
+import { getOperatorEditorInfo, TreeEditor } from "@web/components/tree_editor";
 import { Domain } from "@web/core/domain";
 import { _t } from "@web/core/translation";
 import {
@@ -18,6 +15,7 @@ import {
     formatValue,
 } from "@web/core/tree/condition_tree";
 import { domainFromTree } from "@web/core/tree/domain_from_tree";
+import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 
 import { getDefaultCondition } from "./utils.js";
@@ -61,6 +59,13 @@ export class DomainSelector extends Component {
         this.tree = null;
         this.showArchivedCheckbox = false;
         this.state = useState({ includeArchived: false });
+        // Same guard, same reason, as `TreeEditor.prepareInfo`: `onPropsUpdated`
+        // awaits two loads and then writes `this.tree`, and owl will start a
+        // second `onWillUpdateProps` while the first is still pending. Without
+        // this the two land in the order they resolved rather than the order
+        // they were asked for, and the editor shows a tree the `domain` prop no
+        // longer describes.
+        this.keepLastTree = new KeepLast({ rejectSuperseded: true });
 
         onWillStart(() => this.onPropsUpdated(this.props));
         onWillUpdateProps((np) => this.onPropsUpdated(np));
@@ -75,20 +80,34 @@ export class DomainSelector extends Component {
             isSupported = false;
         }
         if (!isSupported) {
+            // Cancel too, or an older load still in flight resolves after this
+            // and puts a tree back on an unparseable domain.
+            this.keepLastTree.cancel();
             this.tree = null;
             this.showArchivedCheckbox = false;
             this.state.includeArchived = false;
             return;
         }
 
-        const [tree, { fieldDef: activeFieldDef }] = await Promise.all([
-            this.treeProcessor.treeFromDomain(
-                p.resModel,
-                /** @type {any} */ (domain),
-                !p.isDebugMode,
-            ),
-            this.fieldService.loadFieldInfo(p.resModel, "active"),
-        ]);
+        let loaded;
+        try {
+            loaded = await this.keepLastTree.add(
+                Promise.all([
+                    this.treeProcessor.treeFromDomain(
+                        p.resModel,
+                        /** @type {any} */ (domain),
+                        !p.isDebugMode,
+                    ),
+                    this.fieldService.loadFieldInfo(p.resModel, "active"),
+                ]),
+            );
+        } catch (error) {
+            if (error instanceof SupersededError) {
+                return;
+            }
+            throw error;
+        }
+        const [tree, { fieldDef: activeFieldDef }] = loaded;
 
         this.tree = tree;
         this.showArchivedCheckbox = this.getShowArchivedCheckBox(

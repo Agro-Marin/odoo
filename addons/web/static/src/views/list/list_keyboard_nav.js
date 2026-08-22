@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_keyboard_nav */
-
 import { ModelEvent, SearchModelEvent } from "@web/core/events";
 import { getTabableElements } from "@web/core/utils/dom/ui";
 import { useBus } from "@web/core/utils/hooks";
@@ -18,6 +16,27 @@ import {
 import { makeEditHandlers } from "./list_keyboard_edit.js";
 
 const MAX_VIRT_FOCUS_RETRIES = 20;
+
+/**
+ * @typedef {{
+ * lastEditedCell: { column: any, record: any } | null,
+ * cellToFocus: { column: any, record: any, forward?: boolean } | null,
+ * lastIsDirty: boolean,
+ * readonly pendingVirtFocus: { rowIndex: number, colIndex: number, recordId?: string, retries?: number, origin?: any } | null,
+ * resolvePendingVirtFocus: () => void,
+ * clearPendingVirtFocus: () => void,
+ * setPendingVirtFocusOrigin: (cell: HTMLTableCellElement, cellIsInGroupRow: boolean, direction: Direction) => void,
+ * focus: (el: HTMLElement) => void,
+ * findFocusMove: (cell: HTMLTableCellElement, cellIsInGroupRow: boolean, direction: Direction) => ({ el: HTMLElement } | { pending: true } | null),
+ * findFocusFutureCell: (cell: HTMLTableCellElement, cellIsInGroupRow: boolean, direction: Direction) => HTMLElement | null,
+ * findNextFocusableOnRow: (row: HTMLElement, cell?: HTMLTableCellElement) => HTMLElement | null,
+ * findPreviousFocusableOnRow: (row: HTMLElement, cell?: HTMLTableCellElement) => HTMLElement | null,
+ * toggleFocusInsideCell: (hotkey: string, cell: HTMLTableCellElement) => boolean,
+ * resolveArrowMove: (cell: HTMLTableCellElement, cellIsInGroupRow: boolean, direction: Direction) => HTMLElement | true | null,
+ * onCellKeydownReadOnlyMode: (hotkey: string, cell: HTMLTableCellElement, group: any, record: any) => boolean,
+ * } & import("./list_keyboard_edit").ListEditHandlers} ListKeyboardNavigation
+ * @typedef {"up" | "down" | "left" | "right"} Direction
+ */
 
 /**
  * @param {Element} row
@@ -48,6 +67,82 @@ function nearestCellOnRow(row, colIndex, direction) {
 }
 
 /**
+ * @param {Element} row
+ * @param {"up" | "down"} direction
+ * @returns {Element | null | undefined}
+ */
+function adjacentRow(row, direction) {
+    if (direction === "up") {
+        return (
+            row.previousElementSibling ||
+            row.parentElement.previousElementSibling?.lastElementChild
+        );
+    }
+    return (
+        row.nextElementSibling ||
+        row.parentElement.nextElementSibling?.firstElementChild
+    );
+}
+
+/**
+ * @param {Element} row
+ * @param {number} index
+ * @param {{
+ * direction: "up" | "down",
+ * cellIsInGroupRow: boolean,
+ * lastKnownIndex: number,
+ * isHeaderRow: boolean,
+ * }} params
+ * @returns {{ cell: Element | undefined, lastKnownIndex: number,
+ * rememberColumn?: number } | undefined}
+ */
+function verticalNeighbourCell(
+    row,
+    index,
+    { direction, cellIsInGroupRow, lastKnownIndex, isHeaderRow },
+) {
+    const futureRow = adjacentRow(row, direction);
+    if (!futureRow) {
+        return undefined;
+    }
+    const addCell = [...futureRow.children].find((c) =>
+        c.classList.contains("o_group_field_row_add"),
+    );
+    const nextIsGroup = futureRow.classList.contains("o_group_header");
+    const rowTypeSwitched = cellIsInGroupRow !== nextIsGroup;
+    const isGroupToGroup = cellIsInGroupRow && nextIsGroup;
+
+    let targetIndex;
+    if (rowTypeSwitched || isGroupToGroup) {
+        targetIndex = lastKnownIndex || 0;
+    } else {
+        lastKnownIndex = index;
+    }
+    let rememberColumn;
+    if (direction === "down" && isHeaderRow) {
+        lastKnownIndex = index;
+        rememberColumn = index;
+    }
+    const defaultIndex = cellIsInGroupRow ? targetIndex : 0;
+    return {
+        cell: addCell || futureRow.children[rowTypeSwitched ? defaultIndex : index],
+        lastKnownIndex,
+        rememberColumn,
+    };
+}
+
+/**
+ * @param {HTMLTableCellElement} cell
+ * @param {1 | -1} step
+ * @returns {Element | null}
+ */
+function adjacentGroupButton(cell, step) {
+    const buttons = Array.from(cell.querySelectorAll(".o_group_buttons button"));
+    const currentButton = document.activeElement.closest("button");
+    return buttons[buttons.indexOf(currentButton) + step] || currentButton;
+}
+
+/**
  * @param {any} tableRef
  * @param {{ rowIndex: number, colIndex: number }} position
  * @param {"left" | "right"} [direction]
@@ -69,30 +164,25 @@ function focusAtPosition(tableRef, { rowIndex, colIndex }, direction) {
 }
 
 /**
- * Thirteen members read here, plus whatever `makeEditHandlers` reads off the
- * same object — this hook forwards its `ctx` straight into it. Spelling the
- * second half as `ListEditContext` rather than re-listing those members keeps
- * the two in step: widening the edit handlers' surface widens this one, with no
- * second edit and no comment to fall out of date.
- *
  * @param {any} tableRef
  * @param {Pick<
- *     import("./list_renderer").ListGridContext,
- *     | "getColumns"
- *     | "getProps"
- *     | "getEnv"
- *     | "getGridState"
- *     | "onToggleGroup"
- *     | "toggleRecordSelection"
- *     | "onOpenRecord"
- *     | "onDeleteRecord"
- *     | "isInlineEditable"
- *     | "expandCheckboxes"
- *     | "getSel"
- *     | "getVirtualization"
- *     | "findFocusFutureCell"
+ * import("./list_renderer").ListGridContext,
+ * | "getColumns"
+ * | "getProps"
+ * | "getEnv"
+ * | "getGridState"
+ * | "onToggleGroup"
+ * | "toggleRecordSelection"
+ * | "onOpenRecord"
+ * | "onDeleteRecord"
+ * | "isInlineEditable"
+ * | "expandCheckboxes"
+ * | "getSel"
+ * | "getVirtualization"
+ * | "findFocusFutureCell"
+ * | "setKeyboardNavigation"
  * > & import("./list_keyboard_edit").ListEditContext} ctx
- * @returns {any}
+ * @returns {ListKeyboardNavigation}
  */
 export function useListKeyboardNavigation(tableRef, ctx) {
     const {
@@ -112,13 +202,12 @@ export function useListKeyboardNavigation(tableRef, ctx) {
     } = ctx;
 
     /**
-     * Carries an already-computed move across the call out to the renderer's
-     * overridable `findFocusFutureCell` and back into `self.findFocusFutureCell`,
-     * so an override still gets its say without the move being computed twice.
-     * Every field is part of the identity: a re-entrant call for a different
-     * cell/row-kind/direction must recompute rather than reuse this one.
-     *
-     * @type {{ cell: HTMLTableCellElement, cellIsInGroupRow: boolean, direction: string, move: { el: HTMLElement } | { pending: true } | null } | null}
+     * @type {{
+     * cell: HTMLTableCellElement,
+     * cellIsInGroupRow: boolean,
+     * direction: string,
+     * move: { el: HTMLElement } | { pending: true } | null,
+     * } | null}
      */
     let latchedMove = null;
 
@@ -133,9 +222,7 @@ export function useListKeyboardNavigation(tableRef, ctx) {
         latchedMove =
             move === undefined ? null : { cell, cellIsInGroupRow, direction, move };
         try {
-            const findFutureCell =
-                findFocusFutureCell || ((...args) => self.findFocusFutureCell(...args));
-            return findFutureCell(cell, cellIsInGroupRow, direction);
+            return findFocusFutureCell(cell, cellIsInGroupRow, direction);
         } finally {
             latchedMove = null;
         }
@@ -283,88 +370,28 @@ export function useListKeyboardNavigation(tableRef, ctx) {
             const children = /** @type {HTMLElement[]} */ ([...row.children]);
             const index = children.indexOf(/** @type {HTMLElement} */ (cell));
             let futureCell;
-            let targetIndex;
             if (gridState?.isRTL && (direction === "left" || direction === "right")) {
                 direction = direction === "left" ? "right" : "left";
             }
-            switch (direction) {
-                case "up": {
-                    let futureRow = row.previousElementSibling;
-                    futureRow =
-                        futureRow ||
-                        row.parentElement.previousElementSibling?.lastElementChild;
-                    if (futureRow) {
-                        const addCell = [...futureRow.children].find((c) =>
-                            c.classList.contains("o_group_field_row_add"),
-                        );
-                        const nextIsGroup =
-                            futureRow.classList.contains("o_group_header");
-                        const rowTypeSwitched = cellIsInGroupRow !== nextIsGroup;
-                        const isGroupToGroup = cellIsInGroupRow && nextIsGroup;
-                        if (rowTypeSwitched || isGroupToGroup) {
-                            targetIndex = lastKnownIndex || 0;
-                        } else {
-                            lastKnownIndex = index;
-                        }
-                        const defaultIndex = cellIsInGroupRow ? targetIndex : 0;
-                        futureCell =
-                            addCell ||
-                            (futureRow &&
-                                futureRow.children[
-                                    rowTypeSwitched ? defaultIndex : index
-                                ]);
+            if (direction === "up" || direction === "down") {
+                const vertical = verticalNeighbourCell(row, index, {
+                    direction,
+                    cellIsInGroupRow,
+                    lastKnownIndex,
+                    isHeaderRow: tableRef.el.querySelector("thead tr") === row,
+                });
+                if (vertical) {
+                    futureCell = vertical.cell;
+                    lastKnownIndex = vertical.lastKnownIndex;
+                    if (vertical.rememberColumn !== undefined) {
+                        getGridState?.()?.rememberColumn(vertical.rememberColumn);
                     }
-                    break;
                 }
-                case "down": {
-                    let futureRow = row.nextElementSibling;
-                    futureRow =
-                        futureRow ||
-                        row.parentElement.nextElementSibling?.firstElementChild;
-                    if (futureRow) {
-                        const addCell = [...futureRow.children].find((c) =>
-                            c.classList.contains("o_group_field_row_add"),
-                        );
-                        const nextIsGroup =
-                            futureRow.classList.contains("o_group_header");
-                        const rowTypeSwitched = cellIsInGroupRow !== nextIsGroup;
-                        const isGroupToGroup = cellIsInGroupRow && nextIsGroup;
-                        const headerRow = tableRef.el.querySelector("thead tr");
-                        if (rowTypeSwitched || isGroupToGroup) {
-                            targetIndex = lastKnownIndex || 0;
-                        } else {
-                            lastKnownIndex = index;
-                        }
-                        const defaultIndex = cellIsInGroupRow ? targetIndex : 0;
-                        if (headerRow === row) {
-                            lastKnownIndex = index;
-                            const gs = getGridState?.();
-                            if (gs) {
-                                gs.rememberColumn(index);
-                            }
-                        }
-                        futureCell =
-                            addCell ||
-                            (futureRow &&
-                                futureRow.children[
-                                    rowTypeSwitched ? defaultIndex : index
-                                ]);
-                    }
-                    break;
-                }
-                case "left": {
-                    futureCell = children[index - 1];
-                    if (futureCell) {
-                        lastKnownIndex = index - 1;
-                    }
-                    break;
-                }
-                case "right": {
-                    futureCell = children[index + 1];
-                    if (futureCell) {
-                        lastKnownIndex = index + 1;
-                    }
-                    break;
+            } else {
+                const step = direction === "left" ? -1 : 1;
+                futureCell = children[index + step];
+                if (futureCell) {
+                    lastKnownIndex = index + step;
                 }
             }
             const el =
@@ -414,19 +441,10 @@ export function useListKeyboardNavigation(tableRef, ctx) {
         },
 
         /**
-         * Resolves an arrow-key move in one place for all four directions.
-         *
-         * A virtualized target may not be in the DOM yet; `findFocusMove` then
-         * registers a pending virtual focus as a SIDE EFFECT, which must be
-         * committed with an origin and reported as handled. Calling
-         * dispatchFutureCell directly would leave that pending focus orphaned
-         * and later steal focus.
-         *
          * @param {HTMLTableCellElement} cell
          * @param {boolean} cellIsInGroupRow
          * @param {"up"|"down"|"left"|"right"} direction
-         * @returns {HTMLElement | true | null} `true` when the move became a
-         *   pending virtual focus
+         * @returns {HTMLElement | true | null}
          */
         resolveArrowMove(cell, cellIsInGroupRow, direction) {
             const move = self.findFocusMove(cell, cellIsInGroupRow, direction);
@@ -515,45 +533,19 @@ export function useListKeyboardNavigation(tableRef, ctx) {
                     }
                     break;
                 case "tab":
-                    if (cellIsInGroupRow) {
-                        const buttons = Array.from(
-                            cell.querySelectorAll(".o_group_buttons button"),
-                        );
-                        const currentButton = document.activeElement.closest("button");
-                        const index = buttons.indexOf(currentButton);
-                        toFocus = buttons[index + 1] || currentButton;
-                    }
-                    break;
                 case "shift+tab":
                     if (cellIsInGroupRow) {
-                        const buttons = Array.from(
-                            cell.querySelectorAll(".o_group_buttons button"),
-                        );
-                        const currentButton = document.activeElement.closest("button");
-                        const index = buttons.indexOf(currentButton);
-                        toFocus = buttons[index - 1] || currentButton;
+                        toFocus = adjacentGroupButton(cell, hotkey === "tab" ? 1 : -1);
                     }
                     break;
-                case "shift+arrowdown": {
-                    if (expandCheckboxes(record, "down")) {
-                        const moved = self.resolveArrowMove(
-                            cell,
-                            cellIsInGroupRow,
-                            "down",
-                        );
-                        if (moved === true) {
-                            return true;
-                        }
-                        toFocus = moved;
-                    }
-                    break;
-                }
+                case "shift+arrowdown":
                 case "shift+arrowup": {
-                    if (expandCheckboxes(record, "up")) {
+                    const direction = hotkey === "shift+arrowdown" ? "down" : "up";
+                    if (expandCheckboxes(record, direction)) {
                         const moved = self.resolveArrowMove(
                             cell,
                             cellIsInGroupRow,
-                            "up",
+                            direction,
                         );
                         if (moved === true) {
                             return true;
@@ -616,6 +608,7 @@ export function useListKeyboardNavigation(tableRef, ctx) {
     };
 
     Object.assign(self, makeEditHandlers(self, tableRef, ctx));
+    const nav = /** @type {ListKeyboardNavigation} */ (/** @type {unknown} */ (self));
 
     const dirtyOwners = new Set();
     useBus(
@@ -632,14 +625,17 @@ export function useListKeyboardNavigation(tableRef, ctx) {
             if (getProps().list.model.useSampleModel) {
                 return;
             }
-            const nextTh = tableRef.el.querySelector("thead th");
+            const nextTh = tableRef.el?.querySelector("thead th");
+            if (!nextTh) {
+                return;
+            }
             const toFocus = /** @type {HTMLElement} */ (
                 getTabableElements(nextTh).at(0) || nextTh
             );
             self.focus(toFocus);
-            tableRef.el.querySelector("tbody").classList.add("o_keyboard_navigation");
+            ctx.setKeyboardNavigation(true);
         });
     }
 
-    return self;
+    return nav;
 }

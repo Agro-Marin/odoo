@@ -4,6 +4,7 @@ import io
 import itertools
 import logging
 from collections.abc import Callable, Iterable, Iterator
+from types import TracebackType
 from typing import Any, Self
 
 import xlsxwriter
@@ -17,8 +18,6 @@ _logger = logging.getLogger(__name__)
 def none_values_filtered[T](
     func: Callable[[Iterable[T]], T | None],
 ) -> Callable[[Iterable[T | None]], T | None]:
-    """Filter out ``None`` values before passing them to *func*."""
-
     @functools.wraps(func)
     def wrap(iterable: Iterable[T | None]) -> T | None:
         return func(v for v in iterable if v is not None)
@@ -29,12 +28,6 @@ def none_values_filtered[T](
 def allow_empty_iterable[T](
     func: Callable[[Iterable[T]], T],
 ) -> Callable[[Iterable[T]], T | None]:
-    """Return ``None`` instead of raising when the iterable is empty.
-
-    ``max``/``min`` raise ``ValueError`` on an empty iterable with no
-    default; wrap *func* so it returns ``None`` instead.
-    """
-
     @functools.wraps(func)
     def wrap(iterable: Iterable[T]) -> T | None:
         iterator = iter(iterable)
@@ -57,10 +50,6 @@ OPERATOR_MAPPING = {
 
 
 class GroupsTreeNode:
-    """An ordered tree of groups built from ``formatted_read_group`` results,
-    one leaf per group dict.
-    """
-
     def __init__(
         self,
         model: Any,
@@ -69,9 +58,7 @@ class GroupsTreeNode:
         groupby_type: list[str],
     ) -> None:
         self._model = model
-        self._export_field_names = (
-            fields
-        )
+        self._export_field_names = fields
         self._groupby = groupby
         self._groupby_type = groupby_type
 
@@ -82,7 +69,6 @@ class GroupsTreeNode:
     def _get_aggregate(
         self, field_name: str, data: Iterator[Any], aggregator: str
     ) -> Any:
-        """Compute a single aggregate value for *field_name*."""
         data = (value for value in data if value != "")
 
         if aggregator == "avg":
@@ -105,7 +91,6 @@ class GroupsTreeNode:
         )
 
     def _get_avg_aggregate(self, field_name: str, data: Iterator[Any]) -> float | None:
-        """Compute a weighted average aggregate for *field_name*."""
         if not self.count:
             return None
         aggregate_func = OPERATOR_MAPPING.get("sum")
@@ -118,7 +103,6 @@ class GroupsTreeNode:
         return aggregate_func(children_sums) / self.count
 
     def _get_aggregated_field_names(self) -> list[str]:
-        """Return field names of exported fields having a group operator."""
         aggregated_field_names = []
         for field_name in self._export_field_names:
             if field_name == ".id":
@@ -132,7 +116,6 @@ class GroupsTreeNode:
 
     @functools.cached_property
     def aggregated_values(self) -> dict[str, Any]:
-        """Return a mapping of field names to their aggregated values."""
         aggregated_values = {}
 
         field_values = zip(*self.data, strict=True)
@@ -149,12 +132,6 @@ class GroupsTreeNode:
         return aggregated_values
 
     def child(self, key: Any) -> GroupsTreeNode:
-        """Return the child identified by *key*, creating it if absent.
-
-        :param key: child key identifier (groupby value as returned by
-            formatted_read_group, usually ``(id, display_name)``)
-        :return: the child node
-        """
         if key not in self.children:
             self.children[key] = GroupsTreeNode(
                 self._model,
@@ -165,10 +142,6 @@ class GroupsTreeNode:
         return self.children[key]
 
     def insert_leaf(self, group: dict[str, Any], data: list[list[Any]]) -> None:
-        """Build a leaf from *group* and insert it in the tree.
-
-        :param group: dict as returned by ``formatted_read_group``
-        """
         leaf_path = [group.get(groupby_field) for groupby_field in self._groupby]
         count = group["__count"]
 
@@ -182,8 +155,6 @@ class GroupsTreeNode:
 
 
 class ExportXlsxWriter:
-    """Context-manager that writes rows into a single XLSX worksheet."""
-
     def __init__(
         self,
         fields: list[dict[str, Any]],
@@ -256,18 +227,16 @@ class ExportXlsxWriter:
         self,
         exc_type: type[BaseException] | None,
         exc_value: BaseException | None,
-        exc_traceback: Any,
+        exc_traceback: TracebackType | None,
     ) -> None:
         self.close()
 
     def write_header(self) -> None:
-        """Write the column header row and freeze it."""
         for i, column_header in enumerate(self.columns_headers):
             self.write(0, i, column_header, self.header_style)
         self.worksheet.freeze_panes(1, 0)
 
     def close(self) -> None:
-        """Finalize the workbook and capture the output bytes."""
         self.worksheet.autofit()
         self.workbook.close()
         with self.output:
@@ -292,7 +261,6 @@ class ExportXlsxWriter:
             )
 
     def write_cell(self, row: int, column: int, cell_value: Any) -> None:
-        """Write a data cell with automatic style detection."""
         cell_style = self.base_style
 
         if isinstance(cell_value, bytes):
@@ -329,8 +297,6 @@ class ExportXlsxWriter:
 
 
 class GroupExportXlsxWriter(ExportXlsxWriter):
-    """XLSX writer that renders grouped export data with headers and aggregates."""
-
     def write_group(
         self,
         row: int,
@@ -339,7 +305,6 @@ class GroupExportXlsxWriter(ExportXlsxWriter):
         group: GroupsTreeNode,
         group_depth: int = 0,
     ) -> tuple[int, int]:
-        """Write a group header and its children/data rows."""
         group_name = (
             group_name[1]
             if isinstance(group_name, tuple) and len(group_name) > 1
@@ -374,7 +339,6 @@ class GroupExportXlsxWriter(ExportXlsxWriter):
         group: GroupsTreeNode,
         group_depth: int = 0,
     ) -> tuple[int, int]:
-        """Write a group header row with aggregated values."""
         aggregates = group.aggregated_values
 
         label = f"{'    ' * group_depth}{label} ({group.count})"
@@ -387,9 +351,7 @@ class GroupExportXlsxWriter(ExportXlsxWriter):
                 first_aggregate = f"{first_aggregate:,.2f}"
             label = f"{label} — {first_aggregate}"
         self.write(row, column, label, self.header_bold_style)
-        for field in self.fields[
-            1:
-        ]:
+        for field in self.fields[1:]:
             column += 1
             aggregated_value = aggregates.get(field["name"])
             header_style = self.header_bold_style

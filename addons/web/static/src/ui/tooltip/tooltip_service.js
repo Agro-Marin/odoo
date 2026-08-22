@@ -1,28 +1,35 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/tooltip/tooltip_service */
-
 import { whenReady } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { registry } from "@web/core/registry";
+import { warnUnknownOptions } from "@web/ui/overlay/presenter";
 import { watchForDetachedTarget } from "@web/ui/popover/detached_target_watcher";
 import { Tooltip } from "@web/ui/tooltip/tooltip";
 
 export const OPEN_DELAY = 400;
 export const SHOW_AFTER_DELAY = 250;
 
+const TOOLTIP_PARAMS = new Set(["delay", "info", "position", "template", "tooltip"]);
+
 let nextTooltipId = 1;
 
+const TOOLTIP_HOLDER_SELECTOR = "[data-tooltip], [data-tooltip-template]";
+
 /**
- * The one tooltip the service is currently tracking: the element it belongs to,
- * everything borrowed from that element, and everything scheduled against it.
- *
- * One object rather than seven parallel `let`s, so "nothing is being tracked"
- * is a single state instead of seven that a hand-written `cleanup` has to reset
- * together, in the right order, on every exit path.
+ * @param {EventTarget | Node | null} node
+ * @returns {HTMLElement | null}
  */
+function tooltipHolderOf(node) {
+    const el = /** @type {Element | null} */ (node);
+    if (!el || el.nodeType !== Node.ELEMENT_NODE) {
+        return null;
+    }
+    return /** @type {HTMLElement | null} */ (el.closest(TOOLTIP_HOLDER_SELECTOR));
+}
+
 class TrackedTooltip {
     /**
      * @param {HTMLElement} el
@@ -40,15 +47,13 @@ class TrackedTooltip {
 
         this.borrowedTitle = el.getAttribute("title");
         if (this.borrowedTitle !== null) {
-            // Held, not shared: the native tooltip would otherwise show
-            // alongside ours.
             el.removeAttribute("title");
         }
         /** @type {(() => void) | null} */
         this.unwatch = watchForDetachedTarget(el, onDetached);
     }
 
-    /** @returns {string} the id the tooltip element must carry */
+    /** @returns {string} */
     describe() {
         const tooltipId = `o_tooltip_${nextTooltipId++}`;
         this.borrowedDescribedBy = this.el.getAttribute("aria-describedby");
@@ -62,10 +67,6 @@ class TrackedTooltip {
         return tooltipId;
     }
 
-    /**
-     * Gives back everything borrowed and cancels everything scheduled. Safe to
-     * call more than once.
-     */
     release() {
         if (this.borrowedTitle !== null) {
             this.el.setAttribute("title", this.borrowedTitle);
@@ -84,30 +85,13 @@ class TrackedTooltip {
         this.unwatch = null;
         browser.clearTimeout(this.openTimeout);
         this.openTimeout = null;
-        // Nulled before the call: closing the popover re-enters the service's
-        // `onClose`, which must not see this tooltip as still tracked.
         const closePopover = this.closePopover;
         this.closePopover = null;
         closePopover?.();
     }
 }
 
-/**
- * The `tooltip` service.
- *
- * A class rather than a closure returning an object literal; see
- * `core/hotkeys/hotkey_service.js` for the reasoning and
- * `tooling/architecture/js_service_shape.py` for the budget.
- *
- * As in `hotkey_service`, the body listeners are registered as arrow wrappers
- * calling `this.<handler>(ev)` rather than as bare method references. Passing
- * the method itself would bind the pre-patch function into `addEventListener`,
- * so a later `patch(TooltipService.prototype, { onMouseenter() {…} })` would
- * never be reached — the seam defeated by its own setup. The wrapper keeps one
- * stable reference for `removeEventListener` while resolving the handler
- * through the prototype on every event.
- */
-export class TooltipService {
+class TooltipService {
     /**
      * @param {{ popover: any }} services
      */
@@ -161,8 +145,6 @@ export class TooltipService {
     }
 
     cleanup() {
-        // Detached before released, so the re-entrant `onClose` that closing
-        // the popover triggers sees no tracked tooltip and stops there.
         const released = this.tracked;
         this.tracked = null;
         released?.release();
@@ -213,12 +195,10 @@ export class TooltipService {
      * @param {HTMLElement} el
      */
     openElementsTooltip(el) {
-        if (el.nodeType === Node.TEXT_NODE) {
+        const element = tooltipHolderOf(el);
+        if (!element && !this.elementsWithTooltips.has(el)) {
             return;
         }
-        const element = /** @type {HTMLElement | null} */ (
-            el.closest("[data-tooltip], [data-tooltip-template]")
-        );
         if (this.tracked && (this.tracked.el === el || this.tracked.el === element)) {
             return;
         }
@@ -238,11 +218,6 @@ export class TooltipService {
                 } catch {}
             }
             if (dataset.tooltipDelay) {
-                // A hand-authored attribute, so a typo is a real outcome:
-                // `parseInt` answers NaN for one and `setTimeout(NaN)`
-                // fires on the next tick, which turned a malformed delay
-                // into an INSTANT tooltip rather than the default one. A
-                // negative value lands the same way.
                 const delay = Number.parseInt(dataset.tooltipDelay, 10);
                 if (Number.isFinite(delay) && delay >= 0) {
                     params.delay = delay;
@@ -274,10 +249,7 @@ export class TooltipService {
         if (!hasTouch()) {
             return false;
         }
-        const holder = /** @type {HTMLElement | null} */ (
-            el.closest?.("[data-tooltip], [data-tooltip-template]")
-        );
-        return Boolean(holder?.dataset.tooltipTouchTapToShow);
+        return Boolean(tooltipHolderOf(el)?.dataset.tooltipTouchTapToShow);
     }
 
     /**
@@ -322,9 +294,7 @@ export class TooltipService {
             ev.preventDefault();
             return;
         }
-        const holder = /** @type {HTMLElement | null} */ (
-            el.closest("[data-tooltip], [data-tooltip-template]")
-        );
+        const holder = tooltipHolderOf(el);
         if (holder && !holder.dataset.tooltipTouchTapToShow) {
             browser.clearTimeout(this.showTimer);
             if (this.tracked?.openTimeout) {
@@ -351,6 +321,7 @@ export class TooltipService {
      * @returns {() => void}
      */
     add(el, params) {
+        warnUnknownOptions("tooltip", params, TOOLTIP_PARAMS);
         this.elementsWithTooltips.set(el, params);
         return () => {
             this.elementsWithTooltips.delete(el);
@@ -370,7 +341,7 @@ export class TooltipService {
     }
 }
 
-export const tooltipService = {
+const tooltipService = {
     dependencies: ["popover"],
     /**
      * @param {import("@web/env").OdooEnv} env

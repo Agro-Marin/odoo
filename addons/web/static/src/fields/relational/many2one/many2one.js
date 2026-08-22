@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/many2one/many2one */
-
 import { Component, toRaw, useRef, useState } from "@odoo/owl";
 import { BarcodeScanner } from "@web/components/barcode/barcode_dialog";
 import { isBarcodeScannerSupported } from "@web/components/barcode/barcode_video_scanner";
@@ -11,6 +9,7 @@ import { isMobileOS } from "@web/core/browser/feature_detection";
 import { makeContext } from "@web/core/context";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
+import { shallowEqual } from "@web/core/utils/collections/objects";
 import { useService } from "@web/core/utils/hooks";
 import { getFieldDomain } from "@web/model/relational_model/utils";
 import { usePopover } from "@web/ui/popover/popover_hook";
@@ -29,6 +28,48 @@ export function extractData(record) {
         name = record.name?.id ? record.name.display_name : record.name;
     }
     return { id: record.id, display_name: name };
+}
+
+/**
+ * @type {WeakMap<object, Map<string, { latest: any, stable: any, props: any }>>}
+ */
+const M2O_PROPS = new WeakMap();
+
+/**
+ * @param {Object} fieldProps
+ * @returns {{ latest: any, stable: any, props: any }}
+ */
+function m2oHolder(fieldProps) {
+    const { record, name } = fieldProps;
+    let byName = M2O_PROPS.get(record);
+    if (!byName) {
+        byName = new Map();
+        M2O_PROPS.set(record, byName);
+    }
+    let holder = byName.get(name);
+    if (!holder) {
+        holder = { latest: fieldProps, stable: null, props: null };
+        holder.stable = {
+            domain: () =>
+                getFieldDomain(
+                    holder.latest.record,
+                    holder.latest.name,
+                    holder.latest.domain,
+                ),
+            openActionContext: () => {
+                const { context, name, openActionContext, record } = holder.latest;
+                return makeContext(
+                    [openActionContext || context, record.fields[name].context],
+                    record.evalContext,
+                );
+            },
+            update: (value, options = {}) =>
+                holder.latest.record.update({ [holder.latest.name]: value }, options),
+        };
+        byName.set(name, holder);
+    }
+    holder.latest = fieldProps;
+    return holder;
 }
 
 /**
@@ -51,7 +92,9 @@ export function computeM2OProps(fieldProps) {
         return "";
     };
 
-    return {
+    const holder = m2oHolder(fieldProps);
+    const fresh = {
+        ...holder.stable,
         canCreate: fieldProps.canCreate,
         canCreateEdit: fieldProps.canCreateEdit,
         canOpen: fieldProps.canOpen,
@@ -59,18 +102,9 @@ export function computeM2OProps(fieldProps) {
         canScanBarcode: fieldProps.canScanBarcode,
         canWrite: fieldProps.canWrite,
         context: fieldProps.context,
-        domain: () =>
-            getFieldDomain(fieldProps.record, fieldProps.name, fieldProps.domain),
         id: fieldProps.id,
         linkCssClass: computeLinkCssClass(),
         nameCreateField: fieldProps.nameCreateField,
-        openActionContext: () => {
-            const { context, name, openActionContext, record } = fieldProps;
-            return makeContext(
-                [openActionContext || context, record.fields[name].context],
-                record.evalContext,
-            );
-        },
         placeholder: fieldProps.placeholder,
         readonly: fieldProps.readonly,
         relation: fieldProps.record.fields[fieldProps.name].relation,
@@ -78,10 +112,13 @@ export function computeM2OProps(fieldProps) {
         searchThreshold: fieldProps.searchThreshold,
         string:
             fieldProps.string || fieldProps.record.fields[fieldProps.name].string || "",
-        update: (value, options = {}) =>
-            fieldProps.record.update({ [fieldProps.name]: value }, options),
         value: toRaw(fieldProps.record.data[fieldProps.name]),
     };
+    if (holder.props && shallowEqual(holder.props, fresh)) {
+        return holder.props;
+    }
+    holder.props = fresh;
+    return fresh;
 }
 
 export class Many2One extends Component {
@@ -428,7 +465,7 @@ export class KanbanMany2One extends Component {
 
     setup() {
         this.assignPopover = usePopover(KanbanMany2OneAssignPopover, {
-            popoverClass: "o_m2o_tags_avatar_field_popover",
+            class: "o_m2o_tags_avatar_field_popover",
         });
     }
 

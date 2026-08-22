@@ -1,16 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/env */
-
-import { App, EventBus } from "@odoo/owl";
+import { App, Component, EventBus } from "@odoo/owl";
 import { isMacOS } from "@web/core/browser/feature_detection";
 import { reportJsError } from "@web/core/errors/error_beacon";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { getTemplate } from "@web/core/templates";
 import { appTranslateFn } from "@web/core/translation";
-import { makeAssetLog } from "@web/core/utils/asset_log";
+import { componentLog, makeAssetLog, serviceLog } from "@web/core/utils/asset_log";
 import {
     createWaveResolver,
     findDependencyCycle,
@@ -22,12 +20,12 @@ const log = makeAssetLog("env");
 
 /**
  * @typedef {{
- *  bus: EventBus;
- *  debug: string;
- *  services: import("services").ServiceFactories;
- *  readonly isSmall: boolean;
- *  config?: Record<string, any>;
- *  [key: string]: any;
+ * bus: EventBus;
+ * debug: string;
+ * services: import("services").ServiceFactories;
+ * readonly isSmall: boolean;
+ * config?: Record<string, any>;
+ * [key: string]: any;
  * }} OdooEnv
  */
 
@@ -190,30 +188,12 @@ async function _startServices(env, toStart) {
 
     let _wave = 0;
     /**
-     * Beacon a service that never started.
-     *
-     * Both call sites below deliberately swallow the failure — the app boots
-     * without the service and its dependents are skipped — so nothing else
-     * reaches the window's error hooks and the server never hears about it.
-     * That silence is what this repairs: a whole class of client failure was
-     * only ever visible to someone with the console open.
-     *
-     * The failing ``error`` is passed as the ``cause`` rather than
-     * ``error.cause``: the message already says which service died, and what a
-     * reader needs next is why — ``TypeError: Cannot read properties of
-     * undefined (reading 'subscribe')`` — plus that error's own chain. Passing
-     * ``error.cause`` would skip exactly that line, which is usually the
-     * whole diagnosis.
-     *
-     * Reporting only the failing service, never the dependents that get
-     * skipped afterwards: one base service can strand dozens, and they are all
-     * consequences of the same fact.
-     *
-     * @param {string} name service that failed
-     * @param {"sync" | "async"} mode which arm of the start caught it
-     * @param {unknown} error whatever ``start()`` threw or rejected with
+     * @param {string} name
+     * @param {"sync" | "async"} mode
+     * @param {unknown} error
      */
     function _reportServiceFailure(name, mode, error) {
+        serviceLog("failed", name, mode);
         reportJsError({
             kind: "service_start",
             message: `service "${name}" failed to start (${mode})`,
@@ -259,10 +239,12 @@ async function _startServices(env, toStart) {
                 SERVICES_METADATA[name] = service.async;
             }
             waveStarted.push(name);
+            serviceLog("start", name, service.dependencies || []);
             proms.push(
                 Promise.resolve(value).then(
                     (val) => {
                         services[name] = val ?? null;
+                        serviceLog("started", name);
                         resolver.propagate(name);
                     },
                     (error) => {
@@ -409,11 +391,14 @@ export const globalValues = {
 };
 
 /**
- * @param {import("@odoo/owl").Component} component
- * @param {HTMLElement} target
- * @param {Partial<ConstructorParameters<typeof App>[1]>} [appConfig]
+ * @param {import("@odoo/owl").ComponentConstructor} component
+ * @param {HTMLElement | ShadowRoot} target
+ * @param {Partial<ConstructorParameters<typeof App>[1]> & {
+ *  beforeMount?: (env: OdooEnv) => void | Promise<void>
+ * }} [appConfig]
  */
 export async function mountComponent(component, target, appConfig = {}) {
+    const { beforeMount, ...owlConfig } = appConfig;
     let { env } = appConfig;
     const isRoot = !env;
     log(
@@ -422,13 +407,13 @@ export async function mountComponent(component, target, appConfig = {}) {
         "isRoot=",
         isRoot,
         "target=",
-        target.tagName || target,
+        "tagName" in target ? target.tagName : "#shadow-root",
     );
     if (isRoot) {
         env = makeEnv();
         await startServices(/** @type {OdooEnv} */ (env));
     }
-    const app = new App(/** @type {any} */ (component), {
+    const app = new App(component, {
         env,
         getTemplate,
         dev: /** @type {any} */ (env).debug || session.test_mode,
@@ -438,8 +423,13 @@ export async function mountComponent(component, target, appConfig = {}) {
         translateFn: appTranslateFn,
         customDirectives,
         globalValues,
-        ...appConfig,
+        ...owlConfig,
     });
+    if (isRoot) {
+        Component.env = app.env;
+    }
+    await beforeMount?.(/** @type {OdooEnv} */ (app.env));
+    componentLog("mount", component.name || "anon", "isRoot=", isRoot);
     const root = await app.mount(target);
     if (isRoot) {
         /** @type {any} */ (odoo).__WOWL_DEBUG__ = { root };

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/fields/settings_binary_field/settings_binary_field */
-
 import { registerField } from "@web/fields/_registry";
 import { BinaryField, binaryField } from "@web/fields/media/binary/binary_field";
 export class SettingsBinaryField extends BinaryField {

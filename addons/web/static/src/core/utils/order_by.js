@@ -1,12 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/order_by */
-
 /**
  * @typedef {{
- *  name: string;
- *  asc?: boolean;
+ * name: string;
+ * asc?: boolean;
  * }} OrderTerm
  */
 
@@ -25,19 +23,9 @@ export class InvalidOrderError extends Error {
 }
 
 /**
- * Mirrors the server's own rule (``models._check_qorder``): a comma-separated
- * list of field names, each optionally followed by ``asc`` or ``desc``.
- *
- * Anything else throws rather than being coerced. Silently accepting it used to
- * produce two distinct failures: an empty term round-tripped through
- * ``orderByToString`` as ``" ASC"``, which the server rejects with
- * ``ValueError: Invalid field 'ASC'`` instead of its own readable message; and
- * an unrecognised direction word was read as DESC, so ``"id ASCENDING"``
- * silently reversed the sort the server would have refused outright.
- *
  * @param {string | null | undefined | false} string
  * @return {OrderTerm[]}
- * @throws {InvalidOrderError} on an empty term or an unrecognised direction
+ * @throws {InvalidOrderError}
  */
 export function stringToOrderBy(string) {
     if (!string) {

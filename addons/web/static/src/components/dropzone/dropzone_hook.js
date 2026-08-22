@@ -1,11 +1,40 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/dropzone/dropzone_hook */
-
 import { onWillDestroy, useEffect, useExternalListener } from "@odoo/owl";
 import { Dropzone } from "@web/components/dropzone/dropzone";
 import { useService } from "@web/core/utils/hooks";
+
+/**
+ * @param {DragEvent} ev
+ * @returns {boolean}
+ */
+function carriesFiles(ev) {
+    return Boolean(ev.dataTransfer?.types.includes("Files"));
+}
+
+/**
+ * @param {() => void} onWindowDrop
+ */
+function useSuppressWindowFileDrop(onWindowDrop) {
+    useExternalListener(window, "dragover", (ev) => {
+        if (carriesFiles(ev)) {
+            ev.preventDefault();
+        }
+    });
+    useExternalListener(
+        window,
+        "drop",
+        (ev) => {
+            if (carriesFiles(ev)) {
+                ev.preventDefault();
+            }
+            onWindowDrop();
+        },
+        { capture: true },
+    );
+}
+
 /**
  * @param {any} targetRef
  * @param {import("@odoo/owl").ComponentConstructor} dropzoneComponent
@@ -28,23 +57,10 @@ export function useCustomDropzone(
 
     useExternalListener(document, "dragenter", onDragEnter, { capture: true });
     useExternalListener(document, "dragleave", onDragLeave, { capture: true });
-    useExternalListener(window, "dragover", (ev) => {
-        if (ev.dataTransfer && ev.dataTransfer.types.includes("Files")) {
-            ev.preventDefault();
-        }
+    useSuppressWindowFileDrop(() => {
+        dragCount = 0;
+        updateDropzone();
     });
-    useExternalListener(
-        window,
-        "drop",
-        (ev) => {
-            if (ev.dataTransfer && ev.dataTransfer.types.includes("Files")) {
-                ev.preventDefault();
-            }
-            dragCount = 0;
-            updateDropzone();
-        },
-        { capture: true },
-    );
 
     function updateDropzone() {
         const hasDropzone = !!removeDropzone;
@@ -65,17 +81,21 @@ export function useCustomDropzone(
     }
 
     function onDragEnter(/** @type {DragEvent} */ ev) {
-        if (dragCount || (ev.dataTransfer && ev.dataTransfer.types.includes("Files"))) {
+        if (dragCount || carriesFiles(ev)) {
             dragCount++;
             updateDropzone();
         }
     }
 
-    function onDragLeave() {
-        if (dragCount) {
-            dragCount--;
-            updateDropzone();
+    /**
+     * @param {DragEvent} [ev]
+     */
+    function onDragLeave(ev) {
+        if (!dragCount) {
+            return;
         }
+        dragCount = ev && !ev.relatedTarget ? 0 : dragCount - 1;
+        updateDropzone();
     }
 
     useEffect(

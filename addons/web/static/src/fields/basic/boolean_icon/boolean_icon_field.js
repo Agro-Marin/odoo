@@ -1,15 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/boolean_icon/boolean_icon_field */
-
-import { Component } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
-import { fieldHandle } from "@web/fields/field_handle";
+import { FieldComponent } from "@web/fields/field_component";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-export class BooleanIconField extends Component {
+export class BooleanIconField extends FieldComponent {
     static template = "web.BooleanIconField";
     static props = {
         ...standardFieldProps,
@@ -19,11 +16,6 @@ export class BooleanIconField extends Component {
     static defaultProps = {
         icon: "fa-regular fa-square-check",
     };
-
-    /** @returns {import("@web/fields/field_handle").FieldHandle} */
-    get field() {
-        return fieldHandle(this);
-    }
 
     update() {
         if (this.props.readonly) {

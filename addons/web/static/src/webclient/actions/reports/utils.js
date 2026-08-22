@@ -1,17 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/reports/utils */
-
 import { download } from "@web/core/network/download";
 
 /** @import { Context, ReportAction } from "../action_service.js" */
 
 /**
- * The context a report renders under: the user's, with the action's on top.
- * `preprocessAction` does not fold `user.context` into `action.context` — the
- * former is only the evaluation context — so neither one alone is the answer.
- *
  * @param {ReportAction} action
  * @param {Context} [userContext]
  * @returns {Context}
@@ -30,7 +24,7 @@ export function getReportUrl(action, type, userContext) {
     let url = `/report/${type}/${action.report_name}`;
     const renderContext = getReportContext(action, userContext);
     const context = encodeURIComponent(JSON.stringify(renderContext));
-    if (action.data && JSON.stringify(action.data) !== "{}") {
+    if (action.data && Object.keys(action.data).length) {
         const options = encodeURIComponent(JSON.stringify(action.data));
         url += `?options=${options}&context=${context}`;
     } else {

@@ -1,8 +1,3 @@
-// Ordered on purpose: the matchers are loose substrings that overlap, and later
-// entries deliberately win. `application/vnd...presentationml.presentation`
-// matches both "document" and "presentation"; `application/postscript` matches
-// both "script" and "postscript". A list rather than a map because two separate
-// entries resolve to the same `certificate` icon at different priorities.
 $o-mimetype-icons: (
     (image, "[data-mimetype^='image']"),
     (audio, "[data-mimetype^='audio']"),

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/pivot/pivot_aggregation */
-
 import { Domain } from "@web/core/domain";
 
 import { addGroup, findGroup } from "./pivot_group_tree.js";

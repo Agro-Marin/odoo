@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/domain_contains_expressions */
-
 /** @import { Tree } from "@web/core/tree/condition_tree" */
 /** @import { DomainRepr } from "@web/core/domain" */
 
@@ -25,9 +23,6 @@ function treeContainsExpressions(tree) {
                 (Array.isArray(v) && v.some((w) => w instanceof Expression)),
         );
     }
-    // A complex_condition carries no children; only a connector does. The
-    // domain path this reads never produces one, but nothing in the signature
-    // said so, and the `for` would have iterated `undefined`.
     if (tree.type === "complex_condition") {
         return true;
     }

@@ -1,16 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/color/color_field */
-
-import { Component, useState } from "@odoo/owl";
+import { useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { registerField } from "@web/fields/_registry";
-import { fieldHandle } from "@web/fields/field_handle";
+import { FieldComponent } from "@web/fields/field_component";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-export class ColorField extends Component {
+export class ColorField extends FieldComponent {
     static template = "web.ColorField";
     static props = {
         ...standardFieldProps,
@@ -19,11 +17,6 @@ export class ColorField extends Component {
     static defaultProps = {
         autosave: false,
     };
-
-    /** @returns {import("@web/fields/field_handle").FieldHandle} */
-    get field() {
-        return fieldHandle(this);
-    }
 
     /** @type {{ livePreview: string | null }} */
     state;

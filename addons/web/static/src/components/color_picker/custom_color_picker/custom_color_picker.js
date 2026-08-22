@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/color_picker/custom_color_picker/custom_color_picker */
-
 import {
     Component,
     onMounted,
@@ -27,6 +25,7 @@ const ARROW_KEYS = ["arrowup", "arrowdown", "arrowleft", "arrowright"];
 const SLIDER_KEYS = [...ARROW_KEYS, "pageup", "pagedown", "home", "end"];
 
 const DEFAULT_COLOR = "#FF0000";
+const DEFAULT_RGBA = { red: 0xff, green: 0x00, blue: 0x00, opacity: 100 };
 
 export class CustomColorPicker extends Component {
     static template = "web.CustomColorPicker";
@@ -61,7 +60,7 @@ export class CustomColorPicker extends Component {
                 ? this.props.defaultOpacity * 100
                 : this.props.defaultOpacity;
         this.defaultColor = this.props.defaultColor;
-        if (this.defaultColor.length <= 7) {
+        if (/^#[0-9a-f]{6}$/i.test(this.defaultColor)) {
             const opacityHex = Math.round((this.defaultOpacity / 100) * 255)
                 .toString(16)
                 .padStart(2, "0");
@@ -83,10 +82,6 @@ export class CustomColorPicker extends Component {
         this.opacitySliderRef = useRef("opacitySlider");
         this.opacitySliderPointerRef = useRef("opacitySliderPointer");
 
-        // A drag that starts on a slider must keep tracking once the pointer
-        // crosses into an iframe -- the builder's preview is one -- so the move
-        // and release are listened for in every document this one can reach,
-        // and `getLocalPoint` puts the coordinates back into this frame.
         let documents;
         try {
             documents = [
@@ -100,7 +95,6 @@ export class CustomColorPicker extends Component {
                 }),
             ].map((w) => w.document);
         } catch {
-            // Cross-origin ancestors are unreachable; ours is always ours.
             documents = [document];
         }
         this.throttleOnPointerMove = useThrottleForAnimation((ev) => {
@@ -142,10 +136,9 @@ export class CustomColorPicker extends Component {
         onMounted(async () => {
             const rgba =
                 convertCSSColorToRgba(this.selectedColor) ||
-                convertCSSColorToRgba(this.defaultColor);
-            if (rgba) {
-                this._updateRgba(rgba.red, rgba.green, rgba.blue, rgba.opacity);
-            }
+                convertCSSColorToRgba(this.defaultColor) ||
+                DEFAULT_RGBA;
+            this._updateRgba(rgba.red, rgba.green, rgba.blue, rgba.opacity);
 
             this.previewActive = true;
             this._updateUI();
@@ -288,8 +281,6 @@ export class CustomColorPicker extends Component {
 
         const colorpickerPointer = this.colorPickerPointerRef.el;
         colorpickerPointer.style.top = `${top - 5}px`;
-        // Inline, so rtlcss never sees it: the saturation gradient it would
-        // otherwise mirror carries `/*rtl:ignore*/` to stay on the same axis.
         colorpickerPointer.style.left = `${left - 5}px`;
         colorpickerPointer.setAttribute(
             "aria-label",
@@ -536,26 +527,15 @@ export class CustomColorPicker extends Component {
         if (!this.getAllowedHotkeys(ARROW_KEYS).includes(hotkey)) {
             return;
         }
-        let saturation = this.colorComponents.saturation;
-        let lightness = this.colorComponents.lightness;
-        let step = 10;
-        if (hotkey.startsWith("control+")) {
-            step = 1;
-        }
-        const mainKey = hotkey.replace("control+", "");
-        if (mainKey === "arrowup") {
-            lightness += step;
-        } else if (mainKey === "arrowdown") {
-            lightness -= step;
-        } else if (mainKey === "arrowright") {
-            saturation += step;
-        } else if (mainKey === "arrowleft") {
-            saturation -= step;
-        }
-        lightness = clamp(lightness, 0, 100);
-        saturation = clamp(saturation, 0, 100);
-
-        this._updateHsl(this.colorComponents.hue, saturation, lightness);
+        const isVertical = ["arrowup", "arrowdown"].includes(
+            hotkey.replace("control+", ""),
+        );
+        const { hue, saturation, lightness } = this.colorComponents;
+        this._updateHsl(
+            hue,
+            isVertical ? saturation : this.handleRangeKeydownValue(hotkey, saturation),
+            isVertical ? this.handleRangeKeydownValue(hotkey, lightness) : lightness,
+        );
         this._updateUI();
         this.shouldSetSelectedColor = true;
     }

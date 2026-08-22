@@ -1,11 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_model */
-
 import { browser } from "@web/core/browser/browser";
 import { makeContext } from "@web/core/context";
 import { getFieldCodec } from "@web/core/field_codec";
+import { isX2Many } from "@web/core/field_types";
 import {
     deserializeDateTime,
     serializeDate,
@@ -43,10 +42,6 @@ export class CalendarModel extends Model {
      * @param {{ notification: Object }} services
      */
     setup(params, { notification }) {
-        // Load supersession: a newer load (or an out-of-load `cancel()`) drops
-        // the in-flight one so its stale result never overwrites current state.
-        // `rejectSuperseded` lets `load()` catch `SupersededError` and resolve
-        // early, matching the callers that `await this.load()`.
         /** @protected */
         this.keepLast = new KeepLast({ rejectSuperseded: true });
         this.notification = notification;
@@ -71,8 +66,6 @@ export class CalendarModel extends Model {
             const [field, explicitAggregator] = this.meta.aggregate.split(":");
             const aggregator =
                 explicitAggregator || this.fields[field].aggregator || "sum";
-            // server-only aggregators (array_agg, bool_and, ...) have no
-            // client-side equivalent and would throw on every render
             this.meta.aggregate = CLIENT_AGGREGATORS.has(aggregator)
                 ? `${field}:${aggregator}`
                 : `${field}:sum`;
@@ -118,11 +111,8 @@ export class CalendarModel extends Model {
             await this.keepLast.add(this.updateData(data));
         } catch (error) {
             if (error instanceof SupersededError) {
-                // A newer load (or a filter mutation's `cancel()`) took over:
-                // drop this one without touching state, and resolve early.
                 return;
             }
-            // This is the latest load and it failed: undo the meta mutation.
             Object.assign(this.meta, previousMeta);
             throw error;
         }
@@ -350,8 +340,6 @@ export class CalendarModel extends Model {
         const info = this.meta.filtersInfo[fieldName];
         const section = this.data.filterSections[fieldName];
         if (section) {
-            // Drop any in-flight load so it can't clobber this optimistic
-            // local mutation of `section.filters`.
             this.keepLast.cancel();
             section.filters = section.filters.filter((f) => f.recordId !== recordId);
         }
@@ -378,8 +366,6 @@ export class CalendarModel extends Model {
     }
 
     async updateFilters(fieldName, filters, active) {
-        // Drop any in-flight load so it can't clobber this optimistic local
-        // mutation of `filter.active`.
         this.keepLast.cancel();
         for (const filter of filters) {
             filter.active = active;
@@ -545,7 +531,7 @@ export class CalendarModel extends Model {
             for (const [recordId, record] of Object.entries(data.records)) {
                 const rawValue = record.rawRecord[fieldName];
                 let remove;
-                if (["many2many", "one2many"].includes(field.type)) {
+                if (isX2Many(field)) {
                     remove = rawValue.length
                         ? rawValue.every((value) => inactiveFilterVals.has(value))
                         : inactiveFilterVals.has(false);
@@ -586,7 +572,6 @@ export class CalendarModel extends Model {
     /**
      * @param {string} fieldName
      * @param {Object} [data=this.data]
-     * @returns Object
      */
     computeAggregatedValues(fieldName, data = this.data) {
         const records = Object.values(data.records);
@@ -602,9 +587,6 @@ export class CalendarModel extends Model {
                 .map(({ rawRecord }) => rawRecord[aggregateField])
                 .filter((value) => typeof value === "number");
             if (!values.length) {
-                // computeAggregatedValue answers with the aggregator's identity
-                // (NaN for avg, ±Infinity for min/max), none of which belongs
-                // on screen
                 aggregates[group] = formatFloat(0, { trailingZeros: false });
                 continue;
             }
@@ -839,7 +821,7 @@ export class CalendarModel extends Model {
 
         const rawFiltersById = new Map();
         for (const record of Object.values(data.records)) {
-            let rawValues = ["many2many", "one2many"].includes(field.type)
+            let rawValues = isX2Many(field)
                 ? record.rawRecord[fieldName]
                 : [record.rawRecord[fieldName]];
             if (!rawValues.length) {
@@ -859,7 +841,7 @@ export class CalendarModel extends Model {
         }
         const rawFilters = [...rawFiltersById.values()];
 
-        const isX2Many = ["many2many", "one2many"].includes(field.type);
+        const fieldIsX2Many = isX2Many(field);
 
         const relatedIds = rawFilters.map((f) => f.id).filter((id) => id);
         let rawColors = [];
@@ -874,7 +856,7 @@ export class CalendarModel extends Model {
             if (shouldFetchColor) {
                 fieldsToFetch.push(colorFieldName);
             }
-            if (isX2Many) {
+            if (fieldIsX2Many) {
                 fieldsToFetch.push("display_name");
             }
             if (fieldsToFetch.length) {
@@ -884,7 +866,7 @@ export class CalendarModel extends Model {
                     fieldsToFetch,
                     { context: { active_test: false } },
                 );
-                if (isX2Many) {
+                if (fieldIsX2Many) {
                     const nameById = Object.fromEntries(
                         records.map((r) => [r.id, r.display_name]),
                     );
@@ -942,8 +924,8 @@ export class CalendarModel extends Model {
         const rawValue = rawFilter[fieldName];
         const value = Array.isArray(rawValue) ? rawValue[0] : rawValue;
         const field = fields[fieldName];
-        const isX2Many = ["many2many", "one2many"].includes(field.type);
-        const formatter = getFieldCodec(isX2Many ? "many2one" : field.type).format;
+        const fieldIsX2Many = isX2Many(field);
+        const formatter = getFieldCodec(fieldIsX2Many ? "many2one" : field.type).format;
 
         const { colorFieldName } = filterInfo;
         const colorField = fields[fieldMapping.color];
@@ -981,8 +963,8 @@ export class CalendarModel extends Model {
         const raw = rawRecord[writeFieldName];
         const value = Array.isArray(raw) ? raw[0] : raw;
         const field = fields[writeFieldName];
-        const isX2Many = ["many2many", "one2many"].includes(field.type);
-        const formatter = getFieldCodec(isX2Many ? "many2one" : field.type).format;
+        const fieldIsX2Many = isX2Many(field);
+        const formatter = getFieldCodec(fieldIsX2Many ? "many2one" : field.type).format;
 
         const colorField = fields[fieldMapping.color];
         const colorValue =

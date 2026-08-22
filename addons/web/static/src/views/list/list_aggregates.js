@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_aggregates */
-
 import { onWillStart, useState } from "@odoo/owl";
 import { getCurrencyRates } from "@web/core/currency";
 import { registry } from "@web/core/registry";
@@ -14,6 +12,11 @@ import { MultiCurrencyPopover } from "@web/views/view_components/multi_currency_
 import { computeAggregatedValue } from "@web/views/view_measurements";
 
 const formatters = registry.category("formatters");
+
+/**
+ * @type {("sum" | "avg" | "max" | "min")[]}
+ */
+const AGGREGATE_ATTRS = ["sum", "avg", "max", "min"];
 
 /**
  * @param {Record<string, object>} fields
@@ -29,16 +32,79 @@ function resolveCurrencyField(fields, column) {
 }
 
 /**
+ * @param {object} column
+ * @returns {"sum" | "avg" | "max" | "min" | undefined}
+ */
+function aggregateFunction(column) {
+    return AGGREGATE_ATTRS.find((agg) => Boolean(column.attrs?.[agg]));
+}
+
+/**
+ * @param {Record<string, any>} attrs
+ * @param {any} fieldDigits
+ * @param {string} [fieldName]
+ * @returns {Record<string, any>}
+ */
+function buildFormatOptions(attrs, fieldDigits, fieldName) {
+    let digits = fieldDigits;
+    if (attrs.digits) {
+        try {
+            digits = JSON.parse(/** @type {string} */ (attrs.digits));
+        } catch (error) {
+            throw new Error(
+                `List arch parsing error: invalid "digits" attribute on ` +
+                    `<field name="${fieldName ?? attrs.name ?? "?"}"/> ` +
+                    `(must be a JSON array, e.g. [16,2]): ${error.message}`,
+                { cause: error },
+            );
+        }
+    }
+    return { digits, escape: true };
+}
+
+/**
+ * @param {Object} column
+ * @param {Record<string, any>} field
+ * @returns {{ formatter: Function | false, formatOptions: Record<string, any> }}
+ */
+function resolveAggregateFormat(column, field) {
+    const { attrs = {}, widget } = column;
+    const formatter =
+        formatters.get(/** @type {string} */ (widget), /** @type {any} */ (false)) ||
+        formatters.get(field.type, /** @type {any} */ (false));
+    return {
+        formatter,
+        formatOptions: buildFormatOptions(attrs, field.digits, column.name),
+    };
+}
+
+/**
+ * @param {any[]} columns
+ * @param {Record<string, any>} fields
+ * @returns {boolean}
+ */
+function hasMonetaryAggregate(columns, fields) {
+    return columns.some((column) => {
+        if (column.type !== "field") {
+            return false;
+        }
+        const field = fields[column.name];
+        if (field.type !== "monetary" && column.widget !== "monetary") {
+            return false;
+        }
+        return Boolean(aggregateFunction(column));
+    });
+}
+
+/**
  * @param {Pick<import("./list_renderer").ListGridContext, "getColumns" | "getFields" | "getProps" | "getOptionalActiveFields">} ctx
- *   the subset of the grid context this hook reads; the ListRenderer passes its
- *   full `gridContext`, `ListAggregatesRow` a compatible partial.
  * @returns {{
- *   computeAggregates: () => Record<string, object>,
- *   formatGroupAggregate: (group: object, column: object) => object,
- *   getFieldCurrencies: (fieldName: string) => Set,
- *   getCurrencyField: (column: object) => string,
- *   openMultiCurrencyPopover: (ev: Event, value: any, fieldName: string) => void,
- *   state: { currencyRates: object | null },
+ * computeAggregates: () => Record<string, object>,
+ * formatGroupAggregate: (group: object, column: object) => object,
+ * getFieldCurrencies: (fieldName: string) => Set,
+ * getCurrencyField: (column: object) => string,
+ * openMultiCurrencyPopover: (ev: Event, value: any, fieldName: string) => void,
+ * state: { currencyRates: Record<number, any> | null, ratesFailed: boolean },
  * }}
  */
 export function useListAggregates(ctx) {
@@ -46,39 +112,32 @@ export function useListAggregates(ctx) {
     const multiCurrencyPopover = usePopover(MultiCurrencyPopover, {
         position: "right",
     });
-    const state = useState({ currencyRates: null });
-
-    onWillStart(async () => {
-        const props = getProps();
-        const fields = getFields();
-        const needsCurrencyRates = /** @type {any} */ (props).archInfo.columns.some(
-            (/** @type {any} */ column) => {
-                if (column.type !== "field") {
-                    return false;
-                }
-                const field = fields[column.name];
-                if (field.type !== "monetary" && column.widget !== "monetary") {
-                    return false;
-                }
-                return ["sum", "avg", "max", "min"].some((agg) => agg in column.attrs);
-            },
-        );
-        if (needsCurrencyRates) {
-            state.currencyRates = await getCurrencyRates();
-        }
-    });
+    /** @type {{ currencyRates: Record<number, any> | null, ratesFailed: boolean }} */
+    const state = useState({ currencyRates: null, ratesFailed: false });
 
     let ratesRequested = false;
-    /** Self-heals the aggregate once the rates land. */
-    function requestCurrencyRates() {
+
+    /**
+     * @returns {Promise<void>}
+     */
+    async function requestCurrencyRates() {
         if (ratesRequested) {
             return;
         }
         ratesRequested = true;
-        getCurrencyRates()
-            .then((rates) => (state.currencyRates = rates))
-            .catch((error) => console.error(error));
+        try {
+            state.currencyRates = await getCurrencyRates();
+        } catch (error) {
+            state.ratesFailed = true;
+            console.error(error);
+        }
     }
+
+    onWillStart(() => {
+        if (hasMonetaryAggregate(getProps().archInfo.columns, getFields())) {
+            return requestCurrencyRates();
+        }
+    });
 
     function getAggregationValues() {
         const { list } = getProps();
@@ -133,12 +192,13 @@ export function useListAggregates(ctx) {
          * @returns {Record<string, object>}
          */
         computeAggregates() {
-            const values = getAggregationValues();
             const columns = getColumns();
             const fields = getFields();
             const optionalActiveFields = getOptionalActiveFields();
             const { list } = getProps();
             const aggregates = {};
+            /** @type {Record<string, any>[] | null} */
+            let values = null;
 
             for (const column of columns) {
                 if (column.type !== "field") {
@@ -152,6 +212,16 @@ export function useListAggregates(ctx) {
                     continue;
                 }
                 const field = fields[fieldName];
+                const type = field.type;
+                if (!AGGREGATABLE_FIELD_TYPES.includes(type)) {
+                    continue;
+                }
+                const { attrs = {}, widget } = column;
+                const func = aggregateFunction(column);
+                if (!func) {
+                    continue;
+                }
+                values ??= getAggregationValues();
                 const fieldEntries = [];
                 for (const record of values) {
                     const value = record[fieldName];
@@ -162,16 +232,6 @@ export function useListAggregates(ctx) {
                 if (!fieldEntries.length) {
                     continue;
                 }
-                const type = field.type;
-                if (!AGGREGATABLE_FIELD_TYPES.includes(type)) {
-                    continue;
-                }
-                const { attrs, widget } = column;
-                const func =
-                    (attrs.sum && "sum") ||
-                    (attrs.avg && "avg") ||
-                    (attrs.max && "max") ||
-                    (attrs.min && "min");
                 let currencyId;
                 let multiCurrency = false;
                 let hasMixedCurrencyGroup = false;
@@ -202,36 +262,21 @@ export function useListAggregates(ctx) {
                                         (entry) =>
                                             entry.record[currencyField]?.length > 1,
                                     );
-                                if (!hasMixedCurrencyGroup && !state.currencyRates) {
-                                    // converting at an assumed rate of 1 would
-                                    // print a plausible, wrong total
+                                const rates = state.currencyRates;
+                                if (!hasMixedCurrencyGroup && !rates) {
                                     requestCurrencyRates();
                                     missingRates = true;
                                 } else if (!hasMixedCurrencyGroup) {
-                                    // A currency the rate table does not cover
-                                    // is the same hazard as no table at all —
-                                    // the session only carries rates for the
-                                    // currencies it knows, and a record may
-                                    // reference one it does not. Convert into a
-                                    // scratch list so a rate missing halfway
-                                    // through cannot leave the entries half
-                                    // converted.
                                     const converted = [];
                                     for (const entry of fieldEntries) {
                                         const currency = isGroupedAggregation
                                             ? entry.record[currencyField]?.[0]
                                             : entry.record[currencyField]?.id;
-                                        // An amount with no currency at all has
-                                        // no unit to convert from; it counts as
-                                        // it stands, and the popover discloses
-                                        // it as "without currency".
                                         if (!currency || currency === currencyId) {
                                             converted.push(entry.value);
                                             continue;
                                         }
-                                        const rate =
-                                            state.currencyRates[currency]
-                                                ?.toCompanyRate;
+                                        const rate = rates?.[currency]?.toCompanyRate;
                                         if (rate === undefined) {
                                             unknownRate = true;
                                             break;
@@ -249,10 +294,16 @@ export function useListAggregates(ctx) {
                     }
                 }
                 if (missingRates || unknownRate) {
+                    let help;
+                    if (unknownRate) {
+                        help = _t("No total: one currency has no exchange rate");
+                    } else if (state.ratesFailed) {
+                        help = _t("No total: currency rates could not be loaded");
+                    } else {
+                        help = _t("No total: currency rates are still loading");
+                    }
                     aggregates[fieldName] = {
-                        help: unknownRate
-                            ? _t("No total: one currency has no exchange rate")
-                            : _t("No total: currency rates are still loading"),
+                        help,
                         value: "",
                         multiCurrency: true,
                         rawValue: undefined,
@@ -298,17 +349,10 @@ export function useListAggregates(ctx) {
                             func,
                         );
                     }
-                    const formatter =
-                        formatters.get(
-                            /** @type {string} */ (widget),
-                            /** @type {any} */ (false),
-                        ) || formatters.get(type, /** @type {any} */ (false));
-                    const formatOptions = {
-                        digits: attrs.digits
-                            ? JSON.parse(/** @type {string} */ (attrs.digits))
-                            : undefined,
-                        escape: true,
-                    };
+                    const { formatter, formatOptions } = resolveAggregateFormat(
+                        column,
+                        field,
+                    );
                     if (currencyId) {
                         formatOptions.currencyId = currencyId;
                     }
@@ -331,7 +375,7 @@ export function useListAggregates(ctx) {
          * @returns {{ value: string, multiCurrency?: boolean, rawValue?: number }}
          */
         formatGroupAggregate(group, column) {
-            const { widget, attrs } = column;
+            const { widget } = column;
             const fields = getFields();
             const field = fields[column.name];
             const aggregateValue = group.aggregates[column.name];
@@ -342,17 +386,7 @@ export function useListAggregates(ctx) {
             ) {
                 return { value: "" };
             }
-            const formatter =
-                formatters.get(
-                    /** @type {string} */ (widget),
-                    /** @type {any} */ (false),
-                ) || formatters.get(field.type, /** @type {any} */ (false));
-            const formatOptions = {
-                digits: attrs.digits
-                    ? JSON.parse(/** @type {string} */ (attrs.digits))
-                    : field.digits,
-                escape: true,
-            };
+            const { formatter, formatOptions } = resolveAggregateFormat(column, field);
             if (field.type === "monetary") {
                 const currencyField = resolveCurrencyField(fields, column);
                 const currencies = group.aggregates[currencyField];

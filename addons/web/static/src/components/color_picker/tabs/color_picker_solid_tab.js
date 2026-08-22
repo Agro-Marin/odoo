@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/color_picker/tabs/color_picker_solid_tab */
-
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/debug_items */
-
 import { Component, onWillStart, useState, xml } from "@odoo/owl";
 import { getAction } from "@web/core/action_port";
 import { editModelDebug } from "@web/core/debug/debug_utils";
@@ -53,7 +51,7 @@ debugRegistry.category("view").add("getView", /** @type {any} */ (getView));
 
 /**
  * @param {{ accessRights: Object, component: Object, env: Object }} params
- * @returns {Object | null | undefined}
+ * @returns {Object | null}
  */
 export function editView({ accessRights, component, env }) {
     if (!accessRights.canEditView) {
@@ -61,7 +59,7 @@ export function editView({ accessRights, component, env }) {
     }
     const { viewId, viewType: type } = component.env.config;
     if (!type) {
-        return;
+        return null;
     }
     const displayName = type[0].toUpperCase() + type.slice(1);
     const description = _t("View: %(displayName)s", { displayName });
@@ -82,11 +80,11 @@ debugRegistry.category("view").add("editView", /** @type {any} */ (editView));
  * @param {{ accessRights: Object, component: Object, env: Object }} params
  * @returns {Object | null}
  */
-export function editSearchView({ accessRights, component, env }) {
+function editSearchView({ accessRights, component, env }) {
     if (!accessRights.canEditView) {
         return null;
     }
-    const { searchViewId } = component.componentProps.info;
+    const { searchViewId } = component.env.config;
     if (searchViewId === undefined) {
         return null;
     }
@@ -114,24 +112,15 @@ class GetMetadataDialog extends Component {
     /** @type {import("services").ServiceFactories["orm"]} */
     orm;
     /**
-     * What `loadMetadata()` reads out of `get_metadata()`, plus the two user
-     * names and two dates it formats for display. Every field is optional
-     * because the record starts as `useState({})` and is filled on
-     * `onWillStart`, so nothing is present until that first call resolves.
-     *
-     * `xmlid` and `noupdate` describe the *last* external id; `xmlids` is all
-     * of them, which is what the template iterates when there is more than one
-     * (`odoo/orm/models/mixins/read.py::get_metadata`).
-     *
      * @type {{
-     *     id?: number,
-     *     xmlid?: string | false,
-     *     xmlids?: {xmlid: string, noupdate: boolean}[],
-     *     noupdate?: boolean,
-     *     creator?: string,
-     *     lastModifiedBy?: string,
-     *     createDate?: string,
-     *     writeDate?: string,
+     * id?: number,
+     * xmlid?: string | false,
+     * xmlids?: {xmlid: string, noupdate: boolean}[],
+     * noupdate?: boolean,
+     * creator?: string,
+     * lastModifiedBy?: string,
+     * createDate?: string,
+     * writeDate?: string,
      * }}
      */
     state;
@@ -198,7 +187,7 @@ class GetMetadataDialog extends Component {
  * @param {{ component: Object, env: Object }} params
  * @returns {Object | null}
  */
-export function viewMetadata({ component, env }) {
+function viewMetadata({ component, env }) {
     const resId = component.model.root.resId;
     if (!resId) {
         return null;
@@ -255,7 +244,7 @@ class RawRecordDialog extends Component {
  * @param {{ component: Object, env: Object }} params
  * @returns {Object | null}
  */
-export function viewRawRecord({ component, env }) {
+function viewRawRecord({ component, env }) {
     const { resId, resModel, fields } = component.model.config;
     if (!resId) {
         return null;
@@ -445,7 +434,7 @@ debugRegistry.category("form").add("setDefaults", /** @type {any} */ (setDefault
  * @param {{ component: Object, env: Object }} params
  * @returns {Object | null}
  */
-export function manageAttachments({ component, env }) {
+function manageAttachments({ component, env }) {
     const resId = component.model.root.resId;
     if (!resId) {
         return null;

@@ -1,14 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_enrichment */
-
 import { getPeriodOptions } from "./utils/dates.js";
 
+/** @import { AutocompleteValue, EnrichedOption, EnrichedSearchItem, QueryElement, SearchItem } from "./search_types" */
+
 /**
- * @param {Object[]} options
- * @param {Array} selectedIds
- * @returns {Object[]}
+ * @param {readonly Record<string, any>[]} options
+ * @param {any[]} selectedIds
+ * @returns {EnrichedOption[]}
  */
 function enrichOptions(options, selectedIds) {
     return options.map((o) => {
@@ -19,11 +19,11 @@ function enrichOptions(options, selectedIds) {
 }
 
 /**
- * @param {Object[]} query
- * @returns {Map<number, Object[]>}
+ * @param {QueryElement[]} query
+ * @returns {Map<number, QueryElement[]>}
  */
 export function indexQueryBySearchItem(query) {
-    /** @type {Map<number, Object[]>} */
+    /** @type {Map<number, QueryElement[]>} */
     const index = new Map();
     for (const queryElem of query) {
         const elements = index.get(queryElem.searchItemId);
@@ -37,22 +37,23 @@ export function indexQueryBySearchItem(query) {
 }
 
 /**
- * @param {Object} searchItem
- * @param {Object[] | Map<number, Object[]>} query
+ * @param {SearchItem} searchItem
+ * @param {QueryElement[] | Map<number, QueryElement[]>} query
  * @param {any} referenceMoment
- * @param {Object[]} intervalOptions
- * @returns {Object}
+ * @param {Record<string, any>[]} intervalOptions
+ * @returns {EnrichedSearchItem}
  */
 export function enrichSearchItem(searchItem, query, referenceMoment, intervalOptions) {
-    if (searchItem.type === "field" && searchItem.fieldType === "properties") {
-        return { ...searchItem };
-    }
     const queryElements =
         query instanceof Map
             ? query.get(searchItem.id) || []
             : query.filter((queryElem) => queryElem.searchItemId === searchItem.id);
     const isActive = Boolean(queryElements.length);
+    /** @type {EnrichedSearchItem} */
     const enrichedSearchItem = Object.assign({ isActive }, searchItem);
+    if (searchItem.type === "field" && searchItem.fieldType === "properties") {
+        return enrichedSearchItem;
+    }
     switch (searchItem.type) {
         case "dateFilter":
             enrichedSearchItem.options = enrichOptions(

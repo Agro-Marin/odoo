@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/l10n/date_utils */
-
 import { localization } from "@web/core/l10n/localization";
 import { DateTime } from "@web/core/l10n/luxon";
 import { ensureArray } from "@web/core/utils/collections/arrays";

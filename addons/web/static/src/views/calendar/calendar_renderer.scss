@@ -467,7 +467,10 @@
                         opacity: 0.8;
 
                         &:not(.fc-day-today) .fc-daygrid-day-number {
-                            --o-cw-color: #{o-palette-token(--o-gray-500, map-get($grays, "500"))};
+                            --o-cw-color: #{o-palette-token(
+                                    --o-gray-500,
+                                    map-get($grays, "500")
+                                )};
                         }
                     }
 
@@ -483,7 +486,10 @@
 
                     &.fc-day-today {
                         --o-cw-color: #{$o-calendar-today-color};
-                        --o-cw-bg: #{o-palette-token(--danger, $o-calendar-today-background-color)};
+                        --o-cw-bg: #{o-palette-token(
+                                --danger,
+                                $o-calendar-today-background-color
+                            )};
                     }
                 }
             }
@@ -724,10 +730,6 @@
                 );
 
                 &:before {
-                    // No fallback: the rule requires `.o_calendar_color_N`, and
-                    // that class sets `--o-event-bg` two rules up. The fallback
-                    // was a compiled `$info`, so it was also the one thing here
-                    // a light bundle could not say twice.
                     color: var(--o-event-bg);
                 }
             }

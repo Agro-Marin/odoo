@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/properties/property_definition */
-
 import { Component, onWillUpdateProps, useEffect, useRef, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { DomainSelector } from "@web/components/domain_selector/domain_selector";
@@ -396,9 +394,6 @@ export class PropertyDefinition extends Component {
                 }
                 this.state.resModelDescription = result[0].display_name;
             } catch (error) {
-                // Superseded is not an access failure. Falling through would
-                // tell the user they lack access to a model they simply
-                // stopped asking about.
                 if (!(error instanceof SupersededError)) {
                     this.state.resModelDescription = _t(
                         'You do not have access to the model "%s".',

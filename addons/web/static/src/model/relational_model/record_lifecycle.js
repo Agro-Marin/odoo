@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/record_lifecycle */
-
 import { modelLog } from "@web/core/utils/asset_log";
 
 /** @import { RelationalRecord } from "@web/model/relational_model/record" */
@@ -42,7 +40,7 @@ async function toggleArchive(record, state, reload = () => record._load()) {
             context: record.context,
         },
     );
-    return record.model.hooks.ui.onDisplayArchiveAction(action, reload);
+    return record.model.uiHooks.onDisplayArchiveAction(action, reload);
 }
 
 /**
@@ -57,7 +55,7 @@ export async function deleteRecord(record) {
     if (!unlinked) {
         return false;
     }
-    const resIds = record.resIds.slice();
+    const resIds = [...(record.resIds ?? [])];
     const index = resIds.indexOf(/** @type {number} */ (record.resId));
     if (index >= 0) {
         resIds.splice(index, 1);
@@ -78,14 +76,15 @@ export async function deleteRecord(record) {
 export async function duplicateRecord(record) {
     modelLog("duplicate", record.resModel, record.resId);
     const kwargs = { context: record.context };
-    const index = record.resIds.indexOf(/** @type {number} */ (record.resId));
+    const currentResIds = record.resIds ?? [];
+    const index = currentResIds.indexOf(/** @type {number} */ (record.resId));
     const [resId] = await record.model.orm.call(
         record.resModel,
         "copy",
         [[record.resId]],
         kwargs,
     );
-    const resIds = record.resIds.slice();
+    const resIds = [...currentResIds];
     resIds.splice(index + 1, 0, resId);
     await record.model.load({ resId, resIds, mode: "edit" });
 }

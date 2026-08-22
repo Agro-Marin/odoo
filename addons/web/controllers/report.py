@@ -19,7 +19,6 @@ _MAX_BARCODE_VALUE_LEN = 4096
 
 
 def _clamp_barcode_dimension(raw: Any, default: int) -> int:
-    """Coerce a query-string dimension to an int in ``[1, _MAX_BARCODE_DIM]``."""
     try:
         value = int(raw)
     except ValueError, TypeError:
@@ -95,28 +94,6 @@ class ReportController(http.Controller):
         readonly=True,
     )
     def report_barcode(self, barcode_type: str, value: str, **kwargs) -> Response:
-        """Controller able to render barcode images thanks to reportlab.
-        Samples::
-
-            <img t-att-src="'/report/barcode/QR/%s' % o.name"/>
-            <img t-att-src="'/report/barcode/?barcode_type=%s&amp;value=%s&amp;width=%s&amp;height=%s' %
-                ('QR', o.name, 200, 200)"/>
-
-        :param barcode_type: Accepted types: 'Codabar', 'Code11', 'Code128', 'EAN13', 'EAN8',
-        'Extended39', 'Extended93', 'FIM', 'I2of5', 'MSI', 'POSTNET', 'QR', 'Standard39',
-        'Standard93', 'UPCA', 'USPS_4State'
-        :param width: Pixel width of the barcode
-        :param height: Pixel height of the barcode
-        :param humanreadable: Accepted values: 0 (default) or 1. 1 will insert the readable value
-        at the bottom of the output image
-        :param quiet: Accepted values: 0 or 1 (default). 1 will display white
-        margins on left and right for barcodes and on all sides for QR codes.
-        :param mask: The mask code to be used when rendering this QR-code.
-                     Masks allow adding elements on top of the generated image,
-                     such as the Swiss cross in the center of QR-bill codes.
-        :param barLevel: QR code Error Correction Levels. Default is 'L'.
-        ref: https://hg.reportlab.com/hg-public/reportlab/file/830157489e00/src/reportlab/graphics/barcode/qr.py#l101
-        """
         if value is not None and len(value) > _MAX_BARCODE_VALUE_LEN:
             raise werkzeug.exceptions.BadRequest("Barcode value is too long.")
         if "width" in kwargs:
@@ -124,7 +101,7 @@ class ReportController(http.Controller):
         if "height" in kwargs:
             kwargs["height"] = _clamp_barcode_dimension(kwargs["height"], 100)
         try:
-            barcode = request.env["ir.actions.report"].barcode(
+            barcode = request.env["ir.actions.report"].prepare_barcode(
                 barcode_type, value, **kwargs
             )
         except ValueError, AttributeError, KeyError:
@@ -147,13 +124,6 @@ class ReportController(http.Controller):
     def report_download(
         self, data: str, context: str | None = None, **_kwargs
     ) -> Response:
-        """Used by ``downloadReport`` in ``@web/webclient/actions/reports/utils.js`` to
-        trigger the download of a pdf/controller report.
-
-        :param data: a javascript array JSON.stringified containing the report's internal
-            url ([0]) and type ([1])
-        :returns: Response with an attachment header
-        """
         requestcontent = json_loads(data)
         url, type_ = requestcontent[0], requestcontent[1]
         reportname = "???"

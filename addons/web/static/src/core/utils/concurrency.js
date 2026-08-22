@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/concurrency */
-
 import { browser } from "@web/core/browser/browser";
 
 /**
@@ -38,15 +36,6 @@ export class KeepLast {
          */
         this._rejectPending = null;
         /**
-         * Disposer for the entry currently in flight, run by `cancel()`.
-         *
-         * Suppressing a superseded result and cancelling the work that produces
-         * it are two different things, and this class only ever did the first:
-         * a superseded `web_search_read` ran to completion on the server and had
-         * its payload dropped on arrival. `add()` now registers whatever the
-         * caller (or the promise itself) offers as a way to stop that work, and
-         * `cancel()` runs it.
-         *
          * @type {(() => void) | null}
          */
         this._abortPending = null;
@@ -57,17 +46,11 @@ export class KeepLast {
     get generation() {
         return this._id;
     }
-    /**
-     * Drops whatever is in flight without enqueuing a replacement: the pending
-     * promise stops being the last one, so it can never settle its caller.
-     */
     cancel() {
         this._id++;
         const abort = this._abortPending;
         this._abortPending = null;
         if (abort) {
-            // A disposer that throws must not leave this instance wedged --
-            // the supersede has to complete either way.
             try {
                 abort();
             } catch (error) {
@@ -82,13 +65,7 @@ export class KeepLast {
     /**
      * @param {Promise<T>} promise
      * @param {Object} [options]
-     * @param {() => void} [options.abort] cancels the work behind `promise`
-     *   when a newer entry supersedes it. Defaults to `promise.abort(true)`
-     *   when the promise carries one, which is the shape `rpc()` returns --
-     *   so `keepLast.add(orm.call(...))` cancels its request with no wiring.
-     *   Pass explicitly for composite promises (an `async` function issuing
-     *   several RPCs has no `abort` of its own): hand in the `abort` of an
-     *   `AbortController` whose signal reached those calls.
+     * @param {() => void} [options.abort]
      * @returns {Promise<T>}
      */
     add(promise, { abort } = {}) {
@@ -97,14 +74,7 @@ export class KeepLast {
         const ownAbort =
             abort ??
             (typeof (/** @type {any} */ (promise)?.abort) === "function"
-                ? // Reject rather than abort silently. `abort(false)` leaves the
-                  // underlying promise pending forever, which does not remove
-                  // the dangling continuation -- it only moves it from the
-                  // caller into the async frames below. Rejecting unwinds them.
-                  // Nothing leaks as an unhandled rejection: the handlers this
-                  // method attaches below consume it and, seeing a stale
-                  // generation, do nothing with it.
-                  () => /** @type {any} */ (promise).abort(true)
+                ? () => /** @type {any} */ (promise).abort(true)
                 : null);
         this._abortPending = ownAbort;
         return new Promise((resolve, reject) => {
@@ -115,9 +85,6 @@ export class KeepLast {
                 (value) => {
                     if (this._id === currentId) {
                         this._rejectPending = null;
-                        // Settled as the winner: there is nothing left to
-                        // abort, and a later `cancel()` must not reach back
-                        // into finished work.
                         this._abortPending = null;
                         resolve(value);
                     }
@@ -188,6 +155,62 @@ export class Mutex {
      */
     getUnlockedDef() {
         return this._unlockedProm || Promise.resolve();
+    }
+}
+
+/**
+ * @template T
+ */
+export class KeepLastByKey {
+    /**
+     * @param {Object} [options]
+     * @param {boolean} [options.rejectSuperseded=false]
+     */
+    constructor({ rejectSuperseded = false } = {}) {
+        /** @type {Map<string, KeepLast<T>>} */
+        this._byKey = new Map();
+        this._rejectSuperseded = rejectSuperseded;
+    }
+    /**
+     * @param {string} key
+     * @returns {KeepLast<T>}
+     */
+    _for(key) {
+        let keepLast = this._byKey.get(key);
+        if (!keepLast) {
+            keepLast = new KeepLast({ rejectSuperseded: this._rejectSuperseded });
+            this._byKey.set(key, keepLast);
+        }
+        return keepLast;
+    }
+    /**
+     * @param {string} key
+     * @param {Promise<T>} promise
+     * @param {Object} [options]
+     * @param {() => void} [options.abort]
+     * @returns {Promise<T>}
+     */
+    add(key, promise, options) {
+        return this._for(key).add(promise, options);
+    }
+    /**
+     * @param {string} [key]
+     */
+    cancel(key) {
+        if (key === undefined) {
+            for (const keepLast of this._byKey.values()) {
+                keepLast.cancel();
+            }
+            return;
+        }
+        this._byKey.get(key)?.cancel();
+    }
+    /**
+     * @param {string} key
+     */
+    forget(key) {
+        this._byKey.get(key)?.cancel();
+        this._byKey.delete(key);
     }
 }
 

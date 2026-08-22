@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/model_field_selector/model_field_selector_popover */
-
 import { Component, onWillStart, useEffect, useRef, useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { sortBy } from "@web/core/utils/collections/arrays";
@@ -10,7 +8,7 @@ import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { uniqueId } from "@web/core/utils/functions";
 import { useService } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
-import { useDebounced } from "@web/core/utils/timing";
+import { INPUT_DEBOUNCE_DELAY, useDebounced } from "@web/core/utils/timing";
 class Page {
     /**
      * @param {string} resModel
@@ -157,7 +155,10 @@ export class ModelFieldSelectorPopover extends Component {
         this.keepLast = new KeepLast({ rejectSuperseded: true });
         this.popoverId = uniqueId("o_model_field_selector_popover_");
         this.hasPendingSearch = false;
-        this.debouncedSearchFields = useDebounced(this.searchFields, 250);
+        this.debouncedSearchFields = useDebounced(
+            this.searchFields,
+            INPUT_DEBOUNCE_DELAY,
+        );
 
         onWillStart(async () => {
             this.state.page = await this.loadPages(
@@ -208,7 +209,7 @@ export class ModelFieldSelectorPopover extends Component {
         return `${this.popoverId}_${index}`;
     }
 
-    /** @returns {string | undefined} the id of the item the arrow keys are on */
+    /** @returns {string | undefined} */
     get focusedItemId() {
         const index = this.fieldNames.indexOf(this.state.page.focusedFieldName);
         return index === -1 ? undefined : this.getItemId(index);
@@ -223,15 +224,7 @@ export class ModelFieldSelectorPopover extends Component {
     }
 
     /**
-     * Applies a query still sitting in the debounce. Every consumer of the
-     * result list goes through this: `focusedFieldName` is derived from the
-     * query, so a keyboard action taken before the debounce fires would
-     * otherwise commit the field that answered the *previous* query.
-     *
-     * @returns {boolean} whether a query was waiting -- i.e. whether the list
-     *  the caller is about to act on only just came into being. Applying one
-     *  parks the focus on its first result, so an arrow that would step
-     *  *forwards* from there has already arrived and must not move again.
+     * @returns {boolean}
      */
     flushPendingSearch() {
         const wasPending = this.hasPendingSearch;
@@ -239,10 +232,6 @@ export class ModelFieldSelectorPopover extends Component {
         return wasPending;
     }
 
-    /**
-     * Drops a query typed for a page that is being left. It was never applied,
-     * and the field names it would filter belong to another model.
-     */
     dropPendingSearch() {
         this.hasPendingSearch = false;
         this.debouncedSearchFields.cancel();
@@ -302,12 +291,13 @@ export class ModelFieldSelectorPopover extends Component {
         this.state.page.selectedName = fieldDef.name;
         const { resModel, fieldDefs } = modelsInfo.at(-1);
         this.openPage(
-            new Page(resModel, this.filter(fieldDefs, this.state.page.path, resModel), {
-                previousPage: this.state.page,
-                isDebugMode: this.props.isDebugMode,
-                readProperty: this.props.readProperty,
-                sortFn: this.props.sort,
-            }),
+            this.makePage(
+                resModel,
+                this.filter(fieldDefs, this.state.page.path, resModel),
+                {
+                    previousPage: this.state.page,
+                },
+            ),
         );
     }
 
@@ -338,17 +328,28 @@ export class ModelFieldSelectorPopover extends Component {
 
     /**
      * @param {string} resModel
+     * @param {Record<string, Object>} fieldDefs
+     * @param {Object} [extra]
+     * @returns {Page}
+     */
+    makePage(resModel, fieldDefs, extra = {}) {
+        return new Page(resModel, fieldDefs, {
+            isDebugMode: this.props.isDebugMode,
+            readProperty: this.props.readProperty,
+            sortFn: this.props.sort,
+            ...extra,
+        });
+    }
+
+    /**
+     * @param {string} resModel
      * @param {string} [path]
      * @returns {Promise<Page>}
      */
     async loadPages(resModel, path) {
         if (typeof path !== "string" || !path.length) {
             const fieldDefs = await this.fieldService.loadFields(resModel);
-            return new Page(resModel, this.filter(fieldDefs, path, resModel), {
-                isDebugMode: this.props.isDebugMode,
-                readProperty: this.props.readProperty,
-                sortFn: this.props.sort,
-            });
+            return this.makePage(resModel, this.filter(fieldDefs, path, resModel));
         }
         const { isInvalid, modelsInfo, names } = await this.fieldService.loadPath(
             resModel,
@@ -359,11 +360,8 @@ export class ModelFieldSelectorPopover extends Component {
                 throw new Error(`Invalid model name: ${resModel}`);
             case "path": {
                 const { resModel, fieldDefs } = modelsInfo[0];
-                return new Page(resModel, this.filter(fieldDefs, path, resModel), {
+                return this.makePage(resModel, this.filter(fieldDefs, path, resModel), {
                     selectedName: path,
-                    isDebugMode: this.props.isDebugMode,
-                    readProperty: this.props.readProperty,
-                    sortFn: this.props.sort,
                 });
             }
             default: {
@@ -371,15 +369,13 @@ export class ModelFieldSelectorPopover extends Component {
                 for (let index = 0; index < names.length; index++) {
                     const name = names[index];
                     const { resModel, fieldDefs } = modelsInfo[index];
-                    page = new Page(resModel, this.filter(fieldDefs, path, resModel), {
-                        previousPage: page,
-                        selectedName: name,
-                        isDebugMode: this.props.isDebugMode,
-                        readProperty: this.props.readProperty,
-                        sortFn: this.props.sort,
-                    });
+                    page = this.makePage(
+                        resModel,
+                        this.filter(fieldDefs, path, resModel),
+                        { previousPage: page, selectedName: name },
+                    );
                 }
-                return page;
+                return page ?? (await this.loadPages(resModel));
             }
         }
     }
@@ -453,10 +449,6 @@ export class ModelFieldSelectorPopover extends Component {
         }
         switch (ev.key) {
             case "ArrowUp": {
-                // No special case for a fresh search: the results park the
-                // focus on the first of them, and stepping backwards from
-                // there wraps onto the last -- which is the end an upward
-                // arrow should enter the list from anyway.
                 if (target.selectionStart === 0) {
                     page.focus("previous");
                 }

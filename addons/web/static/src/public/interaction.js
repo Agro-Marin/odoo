@@ -1,13 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/public/interaction */
-
 import { renderToFragment } from "@web/core/utils/render";
 import { debounce, throttleForAnimation } from "@web/core/utils/timing";
-
-import { INITIAL_VALUE, SKIP_IMPLICIT_UPDATE, toEventTargets } from "./colibri.js";
-import { makeAsyncHandler, makeButtonHandler } from "./minimal_dom.js";
+import {
+    INITIAL_VALUE,
+    SKIP_IMPLICIT_UPDATE,
+    toEventTargets,
+} from "@web/public/colibri";
+import { makeAsyncHandler, makeButtonHandler } from "@web/public/minimal_dom";
 
 /**
  * @param {Interaction} interaction
@@ -17,9 +18,7 @@ import { makeAsyncHandler, makeButtonHandler } from "./minimal_dom.js";
 function asDeferredHandler(interaction, fn) {
     /** @param {any[]} args */
     const handler = (...args) => {
-        Promise.resolve(fn(...args)).catch((error) =>
-            interaction.services["public.interactions"].reportError(error),
-        );
+        Promise.resolve(fn(...args)).catch((error) => interaction._reportError(error));
         return SKIP_IMPLICIT_UPDATE;
     };
     Object.defineProperty(handler, "name", { value: fn.name, configurable: true });
@@ -63,7 +62,7 @@ export class Interaction {
     /**
      * @param {HTMLElement} el
      * @param {import("@web/env").OdooEnv} env
-     * @param {import("./colibri").Colibri} metadata
+     * @param {import("@web/public/colibri").Colibri} metadata
      */
     constructor(el, env, metadata) {
         this.__colibri__ = metadata;
@@ -96,15 +95,7 @@ export class Interaction {
 
     waitFor(promise = Promise.resolve()) {
         const prom = new Promise((resolve, reject) => {
-            const updateAfterCaller = () => {
-                if (this.isReady && !this.isDestroyed) {
-                    try {
-                        this.updateContent();
-                    } catch (error) {
-                        this.services["public.interactions"].reportError(error);
-                    }
-                }
-            };
+            const updateAfterCaller = () => this._settleContent();
             promise.then(
                 (result) => {
                     if (this.isDestroyed) {
@@ -115,7 +106,7 @@ export class Interaction {
                 },
                 (error) => {
                     if (this.isDestroyed) {
-                        this.services["public.interactions"].reportError(error);
+                        this._reportError(error);
                         return;
                     }
                     reject(error);
@@ -127,15 +118,36 @@ export class Interaction {
     }
 
     /**
+     * @param {unknown} error
+     * @returns {void}
+     */
+    _reportError(error) {
+        this.services["public.interactions"].reportError(error);
+    }
+
+    /**
+     * @returns {void}
+     */
+    _updateContentIfLive() {
+        if (this.isReady && !this.isDestroyed) {
+            this.updateContent();
+        }
+    }
+
+    _settleContent() {
+        try {
+            this._updateContentIfLive();
+        } catch (error) {
+            this._reportError(error);
+        }
+    }
+
+    /**
      * @param {Function} fn
      * @return {Function}
      */
-    protectSyncAfterAsync(fn) {
-        return this.__colibri__.protectSyncAfterAsync(
-            this,
-            "protectSyncAfterAsync",
-            fn,
-        );
+    bindDeferred(fn) {
+        return this.__colibri__.bindDeferred(this, fn);
     }
 
     /**
@@ -148,11 +160,9 @@ export class Interaction {
         }
         try {
             fn.call(this);
-            if (this.isReady) {
-                this.updateContent();
-            }
+            this._updateContentIfLive();
         } catch (error) {
-            this.services["public.interactions"].reportError(error);
+            this._reportError(error);
         }
     }
 
@@ -162,7 +172,7 @@ export class Interaction {
      * @returns {number}
      */
     waitForTimeout(fn, delay) {
-        fn = this.__colibri__.protectSyncAfterAsync(this, "waitForTimeout", fn);
+        fn = this.bindDeferred(fn);
         /** @type {() => void} */
         let forget;
         const timer = setTimeout(() => {
@@ -178,15 +188,34 @@ export class Interaction {
      * @returns {number}
      */
     waitForAnimationFrame(fn) {
-        fn = this.__colibri__.protectSyncAfterAsync(this, "waitForAnimationFrame", fn);
+        fn = this.bindDeferred(fn);
         /** @type {() => void} */
         let forget;
-        const handle = window.requestAnimationFrame(() => {
+        const view = this.el.ownerDocument.defaultView || window;
+        const handle = view.requestAnimationFrame(() => {
             forget();
             this._runDeferred(fn);
         });
-        forget = this.__colibri__.addCleanup(() => window.cancelAnimationFrame(handle));
+        forget = this.__colibri__.addCleanup(() => view.cancelAnimationFrame(handle));
         return handle;
+    }
+
+    /**
+     * @param {Function} fn
+     * @param {(inner: (...args: any[]) => any) => ((...args: any[]) => any) & { cancel: () => void }} schedule
+     * @returns {((...args: any[]) => symbol) & { cancel: () => void }}
+     */
+    _scheduledHandler(fn, schedule) {
+        const bound = this.bindDeferred(fn);
+        const scheduled = schedule(
+            /** @param {any[]} args */
+            async (...args) => {
+                await bound.apply(this, args);
+                this._updateContentIfLive();
+            },
+        );
+        this.registerCleanup(() => scheduled.cancel());
+        return asDeferredHandler(this, scheduled);
     }
 
     /**
@@ -196,22 +225,7 @@ export class Interaction {
      * @returns {((...args: any[]) => symbol) & { cancel: () => void }}
      */
     debounced(fn, delay, options) {
-        fn = this.__colibri__.protectSyncAfterAsync(this, "debounced", fn);
-        const debouncedFn = debounce(
-            /** @param {any[]} args */
-            async (...args) => {
-                await fn.apply(this, args);
-                if (this.isReady && !this.isDestroyed) {
-                    this.updateContent();
-                }
-            },
-            delay,
-            options,
-        );
-        this.registerCleanup(() => {
-            debouncedFn.cancel();
-        });
-        return asDeferredHandler(this, debouncedFn);
+        return this._scheduledHandler(fn, (inner) => debounce(inner, delay, options));
     }
 
     /**
@@ -219,20 +233,7 @@ export class Interaction {
      * @returns {((...args: any[]) => symbol) & { cancel: () => void }}
      */
     throttled(fn) {
-        fn = this.__colibri__.protectSyncAfterAsync(this, "throttled", fn);
-        const throttledFn = throttleForAnimation(
-            /** @param {any[]} args */
-            async (...args) => {
-                await fn.apply(this, args);
-                if (this.isReady && !this.isDestroyed) {
-                    this.updateContent();
-                }
-            },
-        );
-        this.registerCleanup(() => {
-            throttledFn.cancel();
-        });
-        return asDeferredHandler(this, throttledFn);
+        return this._scheduledHandler(fn, throttleForAnimation);
     }
 
     /**
@@ -242,7 +243,7 @@ export class Interaction {
      */
     locked(fn, useLoadingAnimation = false) {
         const protectedFn = /** @type {(...args: any[]) => any} */ (
-            this.__colibri__.protectSyncAfterAsync(this, "locked", fn)
+            this.bindDeferred(fn)
         );
         if (useLoadingAnimation) {
             return makeButtonHandler(protectedFn);
@@ -316,7 +317,7 @@ export class Interaction {
             this.registerCleanup(() => el.replaceChildren(...children));
         }
         for (const error of errors) {
-            this.services["public.interactions"].reportError(error);
+            this._reportError(error);
         }
     }
 
@@ -339,8 +340,8 @@ export class Interaction {
     ) {
         const fragment = renderToFragment(template, renderContext);
         const result = /** @type {HTMLElement[]} */ ([...fragment.children]);
+        callback?.([...result]);
         const els = [...result];
-        callback?.(els);
         if (["afterend", "afterbegin"].includes(position)) {
             els.reverse();
         }

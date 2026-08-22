@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/field_dirty_signal */
-
 import { onWillDestroy, useComponent } from "@odoo/owl";
 import { ModelEvent } from "@web/core/events";
 
@@ -11,16 +9,6 @@ import { ModelEvent } from "@web/core/events";
  */
 
 /**
- * Fold one `FIELD_IS_DIRTY` event into the per-owner dirty set.
- *
- * The detail must be an owned payload (`{ id, isDirty }`), i.e. come from
- * `useFieldDirtySignal`. Raw boolean details used to be aliased onto one
- * shared legacy owner, which made every unconverted emitter speak for every
- * other one: two such fields on a form clobbered each other's dirty state,
- * and one destroyed while dirty wedged the owner set forever. That aliasing
- * is gone — a non-payload detail is a bug in the emitter, so it throws in
- * debug mode and is warn-ignored in production.
- *
  * @param {Set<symbol>} owners
  * @param {boolean | FieldDirtyPayload} detail
  * @returns {Set<symbol>}

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/py_js/py_type_name */
-
 import { PyDate, PyDateTime, PyRelativeDelta, PyTime, PyTimeDelta } from "./py_date.js";
 import { isPyMapping } from "./py_utils.js";
 
@@ -17,11 +15,6 @@ const PY_TEMPORAL_TYPE_NAMES = new Map(
 );
 
 /**
- * The Python type name a value reports, for error messages.
- *
- * Split out of ``py_builtin`` so ``py_compare`` can reach it without importing
- * ``py_builtin`` back; see ``py_errors`` for why that cycle mattered.
- *
  * @param {any} value
  * @returns {string}
  */

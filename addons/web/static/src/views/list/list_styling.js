@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_styling */
-
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { getClassNameFromDecoration } from "@web/core/utils/decorations";
 import { getFormattedValue } from "@web/views/view_utils";

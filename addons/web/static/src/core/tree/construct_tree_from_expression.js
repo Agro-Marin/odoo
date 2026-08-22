@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/construct_tree_from_expression */
-
 /** @typedef {import("../py_js/ast_type.js").AST} AST */
 /** @typedef {import("../py_js/ast_type.js").ASTName} ASTName */
 /** @typedef {import("../py_js/ast_type.js").ASTBinaryOperator} ASTBinaryOperator */
@@ -248,9 +246,6 @@ function _treeFromAST(ast, options, negate = false) {
     }
 
     if (ast.type === ASTType.Chain) {
-        // The editor shows `a < b < c` as two editable conditions. Expanding
-        // here rather than in the parser keeps that, without handing the
-        // interpreter a shared operand it would evaluate twice.
         /** @type {AST[]} */
         const comparisons = ast.operators.map((op, i) => ({
             type: ASTType.BinaryOperator,

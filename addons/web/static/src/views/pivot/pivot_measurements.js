@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/pivot/pivot_measurements */
-
 /**
  * @param {Object} config
  * @returns {string[]}

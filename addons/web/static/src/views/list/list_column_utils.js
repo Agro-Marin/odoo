@@ -1,25 +1,23 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module views/list/list_column_utils */
-
 /** @import { DynamicList } from "@web/model/relational_model/dynamic_list" */
 /** @import { StaticList } from "@web/model/relational_model/static_list" */
 
 /**
  * @typedef {{
- *  type: string;
- *  name: string;
- *  id: string;
- *  label?: string;
- *  widget?: string;
- *  hasLabel?: boolean;
- *  optional?: string;
- *  classNames?: string;
- *  column_invisible?: string;
- *  attrs?: Record<string, string>;
- *  relatedPropertyField?: Record<string, unknown>;
- *  [key: string]: unknown;
+ * type: string;
+ * name: string;
+ * id: string;
+ * label?: string;
+ * widget?: string;
+ * hasLabel?: boolean;
+ * optional?: string;
+ * classNames?: string;
+ * column_invisible?: string | boolean;
+ * attrs?: Record<string, string>;
+ * relatedPropertyField?: Record<string, unknown>;
+ * [key: string]: unknown;
  * }} Column
  */
 
@@ -59,7 +57,7 @@ export function getPropertyFieldColumns(column, list) {
     const columns = propertyFields.map((propertyField) => {
         const activeField = list.activeFields[propertyField.name];
         return {
-            ...getPropertyFieldInfo(propertyField),
+            ...getPropertyFieldInfo(propertyField, "list"),
             relatedPropertyField: activeField.relatedPropertyField,
             id: `${column.id}_${propertyField.name}`,
             column_invisible: combineModifiers(

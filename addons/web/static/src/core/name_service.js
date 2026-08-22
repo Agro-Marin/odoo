@@ -1,10 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/name_service */
-
 import { AppEvent, UserEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
+import { isId } from "@web/core/tree/utils";
 import { userBus } from "@web/core/user";
 import { unique, zip } from "@web/core/utils/collections/arrays";
 import { Deferred } from "@web/core/utils/concurrency";
@@ -24,30 +23,10 @@ function cacheKey(resModel, resId) {
 }
 
 /**
- * @param {any} val
- * @returns {boolean}
- */
-function isId(val) {
-    return Number.isInteger(val) && val >= 1;
-}
-
-/**
  * @typedef {Record<string, (string|ERROR_INACCESSIBLE_OR_MISSING)>} DisplayNames
  */
 
-/**
- * The `name` service.
- *
- * A class rather than a closure returning an object literal; see
- * `core/hotkeys/hotkey_service.js` for the reasoning and
- * `tooling/architecture/js_service_shape.py` for the budget.
- *
- * `clearCache` is subscribed to two buses, so it is registered through a stored
- * wrapper rather than as a bare method reference: `removeEventListener` needs
- * the same function object it was given, while the behaviour itself must
- * resolve through the prototype for a patch to be reached.
- */
-export class NameService {
+class NameService {
     /**
      * @param {import("@web/env").OdooEnv} env
      * @param {{ orm: any }} services
@@ -129,7 +108,9 @@ export class NameService {
      */
     async loadDisplayNames(resModel, resIds) {
         const proms = [];
-        /** @type {{ resId: number, deferred: import("@web/core/utils/concurrency").Deferred }[]} */
+        /**
+         * @type {{ resId: number, deferred: import("@web/core/utils/concurrency").Deferred }[]}
+         */
         const entriesToFetch = [];
         const uniqueIds = unique(resIds);
         for (const resId of uniqueIds) {

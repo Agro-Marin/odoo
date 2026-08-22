@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/form/field_is_dirty_hook */
-
 import { useState } from "@odoo/owl";
 import { ModelEvent } from "@web/core/events";
 import { useBus } from "@web/core/utils/hooks";

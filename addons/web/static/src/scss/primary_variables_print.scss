@@ -1,8 +1,5 @@
 $o-webclient-media: print !default;
 
-// Feeds `color-scheme` in webclient.scss, which only recognises `normal` /
-// `light` / `dark`. `bright` parses as a custom ident and is then ignored, so
-// the scheme silently fell back to `normal` instead of forcing a light render.
 $o-webclient-color-scheme: light !default;
 
 $o-gray-100: #f8f9fa !default;

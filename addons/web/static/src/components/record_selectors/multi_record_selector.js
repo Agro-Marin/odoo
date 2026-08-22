@@ -1,9 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/record_selectors/multi_record_selector */
-
 import { useState } from "@odoo/owl";
+import { isAvatarModel } from "@web/components/record_selectors/avatar_models";
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { _t } from "@web/core/translation";
 import { isId } from "@web/core/tree/utils";
@@ -13,7 +12,7 @@ import { BaseRecordSelector } from "./base_record_selector.js";
 import { RecordAutocomplete } from "./record_autocomplete.js";
 import { useTagNavigation } from "./tag_navigation_hook.js";
 
-/** @typedef {{ text: string, onDelete: Function, img: string | false }} RecordTag */
+/** @typedef {{ id: number, text: string, onDelete: Function, img: string | false }} RecordTag */
 /** @typedef {{ resIds: number[], [key: string]: any }} MultiRecordSelectorProps */
 
 export class MultiRecordSelector extends BaseRecordSelector {
@@ -36,7 +35,7 @@ export class MultiRecordSelector extends BaseRecordSelector {
         super.setup();
         this.state = useState({ tags: [] });
         useTagNavigation("multiRecordSelector", {
-            delete: (index) => this.deleteTag(index),
+            delete: (index) => this.deleteTagAt(index),
         });
     }
 
@@ -69,37 +68,54 @@ export class MultiRecordSelector extends BaseRecordSelector {
     }
 
     /**
+     * Every field here comes from `props`, never from `this.props`. The two
+     * are not the same object at the only moment this runs: the caller is
+     * `computeDerivedParams(nextProps)`, which awaits `loadDisplayNames`
+     * inside `onWillUpdateProps`, and owl does not swap `this.props` until the
+     * patch that follows. Reading `this.props.resModel` here therefore paired
+     * the *incoming* ids with the *outgoing* model — so a selector switched
+     * from one relation to another (the domain editor changing a condition's
+     * path, a spreadsheet filter changing its model) built its avatar URLs
+     * against the model it had just left, and asked `isAvatarModel` about it
+     * too.
+     *
      * @param {MultiRecordSelectorProps} props
      * @param {Record<number, string>} displayNames
      * @returns {RecordTag[]}
      */
     getTags(props, displayNames) {
-        return props.resIds.map((id, index) => {
+        const withAvatar = isAvatarModel(props.resModel);
+        return props.resIds.map((id) => {
             const text =
                 typeof displayNames[id] === "string"
                     ? displayNames[id]
                     : _t("Inaccessible/missing record ID: %s", id);
             return {
+                id,
                 text,
                 onDelete: () => {
-                    this.deleteTag(index);
+                    this.deleteTag(id);
                 },
                 img:
-                    this.isAvatarModel &&
+                    withAvatar &&
                     isId(id) &&
-                    imageUrl(this.props.resModel, id, "avatar_128"),
+                    imageUrl(props.resModel, id, "avatar_128"),
             };
         });
     }
 
     /**
+     * @param {number} resId
+     */
+    deleteTag(resId) {
+        this.props.update(this.props.resIds.filter((id) => id !== resId));
+    }
+
+    /**
      * @param {number} index
      */
-    deleteTag(index) {
-        this.props.update([
-            ...this.props.resIds.slice(0, index),
-            ...this.props.resIds.slice(index + 1),
-        ]);
+    deleteTagAt(index) {
+        this.state.tags[index]?.onDelete();
     }
 
     /**

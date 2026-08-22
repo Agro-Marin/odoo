@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/network/rpc */
-
 import { EventBus } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { RpcEvent } from "@web/core/events";
@@ -15,43 +13,43 @@ import { globalSingleton } from "@web/core/utils/global_singleton";
 
 /**
  * @typedef {{
- *  code: number;
- *  message: string;
- *  data?: RPCErrorData;
- *  type?: string;
+ * code: number;
+ * message: string;
+ * data?: RPCErrorData;
+ * type?: string;
  * }} JsonRpcError
  */
 
 /**
  * @typedef {{
- *  name?: string;
- *  message?: string;
- *  arguments?: unknown[];
- *  context?: Record<string, unknown>;
- *  debug?: string;
- *  [extra: string]: unknown;
+ * name?: string;
+ * message?: string;
+ * arguments?: unknown[];
+ * context?: Record<string, unknown>;
+ * debug?: string;
+ * [extra: string]: unknown;
  * }} RPCErrorData
  */
 
 /**
  * @typedef {{
- *  cache?: boolean | { type?: "ram" | "disk"; update?: "once" | "always"; immutable?: boolean; callback?: Function };
- *  silent?: boolean;
- *  headers?: HeadersInit;
- *  timeout?: number;
- *  retry?: number | Partial<RetryConfig>;
- *  dedup?: boolean;
- *  signal?: AbortSignal;
+ * cache?: boolean | { type?: "ram" | "disk"; update?: "once" | "always"; immutable?: boolean; callback?: Function };
+ * silent?: boolean;
+ * headers?: HeadersInit;
+ * timeout?: number;
+ * retry?: number | Partial<RetryConfig>;
+ * dedup?: boolean;
+ * signal?: AbortSignal;
  * }} RpcSettings
  */
 
 /**
  * @typedef {{
- *  data: { id: number; jsonrpc: "2.0"; method: "call"; params: Record<string, any> };
- *  url: string;
- *  settings?: RpcSettings;
- *  result?: any;
- *  error?: NetworkError;
+ * data: { id: number; jsonrpc: "2.0"; method: "call"; params: Record<string, any> };
+ * url: string;
+ * settings?: RpcSettings;
+ * result?: any;
+ * error?: NetworkError;
  * }} RpcEventDetail
  */
 
@@ -62,28 +60,24 @@ import { globalSingleton } from "@web/core/utils/global_singleton";
 
 /**
  * @typedef {{
- *  subscribers: number;
- *  lastOut: () => void;
+ * subscribers: number;
+ * lastOut: () => void;
  * }} InflightEntry
  */
 
 /**
  * @typedef {{
- *  rpcBus: EventBus,
- *  inflightDedup: Map<string, InflightEntry & { shared: any }>,
- *  inflightCacheJoin: Map<string, InflightEntry>,
- *  rpcCache: RPCCache | null | undefined,
- *  busListenersAttached: boolean,
- *  rpcId: number,
- *  dedupCallbackSeq: number,
+ * rpcBus: EventBus,
+ * inflightDedup: Map<string, InflightEntry & { shared: any }>,
+ * inflightCacheJoin: Map<string, InflightEntry>,
+ * rpcCache: RPCCache | null | undefined,
+ * busListenersAttached: boolean,
+ * rpcId: number,
+ * dedupCallbackSeq: number,
  * }} RpcState
  */
 
 /**
- * The factory's return type is annotated rather than the binding: the literal
- * is inferred on its own, so a `@type` on `_rpcState` alone leaves `rpcCache`
- * implicitly `any`.
- *
  * @type {RpcState}
  */
 const _rpcState = globalSingleton(
@@ -123,26 +117,30 @@ function validateRPCSettings(settings) {
             `Invalid RPC setting(s): ${invalid}. Valid settings are: ${valid}`,
         );
     }
-    // `dedup` collapses callers onto one in-flight request, and an
-    // `AbortSignal` is per-caller by construction. Sharing a request between a
-    // caller that can cancel it and one that cannot means the second silently
-    // inherits the first's lifetime -- so refuse the combination rather than
-    // pick a winner. `dedupSettingsFingerprint` also cannot tell two signals
-    // apart (`JSON.stringify(signal)` is `{}`), which is how they would end up
-    // sharing a slot in the first place.
-    if (settings.signal && settings.dedup) {
-        throw new Error(
-            `Invalid RPC settings: "signal" cannot be combined with "dedup" -- ` +
-                `a deduplicated request is shared, so one caller's abort would cancel every observer.`,
-        );
+}
+
+/**
+ * @template {Promise<any>} T
+ * @param {T} promise
+ * @param {AbortSignal | undefined} signal
+ * @returns {T}
+ */
+function attachCallerSignal(promise, signal) {
+    if (!signal) {
+        return promise;
     }
+    const abort = () => /** @type {any} */ (promise).abort?.(true);
+    if (signal.aborted) {
+        abort();
+        return promise;
+    }
+    signal.addEventListener("abort", abort, { once: true });
+    const release = () => signal.removeEventListener("abort", abort);
+    promise.then(release, release);
+    return promise;
 }
 
 export class NetworkError extends Error {
-    // Behaviour-as-data: whether an automatic retry could plausibly succeed.
-    // Consumers gate on this rather than on the class, so a new error type
-    // declares its own retryability instead of every retry site special-casing
-    // it. Default: not retryable.
     retryable = false;
 }
 
@@ -169,7 +167,6 @@ export class RPCError extends NetworkError {
 }
 
 export class ConnectionLostError extends NetworkError {
-    // A dropped/unestablished connection: retrying may reach the server.
     retryable = true;
 
     /**
@@ -204,13 +201,6 @@ export class ServerOverloadError extends ConnectionLostError {
     }
 }
 
-// NOT a ConnectionLostError: a well-formed HTTP response arrived, it just was
-// not the JSON-RPC we expected (e.g. a session-expired request redirected to a
-// login page). It is a distinct failure, so it extends NetworkError directly and
-// stays `retryable = false` -- the connection is fine, retrying returns the same
-// non-JSON. Consumers that must still react to it (the session-expired handler,
-// spreadsheet collaboration, POS sync) name it explicitly rather than relying on
-// a `ConnectionLostError` is-a they would otherwise all have to carve back out.
 export class InvalidResponseError extends NetworkError {
     /**
      * @param {string} url
@@ -244,7 +234,6 @@ export class RequestEntityTooLargeError extends NetworkError {
 }
 
 export class ConnectionTimeoutError extends NetworkError {
-    // A request that timed out: a fresh attempt may complete in time.
     retryable = true;
 
     /**
@@ -306,10 +295,6 @@ rpc.setCache = function (cache) {
 };
 
 /**
- * Delete the persisted RPC cache (its IndexedDB store). Used on logout so a
- * user's cached data does not outlive their session on a shared browser. A no-op
- * that resolves when no disk cache is configured.
- *
  * @returns {Promise<void>}
  */
 rpc.purgeCacheStorage = function () {
@@ -342,7 +327,7 @@ if (!_rpcState.busListenersAttached) {
     });
 
     rpcBus.addEventListener(RpcEvent.REQUEST, (event) => {
-        if (!rpcLog.enabled()) {
+        if (!rpcLog.active()) {
             return;
         }
         const detail = /** @type {CustomEvent<RpcEventDetail>} */ (event).detail;
@@ -351,7 +336,7 @@ if (!_rpcState.busListenersAttached) {
     });
 
     rpcBus.addEventListener(RpcEvent.RESPONSE, (event) => {
-        if (!rpcLog.enabled()) {
+        if (!rpcLog.active()) {
             return;
         }
         const detail = /** @type {CustomEvent<RpcEventDetail>} */ (event).detail;
@@ -400,13 +385,6 @@ function backoffDelay(attempt, config, lastError) {
     const jitter = Math.random() * config.baseMs;
     const capped = Math.min(exp + jitter, config.maxMs);
     if (lastError instanceof ServerOverloadError) {
-        // Applied AFTER the `maxMs` cap, not before it. Flooring `exp` first
-        // let the cap undo the floor: `retry({ maxMs: 500 })` against an
-        // overloaded server waited 500ms, not the 1000ms this exists to
-        // guarantee, and did so silently. The floor is the whole point of the
-        // branch -- backing off HARDER is what keeps retries from piling onto
-        // a server already returning non-JSON -- so it wins over a caller's
-        // cap rather than losing to it.
         return Math.max(capped, SERVER_OVERLOAD_BACKOFF_FLOOR_MS);
     }
     return capped;
@@ -417,56 +395,24 @@ function backoffDelay(attempt, config, lastError) {
  * @returns {boolean}
  */
 function isRetryable(err) {
-    // Behaviour-as-data: each NetworkError declares its own retryability, so this
-    // gate no longer enumerates types and carves InvalidResponseError back out
-    // (ConnectionLost/Timeout/ServerOverload are `retryable`; InvalidResponse and
-    // aborts are not).
     return err instanceof NetworkError && err.retryable === true;
 }
 
 /**
- * In-flight requests shared by ``dedup`` callers.
- *
- * Each caller gets its own promise over the shared request and its own
- * ``abort``, which detaches that caller only; the underlying request is
- * cancelled when the last subscriber leaves. Handing the shared promise out
- * directly made one caller's ``abort()`` reject every other caller.
- *
  * @type {Map<string, InflightEntry & { shared: any }>}
  */
 const inflightDedup = _rpcState.inflightDedup;
 
 /**
- * In-flight requests shared by ``cache`` callers.
- *
- * When a cached read misses, the caller that started the fetch and every
- * later caller piggybacked on it by the cache (``hasPendingRequest``) share
- * one underlying request; this map holds its refcount so each of them gets
- * an independent ``abort`` -- same contract as ``inflightDedup``. Keyed by
- * the cache's own ``table/key`` request key.
- *
  * @type {Map<string, InflightEntry>}
  */
 const inflightCacheJoin = _rpcState.inflightCacheJoin;
 
 /**
- * Attach one caller to a refcounted shared in-flight request.
- *
- * The caller gets its own promise over ``follow`` and its own ``abort``,
- * which detaches that caller only: ``abort(false)`` leaves the caller's
- * promise pending forever (silent, like every other ``abort(false)`` path)
- * and ``abort(true)`` rejects it with a ``ConnectionAbortedError``. The
- * shared request itself is only torn down -- via ``entry.lastOut`` -- when
- * the last subscriber leaves.
- *
- * ``follow`` is passed per caller rather than read off the entry because
- * cached reads settle each subscriber through its own ``shape`` (immutable
- * callers get the frozen value, mutable callers their own clone).
- *
  * @param {InflightEntry} entry
- * @param {Promise<any>} follow carries this caller's settlement
+ * @param {Promise<any>} follow
  * @param {string} url
- * @param {() => void} [onDetach] runs first when this caller aborts
+ * @param {() => void} [onDetach]
  * @returns {RpcPromise<any>}
  */
 function joinInflight(entry, follow, url, onDetach) {
@@ -508,7 +454,7 @@ function joinInflight(entry, follow, url, onDetach) {
 function dedupSettingsFingerprint(settings) {
     const parts = [];
     for (const key of [...RPC_SETTINGS].sort()) {
-        if (key === "dedup" || settings[key] === undefined) {
+        if (key === "dedup" || key === "signal" || settings[key] === undefined) {
             continue;
         }
         let value = settings[key];
@@ -546,7 +492,7 @@ rpc._rpc = function (url, params, settings) {
         let entry = inflightDedup.get(key);
         if (!entry) {
             const shared = /** @type {any} */ (
-                rpc._rpc(url, params, omit(settings, "dedup"))
+                rpc._rpc(url, params, omit(settings, "dedup", "signal"))
             );
             const created = {
                 shared,
@@ -567,7 +513,10 @@ rpc._rpc = function (url, params, settings) {
             inflightDedup.set(key, created);
             entry = created;
         }
-        return joinInflight(entry, entry.shared, url);
+        return attachCallerSignal(
+            joinInflight(entry, entry.shared, url),
+            settings.signal,
+        );
     }
     if (settings.cache && _rpcState.rpcCache) {
         const rpcCache = _rpcState.rpcCache;
@@ -595,13 +544,17 @@ rpc._rpc = function (url, params, settings) {
         const fallback = (/** @type {object} */ request) => {
             ownRequest = request ?? null;
             const inner = /** @type {any} */ (
-                rpc._rpc(url, params, omit(settings, "cache"))
+                rpc._rpc(url, params, omit(settings, "cache", "signal"))
             );
             innerProm = inner;
             if (typeof inner.abort === "function") {
                 innerAbort = inner.abort.bind(inner);
             }
             return inner;
+        };
+        let issuedOwnRequest = false;
+        cacheSettings.onRequestIssued = () => {
+            issuedOwnRequest = true;
         };
         const cacheTable = params?.method || url;
         const cacheKey = buildKey(url, params);
@@ -615,12 +568,7 @@ rpc._rpc = function (url, params, settings) {
         const onDetach = () => {
             callerAborted = true;
         };
-        if (innerProm) {
-            // This caller's read started the shared request: register a
-            // refcounted entry so the callers the cache piggybacks on it
-            // each get their own abort. Only when the last one leaves is
-            // the request cancelled and the pending cache entry evicted --
-            // synchronously, so the next read re-fetches fresh.
+        if (issuedOwnRequest) {
             const entry = {
                 subscribers: 0,
                 lastOut: () => {
@@ -636,22 +584,20 @@ rpc._rpc = function (url, params, settings) {
                     inflightCacheJoin.delete(requestKey);
                 }
             };
-            // Assigned only inside `fallback`, which `rpcCache.read` invokes
-            // before returning here. TypeScript's control-flow analysis does
-            // not track an assignment made in a closure, so it still reads the
-            // variable as the `null` it was initialised to and narrows this
-            // branch to `never`. The guard above is the real check.
-            /** @type {Promise<any>} */ (innerProm).then(onSettle, onSettle);
+            (innerProm ?? cacheProm).then(onSettle, onSettle);
             inflightCacheJoin.set(requestKey, entry);
-            return joinInflight(entry, cacheProm, url, onDetach);
+            return attachCallerSignal(
+                joinInflight(entry, cacheProm, url, onDetach),
+                settings.signal,
+            );
         }
         const joined = inflightCacheJoin.get(requestKey);
         if (joined) {
-            // The cache piggybacked this caller on the request in flight.
-            return joinInflight(joined, cacheProm, url, onDetach);
+            return attachCallerSignal(
+                joinInflight(joined, cacheProm, url, onDetach),
+                settings.signal,
+            );
         }
-        // Plain cache hit: no request in flight, nothing to detach from
-        // beyond this caller's own promise.
         /** @type {(reason?: any) => void} */
         let abortReject = () => {};
         const joinerProm = new Promise((resolve, reject) => {
@@ -668,7 +614,7 @@ rpc._rpc = function (url, params, settings) {
                 abortReject(new ConnectionAbortedError(url));
             }
         };
-        return joinerProm;
+        return attachCallerSignal(joinerProm, settings.signal);
     }
     if (settings.retry) {
         return _rpcWithRetry(url, params, settings);
@@ -698,9 +644,6 @@ function _rpcOnce(url, params, settings) {
         ? AbortSignal.timeout(settings.timeout)
         : null;
     /**
-     * A caller-owned signal, composed alongside the per-request controller and
-     * the timeout. This is what lets a supersede primitive (`KeepLast`) cancel
-     * the request it is about to discard, instead of only ignoring its result.
      * @type {AbortSignal | null}
      */
     const callerSignal = settings.signal || null;
@@ -711,13 +654,6 @@ function _rpcOnce(url, params, settings) {
               .../** @type {AbortSignal[]} */ (extraSignals),
           ])
         : controller.signal;
-    /**
-     * The bus is an observer channel: `slow_rpc`, `loading_indicator` and
-     * `clickbot` read `settings`, and the last of them serialises it into a
-     * report. A live `AbortSignal` there is useless to a listener and harmful --
-     * it stringifies to `{}` and keeps the caller's controller reachable from
-     * every subscriber. Strip it; every other setting still travels.
-     */
     const busSettings = callerSignal ? omit(settings, "signal") : settings;
     const { promise, resolve, reject } = Promise.withResolvers();
     let settled = false;
@@ -862,9 +798,6 @@ function _rpcOnce(url, params, settings) {
             settleReject(error);
         });
 
-    /**
-     * @param {boolean} rejectError
-     */
     /** @type {RpcPromise<any>} */ (promise).abort = function (rejectError = true) {
         if (settled || aborted) {
             return;

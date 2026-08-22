@@ -1,29 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/x2many_tree */
-
-import { isX2Many } from "./field_context.js";
+import { isX2Many } from "@web/core/field_types";
 
 /** @import { RecordContract } from "./record_contract.js" */
 /** @import { StaticListContract } from "./static_list_contract.js" */
 
 /**
- * The record -> list -> record shape, in one place.
- *
- * The save path walks this tree three times for three different questions, and
- * open-coding the walk each time let the three drift: two disagreed on whether
- * property-backed lists are members, and each carried its own cycle guard. A
- * record can appear under several lists (and a list under several records via
- * the cache), so the guard is not optional -- it is the thing that makes the
- * walk terminate.
- */
-
-/**
- * Every x2many list held by *record*, INCLUDING the ones backing a `properties`
- * field. Command replay is staged on those too, so anything that has to be
- * quiesced before a save must see them.
- *
  * @param {RecordContract} record
  * @returns {Generator<[string, StaticListContract]>}
  */
@@ -40,11 +23,6 @@ export function* allX2manyLists(record) {
 }
 
 /**
- * The x2many lists that are fields of *record* in their own right. A
- * property-backed list is excluded: it is a facet of the `properties` field,
- * which carries its own value, so it is neither written nor committed
- * separately.
- *
  * @param {RecordContract} record
  * @returns {Generator<[string, StaticListContract]>}
  */
@@ -57,71 +35,58 @@ export function* x2manyLists(record) {
 }
 
 /**
- * Pending command-replay promises anywhere under *record*.
- *
+ * @param {RecordContract} record
+ * @returns {Generator<[string, StaticListContract]>}
+ */
+export function* walkX2manySubtree(record) {
+    const seen = new Set();
+    /**
+     * @param {RecordContract} current
+     * @returns {Generator<[string, StaticListContract]>}
+     */
+    function* visit(current) {
+        for (const [fieldName, list] of allX2manyLists(current)) {
+            if (seen.has(list)) {
+                continue;
+            }
+            seen.add(list);
+            yield [fieldName, list];
+            for (const subRecord of list.cachedRecords) {
+                if (!seen.has(subRecord)) {
+                    seen.add(subRecord);
+                    yield* visit(subRecord);
+                }
+            }
+        }
+    }
+    yield* visit(record);
+}
+
+/**
  * @param {RecordContract} record
  * @returns {Promise<unknown>[]}
  */
 export function collectPendingCommands(record) {
     /** @type {Promise<unknown>[]} */
     const proms = [];
-    const seen = new Set();
-    /** @param {RecordContract} current */
-    const visit = (current) => {
-        for (const [, list] of allX2manyLists(current)) {
-            if (seen.has(list)) {
-                continue;
-            }
-            seen.add(list);
-            if (list.pendingCommands) {
-                proms.push(list.pendingCommands);
-            }
-            for (const subRecord of list.cachedRecords) {
-                if (!seen.has(subRecord)) {
-                    seen.add(subRecord);
-                    visit(subRecord);
-                }
-            }
+    for (const [, list] of walkX2manySubtree(record)) {
+        if (list.pendingCommands) {
+            proms.push(list.pendingCommands);
         }
-    };
-    visit(record);
+    }
     return proms;
 }
 
 /**
- * Re-fetch the rows a rejected command replay left as `{id}` stubs, everywhere
- * under *record*. Invoked after a successful save: the replay failure did not
- * block the save (by design), but it left display state behind — the server is
- * reachable again, so each flagged list may now converge.
- *
  * @param {RecordContract} record
  */
 export function healSubtreeReplayFailures(record) {
-    const seen = new Set();
-    /** @param {RecordContract} current */
-    const visit = (current) => {
-        for (const [, list] of allX2manyLists(current)) {
-            if (seen.has(list)) {
-                continue;
-            }
-            seen.add(list);
-            list.healFailedReplay();
-            for (const subRecord of list.cachedRecords) {
-                if (!seen.has(subRecord)) {
-                    seen.add(subRecord);
-                    visit(subRecord);
-                }
-            }
-        }
-    };
-    visit(record);
+    for (const [, list] of walkX2manySubtree(record)) {
+        list.healFailedReplay();
+    }
 }
 
 /**
- * The `web_save` specification for a `reload: false` save: name only the
- * x2many fields whose result actually has to come back, so the round trip does
- * not re-read the whole form.
- *
  * @param {RecordContract} record
  * @param {Set<unknown>} [seen]
  * @returns {Record<string, any>}
@@ -148,10 +113,6 @@ export function buildCommitSpec(record, seen = new Set()) {
 }
 
 /**
- * Adopt the server's post-save x2many values through the subtree. A field the
- * server did not report was still written, so its staged commands are dropped
- * rather than carried into the next save.
- *
  * @param {RecordContract} record
  * @param {Record<string, any>} [values]
  * @param {Set<unknown>} [seen]

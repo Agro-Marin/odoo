@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/highlight_text/form_label_highlight_text */
-
 import { FormLabel } from "@web/views/form/form_label";
 import { upgradeBooleanField } from "@web/views/settings/fields/upgrade_boolean_field";
 

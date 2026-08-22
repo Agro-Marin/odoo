@@ -1,8 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/pivot/pivot_model */
-
+import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import {
     cartesian,
     sections,
@@ -398,6 +397,23 @@ export class PivotModel extends Model {
         return hasData(this.data);
     }
     /**
+     * @param {Object} context
+     */
+    _dropArchGroupBysHiddenByContext(context) {
+        if (this._archGroupBysResolved) {
+            return;
+        }
+        this._archGroupBysResolved = true;
+        const { fieldAttrs } = this.metaData;
+        const visible = (spec) => {
+            const invisible = fieldAttrs?.[spec.split(":")[0]]?.invisible;
+            return !invisible || !evaluateBooleanExpr(invisible, context);
+        };
+        this.metaData.rowGroupBys = this.metaData.rowGroupBys.filter(visible);
+        this.metaData.colGroupBys = this.metaData.colGroupBys.filter(visible);
+    }
+
+    /**
      * @override
      * @param {SearchParams} searchParams
      */
@@ -410,6 +426,7 @@ export class PivotModel extends Model {
             processedMeasures = processMeasure(rawPivotMeasures);
         }
         const activeMeasures = processedMeasures || this.metaData.activeMeasures;
+        this._dropArchGroupBysHiddenByContext(searchParams.context);
         const metaData = this._buildMetaData({ activeMeasures });
         if (!this.reload) {
             metaData.rowGroupBys = [
@@ -585,10 +602,6 @@ export class PivotModel extends Model {
     }
 
     /**
-     * Await a load through `keepLast`, resolving to the `SUPERSEDED` sentinel
-     * when a newer load takes over. Delegates supersession to `KeepLast`'s
-     * `rejectSuperseded` instead of re-deriving it with a race + watcher list.
-     *
      * @protected
      * @param {Promise<any>} promise
      * @returns {Promise<any>}

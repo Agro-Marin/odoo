@@ -1,8 +1,3 @@
-"""HTTP controller for the /json API route.
-
-View/domain resolution helpers live in ``json_helpers.py``.
-"""
-
 import ast
 import logging
 from datetime import date
@@ -41,30 +36,6 @@ class WebJsonController(http.Controller):
 
     @http.route("/json/1/<path:subpath>", auth="bearer", type="http", readonly=True)
     def web_json_1(self, subpath, **kwargs):
-        """Get the JSON representation of the action/view for the same /odoo `subpath`.
-
-        Behaviour:
-        - If the path resolves to a record (a record id is present), use the
-          `form` view_type; otherwise use the given view_type or the action's
-          preferred one.
-        - A form view reads through `web_read`.
-        - A groupby (explicit or from a pivot/graph view) reads through
-          `web_read_group`; otherwise falls back to a search read.
-        - Whenever a parameter gets a resolved default that wasn't in the
-          original URL (groupby, dates, domain, ...), redirect to the
-          canonical URL with that parameter made explicit.
-
-        :param subpath: Path to the (window) action to execute
-        :param domain: The domain for searches
-        :param limit: Result limit; falls back to the action's limit when
-                      unset or 0
-        :param groupby: Comma-separated string; when set, executes a `web_read_group`
-                        and groups by the given fields
-        :param fields: Comma-separated field list; aggregated fields when
-                      grouping, extra fields added to the read spec otherwise
-        :param start_date: When applicable, minimum date (inclusive bound)
-        :param end_date: When applicable, maximum date (exclusive bound)
-        """
         self._check_json_route_active()
         if not request.env.user.has_group("base.group_allow_export"):
             raise AccessError(
@@ -228,7 +199,6 @@ class WebJsonController(http.Controller):
         return request.make_json_response(res)
 
     def _check_json_route_active(self):
-        """Verify the /json route is enabled (demo mode or config param)."""
         sudo_env = request.env(su=True)
         if not (
             sudo_env.ref("base.module_base").demo
@@ -237,8 +207,6 @@ class WebJsonController(http.Controller):
             raise NotFound
 
     def _get_action(self, subpath):
-        """Resolve the action from the URL *subpath*."""
-
         def get_action_triples_():
             try:
                 yield from get_action_triples(request.env, subpath, start_pos=1)

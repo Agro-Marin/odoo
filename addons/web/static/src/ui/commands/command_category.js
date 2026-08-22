@@ -1,10 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/**
- * @module @web/ui/commands/command_category
- */
-
 /** @type {import("@web/core/registry").Registry<any>} */
 import { registry } from "@web/core/registry";
 const commandCategoryRegistry = registry.category("command_categories");

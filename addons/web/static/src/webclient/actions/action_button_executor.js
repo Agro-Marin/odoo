@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/action_button_executor */
-
 import { markup } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
 import { rpc } from "@web/core/network/rpc";
@@ -62,6 +60,112 @@ export function filterActionContext(context) {
 /**
  * @param {ActionManager} am
  * @param {DoActionButtonParams} params
+ * @param {Context} context mutated in place for `type="action"`, which is where
+ * the active_* keys the loaded action reads are seeded
+ * @returns {Promise<any>}
+ * @throws {InvalidButtonParamsError}
+ */
+async function resolveButtonAction(am, params, context) {
+    if (params.special) {
+        return { type: "ir.actions.act_window_close", infos: { special: true } };
+    }
+    if (params.type === "object") {
+        const callProm = rpc(
+            `/web/dataset/call_button/${params.resModel}/${params.name}`,
+            {
+                args: buildCallButtonArgs(params),
+                kwargs: { context },
+                method: params.name,
+                model: params.resModel,
+            },
+        );
+        const answer = await am.navigation.guard(callProm);
+        const action =
+            answer && typeof answer === "object"
+                ? answer
+                : { type: "ir.actions.act_window_close" };
+        if (action.help) {
+            action.help = markup(action.help);
+        }
+        return action;
+    }
+    if (params.type === "action") {
+        context.active_id = params.resId ?? null;
+        context.active_ids = params.resIds;
+        context.active_model = params.resModel;
+        return am.navigation.guard(am._loadAction(params.name, context));
+    }
+    throw new InvalidButtonParamsError("Missing type for doActionButton request");
+}
+
+/**
+ * A button whose action carries embedded actions re-enters `doActionButton` on
+ * the user's preferred one instead of opening the parent.
+ *
+ * @param {ActionManager} am
+ * @param {any} action
+ * @param {DoActionButtonParams} params
+ * @param {boolean} [newWindow]
+ * @returns {Promise<boolean>} whether an embedded action was dispatched, in
+ * which case the caller has nothing left to do
+ */
+async function dispatchPreferredEmbeddedAction(am, action, params, newWindow) {
+    if (!action.embedded_action_ids?.length) {
+        return false;
+    }
+    const embeddedActionsKey = `${action.id}+${params.resId || ""}`;
+    const embeddedActionsOrder =
+        user.settings.embedded_actions_config_ids?.[embeddedActionsKey]
+            ?.embedded_actions_order;
+    const embeddedActionId = embeddedActionsOrder?.[0];
+    const embeddedAction = action.embedded_action_ids.find(
+        (candidate) => candidate.id === embeddedActionId,
+    );
+    if (!embeddedAction) {
+        return false;
+    }
+    const embeddedActions = [
+        ...action.embedded_action_ids,
+        {
+            id: false,
+            name: action.name,
+            parent_action_id: action.id,
+            parent_res_model: action.res_model,
+            action_id: action.id,
+            user_id: false,
+            context: {},
+        },
+    ];
+    const embeddedContext = {
+        ...action.context,
+        ...(embeddedAction.context ? makeContext([embeddedAction.context]) : {}),
+        active_id: params.resId,
+        active_model: params.resModel,
+        current_embedded_action_id: embeddedActionId,
+        parent_action_embedded_actions: embeddedActions,
+        parent_action_id: action.id,
+    };
+    await am.doActionButton(
+        {
+            name:
+                embeddedAction.python_method ||
+                embeddedAction.action_id[0] ||
+                embeddedAction.action_id,
+            resId: params.resId,
+            context: embeddedContext,
+            type: embeddedAction.python_method ? "object" : "action",
+            resModel: embeddedAction.parent_res_model,
+            viewType: embeddedAction.default_view_mode,
+            ...pick(params, "onClose", "close", "effect", "stackPosition"),
+        },
+        { isEmbeddedAction: true, newWindow },
+    );
+    return true;
+}
+
+/**
+ * @param {ActionManager} am
+ * @param {DoActionButtonParams} params
  * @param {Object} [options={}]
  * @param {boolean} [options.isEmbeddedAction]
  * @param {boolean} [options.newWindow]
@@ -86,94 +190,16 @@ export async function executeActionButton(
     const context = makeContext([params.context, params.buttonContext]);
     const blockUi = exprToBoolean(params["block-ui"]);
     if (blockUi) {
-        am.env.services.ui.block();
+        am.uiService.block();
     }
     let effect;
     try {
-        if (params.special) {
-            action = {
-                type: "ir.actions.act_window_close",
-                infos: { special: true },
-            };
-        } else if (params.type === "object") {
-            const args = buildCallButtonArgs(params);
-            const callProm = rpc(
-                `/web/dataset/call_button/${params.resModel}/${params.name}`,
-                {
-                    args,
-                    kwargs: { context },
-                    method: params.name,
-                    model: params.resModel,
-                },
-            );
-            action = await am.navigation.guard(callProm);
-            action =
-                action && typeof action === "object"
-                    ? action
-                    : { type: "ir.actions.act_window_close" };
-            if (action.help) {
-                action.help = markup(action.help);
-            }
-        } else if (params.type === "action") {
-            context.active_id = params.resId ?? null;
-            context.active_ids = params.resIds;
-            context.active_model = params.resModel;
-            action = await am.navigation.guard(am._loadAction(params.name, context));
-        } else {
-            throw new InvalidButtonParamsError(
-                "Missing type for doActionButton request",
-            );
-        }
-        if (!isEmbeddedAction && action.embedded_action_ids?.length) {
-            const embeddedActionsKey = `${action.id}+${params.resId || ""}`;
-            const embeddedActionsOrder =
-                user.settings.embedded_actions_config_ids?.[embeddedActionsKey]
-                    ?.embedded_actions_order;
-            const embeddedActionId = embeddedActionsOrder?.[0];
-            const embeddedAction = action.embedded_action_ids?.find(
-                (embeddedAction) => embeddedAction.id === embeddedActionId,
-            );
-            if (embeddedAction) {
-                const embeddedActions = [
-                    ...action.embedded_action_ids,
-                    {
-                        id: false,
-                        name: action.name,
-                        parent_action_id: action.id,
-                        parent_res_model: action.res_model,
-                        action_id: action.id,
-                        user_id: false,
-                        context: {},
-                    },
-                ];
-                const embeddedContext = {
-                    ...action.context,
-                    ...(embeddedAction.context
-                        ? makeContext([embeddedAction.context])
-                        : {}),
-                    active_id: params.resId,
-                    active_model: params.resModel,
-                    current_embedded_action_id: embeddedActionId,
-                    parent_action_embedded_actions: embeddedActions,
-                    parent_action_id: action.id,
-                };
-                await am.doActionButton(
-                    {
-                        name:
-                            embeddedAction.python_method ||
-                            embeddedAction.action_id[0] ||
-                            embeddedAction.action_id,
-                        resId: params.resId,
-                        context: embeddedContext,
-                        type: embeddedAction.python_method ? "object" : "action",
-                        resModel: embeddedAction.parent_res_model,
-                        viewType: embeddedAction.default_view_mode,
-                        ...pick(params, "onClose", "close", "effect", "stackPosition"),
-                    },
-                    { isEmbeddedAction: true, newWindow },
-                );
-                return;
-            }
+        action = await resolveButtonAction(am, params, context);
+        if (
+            !isEmbeddedAction &&
+            (await dispatchPreferredEmbeddedAction(am, action, params, newWindow))
+        ) {
+            return;
         }
         const currentCtx = filterActionContext(params.context);
         const activeCtx = { active_model: params.resModel };
@@ -192,9 +218,6 @@ export async function executeActionButton(
         await am.doAction(action, {
             newWindow,
             onClose,
-            // The button handed us this callback before `action` existed: the
-            // server decides here whether it is a dialog. Dropping it on an
-            // inline dispatch is the contract, not a caller mistake.
             onCloseIsSpeculative: true,
             stackPosition,
             viewType,
@@ -204,10 +227,10 @@ export async function executeActionButton(
         }
     } finally {
         if (blockUi) {
-            am.env.services.ui.unblock();
+            am.uiService.unblock();
         }
     }
     if (effect) {
-        am.env.services.effect.add(effect);
+        am.effectService.add(effect);
     }
 }

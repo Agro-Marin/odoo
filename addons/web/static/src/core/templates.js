@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/templates */
-
 import {
     applyContextToTextNode,
     applyInheritance,
@@ -30,9 +28,6 @@ function getClone(template) {
  * @returns {string}
  */
 function getKey([name, url, templateString]) {
-    // Only the body is hashed, and the name and url are kept verbatim: hashing
-    // the whole triple let two unrelated templates share a key, and the
-    // unregister closure would then `registered.delete` the *other* one.
     return JSON.stringify([name, url, cyrb53(templateString)]);
 }
 
@@ -253,26 +248,24 @@ export class TemplateRegistry {
      */
     registerTemplate(name, url, templateString) {
         const key = getKey([name, url, templateString]);
-        if (this.registered.has(key)) {
-            if (
-                this.templates[name] === templateString &&
-                this.info[name]?.url === url
-            ) {
-                return () => {};
-            }
-        } else {
-            this.registered.add(key);
-        }
-        log("register", name, "url=", url);
-        if (this.blockType !== "templates") {
-            this.blockType = "templates";
-            this.blockId++;
+        if (
+            this.registered.has(key) &&
+            this.templates[name] === templateString &&
+            this.info[name]?.url === url
+        ) {
+            return () => {};
         }
         if (
             name in this.templates &&
             (this.info[name].url !== url || this.templates[name] !== templateString)
         ) {
             throw new Error(`Template ${name} already exists`);
+        }
+        this.registered.add(key);
+        log("register", name, "url=", url);
+        if (this.blockType !== "templates") {
+            this.blockType = "templates";
+            this.blockId++;
         }
         this.templates[name] = templateString;
         this.info[name] = { blockId: this.blockId, url };
@@ -340,11 +333,19 @@ export class TemplateRegistry {
         };
     }
 
+    _invalidateAllDerived() {
+        this.parsedTemplates = Object.create(null);
+        this.parsedTemplateExtensions = Object.create(null);
+        this.processedTemplates.clear();
+        this._dependents.clear();
+    }
+
     /**
      * @param {(document: Document) => void} processor
      */
     registerTemplateProcessor(processor) {
         this.templateProcessors.push(processor);
+        this._invalidateAllDerived();
     }
 
     /**
@@ -367,14 +368,13 @@ export class TemplateRegistry {
     setUrlFilters(filters) {
         const prev = this.urlFilters;
         this.urlFilters = filters;
-        return () => {
-            this.urlFilters = prev;
-        };
-    }
-
-    clearProcessedTemplates() {
         this.processedTemplates.clear();
         this._dependents.clear();
+        return () => {
+            this.urlFilters = prev;
+            this.processedTemplates.clear();
+            this._dependents.clear();
+        };
     }
 }
 
@@ -427,8 +427,4 @@ export function checkPrimaryTemplateParents(namesToCheck) {
  */
 export function setUrlFilters(filters) {
     return templates.setUrlFilters(filters);
-}
-
-export function clearProcessedTemplates() {
-    return templates.clearProcessedTemplates();
 }

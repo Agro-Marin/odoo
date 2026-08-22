@@ -1,16 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/static_list */
-
 import { markRaw } from "@odoo/owl";
 import { reportUncaught } from "@web/core/errors/error_utils";
+import { isX2Many } from "@web/core/field_types";
 import { x2ManyCommands } from "@web/core/network/commands";
 import { deepEqual, omit } from "@web/core/utils/collections/objects";
 
 import { serializeCommands } from "./command_builder.js";
-import { DataPoint } from "./datapoint.js";
-import { getId, getSpecEvalContext, isX2Many } from "./field_context.js";
+import { EditableListDataPoint } from "./editable_list_datapoint.js";
+import { getId, getSpecEvalContext } from "./field_context.js";
 import {
     cloneActiveFields,
     completeActiveFields,
@@ -35,11 +34,9 @@ function cloneCommands(commands) {
     );
 }
 
-/** @param {Record<string, [number, any, any?][]>} byId */
+/** @param {Map<DatapointId, [number, any, any?][]>} byId */
 function cloneCommandsById(byId) {
-    return Object.fromEntries(
-        Object.entries(byId).map(([id, cmds]) => [id, cloneCommands(cmds)]),
-    );
+    return new Map([...byId].map(([id, cmds]) => [id, cloneCommands(cmds)]));
 }
 
 /**
@@ -64,12 +61,8 @@ const RESTORABLE_STATE = {
 
 const RESTORABLE_CONFIG_KEYS = ["limit", "offset"];
 
-export class StaticList extends DataPoint {
+export class StaticList extends EditableListDataPoint {
     static type = "StaticList";
-
-    // No class-field declarations: `DataPoint`'s constructor calls `setup()`,
-    // and a subclass field initialiser runs after `super()` returns, so one
-    // would blank what `setup()` assigned. See the note on `RelationalRecord`.
 
     /**
      * @param {any} _config
@@ -80,8 +73,8 @@ export class StaticList extends DataPoint {
         this._parent = options.parent;
         this._onUpdate = options.onUpdate;
 
-        /** @type {Record<string, any>} */
-        this._cache = markRaw({});
+        /** @type {Map<DatapointId, RelationalRecord>} */
+        this._cache = markRaw(new Map());
         this._commands = [];
         this._initialCommands = [];
         /**
@@ -89,19 +82,11 @@ export class StaticList extends DataPoint {
          */
         this._commandsPromise = null;
         this._savePoint = undefined;
-        this._unknownRecordCommands = {};
+        /** @type {Map<DatapointId, [number, any, any?][]>} */
+        this._unknownRecordCommands = new Map();
         this._loadingStubIds = new Set();
         /**
-         * Holder for the record `enterEditMode` is on its way to. `markRaw` so
-         * claiming/releasing it notifies nobody; see `DynamicList#isEditing`.
-         *
-         * @type {{ record: import("./record").RelationalRecord | null }}
-         */
-        this._editHandover = markRaw({ record: null });
-        /**
-         * A tracked command replay rejected: some rows may be left as `{id}`
-         * stubs with no display data. Read by `healFailedReplay` after the
-         * next successful save. @type {boolean}
+         * @type {boolean}
          */
         this._replayFailed = false;
         /**
@@ -114,9 +99,7 @@ export class StaticList extends DataPoint {
         this.records = data
             .slice(this.offset, this.offset + this.limit)
             .map((r) => this._createRecordDatapoint(r));
-        this.handleField = Object.keys(this.activeFields).find(
-            (fieldName) => this.activeFields[fieldName].isHandle,
-        );
+        this.handleField = this._findHandleField();
     }
 
     /** @type {RelationalRecord[]} */
@@ -128,11 +111,6 @@ export class StaticList extends DataPoint {
         this._membership.records = records;
     }
 
-    /**
-     * Derived from `_currentIds` -- see {@link ListMembership}. There is no
-     * setter: membership changes by inserting into or removing from
-     * `_currentIds`, and the total follows.
-     */
     get count() {
         return this._membership.count;
     }
@@ -155,39 +133,6 @@ export class StaticList extends DataPoint {
 
     get currentIds() {
         return this._currentIds;
-    }
-
-    get editedRecord() {
-        return this.records.find((record) => record.isInEdition);
-    }
-
-    /**
-     * Whether the list is in inline edition, INCLUDING the gap in
-     * `enterEditMode` where the outgoing record has left edition and the
-     * incoming one has not entered it yet. Same contract as
-     * `DynamicList#isEditing` — `ListRenderer` reads it through one shared
-     * `rowFlags` key that every row subscribes to, so it must not round-trip
-     * mid-handover.
-     *
-     * @returns {boolean}
-     */
-    get isEditing() {
-        return Boolean(this._editHandover.record || this.editedRecord);
-    }
-
-    /**
-     * Same contract as `DynamicList#beginEditHandover` — an x2many list is
-     * driven by the same `ListRenderer`, so it needs the same claim for the
-     * Enter key's two-step leave-then-enter.
-     *
-     * @param {RelationalRecord} record
-     * @returns {() => void} release, safe to call more than once
-     */
-    beginEditHandover(record) {
-        this._editHandover.record = record;
-        return () => {
-            this._editHandover.record = null;
-        };
     }
 
     get evalContext() {
@@ -215,24 +160,23 @@ export class StaticList extends DataPoint {
         return this.config.resIds ?? [];
     }
 
+    /**
+     * @returns {import("./record").RelationalRecord[]}
+     */
     get selection() {
         return [];
     }
 
     /**
-     * The three questions the save path asks of a list. Published so the
-     * traversal in x2many_tree.js can answer them without reaching into
-     * `_cache` / `_commands` / `_commandsPromise`.
-     *
-     * @returns {Promise<void> | null} in-flight command replay, if any
+     * @returns {Promise<void> | null}
      */
     get pendingCommands() {
         return this._commandsPromise;
     }
 
-    /** @returns {RelationalRecord[]} every datapoint this list has built */
+    /** @returns {RelationalRecord[]} */
     get cachedRecords() {
-        return Object.values(this._cache);
+        return [...this._cache.values()];
     }
 
     /** @returns {boolean} */
@@ -241,20 +185,6 @@ export class StaticList extends DataPoint {
     }
 
     /**
-     * The staged membership change, as records rather than as commands: which
-     * datapoints this list has been told to link, and which to unlink.
-     *
-     * A fourth question of the same kind as the three above, and published for
-     * the same reason. `dynamic_list.js` builds the many2many half of a save's
-     * change report and needs exactly this; it was reading `_commands` and
-     * re-deriving it, which is the whole command encoding (tuple shape, opcode
-     * numbering, id-at-index-1) leaking into a caller that has no other reason
-     * to know it. Asking the list is both narrower and harder to get wrong.
-     *
-     * Records absent from the cache are dropped rather than yielded as
-     * `undefined`: a LINK for an id this list has never materialised has no
-     * datapoint to report, and the previous code put a hole in the array there.
-     *
      * @returns {{ add: RelationalRecord[], remove: RelationalRecord[] }}
      */
     get stagedMembershipDelta() {
@@ -274,7 +204,7 @@ export class StaticList extends DataPoint {
      * @returns {RelationalRecord | undefined}
      */
     getCachedRecord(id) {
-        return this._cache[id];
+        return this._cache.get(id);
     }
 
     /**
@@ -335,11 +265,14 @@ export class StaticList extends DataPoint {
         });
     }
 
+    /**
+     * @returns {boolean}
+     */
     canResequence() {
-        return (
+        return Boolean(
             this.handleField &&
             this.orderBy.length &&
-            this.orderBy[0].name === this.handleField
+            this.orderBy[0].name === this.handleField,
         );
     }
 
@@ -364,9 +297,7 @@ export class StaticList extends DataPoint {
     }
 
     async enterEditMode(record) {
-        // Claimed before the await so `isEditing` spans the handover; see the
-        // getter. `finally` so an aborted handover cannot strand it.
-        this._editHandover.record = record;
+        const release = this.beginEditHandover(record);
         try {
             const canProceed = await this.leaveEditMode();
             if (canProceed) {
@@ -374,15 +305,11 @@ export class StaticList extends DataPoint {
             }
             return canProceed;
         } finally {
-            this._editHandover.record = null;
+            release();
         }
     }
 
     /**
-     * Build the record's active-field set from the extension request, merged
-     * over this list's own active fields: the request's fields win, and any
-     * this list already tracks but the request omits are carried through.
-     *
      * @param {{ activeFields: Object, fields: Object }} params
      * @returns {Object}
      */
@@ -454,15 +381,15 @@ export class StaticList extends DataPoint {
                             activeFields: activeFields[fieldName].related.activeFields,
                             fields: activeFields[fieldName].related.fields,
                         };
-                        for (const subRecord of Object.values(list._cache)) {
+                        for (const subRecord of list._cache.values()) {
                             this.model._patchConfig(subRecord.config, patch);
                         }
                         this.model._patchConfig(list.config, patch);
                     }
                 }
                 record._applyValues(data);
-                const commands = this._unknownRecordCommands[record.resId];
-                delete this._unknownRecordCommands[record.resId];
+                const commands = this._unknownRecordCommands.get(record.resId);
+                this._unknownRecordCommands.delete(record.resId);
                 if (commands) {
                     await this._applyCommands(commands);
                 }
@@ -560,10 +487,6 @@ export class StaticList extends DataPoint {
         });
     }
 
-    moveRecord(dataRecordId, _dataGroupId, refId, _targetGroupId) {
-        return this.resequence(dataRecordId, refId);
-    }
-
     sortBy(fieldName) {
         return this.model.mutex.exec(() => sortBy(this, fieldName));
     }
@@ -592,16 +515,6 @@ export class StaticList extends DataPoint {
             if (!this._currentIds.includes(listId(record))) {
                 await this._addRecord(record);
             } else if (!record.hasPendingChanges) {
-                // Deliberate, not an oversight: a row confirmed without a
-                // single edit KEEPS the widened active fields the dialog gave
-                // it. Narrowing them back to the list's columns makes the next
-                // onchange payload for a sub-form-only x2many fail the
-                // `fieldName in record.activeFields` test in the command
-                // engine, which defers it into `_unknownRecordCommands` -- and
-                // `extendRecord` only replays those the FIRST time a row is
-                // extended, so reopening the dialog shows the pre-onchange
-                // value forever. Covered by one2many_field.test.js, "onchange
-                // specification complete after open sub form view not inline".
                 return;
             }
             await this._onUpdate();
@@ -689,17 +602,10 @@ export class StaticList extends DataPoint {
     async _addRecord(record, { position, sort = true } = {}) {
         const virtualId = record._virtualId;
         if (position === "top" || position === "bottom") {
-            // Interactive editable-list add. The record is already a cached
-            // datapoint, so the engine's CREATE handler echoes it and owns the
-            // window insertion for both ends (see `applyCreate`) -- one command
-            // interpreter instead of a parallel splice here.
             await this._applyCommands([[x2ManyCommands.CREATE, virtualId]], {
                 position,
             });
         } else {
-            // Non-editable / programmatic add: append to the relation, respect
-            // the page (only push into the window when it is not full), and sort
-            // when the list is ordered.
             const currentIds = [...this._currentIds, listId(record)];
             if (this.orderBy.length && sort) {
                 await sortRecords(this, currentIds);
@@ -714,11 +620,6 @@ export class StaticList extends DataPoint {
         this._needsReordering = true;
     }
 
-    /**
-     * Cleared by the sort helper once it has applied the reorder-load for the
-     * pending-reorder flag {@link _addRecord} raises when a record is inserted
-     * out of order. Published so the helper need not write the private.
-     */
     markReordered() {
         this._needsReordering = false;
     }
@@ -783,8 +684,8 @@ export class StaticList extends DataPoint {
     }
 
     _addSavePoint() {
-        for (const id of Object.keys(this._cache)) {
-            this._cache[id]._addSavePoint();
+        for (const record of this._cache.values()) {
+            record._addSavePoint();
         }
         this._savePoint = this._snapshot();
     }
@@ -815,13 +716,6 @@ export class StaticList extends DataPoint {
     }
 
     /**
-     * Apply commands AND register the replay on this list's barrier, as one
-     * step. `_applyCommands` only returns a promise when it has records to
-     * load, and applying without registering that promise is precisely what a
-     * concurrent save races: `waitForPendingCommands` finds nothing to wait on
-     * and the `web_save` goes out mid-replay. Callers outside this file should
-     * use this rather than pairing the two by hand.
-     *
      * @param {[number, any, any?][]} commands
      * @param {{ canAddOverLimit?: boolean }} [options]
      */
@@ -840,10 +734,6 @@ export class StaticList extends DataPoint {
             console.error(
                 `Failed to apply x2many commands (resModel: ${this.resModel}, list: ${this.id}): the pending record load rejected`,
             );
-            // The failed load may have left `{id}` stubs on the page. Do not
-            // block anything here (a save must still proceed); just remember,
-            // so `healFailedReplay` re-fetches them once the server answers
-            // a save again.
             this._replayFailed = true;
             reportUncaught(error);
         });
@@ -923,7 +813,7 @@ export class StaticList extends DataPoint {
             throw new Error("You must provide a virtualId if the record has no id");
         }
         const id = resId || params.virtualId;
-        const cachedRecord = this._cache[id];
+        const cachedRecord = this._cache.get(id);
         if (cachedRecord?.hasPendingChanges) {
             cachedRecord._applyValues(data);
             return cachedRecord;
@@ -969,11 +859,11 @@ export class StaticList extends DataPoint {
             manuallyAdded: params.manuallyAdded,
         };
         const record = new this.model.Class.Record(this.model, config, data, options);
-        this._cache[id] = record;
+        this._cache.set(id, record);
         if (!params.dontApplyCommands) {
-            const commands = this._unknownRecordCommands[id];
+            const commands = this._unknownRecordCommands.get(id);
             if (commands) {
-                delete this._unknownRecordCommands[id];
+                this._unknownRecordCommands.delete(id);
                 this.stageCommands(commands);
             }
         }
@@ -982,9 +872,42 @@ export class StaticList extends DataPoint {
 
     _clearCommands() {
         this._commands = [];
-        this._unknownRecordCommands = {};
+        this._unknownRecordCommands.clear();
         this._loadingStubIds.clear();
         this._pruneCache();
+    }
+
+    /**
+     * @param {any[]} commands
+     * @returns {void}
+     */
+    _commitCommands(commands) {
+        this._commands = commands;
+    }
+
+    /**
+     * @param {(string|number)[]} ids
+     * @returns {void}
+     */
+    _commitCurrentIds(ids) {
+        this._currentIds = ids;
+    }
+
+    /**
+     * @param {number} index
+     * @param {string|number} id
+     * @returns {void}
+     */
+    _insertMemberAt(index, id) {
+        /** @type {ListMembership} */ (this._membership).insertAt(index, id);
+    }
+
+    /**
+     * @param {string|number} id
+     * @returns {void}
+     */
+    _appendMember(id) {
+        /** @type {ListMembership} */ (this._membership).append(id);
     }
 
     /**
@@ -1014,26 +937,16 @@ export class StaticList extends DataPoint {
         this.model._patchConfig(this.config, { resIds: [...serverIds] });
         this._commands = [];
         this._initialCommands = [];
-        this._unknownRecordCommands = {};
+        this._unknownRecordCommands.clear();
         this._loadingStubIds.clear();
         this._tmpIncreaseLimit = 0;
         this._savePoint = undefined;
         this._materializeWindow();
         this._pruneCache();
-        // `_healMissingWindow` re-fetches every under-loaded window row, which
-        // subsumes whatever a failed replay left behind.
         this._replayFailed = false;
         this._healMissingWindow();
     }
 
-    /**
-     * A command replay rejected earlier (see `_trackCommandsPromise`): the
-     * commands themselves were staged, so the save payload was right, but the
-     * record loads they carried never landed and some rows may still be `{id}`
-     * stubs. Called by the save path once a save has succeeded — the server is
-     * answering again — to re-fetch those rows so the display converges with
-     * what was saved. The load is tracked, so a subsequent save waits on it.
-     */
     healFailedReplay() {
         if (!this._replayFailed) {
             return;
@@ -1047,13 +960,13 @@ export class StaticList extends DataPoint {
      * @param {number} resId
      */
     _rekeyCreatedRow(virtualId, resId) {
-        const record = this._cache[virtualId];
+        const record = this._cache.get(virtualId);
         if (!record) {
             return;
         }
-        delete this._cache[virtualId];
+        this._cache.delete(virtualId);
         record.assignResId(resId);
-        this._cache[resId] = record;
+        this._cache.set(resId, record);
         const index = this._currentIds.indexOf(virtualId);
         if (index >= 0) {
             this._currentIds[index] = resId;
@@ -1082,10 +995,29 @@ export class StaticList extends DataPoint {
 
     _pruneCache() {
         const pinnedIds = this._collectPinnedIds();
-        for (const id of Object.keys(this._cache)) {
-            if (!pinnedIds.has(id) && !pinnedIds.has(Number(id))) {
-                this._extendedRecords.delete(this._cache[id].id);
-                delete this._cache[id];
+        for (const [id, record] of this._cache) {
+            if (!pinnedIds.has(id)) {
+                this._extendedRecords.delete(record.id);
+                this._cache.delete(id);
+            }
+        }
+        this._pruneExtendedRecords();
+    }
+
+    /**
+     * @returns {void}
+     */
+    _pruneExtendedRecords() {
+        if (!this._extendedRecords.size) {
+            return;
+        }
+        const live = new Set();
+        for (const record of this._cache.values()) {
+            live.add(record.id);
+        }
+        for (const datapointId of this._extendedRecords) {
+            if (!live.has(datapointId)) {
+                this._extendedRecords.delete(datapointId);
             }
         }
     }
@@ -1116,8 +1048,8 @@ export class StaticList extends DataPoint {
     }
 
     _discard() {
-        for (const id of Object.keys(this._cache)) {
-            this._cache[id]._discard();
+        for (const record of this._cache.values()) {
+            record._discard();
         }
         if (this._savePoint) {
             const savePoint = this._savePoint;
@@ -1127,7 +1059,7 @@ export class StaticList extends DataPoint {
         }
         this._commands = [];
         this._currentIds = [...this.resIds];
-        this._unknownRecordCommands = {};
+        this._unknownRecordCommands.clear();
         this._loadingStubIds.clear();
         const limit = this.limit - this._tmpIncreaseLimit;
         this._tmpIncreaseLimit = 0;
@@ -1203,7 +1135,7 @@ export class StaticList extends DataPoint {
             activeFields: this.activeFields,
             context: this.context,
             withReadonly,
-            getRecord: (id) => this._cache[id],
+            getRecord: (id) => this._cache.get(id),
             getRecordChanges: (record, wr) =>
                 record._getChanges(record._changes, { withReadonly: wr }),
             convertUnityValues: fromUnityToServerValues,
@@ -1216,7 +1148,7 @@ export class StaticList extends DataPoint {
             if (typeof resId === "string") {
                 return false;
             }
-            const record = this._cache[resId];
+            const record = this._cache.get(resId);
             if (!record) {
                 return true;
             }
@@ -1243,27 +1175,21 @@ export class StaticList extends DataPoint {
                 this._createRecordDatapoint(record);
             }
         }
-        this.records = currentIds.map((id) => this._cache[id]);
-        if (this.records.includes(undefined)) {
-            const missing = new Set(currentIds.filter((id) => !this._cache[id]));
-            this.records = this.records.filter(Boolean);
+        const window = currentIds.map((id) => this._cache.get(id));
+        if (window.includes(undefined)) {
+            const missing = new Set(currentIds.filter((id) => !this._cache.has(id)));
             nextCurrentIds = nextCurrentIds.filter((id) => !missing.has(id));
         }
-        // Both `_load` and its `sort` caller silently drop ids the server no
-        // longer returns -- `_loadRecords` throws only on a ZERO-row response.
-        // `count` is the x2many pager total and is derived from `_currentIds`,
-        // so a concurrently-unlinked row leaves the pager the moment it leaves
-        // the id list; nothing has to reconcile the two.
+        this.records = /** @type {RelationalRecord[]} */ (window.filter(Boolean));
         this._currentIds = nextCurrentIds;
         this.model._patchConfig(this.config, { limit, offset, orderBy });
     }
 
     /**
      * @param {number[]} ids
-     * @param {{ reload?: boolean }} [options]
      */
-    async _replaceWith(ids, { reload = false } = {}) {
-        const resIds = reload ? ids : ids.filter((id) => !this._cache[id]);
+    async _replaceWith(ids) {
+        const resIds = ids.filter((id) => !this._cache.has(id));
         if (resIds.length) {
             const records = await this.model._loadRecords(
                 { ...this.config, resIds, context: this.context },
@@ -1273,7 +1199,7 @@ export class StaticList extends DataPoint {
                 this._createRecordDatapoint(record);
             }
         }
-        const presentIds = ids.filter((id) => this._cache[id]);
+        const presentIds = ids.filter((id) => this._cache.has(id));
         /** @type {Set<DatapointId>} */
         const idSet = new Set(presentIds);
         const updateCommandsToKeep = this._commands.filter(
@@ -1281,13 +1207,13 @@ export class StaticList extends DataPoint {
         );
         this._commands = [x2ManyCommands.set(presentIds), ...updateCommandsToKeep];
         this._currentIds = [...presentIds];
-        for (const id of Object.keys(this._unknownRecordCommands)) {
-            if (!idSet.has(id) && !idSet.has(Number(id))) {
-                delete this._unknownRecordCommands[id];
+        for (const id of [...this._unknownRecordCommands.keys()]) {
+            if (!idSet.has(id)) {
+                this._unknownRecordCommands.delete(id);
             }
         }
         for (const id of [...this._loadingStubIds]) {
-            if (!idSet.has(id) && !idSet.has(Number(id))) {
+            if (!idSet.has(id)) {
                 this._loadingStubIds.delete(id);
             }
         }
@@ -1319,7 +1245,7 @@ export class StaticList extends DataPoint {
             }
         }
         Object.assign(this.context, context);
-        for (const record of Object.values(this._cache)) {
+        for (const record of this._cache.values()) {
             record._setEvalContext();
         }
     }

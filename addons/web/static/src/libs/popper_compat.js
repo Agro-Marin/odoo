@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/libs/popper_compat */
-
 import { localization } from "@web/core/l10n/localization";
 import { reposition, reverseForRTL } from "@web/core/position/utils";
 

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/properties/property_definition_selection */
-
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { deepCopy } from "@web/core/utils/collections/objects";
 import { useSortable } from "@web/core/utils/dnd/sortable_owl";
@@ -147,14 +145,14 @@ export class PropertyDefinitionSelection extends Component {
         if (event.key === "Enter") {
             const newLabel = /** @type {HTMLInputElement} */ (event.target).value;
 
-            if (!newLabel || !newLabel.length) {
-                event.stopPropagation();
-                event.preventDefault();
-                return;
-            }
+            event.preventDefault();
 
-            this.onOptionChange(event, optionIndex);
-            this.onOptionCreate(optionIndex + 1);
+            if (newLabel) {
+                this.onOptionChange(event, optionIndex);
+                this.onOptionCreate(optionIndex + 1);
+            } else {
+                event.stopPropagation();
+            }
         } else if (["ArrowUp", "ArrowDown"].includes(event.key)) {
             event.stopPropagation();
             event.preventDefault();

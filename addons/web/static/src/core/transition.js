@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/transition */
-
 import {
     Component,
     onWillDestroy,
@@ -18,12 +16,6 @@ export const config = {
     disabled: false,
 };
 /**
- * `initialVisibility` and `immediate` describe the first mount, so reading them
- * once is what they mean. The other three describe every transition this hook
- * will ever run, and a caller is free to hand them over behind getters -- which
- * is what `Transition` does with its props. Destructuring them here would have
- * frozen whatever they happened to be during setup.
- *
  * @param {Object} options
  * @param {string} options.name
  * @param {boolean} [options.initialVisibility=true]
@@ -114,9 +106,6 @@ export function useTransition(options) {
     return transition;
 }
 
-/**
- * @see useTransition
- */
 export class Transition extends Component {
     static template = xml`<t t-slot="default" t-if="transition.shouldMount" className="transition.className"/>`;
     static props = {
@@ -133,11 +122,6 @@ export class Transition extends Component {
 
     setup() {
         const self = this;
-        // The leave is started from onWillUpdateProps, which owl runs *before*
-        // it swaps `this.props`. Reading the incoming props from there would
-        // otherwise start the leave on the duration the caller just replaced.
-        // Afterwards owl assigns the same object to `this.props`, so this stays
-        // the current props for every later read.
         this.latestProps = this.props;
         this.transition = useTransition({
             initialVisibility: this.props.visible,

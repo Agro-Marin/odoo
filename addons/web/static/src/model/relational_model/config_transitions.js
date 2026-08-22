@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/config_transitions */
-
 import { shallowEqual } from "@web/core/utils/collections/objects";
 
 /** @import { RelationalModelConfig } from "./relational_model.js" */
@@ -16,6 +14,17 @@ import { shallowEqual } from "@web/core/utils/collections/objects";
  */
 
 /**
+ * @template T
+ * @param {Record<string, any>} params
+ * @param {string} key
+ * @param {T} fallback
+ * @returns {T}
+ */
+function pickParam(params, key, fallback) {
+    return key in params ? params[key] : fallback;
+}
+
+/**
  * @param {RelationalModelConfig} currentConfig
  * @param {Partial<SearchParams>} params
  * @param {ConfigTransitionDeps} deps
@@ -26,12 +35,12 @@ export function computeNextConfig(currentConfig, params, deps) {
     const currentGroupBy = currentConfig.groupBy;
     const config = { ...currentConfig };
 
-    config.context = "context" in params ? params.context : config.context;
+    config.context = pickParam(params, "context", config.context);
     config.context = { ...config.context };
 
     if (currentConfig.isMonoRecord) {
-        config.resId = "resId" in params ? params.resId : config.resId;
-        config.resIds = "resIds" in params ? params.resIds : config.resIds;
+        config.resId = pickParam(params, "resId", config.resId);
+        config.resIds = pickParam(params, "resIds", config.resIds);
         if (!config.resIds) {
             config.resIds = config.resId ? [config.resId] : [];
         }
@@ -39,9 +48,9 @@ export function computeNextConfig(currentConfig, params, deps) {
             config.mode = "edit";
         }
     } else {
-        config.domain = "domain" in params ? params.domain : config.domain;
+        config.domain = pickParam(params, "domain", config.domain);
 
-        config.groupBy = "groupBy" in params ? params.groupBy : config.groupBy;
+        config.groupBy = pickParam(params, "groupBy", config.groupBy);
         if (maxGroupByDepth) {
             config.groupBy = config.groupBy.slice(0, maxGroupByDepth);
         }
@@ -55,7 +64,7 @@ export function computeNextConfig(currentConfig, params, deps) {
             return g;
         });
 
-        config.orderBy = "orderBy" in params ? params.orderBy : config.orderBy;
+        config.orderBy = pickParam(params, "orderBy", config.orderBy);
         if (!config.orderBy.length) {
             config.orderBy = currentConfig.orderBy || [];
         }

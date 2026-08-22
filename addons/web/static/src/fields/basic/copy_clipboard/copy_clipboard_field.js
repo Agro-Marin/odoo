@@ -1,9 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/copy_clipboard/copy_clipboard_field */
-
-import { Component } from "@odoo/owl";
 import { CopyButton } from "@web/components/copy_button/copy_button";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
@@ -11,9 +8,11 @@ import { omit } from "@web/core/utils/collections/objects";
 import { registerField } from "@web/fields/_registry";
 import { CharField, charField } from "@web/fields/basic/char/char_field";
 import { UrlField, urlField } from "@web/fields/basic/url/url_field";
+import { FieldComponent } from "@web/fields/field_component";
+import { archAttribute } from "@web/fields/field_options";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-class CopyClipboardField extends Component {
+class CopyClipboardField extends FieldComponent {
     static template = "web.CopyClipboardField";
     static props = {
         ...standardFieldProps,
@@ -36,7 +35,7 @@ class CopyClipboardField extends Component {
     }
     /** @returns {string} */
     get type() {
-        return this.props.record.fields[this.props.name].type;
+        return this.field.type;
     }
     /** @returns {boolean} */
     get disabled() {
@@ -68,23 +67,11 @@ export class CopyClipboardButtonField extends CopyClipboardField {
 
 export class CopyClipboardCharField extends CopyClipboardField {
     static components = { Field: CharField, CopyButton };
-    // Getters, not snapshots. An addon may extend the wrapped field's props
-    // after `web` has loaded -- `mail/js/onchange_on_keydown.js` reassigns
-    // `CharField.props` and extends `charField.extractProps` in the same file --
-    // and a `{ ...CharField.props }` evaluated at class-definition time freezes
-    // them as they were before. The wrapper then received props it had never
-    // declared (`onchangeOnKeydown`, `keydownDebounceDelay`) and Owl's prop
-    // validation aborted the whole view: every `widget="CopyClipboardChar"`
-    // raised "Oops! Something went wrong" in debug mode, which is where the
-    // calendar quick-create dialog lives and why three calendar tours could not
-    // get past their first step. Reading through on each validation keeps the
-    // wrapper in step with whatever the wrapped field currently declares.
-    static get props() {
-        return { ...CopyClipboardField.props, ...CharField.props };
-    }
-    static get defaultProps() {
-        return { ...CharField.defaultProps };
-    }
+    static props = { ...CopyClipboardField.props, ...CharField.props };
+    static defaultProps = {
+        ...CopyClipboardField.defaultProps,
+        ...CharField.defaultProps,
+    };
 
     /** @returns {string} */
     get copyButtonIcon() {
@@ -94,13 +81,11 @@ export class CopyClipboardCharField extends CopyClipboardField {
 
 export class CopyClipboardURLField extends CopyClipboardField {
     static components = { Field: UrlField, CopyButton };
-    // Getters for the same reason as the char variant above.
-    static get props() {
-        return { ...CopyClipboardField.props, ...UrlField.props };
-    }
-    static get defaultProps() {
-        return { ...UrlField.defaultProps };
-    }
+    static props = { ...CopyClipboardField.props, ...UrlField.props };
+    static defaultProps = {
+        ...CopyClipboardField.defaultProps,
+        ...UrlField.defaultProps,
+    };
 
     /** @returns {string} */
     get copyButtonIcon() {
@@ -119,11 +104,19 @@ function extractProps({ string, attrs }) {
     };
 }
 
+/**
+ * @type {import("registries").FieldsRegistryItemShape["supportedAttributes"]}
+ */
+const copyClipboardAttributes = [
+    archAttribute("disabled", _t("Disabled when"), {
+        help: _t("Python expression; when it is true the copy button is inert."),
+    }),
+];
+
 export const copyClipboardButtonField = {
     component: CopyClipboardButtonField,
     displayName: _t("Copy to Clipboard"),
-    // The button copies `record.data[name]` verbatim, so it only makes sense on
-    // a value that is already a string.
+    supportedAttributes: copyClipboardAttributes,
     supportedTypes: ["char", "text"],
     supportedOptions: [
         {
@@ -151,7 +144,10 @@ function buildCopyClipboardField(component, wrapped) {
         component,
         supportedTypes: wrapped.supportedTypes,
         supportedOptions: wrapped.supportedOptions,
-        supportedAttributes: wrapped.supportedAttributes,
+        supportedAttributes: [
+            ...copyClipboardAttributes,
+            ...(wrapped.supportedAttributes || []),
+        ],
         extractProps: (
             /** @type {any} */ fieldInfo,
             /** @type {any} */ dynamicInfo,

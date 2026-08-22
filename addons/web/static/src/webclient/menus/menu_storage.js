@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/menus/menu_storage */
-
 import { browser } from "@web/core/browser/browser";
 import { user } from "@web/core/user";
 import { session } from "@web/session";
@@ -13,29 +11,13 @@ const HASH_KEY = "webclient_menus_hash";
 const CURRENT_APP_KEY = "menu_id";
 
 /**
- * The cache-validity token. Scoped to the server's registry version AND the
- * current user: the menu tree is filtered by access rights server-side, so on a
- * shared browser a second user must NOT read the first user's cached menus (they
- * can name apps/menus the second user's groups cannot see). `registry_hash`
- * alone is per-server-version, not per-user, so it does not discriminate them.
- * `user.userId` is the canonical id — `session.uid` is stripped from `session`
- * at boot by `@web/core/user`, so reading it here would yield `undefined`.
- *
- * @returns {string}
+ * @returns {string | undefined}
  */
 function cacheVersion() {
-    return `${session.registry_hash}:${user.userId}`;
+    return session.menus_cache_version;
 }
 
 /**
- * Whether the stored version token was written by ANOTHER user. The two
- * components of a version mismatch are not equal: a stale `registry_hash` only
- * means the payload may be outdated, and the last-resort fallback may still
- * serve it to the same user, but a different user id means the payload belongs
- * to someone else and must never be served at all. A token without a user
- * component (legacy format) cannot prove foreign ownership and is treated as
- * same-user.
- *
  * @param {string | null} storedVersion
  * @returns {boolean}
  */
@@ -46,7 +28,7 @@ function isForeignUserVersion(storedVersion) {
     }
     return (
         /** @type {string} */ (storedVersion).slice(separatorIndex + 1) !==
-        String(user.userId)
+        String(session.uid ?? user.userId)
     );
 }
 
@@ -78,8 +60,6 @@ export const menuStorage = {
         }
         if (!raw || storedVersion !== cacheVersion()) {
             if (raw && isForeignUserVersion(storedVersion)) {
-                // Another user's payload: not even the last-resort fallback
-                // may see it.
                 return { menus: null, raw: null, hash: undefined };
             }
             return { menus: null, raw, hash };
@@ -108,6 +88,10 @@ export const menuStorage = {
      * @param {string} [hash]
      */
     write(menus, hash) {
+        const version = cacheVersion();
+        if (!version) {
+            return;
+        }
         try {
             browser.localStorage.setItem(PAYLOAD_KEY, JSON.stringify(menus));
             if (hash) {
@@ -115,7 +99,7 @@ export const menuStorage = {
             } else if (browser.localStorage.getItem(HASH_KEY) !== null) {
                 browser.localStorage.removeItem(HASH_KEY);
             }
-            browser.localStorage.setItem(VERSION_KEY, cacheVersion());
+            browser.localStorage.setItem(VERSION_KEY, version);
         } catch (error) {
             console.error("Error while storing menus in localStorage", error);
             removeKey(VERSION_KEY);
@@ -123,9 +107,6 @@ export const menuStorage = {
     },
 
     /**
-     * The app the tab last opened, in sessionStorage so a second tab starts
-     * from the URL rather than from its sibling's app.
-     *
      * @returns {number}
      */
     readCurrentApp() {

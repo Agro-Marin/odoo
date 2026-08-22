@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/render_instrumentation */
-
 import { onRendered } from "@odoo/owl";
 
 /**
@@ -24,7 +22,6 @@ if (
     typeof (/** @type {Record<string, any>} */ (globalThis).__renderStats) !==
     "function"
 ) {
-    /** @returns {Record<string, number>} */
     /** @type {Record<string, any>} */ (globalThis).__renderStats = () =>
         Object.assign(
             Object.create(null),

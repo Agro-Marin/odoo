@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/py_js/py_date */
-
 import { DateTime } from "@web/core/l10n/luxon";
 
 import { bindArgs } from "./py_args.js";
@@ -17,7 +15,7 @@ import {
     tmxxx,
     ValueError,
     ymd2ord,
-} from "./py_date_helpers.js";
+} from "./py_date_utils.js";
 import { PyTimeDelta } from "./py_timedelta.js";
 
 export { PyTimeDelta } from "./py_timedelta.js";
@@ -176,11 +174,6 @@ function assertTimeComponents(hour, minute, second, microsecond = 0) {
 
 export class PyDate {
     /**
-     * ``datetime.date.today()``. The server evaluates it in a process pinned to
-     * UTC (``odoo/_monkeypatches/__init__.py`` sets ``TZ`` and calls
-     * ``tzset()``), so this one is UTC as well. ``contextToday`` is the
-     * timezone-aware spelling.
-     *
      * @returns {PyDate}
      */
     static today() {
@@ -193,10 +186,6 @@ export class PyDate {
     }
 
     /**
-     * ``context_today()``, which the server derives from the user's timezone
-     * (``fields.Date.context_today``). Luxon's default zone is set to
-     * ``user.tz`` at boot, so "now" in the default zone is that date.
-     *
      * @returns {PyDate}
      */
     static contextToday() {
@@ -209,9 +198,9 @@ export class PyDate {
      * @returns {PyDate}
      */
     static convertDate(date) {
-        const year = date.getFullYear();
-        const month = date.getMonth() + 1;
-        const day = date.getDate();
+        const year = date.getUTCFullYear();
+        const month = date.getUTCMonth() + 1;
+        const day = date.getUTCDate();
         return new PyDate(year, month, day);
     }
 
@@ -221,9 +210,6 @@ export class PyDate {
      * @param {number} day
      */
     constructor(year, month, day) {
-        // Here rather than in `create()`, which is only the *literal* path:
-        // `add()` and the relativedelta walk build their result straight
-        // through the constructor, and those are the paths that overflow.
         assertYearInRange(year);
         this.year = year;
         this.month = month;
@@ -327,14 +313,6 @@ export class PyDate {
     }
 
     /**
-     * Monday is 0 and Sunday is 6, as in CPython.
-     *
-     * Ordinal 1 is 0001-01-01, a Monday, so the shift is +6 mod 7. Shipped
-     * views really do call this -- `[('date', '>=', (context_today() -
-     * datetime.timedelta(days=context_today().weekday())).strftime(...))]`
-     * is the "since Monday" filter -- and without it the domain failed with
-     * V8's "Function.prototype.apply was called on undefined".
-     *
      * @returns {number}
      */
     weekday() {
@@ -342,8 +320,6 @@ export class PyDate {
     }
 
     /**
-     * Monday is 1 and Sunday is 7, as in CPython.
-     *
      * @returns {number}
      */
     isoweekday() {
@@ -382,12 +358,12 @@ export class PyDateTime {
      * @returns {PyDateTime}
      */
     static convertDate(date) {
-        const year = date.getFullYear();
-        const month = date.getMonth() + 1;
-        const day = date.getDate();
-        const hour = date.getHours();
-        const minute = date.getMinutes();
-        const second = date.getSeconds();
+        const year = date.getUTCFullYear();
+        const month = date.getUTCMonth() + 1;
+        const day = date.getUTCDate();
+        const hour = date.getUTCHours();
+        const minute = date.getUTCMinutes();
+        const second = date.getUTCSeconds();
         return new PyDateTime(year, month, day, hour, minute, second, 0);
     }
 
@@ -563,9 +539,6 @@ export class PyDateTime {
     }
 
     /**
-     * Monday is 0 and Sunday is 6, as in CPython. `datetime` inherits this
-     * from `date` there; here the two classes are siblings, so it is restated.
-     *
      * @returns {number}
      */
     weekday() {
@@ -573,8 +546,6 @@ export class PyDateTime {
     }
 
     /**
-     * Monday is 1 and Sunday is 7, as in CPython.
-     *
      * @returns {number}
      */
     isoweekday() {
@@ -631,16 +602,6 @@ export class PyDateTime {
     }
 }
 
-/**
- * A wall-clock time, deliberately **not** a ``PyDate``.
- *
- * ``PyTime`` used to extend ``PyDate`` (fixing year/month/day at 1900-01-01),
- * which made ``time`` pass every ``instanceof PyDate`` guard in the engine.
- * ``PyRelativeDelta.add`` is one such guard, so ``datetime.time(1, 2, 3) +
- * relativedelta(days=1)`` silently answered ``1900-01-02`` where the server's
- * ``safe_eval`` raises ``TypeError``. CPython agrees the two are unrelated:
- * ``isinstance(time(0, 0), date)`` is ``False``.
- */
 export class PyTime {
     /**
      * @param {...any} args
@@ -788,8 +749,6 @@ function hasTimeComponent(params) {
     );
 }
 
-// dateutil's full signature, in order. The spec is both the positional
-// binding order and the closed set of keywords relativedelta accepts.
 const argsSpec = [
     "dt1",
     "dt2",
@@ -1019,10 +978,6 @@ export class PyRelativeDelta {
     }
 
     /**
-     * Field-by-field, like ``dateutil``'s own ``__eq__``. ``create()`` has
-     * already folded ``weeks`` into ``days`` and cascaded every overflow, so
-     * two deltas that mean the same thing carry the same fields.
-     *
      * @param {any} other
      * @returns {boolean}
      */

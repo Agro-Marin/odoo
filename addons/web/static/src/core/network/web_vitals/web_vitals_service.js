@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/network/web_vitals/web_vitals_service */
-
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
 import { session } from "@web/session";
@@ -11,25 +9,7 @@ const ENDPOINT = "/web/observability/cwv";
 
 let _pageviewCounter = 0;
 
-/**
- * The `web_vitals` service.
- *
- * A class rather than a closure returning an object literal; see
- * `core/hotkeys/hotkey_service.js` for the reasoning and
- * `tooling/architecture/js_service_shape.py` for the budget.
- *
- * The five collectors are separate methods rather than one setup block. They
- * were already five independent `try {} catch {}` arms — one per metric, each
- * silently tolerating a browser that does not support its entry type — so
- * splitting them costs nothing and makes each individually patchable and
- * individually readable.
- *
- * **The sampling and support guards stay in `start()`, not in the constructor.**
- * They decide *whether there is a service at all*: `start()` returns `undefined`
- * when `PerformanceObserver` is missing or the pageview loses the sample-rate
- * roll, and a constructor cannot decline to construct.
- */
-export class WebVitalsService {
+class WebVitalsService {
     constructor() {
         /** @type {{ lcp?: number, fcp?: number, cls?: number, ttfb?: number, inp?: number }} */
         this.metrics = {};
@@ -47,10 +27,6 @@ export class WebVitalsService {
         this.observeCls();
         this.observeInp();
 
-        // Stored wrappers, not bound methods: `removeEventListener` needs one
-        // stable reference, while the handler itself must resolve through the
-        // prototype so a patch of `onPagehide` is reached. Binding instead would
-        // put an own property in front of the prototype and kill that.
         this._onPagehide = (/** @type {any} */ ev) => this.onPagehide(ev);
         this._onVisibilityChange = () => this.onVisibilityChange();
         browser.addEventListener("pagehide", this._onPagehide);

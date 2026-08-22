@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dom/xml */
-
 import { isIterable } from "@web/core/utils/collections/arrays";
 
 const serializer = new XMLSerializer();

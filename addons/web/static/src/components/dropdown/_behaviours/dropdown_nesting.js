@@ -1,21 +1,20 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/dropdown/_behaviours/dropdown_nesting */
-
-import { EventBus, onWillDestroy, useChildSubEnv, useEffect, useEnv } from "@odoo/owl";
+import { onWillDestroy, useChildSubEnv, useEffect, useEnv } from "@odoo/owl";
+import { DropdownEvent } from "@web/core/events";
 import { localization } from "@web/core/l10n/localization";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { disposableEffect } from "@web/core/utils/reactive";
 export const DROPDOWN_NESTING = Symbol("dropdownNesting");
-const BUS = new EventBus();
 
 class DropdownNestingState {
-    constructor({ parent, close }) {
+    constructor({ parent, close, bus }) {
         this._isOpen = false;
         this.parent = parent;
         this.children = new Set();
         this.close = close;
+        this.bus = bus;
         /** @type {Element | undefined} */
         this.activeEl = undefined;
 
@@ -25,7 +24,7 @@ class DropdownNestingState {
     set isOpen(value) {
         this._isOpen = value;
         if (this._isOpen) {
-            BUS.trigger("dropdown-opened", this);
+            this.bus.trigger(DropdownEvent.OPENED, this);
         }
     }
 
@@ -48,12 +47,29 @@ class DropdownNestingState {
         this.children.forEach((child) => child.close());
     }
 
+    /**
+     * @param {DropdownNestingState} other
+     * @returns {boolean}
+     */
     shouldIgnoreChanges(other) {
         return (
             other === this ||
             other.activeEl !== this.activeEl ||
-            [...this.children].some((child) => child.shouldIgnoreChanges(other))
+            this.isAncestorOf(other)
         );
+    }
+
+    /**
+     * @param {DropdownNestingState} other
+     * @returns {boolean}
+     */
+    isAncestorOf(other) {
+        for (let node = other.parent; node; node = node.parent) {
+            if (node === this) {
+                return true;
+            }
+        }
+        return false;
     }
 
     handleChange(other) {
@@ -68,7 +84,7 @@ class DropdownNestingState {
 }
 
 /**
- * @param {import("@web/components/dropdown/dropdown_hooks").DropdownState} state
+ * @param {import("@web/components/dropdown/dropdown_hook").DropdownState} state
  */
 export function useDropdownNesting(state) {
     const env = useEnv();
@@ -76,14 +92,10 @@ export function useDropdownNesting(state) {
     const current = new DropdownNestingState({
         parent: envAny[DROPDOWN_NESTING],
         close: () => state.close(),
+        bus: env.bus,
     });
 
     const uiService = useService("ui");
-    // Seed it now and settle it after the mount flush. The deferral is what
-    // lets a dropdown mounting alongside a dialog see the dialog rather than
-    // whatever was active before it; leaving the field undefined until then is
-    // what made a dropdown that opens in the same tick it mounts read as
-    // "somewhere else entirely" -- so its peers kept their menus open.
     current.activeEl = /** @type {any} */ (uiService.activeElement);
     useEffect(
         () => {
@@ -95,7 +107,7 @@ export function useDropdownNesting(state) {
     );
 
     useChildSubEnv(/** @type {any} */ ({ [DROPDOWN_NESTING]: current }));
-    useBus(BUS, "dropdown-opened", (/** @type {any} */ { detail: other }) =>
+    useBus(env.bus, DropdownEvent.OPENED, (/** @type {any} */ { detail: other }) =>
         current.handleChange(other),
     );
 

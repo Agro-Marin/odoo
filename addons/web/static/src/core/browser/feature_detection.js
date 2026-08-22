@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/browser/feature_detection */
-
 import { browser } from "./browser.js";
 
 /** @type {string | undefined} */
@@ -128,6 +126,13 @@ export function isAndroidApp() {
  */
 export function isDisplayStandalone() {
     return browser.matchMedia("(display-mode: standalone)").matches;
+}
+
+/**
+ * @returns {boolean}
+ */
+export function prefersReducedMotion() {
+    return browser.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 /**

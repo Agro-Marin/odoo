@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/many2many_tags_avatar/many2many_tags_avatar_field */
-
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { _t } from "@web/core/translation";
 import { imageUrl } from "@web/core/utils/urls";
@@ -26,7 +24,10 @@ export class Many2ManyTagsAvatarField extends Many2ManyTagsField {
         return {};
     }
 
-    /** @override @returns {Object} */
+    /**
+     * @override
+     * @returns {Object}
+     */
     get many2XAutocompleteProps() {
         return {
             ...super.many2XAutocompleteProps,
@@ -119,7 +120,7 @@ export class KanbanMany2ManyTagsAvatarFieldTagsList extends TagsList {
     setup() {
         super.setup();
         this.popover = usePopover(Many2ManyTagsAvatarFieldPopover, {
-            popoverClass: "o_m2m_tags_avatar_field_popover",
+            class: "o_m2m_tags_avatar_field_popover",
             closeOnClickAway: (target) => !target.closest(".modal"),
         });
     }

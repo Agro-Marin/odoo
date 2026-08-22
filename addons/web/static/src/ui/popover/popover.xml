@@ -12,6 +12,7 @@
             t-on-pointerleave="onPointerLeave"
         >
             <t
+                t-if="hasTarget"
                 t-component="props.component"
                 t-props="props.componentProps"
                 close="props.close"

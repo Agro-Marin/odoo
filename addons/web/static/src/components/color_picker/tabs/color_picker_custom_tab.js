@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/color_picker/tabs/color_picker_custom_tab */
-
 import { Component } from "@odoo/owl";
 import { CustomColorPicker } from "@web/components/color_picker/custom_color_picker/custom_color_picker";
 import { registry } from "@web/core/registry";

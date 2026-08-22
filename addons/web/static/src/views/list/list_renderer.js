@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_renderer */
-
 import {
     Component,
     onMounted,
@@ -60,9 +58,6 @@ import {
     useListVirtualization,
 } from "./list_virtualization.js";
 
-// Named so a profile shows which phase of `syncRenderState` a sample landed
-// in. `odoo.debug` is read per call rather than captured once, so toggling
-// debug mode at runtime starts and stops the marks immediately.
 const perfMark = (/** @type {string} */ name) => {
     if (odoo.debug) {
         performance.mark(name);
@@ -84,100 +79,71 @@ const perfMeasure = (/** @type {string} */ name, /** @type {string} */ start) =>
  * @typedef {import("./list_column_utils").Column} Column
  * @typedef {"up" | "down" | "left" | "right"} Direction
  * @typedef {ViewProps & {
- *  list: DynamicList | StaticList;
- *  archInfo?: any;
- *  editable?: any;
- *  cycleOnTab?: boolean;
- *  allowSelectors?: boolean;
- *  [key: string]: any;
+ * list: DynamicList | StaticList;
+ * archInfo?: any;
+ * editable?: any;
+ * cycleOnTab?: boolean;
+ * allowSelectors?: boolean;
+ * [key: string]: any;
  * }} ListRendererProps
- *
- * The renderer's live surface, shared by every list satellite hook
- * (selection, keyboard nav, optional fields, aggregates, virtualization) in
- * place of a per-hook callback bag. Getters read renderer state at call time;
- * the `on*`/action members are bound callbacks. Hooks destructure the subset
- * they use. See where it is built in `ListRenderer.setup`.
  * @typedef {{
- *  getProps: () => ListRendererProps;
- *  getEnv: () => any;
- *  getColumns: () => Column[];
- *  getAllColumns: () => Column[];
- *  getFields: () => Record<string, object>;
- *  getGridState: () => import("./list_grid_state").ListGridState;
- *  getEditedRecord: () => any;
- *  getOptionalActiveFields: () => Record<string, boolean>;
- *  getAllowSelectors: () => boolean;
- *  getCanCreate: () => boolean;
- *  getDisplayRowCreates: () => boolean;
- *  getControls: () => any[];
- *  getSel: () => any;
- *  getVirtualization: () => import("./list_virtualization").ListVirtualization | undefined;
- *  canResequence: () => boolean;
- *  toggleRecordSelection: (record: object) => void;
- *  onToggleGroup: (group: object) => void;
- *  onAdd: (params?: object) => void;
- *  onOpenRecord: (record: object) => void;
- *  onDeleteRecord: (record: object) => void;
- *  onEditNextRecord: (record: object, group?: object) => any;
- *  onSave: () => void;
- *  findFocusFutureCell: (cell: HTMLTableCellElement, cellIsInGroupRow: boolean, direction: Direction) => HTMLElement | null;
- *  isInlineEditable: (record: object) => boolean;
- *  isCellReadonly: (column: any, record: object) => boolean;
- *  expandCheckboxes: (record: object, direction: string) => boolean;
+ * getProps: () => ListRendererProps;
+ * getEnv: () => any;
+ * getColumns: () => Column[];
+ * getAllColumns: () => Column[];
+ * getFields: () => Record<string, object>;
+ * getGridState: () => import("./list_grid_state").ListGridState;
+ * getEditedRecord: () => any;
+ * getOptionalActiveFields: () => Record<string, boolean>;
+ * getAllowSelectors: () => boolean;
+ * getCanCreate: () => boolean;
+ * getDisplayRowCreates: () => boolean;
+ * getControls: () => any[];
+ * getSel: () => any;
+ * getVirtualization: () => import("./list_virtualization").ListVirtualization | undefined;
+ * canResequence: () => boolean;
+ * toggleRecordSelection: (record: object) => void;
+ * onToggleGroup: (group: object) => void;
+ * onAdd: (params?: object) => void;
+ * onOpenRecord: (record: object) => void;
+ * onDeleteRecord: (record: object) => void;
+ * onEditNextRecord: (record: object, group?: object) => any;
+ * onSave: () => void;
+ * findFocusFutureCell: (cell: HTMLTableCellElement, cellIsInGroupRow: boolean, direction: Direction) => HTMLElement | null;
+ * isInlineEditable: (record: object) => boolean;
+ * isCellReadonly: (column: Column, record: object) => boolean;
+ * expandCheckboxes: (record: object, direction: "up" | "down") => boolean;
+ * setKeyboardNavigation: (active: boolean) => void;
  * }} ListGridContext
- *
- * The cross-row booleans shared by every record row, as ONE stable reactive
- * object (`this.rowFlags`, passed to rows as the `flags` prop). A row that
- * reads a flag subscribes to that key only, so a flip re-renders exactly the
- * rows whose output depends on it — unlike a per-row prop, which invalidates
- * every row. Updated in `onWillRender`; a write of an unchanged value
- * notifies nobody.
- *
- * Every flag here is read by potentially EVERY row, so none of them may
- * round-trip within a single interaction: a value that goes `a -> b -> a`
- * repaints the whole list twice for a state no frame ever shows. In
- * particular, derive nothing here from `list.editedRecord`, which is
- * transiently null while edition is handed from one row to the next — use
- * `list.isEditing`, which spans the handover. See CONVENTIONS.md gotcha 18.
  * @typedef {{
- *  isEditing: boolean;
- *  canSelectRecord: boolean;
+ * isEditing: boolean;
+ * canSelectRecord: boolean;
  * }} ListRowFlags
- *
- * The callbacks a record row may call on its renderer (`this.rowApi`, passed
- * to rows as the `api` prop; built once in `setup` by `buildRowApi`, which a
- * subclass extends to expose additional members to its row template). Every
- * member routes through the renderer INSTANCE, so prototype overrides in the
- * ~40 renderer subclasses keep catching the calls. Rendering reads receive
- * the row's own reactive `record`, so what they read subscribes the calling
- * row; action callbacks resolve record/group arguments back to the
- * renderer's reactivity context first (see `resolveRowRecord`), keeping the
- * identity comparisons in the renderer and the model valid.
  * @typedef {{
- *  getRowClass: (record: RelationalRecord) => string;
- *  getColumns: (record: RelationalRecord) => Column[];
- *  evalInvisible: (invisible: string, record: RelationalRecord) => boolean;
- *  canUseFormatter: (column: any, record: RelationalRecord) => boolean;
- *  getFormattedValue: (column: any, record: RelationalRecord) => any;
- *  getCellClass: (column: any, record: RelationalRecord) => string;
- *  getCellTitle: (column: any, record: RelationalRecord, formattedValue?: string) => string | undefined;
- *  getFieldClass: (column: any) => string;
- *  getFieldProps: (record: RelationalRecord, column: any) => object;
- *  displayDeleteIcon: (record: RelationalRecord) => boolean;
- *  onCellClicked: (record: RelationalRecord, column: any, ev: PointerEvent, newWindow?: boolean) => any;
- *  onButtonCellClicked: (record: RelationalRecord, column: any, ev: PointerEvent) => any;
- *  onRemoveCellClicked: (record: RelationalRecord, ev: PointerEvent) => any;
- *  onCellKeydown: (ev: KeyboardEvent, group?: Group | null, record?: object | null) => any;
- *  toggleRecordSelection: (record: any, ev?: any) => any;
- *  onRowTouchStart: (record: RelationalRecord, ev: TouchEvent) => void;
- *  onRowTouchEnd: (record: RelationalRecord) => void;
- *  onRowTouchMove: (record: RelationalRecord) => void;
- *  onClickCapture: (record: RelationalRecord, ev: PointerEvent) => void;
- *  ignoreEventInSelectionMode: (ev: MouseEvent) => void;
- *  getGridState: () => import("./list_grid_state").ListGridState;
- *  getEditedRecord: () => any;
- *  displaySaveNotification: () => void;
- *  markRowRender: (recordId: string) => void;
+ * getRowClass: (record: RelationalRecord) => string;
+ * getColumns: (record: RelationalRecord) => Column[];
+ * evalInvisible: (invisible: string, record: RelationalRecord) => boolean;
+ * canUseFormatter: (column: Column, record: RelationalRecord) => boolean;
+ * getFormattedValue: (column: Column, record: RelationalRecord) => any;
+ * getCellClass: (column: Column, record: RelationalRecord) => string;
+ * getCellTitle: (column: Column, record: RelationalRecord, formattedValue?: string) => string | undefined;
+ * getFieldClass: (column: Column) => string;
+ * getFieldProps: (record: RelationalRecord, column: Column) => object;
+ * displayDeleteIcon: (record: RelationalRecord) => boolean;
+ * onCellClicked: (record: RelationalRecord, column: Column, ev: PointerEvent, newWindow?: boolean) => any;
+ * onButtonCellClicked: (record: RelationalRecord, column: Column, ev: PointerEvent) => any;
+ * onRemoveCellClicked: (record: RelationalRecord, ev: PointerEvent) => any;
+ * onCellKeydown: (ev: KeyboardEvent, group?: Group | null, record?: object | null) => any;
+ * toggleRecordSelection: (record: any) => any;
+ * onRowTouchStart: (record: RelationalRecord, ev: TouchEvent) => void;
+ * onRowTouchEnd: (record: RelationalRecord) => void;
+ * onRowTouchMove: (record: RelationalRecord) => void;
+ * onClickCapture: (record: RelationalRecord, ev: PointerEvent) => void;
+ * ignoreEventInSelectionMode: (ev: MouseEvent) => void;
+ * getGridState: () => import("./list_grid_state").ListGridState;
+ * getEditedRecord: () => any;
+ * displaySaveNotification: () => void;
+ * markRowRender: (recordId: string) => void;
  * }} ListRowApi
  */
 
@@ -232,29 +198,29 @@ export class ListRenderer extends Component {
 
     /** @type {any} */
     uiService;
-    /** @type {any} */
+    /** @type {import("services").ServiceFactories["notification"]} */
     notificationService;
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
     tableRef;
-    /** @type {any} */
+    /** @type {ReturnType<typeof useListSelection>} */
     sel;
     /** @type {ReturnType<typeof useGroupManagement>} */
     groupOps;
-    /** @type {any} */
+    /** @type {import("./list_keyboard_nav").ListKeyboardNavigation} */
     nav;
-    /** @type {any[]} */
+    /** @type {Column[]} */
     columns;
-    /** @type {any[]} */
+    /** @type {Column[]} */
     allColumns;
     /** @type {any} */
     editedRecord;
-    /** @type {any} */
+    /** @type {ListGridState} */
     gridState;
-    /** @type {any} */
+    /** @type {import("./list_virtualization").ListVirtualization} */
     virt;
-    /** @type {any} */
+    /** @type {ReturnType<typeof useListAggregates>} */
     agg;
-    /** @type {any} */
+    /** @type {ReturnType<typeof useMagicColumnWidths>} */
     columnWidths;
     /** @type {any} */
     state;
@@ -264,7 +230,7 @@ export class ListRenderer extends Component {
     dialogClose;
     /** @type {Set<string> | undefined} */
     _renderedRowIds;
-    /** @type {any[] | undefined} */
+    /** @type {Column[] | undefined} */
     _stableColumns;
     /** @type {any} */
     _defaultActiveActions;
@@ -276,12 +242,6 @@ export class ListRenderer extends Component {
     rowApi;
 
     setup() {
-        // Split into ordered PHASES, not by concern. The original order is
-        // deliberately interleaved -- `gridState` is built near the end, after
-        // the hooks that resolve it lazily -- and OWL registers lifecycle
-        // hooks in call order, so regrouping these by topic would change
-        // behaviour. Each phase is called synchronously from here, so every
-        // hook still registers exactly where it did before.
         this.setupServices();
         this.setupSharedContexts();
         this.setupRowInteractions();
@@ -289,9 +249,6 @@ export class ListRenderer extends Component {
     }
 
     /**
-     * Services, the per-view storage keys, and the table ref. Nothing here
-     * reads another phase's state.
-     *
      * @returns {void}
      */
     setupServices() {
@@ -316,43 +273,22 @@ export class ListRenderer extends Component {
     }
 
     /**
-     * The two shared surfaces: `gridContext` for the satellite hooks and
-     * the row context (`rowFlags` + `rowApi`) for the record rows. Built
-     * before the hooks that capture them.
-     *
      * @returns {void}
      */
     setupSharedContexts() {
-        // The single surface the list satellite hooks read from: one typed
-        // context built once, rather than a separate callback bag per hook (with
-        // the keyboard-nav hook cross-wiring into selection and virtualization).
-        // Every member is a lazy getter or a bound callback, so a hook built
-        // before `this.sel` / `this.virt` / `this.gridState` exist still resolves
-        // them at call time. Hook-specific *config* (refs, thresholds, storage
-        // keys) is passed separately -- it is not part of the shared surface.
         /** @type {import("./list_renderer").ListGridContext} */
         this.gridContext = this.buildGridContext();
 
-        // The record rows' explicit row context: one stable reactive flags
-        // object and one stable api object shared by every row (see the
-        // ListRowFlags / ListRowApi typedefs above). Stable identities keep
-        // the rows' `t-props` diff clean; the flags reactive carries the
-        // cross-row flips.
         this.rowFlags = reactive({ isEditing: false, canSelectRecord: true });
         this.rowApi = this.buildRowApi();
     }
 
     /**
-     * The hooks that act on rows -- selection, group management, keyboard
-     * navigation, optional fields, aggregates -- plus the per-render state
-     * sync. `onMounted`/`onWillPatch` here record which row held focus so
-     * `setupLayoutAndFocus`'s `onPatched` can put it back.
-     *
      * @returns {void}
      */
     setupRowInteractions() {
         this.sel = useListSelection(this.gridContext, {
-            longTouchThreshold: /** @type {any} */ (this.constructor)
+            longTouchThreshold: /** @type {typeof ListRenderer} */ (this.constructor)
                 .LONG_TOUCH_THRESHOLD,
         });
 
@@ -402,12 +338,6 @@ export class ListRenderer extends Component {
     }
 
     /**
-     * Layout and geometry (resequencing, column widths, virtualization,
-     * grid state) and the `onPatched` pass that restores the caret to the
-     * edited cell. `gridState` is constructed here, near the end, because
-     * `gridState.update()` in `syncRenderState` supplies the rest -- passing
-     * it earlier would read half-initialised getters.
-     *
      * @returns {void}
      */
     setupLayoutAndFocus() {
@@ -455,9 +385,6 @@ export class ListRenderer extends Component {
         onPatched(() => this.restoreEditionFocus());
         this.isRTL = localization.direction === "rtl";
 
-        // Everything else is (re)set by gridState.update() in onWillRender, which
-        // runs before the first render — passing it here would only read
-        // half-initialized getters (e.g. hasOpenFormViewColumn via debugOpenView).
         this.gridState = new ListGridState({
             list: this.props.list,
             columns: this.columns,
@@ -466,7 +393,8 @@ export class ListRenderer extends Component {
 
         this.virt = useListVirtualization(this.gridContext, {
             rootRef: this.rootRef,
-            threshold: /** @type {any} */ (this.constructor).VIRTUALIZATION_THRESHOLD,
+            threshold: /** @type {typeof ListRenderer} */ (this.constructor)
+                .VIRTUALIZATION_THRESHOLD,
         });
 
         this.dialogClose = [];
@@ -558,16 +486,10 @@ export class ListRenderer extends Component {
     }
 
     get rowComponent() {
-        return getRowComponentClass(/** @type {any} */ (this.constructor));
+        return getRowComponentClass(this.constructor);
     }
 
     /**
-     * Resolves a record received from a row's action callback back to this
-     * renderer's reactivity context, by id. Rows hold their own reactive over
-     * the same record, so `===` against renderer-side state (`editedRecord`,
-     * `list.records`) only holds after this translation. Non-record values
-     * pass through untouched.
-     *
      * @param {any} record
      */
     resolveRowRecord(record) {
@@ -578,8 +500,6 @@ export class ListRenderer extends Component {
     }
 
     /**
-     * Group counterpart of `resolveRowRecord`.
-     *
      * @param {any} group
      */
     resolveRowGroup(group) {
@@ -590,19 +510,6 @@ export class ListRenderer extends Component {
     }
 
     /**
-     * Puts the caret back in the edited cell after a patch.
-     *
-     * The leading `await` is load-bearing: it lets the browser finish its own
-     * focus handling for this patch before we read `document.activeElement`,
-     * so the destroyed guard below is a real possibility rather than
-     * defensive noise. `setupRowInteractions` recorded `activeRowId` in
-     * `onWillPatch`, i.e. BEFORE the DOM moved; comparing it with the edited
-     * record is how we tell "the user moved rows" from "the row re-rendered
-     * underneath a caret that should stay put".
-     *
-     * Bails without touching focus when the active element belongs to someone
-     * else (a dialog, an autocomplete) -- stealing it back would fight them.
-     *
      * @returns {Promise<void>}
      */
     async restoreEditionFocus() {
@@ -611,7 +518,7 @@ export class ListRenderer extends Component {
             return;
         }
         if (this.activeElement !== this.uiService.activeElement) {
-            /** @type {any} */ (this.nav).clearPendingVirtFocus();
+            this.nav.clearPendingVirtFocus();
             return;
         }
         if (this.editedRecord && this.activeRowId !== this.editedRecord.id) {
@@ -635,27 +542,14 @@ export class ListRenderer extends Component {
         }
         this.nav.cellToFocus = null;
         this.nav.lastEditedCell = null;
-        /** @type {any} */ (this.nav).resolvePendingVirtFocus();
+        this.nav.resolvePendingVirtFocus();
     }
 
     /**
-     * Everything the template needs derived and published, once per render.
-     * Runs from `onWillRender`, so it is the last point at which a derived
-     * value can still be written before the template reads it.
-     *
-     * Order is load-bearing: `allColumns` feeds `getActiveColumns`, which
-     * feeds `gridState.update`, which `gridState.rebuild` materialises and
-     * `virt.refresh` then windows. A subclass overriding this must call
-     * `super.syncRenderState()` rather than reorder it.
-     *
      * @returns {void}
      */
     syncRenderState() {
         this.editedRecord = this.props.list.editedRecord;
-        // `list.isEditing`, not `Boolean(this.editedRecord)`: see the
-        // ListRowFlags typedef. Rows with a button column subscribe to this
-        // key, and deriving it from `editedRecord` made moving the edited
-        // row repaint every one of them twice.
         this.rowFlags.isEditing = this.props.list.isEditing;
         this.rowFlags.canSelectRecord = this.canSelectRecord;
         this._readonlyCache = new Map();
@@ -699,16 +593,6 @@ export class ListRenderer extends Component {
     }
 
     /**
-     * The shared surface handed to every list satellite hook, built once in
-     * `setup`. A method rather than a literal inline for the same reason
-     * `buildRowApi` is one: a renderer subclass extends the context by
-     * overriding this and spreading `super.buildGridContext()`, which is not
-     * possible against an object literal buried in `setup`.
-     *
-     * Every member is a lazy getter or a bound callback, so a hook built
-     * BEFORE `this.sel` / `this.virt` / `this.gridState` exist still resolves
-     * them at call time. Do not turn any of these into a plain value.
-     *
      * @returns {import("./list_renderer").ListGridContext}
      */
     buildGridContext() {
@@ -739,34 +623,21 @@ export class ListRenderer extends Component {
                 this.findFocusFutureCell(cell, cellIsInGroupRow, direction),
             isInlineEditable: (record) => this.isInlineEditable(record),
             isCellReadonly: (column, record) => this.isCellReadonly(column, record),
-            expandCheckboxes: (record, direction) =>
-                this.sel.expandCheckboxes(
-                    record,
-                    /** @type {"up" | "down"} */ (direction),
-                ),
+            expandCheckboxes: (
+                /** @type {any} */ record,
+                /** @type {"up" | "down"} */ direction,
+            ) => this.sel.expandCheckboxes(record, direction),
+            setKeyboardNavigation: (active) => this.setKeyboardNavigation(active),
         };
     }
 
     /**
-     * Builds the {@link ListRowApi} shared by this renderer's record rows.
-     * A subclass whose row template calls additional renderer methods extends
-     * the returned object:
-     *
-     *     buildRowApi() {
-     *         return {
-     *             ...super.buildRowApi(),
-     *             isSection: (record) => this.isSection(record),
-     *         };
-     *     }
-     *
      * @returns {import("./list_renderer").ListRowApi}
      */
     buildRowApi() {
         const rec = (/** @type {any} */ r) => this.resolveRowRecord(r);
         const grp = (/** @type {any} */ g) => this.resolveRowGroup(g);
         return {
-            // rendering reads: the row-context record argument passes through,
-            // so what the method reads subscribes the calling row
             getRowClass: (record) => this.getRowClass(record),
             getColumns: (record) => this.getColumns(record),
             evalInvisible: (invisible, record) => this.evalInvisible(invisible, record),
@@ -779,8 +650,6 @@ export class ListRenderer extends Component {
             getFieldClass: (column) => this.getFieldClass(column),
             getFieldProps: (record, column) => this.getFieldProps(record, column),
             displayDeleteIcon: (record) => this.displayDeleteIcon(record),
-            // action callbacks: record/group arguments are translated back to
-            // this renderer's context so identity comparisons keep holding
             onCellClicked: (record, column, ev, newWindow) =>
                 this.onCellClicked(rec(record), column, ev, newWindow),
             onButtonCellClicked: (record, column, ev) =>
@@ -789,14 +658,12 @@ export class ListRenderer extends Component {
                 this.onRemoveCellClicked(rec(record), ev),
             onCellKeydown: (ev, group = null, record = null) =>
                 this.onCellKeydown(ev, grp(group), rec(record)),
-            toggleRecordSelection: (record, ev) =>
-                this.toggleRecordSelection(rec(record), rec(ev)),
+            toggleRecordSelection: (record) => this.toggleRecordSelection(rec(record)),
             onRowTouchStart: (record, ev) => this.onRowTouchStart(rec(record), ev),
             onRowTouchEnd: (record) => this.onRowTouchEnd(rec(record)),
             onRowTouchMove: (record) => this.onRowTouchMove(rec(record)),
             onClickCapture: (record, ev) => this.onClickCapture(rec(record), ev),
             ignoreEventInSelectionMode: (ev) => this.ignoreEventInSelectionMode(ev),
-            // row plumbing
             getGridState: () => this.gridState,
             getEditedRecord: () => this.editedRecord,
             displaySaveNotification: () => this.displaySaveNotification(),
@@ -805,13 +672,6 @@ export class ListRenderer extends Component {
     }
 
     /**
-     * The record rows' props: the explicit row context (see the class
-     * comment on `ListRecordRow`, including the subclass extension recipe).
-     * Values are identity-stable across renders unless the row's output
-     * changed, so the `t-props` diff skips untouched rows; the cross-row
-     * flips travel through the stable `flags` reactive instead of per-row
-     * props.
-     *
      * @param {RelationalRecord} record
      * @param {Group | undefined} group
      * @param {string | undefined} groupId
@@ -827,7 +687,8 @@ export class ListRenderer extends Component {
             onOpenFormView: this.props.onOpenFormView,
             api: this.rowApi,
             flags: this.rowFlags,
-            recordRowTemplate: /** @type {any} */ (this.constructor).recordRowTemplate,
+            recordRowTemplate: /** @type {typeof ListRenderer} */ (this.constructor)
+                .recordRowTemplate,
             columns: this.columns,
             activeActions: this.activeActions,
             isEdited: this.editedRecord === record,
@@ -897,17 +758,7 @@ export class ListRenderer extends Component {
     }
 
     get nbCols() {
-        let nbCols = this.columns.length;
-        if (this.hasSelectors) {
-            nbCols++;
-        }
-        if (this.hasActionsColumn) {
-            nbCols++;
-        }
-        if (this.hasOpenFormViewColumn) {
-            nbCols++;
-        }
-        return nbCols;
+        return this.gridState.colCount;
     }
 
     focusCell(column, forward = true) {
@@ -1211,11 +1062,7 @@ export class ListRenderer extends Component {
             : this.onCellKeydownReadOnlyMode(hotkey, closestCell, group, record);
 
         if (handled) {
-            for (const tbody of /** @type {HTMLElement} */ (
-                this.tableRef.el
-            ).getElementsByTagName("tbody")) {
-                tbody.classList.add("o_keyboard_navigation");
-            }
+            this.setKeyboardNavigation(true);
             ev.preventDefault();
             ev.stopPropagation();
         }
@@ -1236,15 +1083,6 @@ export class ListRenderer extends Component {
 
         if (futureRecord) {
             const futureRecordId = futureRecord.id;
-            // Claimed for the whole leave-then-enter, because this path cannot
-            // delegate to `enterEditMode` (it needs the stricter
-            // `leaveEditMode({ validate: true })`). Without the claim
-            // `isEditing` drops to false between the two halves and every row
-            // repaints twice — the Enter key cost 61 row renders on a 30-row
-            // list where Tab, which does delegate, cost 4.
-            // `enterEditMode` is RETURNED into the chain, not fired and
-            // forgotten: `release` must not run until edition has landed, or
-            // the gap it exists to close reopens just before the end.
             const release = list.beginEditHandover(futureRecord);
             list.leaveEditMode({ validate: true })
                 .then((canProceed) => {
@@ -1304,12 +1142,6 @@ export class ListRenderer extends Component {
     }
 
     get canSelectRecord() {
-        // `list.isEditing`, not `this.editedRecord`: this value is published to
-        // every row through `rowFlags`, and each row subscribes to that one
-        // key. `editedRecord` is transiently null while edition is handed from
-        // one row to the next, which would flip this false -> true -> false and
-        // re-render every row twice for a frame that is never painted.
-        // `isEditing` spans the handover. See DynamicList#isEditing.
         return !this.props.list.isEditing && !this.props.list.model.useSampleModel;
     }
 
@@ -1323,9 +1155,8 @@ export class ListRenderer extends Component {
 
     /**
      * @param {RelationalRecord} record
-     * @param {PointerEvent} [_ev]
      */
-    toggleRecordSelection(record, _ev) {
+    toggleRecordSelection(record) {
         if (!this.canSelectRecord) {
             return;
         }
@@ -1359,9 +1190,7 @@ export class ListRenderer extends Component {
             return;
         }
 
-        /** @type {HTMLElement} */ (this.tableRef.el)
-            .querySelector("tbody")
-            ?.classList.remove("o_keyboard_navigation");
+        this.setKeyboardNavigation(false);
 
         const target = /** @type {HTMLElement} */ (ev.target);
         if (this.state.showGroupInput && !target.closest(".o_list_group_input")) {
@@ -1383,6 +1212,14 @@ export class ListRenderer extends Component {
             return;
         }
         this.props.list.leaveEditMode();
+    }
+
+    /**
+     * @param {boolean} active
+     */
+    setKeyboardNavigation(active) {
+        const tbody = this.tableRef.el?.querySelector("tbody");
+        tbody?.classList.toggle("o_keyboard_navigation", active);
     }
 
     get isDebugMode() {
@@ -1447,11 +1284,6 @@ export class ListRenderer extends Component {
 }
 
 /**
- * Installs a mixin onto the prototype AFTER the class body, so a name defined
- * in both would be silently won by the mixin — and the class body is where a
- * reader looks first. Collisions are refused instead: the fix is to rename, or
- * to drop the member from the mixin.
- *
  * @param {object} mixin
  * @param {string} name
  */

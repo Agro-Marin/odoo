@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/reports/report_hook */
-
 import { useComponent, useEffect } from "@odoo/owl";
 
 /**
@@ -64,6 +62,7 @@ export function enrich(component, targetElement, selector, isIFrame = false) {
                 ev.preventDefault();
                 const viewIdAttr = element.getAttribute("view-id");
                 const viewId = viewIdAttr ? Number(viewIdAttr) : false;
+                // eslint-disable-next-line no-restricted-syntax
                 component.env.services.action.doAction({
                     type: "ir.actions.act_window",
                     view_mode: element.getAttribute("view-type"),

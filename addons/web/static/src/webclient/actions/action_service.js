@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/action_service */
-
 import { reactive } from "@odoo/owl";
 import { router as _router } from "@web/core/browser/router";
 import { AppEvent } from "@web/core/events";
@@ -71,9 +69,6 @@ actionHandlersRegistry.addValidation((entry) => typeof entry === "function");
 /** @typedef {ActionId|ActionXMLId|ActionTag|ActionDescription} ActionRequest */
 
 /**
- * An action after {@link preprocessAction}: the server's `ir.actions.*` record
- * plus the fields the action manager adds to track it.
- *
  * @typedef {Object} Action
  * @property {string} type
  * @property {ActionId} [id]
@@ -86,7 +81,7 @@ actionHandlersRegistry.addValidation((entry) => typeof entry === "function");
  * @property {any[]|string} [domain]
  * @property {string} [res_model]
  * @property {number|false} [res_id]
- * @property {any[][]} [views] `[id, viewType]` pairs, as the server sends them.
+ * @property {any[][]} [views]
  * @property {string} [view_mode]
  * @property {[number, string]|false} [search_view_id]
  * @property {string|import("@odoo/owl").Markup} [help]
@@ -96,23 +91,26 @@ actionHandlersRegistry.addValidation((entry) => typeof entry === "function");
  * @property {number[]} [embedded_action_ids]
  * @property {boolean} [cache]
  * @property {string} [jsId]
- * @property {string} [_originalAction] JSON of the action as loaded, before preprocessing.
+ * @property {string} [_originalAction]
  * @property {boolean} [_noBreadcrumbs]
  * @property {Record<string, any>} [globalState]
  * @property {Record<ViewType, Controller>} [controllers]
  * @property {CallableFunction} [onClose]
  */
-/** @typedef {Omit<Action, "views"> & { type: "ir.actions.act_window", views: any[][],
-            mobile_view_mode?: string }} ActWindowAction */
-/** @typedef {Action & { type: "ir.actions.act_url", url?: string, close?: boolean }} ActURLAction */
+/**
+ * @typedef {Omit<Action, "views"> & { type: "ir.actions.act_window", views: any[][],
+ * mobile_view_mode?: string }} ActWindowAction
+ */
+/**
+ * @typedef {Action & { type: "ir.actions.act_url", url?: string, close?: boolean }} ActURLAction
+ */
 /** @typedef {Action & { type: "ir.actions.client" }} ClientAction */
 /** @typedef {Action & { type: "ir.actions.server" }} ServerAction */
-/** @typedef {Action & { type: "ir.actions.report", report_name?: string, report_file?: string,
-            data?: Record<string, any>, close_on_report_download?: boolean }} ReportAction */
 /**
- * One entry of the controller stack: the component rendering an action, plus the
- * state the action manager keeps about it. Built by {@link makeController}.
- *
+ * @typedef {Action & { type: "ir.actions.report", report_name?: string, report_file?: string,
+ * data?: Record<string, any>, close_on_report_download?: boolean }} ReportAction
+ */
+/**
  * @typedef {Object} Controller
  * @property {string} jsId
  * @property {Action} action
@@ -120,7 +118,7 @@ actionHandlersRegistry.addValidation((entry) => typeof entry === "function");
  * @property {Config} config
  * @property {boolean} [isMounted]
  * @property {boolean} [lazy]
- * @property {boolean} [virtual] Placeholder for a breadcrumb never mounted in this session.
+ * @property {boolean} [virtual]
  * @property {string} [displayName]
  * @property {typeof import("@odoo/owl").Component} [Component]
  * @property {BaseView} [view]
@@ -144,7 +142,7 @@ actionHandlersRegistry.addValidation((entry) => typeof entry === "function");
 /** @typedef {Record<string, any>} UpdateStackOptions */
 /**
  * @typedef {Object} DoActionButtonParams
- * @property {string} [type] Absent for a `special` button.
+ * @property {string} [type]
  * @property {string|number} [name]
  * @property {string} [special]
  * @property {string} [resModel]
@@ -153,8 +151,8 @@ actionHandlersRegistry.addValidation((entry) => typeof entry === "function");
  * @property {Context} [context]
  * @property {Context} [buttonContext]
  * @property {any[]} [args]
- * @property {string} [effect] The raw `effect` attribute, evaluated by {@link executeActionButton}.
- * @property {string} [block-ui] The raw `block-ui` attribute.
+ * @property {string} [effect]
+ * @property {string} [block-ui]
  * @property {boolean} [close]
  * @property {ViewType} [viewType]
  * @property {string} [stackPosition]
@@ -166,17 +164,11 @@ actionHandlersRegistry.addValidation((entry) => typeof entry === "function");
  * @property {Context} [additionalContext]
  * @property {boolean} [clearBreadcrumbs]
  * @property {CallableFunction} [onClose]
- * @property {boolean} [onCloseIsSpeculative] Set by callers that attach
- *           `onClose` before knowing whether the action opens a dialog (button
- *           dispatches resolve their action server-side). Suppresses the debug
- *           warning for a dropped `onClose`; the callback itself is handled the
- *           same either way.
+ * @property {boolean} [onCloseIsSpeculative]
  * @property {Object} [props]
  * @property {ViewType} [viewType]
  * @property {"replaceCurrentAction" | "replacePreviousAction"} [stackPosition]
- * @property {(stack: Controller[]) => number} [spliceAt] Resolved against the
- *           stack being spliced, so a position can never be measured on one
- *           stack and applied to another.
+ * @property {(stack: Controller[]) => number} [spliceAt]
  * @property {boolean} [newWindow]
  * @property {boolean} [forceLeave]
  * @property {Object[]} [newStack]
@@ -223,12 +215,40 @@ function chainOnClose(own, stolen) {
 
 export class ActionManager {
     /**
+     * The five services the manager and its executors call are bound here, once.
+     *
+     * They used to be reached as `am.env.services.X` at eleven call sites, each
+     * carrying the same three-line `eslint-disable no-restricted-syntax` — one
+     * architectural fact copied eleven times. The rule is right to fire:
+     * `useService` adds the lifecycle protection a raw read skips. It just has
+     * no answer for a plain object with no lifecycle, and the answer was always
+     * the second argument `start()` already receives and this class threw away.
+     *
+     * `services` is a defaulted third parameter, not the second: the second is
+     * the router, and `makeActionManager(env, router)` is public API that
+     * `enterprise/web_studio/.../editor.js` calls. The default keeps every
+     * existing caller working, and a bare `env.services` in a default parameter
+     * is not what the lint selector matches (it wants `<holder>.env.services`).
+     *
+     * Suffixed `Service` uniformly because one of them would otherwise collide:
+     * `this.dialog` is the open dialog record, not the dialog service.
+     *
+     * `?? {}` so a partial env fails where it used to: at the call site that
+     * needs the service, not at construction. Four test files build an env by
+     * hand with `services: {}` or none, and the reads were previously lazy.
+     *
      * @param {import("@web/env").OdooEnv} env
      * @param {RouterLike} [router]
+     * @param {Record<string, any>} [services]
      */
-    constructor(env, router = _router) {
+    constructor(env, router = _router, services = env.services ?? {}) {
         this.env = env;
         this.router = router;
+        this.dialogService = services.dialog;
+        this.effectService = services.effect;
+        this.notificationService = services.notification;
+        this.titleService = services.title;
+        this.uiService = services.ui;
         this.breadcrumbCache = new BreadcrumbCache();
         this.navigation = new NavigationTracker();
         this._id = 0;
@@ -302,7 +322,7 @@ export class ActionManager {
     /**
      * @returns {Controller|null}
      */
-    _getCurrentController() {
+    get currentController() {
         const stack = this._effectiveStack;
         return stack.at(-1) ?? null;
     }
@@ -310,8 +330,8 @@ export class ActionManager {
     /**
      * @returns {Promise<any>}
      */
-    async _getCurrentAction() {
-        const currentController = this._getCurrentController();
+    async getCurrentAction() {
+        const currentController = this.currentController;
         let action = null;
         if (currentController) {
             if (currentController.virtual) {
@@ -435,13 +455,6 @@ export class ActionManager {
     }
 
     /**
-     * Where in `stack` the incoming controller goes. Every branch resolves
-     * against the stack being spliced, never against a position a caller
-     * measured somewhere else — `options.index` used to carry a raw number from
-     * `this.controllerStack` into a splice of `_effectiveStack`, the same
-     * two-coordinate-systems confusion `options.index` once had with the URL's
-     * actionStack. `spliceAt` is handed the stack instead of a number.
-     *
      * @param {ActionOptions} options
      * @param {Controller[]} [stack]
      */
@@ -487,7 +500,8 @@ export class ActionManager {
                 ? options.newStack
                 : this._effectiveStack;
         const index = this._computeStackIndex(options, baseStack);
-        const nextStack = [...baseStack.slice(0, index), controller];
+        const spliceAt = index < 0 ? baseStack.length : index;
+        const nextStack = [...baseStack.slice(0, spliceAt), controller];
         if (action.target !== "new" && options.newWindow) {
             return this._openActionInNewWindow(action, makeActionState(nextStack));
         }
@@ -516,12 +530,6 @@ export class ActionManager {
     }
 
     /**
-     * Stop treating *dispatch* as the pending one, if it still is. Called by
-     * `ActionDispatch.commit()` the moment it publishes its stack (so
-     * `_effectiveStack` answers with the new stack while `UI-UPDATED`
-     * listeners run) and re-called by `_updateUI`'s `finally`; the `===`
-     * guard makes every call after the first a no-op.
-     *
      * @param {ActionDispatch} dispatch
      */
     settlePendingDispatch(dispatch) {
@@ -542,9 +550,8 @@ export class ActionManager {
         controller.config.getDisplayName = () => controller.displayName;
         controller.config.setDisplayName = (/** @type {any} */ displayName) => {
             controller.displayName = displayName;
-            if (controller === this._getCurrentController()) {
-                // eslint-disable-next-line no-restricted-syntax -- service-internal code: useService is component-only, and `title` is a declared dependency (started before us)
-                this.env.services.title.setParts({
+            if (controller === this.currentController) {
+                this.titleService.setParts({
                     action: controller.displayName ?? null,
                 });
             }
@@ -601,8 +608,7 @@ export class ActionManager {
             ? chainOnClose(superseded.ownOnClose, superseded.supersededOnClose)
             : undefined;
         delete this.dialog?.onClose;
-        // eslint-disable-next-line no-restricted-syntax -- service-internal code: useService is component-only, and `dialog` is a declared dependency (started before us)
-        const removeDialogFn = (removeDialogRef.current = this.env.services.dialog.add(
+        const removeDialogFn = (removeDialogRef.current = this.dialogService.add(
             ActionDialog,
             actionDialogProps,
             {
@@ -628,22 +634,9 @@ export class ActionManager {
     }
 
     /**
-     * Post the empty-transition skeleton and wait for it to take the
-     * container. Resolves `true` once the skeleton mounted; `false` when a
-     * newer `ACTION_MANAGER:UPDATE` claimed the container first — the
-     * mount-stage supersession sensor (the same one that, one stage later,
-     * destroys a superseded controller into `ActionDispatch.discard()`),
-     * reported internally with the same `SupersededError`. The sensor is the
-     * event, not the skeleton's own lifecycle: a newer dispatch posted in the
-     * same tick replaces the container's proposal before OWL ever
-     * instantiates this skeleton, so none of its lifecycle hooks can be
-     * relied on to fire. A dialog navigation opening above the skeleton posts
-     * no UPDATE — it takes no container — so this dispatch rightly keeps
-     * waiting and lands beneath it.
-     *
      * @param {Controller} controller
      * @param {Action} action
-     * @returns {Promise<boolean>} whether the dispatch may proceed
+     * @returns {Promise<boolean>}
      */
     async _awaitSkeletonMount(controller, action) {
         const def = new Deferred();
@@ -678,14 +671,6 @@ export class ActionManager {
     }
 
     /**
-     * `onClose` only fires for dialog dispatches; callers passing it to an
-     * inline one usually expected a dialog — say so in debug.
-     *
-     * Silent when the caller flagged the callback speculative: a button
-     * dispatch attaches its reload callback before the RPC that decides
-     * whether the action is a dialog at all, so it cannot have "expected"
-     * either shape and there is no mistake to report.
-     *
      * @param {any} action
      * @param {Object} options
      */
@@ -707,7 +692,7 @@ export class ActionManager {
     async _dispatchInline(dispatch, options) {
         const { controller, action } = dispatch;
         this._warnDroppedOnClose(action, options);
-        const currentController = this._getCurrentController();
+        const currentController = this.currentController;
         if (currentController?.getLocalState) {
             currentController.exportedState = currentController.getLocalState();
         }
@@ -751,8 +736,7 @@ export class ActionManager {
             Component: this.ControllerComponent,
             componentProps: { ...controller.props, _context: dispatch },
         };
-        // eslint-disable-next-line no-restricted-syntax -- service-internal code: useService is component-only, and `dialog` is a declared dependency (started before us)
-        this.env.services.dialog.closeAll({ noReload: true });
+        this.dialogService.closeAll({ noReload: true });
         this.env.bus.trigger(AppEvent.ACTION_MANAGER_UPDATE, controller.__info__);
         await dispatch.settled();
     }
@@ -770,13 +754,6 @@ export class ActionManager {
     }
 
     /**
-     * Two dispatch paths, deliberately: `_actionExecutors` is the closed set of
-     * `ir.actions.*` types the manager implements itself — they are handed the
-     * instance, not just the env, and are not meant to be swapped out — while
-     * `action_handlers` is the open registry addons extend with new types.
-     * The former wins, so a handler registered for a built-in type would never
-     * run; say so rather than let it look registered.
-     *
      * @param {ActionRequest} actionRequest
      * @param {ActionOptions} options
      * @returns {Promise<number | undefined | void>}
@@ -786,15 +763,6 @@ export class ActionManager {
         try {
             return await this._doAction(actionRequest, options);
         } finally {
-            // In a `finally`: a dispatch that failed is still over, and a
-            // waiter that only learns about the successful ones hangs on
-            // exactly the cases worth noticing.
-            //
-            // Only on the outermost unwind: a server action, a function client
-            // action, an `act_url` close and a report's close all re-enter this
-            // method, so one gesture used to announce itself settled several
-            // times over — the first while the navigation it triggered was
-            // still running.
             if (--this._dispatchDepth === 0) {
                 this.env.bus.trigger(AppEvent.ACTION_MANAGER_SETTLED);
             }
@@ -847,17 +815,12 @@ export class ActionManager {
      * @param {ViewType} viewType
      * @param {Object} [props={}]
      * @param {{ newWindow?: boolean }} [options={}]
-     * @throws {ControllerNotFoundError} the controller stack is empty
-     * @throws {ViewNotFoundError} the current action has no such view
+     * @throws {ControllerNotFoundError}
+     * @throws {ViewNotFoundError}
      * @returns {Promise<any>}
      */
     async switchView(viewType, props = {}, { newWindow } = {}) {
         await this.navigation.guard(Promise.resolve());
-        // A dispatch carrying its own `newStack` is landing on a stack that
-        // need not contain the action the user is looking at, so switching one
-        // of ITS views has nothing to mean: the switch would splice a view of
-        // the outgoing action onto the incoming stack. Declined, like a switch
-        // behind a dialog.
         if (this.dialog || this._pendingDispatch) {
             return;
         }
@@ -890,9 +853,6 @@ export class ActionManager {
         );
         controller.action.controllers[viewType] = newController;
         const actionJsId = controller.action.jsId;
-        // A multi-record view replaces its action's whole segment; a
-        // mono-record one replaces the mono-record view already there, or
-        // stacks on top when there is none.
         const spliceAt = view.multiRecord
             ? (/** @type {Controller[]} */ stack) => {
                   const at = stack.findIndex((ct) => ct.action.jsId === actionJsId);
@@ -967,6 +927,11 @@ export class ActionManager {
         });
     }
 
+    destroy() {
+        this.uninstallActionCacheInvalidation();
+        this.uninstallActionCacheInvalidation = () => {};
+    }
+
     async loadState(/** @type {any} */ state = undefined) {
         return loadState(this, state);
     }
@@ -990,37 +955,22 @@ export class ActionManager {
         cStack.at(-1).state = newState;
         this.router.pushState(newState, Object.assign({ replace: true }, options));
     }
-
-    get currentController() {
-        return this._getCurrentController();
-    }
-
-    /**
-     * A method, not an accessor beside `currentController`: resolving the
-     * current action can go to the server (a virtual controller only knows an
-     * id), and a getter that returns a promise reads like the synchronous one
-     * next to it right up until it is used as one.
-     *
-     * @returns {Promise<any>}
-     */
-    getCurrentAction() {
-        return this._getCurrentAction();
-    }
 }
 
 /**
  * @param {import("@web/env").OdooEnv} env
  * @param {RouterLike} [router]
+ * @param {Record<string, any>} [services]
  * @returns {ActionManager}
  */
-export function makeActionManager(env, router = _router) {
-    return new ActionManager(env, router);
+export function makeActionManager(env, router = _router, services = env.services) {
+    return new ActionManager(env, router, services);
 }
 
 export const actionService = {
-    dependencies: ["dialog", "effect", "localization", "notification", "title", "ui"],
-    start(/** @type {any} */ env) {
-        const am = makeActionManager(env);
+    dependencies: ["dialog", "effect", "notification", "title", "ui"],
+    start(/** @type {any} */ env, /** @type {any} */ services) {
+        const am = makeActionManager(env, _router, services);
         am.uninstallActionCacheInvalidation = installActionCacheInvalidation(am);
         return am;
     },

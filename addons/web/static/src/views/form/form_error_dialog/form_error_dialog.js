@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/form/form_error_dialog/form_error_dialog */
-
 import { Component } from "@odoo/owl";
 import { useAction } from "@web/core/action_port";
 import { Dialog } from "@web/ui/dialog/dialog";

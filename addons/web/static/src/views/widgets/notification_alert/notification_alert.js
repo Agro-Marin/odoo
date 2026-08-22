@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/widgets/notification_alert/notification_alert */
-
 import { Component } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
@@ -18,7 +16,7 @@ export class NotificationAlert extends Component {
 }
 
 /** @type {import("registries").ViewWidgetsRegistryItemShape} */
-export const notificationAlert = {
+const notificationAlert = {
     component: NotificationAlert,
 };
 

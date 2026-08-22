@@ -1,8 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/record_value_transforms */
-
+import { isX2Many } from "@web/core/field_types";
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 import { registry } from "@web/core/registry";
 
@@ -124,7 +123,7 @@ export function computeDataContext(data, fields, textValues, resId) {
         }
         if (["char", "text", "html"].includes(field.type)) {
             dataContext[fieldName] = textValues[fieldName];
-        } else if (field.type === "one2many" || field.type === "many2many") {
+        } else if (isX2Many(field)) {
             x2manyDataContext.withVirtualIds[fieldName] = value.currentIds;
             x2manyDataContext.withoutVirtualIds[fieldName] = value.currentIds.filter(
                 (id) => typeof id === "number",
@@ -181,7 +180,7 @@ export function parseServerValues(
             continue;
         }
         const field = record.fields[fieldName];
-        if (field.type === "one2many" || field.type === "many2many") {
+        if (isX2Many(field)) {
             let staticList =
                 /** @type {import("./static_list").StaticList | undefined} */ (
                     currentValues?.[fieldName]

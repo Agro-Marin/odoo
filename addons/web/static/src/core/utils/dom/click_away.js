@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dom/click_away */
-
 import { onMounted, onWillDestroy } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 

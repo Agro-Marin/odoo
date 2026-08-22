@@ -1,19 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/functions */
 import { globalSingleton } from "@web/core/utils/global_singleton";
 
 /**
- * Caches on every argument, not just the first: keying on ``args[0]`` alone
- * silently returned a stale value whenever a memoized function took more than
- * one argument, and callers do (``variant_mixin`` memoizes per
- * ``(interaction, productUniqueId)`` to get one throttler per product form).
- *
- * Arities get their own root so ``f(a)`` and ``f(a, b)`` cannot collide.
- * Arguments are compared by ``Map`` key identity, so object arguments are held
- * strongly — as before.
- *
  * @template {(...args: any[]) => any} T
  * @param {T} func
  * @returns {T}

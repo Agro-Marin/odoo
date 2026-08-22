@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/properties/property_tags */
-
 import { Component } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 import { ColorList } from "@web/components/colorlist/colorlist";
@@ -12,7 +10,7 @@ import { _t } from "@web/core/translation";
 import { deepCopy } from "@web/core/utils/collections/objects";
 import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
-import { fieldHandle } from "@web/fields/field_handle";
+import { FieldComponent } from "@web/fields/field_component";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
@@ -100,7 +98,7 @@ export class PropertyTags extends Component {
                 className: this.props.canChangeTags ? "" : "pe-none",
                 colorIndex: tagColorIndex || 0,
                 onClick: (event) => this.onTagClick(event, tagId, tagColorIndex),
-                onDelete: canDeleteTag && (() => this.onTagDelete(tagId)),
+                onDelete: canDeleteTag ? () => this.onTagDelete(tagId) : undefined,
             };
         });
     }
@@ -263,15 +261,10 @@ export class PropertyTags extends Component {
     }
 }
 
-export class PropertyTagsField extends Component {
+export class PropertyTagsField extends FieldComponent {
     static template = "web.PropertyTagsField";
     static components = { PropertyTags };
     static props = { ...standardFieldProps };
-
-    /** @returns {import("@web/fields/field_handle").FieldHandle} */
-    get field() {
-        return fieldHandle(this);
-    }
 
     get propertyTagsProps() {
         return {
@@ -288,7 +281,7 @@ export class PropertyTagsField extends Component {
 }
 
 /** @type {import("registries").FieldsRegistryItemShape} */
-export const propertyTagsField = {
+const propertyTagsField = {
     component: PropertyTagsField,
 };
 

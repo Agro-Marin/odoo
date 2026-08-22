@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_button/view_button_hook */
-
 import { status, useComponent, useEnv, useSubEnv } from "@odoo/owl";
 import { useAction } from "@web/core/action_port";
 import { evaluateExpr } from "@web/core/py_js/py";
@@ -16,10 +14,10 @@ import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
  * @returns {Promise<any>}
  */
 export async function executeButtonCallback(el, fct) {
+    /** @type {Element[]} */
     let btns = [];
     function disableButtons() {
         btns = [
-            ...btns,
             ...(el ? el.querySelectorAll("button:not([disabled])") : []),
             ...document.querySelectorAll(".o-overlay-container button:not([disabled])"),
         ];

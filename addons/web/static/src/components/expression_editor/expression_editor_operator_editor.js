@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/expression_editor/expression_editor_operator_editor */
-
 import { getDomainDisplayedOperators } from "@web/components/domain_selector/domain_selector_operator_editor";
 
 /** @type {string[]} */

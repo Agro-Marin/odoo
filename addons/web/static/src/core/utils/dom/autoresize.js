@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dom/autoresize */
-
 import { useEffect } from "@odoo/owl";
 
 /**
@@ -58,17 +56,6 @@ export function useAutoresize(ref, options = {}) {
     });
 }
 
-/**
- * Properties that decide how wide a run of text renders. Copied from the input
- * onto the measuring span, which is appended to the input's *parent* and so
- * inherits the parent's typography -- and an `<input>` does not inherit the
- * page font to begin with, so the two routinely differ.
- *
- * Spelled as CSS property names, for `getPropertyValue`/`setProperty`: reading
- * them off the declaration as camelCase keys types the whole loop against
- * `CSSStyleDeclaration`, whose read-only members (`length`, `parentRule`) then
- * have to be excluded by hand.
- */
 const TEXT_METRIC_PROPERTIES = [
     "font-family",
     "font-size",
@@ -76,11 +63,6 @@ const TEXT_METRIC_PROPERTIES = [
     "font-weight",
     "font-stretch",
     "font-variant",
-    // The shorthand does not carry `font-variant-numeric`: it computes to
-    // "normal" on an element rendering tabular figures. Tabular and
-    // proportional digits have different advances, so an input that sets a
-    // numeric variant its parent lacks would otherwise be measured in the
-    // wrong one.
     "font-variant-numeric",
     "letter-spacing",
     "text-transform",
@@ -111,20 +93,34 @@ function measureTextWidth(input) {
 
 /**
  * @param {HTMLInputElement} input
+ * @returns {number}
+ */
+export function boxExtraWidth(input) {
+    const style = window.getComputedStyle(input);
+    if (style.boxSizing !== "border-box") {
+        return 0;
+    }
+    return (
+        parseFloat(style.paddingLeft) +
+        parseFloat(style.paddingRight) +
+        parseFloat(style.borderLeftWidth) +
+        parseFloat(style.borderRightWidth)
+    );
+}
+
+/**
+ * @param {HTMLInputElement} input
  * @param {{ offset?: number }} [options]
  */
 function resizeInput(input, options) {
     input.style.width = "100%";
     const maxWidth = input.clientWidth;
-    // The measuring span is absolutely positioned and does not wrap, so its
-    // width does not depend on the input's; every path below assigns a width
-    // anyway, so the intermediate "10px" was a style write nobody could read.
     if (input.value === "" && input.placeholder !== "") {
         input.style.width = "auto";
         return;
     }
     const textWidth = measureTextWidth(input);
-    const width = textWidth + (options?.offset || 0);
+    const width = textWidth + boxExtraWidth(input) + (options?.offset || 0);
     if (width > maxWidth) {
         input.style.width = "100%";
         return;
@@ -147,10 +143,6 @@ export function resizeTextArea(textarea, options = {}) {
             parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
         heightOffset = borderHeight + paddingHeight;
     }
-    // Save what was *inline*, not what was computed: restoring the computed
-    // values wrote the stylesheet's padding and border onto the element, where
-    // they outrank every later rule. One resize was enough to freeze a
-    // textarea against its own breakpoints and theme.
     const previousStyle = {
         borderTopWidth: textarea.style.borderTopWidth,
         borderBottomWidth: textarea.style.borderBottomWidth,

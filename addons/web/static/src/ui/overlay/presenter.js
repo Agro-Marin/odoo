@@ -1,57 +1,74 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/overlay/presenter */
-
 import { markRaw } from "@odoo/owl";
 
-/**
- * Options handled by every presenter, whatever it presents.
- */
-const COMMON_PRESENTER_OPTIONS = [
-    "class",
-    "closeOnClickAway",
-    "closeOnEscape",
-    "env",
-    "id",
-    "onClose",
-    "popoverClass",
-    "ref",
-    "role",
-    "sequence",
-    "setActiveElement",
-    "useBottomSheet",
-];
+// `useBottomSheet` is not one of these: no service reads it, `usePopover` does,
+// to choose *which* service to call. It is listed anyway because the hook cannot
+// take it back out. Callers hand `usePopover` an options object whose `class`
+// and `position` are live getters (Dropdown's are), so the hook layers
+// `Object.create` over it rather than copying -- and an inherited property
+// cannot be deleted from the derived object. Dropping the name here would warn
+// every `usePopover({ useBottomSheet })` caller about an option that is doing
+// exactly what it is supposed to.
+const SERVICE_OPTIONS = ["env", "onClose", "sequence", "useBottomSheet"];
 
-const acceptedOptions = new Set(COMMON_PRESENTER_OPTIONS);
+const PRESENTER_SUPPLIED = ["close", "component", "componentProps", "slots", "target"];
 
 /**
- * Records the options one presenter consumes, so that the set the debug check
- * accepts is the union of what the presenters actually read rather than a
- * hand-kept list that drifts from them.
- *
- * The union, not per-presenter sets: `usePopover({ useBottomSheet })` routes one
- * options object to whichever presenter the breakpoint selects, so a `position`
- * reaching the bottom sheet is that API working, not a mistake.
- *
- * Call at module scope: a presenter is built when its service starts, which is
- * later than another presenter may first be used.
- *
- * @param {string[]} names
- * @returns {string[]}
+ * @param {import("@odoo/owl").ComponentConstructor} component
+ * @returns {Set<string>}
  */
-export function declarePresenterOptions(names) {
-    for (const name of names) {
-        acceptedOptions.add(name);
+function acceptedOptionsFor(component) {
+    const accepted = new Set(SERVICE_OPTIONS);
+    for (const name of Object.keys(/** @type {any} */ (component).props ?? {})) {
+        accepted.add(name);
     }
-    return names;
+    for (const name of PRESENTER_SUPPLIED) {
+        accepted.delete(name);
+    }
+    return accepted;
 }
+
+/**
+ * @param {string} scope
+ * @param {object} options
+ * @param {Set<string>} accepted
+ */
+export function warnUnknownOptions(scope, options, accepted) {
+    if (!odoo.debug) {
+        return;
+    }
+    for (const key in options) {
+        if (!accepted.has(key)) {
+            console.warn(`[${scope}] unknown option "${key}"; it will be ignored.`);
+        }
+    }
+}
+
+/**
+ * @type {Record<string, any>}
+ */
+export const PRESENTED_PROPS = {
+    close: { type: Function },
+    componentProps: { optional: true, type: Object },
+
+    class: { optional: true },
+    id: { optional: true, type: String },
+    role: { optional: true, type: String },
+
+    closeOnClickAway: { optional: true, type: Function },
+    closeOnEscape: { optional: true, type: Boolean },
+    setActiveElement: { optional: true, type: Boolean },
+
+    ref: { optional: true, type: Function },
+};
 
 /**
  * @param {HTMLElement} target
  * @returns {string | undefined}
  */
-export function rootIdOf(target) {
+function rootIdOf(target) {
     return /** @type {ShadowRoot} */ (target?.getRootNode())?.host?.id;
 }
 
@@ -59,29 +76,17 @@ export function rootIdOf(target) {
  * @param {boolean | ((target: HTMLElement) => boolean) | undefined} value
  * @returns {(target: HTMLElement) => boolean}
  */
-export function asPredicate(value) {
+function asPredicate(value) {
     return typeof value === "function" ? value : () => value ?? true;
 }
 
 /**
- * The props every presented component takes, mapped once here rather than
- * per presenter. Kept identical on purpose: `usePopover({ useBottomSheet })`
- * hands ONE options object to whichever presenter the breakpoint picks, so any
- * option these two read differently is a behaviour change on rotation alone.
- *
- * Defaults deliberately stay OUT of this: an option left undefined must fall
- * through to the presented component's own `defaultProps`, so that the class
- * used directly in a template behaves the same as one reached through the
- * service. `setActiveElement` was defaulted here instead, which is why a
- * `<Popover>` written in a template trapped no focus while a `<BottomSheet>`
- * did.
- *
  * @param {any} options
  * @returns {object}
  */
 function commonProps(options) {
     return {
-        class: options.class ?? options.popoverClass,
+        class: options.class,
         closeOnClickAway: asPredicate(options.closeOnClickAway),
         closeOnEscape: options.closeOnEscape,
         id: options.id,
@@ -95,7 +100,8 @@ function commonProps(options) {
  * @param {object} config
  * @param {any} config.overlay
  * @param {import("@odoo/owl").ComponentConstructor} config.component
- * @param {(options: any) => object} config.toProps
+ * @param {(options: any, target: HTMLElement) => object} config.toProps
+ * @param {string} [config.scope]
  * @param {(options: any) => void} [config.onOpen]
  * @param {() => void} [config.onClosed]
  * @returns {(target: HTMLElement, component: any, props?: object, options?: any) => (removeParams?: any) => Promise<void>}
@@ -104,30 +110,18 @@ export function makeOverlayPresenter({
     overlay,
     component,
     toProps,
+    scope,
     onOpen,
     onClosed,
 }) {
+    const accepted = acceptedOptionsFor(component);
     return (target, hostedComponent, props = {}, options = {}) => {
-        if (odoo.debug) {
-            for (const key in options) {
-                if (!acceptedOptions.has(key)) {
-                    console.warn(
-                        `[overlay] unknown option "${key}"; it will be ignored.`,
-                    );
-                }
-            }
-        }
-        // toProps runs once, here, and its result is spread into a plain object:
-        // an option defined as a getter is read exactly once and frozen at that
-        // value for the overlay's whole life. Options describe the moment of
-        // opening; anything that has to keep up with the opener afterwards has
-        // to travel as props of the hosted component.
+        warnUnknownOptions(scope ?? "overlay", options, accepted);
         const remove = overlay.add(
             component,
             {
                 ...commonProps(options),
-                ...toProps(options),
-                target,
+                ...toProps(options, target),
                 component: hostedComponent,
                 componentProps: markRaw(props),
                 close: (/** @type {any} */ removeParams) => remove(removeParams),

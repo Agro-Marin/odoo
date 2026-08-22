@@ -26,13 +26,7 @@ $oi-sizes: (
 .fa-regular,
 .fa-brands {
     font-weight: $font-weight-normal;
-}
 
-.oi,
-.fa,
-.fa-solid,
-.fa-regular,
-.fa-brands {
     &:before {
         font-size: var(--oi-font-size, $oi-default-size);
         vertical-align: var(--oi-vertical-align, 0);

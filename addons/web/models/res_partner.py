@@ -18,7 +18,6 @@ _IMAGE_SIGNATURES = {
 
 
 def _guess_image_vcard_type(data: bytes) -> str:
-    """Detect image format from binary data for vCard PHOTO type_param."""
     for signature, vcard_type in _IMAGE_SIGNATURES.items():
         if data[: len(signature)] == signature:
             return vcard_type
@@ -27,20 +26,6 @@ def _guess_image_vcard_type(data: bytes) -> str:
 
 @functools.cache
 def _vobject() -> tuple[Any, type]:
-    """Import ``vobject`` and build the vCard proxy classes lazily.
-
-    ``vobject`` is an *optional* dependency, kept optional by the
-    ``download_vcard`` controller's ``find_spec`` guard rather than by a
-    manifest declaration — ``web``'s manifest has no ``external_dependencies``
-    key. Importing it at module top would make the whole ``web`` addon fail to
-    import when it is absent — and, worse, render that guard dead code. The proxy
-    class bodies reference ``vobject.base`` at definition time, so they too must
-    be deferred. Building them once here (``functools.cache``) keeps ``web``
-    importable without ``vobject`` while letting the controller raise a clean
-    ``UserError`` when the library is missing.
-
-    :return: the imported ``vobject`` module and the ``VComponentProxy`` class.
-    """
     import vobject.vcard
 
     class VBaseProxy(Proxy):
@@ -70,11 +55,7 @@ def _vobject() -> tuple[Any, type]:
 class ResPartner(models.Model):
     _inherit = "res.partner"
 
-    def _build_vcard(self) -> Any:
-        """Build the partner's vCard.
-
-        :return: a vobject.vCard object
-        """
+    def _prepare_vcard(self) -> Any:
         self.ensure_one()
         vobject, VComponentProxy = _vobject()
         vcard = vobject.vCard()
@@ -98,7 +79,6 @@ class ResPartner(models.Model):
             tel = vcard.add("tel")
             tel.type_param = "work"
             tel.value = self.phone
-        # URL
         if self.website:
             url = vcard.add("url")
             url.value = self.website
@@ -117,4 +97,4 @@ class ResPartner(models.Model):
         return VComponentProxy(vcard)
 
     def _get_vcard_file(self) -> bytes:
-        return self._build_vcard().serialize().encode()
+        return self._prepare_vcard().serialize().encode()

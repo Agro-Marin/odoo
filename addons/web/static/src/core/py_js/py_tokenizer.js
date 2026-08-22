@@ -1,15 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/py_js/py_tokenizer */
-
 import { TokenType } from "./token_type.js";
 
 /**
  * @typedef { import("./token_type").Token } Token
  */
 
-export class TokenizerError extends Error {}
+class TokenizerError extends Error {}
 
 /** @type {Record<string, string>} */
 const directMap = {

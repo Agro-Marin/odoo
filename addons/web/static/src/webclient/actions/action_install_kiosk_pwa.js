@@ -1,14 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/action_install_kiosk_pwa */
-
 import { Component, onWillStart } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
 import { standardActionServiceProps } from "./action_constants.js";
-export class InstallKiosk extends Component {
+class InstallKiosk extends Component {
     static template = "web.ActionInstallKioskPWA";
     static props = { ...standardActionServiceProps };
 

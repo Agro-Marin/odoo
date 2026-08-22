@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/dynamic_group_list */
-
 import { Domain } from "@web/core/domain";
 
 import { DynamicList } from "./dynamic_list.js";
@@ -182,10 +180,6 @@ export class DynamicGroupList extends DynamicList {
             );
         }
         if (!targetGroup.isFolded) {
-            // Typed to the contract rather than to `DynamicList`: this reaches a
-            // sibling group's list to invoke one operation on it, so the narrow
-            // surface is the honest annotation and widening it is a typecheck
-            // failure rather than a silent new coupling.
             /** @type {DynamicListContract & { records: any[] }} */
             const targetList = targetGroup.list;
             const records = targetList.records;
@@ -234,9 +228,10 @@ export class DynamicGroupList extends DynamicList {
 
     /**
      * @param {string} groupName
-     * @param {string | false} [foldField]
+     * @param {string | false} foldField
+     * @returns {Promise<number>}
      */
-    async _createGroup(groupName, foldField = false) {
+    async _createGroupRecord(groupName, foldField) {
         const [id] = await this.model.orm.call(
             this.groupByField.relation,
             "name_create",
@@ -251,8 +246,15 @@ export class DynamicGroupList extends DynamicList {
                 { context: this.context },
             );
         }
-        const lastGroup = this.groups.at(-1);
+        return id;
+    }
 
+    /**
+     * @param {number} id
+     * @param {string | false} foldField
+     * @returns {{ domain: any, groupBy: string[] }}
+     */
+    _addGroupConfig(id, foldField) {
         const commonConfig = {
             resModel: this.config.resModel,
             fields: this.config.fields,
@@ -263,12 +265,12 @@ export class DynamicGroupList extends DynamicList {
             ...this.context,
             [`default_${this.groupByField.name}`]: id,
         };
-        const nextConfigGroups = { ...this.config.groups };
         const domain = Domain.and([
             this.domain,
             [[this.groupByField.name, "=", id]],
         ]).toList();
         const groupBy = this.groupBy.slice(1);
+        const nextConfigGroups = { ...this.config.groups };
         nextConfigGroups[id] = {
             ...commonConfig,
             context,
@@ -280,7 +282,7 @@ export class DynamicGroupList extends DynamicList {
             list: {
                 ...commonConfig,
                 context,
-                domain: domain,
+                domain,
                 groupBy,
                 orderBy: this.orderBy,
                 limit: this.model.initialLimit,
@@ -288,13 +290,21 @@ export class DynamicGroupList extends DynamicList {
             },
         };
         this.model._patchConfig(this.config, { groups: nextConfigGroups });
+        return { domain, groupBy };
+    }
 
+    /**
+     * @param {number} id
+     * @param {string} groupName
+     * @param {string[]} groupBy
+     * @returns {Record<string, any>}
+     */
+    _emptyGroupData(id, groupName, groupBy) {
+        /** @type {Record<string, any>} */
         const data = {
             aggregates: {},
             count: 0,
             length: 0,
-            __domain: domain,
-            [this.groupByField.name]: [id, groupName],
             value: id,
             serverValue: getGroupServerValue(this.groupByField, id),
             displayName: groupName,
@@ -305,8 +315,21 @@ export class DynamicGroupList extends DynamicList {
         } else {
             data.records = [];
         }
+        return data;
+    }
 
-        const group = this._createGroupDatapoint(data);
+    /**
+     * @param {string} groupName
+     * @param {string | false} [foldField]
+     */
+    async _createGroup(groupName, foldField = false) {
+        const id = await this._createGroupRecord(groupName, foldField);
+        const lastGroup = this.groups.at(-1);
+        const { groupBy } = this._addGroupConfig(id, foldField);
+        const group = this._createGroupDatapoint(
+            this._emptyGroupData(id, groupName, groupBy),
+        );
+
         if (lastGroup) {
             const groups = [...this.groups, group];
             await this._resequence(
@@ -384,6 +407,7 @@ export class DynamicGroupList extends DynamicList {
         }
     }
 
+    /** @param {import('./group.js').Group} group */
     _removeGroup(group) {
         const index = this.groups.findIndex((g) => g.id === group.id);
         if (index === -1) {
@@ -400,6 +424,7 @@ export class DynamicGroupList extends DynamicList {
         }
     }
 
+    /** @param {boolean} value */
     _selectDomain(value) {
         for (const group of this.groups) {
             group.list._selectDomain(value);
@@ -420,6 +445,7 @@ export class DynamicGroupList extends DynamicList {
         }
     }
 
+    /** @param {import('./group.js').Group[]} groups */
     _unlinkGroups(groups) {
         const groupResIds = groups.map((g) => g.value);
         return this.model.orm.unlink(this.groupByField.relation, groupResIds, {

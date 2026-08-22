@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/temporal/timezone_mismatch/timezone_mismatch_field */
-
 import { formatDateTime } from "@web/core/l10n/dates";
 import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/translation";
@@ -30,7 +28,7 @@ export class TimezoneMismatchField extends SelectionField {
     /** @returns {boolean} */
     get mismatch() {
         const userOffset = this.props.record.data[this.props.tzOffsetField];
-        if (userOffset && this.props.record.data[this.props.name]) {
+        if (userOffset && this.field.value) {
             const offset = -new Date().getTimezoneOffset();
             let browserOffset = offset < 0 ? "-" : "+";
             browserOffset += Math.floor(Math.abs(offset / 60))
@@ -40,14 +38,14 @@ export class TimezoneMismatchField extends SelectionField {
                 .toFixed(0)
                 .padStart(2, "0");
             return browserOffset !== userOffset;
-        } else if (!this.props.record.data[this.props.name]) {
+        } else if (!this.field.value) {
             return true;
         }
         return false;
     }
     /** @returns {string} */
     get mismatchTitle() {
-        if (!this.props.record.data[this.props.name]) {
+        if (!this.field.value) {
             return _t("Set a timezone on your user");
         }
         return this.props.mismatchTitle;
@@ -59,7 +57,7 @@ export class TimezoneMismatchField extends SelectionField {
         }
         return super.options.map((/** @type {any} */ option) => {
             const [value, label] = option;
-            if (value === this.props.record.data[this.props.name]) {
+            if (value === this.field.value) {
                 const offset = this.props.record.data[this.props.tzOffsetField]?.match(
                     /([+-])([0-9]{2})([0-9]{2})/,
                 );
@@ -82,7 +80,7 @@ export class TimezoneMismatchField extends SelectionField {
     }
 }
 
-export const timezoneMismatchField = {
+const timezoneMismatchField = {
     ...selectionField,
     component: TimezoneMismatchField,
     additionalClasses: ["d-flex"],

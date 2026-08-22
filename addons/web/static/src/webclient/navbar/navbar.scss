@@ -2,9 +2,6 @@
     @include print-variable(o-navbar-height, $o-navbar-height);
 
     --Dropdown_menu-margin-y: 0;
-    // The navbar is the one webclient surface that is not near the page
-    // background: on community it is `$o-brand-odoo`, against which the default
-    // ring scores 1.11:1. Every focusable in here draws its ring on this colour.
     --o-ring-color: #{o-ring-color-for($o-navbar-background)};
 
     display: flex;
@@ -51,7 +48,7 @@
 
                 &:first-child {
                     transform: translate(12%, 0) #{"/* rtl:translate(-6%, 0) */"};
-                    rx: 1;
+                    rx: 100%;
                 }
             }
 
@@ -289,11 +286,6 @@ body.o_is_superuser .o_menu_systray {
 }
 
 
-// The entry colours are published per scheme rather than restated, because
-// every rule that reads them does so through `%-main-navbar-entry-base` — an
-// `@extend`, so the emitted selector is the union of every extender and no
-// scoped rule can reproduce it. Read as the *fallback* of the existing
-// `--NavBar-entry-*` hook, they answer both schemes wherever that union lands.
 @include o-publish-per-scheme using ($-scheme, $-ramp, $-record-colors) {
     $-dark: map-get($-scheme, "dark");
 
@@ -331,9 +323,6 @@ body.o_is_superuser .o_menu_systray {
         )};
 }
 
-// The dark half. The navbar's own variables come from a `*.variables.scss`,
-// which compiles before `tokens.scss` and so cannot hold a token; the values
-// are in `palette_dark.scss` instead and only what reads them is restated here.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] .o_main_navbar {
         --o-ring-color: #{o-ring-color-for(

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/form/setting/setting */
-
 import { Component } from "@odoo/owl";
 import { user } from "@web/core/user";
 import { exprToBoolean } from "@web/core/utils/format/strings";

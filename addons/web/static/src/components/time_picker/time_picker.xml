@@ -35,17 +35,7 @@
                     t-att-aria-expanded="dropdownState.isOpen ? 'true' : 'false'"
                     t-att-aria-controls="menuId"
                     tabindex="-1"
-                /><!--
-                    tabindex="-1" is load-bearing, not an oversight. The picker
-                    is a SECONDARY surface: inside a DateTimeInput popover the
-                    field the user types into is the datetime input, and making
-                    this one tabbable puts it in the way. Removing it broke
-                    `DateTimeInput (datetime)/enter a datetime value` and the
-                    arab-locale case outright — the typed value never reached
-                    the datetime input at all. The combobox semantics above are
-                    what makes the control announceable; reachability is the
-                    owning field's job.
-                -->
+                />
                 <t t-set-slot="content">
                     <t t-foreach="suggestions" t-as="value" t-key="value_index">
                         <DropdownItem

@@ -16,7 +16,7 @@
 | `@types/models/` | misc | 0 | Model-layer ambient types (`_runtime.d.ts`) |
 | `@types/registries/` | misc | 0 | Registry ambient types (fields, services, views, command, debug, view_widgets) |
 | `boot/` | misc | 2 | `main.js` / `start.js` — backend entry points that build the env and mount `WebClient` |
-| `components/` | features | 12 | Module faces for the component directories below (barcode, datetime, dropdown, dropzone, file_upload, file_viewer, model_field_selector, record_selectors, signature, tree_editor) |
+| `components/` | features | 29 | Module faces for the component directories below (barcode, datetime, dropdown, dropzone, file_upload, file_viewer, model_field_selector, record_selectors, signature, tree_editor) |
 | `components/action_swiper/` | features | 1 | Touch swipe component that triggers actions on left/right swipe gestures |
 | `components/autocomplete/` | features | 2 | Generic autocomplete dropdown with multi-source results and keyboard navigation, plus the shared quick-search core (`name_search.js`) both record autocompletes consume |
 | `components/barcode/` | features | 4 | Camera barcode scanning: video scanner, its dialog, a draggable crop overlay, and a ZXing `BarcodeDetector` polyfill |
@@ -44,15 +44,15 @@
 | `components/model_selector/` | features | 1 | Autocomplete for searching and selecting Odoo model names |
 | `components/notebook/` | features | 1 | Tabbed notebook rendering one page at a time |
 | `components/pager/` | features | 2 | Pagination with editable range input, and the transient small-screen indicator |
-| `components/record_selectors/` | features | 5 | Record pickers over `AutoComplete`: single and multi selectors, shared display-name loading, tag keyboard navigation |
-| `components/resizable_panel/` | features | 1 | Side panel with a drag handle for interactive width resizing |
+| `components/record_selectors/` | features | 6 | Record pickers over `AutoComplete`: single and multi selectors, shared display-name loading, tag keyboard navigation |
+| `components/resizable_panel/` | features | 2 | Side panel with a drag handle for interactive width resizing |
 | `components/select_menu/` | features | 1 | Searchable select menu with multi-select tags and keyboard navigation |
-| `components/signature/` | features | 2 | Signature pad with draw, auto-generate, and load modes (lazy `signature_pad` import) |
+| `components/signature/` | features | 3 | Signature pad with draw, auto-generate, and load modes (lazy `signature_pad` import) |
 | `components/tags_list/` | features | 1 | Renders coloured tags with an optional visibility limit and overflow counter |
 | `components/time_picker/` | features | 1 | Time input with dropdown hour/minute selection and configurable rounding |
 | `components/tree_editor/` | features | 5 | UI-layer tree editor components. Data-only tree manipulation lives in `core/tree/` |
 | `components/user_switch/` | features | 1 | Login-page component for switching between recently connected accounts |
-| `core/` | shared | 31 | Namespace-root primitives: registry, domain, context, parsers/formatters, templates, events, asset loading, translation, feature flags, user, currency, and the `field` / `name` / `allowed_qweb_expressions` / `multi_company_recovery` services |
+| `core/` | shared | 32 | Namespace-root primitives: registry, domain, context, parsers/formatters, templates, events, asset loading, translation, feature flags, user, currency, and the `field` / `name` / `allowed_qweb_expressions` / `multi_company_recovery` services |
 | `core/avatar/` | shared | 0 | Avatar component styles (SCSS only) |
 | `core/badge/` | shared | 1 | Badge colour helpers plus component styles |
 | `core/browser/` | shared | 8 | Browser abstraction: the `browser` indirection object, cookies, storage, router, hotkey key normalisation, anchor-scroll suppression, feature detection, and the `title` service |
@@ -65,18 +65,18 @@
 | `core/l10n/utils/` | shared | 5 | Locale helpers: `Intl.ListFormat` list formatting, locale codes, normalisation, unaccent + its table |
 | `core/lib/` | shared | 2 | Lazy ESM loaders for import-map libraries: `chartjs.js` (`loadChartJS`) and `fullcalendar.js` (`loadFullCalendar`) |
 | `core/navigation/` | shared | 1 | Keyboard arrow-key navigation hook for selectable item lists |
-| `core/network/` | shared | 11 | RPC stack: `rpc.js`, the x2many command constants, the RAM/IndexedDB cache, in-flight dedup, model-mutation constants, download helper, Content-Disposition parser, and the `orm` / `http` / `slow_rpc` / `result_set_cache_invalidator` services |
+| `core/network/` | shared | 12 | RPC stack: `rpc.js`, the x2many command constants, the RAM/IndexedDB cache, in-flight dedup, model-mutation constants, download helper, Content-Disposition parser, and the `orm` / `http` / `slow_rpc` / `result_set_cache_invalidator` services |
 | `core/network/web_vitals/` | shared | 1 | `web_vitals` service — `PerformanceObserver` capture of LCP/FCP/CLS/TTFB/INP, beaconed to `/web/observability/cwv` on `pagehide` |
 | `core/position/` | shared | 2 | Hook and geometry utilities for repositioning a popper element against a target |
 | `core/py_js/` | shared | 16 | Python expression tokenizer, parser and interpreter used by `domain=` / `context=` evaluation |
 | `core/tree/` | shared | 17 | Data-only condition-tree primitives: AST, domain ↔ tree ↔ Python-expression conversions, virtual operators, and the `tree_processor` service |
-| `core/utils/` | shared | 23 | Cross-cutting utilities: reactivity (`SignalStore`, `effect`, `derived`), `patch`, concurrency, hooks, timing, IndexedDB, URLs, macros, PDF.js loader, render instrumentation |
+| `core/utils/` | shared | 26 | Cross-cutting utilities: reactivity (`SignalStore`, `effect`, `derived`), `patch`, concurrency, hooks, timing, IndexedDB, URLs, macros, PDF.js loader, render instrumentation |
 | `core/utils/collections/` | shared | 3 | Array/object helpers: groupBy, sortBy, unique, intersection, cartesian, zip |
-| `core/utils/dnd/` | shared | 8 | Drag-and-drop hook builders (`useDraggable`, `useSortable`, nested sortable) and the `sortable` service |
+| `core/utils/dnd/` | shared | 11 | Drag-and-drop hook builders (`useDraggable`, `useSortable`, nested sortable) and the `sortable` service. The builder is split by what each part must know: `drag_session.js` holds the pointer state machine, `drag_geometry.js` the pure rect/pointer maths, `draggable_hook_params.js` parameter validation and context construction; only `draggable_hook_builder.js` touches OWL |
 | `core/utils/dom/` | shared | 9 | DOM helpers: autoresize, class names, click-away, viewport units, events, HTML/Markup sanitisation, scrolling, XML |
 | `core/utils/format/` | shared | 5 | Value formatting primitives: binary sizes, colours, digit precision, numbers, strings |
-| `fields/` | features | 16 | Field infrastructure: `registerField()` / `registerFallbackField()`, the `Field` component, standard props, widths, tooltips, dirty signal, translation button/dialog, input hooks |
-| `fields/basic/` | features | 4 | Shared bases for the basic widgets: numeric, text, trimming inputs, plus the `boolean_toggle` face |
+| `fields/` | features | 19 | Field infrastructure: `registerField()` / `registerFallbackField()`, the `Field` component, standard props, widths, tooltips, dirty signal, translation button/dialog, input hooks |
+| `fields/basic/` | features | 5 | Shared bases for the basic widgets: numeric, text, trimming inputs, plus the `boolean_toggle` face |
 | `fields/basic/boolean/` | features | 1 | Checkbox field widget for Boolean columns |
 | `fields/basic/boolean_favorite/` | features | 1 | Star toggle field for marking records as favourites |
 | `fields/basic/boolean_icon/` | features | 1 | Clickable icon field that toggles a Boolean value |
@@ -158,17 +158,17 @@
 | `libs/fontawesome7/css/` | misc | 0 | FontAwesome 7 stylesheets |
 | `libs/fontawesome7/webfonts/` | misc | 0 | FontAwesome 7 webfont files |
 | `model/` | entities | 9 | `Model` base + `useReactiveModel`, the sample-data server/generators/coordinator, search-param schema, shared model types |
-| `model/relational_model/` | entities | 41 | Relational data model: `RelationalModel`, `RelationalRecord`, lists and groups, save/validation orchestration, edit-state ownership |
-| `public/` | pages | 15 | Public (anonymous) page runtime: the `public.interactions` service, `Interaction`/`Colibri`, frontend boot (`public_boot.js`, `public_boot_instance.js`), early-boot `lazyloader.js` / `minimal_dom.js`, login-page interactions, database manager |
+| `model/relational_model/` | entities | 42 | Relational data model: `RelationalModel`, `RelationalRecord`, lists and groups, save/validation orchestration, edit-state ownership |
+| `public/` | pages | 17 | Public (anonymous) page runtime: the `public.interactions` service, `Interaction`/`Colibri`, frontend boot (`public_boot.js`, `public_boot_instance.js`), early-boot `lazyloader.js` / `minimal_dom.js`, login-page interactions, database manager |
 | `scss/` | misc | 0 | Shared SCSS base (variables, mixins, backend styles) — 32 `.scss`, no JS |
-| `search/` | widgets | 16 | Search model and its mixins (domain, group-by, favorites, properties, query, split-domain), search facets/state/context, arch parser, layout, pager hook |
+| `search/` | widgets | 17 | Search model and its mixins (domain, group-by, favorites, properties, query, split-domain), search facets/state/context, arch parser, layout, pager hook |
 | `search/action_menus/` | widgets | 1 | Action/Print dropdown menus executing server actions on selected records |
 | `search/breadcrumbs/` | widgets | 1 | Breadcrumb trail over the action stack with back-navigation |
 | `search/cog_menu/` | widgets | 1 | Cog dropdown merging Action, Print, and registry-based menu items |
 | `search/control_panel/` | widgets | 1 | Control panel shell: search bar, breadcrumbs, filter/group-by menus |
 | `search/custom_favorite_item/` | widgets | 1 | Dropdown form saving the current search as a named favorite |
 | `search/custom_group_by_item/` | widgets | 1 | Dropdown item selecting a custom field to group by |
-| `search/embedded_actions_bar/` | widgets | 1 | Embedded-action tabs; visibility and order persisted via `res.users.settings` |
+| `search/embedded_actions_bar/` | widgets | 3 | Embedded-action tabs; visibility and order persisted via `res.users.settings` |
 | `search/properties_group_by_item/` | widgets | 1 | Group-by item lazily loading property definitions |
 | `search/search_bar/` | widgets | 2 | Search bar with autocomplete suggestions, facet display, keyboard navigation |
 | `search/search_bar_menu/` | widgets | 1 | Dropdown grouping Filter, Group By, Favorites, and search panels |
@@ -190,8 +190,8 @@
 | `ui/popover/` | shared | 4 | `popover` service, the component, its hook, and the detached-target watcher |
 | `ui/pwa/` | shared | 2 | `pwa` service (install prompt) and the Safari install-instructions dialog |
 | `ui/tooltip/` | shared | 2 | `tooltip` service driven by `data-tooltip` attributes, and its component |
-| `views/` | widgets | 29 | View infrastructure: the `view` service, `View` component, arch compiler, view utilities/measurements, standard props, action helper, view buttons, the shared multi-record renderer layer (`multi_record_selection.js`, `multi_record_group.js`), and the per-view faces (form, list, kanban, calendar, graph, pivot) |
-| `views/calendar/` | widgets | 8 | Calendar view: arch parser, model, controller, renderer, record wrapper, date-range and utility helpers |
+| `views/` | widgets | 32 | View infrastructure: the `view` service, `View` component, arch compiler, view utilities/measurements, standard props, action helper, view buttons, the shared multi-record renderer layer (`multi_record_selection.js`, `multi_record_group.js`), and the per-view faces (form, list, kanban, calendar, graph, pivot) |
+| `views/calendar/` | widgets | 9 | Calendar view: arch parser, model, controller, renderer, record wrapper, date-range and utility helpers |
 | `views/calendar/calendar_common/` | widgets | 3 | Day/week/month renderer and its event popover |
 | `views/calendar/calendar_filter_section/` | widgets | 1 | Collapsible sidebar filter section for one calendar filter field |
 | `views/calendar/calendar_side_panel/` | widgets | 1 | Side panel with date picker and filter sections |
@@ -236,10 +236,10 @@
 | `webclient/burger_menu/` | pages | 1 | Fullscreen mobile menu hosting the user menu, company switcher, and current app |
 | `webclient/burger_menu/burger_user_menu/` | pages | 1 | Mobile variant of the user menu inside the burger overlay |
 | `webclient/burger_menu/mobile_switch_company_menu/` | pages | 1 | Mobile company switcher with collapsible toggle |
-| `webclient/clickbot/` | pages | 2 | Click-everywhere bot walking apps, views, and filters |
+| `webclient/clickbot/` | pages | 3 | Click-everywhere bot walking apps, views, and filters |
 | `webclient/color_scheme/` | pages | 1 | `color_scheme` service — resolves light/dark from the user setting and the OS media query |
 | `webclient/dark_mode_toggle/` | pages | 1 | Systray toggle switching the active colour scheme |
-| `webclient/debug/` | pages | 6 | Debug menu: the menu component, its basic variant, registered items and providers, field-widgets dialog |
+| `webclient/debug/` | pages | 7 | Debug menu: the menu component, its basic variant, registered items and providers, field-widgets dialog |
 | `webclient/debug/profiling/` | pages | 4 | Profiling: the `profiling` service, systray item, menu item, QWeb view |
 | `webclient/density/` | pages | 2 | `density` service (default/compact/condensed) and its systray control |
 | `webclient/errors/` | pages | 2 | Webclient error handlers: offline "Failed to fetch", visitor-facing errors |

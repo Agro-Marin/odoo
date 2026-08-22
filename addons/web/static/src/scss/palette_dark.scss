@@ -1,35 +1,9 @@
-///
-/// The dark scheme's values, in a file every bundle carries.
-///
-/// `primitives.dark.scss` and `primary_variables.dark.scss` ride
-/// `web._dark_mode_variables`, which only the dark bundles include — so at
-/// light-compile time the dark palette does not exist, and `tokens.scss` can
-/// only publish one scheme. That is what forces a second stylesheet for a
-/// difference measured at 12% of selectors, four fifths of it colour.
-///
-/// Holding the dark values here instead lets `tokens.scss` publish both, and
-/// the dark palettes assign from these rather than restating them, so each
-/// value is still written once.
-///
-/// A theme overrides these the way it overrides the light palette: its own
-/// `palette_dark.scss`, anchored before this one, wins by `!default`. A theme
-/// that overrides a light value and not its dark counterpart will publish this
-/// palette's dark value under its own light one.
-///
-
-// The record ramp inverts by lightening one source list rather than restating
-// it, and the contrast bar a label is held to is the scheme's own. Both live
-// here for the same reason the colours do: `tokens.scss` publishes the dark
-// ramp from a light bundle, so it has to be able to read them there.
 $o-dark-colors-lighten: 12% !default;
 $o-dark-min-contrast-ratio: 3 !default;
 
 $o-dark-white: #000 !default;
 $o-dark-black: #E2E8F0 !default;
 
-// The two foregrounds Bootstrap tries first. A theme may move them off black
-// and white — `website` puts the dark one on `o-color("900")` — so the dark
-// scheme names its own rather than inheriting whichever palette compiled.
 $o-dark-color-contrast-light: $o-dark-white !default;
 $o-dark-color-contrast-dark: $o-dark-black !default;
 
@@ -60,8 +34,6 @@ $o-dark-brand-odoo: $o-dark-community-color !default;
 $o-dark-brand-primary: $o-dark-community-color !default;
 $o-dark-action: $o-dark-community-color !default;
 
-// Both hues are legible on these surfaces, so the light palette's fill/text
-// split collapses back onto them.
 $o-dark-brand-primary-filled: $o-dark-brand-primary !default;
 $o-dark-action-text: $o-dark-action !default;
 
@@ -77,42 +49,18 @@ $o-dark-main-text-color: $o-dark-gray-900 !default;
 $o-dark-ring-color: map-get($o-dark-theme-text-colors, "primary") !default;
 $o-dark-main-color-muted: rgba($o-dark-gray-700, 0.9) !default;
 
-/// Everything below is a *decision* the dark scheme makes, not a value the
-/// light one has an equivalent of: which step of the inverted ramp reads as a
-/// separator, a glass surface, a required-field border. They lived in
-/// `primary_variables.dark.scss`, which rides only the dark bundles — so a light
-/// bundle could not state them, and every consumer of one had to be compiled
-/// twice. Here they are readable from both, and the dark palette reads them
-/// back, so each is still written once.
 $o-dark-bs-light: $o-dark-gray-300 !default;
 $o-dark-bs-dark: $o-dark-gray-700 !default;
 
-// Community does not move this one -- `web_enterprise` does, and its palette
-// wins by loading first. Named here so a light bundle can state the dark answer
-// for the rules that read it.
 $o-dark-enterprise-action-color: #06b6d4 !default;
 
 $o-dark-main-favorite-color: #ffd532 !default;
 $o-dark-main-code-color: #c4b5fd !default;
 $o-dark-main-link-color: $o-dark-action-text !default;
-// How far a link moves on hover. Usually one answer for both schemes -- but
-// `web_enterprise` sets its own in `bootstrap_overridden.dark.scss`, which
-// rides only the dark bundles. `null` means "whatever the light bundle uses".
 $o-dark-link-shade-percentage: null !default;
 
-// `shift-color($link-color, $link-shade-percentage)`, at the fork's 30%.
 $o-dark-link-hover-color: mix(#fff, $o-dark-main-link-color, 30%) !default;
 
-// `null` means the derivation in `o-print-bootstrap-root()` stands. Stated here
-// only so a theme has a name to override -- the defaults read Bootstrap's own
-// variables, which do not exist this early.
-// The switch knob and its focus ring live inside an SVG, so `scheme_rules.scss`
-// rebuilds the icon rather than recolouring it. `null` means the derivation
-// there stands; `web_enterprise` states both.
-/// The navbar, whose values live in a `*.variables.scss` -- a file that
-/// compiles before `tokens.scss`, so nothing in it can be a token, and whose
-/// dark half `web_enterprise` used to state in a `*.variables.dark.scss` that
-/// only the dark bundles carry. Here instead, so `navbar.scss` can state both.
 $o-dark-navbar-background: $o-dark-brand-odoo !default;
 $o-dark-navbar-border-bottom: 1px solid darken($o-dark-brand-odoo, 10%) !default;
 $o-dark-navbar-entry-color: rgba($o-dark-white, 0.9) !default;
@@ -127,9 +75,6 @@ $o-dark-brand-lightsecondary: $o-dark-gray-100 !default;
 $o-dark-form-switch-color: null !default;
 $o-dark-form-switch-focus-color: null !default;
 
-// Bootstrap component surfaces a theme may move. `null` means the light
-// bundle's own declaration already answers the scheme, which in community it
-// does -- every one of these reads a palette name that inverts.
 $o-dark-form-range-thumb-active-bg: null !default;
 $o-dark-form-range-track-bg: null !default;
 
@@ -137,11 +82,6 @@ $o-dark-mark-bg: null !default;
 $o-dark-mark-color: null !default;
 $o-dark-border-color: null !default;
 
-// Bootstrap's four shadows. `null` means the light bundle's own declaration
-// answers the scheme already -- `rgba($black, .15)` tokenises to a `color-mix()`
-// on `--o-black`, which inverts on its own. A theme that wants a *different*
-// depth in the dark, as `web_enterprise` does, states it here so the light
-// bundle can publish it too.
 $o-dark-box-shadow: null !default;
 $o-dark-box-shadow-sm: null !default;
 $o-dark-box-shadow-lg: null !default;
@@ -151,10 +91,6 @@ $o-dark-webclient-background-color: $o-dark-gray-100 !default;
 $o-dark-shadow-color: $o-dark-gray-700 !default;
 
 $o-dark-input-border-required: $o-dark-black !default;
-// The ramp is inverted, so `$o-gray-500` is muted text here rather than the mid
-// grey the light palette picks the control boundary from — it would leave an
-// unchecked box at 2.22:1 on the card surface, under SC 1.4.11. Step 600
-// reaches 3.54:1.
 $o-dark-input-boundary-color: $o-dark-gray-600 !default;
 
 $o-dark-form-lightsecondary: $o-dark-gray-300 !default;
@@ -166,21 +102,6 @@ $o-dark-list-group-active-bg: rgba(
     0.5
 ) !default;
 
-/// The dark answer to Bootstrap's `$theme-colors`.
-///
-/// `$theme-colors` is assembled from whichever palette is compiling, so
-/// everything it drives — `.table-*`, `.bg-*`, `.text-*`, `.btn-*` — is pinned
-/// to one scheme and a light bundle has no way to state the other. This is the
-/// map that lets it, and it is built from names a theme has already overridden
-/// by the time it is read, so a theme needs no copy of its own.
-///
-/// `light` and `dark` are not the ramp's ends. The ramp inverts, so the step
-/// that reads as "a light surface" is a different index in each scheme; those
-/// two come from `$o-dark-bs-light` / `$o-dark-bs-dark`, where the dark palette
-/// states them.
-/// One knob per entry, because a theme may point Bootstrap's variable at
-/// something other than the palette's — `web_enterprise` does, for `$warning`.
-/// A single map would force such a theme to restate all eight.
 $o-dark-bs-primary: $o-dark-brand-primary !default;
 $o-dark-bs-secondary: $o-dark-gray-300 !default;
 $o-dark-bs-success: map-get($o-dark-theme-text-colors, "success") !default;
@@ -200,14 +121,6 @@ $o-dark-theme-colors: (
 ) !default;
 
 
-/// Bootstrap's three derived families, for the scheme that is not compiling.
-///
-/// `shade-color(C, 60%)` and `tint-color(C, 80%)`, written as the mixes they
-/// are because the dark scheme inverts which of #fff and #000 each reaches for.
-/// One variable per colour rather than three maps: a theme overrides these one
-/// at a time -- `web_enterprise` moves the `info` family and nothing else --
-/// and its `palette_dark.scss` is anchored ahead of this file, so its `!default`
-/// wins without it having to restate the other five.
 $o-dark-primary-text-emphasis: mix(#fff, map-get($o-dark-theme-colors, "primary"), 60%) !default;
 $o-dark-primary-bg-subtle: mix(#000, map-get($o-dark-theme-colors, "primary"), 80%) !default;
 $o-dark-primary-border-subtle: mix(#000, map-get($o-dark-theme-colors, "primary"), 60%) !default;
@@ -260,23 +173,6 @@ $o-dark-theme-colors-border-subtle: (
     "dark": $o-dark-gray-500,
 ) !default;
 
-/// Bootstrap's `$table-variants`, for the scheme that is not compiling.
-///
-/// Each entry is `shift-color(C, $table-bg-scale)`, and a negative scale means
-/// `tint-color()` — which the dark bundles invert to mix with `#000`. Written
-/// out here because calling it from a light bundle would mix with white and
-/// hand back the light answer under the dark scheme's name.
-/// The scale says which way the surface moves from the state colour, and the
-/// two schemes move opposite ways, so it is a scheme decision. A literal,
-/// because this file resolves before Bootstrap's `_variables.scss`.
-///
-/// The four factors below say how far a striped row sits from its own
-/// background, which is usually one answer for both schemes -- but not always:
-/// `web_enterprise` sets its own in `bootstrap_overridden.dark.scss`, which
-/// rides only the dark bundles. `null` means "whatever the light bundle uses",
-/// resolved in `scheme_rules.scss` where `$table-*-factor` exists. Seeding them
-/// with Bootstrap's defaults instead is how a dark row came to mix at .1 where
-/// the light one used the fork's .05.
 $o-dark-table-bg-scale: -80% !default;
 $o-dark-table-striped-bg-factor: null !default;
 $o-dark-table-active-bg-factor: null !default;
@@ -321,14 +217,6 @@ $o-dark-btn-custom: (
     "favourite": $o-dark-main-favorite-color,
 ) !default;
 
-/// Component colours a `*.dark.scss` used to state on its own. Named here so a
-/// light bundle can read them, and as real colours rather than `null`, because
-/// the rules that read them do arithmetic: `pos_dashboard` darkens the card by
-/// 2% and lightens it by 4%.
-///
-/// The border trio defaults through `$o-dark-border-color`, which is where
-/// `web_enterprise` puts its hairline -- its palette resolves before this file,
-/// so by here the theme's answer is already in.
 $o-dark-card-bg: $o-dark-view-background-color !default;
 $o-dark-popover-bg: $o-dark-white !default;
 $o-dark-card-border-color: o-or($o-dark-border-color, $o-dark-gray-300) !default;
@@ -336,10 +224,6 @@ $o-dark-popover-border-color: o-or($o-dark-border-color, $o-dark-gray-300) !defa
 $o-dark-dropdown-border-color: o-or($o-dark-border-color, $o-dark-gray-300) !default;
 $o-dark-component-active-border: $o-dark-action !default;
 
-// The dark button specs, moved out of `primary_variables.dark.scss` so a light
-// bundle can state them. `darken()` and `mix()` are HSL and mean the same in
-// either scheme, so only the palette references needed rewriting; the numbers
-// are untouched, which is what keeps this a move.
 $o-dark-btns-bs-override: (
     "primary": (
         background: $o-dark-brand-primary-filled,

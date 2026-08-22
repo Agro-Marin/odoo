@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_dialogs/form_view_dialog */
-
 import { Component } from "@odoo/owl";
 import { CallbackRecorder } from "@web/core/action_hook";
 import { useAction } from "@web/core/action_port";

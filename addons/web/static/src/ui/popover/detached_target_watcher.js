@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/popover/detached_target_watcher */
-
 /**
  * @type {Map<Node, { observer: MutationObserver, watchers: Map<Node, Set<() => void>> }>}
  */
@@ -45,11 +43,6 @@ function checkRoot(root) {
  * @returns {() => void}
  */
 export function watchForDetachedTarget(target, onDetached) {
-    // A DETACHED target's root is the orphan subtree it sits in, not the
-    // document. Observing that watches a tree nothing will ever mutate again:
-    // once the target is grafted into the page and later removed, every
-    // mutation lands on the document instead and the watcher never fires. The
-    // document is the right fallback because "detached" is defined against it.
     const root = target.isConnected ? target.getRootNode() : document;
     let entry = watchersByRoot.get(root);
     if (!entry) {

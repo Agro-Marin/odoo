@@ -1,46 +1,20 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/errors/boot_failure_overlay */
-
-// Addon specifier, not `./error_beacon`, and not because either spelling reads
-// better. esbuild resolves an extensionless relative import by supplying the
-// `.js`; debug/fallback rendering serves each module's raw source and leaves
-// relative references to the *browser*, which supplies nothing. The request
-// 404s, and because the debug page imports the whole bundle from a single
-// `<script type="module">`, that one 404 aborts the entire graph: a blank web
-// client under `?debug=assets`, with one console line and no server-side trace.
-// The three other importers of this module already use this form.
 import { reportJsError } from "@web/core/errors/error_beacon";
 
 /**
- * The last thing painted when mounting the web client has already failed.
- *
- * It lives in `core/errors` rather than in `boot/start.js`, where it was
- * written, for one reason: `boot/` ships only in `assets_web`, the app entry
- * bundle, so nothing a unit test loads carries it. That made this — the single
- * path whose breakage costs the user a blank page instead of an explanation —
- * the only code in the module untestable by construction. Moving the app entry
- * into the test bundle was tried first and is not an option: evaluating it at
- * setup reorders module initialisation and breaks unrelated suites
- * (`mock_server`, `libs`). Extraction is the fix; the only import is its
- * dependency-free sibling `error_beacon`, so the beacon is not a third
- * hand-rolled copy and the module still loads whenever this one does.
- *
- * Every step is wrapped: this runs when the application is already broken, so
- * it must not add an exception of its own to whatever went wrong.
- *
  * @param {unknown} error
+ * @param {string} [phase]
  */
-export function paintBootFailureOverlay(error) {
+export function paintBootFailureOverlay(error, phase = "boot_mount_failed") {
     try {
         const err = /** @type {any} */ (error);
-        // Reported above the idempotence guard on purpose: the overlay is shown
-        // once, but every boot failure is worth reporting (hence `dedup: false`).
         reportJsError({
-            phase: "boot_mount_failed",
+            phase,
             message: String(err?.message || err || "(no message)"),
             stack: err?.stack ? String(err.stack) : "",
+            cause: err?.cause,
             dedup: false,
         });
         if (document.querySelector(".o_boot_failure")) {

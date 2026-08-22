@@ -1,11 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/selection/radio/radio_field */
-
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
-import { fieldHandle } from "@web/fields/field_handle";
 import { isFalseEmpty } from "@web/fields/field_utils";
 import { SelectionLikeField } from "@web/fields/selection/selection_like_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -13,10 +10,10 @@ import { standardFieldProps } from "@web/fields/standard_field_props";
 let nextId = 0;
 /**
  * @typedef {import("@web/fields/standard_field_props").StandardFieldProps & {
- *     orientation?: string;
- *     label?: string;
- *     domain?: any[] | Function;
- *     context?: object;
+ * orientation?: string;
+ * label?: string;
+ * domain?: any[] | Function;
+ * context?: object;
  * }} RadioFieldProps
  */
 /** @extends {SelectionLikeField} */
@@ -32,11 +29,6 @@ export class RadioField extends SelectionLikeField {
     static defaultProps = {
         orientation: "vertical",
     };
-
-    /** @returns {import("@web/fields/field_handle").FieldHandle} */
-    get field() {
-        return fieldHandle(this);
-    }
 
     setup() {
         super.setup();

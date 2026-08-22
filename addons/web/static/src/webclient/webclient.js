@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/webclient */
-
 import { Component, onMounted, useExternalListener, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { router, routerBus } from "@web/core/browser/router";
@@ -108,7 +106,7 @@ export class WebClient extends Component {
             stateLoaded = await this.actionService.loadState();
         } catch (error) {
             if (error instanceof SupersededError) {
-                throw error;
+                return;
             }
             reportUncaught(error);
             if (!this.actionService.currentController) {
@@ -162,7 +160,6 @@ export class WebClient extends Component {
                     ev.target.closest("a[href]:not([href=''])")))
         ) {
             ev.stopImmediatePropagation();
-            return;
         }
     }
 }

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/format/numbers */
-
 import { localization as l10n } from "@web/core/l10n/localization";
 import { _t } from "@web/core/translation";
 import { intersperse } from "@web/core/utils/format/strings";
@@ -36,13 +34,6 @@ export function range(start, stop, step = 1) {
 }
 
 /**
- * Tie-break away from zero, like ``float_round``'s private ``round()``
- * (``odoo/libs/numbers/float_utils.py``). ``Math.round`` breaks ties toward
- * +Infinity instead, so it answers -2 for -2.5 where the server answers -3;
- * rounding the magnitude and reapplying the sign is what realigns them. The
- * first branch reproduces the server's ``round(f + 1) - round(f) != 1`` guard
- * for magnitudes where consecutive integers are no longer one ULP apart.
- *
  * @param {number} value
  * @returns {number}
  */
@@ -55,11 +46,6 @@ function roundHalfAwayFromZero(value) {
 }
 
 /**
- * Mirrors ``odoo.libs.numbers.float_utils.float_round``. The two must agree:
- * tax and Point of Sale compute the same amounts on both sides and compare
- * them (``base_tax/static/src/helpers/account_tax.js``), so any divergence
- * shows up as a client total that disagrees with the server's.
- *
  * @param {number} value
  * @param {number} precision
  * @param {"HALF-UP" | "HALF-DOWN" | "HALF-EVEN" | "UP" | "DOWN"} [method="HALF-UP"]
@@ -89,9 +75,6 @@ export function roundPrecision(value, precision, method = "HALF-UP") {
     const epsilonMagnitude = Math.log2(Math.abs(normalizedValue));
     const epsilon = 2 ** (epsilonMagnitude - 50);
     const halfEpsilon = Math.max(0, Math.min(epsilon, 0.5 - epsilon / 2));
-    // Past |normalizedValue| = 2^49 the raw epsilon exceeds 0.5 (and past 2^50
-    // it exceeds 1, which would make `UP` nudge *downward*). The server clamps
-    // it for the two truncating methods; `halfEpsilon` has its own clamp.
     const truncEpsilon = Math.min(epsilon, 0.5);
     let roundedValue;
 
@@ -103,8 +86,6 @@ export function roundPrecision(value, precision, method = "HALF-UP") {
         case "HALF-DOWN": {
             const integral = Math.floor(Math.abs(normalizedValue));
             const remainder = Math.abs(normalizedValue) - integral;
-            // `halfEpsilon` collapses to 0 at |normalizedValue| >= 2^50, where
-            // the strict inequality can no longer detect an exact tie.
             const isHalf = remainder === 0.5 || Math.abs(0.5 - remainder) < halfEpsilon;
             roundedValue = isHalf
                 ? sign * integral
@@ -186,12 +167,6 @@ export function insertThousandsSep(number, thousandsSep = ",", grouping = []) {
 }
 
 /**
- * ``minIntegerDigits`` is how many digits are kept before a unit suffix is
- * applied: at 3, 1500000 renders "1,500k" rather than "2M". It is deliberately
- * *not* called ``minDigits`` — that is ``formatFloat``'s minimum number of
- * *decimal* places, and the two used to share a name while ``formatFloat``
- * forwarded its whole option object here.
- *
  * @param {number} number
  * @param {Object} [options]
  * @param {number} [options.decimals=0]
@@ -239,8 +214,8 @@ export function humanNumber(number, options = {}) {
  * @param {number} value
  * @param {Object} [options]
  * @param {number[]} [options.digits]
- * @param {number} [options.minDigits] minimum number of decimal places
- * @param {number} [options.minIntegerDigits] humanReadable only, see humanNumber
+ * @param {number} [options.minDigits]
+ * @param {number} [options.minIntegerDigits]
  * @param {boolean} [options.humanReadable]
  * @param {string} [options.decimalPoint]
  * @param {string} [options.thousandsSep]
@@ -254,19 +229,14 @@ export function formatFloat(value, options = {}) {
     if (options.digits && options.digits[1] !== undefined) {
         precision = options.digits[1];
     } else if (options.minDigits) {
-        const intDigitsCount =
-            value !== 0 ? Math.floor(Math.log10(Math.abs(value))) + 1 : 1;
-        const maxDecDigits = Math.max(15 - intDigitsCount, 0);
-        precision = Math.min(6, maxDecDigits);
+        precision = 6;
     } else {
         precision = 2;
     }
-    // Clamped: `minDigits` is a floor on the decimals *shown*, never a licence
-    // to show more than the value carries. Left unclamped it padded a value
-    // already rounded to `precision`, so 12.5432 at digits=[16,2] minDigits=4
-    // rendered "12.5400" -- two invented zeros in place of two real digits,
-    // where the server's `ir.qweb.field.float` prints "12.54" (it applies
-    // min_precision only `if min_precision < precision`).
+    const intDigitsCount =
+        value !== 0 ? Math.floor(Math.log10(Math.abs(value))) + 1 : 1;
+    const maxDecDigits = Math.max(15 - intDigitsCount, 0);
+    precision = Math.min(precision, maxDecDigits);
     const minPrecision = Math.min(options.minDigits || precision, precision);
     if (floatIsZero(value, precision)) {
         value = 0.0;

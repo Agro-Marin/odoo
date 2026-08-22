@@ -11,6 +11,19 @@
         max-height: 50vh;
 
         .o_command {
+            cursor: pointer;
+
+            .text-ellipsis {
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                overflow: hidden;
+            }
+
+            .o_command_focus {
+                white-space: nowrap;
+                opacity: 0.9;
+            }
+
             &.focused {
                 background: color-mix(in srgb, var(--o-bg-active) 65%, transparent);
             }
@@ -22,6 +35,7 @@
                 padding: 0.5rem 1.3em;
                 display: flex;
             }
+
             a {
                 text-decoration: none;
                 color: inherit;
@@ -36,17 +50,5 @@
     .o_app_icon {
         height: $-app-icon-size;
         width: $-app-icon-size;
-    }
-    .o_command {
-        cursor: pointer;
-        .text-ellipsis {
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            overflow: hidden;
-        }
-        .o_command_focus {
-            white-space: nowrap;
-            opacity: 0.9;
-        }
     }
 }

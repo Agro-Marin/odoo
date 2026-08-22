@@ -1,9 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/hotkeys/hotkey_hook */
-
 import { useEffect } from "@odoo/owl";
+import { useActiveElementScope } from "@web/core/utils/active_element_scope";
 import { useService } from "@web/core/utils/hooks";
 /**
  * @param {string} hotkey
@@ -12,8 +11,9 @@ import { useService } from "@web/core/utils/hooks";
  */
 export function useHotkey(hotkey, callback, options = {}) {
     const hotkeyService = useService("hotkey");
+    const scope = useActiveElementScope();
     useEffect(
-        () => hotkeyService.add(hotkey, callback, options),
+        () => hotkeyService.add(hotkey, callback, { scope, ...options }),
         () => [],
     );
 }

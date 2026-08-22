@@ -1,8 +1,4 @@
 
-// Optical tracking, banded because the correction grows with size: the same
-// letter-spacing that settles a 35px h1 would visibly thin a 14px h6. Bootstrap
-// has no `$headings-letter-spacing`, so the ramp is spelled out here rather
-// than mapped through a variable.
 h1,
 .h1,
 h2,
@@ -34,9 +30,6 @@ h6,
         box-shadow $o-duration-fast $o-easing-standard,
         transform $o-duration-fast $o-easing-standard;
 
-    // The outline is this fork's single focus indicator; restating Bootstrap's
-    // own `box-shadow` ring here keeps the resting elevation instead of letting
-    // `_buttons.scss` swap it for a second, differently-coloured ring.
     &:focus-visible {
         @include o-focus-ring();
         box-shadow: var(--#{$prefix}btn-box-shadow);
@@ -126,12 +119,6 @@ $-o-theme-text-colors: null;
     }
 }
 
-// White and black mean the palette's, which invert, so these were a compiled
-// colour in each of the two bundles. Through the `-rgb` sibling they follow the
-// attribute -- channels rather than a colour because `o-print-color()` composes
-// them with a `--*-opacity` variable, which no CSS colour function can take.
-// The compiled channels stay as a fallback: this file reaches bundles the token
-// layer does not.
 @function o-palette-rgb($-token, $-fallback) {
     @return unquote("var(#{$-token}, #{to-rgb($-fallback)})");
 }
@@ -223,9 +210,6 @@ $-o-bg-colors-custom: map-merge($o-bg-colors-custom, $o-grays);
     @include text-emphasis-variant(".text-#{$-name}", $-color);
 }
 
-// Bootstrap's `helpers/_color-bg` already emitted the theme colours at 3; only
-// the foreground is restated here so the `--#{$prefix}*-rgb` backgrounds stand.
-
 @each $-name, $-color in $theme-colors {
     .text-bg-#{$-name} {
         @include o-print-color(
@@ -264,9 +248,6 @@ $-o-bg-colors-custom: null;
     margin-bottom: var(--alert-margin-bottom, $alert-margin-bottom);
 }
 
-// `--success`, not `--o-success-text`: the light palette splits the fill hue
-// from the text hue and the switch is painted with the fill. The dark palette
-// collapses the two, which is what made the wrong token look right.
 $-o-switch-on: var(--success, #{$o-success});
 $-o-switch-toggle: var(--o-action, #{$o-action});
 

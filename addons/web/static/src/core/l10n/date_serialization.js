@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/l10n/date_serialization */
-
 import { DateTime, Settings } from "@web/core/l10n/luxon";
 
 const SERVER_DATE_FORMAT = "yyyy-MM-dd";
@@ -16,10 +14,18 @@ const dateTimeCache = new WeakMap();
 
 /**
  * @param {any} value
+ * @returns {boolean}
+ */
+function isSerializable(value) {
+    return Boolean(value) && value.isValid !== false;
+}
+
+/**
+ * @param {any} value
  * @returns {string|false}
  */
 export function serializeDate(value) {
-    if (!value) {
+    if (!isSerializable(value)) {
         return false;
     }
     let serialized = dateCache.get(value);
@@ -37,7 +43,7 @@ export function serializeDate(value) {
  * @returns {string|false}
  */
 export function serializeDateTime(value) {
-    if (!value) {
+    if (!isSerializable(value)) {
         return false;
     }
     let serialized = dateTimeCache.get(value);

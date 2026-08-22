@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/action_dispatch */
-
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
@@ -35,12 +33,6 @@ export class ActionDispatch {
         this.baseStack = baseStack ?? am.controllerStack;
         this.restoreStackOnError = restoreStackOnError;
         /**
-         * The navigation this dispatch belongs to: the token minted by the
-         * entry point (doAction / switchView / restore / loadState) that led
-         * here, read off the manager's tracker at dispatch creation. Stages
-         * that must ask "has a newer navigation started?" ask this token and
-         * fail with the one documented outcome, `SupersededError`.
-         *
          * @type {import("./navigation_token.js").NavigationToken}
          */
         this.token = am.navigation.snapshot();
@@ -70,19 +62,10 @@ export class ActionDispatch {
             controller.getGlobalState = getGlobalState;
             controller.getLocalState = getLocalState;
             am.controllerStack = nextStack;
-            // The dispatch is over the moment its stack is published. Kept
-            // pending, `_effectiveStack` would keep answering with the base
-            // stack while the `UI-UPDATED` listeners below run, so anyone
-            // reading `currentController` inside that event would see the
-            // controller this dispatch just replaced — web_studio's
-            // `inStudio` flag never saw the studio action land and every
-            // later `leave()` threw "leave when not in studio???".
-            // (`_updateUI`'s `finally` re-settles; the `===` guard inside
-            // makes both no-ops after the first.)
             am.settlePendingDispatch(this);
             am.pushState();
 
-            am.env.services.title.setParts({ action: controller.displayName });
+            am.titleService.setParts({ action: controller.displayName });
             actionStorage.setCurrentAction(action._originalAction);
             actionStorage.setLang(user.lang);
         }

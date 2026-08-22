@@ -1,12 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/many2one/many2one_field */
-
-import { Component } from "@odoo/owl";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
+import { FieldComponent } from "@web/fields/field_component";
+import {
+    placeholderFieldOption,
+    relationalPermissionAttributes,
+} from "@web/fields/field_options";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 import { computeM2OProps, Many2One } from "./many2one.js";
@@ -50,12 +52,7 @@ export const m2oSupportedOptions = [
             "Defines the minimum number of characters to perform the search. If not set, the search is performed on focus.",
         ),
     },
-    {
-        label: _t("Dynamic placeholder"),
-        name: "placeholder_field",
-        type: "field",
-        availableTypes: ["char"],
-    },
+    placeholderFieldOption(),
     {
         label: _t("Quick-create field"),
         name: "create_name_field",
@@ -90,6 +87,11 @@ export const m2oSupportedOptions = [
         ),
     },
 ];
+/**
+ * @type {import("registries").FieldsRegistryItemShape["supportedAttributes"]}
+ */
+export const m2oSupportedAttributes = relationalPermissionAttributes();
+
 /** @type {import("registries").FieldsRegistryItemShape["supportedTypes"]} */
 const m2oSupportedTypes = ["many2one"];
 
@@ -103,17 +105,13 @@ export function buildM2OFieldDescription(component) {
         displayName: _t("Many2one"),
         extractProps: extractM2OFieldProps,
         supportedOptions: m2oSupportedOptions,
+        supportedAttributes: m2oSupportedAttributes,
         supportedTypes: m2oSupportedTypes,
     };
 }
 
 /**
- * The `can_create` attribute crossed with the `no_create` / `no_quick_create` /
- * `no_create_edit` option triad. Shared with the tags widgets, which used to
- * re-derive it by hand and drift from this one.
- *
- * @param {Record<string, any>} staticInfo  the field's static info; only
- *   `attrs` and `options` are read
+ * @param {Record<string, any>} staticInfo
  * @returns {{ canCreate: boolean, canCreateEdit: boolean, canQuickCreate: boolean }}
  */
 export function extractCreatePermissions({ attrs, options }) {
@@ -129,21 +127,26 @@ export function extractCreatePermissions({ attrs, options }) {
 }
 
 /**
+ * @param {{ attrs: Record<string, any> }} staticInfo
+ * @returns {boolean}
+ */
+export function extractWritePermission({ attrs }) {
+    return attrs.can_write ? evaluateBooleanExpr(attrs.can_write) : true;
+}
+
+/**
  * @param {{ attrs: Record<string, any>, options: Record<string, any> } & Record<string, any>} staticInfo
  * @param {Record<string, any>} dynamicInfo
  * @returns {Record<string, any>}
  */
 export function extractM2OFieldProps(staticInfo, dynamicInfo) {
-    const { attrs, context, decorations, options, string, placeholder } = staticInfo;
+    const { context, decorations, options, string, placeholder } = staticInfo;
 
-    const hasWritePermission = attrs.can_write
-        ? evaluateBooleanExpr(attrs.can_write)
-        : true;
     return {
         ...extractCreatePermissions(staticInfo),
         canOpen: !options.no_open,
         canScanBarcode: !!options.can_scan_barcode,
-        canWrite: hasWritePermission,
+        canWrite: extractWritePermission(staticInfo),
         context: dynamicInfo.context,
         decorations,
         domain: dynamicInfo.domain,
@@ -156,7 +159,7 @@ export function extractM2OFieldProps(staticInfo, dynamicInfo) {
     };
 }
 
-export class Many2OneField extends Component {
+export class Many2OneField extends FieldComponent {
     static template = "web.Many2OneField";
     static components = { Many2One };
     static props = {

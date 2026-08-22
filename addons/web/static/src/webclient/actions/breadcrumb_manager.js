@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/breadcrumb_manager */
-
 import { rpc } from "@web/core/network/rpc";
 import { zip } from "@web/core/utils/collections/arrays";
 import { pick } from "@web/core/utils/collections/objects";
@@ -49,8 +47,6 @@ function fetchBreadcrumbs(toFetch, breadcrumbCache) {
 }
 
 /**
- * What identifies a crumb to the server, and the cache key that stands for it.
- *
  * @param {Controller} controller
  * @returns {{ key: string, actionInfo: Record<string, any> }}
  */
@@ -69,13 +65,6 @@ function breadcrumbKey(controller) {
  */
 
 /**
- * Ask the server for whatever `entries` the cache cannot answer, then settle
- * every entry against it, in order. One round-trip for the lot: duplicates
- * within a call share a key and are asked for once.
- *
- * A rejected fetch settles as `{ error }` rather than rejecting the batch —
- * what each caller does about a crumb it could not name is its own business.
- *
  * @param {BreadcrumbEntry[]} entries
  * @param {import("./breadcrumb_cache.js").BreadcrumbCache} breadcrumbCache
  * @returns {Promise<[BreadcrumbEntry, Record<string, any>][]>}
@@ -105,8 +94,6 @@ async function resolveBreadcrumbs(entries, breadcrumbCache) {
 }
 
 /**
- * One entry of the breadcrumb trail, as the control panel consumes it.
- *
  * @typedef {Object} Breadcrumb
  * @property {string} jsId
  * @property {string} [name]
@@ -146,14 +133,6 @@ export function buildBreadcrumbs(stack, am) {
 async function loadBreadcrumbs(controllers, breadcrumbCache) {
     const candidates = [];
     /**
-     * Keys whose name the url already carried. Good enough to render THIS
-     * restore without a round-trip, but not a fact about the record: it was
-     * written when the crumb was last visited and the record may have been
-     * renamed since. Kept per call so it cannot outlive the url that supplied
-     * it — writing it into `breadcrumbCache` pinned the stale name for the rest
-     * of the session, and suppressed the fetch even on later navigations whose
-     * url carried no name at all.
-     *
      * @type {Map<string, string>}
      */
     const namedFromUrl = new Map();
@@ -172,9 +151,6 @@ async function loadBreadcrumbs(controllers, breadcrumbCache) {
         }
     }
 
-    // Second pass: a key is named if ANY controller on it was, whatever the
-    // order they appear in. The one the url named lends its name to the others
-    // on the same record, as they used to borrow it through the cache.
     const entries = [];
     for (const candidate of candidates) {
         const urlName = namedFromUrl.get(candidate.key);
@@ -222,9 +198,6 @@ export async function refreshBreadcrumbDisplayNames(controllers, breadcrumbCache
         }
         entries.push({ controller, ...breadcrumbKey(controller) });
     }
-    // Unlike a restore, a refresh keeps a crumb it could not name: the trail on
-    // screen is already correct, and an action record changing under it is no
-    // reason to take an entry out of it.
     for (const [{ controller }, res] of await resolveBreadcrumbs(
         entries,
         breadcrumbCache,
@@ -254,10 +227,6 @@ export async function controllersFromState(state, am) {
             const controller = am._makeController({
                 displayName: actionState.displayName,
                 virtual: true,
-                // Where in `state.actionStack` this crumb came from. The list
-                // returned here is shorter than the actionStack whenever a
-                // crumb could not be named, so a caller holding a position
-                // measured on the url cannot count its way back into it.
                 stackIndex: index,
                 action: {},
                 props: {},

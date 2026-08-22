@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/form/form_renderer */
-
 import {
     Component,
     onMounted,
@@ -25,7 +23,7 @@ import { Dialog } from "@web/ui/dialog/dialog";
 import { ButtonBox } from "@web/views/form/button_box/button_box";
 import { InnerGroup, OuterGroup } from "@web/views/form/form_group/form_group";
 import { ViewButton } from "@web/views/view_button/view_button";
-import { useViewCompiler } from "@web/views/view_compiler";
+import { compileViewTemplates } from "@web/views/view_compiler";
 import { Widget } from "@web/views/widgets/widget";
 
 import { useFieldIsDirty } from "./field_is_dirty_hook.js";
@@ -72,13 +70,8 @@ export class FormRenderer extends Component {
         const { archInfo, Compiler, record } = this.props;
         const templates = { FormRenderer: archInfo.xmlDoc };
         this.state = useState(/** @type {any} */ ({}));
-        /**
-         * Open flags for `.modal` blocks declared in arch, keyed by the pairing
-         * `ViewCompiler` resolves between a modal and the controls addressing
-         * it. Empty for the overwhelming majority of views.
-         */
         this.archDialogs = useState(/** @type {Record<string, boolean>} */ ({}));
-        this.templates = useViewCompiler(Compiler || FormCompiler, templates);
+        this.templates = compileViewTemplates(Compiler || FormCompiler, templates);
         this.hasUnsavedEdits = useFieldIsDirty(record.model);
         useSubEnv({ model: record.model });
         this.uiService = useService("ui");
@@ -161,20 +154,11 @@ export class FormRenderer extends Component {
         return !hasTouch() && !this.props.archInfo.disableAutofocus;
     }
 
-    /**
-     * Pin the statusbar's shadow while the sheet is scrolled away from its top.
-     *
-     * Watching a sentinel rather than the scroll position keeps the browser
-     * from calling into the component on every scroll frame: the answer only
-     * ever changes when the top of the sheet crosses the viewport edge, which
-     * is exactly what the observer reports.
-     */
     setupStickyStatusbar() {
         const sentinel = useRef("stickySentinel");
         useEffect(
             (el) => {
                 if (!el) {
-                    // Arch with no <sheet>: nothing scrolls, nothing to pin.
                     return;
                 }
                 const observer = new IntersectionObserver(

@@ -1,17 +1,17 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/reference/reference_field */
-
-import { Component, useState } from "@odoo/owl";
+import { useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
+import { FieldComponent } from "@web/fields/field_component";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { computeM2OProps, Many2One } from "@web/fields/relational/many2one/many2one";
 import {
     extractM2OFieldProps,
+    m2oSupportedAttributes,
     m2oSupportedOptions,
     Many2OneField,
 } from "@web/fields/relational/many2one/many2one_field";
@@ -23,7 +23,7 @@ import {
  * @property {string} displayName
  */
 
-export class ReferenceField extends Component {
+export class ReferenceField extends FieldComponent {
     static template = "web.ReferenceField";
     static components = { Many2One };
     static props = {
@@ -41,23 +41,31 @@ export class ReferenceField extends Component {
         });
         this.nameService = useService("name");
         const keepLast = new KeepLast({ rejectSuperseded: true });
+
+        const SUPERSEDED = Symbol("superseded");
+        /**
+         * @template T
+         * @param {Promise<T>} promise
+         * @returns {Promise<T | typeof SUPERSEDED>}
+         */
+        const latest = async (promise) => {
+            try {
+                return await keepLast.add(promise);
+            } catch (error) {
+                if (error instanceof SupersededError) {
+                    return SUPERSEDED;
+                }
+                throw error;
+            }
+        };
+
         if (this._isCharField(this.props)) {
             let currentValue = undefined;
             useRecordObserver(async (record, props) => {
                 if (currentValue !== record.data[props.name]) {
-                    let formatted;
-                    try {
-                        formatted = await keepLast.add(
-                            this._fetchReferenceCharData(props),
-                        );
-                    } catch (error) {
-                        // Leaving `currentValue` untouched matters: a newer
-                        // observer run owns the fetch, and marking this value
-                        // as seen would stop it being fetched at all.
-                        if (error instanceof SupersededError) {
-                            return;
-                        }
-                        throw error;
+                    const formatted = await latest(this._fetchReferenceCharData(props));
+                    if (formatted === SUPERSEDED) {
+                        return;
                     }
                     /** @type {any} */ (this.state).formattedCharValue = formatted;
                     currentValue = record.data[props.name];
@@ -66,19 +74,11 @@ export class ReferenceField extends Component {
         } else if (this.props.modelField) {
             useRecordObserver(async (record, props) => {
                 if (this.currentModelId !== record.data[props.modelField]?.id) {
-                    let modelName;
-                    try {
-                        modelName = await keepLast.add(
-                            this._fetchModelTechnicalName(props),
-                        );
-                    } catch (error) {
-                        // Superseded: do not clear the reference and do not
-                        // mark this model as seen -- the run that took over
-                        // will do both against the value the user landed on.
-                        if (error instanceof SupersededError) {
-                            return;
-                        }
-                        throw error;
+                    const modelName = await latest(
+                        this._fetchModelTechnicalName(props),
+                    );
+                    if (modelName === SUPERSEDED) {
+                        return;
                     }
                     /** @type {any} */ (this.state).modelName = modelName;
                     if (this.currentModelId !== undefined) {
@@ -103,8 +103,6 @@ export class ReferenceField extends Component {
             update: this.updateM2O.bind(this),
         };
         if (this._isCharField(this.props)) {
-            // quickCreate resolves to { id: false }, which the char branch of
-            // updateM2O would persist as the literal string "<model>,false".
             props.canQuickCreate = false;
         }
         return props;
@@ -112,7 +110,7 @@ export class ReferenceField extends Component {
     /** @returns {Array<[string, string]>} */
     get selection() {
         if (!this._isCharField(this.props) && !this.hideModelSelector) {
-            return this.props.record.fields[this.props.name].selection;
+            return this.field.definition.selection;
         }
         return [];
     }
@@ -144,7 +142,7 @@ export class ReferenceField extends Component {
         if (this._isCharField(this.props)) {
             return this.state.formattedCharValue;
         } else {
-            return this.props.record.data[this.props.name];
+            return this.field.value;
         }
     }
 
@@ -158,25 +156,23 @@ export class ReferenceField extends Component {
     /** @param {string} value */
     updateModel(value) {
         /** @type {any} */ (this.state).currentRelation = value;
-        this.props.record.update({ [this.props.name]: false });
+        this.field.update(false);
     }
 
     /** @param {{ id: number, display_name: string }|false} value */
     updateM2O(value) {
         const resModel = this.getRelation();
         if (this._isCharField(this.props)) {
-            this.props.record.update({
-                [this.props.name]: value ? `${resModel},${value.id}` : false,
-            });
+            this.field.update(value ? `${resModel},${value.id}` : false);
             return;
         }
-        this.props.record.update({
-            [this.props.name]: value && {
+        this.field.update(
+            value && {
                 resModel,
                 resId: value.id,
                 displayName: value.display_name,
             },
-        });
+        );
     }
 
     _isCharField(/** @type {any} */ props) {
@@ -196,9 +192,6 @@ export class ReferenceField extends Component {
         if (!resModel || !resId) {
             return false;
         }
-        // The name service batches every reference on the page into one read,
-        // and drops its cache when the action changes -- a bespoke cache here
-        // held a renamed record's old name for the whole session.
         const displayNames = await this.nameService.loadDisplayNames(resModel, [resId]);
         const displayName = displayNames[resId];
         if (typeof displayName !== "string") {
@@ -248,8 +241,6 @@ export class ReferenceField extends Component {
 export const referenceField = {
     component: ReferenceField,
     displayName: _t("Reference"),
-    // extractM2OFieldProps is what builds the props, so every many2one option
-    // is honoured here too and belongs in the declaration.
     supportedOptions: [
         ...m2oSupportedOptions,
         {
@@ -264,6 +255,7 @@ export const referenceField = {
             availableTypes: ["many2one"],
         },
     ],
+    supportedAttributes: m2oSupportedAttributes,
     supportedTypes: ["reference", "char"],
     fieldDependencies: ({ options }) =>
         options.model_field

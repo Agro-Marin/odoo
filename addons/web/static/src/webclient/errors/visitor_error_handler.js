@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/errors/visitor_error_handler */
-
 import { ConnectionLostError, RPCError } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
@@ -15,17 +13,9 @@ import { session } from "@web/session";
  * @returns {true | undefined}
  */
 export function swallowAllVisitorErrors(env, error, originalError) {
-    // `undefined` means the page never told us who is looking: not knowing is
-    // not grounds for hiding an error. Decided here rather than by skipping the
-    // registration, so the handler is a pure function of its inputs — the
-    // import-time branch made the module's behaviour depend on load order and
-    // could only be exercised by reloading it.
     if (user.isInternalUser !== false || env.debug || session.test_mode) {
         return;
     }
-    // A lost connection is not a defect to hide: `lostConnectionHandler`
-    // (sequence 98) owns the reconnect notification, for visitors too.
-    // Covers subclasses (e.g. ServerOverloadError) through instanceof.
     if (originalError instanceof ConnectionLostError) {
         return;
     }

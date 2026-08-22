@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/resequence */
-
 /**
  * @param {Object} params
  * @param {Array<{id: number | string}>} params.records
@@ -11,11 +9,11 @@
  * @param {(record: any) => number} params.getSequence
  * @param {boolean} [params.asc]
  * @returns {{
- *   toReorder: any[],
- *   offset: number,
- *   fromIndex: number,
- *   toIndex: number,
- *   reorderAll: boolean,
+ * toReorder: any[],
+ * offset: number,
+ * fromIndex: number,
+ * toIndex: number,
+ * reorderAll: boolean,
  * }}
  */
 export function computeResequencePlan({

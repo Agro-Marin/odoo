@@ -1,26 +1,20 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_optional_fields */
-
 /**
- * The context is declared as the exact subset this hook destructures. See the
- * note on `useListVirtualization` for why `Pick<>` and not the whole
- * `ListGridContext`.
- *
  * @param {string} keyOptionalFields
  * @param {string} keyDebugOpenView
  * @param {Pick<
- *     import("./list_renderer").ListGridContext,
- *     "getAllColumns" | "getOptionalActiveFields" | "onSave"
+ * import("./list_renderer").ListGridContext,
+ * "getAllColumns" | "getOptionalActiveFields" | "onSave"
  * >} ctx
  * @returns {{
- *   debugOpenView: boolean,
- *   computeOptionalActiveFields: () => Record<string, boolean>,
- *   saveOptionalActiveFields: () => void,
- *   toggleOptionalField: (fieldName: string, render: () => void) => void,
- *   toggleOptionalFieldGroup: (groupId: string, render: () => void) => void,
- *   toggleDebugOpenView: (render: () => void) => void,
+ * debugOpenView: boolean,
+ * computeOptionalActiveFields: () => Record<string, boolean>,
+ * saveOptionalActiveFields: () => void,
+ * toggleOptionalField: (fieldName: string, render: () => void) => void,
+ * toggleOptionalFieldGroup: (groupId: string, render: () => void) => void,
+ * toggleDebugOpenView: (render: () => void) => void,
  * }}
  */
 import { browser } from "@web/core/browser/browser";
@@ -30,11 +24,6 @@ export function useListOptionalFields(keyOptionalFields, keyDebugOpenView, ctx) 
     const self = {
         debugOpenView: exprToBoolean(browser.localStorage.getItem(keyDebugOpenView)),
 
-        // Read through to storage rather than snapshotting it: the key is
-        // shared by every renderer that resolves to the same view, and by every
-        // tab, so a snapshot goes stale as soon as one of them writes. A read
-        // costs ~0.02us against a ~50ms list render, which is all the snapshot
-        // was buying.
         computeOptionalActiveFields() {
             const localStorageValue = browser.localStorage.getItem(keyOptionalFields);
             const optionalColumns = getAllColumns().filter(

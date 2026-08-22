@@ -1,10 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/**
- * @module @web/core/utils/operation
- */
-
 export class Operation {
     /**
      * @param {"+" | "-" | "*" | "/"} operator

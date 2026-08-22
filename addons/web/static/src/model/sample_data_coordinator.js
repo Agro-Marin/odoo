@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/sample_data_coordinator */
-
 import { SignalStore } from "@web/core/utils/reactive";
 
 /**

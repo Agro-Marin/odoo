@@ -1,18 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/events */
-
 export const AppEvent = Object.freeze({
     SERVICES_LOADED: "SERVICES-LOADED",
     WEB_CLIENT_READY: "WEB_CLIENT_READY",
 
     ACTION_MANAGER_UPDATE: "ACTION_MANAGER:UPDATE",
     ACTION_MANAGER_UI_UPDATED: "ACTION_MANAGER:UI-UPDATED",
-    // Fires once per `doAction`, when the dispatch is over -- including the
-    // outcomes that change nothing on screen, which `UI-UPDATED` cannot report
-    // because there is no UI update to report. Anything waiting on an action
-    // rather than on its visible effect wants this one.
     ACTION_MANAGER_SETTLED: "ACTION_MANAGER:SETTLED",
     WEBCLIENT_LOAD_DEFAULT_APP: "WEBCLIENT:LOAD_DEFAULT_APP",
     CLEAR_UNCOMMITTED_CHANGES: "CLEAR-UNCOMMITTED-CHANGES",
@@ -62,6 +56,14 @@ export const FileUploadEvent = Object.freeze({
     ADDED: "FILE_UPLOAD_ADDED",
     LOADED: "FILE_UPLOAD_LOADED",
     ERROR: "FILE_UPLOAD_ERROR",
+});
+
+export const PagerEvent = Object.freeze({
+    UPDATED: "PAGER:UPDATED",
+});
+
+export const DropdownEvent = Object.freeze({
+    OPENED: "DROPDOWN:OPENED",
 });
 
 export const CommandPaletteEvent = Object.freeze({

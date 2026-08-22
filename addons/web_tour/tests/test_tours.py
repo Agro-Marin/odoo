@@ -127,7 +127,7 @@ class WebTourHttp(HttpCase):
         })()
         """
         self.browser_js("/odoo?debug=tests", code, ready=ready, login="admin")
-        if "website" in IrAsset._get_installed_addons_list():
+        if "website" in IrAsset._get_addons_installed():
             self.browser_js("/?debug=tests", code, ready=ready, login="admin")
 
     def test_sanity_onboarding(self):
@@ -173,5 +173,5 @@ class WebTourHttp(HttpCase):
         })()
         """
         self.browser_js("/odoo?debug=0", code, ready=ready, login="admin")
-        if "website" in IrAsset._get_installed_addons_list():
+        if "website" in IrAsset._get_addons_installed():
             self.browser_js("/?debug=0", code, ready=ready, login="admin")

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/temporal/datetime/list_datetime_field */
-
 import { useRef } from "@odoo/owl";
 import { useAutoresize } from "@web/core/utils/dom/autoresize";
 import { registerField } from "@web/fields/_registry";
@@ -25,7 +23,7 @@ export class ListDateTimeField extends DateTimeField {
 }
 
 export const listDateField = { ...dateField, component: ListDateTimeField };
-export const listDateRangeField = {
+const listDateRangeField = {
     ...dateRangeField,
     component: ListDateTimeField,
 };

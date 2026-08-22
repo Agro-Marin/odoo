@@ -1,11 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/selection/badge_selection/badge_selection_field */
-
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
-import { fieldHandle } from "@web/fields/field_handle";
 import { isFalseEmpty } from "@web/fields/field_utils";
 import { SelectionLikeField } from "@web/fields/selection/selection_like_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -26,11 +23,6 @@ export class BadgeSelectionField extends SelectionLikeField {
     static defaultProps = {
         size: "md",
     };
-
-    /** @returns {import("@web/fields/field_handle").FieldHandle} */
-    get field() {
-        return fieldHandle(this);
-    }
 
     get options() {
         switch (this.type) {
@@ -70,7 +62,6 @@ export class BadgeSelectionField extends SelectionLikeField {
                         (/** @type {any[]} */ option) => option[0] === value,
                     );
                     if (!option) {
-                        // see SelectionField.onChange
                         return;
                     }
                     this.field.update({

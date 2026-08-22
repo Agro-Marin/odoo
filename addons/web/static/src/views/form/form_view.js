@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/form/form_view */
-
 import { registry } from "@web/core/registry";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
 import { defaultViewProps } from "@web/views/view_utils";
@@ -33,7 +31,6 @@ export const formView = {
             genericProps.readonly ||
             (props.archInfo.activeActions?.edit === false &&
                 genericProps.resId !== false);
-        // Unlike the other view types, form lets the caller supply one.
         props.buttonTemplate = genericProps.buttonTemplate || view.buttonTemplate;
         return props;
     },

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/l10n/dates */
-
 import { localization } from "@web/core/l10n/localization";
 import { DateTime, Duration, Settings } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/translation";
@@ -31,11 +29,6 @@ export {
  * @property {string} [format]
  * @property {string} [tz]
  * @typedef {[NullableDateTime, NullableDateTime]} NullableDateRange
- *
- * A Luxon ``DateTime`` or an "empty" sentinel. ``null`` and ``false`` both mean
- * "no value" across the date API (``false`` is what an unset Odoo date/datetime
- * field carries); callers must narrow before reading DateTime members. Was
- * ``any``, which silently opted the whole date API out of ``@ts-check``.
  * @typedef {DateTime | null | false} NullableDateTime
  */
 
@@ -393,15 +386,10 @@ export function parseDate(value, options = {}) {
 }
 
 /**
- * Returns ``null`` only for a falsy ``value``; an unparseable non-empty value
- * throws ``ConversionError`` rather than yielding a sentinel. Deliberately not
- * ``NullableDateTime``, whose ``false`` member describes an empty *field value*
- * and is unreachable here.
- *
  * @param {string} value
  * @param {ConversionOptions} [options={}]
  * @returns {DateTime | null}
- * @throws {ConversionError} if ``value`` is non-empty and cannot be parsed
+ * @throws {ConversionError}
  */
 export function parseDateTime(value, options = {}) {
     if (!value) {

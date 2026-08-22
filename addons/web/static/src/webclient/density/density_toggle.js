@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/density/density_toggle */
-
 import { Component, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -55,6 +53,6 @@ export class DensityToggle extends Component {
     }
 }
 
-export const densityToggle = { Component: DensityToggle };
+const densityToggle = { Component: DensityToggle };
 
 registry.category("systray").add("web.density_toggle", densityToggle, { sequence: 6 });

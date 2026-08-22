@@ -35,13 +35,13 @@ class ResUsersSettings(models.Model):
         res = super()._format_settings(fields_to_format)
         if "embedded_actions_config_ids" in fields_to_format:
             res["embedded_actions_config_ids"] = (
-                self.embedded_actions_config_ids._embedded_action_settings_format()
+                self.embedded_actions_config_ids._format_embedded_action_settings()
             )
         return res
 
     def get_embedded_actions_settings(self) -> dict[str, Any]:
         self.ensure_one()
-        return self.embedded_actions_config_ids._embedded_action_settings_format()
+        return self.embedded_actions_config_ids._format_embedded_action_settings()
 
     def set_embedded_actions_setting(
         self, action_id: int, res_id: int, vals: dict[str, Any]

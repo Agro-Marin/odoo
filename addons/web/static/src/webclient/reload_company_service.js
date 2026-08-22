@@ -1,29 +1,47 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/reload_company_service */
-
 import { browser } from "@web/core/browser/browser";
 import { onModelMutation } from "@web/core/network/model_mutation";
 import { registry } from "@web/core/registry";
 
-export const reloadCompanyService = {
+class ReloadCompanyService {
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {{ action: any }} services
+     */
+    constructor(env, { action }) {
+        this.env = env;
+        this.action = action;
+        this.stopWatching = onModelMutation(
+            ["res.company"],
+            () => this.onCompanyMutation(),
+            { successOnly: true },
+        );
+    }
+
+    onCompanyMutation() {
+        if (browser.localStorage.getItem("running_tour")) {
+            return;
+        }
+        Promise.resolve(this.action.doAction("reload_context")).catch(console.warn);
+    }
+
+    destroy() {
+        this.stopWatching();
+        this.stopWatching = () => {};
+    }
+}
+
+const reloadCompanyService = {
     dependencies: ["action"],
     /**
      * @param {import("@web/env").OdooEnv} env
-     * @param {{ action: ReturnType<typeof import("@web/webclient/actions/action_service").actionService.start> }} services
+     * @param {{ action: any }} services
+     * @returns {ReloadCompanyService}
      */
-    start(env, { action }) {
-        onModelMutation(
-            ["res.company"],
-            () => {
-                if (browser.localStorage.getItem("running_tour")) {
-                    return;
-                }
-                Promise.resolve(action.doAction("reload_context")).catch(console.warn);
-            },
-            { successOnly: true },
-        );
+    start(env, services) {
+        return new ReloadCompanyService(env, services);
     },
 };
 

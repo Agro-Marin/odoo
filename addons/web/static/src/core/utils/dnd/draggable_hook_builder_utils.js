@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dnd/draggable_hook_builder_utils */
-
 import { closestScrollableX, closestScrollableY } from "@web/core/utils/dom/scrolling";
 
 const DRAGGABLE_CLASS = "o_draggable";
@@ -72,7 +70,7 @@ export function getScrollParents(el) {
  * @param {string} val
  * @returns {number}
  */
-export function pixelValueToNumber(val) {
+function pixelValueToNumber(val) {
     return Number(val.endsWith("px") ? val.slice(0, -2) : val);
 }
 
@@ -108,7 +106,7 @@ const elCache = {};
  * @param {string} attribute
  * @returns {(() => void) | undefined}
  */
-export function saveAttribute(el, attribute) {
+function saveAttribute(el, attribute) {
     const restoreAttribute = () => {
         cache.delete(el);
         if (originalValue !== null) {
@@ -168,8 +166,7 @@ export function makeCleanupManager(defaultCleanupFn) {
  */
 export function makeDOMHelpers(cleanup) {
     /**
-     * @param {HTMLElement | null} el a selector may resolve to nothing; the
-     *  guard below is the contract, so the signature says so
+     * @param {HTMLElement | null} el
      * @param {...string} classNames
      */
     const addClass = (el, ...classNames) => {
@@ -190,8 +187,6 @@ export function makeDOMHelpers(cleanup) {
         if (!el || !event || !callback) {
             return;
         }
-        // Strip the hook's own key by copying, not by deleting: `options` is
-        // the caller's object, and a shared or reused literal came back mutated.
         const { noAddedStyle, ...listenerOptions } = options;
         el.addEventListener(event, callback, listenerOptions);
         if (!noAddedStyle && /mouse|pointer|touch/.test(event)) {

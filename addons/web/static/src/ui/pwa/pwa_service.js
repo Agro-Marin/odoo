@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/pwa/pwa_service */
-
 import { reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import {
@@ -26,11 +24,6 @@ const serviceRegistry = registry.category("services");
 const INSTALLATION_STATE_KEY = "pwaService.installationState";
 
 /**
- * The browser may fire `beforeinstallprompt` before any service exists, so the
- * event is parked here at module scope and claimed by the next service to
- * start. That latch outlives every env, which is why it needs an explicit
- * reset: without one a parked event survives into whatever runs next.
- *
  * @type {Event | null}
  */
 let BEFOREINSTALLPROMPT_EVENT;
@@ -50,28 +43,7 @@ export function _resetPwaInstallPrompt() {
     REGISTER_BEFOREINSTALLPROMPT_EVENT = undefined;
 }
 
-// `PwaServiceState` used to be declared here: a hand-written typedef for the
-// object literal `start()` returned, because a literal has no type of its own.
-// `PwaService` is that type now, derived from the implementation. Nothing
-// outside this file referenced it.
-
-/**
- * The `pwa` service.
- *
- * A class **wrapped in `reactive`**, not a bare instance. Templates read this
- * service directly — `t-if="pwa.isAvailable"`, `pwa.hasScopeBeenInstalled()` —
- * so the returned object has to stay reactive or `decline()` would flip
- * `canPromptToInstall` with nothing re-rendering. `reactive(new PwaService(…))`
- * keeps that *and* puts the behaviour on a prototype, so
- * `patch(PwaService.prototype, …)` reaches one method instead of replacing
- * `start()` whole. The precedent is `mail`'s
- * `reactive(new MailCoreCommon(env, services))`.
- *
- * The reactive data must be **own** properties (set in the constructor) for the
- * proxy to track them; the methods live on the prototype and receive the proxy
- * as `this`, so their writes go through it.
- */
-export class PwaService {
+class PwaService {
     /**
      * @param {import("@web/env").OdooEnv} env
      * @param {{ dialog: any }} services
@@ -83,14 +55,11 @@ export class PwaService {
         this._manifest = undefined;
         /** @type {Promise<any> | null} */
         this._manifestPromise = null;
-        // `any` for parity with the closure's untyped `let nativePrompt`.
-        // The value is a `BeforeInstallPromptEvent`, which is not in the
-        // standard lib types, so inferring `Event` from `_handleBeforeInstallPrompt`
-        // makes `prompt.prompt()` an error — precision the platform does not have.
         /** @type {any} */
         this.nativePrompt = undefined;
+        /** @type {((ev: Event) => void) | undefined} */
+        this._registeredPrompt = undefined;
 
-        // Reactive surface — own properties, read straight from templates.
         this.canPromptToInstall = false;
         this.isAvailable = false;
         this.isScopedApp = browser.location.href.includes("/scoped_app");
@@ -98,12 +67,6 @@ export class PwaService {
         this.startUrl = "/odoo";
     }
 
-    /**
-     * Second phase of construction, run by `start()` on the REACTIVE proxy.
-     * Everything here writes reactive state or reads it back, so it must not
-     * run in the constructor: at that point `this` is the raw instance and the
-     * writes would bypass the proxy the service is about to become.
-     */
     setup() {
         if (this.isScopedApp) {
             if (browser.location.pathname === "/scoped_app") {
@@ -236,11 +199,22 @@ export class PwaService {
         if (this.nativePrompt) {
             const prompt = this.nativePrompt;
             this.nativePrompt = null;
-            const res = await prompt.prompt();
-            this._setInstallationState(res.outcome);
-            this.canPromptToInstall = false;
-            if (onDone) {
-                onDone(res);
+            try {
+                const res = await prompt.prompt();
+                this._setInstallationState(res.outcome);
+                if (onDone) {
+                    onDone(res);
+                }
+            } finally {
+                // A `beforeinstallprompt` event is single-use: it is dropped
+                // above before it is shown, and `prompt()` rejects if it is
+                // called twice or without a user gesture. Clearing this only on
+                // the way out through success left the two halves of the state
+                // disagreeing after a rejection -- no prompt left to show, and
+                // `canPromptToInstall` still true -- so every install
+                // affordance in the UI stayed lit while `show()` had nothing
+                // left to do.
+                this.canPromptToInstall = false;
             }
         } else if (isBrowserSafari()) {
             this.dialog.add(
@@ -280,7 +254,6 @@ export const pwaService = {
      */
     start(env, services) {
         const service = reactive(new PwaService(env, services));
-        // Run on the proxy, not the instance: `setup` writes the reactive state.
         service.setup();
         return service;
     },

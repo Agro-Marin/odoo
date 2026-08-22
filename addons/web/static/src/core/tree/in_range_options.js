@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/in_range_options */
-
 import { _t } from "@web/core/translation";
 
 /** @type {Array<[string, string | import("@web/core/translation").TranslatedString]>} */

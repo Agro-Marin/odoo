@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/py_js/py_timedelta */
-
 import { bindArgs } from "./py_args.js";
 
 /** @type {Record<string, bigint>} */
@@ -64,8 +62,6 @@ export class PyTimeDelta {
      * @returns {PyTimeDelta}
      */
     static create(...args) {
-        // CPython's full signature, in order: the spec is what a positional
-        // call binds to *and* the set of keywords the callee accepts.
         const namedArgs = bindArgs(
             args,
             [

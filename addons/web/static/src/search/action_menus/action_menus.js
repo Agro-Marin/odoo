@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/action_menus/action_menus */
-
 import { Component, onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
@@ -48,7 +46,7 @@ export class ActionMenus extends Component {
         printDropdownTitle: _t("Print"),
         onActionExecuted: () => {},
         shouldExecuteAction: () => true,
-        loadExtraPrintItems: () => [],
+        loadExtraPrintItems: () => /** @type {any[]} */ ([]),
     };
 
     setup() {
@@ -65,11 +63,11 @@ export class ActionMenus extends Component {
     }
 
     /**
-     * @param {Object} props
-     * @returns {Promise<Array<{key: string, groupNumber: number, description?: string, action?: Object, callback?: Function}>>}
+     * @param {Record<string, any>} props
+     * @returns {Promise<Array<{key: string, groupNumber: number, description?: string, action?: Record<string, any>, callback?: Function}>>}
      */
     async getActionItems(props) {
-        return (props.items.action || []).map((action) => {
+        return (props.items.action || []).map((/** @type {any} */ action) => {
             if (action.callback) {
                 return Object.assign(
                     {
@@ -91,7 +89,7 @@ export class ActionMenus extends Component {
 
     /**
      * @param {{ id: number, name: string }} action
-     * @returns {Promise<void>}
+     * @returns {Promise<number|void>}
      */
     async executeAction(action) {
         let activeIds = this.props.getActiveIds();
@@ -101,6 +99,7 @@ export class ActionMenus extends Component {
                 context: this.props.context,
             });
         }
+        /** @type {Record<string, any>} */
         const activeIdsContext = {
             active_id: activeIds[0],
             active_ids: activeIds,
@@ -118,7 +117,7 @@ export class ActionMenus extends Component {
 
     /**
      * @private
-     * @param {Object} item
+     * @param {Record<string, any>} item
      */
     async onItemSelected(item) {
         if (!(await this.props.shouldExecuteAction(item))) {
@@ -138,7 +137,9 @@ export class ActionMenus extends Component {
      */
     async loadAvailablePrintItems() {
         const printActions = this.props.items.print || [];
+        /** @type {number[]} */
         const actionWithDomainIds = [];
+        /** @type {number[]} */
         const validActionIds = [];
         for (const action of printActions) {
             "domain" in action
@@ -154,8 +155,8 @@ export class ActionMenus extends Component {
             validActionIds.push(...validActionsWithDomainIds);
         }
         return printActions
-            .filter((action) => validActionIds.includes(action.id))
-            .map((action) => ({
+            .filter((/** @type {any} */ action) => validActionIds.includes(action.id))
+            .map((/** @type {any} */ action) => ({
                 action,
                 class: "o_menu_item",
                 description: action.name,

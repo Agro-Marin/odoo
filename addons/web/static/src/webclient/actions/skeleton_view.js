@@ -1,9 +1,16 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/skeleton_view */
-
 import { Component, onMounted } from "@odoo/owl";
+
+/** @param {number} length */
+const indices = (length) => Object.freeze(Array.from({ length }, (_, i) => i));
+
+const LIST_ROWS = indices(8);
+const LIST_COLS = indices(5);
+const KANBAN_CARDS = indices(3);
+const KANBAN_GROUPS = indices(3);
+const FORM_FIELDS = indices(6);
 
 export class SkeletonView extends Component {
     static template = "web.SkeletonView";
@@ -14,17 +21,13 @@ export class SkeletonView extends Component {
         "*": true,
     };
 
+    listRows = LIST_ROWS;
+    listCols = LIST_COLS;
+    kanbanCards = KANBAN_CARDS;
+    kanbanGroups = KANBAN_GROUPS;
+    formFields = FORM_FIELDS;
+
     setup() {
-        /** @type {number[]} */
-        this.listRows = Array.from({ length: 8 }, (_, i) => i);
-        /** @type {number[]} */
-        this.listCols = Array.from({ length: 5 }, (_, i) => i);
-        /** @type {number[]} */
-        this.kanbanCards = Array.from({ length: 3 }, (_, i) => i);
-        /** @type {number[]} */
-        this.kanbanGroups = Array.from({ length: 3 }, (_, i) => i);
-        /** @type {number[]} */
-        this.formFields = Array.from({ length: 6 }, (_, i) => i);
         onMounted(() => this.props.onMounted());
     }
 

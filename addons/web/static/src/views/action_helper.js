@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/action_helper */
-
 import { Component } from "@odoo/owl";
 import { RibbonWidget } from "@web/views/widgets/ribbon/ribbon";
 import { Widget } from "@web/views/widgets/widget";

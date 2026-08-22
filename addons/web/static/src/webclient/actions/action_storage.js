@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/action_storage */
-
 import { browser } from "@web/core/browser/browser";
 
 const CURRENT_ACTION = "current_action";

@@ -1,10 +1,3 @@
-"""Record snapshot utility for onchange diff computation.
-
-``RecordSnapshot`` captures a record's field values according to a
-specification tree and can compute the diff between two snapshots,
-producing x2many commands suitable for the webclient.
-"""
-
 from typing import Any
 
 from odoo.api import NewId
@@ -13,8 +6,6 @@ from odoo.models import BaseModel
 
 
 class RecordSnapshot(dict):
-    """A dict with the values of a record, following a prefix tree."""
-
     __slots__ = ["fields_spec", "record"]
     __hash__ = None  # type: ignore[assignment]  # unhashable: overrides __eq__
 
@@ -34,7 +25,6 @@ class RecordSnapshot(dict):
         return self.record == other.record and super().__eq__(other)
 
     def fetch(self, field_name: str) -> None:
-        """Set the value of field ``field_name`` from the record's value."""
         if self.record._fields[field_name].type in ("one2many", "many2many"):
             lines = self.record[field_name]
             if "context" in self.fields_spec[field_name]:
@@ -47,7 +37,6 @@ class RecordSnapshot(dict):
             self[field_name] = self.record[field_name]
 
     def has_changed(self, field_name) -> bool:
-        """Return whether a field on the record has changed."""
         if field_name not in self:
             return True
         if self.record._fields[field_name].type not in (
@@ -62,8 +51,6 @@ class RecordSnapshot(dict):
         )
 
     def diff(self, other: RecordSnapshot, force: bool = False) -> dict[str, Any]:
-        """Return the values in ``self`` that differ from ``other``."""
-
         simple_fields_spec = {}
         x2many_fields_spec = {}
         for field_name, field_spec in self.fields_spec.items():

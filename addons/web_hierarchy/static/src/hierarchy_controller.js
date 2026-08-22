@@ -10,7 +10,8 @@ import {
 import { useSetupAction } from "@web/core/action_hook";
 import { CogMenu } from "@web/search/cog_menu/cog_menu";
 import { Layout } from "@web/search/layout";
-import { SearchBar, useSearchBarToggler } from "@web/search/search_bar";
+import { SearchBar } from "@web/search/search_bar/search_bar";
+import { useSearchBarToggler } from "@web/search/search_bar/search_bar_toggler";
 import { standardViewProps } from "@web/views/standard_view_props";
 import { useViewButtons } from "@web/views/view_button";
 import { ActionHelper } from "@web/views/action_helper";

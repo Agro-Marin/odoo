@@ -1,11 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_properties_mixin */
-
 import { groupBy } from "@web/core/utils/collections/arrays";
 
 import { findGroupByGroupId } from "./search_group_by.js";
+import { fireAndForgetNotify } from "./search_notification.js";
 
 /**
  * @template {new (...args: any[]) => any} T
@@ -14,7 +13,7 @@ import { findGroupByGroupId } from "./search_group_by.js";
 export const SearchPropertiesMixin = (Base) =>
     class extends Base {
         /**
-         * @param {Object} searchItem
+         * @param {Record<string, any>} searchItem
          * @returns {Promise<Object[]>}
          */
         async getSearchItemsProperties(searchItem) {
@@ -29,6 +28,7 @@ export const SearchPropertiesMixin = (Base) =>
             );
 
             const searchItemIds = new Set();
+            /** @type {Record<string, any>} */
             const existingFieldProperties = {};
             for (const item of Object.values(this.searchItems)) {
                 if (
@@ -55,6 +55,7 @@ export const SearchPropertiesMixin = (Base) =>
                         continue;
                     }
                     const id = this.nextId++;
+                    /** @type {Record<string, any>} */
                     const newSearchItem = {
                         id,
                         type: "field_property",
@@ -76,8 +77,8 @@ export const SearchPropertiesMixin = (Base) =>
             }
 
             const staleIds = Object.values(existingFieldProperties)
-                .filter((item) => !searchItemIds.has(item.id))
-                .map((item) => item.id);
+                .filter((/** @type {any} */ item) => !searchItemIds.has(item.id))
+                .map((/** @type {any} */ item) => item.id);
             for (const id of staleIds) {
                 delete this.searchItems[id];
             }
@@ -85,13 +86,14 @@ export const SearchPropertiesMixin = (Base) =>
             if (staleIds.length) {
                 const queryLength = this.query.length;
                 this.query = this.query.filter(
-                    (queryElem) => !staleIds.includes(queryElem.searchItemId),
+                    (/** @type {any} */ queryElem) =>
+                        !staleIds.includes(queryElem.searchItemId),
                 );
                 if (this.query.length !== queryLength) {
-                    this._notify();
+                    fireAndForgetNotify(this._notify());
                 }
             }
-            return this.getSearchItems((searchItem) =>
+            return this.getSearchItems((/** @type {any} */ searchItem) =>
                 searchItemIds.has(searchItem.id),
             );
         }
@@ -127,7 +129,7 @@ export const SearchPropertiesMixin = (Base) =>
         }
 
         /**
-         * @param {Object} field
+         * @param {Record<string, any>} field
          */
         async _fillPropertyFieldSearchItems(field) {
             const result = await this._fetchPropertiesDefinition(
@@ -135,15 +137,16 @@ export const SearchPropertiesMixin = (Base) =>
                 field.name,
             );
 
-            const isPropertyGroupBy = (item) =>
+            const isPropertyGroupBy = (/** @type {any} */ item) =>
                 item.isProperty && ["groupBy", "dateGroupBy"].includes(item.type);
             const existingByFieldName = new Map(
                 Object.values(this.searchItems)
                     .filter(isPropertyGroupBy)
-                    .map((item) => [item.fieldName, item]),
+                    .map((/** @type {any} */ item) => [item.fieldName, item]),
             );
             const liveIds = new Set();
             const liveFieldNames = new Set();
+            let groupByGroupId = findGroupByGroupId(this.searchItems);
 
             for (const {
                 definitionRecordId,
@@ -189,8 +192,7 @@ export const SearchPropertiesMixin = (Base) =>
                         type: ["datetime", "date"].includes(definition.type)
                             ? "dateGroupBy"
                             : "groupBy",
-                        groupId:
-                            findGroupByGroupId(this.searchItems) ?? this.nextGroupId++,
+                        groupId: (groupByGroupId ??= this.nextGroupId++),
                     };
                     liveIds.add(id);
                 }
@@ -198,12 +200,12 @@ export const SearchPropertiesMixin = (Base) =>
 
             const staleIds = Object.values(this.searchItems)
                 .filter(
-                    (item) =>
+                    (/** @type {any} */ item) =>
                         isPropertyGroupBy(item) &&
                         item.propertyFieldName === field.name &&
                         !liveIds.has(item.id),
                 )
-                .map((item) => item.id);
+                .map((/** @type {any} */ item) => item.id);
             for (const id of staleIds) {
                 delete this.searchItems[id];
             }
@@ -219,7 +221,8 @@ export const SearchPropertiesMixin = (Base) =>
             if (staleIds.length) {
                 const queryLength = this.query.length;
                 this.query = this.query.filter(
-                    (queryElem) => !staleIds.includes(queryElem.searchItemId),
+                    (/** @type {any} */ queryElem) =>
+                        !staleIds.includes(queryElem.searchItemId),
                 );
                 if (this.query.length !== queryLength) {
                     await this._notify();
@@ -230,7 +233,7 @@ export const SearchPropertiesMixin = (Base) =>
         /**
          * @param {string} resModel
          * @param {string} fieldName
-         * @returns {Promise<Object[]>}
+         * @returns {Promise<{definitionRecordId: number, definitionRecordName: string, definitions: Record<string, any>[]}[]>}
          */
         async _fetchPropertiesDefinition(resModel, fieldName) {
             const domain = [];

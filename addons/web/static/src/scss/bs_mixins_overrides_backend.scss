@@ -1,7 +1,3 @@
-// Deliberately shadows the definition in `mixins_forwardport.scss`, which the
-// frontend keeps: this one routes through `o-print-color()` so `.text-*` survives
-// print colour-adjust, and covers `:active`/`.active` and `button` as well. The
-// two are not interchangeable - the frontend has no `--text-opacity` plumbing.
 @mixin text-emphasis-variant(
     $-parent,
     $-color,

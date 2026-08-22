@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/search_params_schema */
-
 import { validate } from "@odoo/owl";
 
 /**

@@ -1,11 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/public/public_component_interaction */
-
 import { registry } from "@web/core/registry";
-
-import { Interaction } from "./interaction.js";
+import { Interaction } from "@web/public/interaction";
 
 registry
     .category("public_components")

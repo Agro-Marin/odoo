@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/column_progress */
-
 import { Component } from "@odoo/owl";
 
 import { AnimatedNumber } from "./animated_number.js";

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_filter_section/calendar_filter_section */
-
 import { Component, onWillRender, useState } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 import { Transition } from "@web/core/transition";

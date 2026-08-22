@@ -1,11 +1,3 @@
-// The panel is a native popover, so the UA stylesheet applies its own box
-// defaults on top of Bootstrap's `.offcanvas`. Bootstrap only ever declares the
-// edges and the single border its placement needs, which leaves the UA's
-// `inset: 0` and all-round `border: solid` in force on the other sides — a
-// `.offcanvas-end` panel would stretch to the full viewport width and draw
-// three extra borders. These rules restate the geometry at a specificity that
-// wins, rather than resetting `inset` / `border` wholesale, which would take
-// Bootstrap's own placement declarations down with it.
 .offcanvas[popover] {
     margin: 0;
     padding: 0;
@@ -17,7 +9,8 @@
         right: auto;
         bottom: 0;
         left: 0;
-        border-right: var(--#{$prefix}offcanvas-border-width) solid var(--#{$prefix}offcanvas-border-color);
+        border-right: var(--#{$prefix}offcanvas-border-width) solid
+            var(--#{$prefix}offcanvas-border-color);
     }
 
     &.offcanvas-end {
@@ -25,7 +18,8 @@
         right: 0;
         bottom: 0;
         left: auto;
-        border-left: var(--#{$prefix}offcanvas-border-width) solid var(--#{$prefix}offcanvas-border-color);
+        border-left: var(--#{$prefix}offcanvas-border-width) solid
+            var(--#{$prefix}offcanvas-border-color);
     }
 
     &.offcanvas-top {
@@ -33,7 +27,8 @@
         right: 0;
         bottom: auto;
         left: 0;
-        border-bottom: var(--#{$prefix}offcanvas-border-width) solid var(--#{$prefix}offcanvas-border-color);
+        border-bottom: var(--#{$prefix}offcanvas-border-width) solid
+            var(--#{$prefix}offcanvas-border-color);
     }
 
     &.offcanvas-bottom {
@@ -41,27 +36,33 @@
         right: 0;
         bottom: 0;
         left: 0;
-        border-top: var(--#{$prefix}offcanvas-border-width) solid var(--#{$prefix}offcanvas-border-color);
+        border-top: var(--#{$prefix}offcanvas-border-width) solid
+            var(--#{$prefix}offcanvas-border-color);
     }
 
-    // The UA toggles `display` between none and block, so the slide has to be
-    // declared over a discrete property and given an entry value; without both
-    // halves the panel would appear and disappear instantly.
     transition:
         transform $offcanvas-transition-duration ease-in-out,
         overlay $offcanvas-transition-duration allow-discrete,
         display $offcanvas-transition-duration allow-discrete;
 
     &::backdrop {
-        background-color: rgba(0, 0, 0, .5);
+        background-color: rgba(0, 0, 0, 0.5);
     }
 }
 
 @starting-style {
     .offcanvas[popover]:popover-open {
-        &.offcanvas-start { transform: translateX(-100%); }
-        &.offcanvas-end { transform: translateX(100%); }
-        &.offcanvas-top { transform: translateY(-100%); }
-        &.offcanvas-bottom { transform: translateY(100%); }
+        &.offcanvas-start {
+            transform: translateX(-100%);
+        }
+        &.offcanvas-end {
+            transform: translateX(100%);
+        }
+        &.offcanvas-top {
+            transform: translateY(-100%);
+        }
+        &.offcanvas-bottom {
+            transform: translateY(100%);
+        }
     }
 }

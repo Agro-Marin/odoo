@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/notification/notification_service */
-
 import { reactive } from "@odoo/owl";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { registry } from "@web/core/registry";
@@ -25,33 +23,11 @@ import { NotificationContainer } from "./notification_container.js";
  * @property {NotificationButton[]} [buttons]
  */
 
-/** Read by the service itself rather than forwarded to the component. */
 const SERVICE_OPTIONS = new Set(["onClose"]);
 
-/**
- * Written by the service on every notification. They are declared props, so the
- * option loop -- which copies anything the component declares -- used to accept
- * them from a caller and, running after the service had set them, win: an
- * `add(msg, { close })` left the ✕ button calling the caller's function, so the
- * notification could not be dismissed and stayed for the session.
- */
 const SERVICE_OWNED_PROPS = new Set(["close", "message"]);
 
-/**
- * The `notification` service.
- *
- * A class rather than a closure returning an object literal; see
- * `core/hotkeys/hotkey_service.js` for the reasoning and
- * `tooling/architecture/js_service_shape.py` for the budget.
- *
- * **`notificationContainer` and `notificationContainerKey` stay on the service
- * object below**, and `start()` passes them in. They are the service's
- * extension points — `website_sale` replaces both to render cart notifications,
- * and two suites do the same — so they must be read off whatever object owns
- * `start`, exactly as the closure did, and at the same moment: once, at start.
- * This is hazard 1 again, in the same shape as `fileUploadService.createXhr`.
- */
-export class NotificationService {
+class NotificationService {
     /**
      * @param {any} notificationContainer
      * @param {string} notificationContainerKey
@@ -82,13 +58,6 @@ export class NotificationService {
     }
 
     /**
-     * `message` is not just a string, and never was: `Notification`'s own prop
-     * validator accepts `typeof m === "string" || (typeof m === "object" &&
-     * typeof m.toString === "function")`, which is how `markup` messages render.
-     * The closure declared `{string}` and nothing checked it; typing the method
-     * for real made the mismatch visible, so this widens to what the component
-     * actually validates rather than narrowing the callers to fit a wrong type.
-     *
      * @param {string | { toString(): string }} message
      * @param {NotificationOptions} [options]
      * @returns {() => void}
@@ -130,13 +99,6 @@ export class NotificationService {
     }
 
     /**
-     * Underscored because it was never a published entry point: the closure
-     * this replaced returned `{ add, notifications, destroy }` and kept `close`
-     * inside. A class exposes every method on its prototype, so keeping the name
-     * bare would have quietly widened the service's surface — the one way a
-     * conversion can change behaviour without changing a line of logic.
-     * Callers close a notification with the function `add()` hands back.
-     *
      * @param {number} id
      */
     _close(id) {
@@ -147,8 +109,6 @@ export class NotificationService {
                     notification.onClose();
                 }
             } catch (error) {
-                // A throwing `onClose` must not propagate into the caller —
-                // the error service closes notifications mid-error-handling.
                 reportUncaught(error);
             } finally {
                 delete this.notifications[id];

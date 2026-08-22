@@ -1,21 +1,20 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/many2many_checkboxes/many2many_checkboxes_field */
-
-import { Component, onWillRender, onWillUnmount, useState } from "@odoo/owl";
+import { onWillRender, onWillUnmount, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { ModelEvent } from "@web/core/events";
 import { _t } from "@web/core/translation";
 import { useBus } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
 import { registerField } from "@web/fields/_registry";
+import { FieldComponent } from "@web/fields/field_component";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { getFieldDomain } from "@web/model/relational_model/utils";
 
 import { useSpecialData } from "../special_data.js";
 
-export class Many2ManyCheckboxesField extends Component {
+export class Many2ManyCheckboxesField extends FieldComponent {
     static template = "web.Many2ManyCheckboxesField";
     static RECORD_LIMIT = 100;
     static components = { CheckBox };
@@ -52,9 +51,7 @@ export class Many2ManyCheckboxesField extends Component {
         this.pending = useState({ add: [], remove: [] });
         this.debouncedCommitChanges = debounce(this.commitChanges.bind(this), 500);
         onWillRender(() => {
-            this.currentIds = new Set(
-                this.props.record.data[this.props.name].currentIds,
-            );
+            this.currentIds = new Set(this.field.value.currentIds);
         });
         useBus(this.props.record.model.bus, ModelEvent.NEED_LOCAL_CHANGES, (ev) => {
             const result = this.commitChanges();
@@ -97,7 +94,7 @@ export class Many2ManyCheckboxesField extends Component {
         if (!add.length && !remove.length) {
             return;
         }
-        const result = this.props.record.data[this.props.name].addAndRemove({
+        const result = this.field.value.addAndRemove({
             add: [...add],
             remove: [...remove],
         });
@@ -125,7 +122,7 @@ export class Many2ManyCheckboxesField extends Component {
 }
 
 /** @type {import("registries").FieldsRegistryItemShape} */
-export const many2ManyCheckboxesField = {
+const many2ManyCheckboxesField = {
     component: Many2ManyCheckboxesField,
     displayName: _t("Checkboxes"),
     supportedTypes: ["many2many"],

@@ -1,14 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/pager/pager */
-
-import { Component, EventBus, useEffect, useState } from "@odoo/owl";
+import { Component, useEffect, useState } from "@odoo/owl";
+import { PagerEvent } from "@web/core/events";
 import { useClickAway } from "@web/core/utils/dom/click_away";
 import { clamp } from "@web/core/utils/format/numbers";
 import { useAutofocus } from "@web/core/utils/hooks";
-export const PAGER_UPDATED_EVENT = "PAGER:UPDATED";
-export const pagerBus = new EventBus();
 
 /**
  * @extends Component
@@ -40,7 +37,7 @@ export class Pager extends Component {
             isDisabled: false,
         });
         this.inputRef = useAutofocus();
-        useClickAway((node) => this.onClickAway(node), {
+        useClickAway(() => this.onClickAway(), {
             getAnchor: () => this.inputRef.el,
             getContentEl: () => this.inputRef.el,
         });
@@ -48,7 +45,7 @@ export class Pager extends Component {
         useEffect(
             () => {
                 if (!firstMount && this.env.isSmall) {
-                    pagerBus.trigger(PAGER_UPDATED_EVENT, {
+                    this.env.bus.trigger(PagerEvent.UPDATED, {
                         value: this.value,
                         total: this.props.total,
                     });
@@ -101,8 +98,6 @@ export class Pager extends Component {
         let minimum = this.props.offset + this.props.limit * direction;
         let total = this.props.total;
         if (this.props.updateTotal && minimum < 0) {
-            // Resolving the real total is a round trip; without holding the
-            // pager disabled across it, a second click starts a second one.
             this.state.isDisabled = true;
             try {
                 total = await this.props.updateTotal();
@@ -144,7 +139,15 @@ export class Pager extends Component {
         const { minimum, maximum } = this.parse(value);
 
         if (!Number.isNaN(minimum) && !Number.isNaN(maximum) && minimum < maximum) {
-            this.update(minimum, maximum - minimum);
+            return this.update(minimum, maximum - minimum);
+        }
+        this.resetInput();
+    }
+
+    resetInput() {
+        const el = /** @type {HTMLInputElement | null} */ (this.inputRef.el);
+        if (el && el.value !== this.value) {
+            el.value = this.value;
         }
     }
     /**
@@ -177,13 +180,8 @@ export class Pager extends Component {
         }
     }
 
-    /**
-     * @param {Node} [node]
-     */
-    onClickAway(node) {
-        if (node !== this.inputRef.el) {
-            this.state.isEditing = false;
-        }
+    onClickAway() {
+        this.state.isEditing = false;
     }
     onInputBlur() {
         this.state.isEditing = false;

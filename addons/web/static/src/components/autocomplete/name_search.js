@@ -1,58 +1,22 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/autocomplete/name_search */
-
-/**
- * Shared core of the quick-search flow built on `AutoComplete`:
- * name search -> bounded dropdown -> "Search more..." -> SelectCreateDialog.
- *
- * Two components implement that flow — `RecordAutocomplete`
- * (components/record_selectors) and `Many2XAutocomplete` (fields/relational) —
- * and used to carry private copies of its constants and call shapes, which had
- * already drifted apart (audit U11, proposal 2a). This module owns the pieces
- * that must not diverge:
- *
- *   - the `web_name_search` RPC call shape,
- *   - the dropdown page size and the quick-search fetch bound,
- *   - the overflow probe behind the only-on-overflow "Search more..." rule,
- *   - the "Quick search: %s" dynamic filter and dialog title passed to
- *     `SelectCreateDialog`.
- *
- * Everything else — concurrency policy, create actions, memoization, display
- * name caching — is deliberately left to the components: that is where the two
- * flows genuinely differ.
- */
-
 import { _t } from "@web/core/translation";
 
-/** Records shown in the dropdown before "Search more..." takes over. */
 export const SEARCH_LIMIT = 7;
 
-/**
- * Records fetched to build the "Quick search: %s" filter of the
- * "Search more..." dialog.
- */
 export const SEARCH_MORE_LIMIT = 320;
 
 /**
- * The quick-search RPC: `web_name_search` on *resModel*.
- *
- * Returns the same `(id, display_name)` pairs as `name_search`, as record
- * dicts shaped by *specification* — the default display-name-only
- * specification adds `__formatted_display_name` to each record.
- *
- * The ORM promise is returned as-is, so callers keep its `abort()`.
- *
  * @param {import("@web/core/network/orm_service").ORM} orm
  * @param {string} resModel
  * @param {Object} params
- * @param {string} params.name the term to search for
+ * @param {string} params.name
  * @param {any[]} params.domain
  * @param {number} params.limit
  * @param {Object} [params.context]
  * @param {string} [params.operator]
- * @param {Object} [params.specification] fields to read on each match
+ * @param {Object} [params.specification]
  * @returns {Promise<Array<Record<string, any>>>}
  */
 export function webNameSearch(
@@ -78,13 +42,8 @@ export function webNameSearch(
 }
 
 /**
- * The overflow probe behind the only-on-overflow "Search more..." rule: fetch
- * `limit + 1` records, then split the result into the page actually shown and
- * the answer to "were there more?". The dropdown offers "Search more..." only
- * when the probe overflowed — never as a constant fixture.
- *
  * @template T
- * @param {T[]} records as returned by a `limit + 1` search
+ * @param {T[]} records
  * @param {number} limit
  * @returns {{ records: T[], hasMore: boolean }}
  */
@@ -96,12 +55,9 @@ export function splitOverflow(records, limit) {
 }
 
 /**
- * The "Quick search: %s" dynamic filter shown by the "Search more..." dialog,
- * scoping it to the ids the quick search already found.
- *
- * @param {string} name the searched term, shown in the filter description
+ * @param {string} name
  * @param {number[]} ids
- * @param {string} [operator] `"id"`-domain operator, `"in"` unless stated
+ * @param {string} [operator]
  * @returns {{ description: string, domain: any[] }}
  */
 export function quickSearchFilter(name, ids, operator = "in") {
@@ -112,9 +68,7 @@ export function quickSearchFilter(name, ids, operator = "in") {
 }
 
 /**
- * Title of the "Search more..." SelectCreateDialog.
- *
- * @param {string} [fieldString] the field's label, if it has one
+ * @param {string} [fieldString]
  * @returns {string}
  */
 export function searchMoreTitle(fieldString) {
@@ -125,8 +79,6 @@ export function searchMoreTitle(fieldString) {
 }
 
 /**
- * Label of the "Search more..." dropdown option.
- *
  * @returns {string}
  */
 export function searchMoreLabel() {
@@ -134,9 +86,6 @@ export function searchMoreLabel() {
 }
 
 /**
- * `SelectCreateDialog.onSelected` hands back one id or an array of ids
- * depending on its `multiSelect` flag; both quick-search flows want a list.
- *
  * @param {number | number[]} resId
  * @returns {number[]}
  */

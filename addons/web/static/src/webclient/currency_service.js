@@ -1,40 +1,53 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/currency_service */
-
 import { currencies } from "@web/core/currency";
 import { onModelMutation } from "@web/core/network/model_mutation";
 import { registry } from "@web/core/registry";
 
-export const currencyService = {
+class CurrencyService {
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {{ orm: import("@web/core/network/orm_service").ORM }} services
+     */
+    constructor(env, { orm }) {
+        this.env = env;
+        this.orm = orm;
+        this.fetchGeneration = 0;
+        this.stopWatching = onModelMutation(["res.currency"], () => {
+            this.reloadCurrencies().catch(console.warn);
+        });
+    }
+
+    /** @returns {Promise<void>} */
+    async reloadCurrencies() {
+        const generation = ++this.fetchGeneration;
+        const result = await this.orm.call("res.currency", "get_all_currencies");
+        if (generation !== this.fetchGeneration) {
+            return;
+        }
+        for (const key of Object.keys(currencies)) {
+            delete currencies[key];
+        }
+        Object.assign(currencies, result);
+    }
+
+    destroy() {
+        this.stopWatching();
+        this.stopWatching = () => {};
+    }
+}
+
+const currencyService = {
     dependencies: ["orm"],
     async: ["reloadCurrencies"],
     /**
      * @param {import("@web/env").OdooEnv} env
      * @param {{ orm: import("@web/core/network/orm_service").ORM }} services
-     * @returns {{ reloadCurrencies: () => Promise<void> }}
+     * @returns {CurrencyService}
      */
-    start(env, { orm }) {
-        let fetchGeneration = 0;
-        async function reloadCurrencies() {
-            const generation = ++fetchGeneration;
-            const result = await orm.call("res.currency", "get_all_currencies");
-            if (generation !== fetchGeneration) {
-                return;
-            }
-            for (const k of Object.keys(currencies)) {
-                delete currencies[Number(k)];
-            }
-            Object.assign(currencies, result);
-        }
-        const currencyServiceApi = { reloadCurrencies };
-        // Facade-routed so a downstream patch of `reloadCurrencies` is seen by
-        // this listener too; calling the closure would capture the pre-patch fn.
-        onModelMutation(["res.currency"], () => {
-            currencyServiceApi.reloadCurrencies().catch(console.warn);
-        });
-        return currencyServiceApi;
+    start(env, services) {
+        return new CurrencyService(env, services);
     },
 };
 

@@ -1,9 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/record_selectors/base_record_selector */
-
 import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
+import { isAvatarModel } from "@web/components/record_selectors/avatar_models";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 export class BaseRecordSelector extends Component {
@@ -21,12 +20,7 @@ export class BaseRecordSelector extends Component {
 
     /** @returns {boolean} */
     get isAvatarModel() {
-        return [
-            "res.partner",
-            "res.users",
-            "hr.employee",
-            "hr.employee.public",
-        ].includes(this.props.resModel);
+        return isAvatarModel(this.props.resModel);
     }
 
     /**
@@ -46,11 +40,6 @@ export class BaseRecordSelector extends Component {
     }
 
     /**
-     * Values are not all strings: `loadDisplayNames` resolves inaccessible or
-     * missing ids to the `ERROR_INACCESSIBLE_OR_MISSING` symbol. This used to
-     * claim `Record<number, string>`, which typechecked only because the name
-     * service published its surface as bare `Function`.
-     *
      * @param {Record<string, any>} props
      * @returns {Promise<import("@web/core/name_service").DisplayNames>}
      */

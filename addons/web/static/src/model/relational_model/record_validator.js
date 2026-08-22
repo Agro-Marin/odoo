@@ -1,11 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/record_validator */
-
 import { toRaw } from "@odoo/owl";
+import { isX2Many } from "@web/core/field_types";
 
-import { isX2Many } from "./field_context.js";
 import { listId } from "./static_list_utils.js";
 
 /** @import { RelationalRecord } from "@web/model/relational_model/record" */
@@ -93,20 +91,6 @@ export function findUnsetRequiredFields(
 }
 
 /**
- * Drop invalidity the user has no way to clear.
- *
- * {@link findUnsetRequiredFields} has always skipped invisible fields, so
- * required-driven invalidity is already "invisible implies not blocking". Field
- * widgets mark their own invalidity through {@link setInvalidField} -- an
- * unparseable date or number, a malformed domain -- and that half was never
- * re-examined once set. A field hidden by a modifier AFTER the user typed into
- * it therefore kept blocking every save, behind a notification naming a field
- * that is not on screen: the form could only be escaped by discarding.
- *
- * Nothing unsafe is written by clearing it. A parse failure means the widget
- * never handed the value to the record, so what gets saved is the last value
- * that did parse -- and the server validates regardless.
- *
  * @param {RelationalRecord} record
  */
 function pruneUnreachableInvalidFields(record) {
@@ -120,19 +104,12 @@ function pruneUnreachableInvalidFields(record) {
 
 /**
  * @param {RelationalRecord} record
- * @param {{ silent?: boolean, displayNotification?: boolean, removeInvalidOnly?: boolean, scopedFields?: Set<string> }} [options]
- * @returns {boolean}
+ * @param {{ silent?: boolean, removeInvalidOnly?: boolean }} mode
+ * @returns {{ isInvisible: (f: string) => boolean, isRequired: (f: string) => boolean,
+ *             isChildListValid: (f: string, list: any) => boolean }}
  */
-export function checkValidity(
-    record,
-    { silent, displayNotification, removeInvalidOnly, scopedFields } = {},
-) {
-    // `silent` means "answer the question without touching state", so the prune
-    // is skipped there along with every other mutation below.
-    if (!silent) {
-        pruneUnreachableInvalidFields(record);
-    }
-    const callbacks = {
+function makeValidityCallbacks(record, { silent, removeInvalidOnly }) {
+    return {
         isInvisible: (/** @type {any} */ fieldName) => record._isInvisible(fieldName),
         isRequired: (/** @type {any} */ fieldName) => record._isRequired(fieldName),
         isChildListValid: (/** @type {any} */ _fieldName, /** @type {any} */ list) => {
@@ -151,60 +128,59 @@ export function checkValidity(
             });
         },
     };
+}
 
-    if (removeInvalidOnly) {
-        const candidates = [];
-        for (const fieldName of Array.from(record._unsetRequiredFields)) {
-            if (!(fieldName in record.activeFields)) {
-                record._unsetRequiredFields.delete(fieldName);
-                record._invalidFields.delete(fieldName);
-                continue;
-            }
-            const field = record.fields[fieldName];
-            const isX2many = isX2Many(field);
-            if (scopedFields && !scopedFields.has(fieldName) && !isX2many) {
-                continue;
-            }
-            candidates.push(fieldName);
+/**
+ * @param {RelationalRecord} record
+ * @param {ReturnType<typeof makeValidityCallbacks>} callbacks
+ * @param {Set<string>} [scopedFields]
+ * @returns {void}
+ */
+function releaseSatisfiedFields(record, callbacks, scopedFields) {
+    const candidates = [];
+    for (const fieldName of Array.from(record._unsetRequiredFields)) {
+        if (!(fieldName in record.activeFields)) {
+            record._unsetRequiredFields.delete(fieldName);
+            record._invalidFields.delete(fieldName);
+            continue;
         }
-        if (candidates.length) {
-            const restrictedActiveFields = {};
-            for (const fieldName of candidates) {
-                restrictedActiveFields[fieldName] = record.activeFields[fieldName];
-            }
-            const freshUnset = findUnsetRequiredFields(
-                restrictedActiveFields,
-                record.fields,
-                record.data,
-                callbacks,
-            );
-            for (const fieldName of candidates) {
-                if (!freshUnset.has(fieldName)) {
-                    record._unsetRequiredFields.delete(fieldName);
-                    record._invalidFields.delete(fieldName);
-                }
-            }
+        if (
+            scopedFields &&
+            !scopedFields.has(fieldName) &&
+            !isX2Many(record.fields[fieldName])
+        ) {
+            continue;
         }
-        const isValid = !record._invalidFields.size;
-        if (!isValid && displayNotification) {
-            record.setInvalidFieldsNotification(
-                displayInvalidFieldNotification(record),
-            );
-        }
-        return isValid;
+        candidates.push(fieldName);
     }
-
-    const unsetRequiredFields = findUnsetRequiredFields(
-        record.activeFields,
+    if (!candidates.length) {
+        return;
+    }
+    /** @type {Record<string, any>} */
+    const restrictedActiveFields = {};
+    for (const fieldName of candidates) {
+        restrictedActiveFields[fieldName] = record.activeFields[fieldName];
+    }
+    const stillUnset = findUnsetRequiredFields(
+        restrictedActiveFields,
         record.fields,
         record.data,
         callbacks,
     );
-
-    if (silent) {
-        return !unsetRequiredFields.size;
+    for (const fieldName of candidates) {
+        if (!stillUnset.has(fieldName)) {
+            record._unsetRequiredFields.delete(fieldName);
+            record._invalidFields.delete(fieldName);
+        }
     }
+}
 
+/**
+ * @param {RelationalRecord} record
+ * @param {Set<string>} unsetRequiredFields
+ * @returns {void}
+ */
+function adoptUnsetRequiredFields(record, unsetRequiredFields) {
     for (const fieldName of Array.from(record._unsetRequiredFields)) {
         record._invalidFields.delete(fieldName);
     }
@@ -213,6 +189,14 @@ export function checkValidity(
         record._unsetRequiredFields.add(fieldName);
         record._invalidFields.add(fieldName);
     }
+}
+
+/**
+ * @param {RelationalRecord} record
+ * @param {boolean | undefined} displayNotification
+ * @returns {boolean}
+ */
+function reportValidity(record, displayNotification) {
     const isValid = !record._invalidFields.size;
     if (!isValid && displayNotification) {
         record.setInvalidFieldsNotification(displayInvalidFieldNotification(record));
@@ -222,11 +206,44 @@ export function checkValidity(
 
 /**
  * @param {RelationalRecord} record
+ * @param {{ silent?: boolean, displayNotification?: boolean, removeInvalidOnly?: boolean, scopedFields?: Set<string> }} [options]
+ * @returns {boolean}
+ */
+export function checkValidity(
+    record,
+    { silent, displayNotification, removeInvalidOnly, scopedFields } = {},
+) {
+    if (!silent) {
+        pruneUnreachableInvalidFields(record);
+    }
+    const callbacks = makeValidityCallbacks(record, { silent, removeInvalidOnly });
+
+    if (removeInvalidOnly) {
+        releaseSatisfiedFields(record, callbacks, scopedFields);
+        return reportValidity(record, displayNotification);
+    }
+
+    const unsetRequiredFields = findUnsetRequiredFields(
+        record.activeFields,
+        record.fields,
+        record.data,
+        callbacks,
+    );
+    if (silent) {
+        return !unsetRequiredFields.size;
+    }
+    adoptUnsetRequiredFields(record, unsetRequiredFields);
+    return reportValidity(record, displayNotification);
+}
+
+/**
+ * @param {RelationalRecord} record
  * @param {string} fieldName
  * @returns {Promise<void>}
  */
 export async function setInvalidField(record, fieldName) {
-    const canProceed = record.model.hooks.lifecycle.onWillSetInvalidField(
+    const canProceed = record.model.notifyLifecycleSync(
+        "onWillSetInvalidField",
         record,
         fieldName,
     );
@@ -271,5 +288,5 @@ export function removeInvalidFields(record, ...fieldNames) {
  * @returns {() => void}
  */
 export function displayInvalidFieldNotification(record) {
-    return record.model.hooks.ui.onDisplayInvalidFields();
+    return record.model.uiHooks.onDisplayInvalidFields();
 }

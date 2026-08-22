@@ -2,7 +2,7 @@
 /** @odoo-module native */
 
 import { Component, useEffect, useRef } from "@odoo/owl";
-import { useDropdownCloser } from "@web/components/dropdown/dropdown_hooks";
+import { useDropdownCloser } from "@web/components/dropdown/dropdown_hook";
 
 export class KanbanDropdownMenuWrapper extends Component {
     static template = "web.KanbanDropdownMenuWrapper";

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/install_scoped_app/install_scoped_app */
-
 import { Component, onMounted, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { browser } from "@web/core/browser/browser";

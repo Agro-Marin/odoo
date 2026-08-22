@@ -1,12 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/selection/badge_selection/list_badge_selection_field */
-
 import { badgeColorClass } from "@web/core/badge/badge_colors";
 import { _t } from "@web/core/translation";
 import { mergeClasses } from "@web/core/utils/dom/classname";
 import { registerField } from "@web/fields/_registry";
+import { colorFieldOption } from "@web/fields/field_options";
 
 import { BadgeSelectionField, badgeSelectionField } from "./badge_selection_field.js";
 
@@ -18,9 +17,7 @@ export class ListBadgeSelectionField extends BadgeSelectionField {
     };
     /**
      * @param {[string, string] | false} option
-     * @returns {string | object} a class string from `badgeColorClass`, or the
-     *  class object `mergeClasses` builds — both are what OWL's `t-att-class`
-     *  accepts, and the declaration named only the first.
+     * @returns {string | object}
      */
     getBadgeClassNames(option = false) {
         if (this.props.readonly) {
@@ -41,22 +38,13 @@ export class ListBadgeSelectionField extends BadgeSelectionField {
     }
 }
 
-export const listBadgeSelectionField = {
+const listBadgeSelectionField = {
     ...badgeSelectionField,
     component: ListBadgeSelectionField,
     supportedOptions: [
         ...badgeSelectionField.supportedOptions,
-        {
-            label: _t("Color field"),
-            name: "color_field",
-            type: "field",
-            availableTypes: ["integer"],
-            help: _t("Set an integer field to use colors with the badge."),
-        },
+        colorFieldOption(_t("Set an integer field to use colors with the badge.")),
     ],
-    // `badgeColorClass` reads the colour out of `record.data`, so a view that
-    // names the option but not the field fell back to the plain badge and the
-    // option silently did nothing.
     fieldDependencies: ({ /** @type {any} */ options }) =>
         options.color_field
             ? [{ name: options.color_field, optional: true, readonly: true }]

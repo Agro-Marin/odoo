@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/kanban_column_examples_dialog */
-
 import { Component, useRef } from "@odoo/owl";
 import { Notebook } from "@web/components/notebook/notebook";
 import { Dialog } from "@web/ui/dialog/dialog";

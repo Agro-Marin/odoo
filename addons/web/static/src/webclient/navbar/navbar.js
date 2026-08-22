@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/navbar/navbar */
-
 import {
     Component,
     onWillDestroy,
@@ -34,7 +32,7 @@ systrayRegistry.addValidation({
 
 const getBoundingClientRect = Element.prototype.getBoundingClientRect;
 
-const MORE_MENU_WIDTH = 46;
+const MORE_MENU_FALLBACK_WIDTH = 46;
 
 export class NavBar extends Component {
     static template = "web.NavBar";
@@ -113,13 +111,6 @@ export class NavBar extends Component {
         );
     }
 
-    /**
-     * Never called. It exists so `patch()` can install a getter-only override
-     * without the property losing its setter: `website` overrides this getter
-     * (`website/components/navbar/navbar.js`, `.../burger_menu/burger_menu.js`)
-     * on top of the Enterprise NavBar extension, and the two conflict on a
-     * property that is get-only.
-     */
     set currentAppSections(_) {}
 
     get isScopedApp() {
@@ -141,7 +132,6 @@ export class NavBar extends Component {
                         /** @type {import("@web/env").OdooEnv} */ (this.env),
                     );
                 } catch (error) {
-                    // One broken predicate must not take down the whole navbar.
                     console.error(
                         `Error in "isDisplayed" of systray item "${item.key}":`,
                         error,
@@ -152,7 +142,6 @@ export class NavBar extends Component {
             .reverse();
     }
 
-    /** Never called; see {@link NavBar#currentAppSections}'s setter. */
     set systrayItems(_) {}
 
     adapt() {
@@ -179,22 +168,24 @@ export class NavBar extends Component {
         const sectionWidths = sections.map((s) => getBoundingClientRect.call(s).width);
         const sectionsTotalWidth = sectionWidths.reduce((sum, w) => sum + w, 0);
         if (sectionsAvailableWidth < sectionsTotalWidth) {
-            let width = MORE_MENU_WIDTH;
+            const moreMenu = sectionsMenu.querySelector(".o_menu_sections_more");
+            let width = moreMenu
+                ? getBoundingClientRect.call(moreMenu).width || MORE_MENU_FALLBACK_WIDTH
+                : MORE_MENU_FALLBACK_WIDTH;
             for (let index = 0; index < sections.length; index++) {
                 if (sectionsAvailableWidth < width + sectionWidths[index]) {
-                    const overflowingSections = sections.slice(index);
-                    for (const s of overflowingSections) {
+                    const sectionsById = new Map(
+                        this.currentAppSections.map((s) => [String(s.id), s]),
+                    );
+                    for (const s of sections.slice(index)) {
                         s.classList.add("d-none");
                         const sectionNode = s.dataset.section
                             ? s
                             : s.querySelector("[data-section]");
                         const sectionId = sectionNode?.getAttribute("data-section");
-                        if (!sectionId) {
-                            continue;
-                        }
-                        const currentAppSection = this.currentAppSections.find(
-                            (appSection) => appSection.id.toString() === sectionId,
-                        );
+                        const currentAppSection = sectionId
+                            ? sectionsById.get(sectionId)
+                            : undefined;
                         if (currentAppSection) {
                             this.currentAppSectionsExtra.push(currentAppSection);
                         }
@@ -205,14 +196,6 @@ export class NavBar extends Component {
             }
         }
 
-        // Entry by entry, by identity. `getMenuAsTree` hands back the same
-        // objects until the menu service rebuilds its tree, so identity is
-        // exactly "the payload these sections came from is unchanged" — which
-        // also covers the app having changed. Comparing the LENGTH and the
-        // first entry's appID instead let a menu reload that swapped sections
-        // within one app through the guard: the render that carried the new
-        // sections had already happened with the previous overflow list, so
-        // the "more" dropdown went on offering menus that no longer existed.
         if (
             initialAppSectionsExtra.length === this.currentAppSectionsExtra.length &&
             initialAppSectionsExtra.every(

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/dropdown/dropdown_hooks */
-
 import { useEnv, useState } from "@odoo/owl";
 import { DROPDOWN_NESTING } from "@web/components/dropdown/_behaviours/dropdown_nesting";
 import { SignalStore } from "@web/core/utils/reactive";

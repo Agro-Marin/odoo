@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_measurements */
-
 import { _t } from "@web/core/translation";
 import { unique } from "@web/core/utils/collections/arrays";
 
@@ -88,7 +86,6 @@ export function dropUnknownMeasures(activeMeasures, measures) {
     return kept.length ? kept : ["__count"];
 }
 
-/** Aggregators {@link computeAggregatedValue} can evaluate client-side. */
 export const CLIENT_AGGREGATORS = new Set([
     "sum",
     "avg",
@@ -99,14 +96,9 @@ export const CLIENT_AGGREGATORS = new Set([
 ]);
 
 /**
- * Returns each aggregator's mathematical identity for an empty input — 0 (sum,
- * count), NaN (avg), ±Infinity (min, max). Callers that display the result are
- * responsible for not asking about an empty set.
- *
  * @param {number[]} values
  * @param {'sum'|'avg'|'min'|'max'|'count'|'count_distinct'} aggregator
- * @returns number
- * @throws {Error} on an aggregator that has no client-side equivalent
+ * @throws {Error}
  */
 export function computeAggregatedValue(values, aggregator) {
     if (!CLIENT_AGGREGATORS.has(aggregator)) {

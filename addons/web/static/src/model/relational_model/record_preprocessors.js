@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/record_preprocessors */
-
 import { markup } from "@odoo/owl";
 import { x2ManyCommands } from "@web/core/network/commands";
 import { _t } from "@web/core/translation";
@@ -65,7 +63,9 @@ export async function preprocessMany2oneChanges(record, changes) {
             if (!value) {
                 changes[fieldName] = false;
             } else if (record.activeFields[fieldName]) {
-                const relation = record.fields[fieldName].relation;
+                const relation = /** @type {string} */ (
+                    record.fields[fieldName].relation
+                );
                 return completeMany2OneValue(record, value, fieldName, relation).then(
                     (v) => {
                         changes[fieldName] = v;
@@ -186,11 +186,10 @@ export function preprocessPropertiesChanges(record, changes) {
     for (const [fieldName, value] of Object.entries(changes)) {
         const field = record.fields[fieldName];
         if (field.type === "properties") {
+            const definitionRecord = /** @type {string} */ (field.definition_record);
             const parent =
-                changes[field.definition_record] ||
-                /** @type {Record<string, any>} */ (record.data)[
-                    field.definition_record
-                ];
+                changes[definitionRecord] ||
+                /** @type {Record<string, any>} */ (record.data)[definitionRecord];
             Object.assign(
                 changes,
                 record._processProperties(value, fieldName, parent, record.data),
@@ -205,7 +204,7 @@ export function preprocessPropertiesChanges(record, changes) {
                     (/** @type {any} */ property) => property.name === propertyName,
                 )
             ) {
-                record.model.hooks.ui.onDisplayPropertyWarning(
+                record.model.uiHooks.onDisplayPropertyWarning(
                     _t(
                         "This record belongs to a different parent so you can not change this property.",
                     ),

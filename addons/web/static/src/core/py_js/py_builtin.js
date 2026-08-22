@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/py_js/py_builtin */
-
 import { isLess } from "./py_compare.js";
 import { PyDate, PyDateTime, PyRelativeDelta, PyTime, PyTimeDelta } from "./py_date.js";
 import { EvaluationError } from "./py_errors.js";
@@ -36,23 +34,6 @@ function pyReprString(s) {
 }
 
 /**
- * A number the way Python spells it, as far as one JS number type allows.
- *
- * Two things JS spells differently and that are *not* the int/float problem:
- *
- * - non-finite values, which printed as ``Infinity`` / ``NaN`` -- JavaScript
- *   spellings that no Python ever produces, and that flowed into domains and
- *   ``%s`` output verbatim;
- * - the exponent threshold. Python switches to scientific below ``1e-4``,
- *   JS only below ``1e-6``, and JS writes a one-digit exponent (``1e-7``)
- *   where Python pads to two (``1e-07``).
- *
- * Only the SMALL side is corrected. Above ``1e16`` Python also switches to
- * scientific, but every float that large is integral, so it is indistinguishable
- * from an int here -- and ``str(10000000000000000)`` really is
- * ``'10000000000000000'``. That one belongs to the int/float unification this
- * module cannot close; a value below ``1e-4`` is never an integer, so it does.
- *
  * @param {number} value
  * @returns {string}
  */
@@ -67,8 +48,6 @@ function pyNumberStr(value) {
         return "-inf";
     }
     if (value !== 0 && Math.abs(value) < 1e-4) {
-        // `toExponential()` with no argument keeps the shortest round-tripping
-        // mantissa, which is what Python's repr uses too.
         return value.toExponential().replace(/e([+-])(\d)$/, "e$10$2");
     }
     return String(value);
@@ -138,15 +117,9 @@ export function pyStr(value) {
     return String(value);
 }
 
-/** Scratch view used to read a double's exact IEEE-754 fields. */
 const F64_VIEW = new DataView(new ArrayBuffer(8));
 
 /**
- * Decompose a finite, non-zero, positive double into `mantissa * 2 ** exponent`
- * with both parts integral. binary64 values are dyadic rationals, so this is
- * exact -- which is the whole point: every decimal *rendering* of a double is
- * already a rounding, and rounding a rounding is what this module got wrong.
- *
  * @param {number} value
  * @returns {{ mantissa: bigint, exponent: number }}
  */
@@ -157,39 +130,18 @@ function _decomposeDouble(value) {
     const biasedExponent = (hi >>> 20) & 0x7ff;
     const rawMantissa = (BigInt(hi & 0xfffff) << 32n) | BigInt(lo);
     if (biasedExponent === 0) {
-        // Subnormal: no implicit leading bit.
         return { mantissa: rawMantissa, exponent: -1074 };
     }
     return { mantissa: rawMantissa | (1n << 52n), exponent: biasedExponent - 1075 };
 }
 
 /**
- * CPython's `round()` for floats, including its half-to-even tie-break.
- *
- * The tie-break has to be decided on the double's EXACT value, never on a
- * decimal rendering of it. The previous implementation tested
- * `abs.toPrecision(17)`, and 17 significant digits is precisely the width at
- * which a value that merely *approaches* a tie becomes indistinguishable from
- * one: 1.05 is exactly 1.05000000000000004440892098500626... so CPython rounds
- * it up, while `(1.05).toPrecision(17)` is "1.0500000000000000" -- an exact
- * tie, whose even last kept digit then rounded it *down*. Measured against
- * CPython 3.14 over 7,070 cases, 12.1% disagreed: 180 in direction and the
- * rest by one ulp, the latter because the result was rebuilt as
- * `truncated + increment` in binary (`round(0.0135, 3)` returned
- * 0.013999999999999999 rather than 0.014).
- *
- * So: do the comparison in exact integer arithmetic, and re-enter the float
- * domain through a decimal string, which `Number()` parses correctly-rounded
- * exactly as CPython's decimal->double conversion does.
- *
  * @param {number} value
  * @param {number} ndigits
  * @returns {number}
  */
 export function _pythonRound(value, ndigits) {
     if (typeof ndigits === "boolean") {
-        // `bool` is a subclass of `int` in Python, so `round(2.675, True)` is
-        // `round(2.675, 1)` rather than an error.
         ndigits = ndigits ? 1 : 0;
     }
     if (!Number.isInteger(ndigits)) {
@@ -200,8 +152,6 @@ export function _pythonRound(value, ndigits) {
     if (!Number.isFinite(value) || value === 0) {
         return value;
     }
-    // No double carries more than 1074 fractional bits, nor more than 309
-    // integral digits, so outside this band the answer is already exact.
     if (ndigits > 1100) {
         return value;
     }
@@ -212,7 +162,6 @@ export function _pythonRound(value, ndigits) {
     const negative = value < 0;
     const { mantissa, exponent } = _decomposeDouble(Math.abs(value));
 
-    // |value| * 10**ndigits as an exact fraction num/den.
     let num = mantissa;
     let den = 1n;
     if (exponent >= 0) {
@@ -443,8 +392,6 @@ export const BUILTINS = {
         if (value instanceof Set) {
             return value.size;
         }
-        // Only a mapping, not "any object": counting own properties answered 3
-        // for `len(datetime.date(2020, 1, 1))`, which CPython rejects.
         if (isPyMapping(value)) {
             return Object.keys(value).length;
         }

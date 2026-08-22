@@ -35,7 +35,6 @@ class ResUsers(models.Model):
         operator: str = "ilike",
         limit: int = 100,
     ) -> list[tuple[int, str]]:
-        """Move the current user to the front of the result list."""
         domain = Domain(domain or Domain.TRUE)
         user_list = super().name_search(name, domain, operator, limit)
         uid = self.env.uid
@@ -67,12 +66,6 @@ class ResUsers(models.Model):
 
     @api.model
     def web_create_users(self, emails: list[str]) -> bool:
-        """Batch-create users from a list of email addresses.
-
-        Reactivates deactivated accounts when the email matches an existing
-        inactive user. Already-active users are skipped (not duplicated).
-        Requires the Discuss application for the ``email_normalized`` field.
-        """
         emails_normalized = [
             tools.mail.parse_contact_from_email(email)[1] for email in emails
         ]

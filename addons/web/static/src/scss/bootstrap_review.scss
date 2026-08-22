@@ -85,10 +85,6 @@
     list-style: none;
 }
 
-// Design tokens, but not in `secondary_variables.scss`: `color-contrast()` needs
-// the Bootstrap variables and `$spacers` does not exist until `_variables.scss`,
-// both of which load after it. `!default` so a theme setting them earlier - the
-// only place a theme can - is not silently overwritten here.
 $o-calendar-today-background-color: $o-danger !default;
 $o-calendar-today-color: color-contrast($o-calendar-today-background-color) !default;
 $o-datetime-picker-width: calc(5px * 7 * 8 + (2 * #{map-get($spacers, 2)})) !default;
@@ -102,34 +98,19 @@ $o-datetime-picker-width: calc(5px * 7 * 8 + (2 * #{map-get($spacers, 2)})) !def
     }
 }
 
-
-// = Icons that are the whole element
-// ============================================================================
-// Bootstrap draws these as a `background-image` whose colour is interpolated
-// into the SVG. A custom property inside a `data:` URI is inert -- the URI is
-// not CSS -- so the colour is fixed when the bundle compiles, and each icon is
-// one more thing a second stylesheet has to carry.
-//
-// Painted as a mask instead, the SVG says only *where* and the colour is an
-// ordinary declaration, so it follows the scheme like everything else. This is
-// exact for these four and only these four: the icon is the entire visual. It
-// would not be for `.form-check-input:checked` or `.form-switch`, where the
-// mark sits on top of a filled control and a mask would take the fill with it.
-
+// The pseudo-element is what carries the mask: `mask` clips `box-shadow` too,
+// and this control's focus ring is one, behind `outline: 0`.
 .btn-close {
-    // `currentColor`: the element already sets `color` from the same variable
-    // the SVG's `fill` was interpolated from.
-    background: currentColor;
-    mask: var(--#{$prefix}btn-close-bg) center / $btn-close-width auto no-repeat;
-}
-
-.navbar-toggler-icon {
-    background-color: var(--#{$prefix}navbar-color);
     background-image: none;
-    mask-image: escape-svg($o-navbar-toggler-mask);
-    mask-repeat: no-repeat;
-    mask-position: center;
-    mask-size: 100%;
+
+    &::before {
+        content: "";
+        display: block;
+        width: $btn-close-width;
+        height: $btn-close-height;
+        background: currentColor;
+        mask: var(--#{$prefix}btn-close-bg) center / $btn-close-width auto no-repeat;
+    }
 }
 
 .accordion-button {
@@ -142,8 +123,6 @@ $o-datetime-picker-width: calc(5px * 7 * 8 + (2 * #{map-get($spacers, 2)})) !def
     }
 
     &:not(.collapsed)::after {
-        // The active icon differed from the resting one only in its colour, so
-        // under a mask there is one image and this is the whole difference.
         background-color: var(
             --#{$prefix}accordion-btn-active-icon-color,
             var(--#{$prefix}primary-text-emphasis)

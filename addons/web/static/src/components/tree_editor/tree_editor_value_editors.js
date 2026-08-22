@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/tree_editor/tree_editor_value_editors */
-
 import { DateTimeInput } from "@web/components/datetime/datetime_input";
 import {
     DomainSelectorAutocomplete,
@@ -37,13 +35,14 @@ import { disambiguate, getResModel, isId } from "@web/core/tree/utils";
 import { unique } from "@web/core/utils/collections/arrays";
 /**
  * @typedef {Object} ValueEditorInfo
- * @property {import("@odoo/owl").ComponentConstructor | null} component
- * @property {((params: {value: any, update: Function, displayPlaceholder?: boolean}) => Object) | null} extractProps
+ * @property {import("@odoo/owl").ComponentConstructor | null} [component]
+ * @property {((params: {value: any, update: Function, displayPlaceholder?: boolean}) => Object) | null} [extractProps]
  * @property {(value: any) => boolean} isSupported
  * @property {(operator?: string) => any} defaultValue
  * @property {((value: any) => boolean)} [shouldResetValue]
- * @property {string} [message]
- * @property {(value: any, disambiguate?: boolean) => string} [stringify]
+ * @property {string} message
+ * @property {(value: any, disambiguate?: boolean) => string} stringify
+ * @typedef {Partial<ValueEditorInfo> & Pick<ValueEditorInfo, "isSupported" | "defaultValue">} PartialValueEditorInfo
  */
 
 const formatters = registry.category("formatters");
@@ -80,7 +79,7 @@ function isParsable(fieldType, value) {
 /**
  * @param {"date"|"datetime"} type
  * @param {any} value
- * @returns {string}
+ * @returns {string | false}
  */
 function genericSerializeDate(type, value) {
     return type === "date" ? serializeDate(value) : serializeDateTime(value);
@@ -115,7 +114,7 @@ function placeholderForInput(displayPlaceholder) {
     }
 }
 
-/** @type {ValueEditorInfo} */
+/** @type {PartialValueEditorInfo} */
 const STRING_EDITOR = {
     component: Input,
     extractProps: ({ value, update, displayPlaceholder }) => ({
@@ -128,18 +127,11 @@ const STRING_EDITOR = {
 };
 
 /**
- * A label is whatever `_t()` returned, so the type has to admit
- * `TranslatedString` and not just `string`: `IN_RANGE_OPTIONS` and every other
- * built-in option list is built from `_t()` calls, and narrowing this to
- * `string` made each of those callers an error rather than the option lists
- * wrong.
- *
  * @param {Array<[any, string | import("@web/core/translation").TranslatedString]>} options
  * @param {Object} [params]
  * @param {boolean} [params.addBlankOption]
- * @param {Object<string, string>} [params.optionGroups] serialized option value
- *   -> optgroup label, for the options that belong in one
- * @returns {ValueEditorInfo}
+ * @param {Object<string, string>} [params.optionGroups]
+ * @returns {PartialValueEditorInfo}
  */
 function makeSelectEditor(options, params = {}) {
     const getOption = (value) => options.find(([v]) => v === value) || null;
@@ -157,10 +149,6 @@ function makeSelectEditor(options, params = {}) {
         defaultValue: () => options[0]?.[0] ?? false,
         stringify: (value, disambiguate) => {
             const option = getOption(value);
-            // `String()`, because a label is whatever `_t()` returned and this
-            // function's contract is a display string. Resolving it here is
-            // where it should happen: stringify is called to render, so the
-            // lazy TranslatedString has no reason to stay lazy past this point.
             return option
                 ? String(option[1])
                 : disambiguate
@@ -188,7 +176,7 @@ function getDomain(fieldDef) {
 
 /**
  * @param {Object} fieldDef
- * @returns {ValueEditorInfo}
+ * @returns {PartialValueEditorInfo}
  */
 function makeAutoCompleteEditor(fieldDef) {
     return {
@@ -213,14 +201,208 @@ function makeAutoCompleteEditor(fieldDef) {
 function isLitteralObject(value) {
     return typeof value === "object" && !Array.isArray(value) && value !== null;
 }
+/**
+ * @param {Object} fieldDef
+ * @param {Object} params
+ * @returns {PartialValueEditorInfo}
+ */
+function makeBetweenEditor(fieldDef, params) {
+    const editorInfo = getValueEditorInfo(fieldDef, "=", params);
+    const { defaultValue } = getValueEditorInfo(fieldDef, "=", {
+        ...params,
+        forBetween: true,
+    });
+    return {
+        component: Range,
+        extractProps: ({ value, update }) => ({
+            value,
+            update,
+            editorInfo,
+        }),
+        isSupported: (value) => Array.isArray(value) && value.length === 2,
+        defaultValue: () => {
+            const value = defaultValue();
+            return isLitteralObject(value) ? [value.start, value.end] : [value, value];
+        },
+        shouldResetValue: (value) =>
+            !editorInfo.isSupported(value[0]) || !editorInfo.isSupported(value[1]),
+    };
+}
+
+/**
+ * @param {Object} fieldDef
+ * @param {Object} params
+ * @returns {PartialValueEditorInfo}
+ */
+function makeInRangeEditor(fieldDef, params) {
+    const providerOptions = getInRangeProviderOptions(fieldDef.type);
+    /** @type {Object<string, string>} */
+    const optionGroups = {};
+    for (const { id, group } of providerOptions) {
+        optionGroups[JSON.stringify(id)] = group;
+    }
+    /** @type {Array<[any, string | import("@web/core/translation").TranslatedString]>} */
+    const valueTypeOptions = [
+        ...InRange.options,
+        ...providerOptions.map(
+            ({ id, label }) => /** @type {[any, string]} */ ([id, label]),
+        ),
+    ];
+    return {
+        component: InRange,
+        extractProps: ({ value, update }) => ({
+            value,
+            update,
+            valueTypeEditorInfo: makeSelectEditor(valueTypeOptions, {
+                ...params,
+                optionGroups,
+            }),
+            betweenEditorInfo: getValueEditorInfo(fieldDef, "between", params),
+        }),
+        isSupported: (value) =>
+            Array.isArray(value) &&
+            value.length === 4 &&
+            value[0] === fieldDef.type &&
+            InRange.options.some(([t]) => t === value[1]),
+        defaultValue: () => [fieldDef.type, "today", false, false],
+    };
+}
+
+/**
+ * @param {Object} fieldDef
+ * @param {Object} params
+ * @returns {PartialValueEditorInfo}
+ */
+function makeInEditor(fieldDef, params) {
+    switch (fieldDef.type) {
+        case "tags":
+            return STRING_EDITOR;
+        case "many2one":
+        case "many2many":
+        case "one2many":
+            return makeAutoCompleteEditor(fieldDef);
+        default: {
+            const editorInfo = getValueEditorInfo(fieldDef, "=", {
+                ...params,
+                addBlankOption: true,
+                startEmpty: true,
+            });
+            return {
+                component: List,
+                extractProps: ({ value, update }) => ({
+                    value,
+                    update,
+                    editorInfo: {
+                        ...editorInfo,
+                        stringify: (val) =>
+                            editorInfo.stringify(val, disambiguate(value)),
+                    },
+                }),
+                isSupported: (value) => Array.isArray(value),
+                defaultValue: () => [],
+                shouldResetValue: (value) => !value.every(editorInfo.isSupported),
+            };
+        }
+    }
+}
+
+/**
+ * @param {string} type
+ * @param {Object} params
+ * @returns {PartialValueEditorInfo}
+ */
+function makeNumberEditor(type, params) {
+    const formatType = type === "integer" ? "integer" : "float";
+    const typeFormatter = formatters.get(formatType, undefined);
+    const formatter = (value) => {
+        if (typeFormatter && typeof value === "number") {
+            try {
+                return String(typeFormatter(value));
+            } catch {}
+        }
+        return value === false ? "" : String(value);
+    };
+    return {
+        component: Input,
+        extractProps: ({ value, update, displayPlaceholder }) => ({
+            value: formatter(value),
+            update: (value) => update(parseValue(formatType, value)),
+            startEmpty: params.startEmpty,
+            placeholder: placeholderForInput(displayPlaceholder),
+        }),
+        isSupported: () => true,
+        defaultValue: () => 1,
+        shouldResetValue: (value) =>
+            typeof value !== "number" &&
+            !(value instanceof Expression) &&
+            !(typeof value === "string" && isParsable(formatType, value)),
+    };
+}
+
+/**
+ * @param {"date" | "datetime"} type
+ * @param {Object} params
+ * @returns {PartialValueEditorInfo}
+ */
+function makeDateEditor(type, params) {
+    return {
+        component: DateTimeInput,
+        extractProps: ({ value, update, displayPlaceholder }) => ({
+            value:
+                params.startEmpty || value === false
+                    ? false
+                    : genericDeserializeDate(type, value),
+            type,
+            onApply: (value) => {
+                if (!params.startEmpty || value) {
+                    update(
+                        genericSerializeDate(
+                            type,
+                            value || DateTime.local().startOf("day"),
+                        ),
+                    );
+                }
+            },
+            placeholder: placeholderForSelect(displayPlaceholder),
+        }),
+        isSupported: (value) => typeof value === "string" && isParsable(type, value),
+        defaultValue: (operator) => {
+            const datetime = DateTime.local();
+            if (operator === ">") {
+                return genericSerializeDate(type, datetime.endOf("day"));
+            }
+            const start = genericSerializeDate(type, datetime.startOf("day"));
+            if (params.forBetween) {
+                return {
+                    start,
+                    end: genericSerializeDate(type, datetime.endOf("day")),
+                };
+            }
+            return start;
+        },
+        shouldResetValue: (value) =>
+            !(typeof value === "string" && isParsable(type, value)),
+        stringify: (value) => {
+            if (value === false) {
+                return _t("False");
+            }
+            if (typeof value === "string" && isParsable(type, value)) {
+                const formatter = formatters.get(type, formatValue);
+                return formatter(genericDeserializeDate(type, value));
+            }
+            return formatValue(value);
+        },
+        message: _t("Not a valid %s", type),
+    };
+}
 
 /**
  * @param {Object} fieldDef
  * @param {string} operator
  * @param {Object} [params]
- * @returns {Partial<ValueEditorInfo>}
+ * @returns {PartialValueEditorInfo | null}
  */
-function getPartialValueEditorInfo(fieldDef, operator, params = {}) {
+function getOperatorValueEditorInfo(fieldDef, operator, params = {}) {
     switch (operator) {
         case "set":
         case "not set":
@@ -239,101 +421,14 @@ function getPartialValueEditorInfo(fieldDef, operator, params = {}) {
         case "not ilike":
             return STRING_EDITOR;
         case "between": {
-            const editorInfo = getValueEditorInfo(fieldDef, "=", params);
-            const { defaultValue } = getValueEditorInfo(fieldDef, "=", {
-                ...params,
-                forBetween: true,
-            });
-            return {
-                component: Range,
-                extractProps: ({ value, update }) => ({
-                    value,
-                    update,
-                    editorInfo,
-                }),
-                isSupported: (value) => Array.isArray(value) && value.length === 2,
-                defaultValue: () => {
-                    const value = defaultValue();
-                    return isLitteralObject(value)
-                        ? [value.start, value.end]
-                        : [value, value];
-                },
-                shouldResetValue: (value) =>
-                    !editorInfo.isSupported(value[0]) ||
-                    !editorInfo.isSupported(value[1]),
-            };
+            return makeBetweenEditor(fieldDef, params);
         }
         case "in range": {
-            // Named periods contributed by addons sit in the same select as the
-            // built-in value types, each under its provider's optgroup. They
-            // resolve to a plain `custom range` when picked — see
-            // `@web/core/tree/in_range_providers` for why a period is not a
-            // value type of its own.
-            const providerOptions = getInRangeProviderOptions(fieldDef.type);
-            /** @type {Object<string, string>} */
-            const optionGroups = {};
-            for (const { id, group } of providerOptions) {
-                optionGroups[JSON.stringify(id)] = group;
-            }
-            /** @type {Array<[any, string | import("@web/core/translation").TranslatedString]>} */
-            const valueTypeOptions = [
-                ...InRange.options,
-                ...providerOptions.map(
-                    ({ id, label }) => /** @type {[any, string]} */ ([id, label]),
-                ),
-            ];
-            return {
-                component: InRange,
-                extractProps: ({ value, update }) => ({
-                    value,
-                    update,
-                    valueTypeEditorInfo: makeSelectEditor(valueTypeOptions, {
-                        ...params,
-                        optionGroups,
-                    }),
-                    betweenEditorInfo: getValueEditorInfo(fieldDef, "between", params),
-                }),
-                isSupported: (value) =>
-                    Array.isArray(value) &&
-                    value.length === 4 &&
-                    value[0] === fieldDef.type &&
-                    InRange.options.some(([t]) => t === value[1]),
-                defaultValue: () => [fieldDef.type, "today", false, false],
-            };
+            return makeInRangeEditor(fieldDef, params);
         }
         case "in":
         case "not in": {
-            switch (fieldDef.type) {
-                case "tags":
-                    return STRING_EDITOR;
-                case "many2one":
-                case "many2many":
-                case "one2many":
-                    return makeAutoCompleteEditor(fieldDef);
-                default: {
-                    const editorInfo = getValueEditorInfo(fieldDef, "=", {
-                        ...params,
-                        addBlankOption: true,
-                        startEmpty: true,
-                    });
-                    return {
-                        component: List,
-                        extractProps: ({ value, update }) => ({
-                            value,
-                            update,
-                            editorInfo: {
-                                ...editorInfo,
-                                stringify: (val) =>
-                                    editorInfo.stringify(val, disambiguate(value)),
-                            },
-                        }),
-                        isSupported: (value) => Array.isArray(value),
-                        defaultValue: () => [],
-                        shouldResetValue: (value) =>
-                            !value.every(editorInfo.isSupported),
-                    };
-                }
-            }
+            return makeInEditor(fieldDef, params);
         }
         case "any":
         case "not any": {
@@ -349,94 +444,29 @@ function getPartialValueEditorInfo(fieldDef, operator, params = {}) {
                     };
                 }
             }
+            return null;
         }
     }
+    return null;
+}
 
+/**
+ * @param {Object} fieldDef
+ * @param {string} operator
+ * @param {Object} [params]
+ * @returns {PartialValueEditorInfo}
+ */
+function getTypeValueEditorInfo(fieldDef, operator, params = {}) {
     const { type } = fieldDef;
     switch (type) {
         case "integer":
         case "float":
         case "monetary": {
-            const formatType = type === "integer" ? "integer" : "float";
-            const typeFormatter = formatters.get(formatType, null);
-            const formatter = (value) => {
-                if (typeFormatter && typeof value === "number") {
-                    try {
-                        return String(typeFormatter(value));
-                    } catch {
-                        /* fall through to String(value) */
-                    }
-                }
-                return value === false ? "" : String(value);
-            };
-            return {
-                component: Input,
-                extractProps: ({ value, update, displayPlaceholder }) => ({
-                    value: formatter(value),
-                    update: (value) => update(parseValue(formatType, value)),
-                    startEmpty: params.startEmpty,
-                    placeholder: placeholderForInput(displayPlaceholder),
-                }),
-                isSupported: () => true,
-                defaultValue: () => 1,
-                shouldResetValue: (value) =>
-                    typeof value !== "number" &&
-                    !(value instanceof Expression) &&
-                    !(typeof value === "string" && isParsable(formatType, value)),
-            };
+            return makeNumberEditor(type, params);
         }
         case "date":
         case "datetime":
-            return {
-                component: DateTimeInput,
-                extractProps: ({ value, update, displayPlaceholder }) => ({
-                    value:
-                        params.startEmpty || value === false
-                            ? false
-                            : genericDeserializeDate(type, value),
-                    type,
-                    onApply: (value) => {
-                        if (!params.startEmpty || value) {
-                            update(
-                                genericSerializeDate(
-                                    type,
-                                    value || DateTime.local().startOf("day"),
-                                ),
-                            );
-                        }
-                    },
-                    placeholder: placeholderForSelect(displayPlaceholder),
-                }),
-                isSupported: (value) =>
-                    typeof value === "string" && isParsable(type, value),
-                defaultValue: (operator) => {
-                    const datetime = DateTime.local();
-                    if (operator === ">") {
-                        return genericSerializeDate(type, datetime.endOf("day"));
-                    }
-                    const start = genericSerializeDate(type, datetime.startOf("day"));
-                    if (params.forBetween) {
-                        return {
-                            start,
-                            end: genericSerializeDate(type, datetime.endOf("day")),
-                        };
-                    }
-                    return start;
-                },
-                shouldResetValue: (value) =>
-                    !(typeof value === "string" && isParsable(type, value)),
-                stringify: (value) => {
-                    if (value === false) {
-                        return _t("False");
-                    }
-                    if (typeof value === "string" && isParsable(type, value)) {
-                        const formatter = formatters.get(type, formatValue);
-                        return formatter(genericDeserializeDate(type, value));
-                    }
-                    return formatValue(value);
-                },
-                message: _t("Not a valid %s", type),
-            };
+            return makeDateEditor(type, params);
         case "char":
         case "html":
         case "text":
@@ -486,6 +516,19 @@ function getPartialValueEditorInfo(fieldDef, operator, params = {}) {
         isSupported: () => true,
         defaultValue: () => "",
     };
+}
+
+/**
+ * @param {Object} fieldDef
+ * @param {string} operator
+ * @param {Object} [params]
+ * @returns {PartialValueEditorInfo}
+ */
+function getPartialValueEditorInfo(fieldDef, operator, params = {}) {
+    return (
+        getOperatorValueEditorInfo(fieldDef, operator, params) ??
+        getTypeValueEditorInfo(fieldDef, operator, params)
+    );
 }
 
 /**

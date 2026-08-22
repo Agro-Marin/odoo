@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dom/scrolling */
-
 import { browser } from "@web/core/browser/browser";
 
 const SCROLL_SETTLE_TIMEOUT = 1000;

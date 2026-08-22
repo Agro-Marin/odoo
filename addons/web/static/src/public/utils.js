@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/public/utils */
-
 /**
  * @template {WeakKey} K
  * @template V

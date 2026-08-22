@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/network/http_service */
-
 import { browser } from "@web/core/browser/browser";
 import {
     ConnectionLostError,
@@ -82,7 +80,7 @@ export async function post(route, params = {}, readMethod = "json", options = {}
     return /** @type {any} */ (response)[readMethod]();
 }
 
-export const httpService = {
+const httpService = {
     async: ["get", "post"],
     start() {
         return { get, post };

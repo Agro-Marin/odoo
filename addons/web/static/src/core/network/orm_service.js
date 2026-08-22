@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/network/orm_service */
-
 import { Domain } from "@web/core/domain";
 import { UPDATE_METHODS } from "@web/core/network/model_mutation";
 import { rpc } from "@web/core/network/rpc";
@@ -72,15 +70,6 @@ export class ORM {
     }
 
     /**
-     * Derives an ORM whose calls are cancelled when `signal` aborts.
-     *
-     * Same proxy pattern as `silent` / `cache()` / `retry()`. Composes with all
-     * of them except `dedup`, which `rpc()` refuses alongside a signal because a
-     * deduplicated request is shared between callers and cancellation is not.
-     *
-     * Only ever apply this to reads: an aborted write has already been sent, and
-     * cancelling the client's interest in the answer does not undo it.
-     *
      * @param {AbortSignal} signal
      * @returns {ORM}
      */
@@ -171,15 +160,10 @@ export class ORM {
     }
 
     /**
-     * `create` takes a LIST of vals and the server answers with the list of ids
-     * it made, one per entry -- which is why every call site destructures
-     * (`const [id] = await orm.create(...)`), and why export_data_dialog had to
-     * cast the result to `any` to do so. The annotation said `number`.
-     *
      * @param {string} model
      * @param {any[]} records
      * @param {any} [kwargs=[]]
-     * @returns {Promise<number[]>} the new ids, in the order of `records`
+     * @returns {Promise<number[]>}
      */
     create(model, records, kwargs = {}) {
         validateArray("records", records);
@@ -192,7 +176,7 @@ export class ORM {
     /**
      * @param {string} model
      * @param {number[]} ids
-     * @param {string[]} [fields] Omit to read every field.
+     * @param {string[]} [fields]
      * @param {any} [kwargs={}]
      * @returns {Promise<any[]>}
      */
@@ -410,8 +394,6 @@ export class ORM {
      * @param {Object} [kwargs.context]
      * @returns {Promise<any[]>}
      */
-    // An empty `ids` means CREATE here, not "nothing to do" — unlike read/unlink
-    // this must never short-circuit.
     webSave(model, ids, data, kwargs = {}) {
         validatePrimitiveList("ids", "number", ids);
         validateObject("data", data);

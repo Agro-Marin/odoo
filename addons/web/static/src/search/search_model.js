@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_model */
-
 import { EventBus, toRaw } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
 import { SearchModelEvent } from "@web/core/events";
@@ -40,7 +38,6 @@ import { SearchPropertiesMixin } from "./search_properties_mixin.js";
 import { SearchQueryMixin } from "./search_query_mixin.js";
 import { SearchSplitDomainMixin } from "./search_split_domain_mixin.js";
 import {
-    extractSearchDefaults,
     isInvisible,
     itemsFromState,
     itemsToState,
@@ -51,6 +48,7 @@ import {
     queryFromState,
     queryToState,
     SEARCH_MODEL_STATE_VERSION,
+    takeSearchDefaults,
 } from "./search_state.js";
 import { getIntervalOptions } from "./utils/dates.js";
 
@@ -58,6 +56,7 @@ import { getIntervalOptions } from "./utils/dates.js";
 /** @import { Domain, DomainListRepr } from "@web/core/domain" */
 /** @import { OrderTerm } from "@web/core/utils/order_by" */
 /** @import { Field, FieldInfo, SearchParams } from "@web/model/types" */
+/** @import { ActiveItem, AutocompleteValue, Facet, QueryElement, QueryGroup, SearchItem, SearchItems } from "./search_types" */
 
 /**
  * @typedef {Object} Section
@@ -78,6 +77,28 @@ import { getIntervalOptions } from "./utils/dates.js";
  * @property {string} [domain]
  * @property {string|false} [groupBy]
  */
+/**
+ * @typedef {Object} SearchModelConfig
+ * @property {string} resModel
+ * @property {string} [searchViewArch]
+ * @property {Record<string, any>} [searchViewFields]
+ * @property {number|false} [searchViewId]
+ * @property {Record<string, any>[]} [irFilters]
+ * @property {boolean} [activateFavorite]
+ * @property {Record<string, any>} [context]
+ * @property {any[]} [domain]
+ * @property {Record<string, any>[]} [dynamicFilters]
+ * @property {string[]} [groupBy]
+ * @property {boolean} [loadIrFilters]
+ * @property {{controlPanel?: Record<string, any>|false, searchPanel?: boolean}} [display]
+ * @property {OrderTerm[]} [orderBy]
+ * @property {string[]} [searchMenuTypes]
+ * @property {import("./search_state").SearchModelState} [state]
+ * @property {boolean} [hideCustomGroupBy]
+ * @property {boolean} [canOrderByCount]
+ * @property {string[]} [defaultGroupBy]
+ */
+
 /** @typedef {Section & { type: "category" }} Category */
 /** @typedef {Section & { type: "filter" }} Filter */
 /** @typedef {(section: Section) => boolean} SectionPredicate */
@@ -87,12 +108,21 @@ export class SearchModel extends SearchQueryMixin(
         SearchFavoritesMixin(SearchPropertiesMixin(SearchPanelMixin(EventBus))),
     ),
 ) {
+    /**
+     * @param {import("@web/env").OdooEnv} env
+     * @param {Record<string, any>} services
+     * @param {Record<string, any>} [args]
+     */
     constructor(env, services, args) {
         super();
         this.env = env;
         this.setup(services, args);
     }
 
+    /**
+     * @param {Record<string, any>} services
+     * @param {Record<string, any>} [_args]
+     */
     setup(services, _args) {
         const {
             field: fieldService,
@@ -115,35 +145,16 @@ export class SearchModel extends SearchQueryMixin(
 
         this.referenceMoment = DateTime.local();
         this.intervalOptions = getIntervalOptions();
-        this.categoriesLoadId = 0;
-        this.filtersLoadId = 0;
         /** @type {Map<number, number>} */
         this._sectionLoadIds = new Map();
+        /** @type {Map<number, Section>|null} */
+        this._sectionsByTypeSource = null;
 
         this._reloadMutex = new Mutex();
     }
 
     /**
-     * @param {Object} config
-     * @param {string} config.resModel
-     * @param {string} [config.searchViewArch="<search/>"]
-     * @param {Object} [config.searchViewFields={}]
-     * @param {number|false} [config.searchViewId=false]
-     * @param {Object[]} [config.irFilters=[]]
-     * @param {boolean} [config.activateFavorite=true]
-     * @param {Object} [config.context={}]
-     * @param {Array} [config.domain=[]]
-     * @param {Array} [config.dynamicFilters=[]]
-     * @param {string[]} [config.groupBy=[]]
-     * @param {boolean} [config.loadIrFilters=false]
-     * @param {Object} [config.display]
-     * @param {boolean} [config.display.searchPanel=true]
-     * @param {OrderTerm[]} [config.orderBy=[]]
-     * @param {string[]} [config.searchMenuTypes=["filter", "groupBy", "favorite"]]
-     * @param {Object} [config.state]
-     * @param {boolean} [config.hideCustomGroupBy]
-     * @param {boolean} [config.canOrderByCount]
-     * @param {string[]} [config.defaultGroupBy]
+     * @param {SearchModelConfig} config
      */
     async load(config) {
         const { resModel } = config;
@@ -151,9 +162,31 @@ export class SearchModel extends SearchQueryMixin(
             throw Error(`SearchModel config should have a "resModel" key`);
         }
         this.resModel = resModel;
-
         this._reset();
 
+        this._applyGlobalConfig(config);
+
+        const { searchViewDescription, searchViewFields } =
+            await this._resolveSearchView(config);
+
+        const { searchDefaults, searchPanelDefaults } =
+            this.takeSearchDefaultsFromGlobalContext();
+
+        if (config.state) {
+            return this._loadFromState(config);
+        }
+        return this._loadFromArch(config, {
+            searchViewDescription,
+            searchViewFields,
+            searchDefaults,
+            searchPanelDefaults,
+        });
+    }
+
+    /**
+     * @param {SearchModelConfig} config
+     */
+    _applyGlobalConfig(config) {
         const { context, domain, groupBy, hideCustomGroupBy, orderBy } = config;
 
         this.globalContext = toRaw({ ...context });
@@ -167,11 +200,17 @@ export class SearchModel extends SearchQueryMixin(
         );
         this.canOrderByCount = config.canOrderByCount;
         this.defaultGroupBy = config.defaultGroupBy;
-        /** @type {boolean | undefined} */
-        this.defaultGroupByRemoved = undefined;
+        /** @type {boolean} */
+        this.defaultGroupByRemoved = false;
         /** @type {any} */
         this._filledPropertyFields = undefined;
+    }
 
+    /**
+     * @param {SearchModelConfig} config
+     * @returns {Promise<{searchViewDescription: Record<string, any>, searchViewFields: Record<string, any>}>}
+     */
+    async _resolveSearchView(config) {
         const { irFilters, loadIrFilters, searchViewArch, searchViewId } = config;
         let { searchViewFields } = config;
         const loadSearchView =
@@ -183,7 +222,7 @@ export class SearchModel extends SearchQueryMixin(
             const result = await this.viewService.loadViews(
                 {
                     context: this.globalContext,
-                    resModel,
+                    resModel: this.resModel,
                     views: [[searchViewId, "search"]],
                 },
                 {
@@ -204,6 +243,7 @@ export class SearchModel extends SearchQueryMixin(
         if (searchViewId !== undefined) {
             searchViewDescription.viewId = searchViewId;
         }
+
         this.searchViewArch = searchViewDescription.arch || "<search/>";
         this.searchViewFields = searchViewFields || {};
         if (searchViewDescription.irFilters) {
@@ -212,30 +252,50 @@ export class SearchModel extends SearchQueryMixin(
         if (searchViewDescription.viewId !== undefined) {
             this.searchViewId = searchViewDescription.viewId;
         }
+        return { searchViewDescription, searchViewFields };
+    }
 
-        const { searchDefaults, searchPanelDefaults } =
-            this.extractSearchDefaultsFromGlobalContext();
-
-        if (config.state) {
-            this._importState(config.state);
-            if (this.defaultGroupByRemoved) {
-                this.defaultGroupBy = undefined;
-            }
-            this.display = this._getDisplay(config.display);
-            this._reconciliateFavorites();
-            try {
-                if (!this.searchPanelInfo.loaded) {
-                    await this._reloadSections();
-                }
-            } finally {
-                this._pendingNotification = false;
-            }
-            return;
+    /**
+     * @param {SearchModelConfig} config
+     */
+    async _loadFromState(config) {
+        this._importState(config.state);
+        if (this.defaultGroupByRemoved) {
+            this.defaultGroupBy = undefined;
         }
+        this.display = this._getDisplay(config.display);
+        this._reconciliateFavorites();
+        try {
+            if (!this.searchPanelInfo.loaded) {
+                await this._reloadSections();
+            }
+        } finally {
+            this._pendingNotification = false;
+        }
+    }
 
+    /**
+     * @param {SearchModelConfig} config
+     * @param {object} parts
+     * @param {Record<string, any>} parts.searchViewDescription
+     * @param {Record<string, any>} parts.searchViewFields
+     * @param {Record<string, any>} parts.searchDefaults
+     * @param {Record<string, any>} parts.searchPanelDefaults
+     */
+    async _loadFromArch(
+        config,
+        {
+            searchViewDescription,
+            searchViewFields,
+            searchDefaults,
+            searchPanelDefaults,
+        },
+    ) {
         this.blockNotification = true;
         try {
+            /** @type {Record<number, any>} */
             this.searchItems = {};
+            /** @type {QueryElement[]} */
             this.query = [];
 
             this.nextId = 1;
@@ -285,34 +345,13 @@ export class SearchModel extends SearchQueryMixin(
                 activateFavorite ? defaultFavoriteId : null,
             );
 
-            /** @type Map<number,Section> */
             this.sections = new Map(
                 /** @type {[number, Section][]} */ (sections || []),
             );
             this.display = this._getDisplay(config.display);
 
             if (this.display.searchPanel) {
-                /** @type {DomainListRepr} */
-                this.searchDomain = /** @type {DomainListRepr} */ (
-                    this._getDomain({ withSearchPanel: false })
-                );
-                for (const { fieldName, values } of this.filters) {
-                    const rawDefault = searchPanelDefaults[fieldName];
-                    for (const valueId of rawDefault ? [].concat(rawDefault) : []) {
-                        values.set(valueId, { id: valueId, checked: true });
-                    }
-                }
-                this._sections = null;
-                this.sectionsPromise = this._fetchSections(
-                    this.categories,
-                    this.filters,
-                );
-                if (
-                    Object.keys(searchPanelDefaults).length ||
-                    this._shouldWaitForData(false)
-                ) {
-                    await this.sectionsPromise;
-                }
+                await this._seedSearchPanel(searchPanelDefaults);
             }
         } finally {
             this.blockNotification = false;
@@ -321,9 +360,30 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * @param {Object} [config={}]
-     * @param {Object} [config.context={}]
-     * @param {Array} [config.domain=[]]
+     * @param {Record<string, any>} searchPanelDefaults
+     */
+    async _seedSearchPanel(searchPanelDefaults) {
+        /** @type {DomainListRepr} */
+        this.searchDomain = /** @type {DomainListRepr} */ (
+            this._getDomain({ withSearchPanel: false })
+        );
+        for (const { fieldName, values } of this.filters) {
+            const rawDefault = searchPanelDefaults[fieldName];
+            for (const valueId of rawDefault ? [].concat(rawDefault) : []) {
+                values.set(valueId, { id: valueId, checked: true });
+            }
+        }
+        this._sections = null;
+        this.sectionsPromise = this._fetchSections(this.categories, this.filters);
+        if (Object.keys(searchPanelDefaults).length || this._shouldWaitForData(false)) {
+            await this.sectionsPromise;
+        }
+    }
+
+    /**
+     * @param {object} [config={}]
+     * @param {Record<string, any>} [config.context={}]
+     * @param {any[]} [config.domain=[]]
      * @param {string[]} [config.groupBy=[]]
      * @param {OrderTerm[]} [config.orderBy=[]]
      */
@@ -338,7 +398,7 @@ export class SearchModel extends SearchQueryMixin(
         this.globalGroupBy = "groupBy" in config ? groupBy || [] : this.globalGroupBy;
         this.globalOrderBy = "orderBy" in config ? orderBy || [] : this.globalOrderBy;
 
-        this.extractSearchDefaultsFromGlobalContext();
+        this.takeSearchDefaultsFromGlobalContext();
 
         await this._reloadSections();
         await this._drainPendingNotification();
@@ -356,7 +416,7 @@ export class SearchModel extends SearchQueryMixin(
      * @returns {Section[]}
      */
     _sectionsOfType(type) {
-        if (this._sectionsByTypeSource !== this.sections) {
+        if (this._sectionsByTypeSource !== this.sections || !this._sectionsByType) {
             this._sectionsByTypeSource = this.sections;
             this._sectionsByType = new Map();
         }
@@ -473,7 +533,7 @@ export class SearchModel extends SearchQueryMixin(
 
     /**
      * @param {(searchItem: Object) => boolean} [predicate]
-     * @returns {Object[]}
+     * @returns {Record<string, any>[]}
      */
     getSearchItems(predicate) {
         if (!this._enrichedSearchItems) {
@@ -497,18 +557,21 @@ export class SearchModel extends SearchQueryMixin(
             : [...this._enrichedSearchItems];
     }
 
-    /**
-     * The public, synchronous "the query is ready, run it" entry point (a view
-     * controller reacting to the search bar). Unlike {@link _notify} it does not
-     * reload the search-panel sections -- those refresh themselves off the new
-     * domain -- and it always fires, never coalesced by `blockNotification`,
-     * because it is a top-level action rather than a step inside a batch.
-     */
     search() {
         this._reset();
         this.trigger(SearchModelEvent.UPDATE);
     }
 
+    /**
+     * @returns {Promise<void>}
+     */
+    async refresh() {
+        return this._notify();
+    }
+
+    /**
+     * @param {number|null} defaultFavoriteId
+     */
     _activateDefaultSearchItems(defaultFavoriteId) {
         if (defaultFavoriteId) {
             this.toggleSearchItem(defaultFavoriteId);
@@ -530,6 +593,9 @@ export class SearchModel extends SearchQueryMixin(
         }
     }
 
+    /**
+     * @param {Record<string, any>[]} dynamicFilters
+     */
     _createGroupOfDynamicFilters(dynamicFilters) {
         const pregroup = dynamicFilters.map((filter) => ({
             groupNumber: this.nextGroupNumber,
@@ -542,8 +608,11 @@ export class SearchModel extends SearchQueryMixin(
         this._createGroupOfSearchItems(pregroup);
     }
 
+    /**
+     * @param {Record<string, any>[]} pregroup
+     */
     _createGroupOfSearchItems(pregroup) {
-        pregroup.forEach((preSearchItem) => {
+        pregroup.forEach((/** @type {Record<string, any>} */ preSearchItem) => {
             const searchItem = Object.assign(preSearchItem, {
                 groupId: this.nextGroupId,
                 id: this.nextId,
@@ -555,6 +624,10 @@ export class SearchModel extends SearchQueryMixin(
         this._enrichedSearchItems = null;
     }
 
+    /**
+     * @param {SearchItem} searchItem
+     * @param {Map<number, QueryElement[]>|QueryElement[]} queryIndex
+     */
     _enrichItem(searchItem, queryIndex) {
         return enrichSearchItem(
             searchItem,
@@ -564,13 +637,13 @@ export class SearchModel extends SearchQueryMixin(
         );
     }
 
-    extractSearchDefaultsFromGlobalContext() {
-        return extractSearchDefaults(this.globalContext);
+    takeSearchDefaultsFromGlobalContext() {
+        return takeSearchDefaults(this.globalContext);
     }
 
     /**
      * @param {number} [excludedCategoryId]
-     * @returns {Array[]}
+     * @returns {any[][]}
      */
     _getCategoryDomain(excludedCategoryId) {
         return computeCategoryDomain(
@@ -581,14 +654,22 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * @returns {Object}
+     * @returns {Record<string, any>}
      */
     _getContext() {
-        return computeSearchContext(this._getGroups(), user.context, (activeItem) =>
-            this._getSearchItemContext(activeItem),
+        return computeSearchContext(
+            this._getGroups(),
+            user.context,
+            (/** @type {ActiveItem} */ activeItem) =>
+                this._getSearchItemContext(activeItem),
         );
     }
 
+    /**
+     * @param {SearchItem} dateFilter
+     * @param {string[]} generatorIds
+     * @param {string} [key]
+     */
     _getDateFilterDomain(dateFilter, generatorIds, key = "domain") {
         return computeDateFilterDomain(
             this.referenceMoment,
@@ -600,7 +681,7 @@ export class SearchModel extends SearchQueryMixin(
 
     /**
      * @private
-     * @param {Object} [display={}]
+     * @param {Record<string, any>} [display={}]
      * @returns {{ controlPanel: Object | false, searchPanel: boolean }}
      */
     _getDisplay(display = {}) {
@@ -617,7 +698,7 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * @param {Object} [params]
+     * @param {object} [params]
      * @param {boolean} [params.raw=false]
      * @param {boolean} [params.withSearchPanel=true]
      * @param {boolean} [params.withGlobal=true]
@@ -633,7 +714,8 @@ export class SearchModel extends SearchQueryMixin(
             globalDomain: this.globalDomain,
             withGlobal,
             withSearchPanel,
-            getSearchItemDomain: (activeItem) => this.getSearchItemDomain(activeItem),
+            getSearchItemDomain: (/** @type {ActiveItem} */ activeItem) =>
+                this.getSearchItemDomain(activeItem),
             getSearchPanelDomain: () => this._getSearchPanelDomain(),
             domainEvalContext: this.domainEvalContext,
             raw: params.raw,
@@ -644,9 +726,13 @@ export class SearchModel extends SearchQueryMixin(
         return buildFacets({
             groups: this._getGroups(),
             searchItems: this.searchItems,
-            getSearchItemDomain: (activeItem) => this.getSearchItemDomain(activeItem),
-            getDateFilterDomain: (searchItem, generatorIds, key) =>
-                this._getDateFilterDomain(searchItem, generatorIds, key),
+            getSearchItemDomain: (/** @type {ActiveItem} */ activeItem) =>
+                this.getSearchItemDomain(activeItem),
+            getDateFilterDomain: (
+                /** @type {SearchItem} */ searchItem,
+                /** @type {string[]} */ generatorIds,
+                /** @type {string} */ key,
+            ) => this._getDateFilterDomain(searchItem, generatorIds, key),
             orderByCount: this.orderByCount,
             globalGroupBy: this.globalGroupBy,
             defaultGroupBy: this.defaultGroupBy,
@@ -655,20 +741,24 @@ export class SearchModel extends SearchQueryMixin(
         });
     }
 
+    /**
+     * @param {SearchItem} field
+     * @param {AutocompleteValue[]} autocompleteValues
+     */
     _getFieldDomain(field, autocompleteValues) {
         return computeFieldDomain(field, autocompleteValues);
     }
 
     /**
      * @param {number} [excludedFilterId]
-     * @returns {Array[]}
+     * @returns {any[][]}
      */
     _getFilterDomain(excludedFilterId) {
         return computeFilterDomain(this.filters, excludedFilterId);
     }
 
     /**
-     * @param {Object} [options={}]
+     * @param {object} [options={}]
      * @param {boolean} [options.fallbackOnDefault=true]
      * @returns {string[]}
      */
@@ -680,21 +770,21 @@ export class SearchModel extends SearchQueryMixin(
             globalGroupBy: this.globalGroupBy,
             defaultGroupBy: this.defaultGroupBy,
             fallbackOnDefault,
-            getSearchItemGroupBys: (activeItem) =>
+            getSearchItemGroupBys: (/** @type {ActiveItem} */ activeItem) =>
                 this._getSearchItemGroupBys(activeItem),
         });
     }
 
     /**
      * @param {Filter} filter
-     * @returns {Object<string, Array[]> | Array[] | null}
+     * @returns {Record<string, any[][]> | any[][] | null}
      */
     _getGroupDomain(filter) {
         return computeGroupDomain(filter, this.searchViewFields);
     }
 
     /**
-     * @returns {Object[]}
+     * @returns {QueryGroup[]}
      */
     _getGroups() {
         if (!this._groups) {
@@ -716,22 +806,32 @@ export class SearchModel extends SearchQueryMixin(
         );
     }
 
+    /** @param {ActiveItem} activeItem */
     _getSearchItemContext(activeItem) {
         return computeSearchItemContext(activeItem, this.searchItems);
     }
 
+    /** @param {ActiveItem} activeItem */
     getSearchItemDomain(activeItem) {
         return computeSearchItemDomain(
             activeItem,
             this.searchItems,
             this.referenceMoment,
+            {
+                getFieldDomain: (field, autocompleteValues) =>
+                    this._getFieldDomain(field, autocompleteValues),
+                getDateFilterDomain: (dateFilter, generatorIds) =>
+                    this._getDateFilterDomain(dateFilter, generatorIds),
+            },
         );
     }
 
+    /** @param {ActiveItem} activeItem */
     _getSearchItemGroupBys(activeItem) {
         return computeSearchItemGroupBys(activeItem, this.searchItems);
     }
 
+    /** @param {number} dateFilterId */
     _getSelectedGeneratorIds(dateFilterId) {
         return getSelectedGeneratorIds(this.query, dateFilterId);
     }
@@ -754,11 +854,6 @@ export class SearchModel extends SearchQueryMixin(
             state.version !== undefined &&
             state.version !== SEARCH_MODEL_STATE_VERSION
         ) {
-            // Unknown version: a state serialized by a build ahead of (or
-            // unknown to) this one. Import the keys we know on a best-effort
-            // basis rather than refuse — the alternative throws away the
-            // user's search on every cross-build restore, and this model
-            // already tolerates foreign states (see the fallback below).
             console.warn(
                 `[search] importing a search state of unknown version ${state.version} ` +
                     `(this build writes ${SEARCH_MODEL_STATE_VERSION}); ` +
@@ -770,12 +865,6 @@ export class SearchModel extends SearchQueryMixin(
         panelFromState(state, this);
         propertiesFromState(state, this);
         if (!this.searchPanelInfo) {
-            // `exportState()` always includes `searchPanelInfo`, but imported
-            // states are not always our own exports: `doAction` accepts an
-            // arbitrary `globalState.searchModel`, and serialized states from
-            // before `searchPanelInfo` joined the export schema lack the key.
-            // Fall back to the arch parser's defaults, unloaded so `load()`
-            // fetches the sections it cannot get from the state.
             this.searchPanelInfo = {
                 className: "",
                 viewTypes: [...DEFAULT_VIEWS_WITH_SEARCH_PANEL],
@@ -786,13 +875,6 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * The single internal "state changed -> tell the consumers" path. Callers
-     * that changed the query pass `reloadSections: true` (the default) so the
-     * search-panel counters are re-fetched against the new domain; a caller that
-     * is itself reacting to a section refresh passes `reloadSections: false` to
-     * announce the change without re-triggering the fetch it just handled. Both
-     * honour `blockNotification` so a batch coalesces into one UPDATE.
-     *
      * @param {{ reloadSections?: boolean }} [options]
      */
     async _notify({ reloadSections = true } = {}) {
@@ -845,5 +927,6 @@ export class SearchModel extends SearchQueryMixin(
         this._facets = null;
         this._enrichedSearchItems = null;
         this._sections = null;
+        this._sectionsByType = null;
     }
 }

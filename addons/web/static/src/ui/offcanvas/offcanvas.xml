@@ -1,9 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
-    <!-- `tabindex="-1"` so the panel is a programmatic focus target, as
-         Bootstrap's offcanvas was: the native popover does not move focus on
-         show, and the migration off the data-api dropped the attribute. -->
     <t t-name="web.Offcanvas">
         <div t-ref="panel" popover="auto" tabindex="-1"
             t-att-id="props.id"

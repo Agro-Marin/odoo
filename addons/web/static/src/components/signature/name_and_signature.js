@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/signature/name_and_signature */
-
 import { Component, onWillStart, useEffect, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
@@ -31,16 +29,12 @@ function loadFonts(fontName) {
             }),
         );
     }
-    return fontsCache.get(fontName);
+    return /** @type {Promise<string[]>} */ (fontsCache.get(fontName));
 }
 export class NameAndSignature extends Component {
     static template = "web.NameAndSignature";
     static components = { Dropdown, DropdownItem };
     static props = {
-        /**
-         * The shared model this component reads the name from and writes the
-         * signature accessors back onto.
-         */
         signature: {
             type: Object,
             shape: {
@@ -65,14 +59,33 @@ export class NameAndSignature extends Component {
         onSignatureChange: () => {},
     };
 
+    /** @type {string} */
+    htmlId;
+    defaultName = "";
+    currentFont = 0;
+    hasPaintedImage = false;
+    /** @type {KeepLast<any>} */
+    printImageKeepLast;
+    /** @type {{ signMode: string, showSignatureArea: boolean, loadIsInvalid: boolean|undefined }} */
+    state;
+    /** @type {import("@odoo/owl").Ref<HTMLInputElement>} */
+    signNameInputRef;
+    /** @type {import("@odoo/owl").Ref<HTMLInputElement>} */
+    signInputLoad;
+    /** @type {import("@odoo/owl").Ref<HTMLCanvasElement>} */
+    signatureRef;
+    /** @type {string[]} */
+    fonts = [];
+    /** @type {any} */
+    SignaturePad;
+    /** @type {any} */
+    signaturePad;
+    previewActive = false;
+
     setup() {
         this.htmlId = uniqueId();
-        // Callers hand over a name that can be absent (a portal template with
-        // no default_name renders it as null). Settle it once here rather than
-        // at every read.
         this.props.signature.name ??= "";
         this.defaultName = this.props.signature.name;
-        this.currentFont = 0;
         this.printImageKeepLast = new KeepLast({ rejectSuperseded: true });
 
         this.state = useState({
@@ -84,8 +97,8 @@ export class NameAndSignature extends Component {
             loadIsInvalid: undefined,
         });
 
-        this.signNameInputRef = useRef("signNameInput");
-        this.signInputLoad = useRef("signInputLoad");
+        this.signNameInputRef = /** @type {any} */ (useRef("signNameInput"));
+        this.signInputLoad = /** @type {any} */ (useRef("signInputLoad"));
         useAutofocus({ refName: "signNameInput" });
         useEffect(
             (el) => {
@@ -104,15 +117,12 @@ export class NameAndSignature extends Component {
             this.SignaturePad = (await import("signature_pad")).default;
         });
 
-        this.signatureRef = useRef("signature");
+        this.signatureRef = /** @type {any} */ (useRef("signature"));
         useEffect(
             (el) => {
                 if (!el) {
                     return;
                 }
-                // Capture from the object we are about to write into, so that a
-                // parent swapping `signature` between renders cannot make us
-                // restore one object's accessors onto another.
                 const signature = this.props.signature;
                 const callerAccessors = {
                     getSignatureImage: signature.getSignatureImage,
@@ -168,6 +178,7 @@ export class NameAndSignature extends Component {
 
     clear() {
         this.signaturePad.clear();
+        this.hasPaintedImage = false;
         this.props.signature.isSignatureEmpty = this.isSignatureEmpty;
     }
 
@@ -181,7 +192,7 @@ export class NameAndSignature extends Component {
      * @returns {string}
      */
     getCleanedName() {
-        const text = this.props.signature.name.replaceAll("\u00a0", " ");
+        const text = (this.props.signature.name ?? "").replaceAll("\u00a0", " ");
         if (this.props.signatureType === "initial" && text) {
             const initials = text
                 .split(" ")
@@ -226,11 +237,10 @@ export class NameAndSignature extends Component {
     /**
      * @private
      * @param {Event} ev
-     * @return bool|undefined
      */
     async onChangeSignLoadInput(ev) {
         const inputEl = /** @type {HTMLInputElement} */ (ev.target);
-        const file = inputEl.files[0];
+        const file = inputEl.files?.[0];
         inputEl.value = "";
         if (file === undefined) {
             return false;
@@ -286,8 +296,6 @@ export class NameAndSignature extends Component {
         try {
             await this.printImageKeepLast.add(img.decode());
         } catch (error) {
-            // A newer printImage owns the pad now; reporting this one's
-            // signature state would announce the wrong image.
             if (error instanceof SupersededError) {
                 return;
             }
@@ -307,7 +315,7 @@ export class NameAndSignature extends Component {
             img.width * ratio,
             img.height * ratio,
         );
-        this.signaturePad._isEmpty = false;
+        this.hasPaintedImage = true;
         this.props.signature.isSignatureEmpty = this.isSignatureEmpty;
         this.props.onSignatureChange(this.state.signMode);
     }
@@ -320,13 +328,13 @@ export class NameAndSignature extends Component {
     }
 
     resizeSignature() {
-        const width = this.signatureRef.el.clientWidth;
+        const canvas = this.signatureRef.el;
+        if (!canvas) {
+            return;
+        }
+        const width = canvas.clientWidth;
         const height = Math.trunc(width / this.props.displaySignatureRatio);
-
-        Object.assign(/** @type {HTMLCanvasElement} */ (this.signatureRef.el), {
-            width,
-            height,
-        });
+        Object.assign(canvas, { width, height });
     }
 
     /**
@@ -352,7 +360,7 @@ export class NameAndSignature extends Component {
      * @returns {boolean}
      */
     get isSignatureEmpty() {
-        return this.signaturePad.isEmpty();
+        return !this.hasPaintedImage && this.signaturePad.isEmpty();
     }
 
     get loadIsInvalid() {

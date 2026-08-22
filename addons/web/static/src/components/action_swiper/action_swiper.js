@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/action_swiper/action_swiper */
-
 import {
     Component,
     onMounted,
@@ -21,14 +19,21 @@ const FORWARDS_ACTION_DELAY = 100;
 const FORWARDS_RESET_DELAY = 100;
 const SCROLL_LOCK_THRESHOLD = 40;
 
-const isScrollSwipable = (scrollables) => ({
-    left: !scrollables.filter((e) => e.scrollLeft !== 0).length,
-    right: !scrollables.filter(
+/**
+ * @param {HTMLElement[]} scrollables
+ * @param {"left" | "right"} direction
+ * @returns {boolean}
+ */
+const isScrollSwipable = (scrollables, direction) => {
+    if (direction === "left") {
+        return !scrollables.some((e) => e.scrollLeft !== 0);
+    }
+    return !scrollables.some(
         (e) =>
             e.scrollLeft + Math.round(e.getBoundingClientRect().width) !==
             e.scrollWidth,
-    ).length,
-});
+    );
+};
 
 /**
  * @extends Component
@@ -161,11 +166,13 @@ export class ActionSwiper extends Component {
             if (
                 !this.isScrollValidated &&
                 this.scrollables &&
-                !isScrollSwipable(this.scrollables)[
-                    this.swipedDistance > 0 ? "left" : "right"
-                ]
+                !isScrollSwipable(
+                    this.scrollables,
+                    this.swipedDistance > 0 ? "left" : "right",
+                )
             ) {
-                return this._reset();
+                this._reset();
+                return;
             }
             this.isScrollValidated = true;
 
@@ -214,10 +221,6 @@ export class ActionSwiper extends Component {
     }
 
     /**
-     * A rejecting action must still leave the swiper in a usable state, and the
-     * failure must reach the global error handler rather than dying inside the
-     * timeout callback as an unhandled rejection.
-     *
      * @param {any} error
      */
     reportActionError(error) {

@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/widgets/attach_document/attach_document */
-
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { checkFileSize } from "@web/core/utils/files";
@@ -36,7 +34,7 @@ export class AttachDocumentWidget extends Component {
 
     /** @returns {Promise<null | void>} */
     async onInputChange() {
-        const ufile = [...this.fileInput.files];
+        const ufile = [...(this.fileInput.files ?? [])];
         for (const file of ufile) {
             if (!checkFileSize(file.size, this.notification)) {
                 return null;
@@ -87,7 +85,7 @@ export class AttachDocumentWidget extends Component {
 }
 
 /** @type {import("registries").ViewWidgetsRegistryItemShape} */
-export const attachDocumentWidget = {
+const attachDocumentWidget = {
     component: AttachDocumentWidget,
     extractProps: ({ attrs }) => {
         const { action, highlight, string } = attrs;

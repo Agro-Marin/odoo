@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/l10n/utils/locales */
-
 /**
  * @param {string | null} locale
  * @returns {string}

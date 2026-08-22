@@ -27,9 +27,15 @@
         .dropdown:focus-within ~ .o_dropdown_button,
         .o_input:focus ~ .o_datepicker_button,
         .o_dropdown_button:focus {
-            @include print-variable(o-input-border-color, o-token(--o-action, $o-action));
+            @include print-variable(
+                o-input-border-color,
+                o-token(--o-action, $o-action)
+            );
             * {
-                @include print-variable(o-input-border-color, o-token(--o-action, $o-action));
+                @include print-variable(
+                    o-input-border-color,
+                    o-token(--o-action, $o-action)
+                );
             }
         }
     }

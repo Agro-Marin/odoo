@@ -1,10 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/**
- * @module @web/core/parsers
- */
-
 import { parseDate, parseDateTime } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
 import { ParseError } from "@web/core/parse_error";
@@ -65,8 +61,6 @@ function evaluateMathematicalExpression(/** @type {string} */ expr) {
         /** @type {any} */
         let v = part;
         if (!EXPRESSION_OPERATORS.includes(v) && v.length) {
-            // This module's `parseFloat`, not the global one: an operand is
-            // written in the user's locale, so "1,5" must read as 1.5 in fr_BE.
             v = parseFloat(v);
         }
         if (v === "^") {
@@ -128,12 +122,6 @@ function parseNumber(value, options) {
 export class InvalidNumberError extends ParseError {}
 
 /**
- * Read ``value`` in the user's locale, falling back to the neutral one.
- *
- * The fallback exists because values reach the parsers from places that never
- * saw the user's separators -- a default in a view arch, a value pasted from a
- * report -- so "1,5" must read as 1.5 under fr_BE and "1,500" as 1500 anyway.
- *
  * @param {string} value
  * @returns {number}
  * @throws {InvalidNumberError}
@@ -173,14 +161,6 @@ export function parseFloat(value, { allowOperation = false } = {}) {
 }
 
 /**
- * Read ``"1:30"`` as 1.5 hours.
- *
- * Minutes are read as a *number*, so ``"1:3"`` is 1 h 03. This deliberately
- * differs from {@link import("@web/core/l10n/time").parseTime}, which
- * right-pads (``"1:3"`` is 1:30) because a time picker is typed left to right.
- * The two never see the same input: this one backs the ``float_time`` field,
- * that one backs the time picker.
- *
  * @param {string} value
  * @returns {number}
  */

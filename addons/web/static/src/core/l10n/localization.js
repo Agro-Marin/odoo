@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/l10n/localization */
-
 /**
  * @typedef Localization
  * @property {string} dateFormat

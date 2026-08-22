@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/notebook/notebook */
-
 import {
     Component,
     onWillRender,
@@ -27,7 +25,7 @@ export class Notebook extends Component {
     };
     static props = {
         slots: { type: Object, optional: true },
-        pages: { type: Object, optional: true },
+        pages: { type: Array, element: Object, optional: true },
         class: { optional: true },
         className: { type: String, optional: true },
         defaultPage: { type: String, optional: true },
@@ -48,16 +46,19 @@ export class Notebook extends Component {
     state;
     /** @type {string[]} */
     disabledPages;
+    /**
+     * @type {boolean | undefined}
+     */
+    defaultVisible;
 
     setup() {
         /** @type {import("@odoo/owl").Ref<HTMLElement>} */
         this.activePane = useRef("activePane");
-        /** @type {Array<[string, Object]>} */
-        this.pages = this.computePages(this.props);
+        this.readPages(this.props);
         /** @type {Set<string>} */
         this.invalidPages = new Set();
         this.state = useState({ currentPage: null });
-        this.state.currentPage = this.computeActivePage(this.props.defaultPage, true);
+        this.selectActivePage(this.props.defaultPage, true);
         this.keepLastPageTransition = new KeepLast({ rejectSuperseded: true });
         useEffect(
             () => {
@@ -78,11 +79,8 @@ export class Notebook extends Component {
             const activateDefault =
                 this.props.defaultPage !== nextProps.defaultPage ||
                 !this.defaultVisible;
-            this.pages = this.computePages(nextProps);
-            this.state.currentPage = this.computeActivePage(
-                nextProps.defaultPage,
-                activateDefault,
-            );
+            this.readPages(nextProps);
+            this.selectActivePage(nextProps.defaultPage, activateDefault);
         });
     }
 
@@ -102,18 +100,18 @@ export class Notebook extends Component {
     }
 
     /**
-     * @param {string} pageIndex
+     * @param {string} pageId
      */
-    async activatePage(pageIndex) {
-        const exists = this.pages.some(([id]) => id === pageIndex);
+    async activatePage(pageId) {
+        const exists = this.pages.some(([id]) => id === pageId);
         if (
             !exists ||
-            this.disabledPages.includes(pageIndex) ||
-            this.state.currentPage === pageIndex
+            this.disabledPages.includes(pageId) ||
+            this.state.currentPage === pageId
         ) {
             return;
         }
-        const prom = (async () => this.props.onWillActivatePage(pageIndex))();
+        const prom = (async () => this.props.onWillActivatePage(pageId))();
         let canProceed;
         try {
             canProceed = await /** @type {KeepLast} */ (
@@ -126,18 +124,28 @@ export class Notebook extends Component {
             throw error;
         }
         if (canProceed !== false) {
-            this.state.currentPage = pageIndex;
+            this.state.currentPage = pageId;
         }
     }
 
     /**
      * @param {Object} props
-     * @returns {Array<[string, Object]>}
+     */
+    readPages(props) {
+        const { pages, disabledPages } = this.computePages(props);
+        this.pages = pages;
+        this.disabledPages = disabledPages;
+    }
+
+    /**
+     * @param {Object} props
+     * @returns {{ pages: Array<[string, Object]>, disabledPages: string[] }}
      */
     computePages(props) {
-        this.disabledPages = [];
+        /** @type {string[]} */
+        const disabledPages = [];
         if (!props.slots && !props.pages) {
-            return [];
+            return { pages: [], disabledPages };
         }
         /** @type {[string, any][]} */
         const pages = [];
@@ -158,43 +166,37 @@ export class Notebook extends Component {
                 pages.push([id, v]);
             }
             if (v.isDisabled) {
-                this.disabledPages.push(id);
+                disabledPages.push(id);
             }
         }
         pagesWithIndex.sort((a, b) => a[1].index - b[1].index);
         for (const page of pagesWithIndex) {
             pages.splice(page[1].index, 0, page);
         }
-        return pages;
+        return { pages, disabledPages };
     }
 
     /**
      * @param {string | undefined} defaultPage
      * @param {boolean} activateDefault
-     * @returns {string | null}
      */
-    computeActivePage(defaultPage, activateDefault) {
+    selectActivePage(defaultPage, activateDefault) {
         if (!this.pages.length) {
-            return null;
+            this.state.currentPage = null;
+            return;
         }
         const pages = this.pages.filter((e) => e[1].isVisible).map((e) => e[0]);
 
         if (defaultPage) {
-            if (!pages.includes(defaultPage)) {
-                this.defaultVisible = false;
-            } else {
-                this.defaultVisible = true;
-                if (activateDefault) {
-                    return defaultPage;
-                }
+            this.defaultVisible = pages.includes(defaultPage);
+            if (this.defaultVisible && activateDefault) {
+                this.state.currentPage = defaultPage;
+                return;
             }
         }
         const current = this.state.currentPage;
-        if (!current || (current && !pages.includes(current))) {
-            return pages[0];
-        }
-
-        return current;
+        this.state.currentPage =
+            current && pages.includes(current) ? current : pages[0];
     }
 
     computeInvalidPages() {

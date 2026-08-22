@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/field_widths */
-
 import { xml } from "@odoo/owl";
 import {
     formatDate,
@@ -17,13 +15,6 @@ import { renderToElement } from "@web/core/utils/render";
 let _dateWidths = null;
 
 /**
- * Widths that depend on the active locale, so they can only be measured once
- * `localization` has started. Reading one of these before that point used to
- * throw straight out of a property access on a frozen module-level constant --
- * `FIELD_WIDTHS.datetime` is not obviously a function call at the call site.
- * They now report "no opinion" instead, which `getWidthSpecs` already handles by
- * falling back to `DEFAULT_MIN_WIDTH`.
- *
  * @param {"date" | "datetime" | "datetimeWithSeconds" | "numericDate" | "numericDatetime"} key
  * @returns {number | undefined}
  */
@@ -43,7 +34,6 @@ export const FIELD_WIDTHS = Object.freeze({
     get date() {
         return dateWidth("date");
     },
-    /** Without seconds -- what the widget renders unless `show_seconds` is set. */
     get datetime() {
         return dateWidth("datetime");
     },
@@ -73,12 +63,6 @@ export function resetDateFieldWidths() {
 }
 
 /**
- * Whether the locale's time format is 12-hour, and therefore whether an
- * afternoon sample can be wider than a morning one ("12:00 AM" vs "12:00 PM" are
- * the same width, but the meridiem marker itself is not always). This used to be
- * an exact compare against the single string `"hh:mm:ss a"`, so a 12-hour locale
- * spelled any other way (`"hh:mm a"`, `"h:mm a"`) never got the second sample.
- *
  * @returns {boolean}
  */
 function isMeridiemTimeFormat() {
@@ -116,9 +100,6 @@ function computeOptimalDateWidths() {
         }
     }
     values.numericDate.push(formatDate(DateTime.local(2017, 1, 1)));
-    // `formatDateTime` renders through `localization.dateTimeFormat`, which
-    // carries its own seconds -- the numeric widget has no say in it, so there
-    // is nothing to split here the way the locale-formatted branch above does.
     values.numericDatetime.push(formatDateTime(DateTime.local(2017, 1, 1, 10, 0, 0)));
     if (meridiem) {
         values.numericDatetime.push(

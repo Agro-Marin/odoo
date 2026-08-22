@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/dynamic_placeholder_hook */
-
 import { useComponent } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
@@ -15,8 +13,9 @@ import {
     resolveTzPath,
 } from "./dynamic_placeholder_syntax.js";
 
+const TRIGGER_KEY = "#";
+
 export function useDynamicPlaceholder(elementRef) {
-    const TRIGGER_KEY = "#";
     const ownerField = useComponent();
     let closeCallback;
     const popover = usePopover(DynamicPlaceholderPopover, {

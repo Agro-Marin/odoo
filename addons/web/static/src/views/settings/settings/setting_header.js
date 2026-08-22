@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/settings/setting_header */
-
 import { Setting } from "@web/views/form/setting/setting";
 export class SettingHeader extends Setting {
     static template = "web.HeaderSetting";

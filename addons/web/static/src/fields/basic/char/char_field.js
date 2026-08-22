@@ -1,15 +1,18 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/char/char_field */
-
 import { useRef } from "@odoo/owl";
 import { formatChar } from "@web/core/formatters";
 import { _t } from "@web/core/translation";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { registerField } from "@web/fields/_registry";
-import { fieldHandle } from "@web/fields/field_handle";
+import {
+    archAttribute,
+    dynamicPlaceholderDependency,
+    dynamicPlaceholderOptions,
+    placeholderFieldOption,
+} from "@web/fields/field_options";
 import { useInputField } from "@web/fields/input_field_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { TranslationButton } from "@web/fields/translation_button";
@@ -30,11 +33,6 @@ export class CharField extends TextInputFieldBase {
         dynamicPlaceholderModelReferenceField: { type: String, optional: true },
     };
     static defaultProps = { dynamicPlaceholder: false };
-
-    /** @returns {import("@web/fields/field_handle").FieldHandle} */
-    get field() {
-        return fieldHandle(this);
-    }
 
     /** @type {import("@odoo/owl").Ref<HTMLInputElement>} */
     input;
@@ -80,53 +78,21 @@ export const charField = {
     displayName: _t("Text"),
     supportedTypes: ["char", "text"],
     supportedOptions: [
-        {
-            label: _t("Dynamic Placeholder"),
-            name: "dynamic_placeholder",
+        ...dynamicPlaceholderOptions(),
+        placeholderFieldOption(["char", "text"]),
+    ],
+    supportedAttributes: [
+        archAttribute("password", _t("Password"), {
             type: "boolean",
+            help: _t("Render the input as `type=password`, masking what is typed."),
+        }),
+        archAttribute("autocomplete", _t("Autocomplete"), {
             help: _t(
-                "Offer a picker that inserts a {{object.field}} expression into the text.",
+                "Passed straight through to the input's `autocomplete` attribute.",
             ),
-        },
-        {
-            label: _t("Dynamic Placeholder model reference"),
-            name: "dynamic_placeholder_model_reference_field",
-            type: "field",
-            availableTypes: ["char"],
-            help: _t("Field holding the model name whose fields the picker offers."),
-        },
-        {
-            label: _t("Dynamic Placeholder"),
-            name: "placeholder_field",
-            type: "field",
-            availableTypes: ["char", "text"],
-            help: _t(
-                "Displays the value of the selected field as a textual hint. If the selected field is empty, the static placeholder attribute is displayed instead.",
-            ),
-        },
+        }),
     ],
-    // `useDynamicPlaceholder.updateModel` reads these out of `record.data` to
-    // decide which model's fields the picker offers. `render_model` is the
-    // server's own answer (`mixin.mail.render._compute_render_model`) and needs
-    // no declaration in the view; a view may still name a field, which wins.
-    // Each is `optional`, so a model that has neither simply drops it.
-    fieldDependencies: ({ options }) => [
-        ...(options?.dynamic_placeholder
-            ? [
-                  { name: "render_model", optional: true, readonly: true },
-                  { name: "model", optional: true, readonly: true },
-              ]
-            : []),
-        ...(options?.dynamic_placeholder_model_reference_field
-            ? [
-                  {
-                      name: options.dynamic_placeholder_model_reference_field,
-                      optional: true,
-                      readonly: true,
-                  },
-              ]
-            : []),
-    ],
+    fieldDependencies: dynamicPlaceholderDependency(),
     extractProps: ({ attrs, options, placeholder }) => ({
         isPassword: exprToBoolean(attrs.password),
         dynamicPlaceholder: options.dynamic_placeholder || false,

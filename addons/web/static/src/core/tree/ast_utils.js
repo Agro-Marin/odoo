@@ -1,8 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/ast_utils */
-
 /** @typedef {import("../py_js/ast_type.js").AST} AST */
 /** @typedef {import("../py_js/ast_type.js").ASTName} ASTName */
 /** @typedef {import("../py_js/ast_type.js").ASTFunctionCall} ASTFunctionCall */
@@ -61,9 +59,6 @@ export function not(ast) {
 export function isValidPath(ast, options) {
     const getFieldDef = options.getFieldDef || (() => null);
     if (ast.type === ASTType.Name) {
-        // `!= null`, not `!== null`: a getFieldDef answering `undefined`
-        // for "not found" -- the ordinary JS convention -- made every name
-        // a valid field path.
         return getFieldDef(ast.value) != null;
     }
     return false;

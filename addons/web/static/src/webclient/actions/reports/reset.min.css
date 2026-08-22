@@ -1,14 +1,3 @@
-/*
-
-HTML5 CSS Reset
-Based on Eric Meyer's CSS Reset
-and html5doctor.com HTML5 Reset
-
-Copyright (c) 2011 736 Computing Services Limited
-Released under the MIT license. http://opensource.736cs.com/licenses/mit
-
-*/
-
 html,
 body,
 div,
@@ -159,7 +148,6 @@ dfn[title] {
   cursor: help;
 }
 
-/* tables still need 'cellspacing="0"' in the markup */
 table {
   border-collapse: collapse;
   border-spacing: 0;
