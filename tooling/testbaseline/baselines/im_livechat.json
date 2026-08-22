@@ -1,0 +1,10 @@
+{
+  "expected": {
+    "im_livechat/TestImLivechatSupportPage.test_load_modules_cors": "ERROR"
+  },
+  "note": "The embed's test-mode tour bundle is fetched cross-origin (session.livechatData.serverUrl is localhost, the page is 127.0.0.1) and neither /web/bundle nor /web/assets/esm carries CORS headers, so the browser blocks it and odoo.isTourReady never resolves. Production never loads a bundle cross-origin from the embed -- boot.js only does it under session.test_mode -- so closing this means deciding whether Odoo's asset graph may be served to any origin, which is a policy call rather than a repair.",
+  "run_spec": "-u im_livechat --test-enable --test-tags '/im_livechat,-/im_livechat:ExternalTestSuite'",
+  "suite": "/im_livechat",
+  "tests_total": 103,
+  "verified_at": "ca4ee2ddd79"
+}

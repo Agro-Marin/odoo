@@ -52,6 +52,12 @@ class _EsmFallbackError(Exception):
     pass
 
 
+class _StandaloneBundleDeclined(Exception):
+    """Signal that a standalone-bundle build declined, so the ormcache never
+    stores the degraded (None) result -- same pattern as ``_EsmFallbackError``
+    in the native-ESM render path."""
+
+
 class EsbuildBundleError(RuntimeError):
     pass
 
@@ -378,6 +384,96 @@ class IrQweb(models.AbstractModel):
         )
         return asset_bundle.get_native_module_data()
 
+    def _get_standalone_bundle(self, bundle: str) -> tuple[str, str] | None:
+        """Build (or reuse) a self-contained ESM bundle, as an ``(url, code)`` pair.
+
+        A standalone bundle is one delivered to a context Odoo does not render
+        a layout for -- a worker booted from a ``blob:`` URL, a third-party
+        page that carries the livechat embed -- so it gets no import map and no
+        ``odoo.loader``.  ``esm.standalone_bundles`` is what tells esbuild to
+        inline every external instead of leaving a bare specifier behind, and
+        this is the one way to obtain the result: a single file, persisted as a
+        content-addressed ``/web/assets/esm/<hash>/...`` attachment.
+
+        :return: ``(url, code)``, or ``None`` when the build declined (circuit
+            breaker open, lock contention, esbuild failure, ...).  Callers
+            degrade on their own terms -- there is no generic fallback,
+            because what a receiving context can still use is specific to it.
+
+        The code is returned alongside the URL on purpose: the attachment row
+        is committed out of band on a dedicated cursor
+        (``_save_esm_attachment_rows``), so the current request's
+        repeatable-read transaction cannot see it yet -- a serving controller
+        must not need a row lookup.
+        """
+        assets_params = self.env["ir.asset"]._prepare_assets_params()
+        try:
+            return self._get_standalone_bundle_cached(bundle, assets_params)
+        except _StandaloneBundleDeclined:
+            return None
+
+    @tools.conditional(
+        # Mirror the native-ESM node caches: hold until an ir.asset write or a
+        # module update clears the "assets" cache.  A new build saves a new
+        # content-addressed attachment and clears it too.
+        #
+        # `assets_params` is part of the key, as it is for
+        # `_get_esm_bundle_payload_cached`: `website` puts `website_id` in it and
+        # an `ir.asset` row can be website-scoped, so keying on the bundle name
+        # alone would serve one website's build to another.
+        "xml" not in tools.config["dev_mode"],
+        tools.ormcache(
+            "bundle",
+            "tuple(sorted(assets_params.items()))",
+            cache="assets",
+        ),
+    )
+    def _get_standalone_bundle_cached(
+        self, bundle: str, assets_params: dict[str, Any]
+    ) -> tuple[str, str]:
+        asset_bundle = self._get_asset_bundle(
+            bundle, css=False, assets_params=assets_params
+        )
+        esbuild_result, _child_bundles = self._compile_with_esbuild_locked(
+            bundle, asset_bundle, assets_params
+        )
+        if not esbuild_result.code:
+            raise _StandaloneBundleDeclined
+        # Templates ride inside the one file, the way `_get_esm_nodes_prod`
+        # combines them into the module script: a page renders them from a
+        # second <script>, and there is no page here.
+        code = self._combine_bundle_with_templates(
+            esbuild_result.code,
+            asset_bundle.generate_esm_template_bundle(use_import=False),
+        )
+        # Same reason for `odoo.loader`, which a page gets from its own shim
+        # <script>.  The shim is written against `globalThis` with optional
+        # chaining throughout and returns early when a loader already exists,
+        # so it is inert in a worker and idempotent everywhere else.  It goes
+        # first: the registration the esbuild entry emits runs at the end of
+        # the module body and needs `odoo.loader` to exist by then.
+        code = self._prepare_loader_shim_js() + "\n" + code
+        try:
+            url = self._save_esm_attachment(
+                bundle,
+                code,
+                metafile=esbuild_result.metafile,
+                # No sourcemap: the shim and the templates shift esbuild's
+                # line numbers, and a map that points 34 lines off is worse
+                # than none -- it misreports silently.  The metafile is
+                # line-independent and still useful.
+                sourcemap=None,
+            )
+        except Exception as exc:
+            # Same degradation contract as the render path: a persistence
+            # failure (a read-only cursor with the primary unreachable, ...)
+            # must not break the endpoint.
+            _logger.warning(
+                "Could not persist the standalone bundle %s", bundle, exc_info=True
+            )
+            raise _StandaloneBundleDeclined from exc
+        return url, code
+
     def _get_esm_bundle_payload(
         self,
         bundle: str,
@@ -419,7 +515,17 @@ class IrQweb(models.AbstractModel):
         )
         self._check_lazy_bundle_relative_imports(asset_bundle)
         native_data = asset_bundle.get_native_module_data()
-        import_map = dict(native_data["import_map"])
+        # Seed the external-lib table first, the way
+        # `_get_esm_import_map_debug` does.  A rendered page gets these from
+        # its layout's import map, but this payload is also loaded onto pages
+        # that have no layout import map at all -- the livechat embed on a
+        # third-party site is one -- and there the bundle's own entries alone
+        # leave `@odoo/hoot-dom-helpers-dom` and friends unresolvable.  The
+        # bundle's own entries still win, and `loadESMBundle` drops any
+        # specifier the document already claims for the same URL, so a normal
+        # page is unaffected.
+        import_map = dict(self._external_libs())
+        import_map.update(native_data["import_map"])
         import_map.update(native_data.get("bridge_import_map", {}))
         template_url = None
         esm_tpl = asset_bundle.generate_esm_template_bundle(use_import=False)
@@ -649,10 +755,17 @@ class IrQweb(models.AbstractModel):
     @classmethod
     def _get_hoot_specifiers(cls, bundle: str, specifiers: Iterable[str]) -> list[str]:
         registry = esm_registry()
-        by_directory = (
-            bundle in registry.import_map_includes
-            or bundle in registry.import_map_included_bundles
-        )
+        if bundle in registry.import_map_includes:
+            # A parent of an import-map pair owns no tests: its job is to
+            # PROVIDE, the child's is to run.  Hoot specifiers are withheld from
+            # `registerNativeModules` and handed to `loadAndStart` instead, so
+            # classifying any of a parent's modules as hoot does two wrong
+            # things at once -- it starts a runner from the setup bundle, and it
+            # withholds exactly the modules (`start.hoot`, the `_framework`
+            # helpers) the child has to bridge onto, leaving the child with
+            # `loadAndStart is not a function`.
+            return []
+        by_directory = bundle in registry.import_map_included_bundles
         return [
             spec
             for spec in specifiers
@@ -1576,7 +1689,23 @@ class IrQweb(models.AbstractModel):
 
         start_hoot = [s for s in hoot_specs if s.endswith("/start.hoot")]
         other_tests = [s for s in hoot_specs if s not in start_hoot]
-        if start_hoot and other_tests:
+        # Start the runner only for a bundle that carries a real test file.
+        # `other_tests` is every hoot specifier that is not `start.hoot`, and
+        # that includes the framework's own `*.hoot` side-effect modules -- so a
+        # bundle carrying `_framework/**` and no test at all still looked like a
+        # test bundle here.  `im_livechat`'s embed *setup* bundle is exactly
+        # that: it globs `_framework/**` for import-map coverage, so it started
+        # the runner with nine framework modules and nothing to run, and the
+        # page then sat idle until the 1800s timeout while the real tests
+        # bundle's own `loadAndStart` arrived to an already-started runner.
+        # The framework modules still get evaluated -- the tests bundle hands
+        # them to `loadAndStart` alongside its tests.
+        #
+        # The test is `.test` rather than "not `.hoot`" on purpose: under
+        # `by_directory` -- which an import-map parent gets -- every file under
+        # a `tests/` tree is a hoot specifier, helpers included, and a setup
+        # bundle is made of helpers.
+        if start_hoot and any(".test" in spec for spec in other_tests):
             specifier_list = ",\n".join(f"  {json_mod.dumps(s)}" for s in other_tests)
             bridge_code += (
                 f"const {{loadAndStart}} = await import("

@@ -328,15 +328,26 @@ class EsbuildCompiler:
         )
         sourcemap_flags = [f"--sourcemap={source_maps}"] if source_maps else []
         sourcemap_path = f"{out_path}.map"
+        if self._standalone:
+            # No import map on the receiving side, so nothing may stay external.
+            external_specifier_flags = []
+            alias_flags += self._standalone_alias_flags(
+                odoo_root,
+                {flag.partition("=")[0].removeprefix("--alias:") for flag in alias_flags},
+            )
+        else:
+            external_specifier_flags = [
+                f"--external:{EXTERNAL_SPECIFIER_PREFIX}*",
+                "--external:/web/static/lib/*",
+                *(f"--external:{spec}" for spec in sorted(external_bare_specifiers())),
+            ]
         argv = [
             esbuild,
             "--bundle",
             "--format=esm",
             "--minify",
             "--keep-names",
-            f"--external:{EXTERNAL_SPECIFIER_PREFIX}*",
-            "--external:/web/static/lib/*",
-            *(f"--external:{spec}" for spec in sorted(external_bare_specifiers())),
+            *external_specifier_flags,
             *external_flags,
             f"--target={target}",
             "--resolve-extensions=.js,.mjs,.json",
@@ -419,21 +430,57 @@ class EsbuildCompiler:
             source_maps = ""
         return timeout_s, target, source_maps
 
+    def _standalone_alias_flags(
+        self, odoo_root: Path, already_aliased: set[str]
+    ) -> list[str]:
+        """Aliases that let a standalone bundle inline the externals it imports.
+
+        A standalone bundle is delivered to a context with **no import map** --
+        the registry says so when it refuses one that participates in page
+        import-map relationships -- so a bare ``@odoo/owl`` left external is a
+        specifier nothing on the receiving page can resolve.  The websocket
+        worker never noticed because it imports none of these; the livechat
+        embed, which a third-party page loads from a single ``<script>``, dies
+        on the first one.
+
+        The whole ``esm.external_libs`` table is aliased rather than a hand-
+        picked subset, because esbuild pulls in only what the bundle actually
+        imports: this inlines owl for the embed and nothing at all for the
+        worker, and it cannot drift from the table the import map is built
+        from.  Specifiers already aliased by ``_LIB_CANDIDATES`` are left
+        alone -- that table deliberately points ``@popperjs/core`` at a
+        different file than the import map does.
+        """
+        from odoo.tools.assets.esm_registry import external_libs
+        from odoo.tools.misc import file_path
+
+        flags = []
+        for spec, url in sorted(external_libs().items()):
+            if spec in already_aliased:
+                continue
+            try:
+                path = file_path(url.lstrip("/"))
+            except (ValueError, FileNotFoundError):
+                continue
+            flags.append(f"--alias:{spec}=./{os.path.relpath(path, odoo_root)}")
+        return flags
+
+    def _imports_owl(self) -> bool:
+        return any(
+            "@odoo/owl" in (asset.raw_content or "") for asset in self.native_modules
+        )
+
     def _esbuild_entry_lines(self, odoo_root: Path) -> list[str]:
-        if self._standalone:
-            entry_lines = []
-            for asset in self.native_modules:
-                if asset._filename:
-                    path = os.path.relpath(asset._filename, odoo_root)
-                else:
-                    path = f"addons{asset.url}"
-                entry_lines.append(f"import {json.dumps('./' + path)};")
-            return entry_lines
         entry_lines = []
         register_entries = []
-        registered_specs: set[str] = {"@odoo/owl"}
-        entry_lines.append('import * as __owl from "@odoo/owl";')
-        register_entries.append('  "@odoo/owl": __owl')
+        registered_specs: set[str] = set()
+        # A standalone bundle carries owl inlined rather than external, so
+        # importing it here is only worth the bytes when the bundle actually
+        # uses it: the livechat embed does, the websocket worker does not.
+        if not self._standalone or self._imports_owl():
+            registered_specs.add("@odoo/owl")
+            entry_lines.append('import * as __owl from "@odoo/owl";')
+            register_entries.append('  "@odoo/owl": __owl')
         _skip_legacy_test_imports = self._skip_legacy_test_imports
         for i, asset in enumerate(self.native_modules):
             spec = asset.module_path
@@ -447,19 +494,30 @@ class EsbuildCompiler:
             register_entries.append(f"  {json.dumps(spec)}: __m{i}")
             registered_specs.add(spec)
 
+        # Publish the bundle's modules even when standalone.  A standalone
+        # bundle can still be the parent a runtime-loaded child bridges onto --
+        # the livechat embed is, for its support-tours bundle -- and a bridge
+        # resolves through `odoo.loader.modules`.
+        #
+        # Guarded only when standalone: `_get_standalone_bundle` prepends the
+        # shim that defines `odoo.loader`, but a standalone artifact may also be
+        # loaded somewhere with no globals at all (a worker), and there the
+        # publication is simply not wanted.  A rendered page always carries the
+        # shim, so leave that branch unguarded -- a missing loader there is a
+        # defect and should say so rather than silently skip.
+        if self._standalone:
+            entry_lines.append("if (globalThis.odoo?.loader?.registerNativeModules) {")
         entry_lines.append("odoo.loader.registerNativeModules({")
         entry_lines.append(",\n".join(register_entries))
         entry_lines.append("});")
-
-        alias_lines = []
         for ext_name, int_name in EXTERNAL_LIB_ALIASES.items():
             if int_name in registered_specs:
-                alias_lines.append(
+                entry_lines.append(
                     f"odoo.loader.modules.set({json.dumps(ext_name)},"
                     f"odoo.loader.modules.get({json.dumps(int_name)}));"
                 )
-        if alias_lines:
-            entry_lines.extend(alias_lines)
+        if self._standalone:
+            entry_lines.append("}")
         return entry_lines
 
     def _esbuild_flags(

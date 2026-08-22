@@ -28,6 +28,12 @@
         ],
         'im_livechat.embed_assets_unit_tests_setup': [
             ('remove', 'website_livechat/static/**'),
+        ],
+        # The helpers go in the tests bundle, not the setup bundle: the setup
+        # bundle is an import-map parent and `_esbuild_entry_lines` drops every
+        # `/static/tests/` module from a parent's entry, so a helper left there
+        # reaches nobody.  Same split as `im_livechat`'s own entries.
+        'im_livechat.embed_assets_unit_tests': [
             "web/static/tests/public/helpers.js",
             "website/static/tests/helpers.js",
             'website_livechat/static/tests/website_livechat_test_helpers.js',

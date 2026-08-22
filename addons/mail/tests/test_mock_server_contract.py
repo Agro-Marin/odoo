@@ -23,7 +23,7 @@ CONTRACT_HEADER = """\
  *   MAIL_STORE_CONTRACT_REGEN=1 odoo-bin -d <bare mail db> \\
  *       --test-tags mail_store_contract --stop-after-init
  * (the db must have only mail's dependency closure installed), then re-run
- * both the python tag and the hoot suite `@mail/mock_server/contract`
+ * both the python tag and the hoot suite `@mail/mock_server_contract`
  * before committing.
  *
  * The body between the braces must remain strict JSON (the python test

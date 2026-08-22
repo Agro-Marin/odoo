@@ -18,7 +18,12 @@ MISC_SUITES = (
     "@mail/messaging",
     "@mail/messaging_menu",
     "@mail/mobile",
-    "@mail/mock_server",
+    # One entry per file: these live beside `mock_server/` rather than in it,
+    # because a setup bundle globs `mock_server/**/*` and a `.test.js` there
+    # is evaluated with no current suite, which kills the whole page.
+    "@mail/mock_server_contract",
+    "@mail/mock_server_internal_field_gating",
+    "@mail/mock_server_set_message_done_parity",
     "@mail/patch_235_regression",
     "@mail/quick_reaction_menu",
     "@mail/scheduled_message",

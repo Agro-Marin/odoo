@@ -82,14 +82,17 @@ Help your customers with this chat, and analyse their feedback.
             'im_livechat/static/src/js/colors_reset_button/*',
             'im_livechat/static/src/js/im_livechat_chatbot_steps_one2many.js',
             'im_livechat/static/src/js/im_livechat_chatbot_script_answers_m2m.js',
+            # `views/lazy/**/*` is not carved out: the `web.assets_backend_lazy`
+            # bundle it used to be carved out *into* no longer exists, so the
+            # carve-out left the four report graph/pivot `js_class` modules in
+            # no bundle at all and every view declaring one died on
+            # `Cannot find key ... in the "views" registry`.
             'im_livechat/static/src/views/**/*',
-            ('remove', 'im_livechat/static/src/views/lazy/**/*'),
             'im_livechat/static/src/scss/im_livechat_history.scss',
             'im_livechat/static/src/scss/im_livechat_form.scss',
             'im_livechat/static/src/core/common/**/*',
             'im_livechat/static/src/core/public_web/**/*',
             'im_livechat/static/src/core/web/**/*',
-                    ],        "web.assets_web_dark": [
         ],
         'web.assets_unit_tests': [
             'im_livechat/static/tests/**/*',
@@ -155,22 +158,14 @@ Help your customers with this chat, and analyse their feedback.
             ('remove', 'im_livechat/static/src/embed/external/boot.js'),
             ('remove', 'mail/static/src/discuss/core/web/discuss_core_common_service_patch.js'),
             'web/static/src/core/browser/title_service.js',
-            # `web_test_helpers.js` imports its `_framework/` siblings relatively
-            # and `web.assets_unit_tests_setup` carries no `web/static/tests` JS,
-            # so hand-picking the helper alone left 21 modules to be fetched as
-            # raw source, outside the import map. `test_lint`'s
-            # `test_every_bundled_module_can_resolve_its_own_imports` reports them.
-            'web/static/tests/_framework/**/*',
-            'web/static/tests/web_test_helpers.js',
-            'bus/static/tests/bus_test_helpers.js',
-            'mail/static/tests/mail_test_helpers.js',
-            'mail/static/tests/mail_test_helpers_contains.js',
-            'im_livechat/static/tests/livechat_test_helpers.js',
-            'bus/static/tests/mock_server/**/*',
-            'mail/static/tests/mock_server/**/*',
-            'rating/static/tests/mock_server/**/*',
-            'im_livechat/static/tests/mock_server/**/*',
-            'bus/static/tests/mock_*.js',
+            # No `static/tests` JS here, exactly as
+            # `web.assets_unit_tests_setup` carries none: a setup bundle is
+            # an import-map PARENT, and `_esbuild_entry_lines` drops every
+            # `/static/tests/` module from a parent's entry
+            # (`skip_legacy_test_imports`).  Anything under `tests/` put here
+            # is therefore neither bundled nor published, and the child that
+            # bridges onto it gets `undefined`.  The helpers and mock servers
+            # live in `im_livechat.embed_assets_unit_tests`.
         ],
         "im_livechat.assets_livechat_support_tours": [
             "web_tour/static/src/js/**/*",
@@ -182,7 +177,23 @@ Help your customers with this chat, and analyse their feedback.
             "im_livechat/static/tests/tours/support/*",
         ],
         'im_livechat.embed_assets_unit_tests': [
+            # The child of the import-map pair owns everything under `tests/`,
+            # the way `web.assets_unit_tests` owns `web/static/tests/**/*`.  The
+            # helpers have to sit here rather than in the setup bundle: a parent
+            # skips its `/static/tests/` modules entirely, so a helper left
+            # there is published to nobody.  Order is dependency order --
+            # framework, helpers, mock servers, then the tests.
             'web/static/tests/_framework/**/*',
+            'web/static/tests/web_test_helpers.js',
+            'bus/static/tests/bus_test_helpers.js',
+            'mail/static/tests/mail_test_helpers.js',
+            'mail/static/tests/mail_test_helpers_contains.js',
+            'im_livechat/static/tests/livechat_test_helpers.js',
+            'bus/static/tests/mock_server/**/*',
+            'mail/static/tests/mock_server/**/*',
+            'rating/static/tests/mock_server/**/*',
+            'im_livechat/static/tests/mock_server/**/*',
+            'bus/static/tests/mock_*.js',
             'im_livechat/static/tests/embed/**/*',
         ],
         "mail.assets_public": [
@@ -206,6 +217,28 @@ Help your customers with this chat, and analyse their feedback.
             'im_livechat.embed_assets_unit_tests_setup',
             'im_livechat.embed_assets_unit_tests',
         ],
+        # The embed is delivered to a page Odoo does not render -- a single
+        # <script> on a third-party site -- so there is no import map and no
+        # odoo.loader on the receiving end.  Standalone tells esbuild to inline
+        # what it would otherwise leave external (`@odoo/owl`), which is what
+        # `/im_livechat/assets_embed.js` serves.  Same contract as
+        # `bus.websocket_worker_assets`.
+        'standalone_bundles': [
+            'im_livechat.assets_embed_cors',
+            'im_livechat.assets_embed_external',
+        ],
+        # The embed test page renders the setup bundle and then the tests
+        # bundle, the same shape as `web.assets_unit_tests_setup` /
+        # `web.assets_unit_tests` -- and it needs the same declaration.  Without
+        # it the tests bundle is nobody's child: it resolves `@odoo/hoot` to the
+        # raw lib URL while the setup bundle carries hoot inlined, so the test
+        # files' `describe`/`test` land in one runner and the helpers'
+        # `defineModels`/`onRpc` in another, and nothing coherent runs.
+        'import_map_includes': {
+            'im_livechat.embed_assets_unit_tests_setup': [
+                'im_livechat.embed_assets_unit_tests',
+            ],
+        },
         'dynamic_children': {
             'web.assets_web': [
                 'im_livechat.assets_livechat_support_tours',

@@ -3,6 +3,7 @@ import "./mock_server/livechat_mock_server.js";
 
 import { IrWebSocket } from "@im_livechat/../tests/mock_server/mock_models/ir_websocket";
 import { mailModels, startServer } from "@mail/../tests/mail_test_helpers";
+import { registerMailMockRoutes } from "@mail/../tests/mock_server/mail_mock_server";
 import { RatingRating } from "@rating/../tests/mock_server/models/rating_rating";
 import {
     defineModels,
@@ -22,7 +23,22 @@ import { ResGroupsPrivilege } from "./mock_server/mock_models/res_groups_privile
 import { ResPartner } from "./mock_server/mock_models/res_partner.js";
 import { ResUsers } from "./mock_server/mock_models/res_users.js";
 
+/**
+ * Define the livechat models AND bind the mock routes to the calling file.
+ *
+ * `mail_mock_server.js` -- and `livechat_mock_server.js` through it -- register
+ * their routes at module level, which binds them to whichever test file's suite
+ * imported the module first; every other file loses them unless
+ * `registerMailMockRoutes()` replays them.  `defineMailModels()` does that for
+ * mail's own tests; spreading `mailModels` into `defineModels()` registers the
+ * *models* but never the *routes*, which is what this did.
+ *
+ * The result was silent, and the same one `documents` hit: `/mail/message/post`
+ * and friends went unmocked, so every flow that posts or fetches rendered
+ * nothing and the tests failed as DOM timeouts rather than as missing routes.
+ */
 export function defineLivechatModels() {
+    registerMailMockRoutes();
     return defineModels(livechatModels);
 }
 

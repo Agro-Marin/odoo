@@ -3,7 +3,7 @@
 from urllib.parse import urlsplit
 
 from markupsafe import Markup
-from werkzeug.exceptions import NotFound
+from werkzeug.exceptions import NotFound, ServiceUnavailable
 
 from odoo import _, http
 from odoo.http import content_disposition, request
@@ -41,11 +41,45 @@ class LivechatController(http.Controller):
         # If the request comes from a different origin, we must provide the CORS
         # assets to enable the redirection of routes to the CORS controller.
         bundle = "im_livechat.assets_embed_cors" if self._is_cors_request() else "im_livechat.assets_embed_external"
-        asset = request.env["ir.qweb"]._get_asset_bundle(bundle)
         if ext not in ('css', 'js'):
             raise request.not_found()
-        stream = request.env['ir.binary']._get_stream_from_record(getattr(asset, ext)())
+        if ext == 'js':
+            return self._assets_embed_js_response(bundle)
+        asset = request.env["ir.qweb"]._get_asset_bundle(bundle)
+        stream = request.env['ir.binary']._get_stream_from_record(asset.css())
         return stream.get_response()
+
+    def _assets_embed_js_response(self, bundle):
+        """Serve the embed as one self-contained ES module.
+
+        Not ``AssetsBundle.js()``: that concatenates the bundle's *legacy*
+        scripts, and every file in an ESM bundle is a native module instead, so
+        it answered with an empty body -- a third-party page embedding the
+        widget loaded nothing at all, silently.  The bundle is declared in
+        ``esm.standalone_bundles`` precisely because the receiving page has no
+        import map to resolve ``@odoo/owl`` against, and
+        ``_get_standalone_bundle`` is what builds that shape.
+        """
+        built = request.env["ir.qweb"]._get_standalone_bundle(bundle)
+        if not built:
+            # esbuild declined (lock contention, circuit breaker, ...). There is
+            # no raw-file fallback here as there is for the websocket worker:
+            # the embed is a 756-module graph whose relative imports a foreign
+            # page cannot resolve. Answer 503 so the caller retries rather than
+            # caching an empty script forever.
+            raise ServiceUnavailable
+        url, code = built
+        response = request.make_response(
+            code,
+            [
+                ("Content-Type", "text/javascript; charset=utf-8"),
+                ("Cache-Control", "no-cache"),
+            ],
+        )
+        # The URL's path segment is the content hash -- a build-stable ETag.
+        response.set_etag(url.rsplit("/", 2)[-2])
+        response.make_conditional(request.httprequest)
+        return response
 
     @http.route('/im_livechat/font-awesome', type='http', auth='none', cors="*")
     def fontawesome(self, **kwargs):
