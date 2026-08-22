@@ -227,19 +227,11 @@ class StockPutawayRule(models.Model):
                 )
             )
 
-            forecast_weight_by_location = child_locations._get_weight(
-                self.env.context.get("exclude_sml_ids", set())
-            )
-            foreign_inbound_ids = child_locations._get_foreign_inbound_location_ids(
-                child_locations, product
-            )
+            capacity = child_locations._get_putaway_capacity(product, package)
 
             for location in child_locations:
                 if location in checked_locations:
                     continue
-                forecast_weight = forecast_weight_by_location[location][
-                    "forecast_weight"
-                ]
                 if package_type:
                     if location.quant_ids.filtered(
                         lambda q: (
@@ -252,8 +244,7 @@ class StockPutawayRule(models.Model):
                             quantity,
                             package=package,
                             location_qty=qty_by_location[location.id],
-                            forecast_weight=forecast_weight,
-                            foreign_inbound_ids=foreign_inbound_ids,
+                            capacity=capacity,
                         ):
                             return location
                         else:
@@ -263,8 +254,7 @@ class StockPutawayRule(models.Model):
                         product,
                         quantity,
                         location_qty=qty_by_location[location.id],
-                        forecast_weight=forecast_weight,
-                        foreign_inbound_ids=foreign_inbound_ids,
+                        capacity=capacity,
                     ):
                         return location
                     else:
@@ -278,10 +268,7 @@ class StockPutawayRule(models.Model):
                     quantity,
                     package,
                     qty_by_location[location.id],
-                    forecast_weight=forecast_weight_by_location[location][
-                        "forecast_weight"
-                    ],
-                    foreign_inbound_ids=foreign_inbound_ids,
+                    capacity=capacity,
                 ):
                     return location
                 checked_locations.add(location)

@@ -19,8 +19,6 @@ class Routing(typing.NamedTuple):
 
 
 class OwnedRecords(typing.NamedTuple):
-    """What a warehouse takes with it when it is deleted, in unlink order."""
-
     picking_types: models.Model
     rules: models.Model
     routes: models.Model
@@ -67,8 +65,6 @@ class StockWarehouse(models.Model):
 
     Routing = Routing
 
-    # FIELDS
-    # ------
 
     name = fields.Char(
         string="Warehouse",
@@ -280,8 +276,6 @@ class StockWarehouse(models.Model):
         help="Routes will be created for these resupply warehouses and you can select them on products and product categories",
     )
 
-    # CONSTRAINTS
-    # -----------
 
     _warehouse_name_uniq = models.Constraint(
         "unique(name, company_id)",
@@ -293,8 +287,6 @@ class StockWarehouse(models.Model):
         "The short name of the warehouse must be unique per company!",
     )
 
-    # CONSTRAINT METHODS
-    # ------------------
 
     @api.constrains(
         "lot_stock_id",
@@ -304,13 +296,6 @@ class StockWarehouse(models.Model):
         "wh_pack_stock_loc_id",
     )
     def _check_sub_locations_are_inside_the_warehouse(self):
-        """Every location the warehouse owns lives under its own view location.
-
-        Nothing else enforces it: `lot_stock_id`'s domain admits any internal
-        location of the company, so the form offers another warehouse's stock,
-        and the field is not a route trigger — the operation types would keep
-        pointing at the location they replaced.
-        """
         for warehouse in self:
             view_location = warehouse.view_location_id
             if not view_location:
@@ -342,8 +327,6 @@ class StockWarehouse(models.Model):
                     )
                 )
 
-    # CRUD METHODS
-    # ------------
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -400,17 +383,13 @@ class StockWarehouse(models.Model):
 
         warehouses = super().create(vals_list)
 
-        for warehouse, vals in zip(warehouses, vals_list, strict=True):
+        for warehouse in warehouses:
             new_vals = warehouse._create_or_update_picking_types()
             warehouse.write(new_vals)
             warehouse._create_or_update_route()
             warehouse._create_or_update_global_routes_rules()
 
             warehouse._create_resupply_routes(warehouse.resupply_wh_ids)
-
-            self.env["stock.location"].browse(
-                vals.get("view_location_id")
-            )._recompute_descendants_warehouse()
 
         for partner_id, company_id in {
             (vals["partner_id"], vals["company_id"])
@@ -483,24 +462,13 @@ class StockWarehouse(models.Model):
             else warehouses.browse()
         )
 
-        view_locations = self.env["stock.location"].browse()
-        if "view_location_id" in vals:
-            view_locations = warehouses.view_location_id | self.env[
-                "stock.location"
-            ].browse(vals["view_location_id"])
-
         return {
             "toggling": toggling,
-            "view_locations": view_locations,
             "old_resupply_whs": old_resupply_whs,
         }
 
     def _post_write_refresh(self, vals, before):
         warehouses = self
-        view_locations = before["view_locations"]
-        if view_locations:
-            view_locations.exists()._recompute_descendants_warehouse()
-
         triggers = self._get_fields_route_trigger()
         rule_fields = self._get_global_rule_fields()
         location_fields = frozenset(self._sub_location_field_names())
@@ -678,8 +646,6 @@ class StockWarehouse(models.Model):
     def _default_name(self):
         return self._generate_default_name(self.env.company)
 
-    # ONCHANGE METHODS
-    # ----------------
 
     @api.onchange("company_id")
     def _onchange_company_id(self):
@@ -702,8 +668,6 @@ class StockWarehouse(models.Model):
             }
         return None
 
-    # ACTION METHODS
-    # --------------
 
     def action_view_all_routes(self):
         routes = self._get_all_routes()
@@ -729,8 +693,6 @@ class StockWarehouse(models.Model):
             fields=["id", "name", "code"],
         )
 
-    # ACTIVATION METHODS
-    # ------------------
 
     def _toggle_active(self, active, reactivate_depends):
         self.ensure_one()
@@ -793,14 +755,6 @@ class StockWarehouse(models.Model):
         return routes
 
     def _check_archivable(self, picking_types, deleting=False):
-        """Refuse to archive or delete `self` while anything still points into it.
-
-        `picking_types` are the operation types the warehouses in `self` own, so
-        that a caller which has already fetched them does not fetch them again.
-        Both searches run with `active_test=False`: an archived operation type of
-        another warehouse still holds a foreign key on our locations, and on the
-        delete path Postgres, not this guard, would be the one to say so.
-        """
         PickingType = self.env["stock.picking.type"].with_context(active_test=False)
         open_moves = self.env["stock.move"]._read_group(
             [
@@ -856,18 +810,9 @@ class StockWarehouse(models.Model):
         raise UserError(message)
 
     def _name_one_of(self, candidates):
-        """Name the warehouse of `self` a message should blame."""
         return ((candidates & self) or self)[:1].display_name
 
     def _update_multiwarehouse_group(self):
-        """Imply the multi-warehouse group while any company has more than one.
-
-        Only the implication is toggled. `res.groups` resolves an implied group
-        through `all_implied_by_ids` and never materialises it into `user_ids`,
-        so dropping the implication is enough to take the group away — while
-        stripping `user_ids` also destroyed every grant an administrator had made
-        by hand, and could not tell the two apart.
-        """
         group_user = self.env.ref("base.group_user")
         group_multi_warehouses = self.env.ref("stock.group_stock_multi_warehouses")
         group_multi_locations = self.env.ref("stock.group_stock_multi_locations")
@@ -921,8 +866,6 @@ class StockWarehouse(models.Model):
             if view:
                 view.active = not enabled
 
-    # LOCATION METHODS
-    # ----------------
 
     @ormcache()
     def _sub_location_field_names(self):
@@ -1100,14 +1043,6 @@ class StockWarehouse(models.Model):
 
     @api.model
     def _get_partner_location(self, usage):
-        """The customer or vendor location, by xmlid, then by usage.
-
-        The fallback is ordered: `limit=1` over an unordered search hands back
-        whichever row Postgres happened to return, so two calls in one request
-        could disagree about where goods leave the company for. Company-owned
-        locations come first, since a database that has lost the xmlid has more
-        than one candidate.
-        """
         location = self.env.ref(
             PARTNER_LOCATION_XML_IDS[usage], raise_if_not_found=False
         )
@@ -1142,8 +1077,6 @@ class StockWarehouse(models.Model):
             raise UserError(_("Can't find any production location."))
         return location
 
-    # OPERATION TYPE METHODS
-    # ----------------------
 
     def _create_or_update_picking_types(self):
         self.ensure_one()
@@ -1247,13 +1180,6 @@ class StockWarehouse(models.Model):
         return dict(WAREHOUSE_PICKING_TYPE_CODES)
 
     def _get_picking_type_barcode_suffixes(self, codes=None):
-        """Barcode suffix per operation type, defaulting to its sequence code.
-
-        `codes` is passed by a caller that has already read them: with
-        mrp_subcontracting installed `_get_picking_type_codes` counts sequences to
-        pick its own, so reading it twice is a query, and two readings a
-        transaction apart could disagree.
-        """
         return dict(codes if codes is not None else self._get_picking_type_codes())
 
     def _update_picking_type_barcodes(self, update_data, suffixes):
@@ -1373,8 +1299,6 @@ class StockWarehouse(models.Model):
             },
         }
 
-    # ROUTING METHODS
-    # ---------------
 
     @ormcache()
     def _route_field_names(self):
@@ -1385,19 +1309,9 @@ class StockWarehouse(models.Model):
         )
 
     def _get_fields_route_trigger(self):
-        """Warehouse fields whose change must regenerate routes and rules.
-
-        This is a *declaration*, not a derivation: a module adding a route or a
-        global rule extends it alongside the payload builder that reads those
-        fields. `test_route_trigger_fields_are_declared` fails if the two ever
-        disagree, which is what a runtime probe used to buy at the cost of
-        executing every builder — and of a three-tier fallback for the warehouses
-        on which a builder raises.
-        """
         return frozenset({"reception_steps", "delivery_steps"})
 
     def _get_global_rule_fields(self):
-        """Warehouse fields holding a rule that lives on a global route."""
         return frozenset({"mto_pull_id"})
 
     def _create_or_update_route(self):
@@ -1782,16 +1696,6 @@ class StockWarehouse(models.Model):
 
     @api.model
     def _rule_value_differs(self, rule, field_name, value):
-        """Whether an existing rule already carries the value we would write.
-
-        A rule matching the identity above is *the* rule for that leg, so the
-        rest of its values are ours to keep current. Reactivating it and leaving
-        the rest alone made a warehouse's behaviour depend on the configuration
-        it used to have: a receipt rule created while the warehouse received in
-        one step keeps `propagate_cancel=False` after a move to two steps, where
-        a warehouse created in two steps has it set, so cancelling the receipt
-        cancels the storage transfer on one and orphans it on the other.
-        """
         current = rule[field_name]
         if isinstance(current, models.BaseModel):
             return current.id != (value or False)
@@ -1852,8 +1756,6 @@ class StockWarehouse(models.Model):
             )
         return self.env._(ROUTE_NAMES[route_type])  # pylint: disable=gettext-variable
 
-    # RESUPPLY METHODS
-    # ----------------
 
     def _sync_resupply_routes(self, previous_resupply_whs):
         self.ensure_one()
@@ -2072,8 +1974,6 @@ class StockWarehouse(models.Model):
         if mto_domain:
             Rule.search(mto_domain).write({"active": not multi_step})
 
-    # NAMING METHODS
-    # --------------
 
     def _existing_warehouse_values(self, field_name, company, taken=()):
         return set(taken) | set(
@@ -2135,12 +2035,6 @@ class StockWarehouse(models.Model):
         return self._normalize_code(self.code)
 
     def _update_name_and_code(self, new_name=False, new_code=False):
-        """Rename what carries the old name or code in its own text.
-
-        Reference sequences are not touched here: they are rebuilt from the
-        warehouse after the write, by `_update_reference_sequences`, which is
-        their single authority.
-        """
         if new_code:
             self.view_location_id.write({"name": new_code})
             self._update_rule_names(new_code)
@@ -2215,17 +2109,9 @@ class StockWarehouse(models.Model):
             supplier=supplier_name,
         )
 
-    # HELPER METHODS
-    # --------------
 
     @api.model
     def _update_partner_transit_locations(self, partner_id, company_id):
-        """Route a warehouse address through the company's inter-warehouse transit.
-
-        A company with no transit location is not a reason to blank the partner's
-        own locations: `purchase.order` refuses to confirm without a vendor
-        location, so clearing them here breaks a document this module never sees.
-        """
         if not partner_id:
             return
         company = (

@@ -2,6 +2,7 @@ import calendar
 import logging
 from collections import defaultdict
 from datetime import timedelta
+from typing import NamedTuple
 
 from odoo import _, api, fields, models
 from odoo.api import MODULE_UNINSTALL_FLAG
@@ -17,6 +18,14 @@ MAX_CYCLIC_INVENTORY_DAYS = 36500
 
 STOCKED_USAGES = ("internal", "transit")
 
+TREE_FIELDS = frozenset({"active", "location_id", "usage"})
+
+
+class PutawayCapacity(NamedTuple):
+    forecast_weight: dict
+    foreign_inbound_ids: frozenset
+    package_weight: float
+
 
 class StockLocation(models.Model):
     _name = "stock.location"
@@ -27,6 +36,7 @@ class StockLocation(models.Model):
     _order = "complete_name, id"
     _rec_names_search = ["complete_name", "barcode"]
     _check_company_auto = True
+
 
     name = fields.Char(string="Location Name", required=True)
     complete_name = fields.Char(
@@ -78,7 +88,6 @@ class StockLocation(models.Model):
         comodel_name="stock.location",
         string="Internal locations among descendants",
         compute="_compute_child_internal_location_ids",
-        recursive=True,
         help="This location (if it's internal) and all its descendants filtered by type=Internal.",
     )
     parent_path = fields.Char(index=True)
@@ -146,6 +155,7 @@ class StockLocation(models.Model):
         comodel_name="stock.warehouse",
         compute="_compute_warehouse_id",
         store=True,
+        recursive=True,
     )
     storage_category_id = fields.Many2one(
         comodel_name="stock.storage.category",
@@ -175,36 +185,42 @@ class StockLocation(models.Model):
         search="_search_is_empty",
     )
 
+
     _barcode_company_unique_idx = models.UniqueIndex(
         "(barcode, COALESCE(company_id, 0)) WHERE barcode IS NOT NULL",
         "The barcode for a location must be unique per company!",
     )
+    _parent_path_id_idx = models.Index("(parent_path, id)")
+
+
     _inventory_freq_bounded = models.Constraint(
         f"check(cyclic_inventory_frequency between 0 and {MAX_CYCLIC_INVENTORY_DAYS})",
-        "The inventory frequency (days) for a location must be between 0 and 36500.",
+        "The inventory frequency (days) for a location must be between 0 and "
+        f"{MAX_CYCLIC_INVENTORY_DAYS}.",
     )
-    _parent_path_id_idx = models.Index("(parent_path, id)")
+
 
     @api.constrains("replenish_location", "location_id", "usage")
     def _check_replenish_location(self):
-        if not any(self.mapped("replenish_location")):
+        replenish_locations = self.filtered("replenish_location")
+        if not replenish_locations:
             return
-        replenish_locations = self.with_context(active_test=False).search(
-            [("replenish_location", "=", True)]
+        others = self.with_context(active_test=False).search(
+            [("replenish_location", "=", True)],
         )
-        for loc in self:
-            if not loc.replenish_location or not loc.parent_path:
+        for location in replenish_locations:
+            if not location.parent_path:
                 continue
-            for other in replenish_locations:
-                if other.id == loc.id or not other.parent_path:
+            for other in others:
+                if other == location or not other.parent_path:
                     continue
-                if loc.parent_path.startswith(
+                if location.parent_path.startswith(
                     other.parent_path
-                ) or other.parent_path.startswith(loc.parent_path):
+                ) or other.parent_path.startswith(location.parent_path):
                     raise ValidationError(
                         _(
                             "Another parent/sub replenish location %s exists, if you wish to change it, uncheck it first",
-                            other.name,
+                            other.display_name,
                         ),
                     )
 
@@ -226,16 +242,68 @@ class StockLocation(models.Model):
                 ),
             )
 
+    def _check_company_not_changed(self, company_id):
+        if any(location.company_id.id != company_id for location in self):
+            raise UserError(
+                _(
+                    "Changing the company of this record is forbidden at this point, you should rather archive it and create a new one."
+                ),
+            )
+
+    @api.model
+    def _check_cyclic_inventory_frequency(self, frequency):
+        if frequency is None or 0 <= frequency <= MAX_CYCLIC_INVENTORY_DAYS:
+            return
+        raise ValidationError(
+            _(
+                "The inventory frequency must be between 0 and %(maximum)s days.",
+                maximum=MAX_CYCLIC_INVENTORY_DAYS,
+            ),
+        )
+
+    def _check_usage_convertible(self, usage):
+        modified_locations = self.filtered(lambda location: location.usage != usage)
+        if not modified_locations:
+            return
+        Quant = self.env["stock.quant"]
+        if usage == "view":
+            blocking = Quant.search(
+                [("location_id", "in", modified_locations.ids)],
+                limit=1,
+            ).location_id
+            if blocking:
+                raise UserError(
+                    _(
+                        "A view location groups its children and cannot hold "
+                        "products; %s still does.",
+                        blocking.display_name,
+                    ),
+                )
+        blocking = Quant.search(
+            [
+                ("location_id", "in", modified_locations.ids),
+                ("quantity", ">", 0),
+            ],
+            limit=1,
+        ).location_id
+        if blocking:
+            raise UserError(
+                _(
+                    "%s still holds stock, so its type cannot be changed.",
+                    blocking.display_name,
+                ),
+            )
+
+
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
             self._check_cyclic_inventory_frequency(
                 vals.get("cyclic_inventory_frequency")
             )
-        res = super().create(vals_list)
-        if any("child_ids" in vals for vals in vals_list):
-            res._recompute_descendants_warehouse()
-        return res
+        locations = super().create(vals_list)
+        locations._invalidate_location_tree()
+        return locations
 
     def write(self, vals):
         if "cyclic_inventory_frequency" in vals:
@@ -248,8 +316,8 @@ class StockLocation(models.Model):
             self._propagate_active(vals["active"])
 
         res = super().write(vals)
-        if "location_id" in vals:
-            self._recompute_descendants_warehouse()
+        if not TREE_FIELDS.isdisjoint(vals):
+            self._invalidate_location_tree()
         return res
 
     def copy_data(self, default=None):
@@ -270,16 +338,27 @@ class StockLocation(models.Model):
             and not self.env.context.get("stock_unlink_subtree")
             and not self.env.context.get(MODULE_UNINSTALL_FLAG)
         ):
+            blocking = self.browse(
+                location.id
+                for location in self
+                if any(child._child_of(location) for child in descendants)
+            )
             raise UserError(
                 _(
                     "You cannot delete location %(location)s: it still contains "
                     "%(count)s sub-location(s) (archived ones included). Delete or "
                     "move them first.",
-                    location=self[:1].display_name,
-                    count=len(descendants),
+                    location=blocking[:1].display_name,
+                    count=len(
+                        descendants.filtered(
+                            lambda child, parent=blocking[:1]: child._child_of(parent)
+                        )
+                    ),
                 ),
             )
-        return super(StockLocation, subtree).unlink()
+        res = super(StockLocation, subtree).unlink()
+        self._invalidate_location_tree()
+        return res
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_master_data(self):
@@ -296,7 +375,7 @@ class StockLocation(models.Model):
     def name_create(self, name):
         if name:
             name_split = name.split("/")
-            parent_location = self.env["stock.location"].search(
+            parent_location = self.search(
                 [
                     ("complete_name", "=", "/".join(name_split[:-1])),
                     ("company_id", "in", [False, self.env.company.id]),
@@ -311,6 +390,7 @@ class StockLocation(models.Model):
             )
             return new_location.id, new_location.display_name
         return super().name_create(name)
+
 
     @api.depends("complete_name", "name", "location_id.complete_name", "usage")
     @api.depends_context("formatted_display_name")
@@ -376,38 +456,27 @@ class StockLocation(models.Model):
             else:
                 location.next_inventory_date = location.last_inventory_date + frequency
 
-    @api.depends("warehouse_view_ids", "location_id")
+    @api.depends(
+        "warehouse_view_ids", "warehouse_view_ids.active", "location_id.warehouse_id"
+    )
     def _compute_warehouse_id(self):
-        warehouses = self.env["stock.warehouse"].search(
-            [("view_location_id", "parent_of", self.ids)]
-        )
-        warehouses = warehouses.sorted(
-            lambda w: w.view_location_id.parent_path, reverse=True
-        )
-        warehouse_id_by_view_location = {
-            wh.view_location_id.id: wh.id for wh in warehouses
-        }
-        for loc in self:
-            warehouse_id = False
-            if loc.parent_path:
-                ancestor_ids = {
-                    int(loc_id) for loc_id in loc.parent_path.split("/")[:-1]
-                }
-                warehouse_id = next(
-                    (
-                        wh_id
-                        for view_id, wh_id in warehouse_id_by_view_location.items()
-                        if view_id in ancestor_ids
-                    ),
-                    False,
-                )
-            loc.warehouse_id = warehouse_id
+        for location in self:
+            location.warehouse_id = (
+                location.warehouse_view_ids[:1] or location.location_id.warehouse_id
+            )
 
-    @api.depends("child_ids.usage", "child_ids.child_internal_location_ids")
     def _compute_child_internal_location_ids(self):
-        for loc in self:
-            loc.child_internal_location_ids = self.search(
-                [("id", "child_of", loc.id), ("usage", "=", "internal")]
+        internal_locations = self.search_fetch(
+            [("id", "child_of", self.ids), ("usage", "=", "internal")],
+            ["parent_path"],
+        )
+        descendant_ids = defaultdict(list)
+        for location in internal_locations:
+            for ancestor_id in map(int, location.parent_path.split("/")[:-1]):
+                descendant_ids[ancestor_id].append(location.id)
+        for location in self:
+            location.child_internal_location_ids = self.browse(
+                descendant_ids.get(location.id, ()),
             )
 
     @api.depends("usage")
@@ -416,30 +485,17 @@ class StockLocation(models.Model):
             if loc.usage != "internal":
                 loc.replenish_location = False
 
+
     def _search_is_empty(self, operator, value):
-        if operator != "in":
+        if operator != "in" or set(value) != {True}:
             return NotImplemented
         return [("id", "not in", list(self._get_occupied_location_ids()))]
+
 
     @api.model
     def _get_occupancy_domain(self):
         return Domain("quantity", "!=", 0) | Domain("reserved_quantity", "!=", 0)
 
-    @api.model
-    def _get_allocation_source_ids(self, view_location_ids):
-        """The locations under `view_location_ids` reception allocation may draw from.
-
-        Supplier locations are excluded: stock that has not arrived yet is not
-        stock this warehouse can promise to anything.
-        """
-        return self.search(
-            [
-                ("id", "child_of", view_location_ids),
-                ("usage", "!=", "supplier"),
-            ],
-        ).ids
-
-    @api.model
     def _get_occupied_location_ids(self, locations=None):
         domain = self._get_occupancy_domain() & Domain(
             "location_id.usage", "in", STOCKED_USAGES
@@ -453,6 +509,16 @@ class StockLocation(models.Model):
             )
         }
 
+    @api.model
+    def _get_allocation_source_ids(self, view_location_ids):
+        return self.search(
+            [
+                ("id", "child_of", view_location_ids),
+                ("usage", "!=", "supplier"),
+            ],
+        ).ids
+
+
     def _child_of(self, other_location):
         self.ensure_one()
         if not self.parent_path or not other_location.parent_path:
@@ -462,6 +528,20 @@ class StockLocation(models.Model):
     def _prefixed_by_parent(self):
         self.ensure_one()
         return bool(self.location_id) and self.usage != "view"
+
+    def _is_outgoing(self):
+        self.ensure_one()
+        if self.usage == "customer":
+            return True
+        inter_company_location = (
+            self.env.ref("stock.stock_location_inter_company", raise_if_not_found=False)
+            or self.browse()
+        )
+        return self._child_of(inter_company_location)
+
+    def should_bypass_reservation(self):
+        self.ensure_one()
+        return self.usage in ("supplier", "customer", "inventory", "production")
 
     def _propagate_active(self, active):
         self = self.filtered(lambda location: location.active != bool(active))
@@ -511,18 +591,19 @@ class StockLocation(models.Model):
                         ", ".join(blocking_quants.mapped("location_id.display_name")),
                     ),
                 )
-        super(StockLocation, descendant_locations - self).with_context(
-            do_not_check_quant=True
-        ).write(
+        (descendant_locations - self).with_context(do_not_check_quant=True).write(
             {
                 "active": active,
             },
         )
 
-    def _recompute_descendants_warehouse(self):
-        self.with_context(active_test=False).search(
-            [("id", "child_of", self.ids)]
-        )._compute_warehouse_id()
+    @api.model
+    def _invalidate_location_tree(self):
+        self.invalidate_model(["child_internal_location_ids"])
+
+
+    def _filter_putaway_access(self):
+        return self
 
     def _get_putaway_strategy(
         self, product, quantity=0, package=None, packaging=None, additional_qty=None
@@ -542,11 +623,9 @@ class StockLocation(models.Model):
             if len(products.categ_id) == 1
             else self.env["product.category"]
         )
-        category_ancestors = leaf_category
-        category = leaf_category
-        while category.parent_id:
-            category = category.parent_id
-            category_ancestors |= category
+        category_ancestors = leaf_category.browse(
+            map(int, (leaf_category.parent_path or "").split("/")[:-1])
+        )
 
         putaway_rules = self.putaway_rule_ids.filtered(
             lambda rule: (
@@ -590,14 +669,6 @@ class StockLocation(models.Model):
     def _get_putaway_strategy_batch(
         self, product, quantities, package=None, packaging=None, additional_qty=None
     ):
-        """Place a run of quantities, each one consuming the capacity it takes.
-
-        `_get_putaway_strategy` answers for a single quantity against a single
-        snapshot of occupancy.  Callers placing several lines at once must feed
-        each answer back in through `additional_qty`, or every line is placed as
-        if it were the first and a capped location is filled past its capacity.
-        Doing that by hand was duplicated, and one of the two copies did not.
-        """
         self.ensure_one()
         qty_by_location = defaultdict(float, additional_qty or {})
         locations = []
@@ -696,33 +767,49 @@ class StockLocation(models.Model):
             qty_by_location[location_dest.id] += current_qty
         return qty_by_location
 
-    def _get_next_inventory_date(self):
-        self.ensure_one()
-        if self.usage not in ("internal", "transit"):
-            return False
-        cyclic_date = self.next_inventory_date
-        annual_date = self._get_company_annual_inventory_date()
-        if cyclic_date and annual_date:
-            return min(cyclic_date, annual_date)
-        return cyclic_date or annual_date
 
-    def _get_company_annual_inventory_date(self):
-        self.ensure_one()
-        if not self.company_id.annual_inventory_month:
-            return False
-        today = fields.Date.today()
-        month = int(self.company_id.annual_inventory_month)
-        day = max(self.company_id.annual_inventory_day, 1)
-        day = min(day, calendar.monthrange(today.year, month)[1])
-        annual_date = today.replace(month=month, day=day)
-        if annual_date <= today:
-            day = min(day, calendar.monthrange(today.year + 1, month)[1])
-            annual_date = annual_date.replace(day=day, year=today.year + 1)
-        return annual_date
+    def _get_effective_product(self, product):
+        return (
+            product or self.env.context.get("products") or self.env["product.product"]
+        )
 
-    def _get_weight(self, exclude_sml_ids=False):
-        if not exclude_sml_ids:
-            exclude_sml_ids = set()
+    def _get_putaway_capacity(self, product, package=None):
+        if not self:
+            return PutawayCapacity({}, frozenset(), 0.0)
+        weight_by_location = self._get_weight(
+            self.env.context.get("exclude_sml_ids", set()),
+        )
+        return PutawayCapacity(
+            forecast_weight={
+                location.id: weights["forecast_weight"]
+                for location, weights in weight_by_location.items()
+            },
+            foreign_inbound_ids=frozenset(
+                self._get_foreign_inbound_location_ids(
+                    self, self._get_effective_product(product)
+                ),
+            ),
+            package_weight=self._get_package_weight(package),
+        )
+
+    @api.model
+    def _get_package_weight(self, package):
+        if not package:
+            return 0.0
+        package_smls = self.env["stock.move.line"].search(
+            [
+                ("result_package_id", "=", package.id),
+                ("state", "not in", ["done", "cancel"]),
+            ],
+        )
+        return sum(
+            package_smls.mapped(
+                lambda sml: sml.quantity_product_uom * sml.product_id.weight,
+            ),
+        )
+
+    def _get_weight(self, exclude_sml_ids=None):
+        exclude_sml_ids = exclude_sml_ids or set()
         Product = self.env["product.product"]
         StockMoveLine = self.env["stock.move.line"]
 
@@ -775,29 +862,28 @@ class StockLocation(models.Model):
 
         return weight_by_location
 
-    def _filter_putaway_access(self):
-        return self
-
     def _can_be_used(
         self,
         product,
         quantity=0,
         package=None,
         location_qty=0,
-        forecast_weight=None,
-        foreign_inbound_ids=None,
+        capacity=None,
     ):
         self.ensure_one()
         if not self.storage_category_id:
             return True
-        if not self._can_store_new_product(product, package, foreign_inbound_ids):
+        if capacity is None:
+            capacity = self._get_putaway_capacity(product, package)
+        if not self._can_store_new_product(
+            product, package, capacity.foreign_inbound_ids
+        ):
             return False
-        if forecast_weight is None:
-            forecast_weight = self._get_weight(
-                self.env.context.get("exclude_sml_ids", set()),
-            )[self]["forecast_weight"]
+        forecast_weight = capacity.forecast_weight.get(self.id, 0.0)
         if package and package.package_type_id:
-            return self._can_store_package(package, location_qty, forecast_weight)
+            return self._can_store_package(
+                package, location_qty, forecast_weight, capacity.package_weight
+            )
         return self._can_store_product(product, quantity, location_qty, forecast_weight)
 
     def _can_store_new_product(self, product, package, foreign_inbound_ids=None):
@@ -810,9 +896,7 @@ class StockLocation(models.Model):
         )
         if policy == "empty":
             return not positive_quant
-        product = (
-            product or self.env.context.get("products") or self.env["product.product"]
-        )
+        product = self._get_effective_product(product)
         if (positive_quant and positive_quant.product_id != product) or len(
             product
         ) > 1:
@@ -822,12 +906,12 @@ class StockLocation(models.Model):
         return self.id not in foreign_inbound_ids
 
     @api.model
-    def _get_foreign_inbound_location_ids(self, locations, product):
+    def _get_foreign_inbound_location_ids(self, locations, products):
         return {
             location.id
             for (location,) in self.env["stock.move.line"]._read_group(
                 [
-                    ("product_id", "!=", product.id),
+                    ("product_id", "not in", products.ids),
                     ("state", "not in", ("done", "cancel")),
                     ("location_dest_id", "in", locations.ids),
                 ],
@@ -850,20 +934,13 @@ class StockLocation(models.Model):
             <= 0
         )
 
-    def _can_store_package(self, package, location_qty, forecast_weight):
+    def _can_store_package(
+        self, package, location_qty, forecast_weight, package_weight=None
+    ):
         self.ensure_one()
         storage_category = self.storage_category_id
-        package_smls = self.env["stock.move.line"].search(
-            [
-                ("result_package_id", "=", package.id),
-                ("state", "not in", ["done", "cancel"]),
-            ],
-        )
-        package_weight = sum(
-            package_smls.mapped(
-                lambda sml: sml.quantity_product_uom * sml.product_id.weight,
-            ),
-        )
+        if package_weight is None:
+            package_weight = self._get_package_weight(package)
         if not self._has_weight_capacity(package_weight, forecast_weight):
             return False
         package_capacity = storage_category.package_capacity_ids.filtered(
@@ -898,64 +975,33 @@ class StockLocation(models.Model):
             <= 0
         )
 
-    def _check_company_not_changed(self, company_id):
-        if any(location.company_id.id != company_id for location in self):
-            raise UserError(
-                _(
-                    "Changing the company of this record is forbidden at this point, you should rather archive it and create a new one."
-                ),
-            )
 
-    @api.model
-    def _check_cyclic_inventory_frequency(self, frequency):
-        if frequency is None or 0 <= frequency <= MAX_CYCLIC_INVENTORY_DAYS:
-            return
-        raise ValidationError(
-            _(
-                "The inventory frequency must be between 0 and %(maximum)s days.",
-                maximum=MAX_CYCLIC_INVENTORY_DAYS,
-            ),
-        )
-
-    def _check_usage_convertible(self, usage):
-        modified_locations = self.filtered(lambda l: l.usage != usage)
-        if usage == "view" and self.env["stock.quant"].search_count(
-            [("location_id", "in", modified_locations.ids)],
-            limit=1,
-        ):
-            raise UserError(
-                _(
-                    "This location's usage cannot be changed to view as it contains products."
-                ),
-            )
-        if self.env["stock.quant"].search_count(
-            [
-                ("location_id", "in", modified_locations.ids),
-                ("quantity", ">", 0),
-            ],
-            limit=1,
-        ):
-            raise UserError(_("Internal locations having stock can't be converted"))
-
-    def _is_outgoing(self):
+    def _get_next_inventory_date(self):
         self.ensure_one()
-        if self.usage == "customer":
-            return True
-        inter_comp_location = self.env.ref(
-            "stock.stock_location_inter_company", raise_if_not_found=False
-        )
-        return self._child_of(inter_comp_location)
+        if self.usage not in STOCKED_USAGES:
+            return False
+        cyclic_date = self.next_inventory_date
+        annual_date = self._get_company_annual_inventory_date()
+        if cyclic_date and annual_date:
+            return min(cyclic_date, annual_date)
+        return cyclic_date or annual_date
 
-    def should_bypass_reservation(self):
+    def _get_company_annual_inventory_date(self):
         self.ensure_one()
-        return self.usage in ("supplier", "customer", "inventory", "production")
+        if not self.company_id.annual_inventory_month:
+            return False
+        today = fields.Date.today()
+        month = int(self.company_id.annual_inventory_month)
+        day = max(self.company_id.annual_inventory_day, 1)
+        day = min(day, calendar.monthrange(today.year, month)[1])
+        annual_date = today.replace(month=month, day=day)
+        if annual_date <= today:
+            day = min(day, calendar.monthrange(today.year + 1, month)[1])
+            annual_date = annual_date.replace(day=day, year=today.year + 1)
+        return annual_date
+
 
     def _quantity_domains_from_context(self) -> tuple[Domain, Domain, Domain]:
-        """The quant / incoming / outgoing domains the context's scope implies.
-
-        Falls back to every warehouse of `env.companies` when the context names no
-        scope of its own.
-        """
         location_ids = self._scope_ids_from_context()
         fell_back = location_ids is None
         if fell_back:
@@ -966,10 +1012,6 @@ class StockLocation(models.Model):
                 .ids
             )
         if _logger.isEnabledFor(logging.DEBUG):
-            # "Why is qty_available zero here?" is nearly always this line: a
-            # context key that resolved to nothing, or a fallback that reached
-            # warehouses the reader did not expect. Nothing downstream reports
-            # which of the six keys shaped the answer.
             context = self.env.context
             _logger.debug(
                 "quantity scope: locations=%s%s from %s, companies=%s",
@@ -993,65 +1035,59 @@ class StockLocation(models.Model):
         return self._quantity_domains(location_ids)
 
     def _scope_ids_from_context(self) -> set[int] | None:
-        """Location ids the context scopes quantities to, or None for unscoped."""
-        Location = self.env["stock.location"]
-        Warehouse = self.env["stock.warehouse"]
-
-        def _search_ids(model, values):
-            return resolve_context_record_ids(self.env, model, values)
-
-        location = self.env.context.get("location") or self.env.context.get(
-            "search_location"
-        )
+        context = self.env.context
+        location = context.get("location") or context.get("search_location")
         if location and not isinstance(location, list):
             location = [location]
-        warehouse = self.env.context.get("warehouse_id") or self.env.context.get(
-            "search_warehouse"
-        )
+        warehouse = context.get("warehouse_id") or context.get("search_warehouse")
         if warehouse and not isinstance(warehouse, list):
             warehouse = [warehouse]
-        if warehouse:
-            w_ids = set(
-                Warehouse.browse(_search_ids("stock.warehouse", warehouse))
-                .mapped("view_location_id")
-                .ids
-            )
+
+        if not warehouse:
             if not location:
-                return w_ids
-            l_ids = _search_ids("stock.location", location)
-            parents = Location.browse(w_ids).mapped("parent_path")
-            return {
-                loc.id
-                for loc in Location.browse(l_ids)
-                if any(loc.parent_path.startswith(parent) for parent in parents)
-            }
-        if location:
-            return _search_ids("stock.location", location)
-        return None
+                return None
+            return resolve_context_record_ids(self.env, "stock.location", location)
+
+        view_location_ids = set(
+            self.env["stock.warehouse"]
+            .browse(
+                resolve_context_record_ids(self.env, "stock.warehouse", warehouse),
+            )
+            .mapped("view_location_id")
+            .ids
+        )
+        if not location:
+            return view_location_ids
+        parent_paths = [
+            path
+            for path in self.browse(view_location_ids).mapped("parent_path")
+            if path
+        ]
+        return {
+            candidate.id
+            for candidate in self.browse(
+                resolve_context_record_ids(self.env, "stock.location", location),
+            )
+            if candidate.parent_path
+            and any(candidate.parent_path.startswith(path) for path in parent_paths)
+        }
 
     def _quantity_domains(self, location_ids) -> tuple[Domain, Domain, Domain]:
-        """(quant, incoming move, outgoing move) domains for a set of locations.
-
-        Lived on `product.product` while reading no product field -- nine call
-        sites reached it as `env["product.product"]._get_domain_locations()`,
-        using the product model as a namespace for location logic. The `_new`
-        suffix went with the move; it named nothing.
-        """
         if not location_ids:
             return (Domain.FALSE,) * 3
-        locations = self.env["stock.location"].browse(location_ids)
+        location_ids = list(location_ids)
         if self.env.context.get("strict"):
-            loc_domain = Domain("location_id", "in", locations.ids)
-            dest_loc_domain = Domain("location_dest_id", "in", locations.ids)
-            dest_loc_domain_out = Domain("location_dest_id", "not in", locations.ids)
+            loc_domain = Domain("location_id", "in", location_ids)
+            dest_loc_domain = Domain("location_dest_id", "in", location_ids)
+            dest_loc_domain_out = Domain("location_dest_id", "not in", location_ids)
             return (
                 loc_domain,
                 dest_loc_domain & ~loc_domain,
                 loc_domain & dest_loc_domain_out,
             )
 
-        loc_domain = Domain("location_id", "child_of", locations.ids)
-        dest_loc_domain_done = Domain("location_dest_id", "child_of", locations.ids)
+        loc_domain = Domain("location_id", "child_of", location_ids)
+        dest_loc_domain_done = Domain("location_dest_id", "child_of", location_ids)
         if self.env.context.get("skip_in_progress"):
             return (
                 loc_domain,
@@ -1063,10 +1099,10 @@ class StockLocation(models.Model):
                 "|",
                 "&",
                 ("location_final_id", "!=", False),
-                ("location_final_id", "child_of", locations.ids),
+                ("location_final_id", "child_of", location_ids),
                 "&",
                 ("location_final_id", "=", False),
-                ("location_dest_id", "child_of", locations.ids),
+                ("location_dest_id", "child_of", location_ids),
             ],
         )
         dest_loc_domain = Domain(
