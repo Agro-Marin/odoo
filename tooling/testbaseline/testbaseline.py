@@ -163,7 +163,7 @@ class Baseline:
             return None
         data = json.loads(path.read_text(encoding="utf-8"))
         return cls(
-            suite=str(data.get("suite", suite)),
+            suite=canonical_suite(str(data.get("suite", suite))),
             expected=dict(data.get("expected", {})),
             run_spec=str(data.get("run_spec", "")),
             verified_at=str(data.get("verified_at", "")),
@@ -178,12 +178,16 @@ class Baseline:
             "expected": dict(sorted(self.expected.items())),
             "note": self.note,
             "run_spec": self.run_spec,
-            "suite": self.suite,
+            "suite": canonical_suite(self.suite),
             "tests_total": self.tests_total,
             "verified_at": self.verified_at,
         }
         path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         return path
+
+
+def canonical_suite(suite: str) -> str:
+    return f"/{suite.strip('/')}"
 
 
 def baseline_path(suite: str) -> Path:

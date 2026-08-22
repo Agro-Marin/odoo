@@ -344,6 +344,29 @@ class MainTests(unittest.TestCase):
                 self.assertIn("/base", out)
                 self.assertIn("3284", out)
 
+    def test_a_baseline_recorded_without_the_slash_still_lists_as_one(self):
+        with TemporaryDirectory() as tmp:
+            with mock.patch.object(testbaseline, "BASELINES_DIR", Path(tmp)):
+                (Path(tmp) / "bare.json").write_text(
+                    json.dumps({"suite": "bare", "expected": {}, "tests_total": 7})
+                )
+                self.assertEqual(Baseline.load("bare").suite, "/bare")
+                code, out, _ = self.run_main(["--list"])
+                self.assertEqual(code, EXIT_OK)
+                self.assertIn("/bare", out)
+
+    def test_saving_stores_the_canonical_spelling(self):
+        with TemporaryDirectory() as tmp:
+            with mock.patch.object(testbaseline, "BASELINES_DIR", Path(tmp)):
+                path = Baseline(suite="bare", expected={}, tests_total=7).save()
+                self.assertEqual(json.loads(path.read_text())["suite"], "/bare")
+
+    def test_both_spellings_name_the_same_baseline(self):
+        self.assertEqual(
+            testbaseline.canonical_suite("mail"),
+            testbaseline.canonical_suite("/mail"),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

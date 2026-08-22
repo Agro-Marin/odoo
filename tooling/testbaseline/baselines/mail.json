@@ -1,0 +1,8 @@
+{
+  "expected": {},
+  "note": "GREEN baseline: mail carries no standing breakage. Measured 2026-08-22 on a fresh DB, ~9 min, at four separate commits across one day (17179890aea, 329145a4b82, 4713b7cdaa4, d6937f8bc13) -- same 573, same empty set every time, including across the two commits that stripped comments from mail's model layer and from html_editor, which is in mail's bundle closure. The empty set is the point: mail is the largest suite anyone runs casually (573 Python tests, of which 9 drive 1569 HOOT test executions through headless Chrome via test_js.py's MailSuite/MobileMailSuite), so 'was this already red?' used to cost a second nine-minute control run. It now costs a diff, and any name that appears is new and attributable. Verified to FAIL correctly: a synthetic log with one injected FAIL record reports '1 new' and exits 1, so this is not a baseline that can only say GREEN. CAPTURE THE COMMIT BEFORE THE RUN, not after -- this workspace landed four commits during the day and an after-the-fact rev-parse once stamped this baseline with a commit its own run predated. NOTE the suite spans both languages: a JS regression surfaces as a failing MailSuite.test_* method, not as a separate JS baseline; for per-test JS detail run tooling/hoot/hoot '@mail/<suite>'. The 1569 is executions, not distinct tests -- desktop 1480 + mobile 89, and the presets overlap.",
+  "run_spec": "-i mail --test-enable --test-tags '/mail'",
+  "suite": "/mail",
+  "tests_total": 573,
+  "verified_at": "d6937f8bc13"
+}
